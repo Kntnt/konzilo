@@ -21,3 +21,5 @@ Precedence over any conflicting skill, README, or other doc unless the user over
 
 - `docs/agents/status.md` — read first when starting or resuming work
 - `docs/agents/autonomy.md` — read when an action may cost money, reach outside this repository, commit, push or publish, or when asking Thomas anything
+- `docs/adr/README.md` — read before reversing or questioning a decision, or when recording a new one
+- `GLOSSARY.md` — read when naming anything in code, docs or tickets, or when a word may carry a Konzilo meaning
