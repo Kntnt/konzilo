@@ -2,7 +2,7 @@
 // content folder, and what comes back to the pane.
 
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, beforeEach, describe, test } from 'node:test';
@@ -11,6 +11,7 @@ import { parse } from 'yaml';
 
 import { draftFile, keyOfPath, pathProblem, unsavedImage } from '../src/preview/draft.js';
 import { previewRunner } from '../src/preview/runner.js';
+import { gitSource } from '../src/preview/source.js';
 import { siteDescription } from '../src/site-description.js';
 import { namedImages, sourcePost } from './lib/intake.js';
 
@@ -239,5 +240,83 @@ describe('an unsaved image, through the real seam', () => {
     const shown = await preview.take({ path: 'pages/one.md', fields: fields('/media/new.svg'), images: [{ name: 'new.svg', data: Buffer.from(SVG).toString('base64') }] });
     assert.ok(shown.refusals.length > 0, JSON.stringify(shown));
     assert.ok(shown.refusals.some(({ reason }) => /script/i.test(reason)), JSON.stringify(shown));
+  });
+});
+
+describe('the source, as Git gives it', () => {
+  const made = ({ fails = () => false, moment = { now: 0 } } = {}) => {
+    const calls = [];
+    const folder = makeFolder();
+    const source = gitSource({
+      remote: 'http://forgejo:3000/a/source.git',
+      user: 'preview-reader',
+      token: 'a-token',
+      folder,
+      home: join(folder, '.home'),
+      now: () => moment.now,
+      warn: () => {},
+      command: async (command, args, options) => {
+        calls.push({ command, args, options });
+        if (args[0] === 'init') mkdirSync(join(folder, '.git'));
+        if (fails(args)) throw new Error(`${args[0]} failed`);
+        return { stdout: 'a-commit\n' };
+      },
+    });
+    return { source, calls, folder };
+  };
+
+  test('never writes its credential where Git keeps settings, or names it on a command line', async () => {
+    const { source, calls } = made();
+    await source.refresh();
+    for (const { args, options } of calls) {
+      assert.doesNotMatch(args.join(' '), /a-token/);
+      assert.equal(options.env.GIT_CONFIG_KEY_0, 'http.extraHeader');
+      assert.equal(options.env.GIT_CONFIG_VALUE_0, `Authorization: Basic ${Buffer.from('preview-reader:a-token').toString('base64')}`);
+      assert.equal(options.env.GIT_TERMINAL_PROMPT, '0');
+    }
+    assert.ok(calls.some(({ args }) => args.join(' ') === 'remote add origin http://forgejo:3000/a/source.git'));
+    assert.equal(source.head(), 'a-commit');
+  });
+
+  test('asks seldom, while a draft\'s runs come often', async () => {
+    const moment = { now: 0 };
+    const { source, calls } = made({ moment });
+    await source.refresh();
+    const fetches = () => calls.filter(({ args }) => args[0] === 'fetch').length;
+    moment.now = 5000;
+    await source.refresh();
+    assert.equal(fetches(), 1);
+    moment.now = 11_000;
+    await source.refresh();
+    assert.equal(fetches(), 2);
+  });
+
+  test('goes on with what it has when Forgejo does not answer, and asks again', async () => {
+    let down = false;
+    const { source, calls } = made({ fails: (args) => down && args[0] === 'fetch' });
+    await source.refresh();
+    down = true;
+    await source.refresh();
+    await source.refresh();
+    assert.equal(source.head(), 'a-commit');
+    assert.ok(calls.filter(({ args }) => args[0] === 'fetch').length >= 1);
+  });
+
+  test('says so when it has nothing to go on with', async () => {
+    const { source } = made({ fails: (args) => args[0] === 'fetch' });
+    await assert.rejects(source.refresh(), /fetch failed/);
+  });
+
+  test('reads the checkout, with originals apart, and nothing of Git\'s', async () => {
+    const { source, folder } = made();
+    mkdirSync(join(folder, 'pages'));
+    mkdirSync(join(folder, 'media'));
+    writeFileSync(join(folder, 'pages/a.md'), 'a page');
+    writeFileSync(join(folder, 'settings.json'), '{}');
+    writeFileSync(join(folder, 'media/a.png'), 'bytes');
+    writeFileSync(join(folder, '.gitattributes'), 'x');
+    assert.deepEqual(source.files().map(({ path }) => path).sort(), ['pages/a.md', 'settings.json']);
+    assert.deepEqual(source.originals().map(({ path }) => path), ['media/a.png']);
+    assert.equal(source.originals()[0].contents().toString(), 'bytes');
   });
 });

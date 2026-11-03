@@ -280,7 +280,9 @@ describe('the preview\'s gate', () => {
     assert.equal(await upgrade({}), 403);
     assert.equal(asked.length, 0);
     await signedIn();
-    assert.equal(await upgrade({ cookie }), 101);
+    assert.equal(await upgrade({ cookie }), 403, 'from no page');
+    assert.equal(await upgrade({ cookie, origin: 'http://elsewhere.example' }), 403, 'from another site');
+    assert.equal(await upgrade({ cookie, origin: 'http://localhost:7004' }), 101);
     const { url, headers } = asked.at(-1);
     assert.equal(url, '/socket?token=abc');
     assert.equal(headers.cookie, undefined);

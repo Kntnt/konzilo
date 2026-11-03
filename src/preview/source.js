@@ -16,8 +16,9 @@ const run = promisify(execFile);
 const FRESH = 10_000;
 
 // `remote`: the repository's address. `user` and `token`: a reader's. `folder`: where
-// the checkout lies. `home`: Git's home.
-export function gitSource({ remote, user, token, folder, home, now = Date.now }) {
+// the checkout lies. `home`: Git's home. A Forgejo that does not answer costs a preview that
+// has a checkout nothing: it shows what it has, and asks again next time.
+export function gitSource({ remote, user, token, folder, home, now = Date.now, command = run, warn = console.error }) {
   const environment = {
     PATH: process.env.PATH,
     HOME: home,
@@ -26,7 +27,7 @@ export function gitSource({ remote, user, token, folder, home, now = Date.now })
     GIT_CONFIG_KEY_0: 'http.extraHeader',
     GIT_CONFIG_VALUE_0: `Authorization: Basic ${Buffer.from(`${user}:${token}`).toString('base64')}`,
   };
-  const git = (...args) => run('git', args, { cwd: folder, env: environment, maxBuffer: 1024 * 1024 * 64 });
+  const git = (...args) => command('git', args, { cwd: folder, env: environment, maxBuffer: 1024 * 1024 * 64 });
   let asked = -Infinity;
   let head = null;
 
@@ -40,10 +41,15 @@ export function gitSource({ remote, user, token, folder, home, now = Date.now })
         await git('remote', 'add', 'origin', remote);
         await git('lfs', 'install', '--local', '--skip-repo');
       }
-      await git('fetch', '--quiet', '--depth=1', 'origin', 'main');
-      await git('reset', '--quiet', '--hard', 'FETCH_HEAD');
-      head = (await git('rev-parse', 'HEAD')).stdout.trim();
-      asked = now();
+      try {
+        await git('fetch', '--quiet', '--depth=1', 'origin', 'main');
+        await git('reset', '--quiet', '--hard', 'FETCH_HEAD');
+        head = (await git('rev-parse', 'HEAD')).stdout.trim();
+        asked = now();
+      } catch (error) {
+        if (head === null) throw error;
+        warn(`The preview could not bring its source up to date: ${error.message}`);
+      }
     },
     head: () => head,
     files: () => walk(folder).map((path) => relative(folder, path)).filter((path) => !path.startsWith('media/')).map((path) => ({ path, contents: readFileSync(join(folder, path), 'utf8') })),

@@ -156,7 +156,8 @@ export function previewGate({ origin, adminOrigin, forgejo, repository, runner, 
 
     // A dev server's reloads come through a WebSocket, behind the same session.
     upgrade(incoming, socket, head) {
-      if (!hasSession(incoming)) {
+      // A cookie goes along with a socket from anywhere, so it must be this host's own page.
+      if (!hasSession(incoming) || incoming.headers.origin !== origin) {
         socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n');
         return;
       }
