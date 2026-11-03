@@ -82,7 +82,7 @@ function keepLaterElements(children, source, policy) {
       end = closing === null ? source.length : start + closing.index + closing[0].length;
       while (index + 1 < children.length && offsets(children[index + 1])[0] < end) index += 1;
     }
-    out.push({ type: 'konziloSource', kind, value: source.slice(start, end) });
+    out.push({ type: 'konziloKept', kind, value: source.slice(start, end) });
   }
   return out;
 }

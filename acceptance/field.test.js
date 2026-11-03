@@ -245,7 +245,7 @@ describe('the body field, alone', () => {
     test('a type that does not take an element keeps it as source, and offers no way to make one', async () => {
       const body = 'One\n\n## A heading\n\n> A quote\n\n| A |\n| --- |\n| 1 |';
       assert.equal(await call('open', body, { elements: ['paragraph'] }), 'editor');
-      assert.equal(await page.locator('.konzilo-source').count(), 3);
+      assert.equal(await page.locator('.konzilo-kept').count(), 3);
       await call('focusEnd');
       await page.keyboard.type('## x', { delay: KEY_DELAY });
       await call('flush');
@@ -302,8 +302,12 @@ describe('the body field, alone', () => {
     test('a heading takes an anchor through its badge', async () => {
       await call('open', '## The start');
       await page.locator('.konzilo-anchor-badge').click();
-      await page.locator('.konzilo-anchor-input').fill('the-start');
-      await page.locator('.konzilo-anchor-input').press('Enter');
+      const anchor = page.locator('.konzilo-anchor-input');
+      await anchor.fill('The Start');
+      await anchor.press('Enter');
+      assert.equal(await anchor.isVisible(), true, 'an anchor the format cannot hold is not taken');
+      await anchor.fill('the-start');
+      await anchor.press('Enter');
       await call('flush');
       assert.equal(intake(await call('value')), pageFile('## <a id="the-start"></a>The start'));
     });
@@ -387,18 +391,18 @@ describe('the body field, alone', () => {
       await call('paste', { text: '# A title\n\n---\n\n![a](b.png)\n\n<div>raw</div>\n\nA paragraph' });
       await call('flush');
       assert.equal(intake(await call('value')), pageFile('## A title\n\nA paragraph'));
-      assert.equal(await page.locator('.konzilo-source').count(), 0);
+      assert.equal(await page.locator('.konzilo-kept').count(), 0);
     });
 
     test('a block copied within the field comes through whole', async () => {
       await call('open', 'One');
       await call('focusEnd');
-      await call('paste', { html: '<div data-pm-slice="0 0 []"><div data-konzilo-source="" data-kind="image" data-value="![a](/media/a.webp)"><pre>![a](/media/a.webp)</pre></div></div>' });
+      await call('paste', { html: '<div data-pm-slice="0 0 []"><div data-konzilo-kept="" data-kind="image" data-value="![a](/media/a.webp)"><pre>![a](/media/a.webp)</pre></div></div>' });
       await call('flush');
       assert.equal(await call('value'), 'One\n\n![a](/media/a.webp)');
       await call('open', 'One');
       await call('focusEnd');
-      await call('paste', { html: '<div data-konzilo-source="" data-kind="html" data-value="<div>raw</div>"><pre>raw</pre></div>' });
+      await call('paste', { html: '<div data-konzilo-kept="" data-kind="html" data-value="<div>raw</div>"><pre>raw</pre></div>' });
       await call('flush');
       assert.deepEqual(await call('changes'), [], 'from anywhere else, it is no kept block');
     });
@@ -494,7 +498,7 @@ describe('the body field, alone', () => {
     test('later elements stay as they are, as kept blocks, around an edit', async () => {
       const body = 'First\n\n![An image](/media/a.webp)\n\nhttps://vimeo.com/76979871\n\n::form{name="contact"}\n\n<table>\n<caption>A caption</caption>\n<thead>\n<tr><th>A</th></tr>\n</thead>\n</table>\n\n:::unknown\nInside\n\nmore\n:::\n\nLast';
       assert.equal(await call('open', body), 'editor');
-      assert.equal(await page.locator('.konzilo-source').count(), 5);
+      assert.equal(await page.locator('.konzilo-kept').count(), 5);
       await typeAtTheEnd(' zq');
       assert.equal(await call('value'), `${body} zq`);
     });
@@ -502,7 +506,7 @@ describe('the body field, alone', () => {
     test('a container without a closing fence stays source to the end, as the reader reads it', async () => {
       const body = 'First\n\n:::note\nNever closed\n\nThe rest';
       assert.equal(await call('open', body), 'editor', (await call('notes')).join(' '));
-      assert.equal(await page.locator('.konzilo-source').count(), 1);
+      assert.equal(await page.locator('.konzilo-kept').count(), 1);
       await call('poke');
       assert.deepEqual(await call('changes'), []);
     });

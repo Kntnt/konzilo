@@ -14,12 +14,12 @@ import { $command, $inputRule, $markSchema, $nodeSchema, $prose } from '@milkdow
 import rules from '../../format/rules.json' with { type: 'json' };
 import { say } from './texts.js';
 
-const LABEL_OF = { image: 'protectedImage', embed: 'protectedEmbed', directive: 'protectedDirective', html: 'protectedHtml', other: 'protectedOther' };
+const LABEL_OF = { image: 'keptImage', embed: 'keptEmbed', directive: 'keptDirective', html: 'keptHtml', other: 'keptOther' };
 const ANCHOR = new RegExp(rules.elements.heading.anchor);
 const NON_BREAKING = ' ';
 
 // A later element, or one its type does not take: its own bytes, shown as they stand.
-export const sourceBlock = $nodeSchema('konzilo_source', () => ({
+export const keptBlock = $nodeSchema('konzilo_kept', () => ({
   group: 'block',
   atom: true,
   isolating: true,
@@ -28,22 +28,22 @@ export const sourceBlock = $nodeSchema('konzilo_source', () => ({
   attrs: { value: { default: '', validate: 'string' }, kind: { default: 'other', validate: 'string' } },
   parseDOM: [
     {
-      tag: 'div[data-konzilo-source]',
+      tag: 'div[data-konzilo-kept]',
       getAttrs: (dom) => ({ value: dom.dataset.value ?? '', kind: dom.dataset.kind ?? 'other' }),
     },
   ],
   toDOM: ({ attrs: { value, kind } }) => [
     'div',
-    { class: 'konzilo-source', 'data-konzilo-source': '', 'data-kind': kind, 'data-value': value, contenteditable: 'false' },
-    ['div', { class: 'konzilo-source-label' }, say(LABEL_OF[kind] ?? LABEL_OF.other)],
+    { class: 'konzilo-kept', 'data-konzilo-kept': '', 'data-kind': kind, 'data-value': value, contenteditable: 'false' },
+    ['div', { class: 'konzilo-kept-label' }, say(LABEL_OF[kind] ?? LABEL_OF.other)],
     ['pre', value],
   ],
   parseMarkdown: {
-    match: ({ type }) => type === 'konziloSource',
+    match: ({ type }) => type === 'konziloKept',
     runner: (state, node, type) => state.addNode(type, { value: node.value, kind: node.kind }),
   },
   toMarkdown: {
-    match: (node) => node.type.name === 'konzilo_source',
+    match: (node) => node.type.name === 'konzilo_kept',
     runner: (state, node) => state.addNode('html', undefined, node.attrs.value),
   },
 }));
@@ -302,10 +302,16 @@ function anchorControl(view, getPos, anchor) {
       }
       view.focus();
     };
+    input.addEventListener('input', () => input.setCustomValidity(''));
     input.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter' && event.key !== 'Escape') return;
       event.preventDefault();
       event.stopPropagation();
+      if (event.key === 'Enter' && !ANCHOR.test(input.value)) {
+        input.setCustomValidity(say('anchorHint'));
+        input.reportValidity();
+        return;
+      }
       end(event.key === 'Enter');
     });
     input.addEventListener('blur', () => end(true));

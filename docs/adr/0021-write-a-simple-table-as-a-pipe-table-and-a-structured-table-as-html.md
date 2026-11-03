@@ -36,7 +36,7 @@ A line for each tag that opens or closes the table and its sections, one for the
 
 **Refused for good:** a table without a header row, more than one, a plain cell in it, a header cell outside it, a column aligned differently, an empty table, a line break in a cell, and a table inside a quote or a list. **A merged cell is counted by its spans:** every row of each section must cover each column once; a cell merged past its section, overlaps and rows of different widths are refused. A column's alignment is that of the cells that start in it. **A footnote mark** cannot stand in either kind.
 
-**In the field,** a caption is edited in place, written in the structured form; a footer and merged cells are a protected source block (ADR 0030).
+**In the field,** a caption is edited in place, written in the structured form; a footer and merged cells are a kept block (ADR 0030).
 
 ## Why
 

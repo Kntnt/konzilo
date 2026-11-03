@@ -23,7 +23,7 @@ const reduceNode = (node) => {
     return marks.length === node.marks.length ? node : node.mark(marks);
   }
   if (node.type.name === 'html') return String(node.attrs.value).startsWith('<!--') ? node : null;
-  if (node.type.name === 'konzilo_source') return null;
+  if (node.type.name === 'konzilo_kept') return null;
   const attrs = node.type.name === 'list_item' && node.attrs.checked !== null ? { ...node.attrs, checked: null } : node.attrs;
   if (node.isLeaf) return node;
   return node.type.create(attrs, reduceFragment(node.content), node.marks);

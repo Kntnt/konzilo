@@ -84,7 +84,7 @@
   white-space: pre-wrap;
 }
 
-.konzilo-source {
+.konzilo-kept {
   margin: 12px 0;
   padding: 8px 10px;
   border: 1px dashed #a8a8a8;
@@ -93,17 +93,17 @@
   cursor: default;
 }
 
-.konzilo-source.ProseMirror-selectednode {
+.konzilo-kept.ProseMirror-selectednode {
   outline: 2px solid #333;
 }
 
-.konzilo-source-label {
+.konzilo-kept-label {
   margin-bottom: 4px;
   font-size: 12px;
   opacity: 0.75;
 }
 
-.konzilo-source pre {
+.konzilo-kept pre {
   margin: 0;
   font: 13px/1.4 Menlo, Monaco, Consolas, 'Courier New', monospace;
   white-space: pre-wrap;
@@ -200,7 +200,7 @@
     color: #f0f0f0;
   }
 
-  .konzilo-source {
+  .konzilo-kept {
     background: #2a2a2a;
     color: #f0f0f0;
   }

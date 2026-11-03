@@ -89,7 +89,7 @@ import {
   noLevelOne,
   onDocumentChange,
   quoteWithCitation,
-  sourceBlock,
+  keptBlock,
   subscript,
   superscript,
   toggleCitation,
@@ -101,8 +101,8 @@ import { say } from './texts.js';
 
 const ICON = (body) => `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">${body}</svg>`;
 const ICONS = {
-  superscript: ICON('<path d="M5 6h2.5l3.5 5.2L14.5 6H17l-4.7 7L17 20h-2.5l-3.5-5.2L7.500 20H5l4.700-7z"/><path d="M21 8h-4V7l2.300-2.100c.5-.5.7-.8.7-1.100 0-.4-.3-.7-.8-.7-.5 0-.9.3-1.300.8l-.8-.8C17.700 2.400 18.500 2 19.300 2 20.500 2 21.300 2.700 21.300 3.800c0 .7-.3 1.200-1 1.800L18.900 6.900H21z"/>'),
-  subscript: ICON('<path d="M5 4h2.500l3.500 5.200L14.500 4H17l-4.700 7L17 18h-2.500L11 12.800 7.500 18H5l4.700-7z"/><path d="M21 22h-4v-1l2.300-2.100c.5-.5.7-.8.7-1.100 0-.4-.3-.7-.8-.7-.5 0-.9.3-1.300.8l-.8-.8c.6-.7 1.400-1.100 2.200-1.100 1.200 0 2 .7 2 1.800 0 .7-.3 1.200-1 1.800L18.900 20.900H21z"/>'),
+  superscript: ICON('<path d="M5 6h2.5l3.5 5.2L14.5 6H17l-4.7 7L17 20h-2.5l-3.5-5.2L7.5 20H5l4.7-7z"/><path d="M21 8h-4V7l2.3-2.1c.5-.5.7-.8.7-1.1 0-.4-.3-.7-.8-.7-.5 0-.9.3-1.3.8l-.8-.8C17.7 2.4 18.5 2 19.3 2 20.5 2 21.3 2.7 21.3 3.8c0 .7-.3 1.2-1 1.8L18.9 6.9H21z"/>'),
+  subscript: ICON('<path d="M5 4h2.5l3.5 5.2L14.5 4H17l-4.7 7L17 18h-2.5L11 12.8 7.5 18H5l4.7-7z"/><path d="M21 22h-4v-1l2.3-2.1c.5-.5.7-.8.7-1.1 0-.4-.3-.7-.8-.7-.5 0-.9.3-1.3.8l-.8-.8c.6-.7 1.4-1.1 2.2-1.1 1.2 0 2 .7 2 1.8 0 .7-.3 1.2-1 1.8L18.9 20.9H21z"/>'),
   footnote: ICON('<path d="M4 18h9v-2H4zm0-5h13v-2H4zm0-7v2h16V6z"/><path d="M19 12h2v8h-2z"/>'),
   citation: ICON('<path d="M4 6h16v2H4zm0 5h10v2H4zm9 5h7v2h-7z"/>'),
 };
@@ -246,7 +246,7 @@ export async function makeEditor({ root, value, elements, changed }) {
     }));
   });
 
-  editor.use(markOrder.flat()).use(sourceBlock).use(superscript).use(subscript).use(toggleSuperscript).use(toggleSubscript);
+  editor.use(markOrder.flat()).use(keptBlock).use(superscript).use(subscript).use(toggleSuperscript).use(toggleSubscript);
   if (takes('heading')) editor.use(headingWithAnchor).use(headingInputRule);
   if (takes('quote')) editor.use(citation).use(quoteWithCitation).use(toggleCitation);
   if (takes('footnotes')) editor.use(insertFootnote).use(footnotesInStep);

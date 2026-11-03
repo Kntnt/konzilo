@@ -47,14 +47,17 @@ function resolveFrom(packages, from, name) {
   throw new Error(`the lockfile does not say where ${from} finds ${name}`);
 }
 
-const digestOf = (bytes, algorithm) => createHash(algorithm).update(bytes).digest('base64');
+// Whether bytes are what a lockfile's `integrity` says, `sha512-<base64>`.
+export function matchesIntegrity(bytes, integrity) {
+  const [algorithm, expected] = integrity.split(/-(.*)/s);
+  return createHash(algorithm).update(bytes).digest('base64') === expected;
+}
 
 async function unpack(path, { resolved, integrity }, into) {
-  const [algorithm, expected] = integrity.split(/-(.*)/s);
   const answer = await fetch(resolved);
   if (!answer.ok) throw new Error(`${resolved}: ${answer.status}`);
   const bytes = Buffer.from(await answer.arrayBuffer());
-  if (digestOf(bytes, algorithm) !== expected) throw new Error(`${resolved} does not match its integrity in the lockfile`);
+  if (!matchesIntegrity(bytes, integrity)) throw new Error(`${resolved} does not match its integrity in the lockfile`);
   const target = join(into, path);
   mkdirSync(target, { recursive: true });
   const scratch = mkdtempSync(join(tmpdir(), 'konzilo-wasm-reader-'));
