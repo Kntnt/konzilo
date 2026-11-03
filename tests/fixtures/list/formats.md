@@ -1,0 +1,2 @@
+- Some **bold**, _italic_ and a [link](https://example.com/)
+- x<sup>2</sup> and H<sub>2</sub>O

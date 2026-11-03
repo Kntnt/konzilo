@@ -1,0 +1,51 @@
+---
+// The presentation `cards` (site-description.json, astro.config.mjs): a post
+// list as a card per post, its featured image, its title linked to the post
+// and its excerpt, in two, three or four columns, three where the list
+// says nothing. Konzilo gives it `posts`, each { entry,
+// url }, the post's entry and its address, or null for a type without one;
+// `options`, the presentation's options as the list sets them; `empty`, the
+// text for a list that matches nothing; and `pager`, for a list with pages
+// of its own, the pager's data, which Konzilo's Pager renders after the
+// cards (src/styles/pager.css).
+import Pager from '@kntnt/konzilo/astro/Pager.astro';
+import { Image } from 'astro:assets';
+import '../styles/pager.css';
+
+const { posts, options, empty, pager } = Astro.props;
+const columns = options.columns ?? '3';
+---
+{posts.length === 0 ? <p class="post-list-empty">{empty}</p> : (
+  <ul class:list={['post-cards', `post-cards-${columns}`]}>
+    {posts.map(({ entry, url }) => (
+      <li class="post-card">
+        {entry.data.image && <Image class="post-card-image" src={entry.data.image.src} alt={entry.data.image.alt} width={640} />}
+        <p class="post-card-title">{url ? <a href={url}>{entry.data.title}</a> : entry.data.title}</p>
+        {entry.data.excerpt && <p class="post-card-excerpt">{entry.data.excerpt}</p>}
+      </li>
+    ))}
+  </ul>
+)}
+{pager && <Pager pager={pager} />}
+
+<style>
+  .post-cards {
+    display: grid;
+    gap: 1.5rem;
+    padding: 0;
+    list-style: none;
+  }
+  .post-cards-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .post-cards-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .post-cards-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  @media (max-width: 40rem) {
+    .post-cards { grid-template-columns: minmax(0, 1fr); }
+  }
+  .post-card-image {
+    width: 100%;
+    height: auto;
+  }
+  .post-card-title {
+    font-weight: 600;
+  }
+</style>

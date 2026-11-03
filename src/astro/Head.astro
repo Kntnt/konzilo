@@ -1,0 +1,80 @@
+---
+// What Konzilo puts in the head of every page. A site's layout places it
+// once, in <head>, beside its own charset and viewport, in place of a
+// <title> of its own:
+//
+//   import Head from '@kntnt/konzilo/astro/Head.astro';
+//   <head><meta charset="utf-8" /> ... <Head entry={entry} /></head>
+//
+// It writes the page's search and sharing tags: the title tag,
+// the meta description, the canonical address on the public host, the
+// robots rule a post asks for, and noindex on the site's search page, Open Graph and X's card with a sharing image of 1200 × 630, the
+// alternates other parts of the core add, and the page's structured data,
+// one JSON-LD graph in a script of its own (search-and-sharing.js and
+// structured-data.js say what each holds). The graph is data, not code: the
+// script runs nothing. `entry` is the entry the page shows, a post of a
+// collection, as Astro's getCollection() gives it. A page of the site's
+// own, such as the start page, gives none, and may give its `title`, which
+// its title tag holds as a post's does by default, with the separator and
+// the site's title, and its `description`, its meta description as it is;
+// the start page's templates give what it does not. A post's later page of
+// a list with pages of its own gives its `page`, from 2, as the
+// site's route has it from postPages(): the page is canonical to itself and
+// `noindex`. The graph holds the page's breadcrumbs (breadcrumbs.js), the same levels Breadcrumbs.astro shows, the start page named in
+// the site's language unless `breadcrumbTexts` gives the site's own, as that
+// component's `texts` does.
+// A preview shows the same tags, with the public host's addresses; its pages
+// are kept from search engines by their headers. On a site in several
+// languages, the settings, the templates, the dates, `og:locale`
+// and the structured data's language are those of the page's language
+// (site-settings.js, public-site.js), and the head links the page in each
+// language it is in with `hreflang`, `x-default` naming the main
+// language's: a post's translations the build has, but one kept from search
+// engines, and each language's start page, the same the sitemap gives the
+// page as its alternates (alternates() in site-languages.js). A post kept
+// from search engines links none.
+//
+// It links the icons made from the site icon (site-icons.js): the
+// ICO with its sizes, the SVG with its type where the icon is an SVG, the
+// Apple touch icon and the web app manifest, each below the site's base, so
+// that a preview links its own. A site without an icon links none.
+//
+// A page that has a Markdown alternate links it among the
+// alternates, and holds the mark from which its build makes it, or Astro's
+// dev server answers it (markdown-alternates.js).
+//
+// In a build, it marks where the theme colour goes, the site's brand colour
+// as its tokens name it (theme-colors.js), which the build knows once every
+// page is written: it then makes the mark <meta name="theme-color">, or
+// takes it away. Astro's dev server gets no mark.
+import { getImage } from 'astro:assets';
+import { getCollection, getEntries } from 'astro:content';
+import { breadcrumbs } from './breadcrumbs.js';
+import { markdownMark } from './markdown-alternates.js';
+import { publicSite } from './public-site.js';
+import { describedSite } from './languages.js';
+import { headTags } from './search-and-sharing.js';
+import { alternates } from './site-languages.js';
+import { iconLinks } from './site-icons.js';
+import { siteSettings } from './site-settings.js';
+import { THEME_COLOR_MARK } from './theme-colors.js';
+
+const { entry = null, title, description, page = 1, breadcrumbTexts } = Astro.props;
+const { origin, locale, languageTag } = publicSite(Astro.url);
+const settings = await siteSettings(Astro.url);
+// The page's path from the site's root, below a base of its own too.
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const { pathname } = Astro.url;
+const path = base !== '' && pathname.startsWith(base) ? pathname.slice(base.length) || '/' : pathname;
+const site = describedSite();
+const languages = (await alternates(Astro.url, entry)).map(({ language, address }) => ({ tag: language.tag, path: address, main: language.main }));
+const levels = await breadcrumbs(entry, Astro.url, { title, texts: breadcrumbTexts });
+const shown = { entry, title, description, path, page, settings, site, origin, locale, languageTag, base: import.meta.env.BASE_URL, breadcrumbs: levels };
+const astro = { getImage, getEntries, getCollection };
+const tags = await headTags({ ...shown, languages }, astro);
+const markdown = await markdownMark(shown, astro);
+const links = iconLinks(import.meta.env.BASE_URL);
+const mark = import.meta.env.DEV ? null : THEME_COLOR_MARK;
+---
+{tags.map(({ tag, attributes, text }) => (tag === 'title' ? <title>{text}</title> : tag === 'meta' ? <meta {...attributes} /> : tag === 'script' ? <script is:inline {...attributes} set:html={text} /> : <link {...attributes} />))}
+{links.map((link) => <link {...link} />)}{mark && <Fragment set:html={mark} />}{markdown && <Fragment set:html={markdown} />}

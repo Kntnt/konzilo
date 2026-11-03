@@ -1,0 +1,44 @@
+/* The pager of a post list with pages of its own,
+   which src/components/List.astro and Cards.astro place after the list:
+   Konzilo's Pager, a labelled nav of plain links with the current page
+   marked by aria-current, styled simply from the demo design's tokens, those
+   body.css declares. A customer's design replaces this file with its own;
+   whatever it looks like, the current page stays told apart by more than
+   its colour, and every link is a target of at least 44 px. */
+
+.konzilo-pager ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1.5rem 0;
+  padding: 0;
+  list-style: none;
+}
+
+.konzilo-pager a,
+.konzilo-pager-gap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 0.75rem;
+}
+
+.konzilo-pager a {
+  border: 1px solid var(--body-rule);
+  border-radius: 0.375rem;
+  color: var(--body-link);
+  text-decoration: none;
+}
+
+.konzilo-pager a:hover,
+.konzilo-pager a:focus-visible {
+  text-decoration: underline;
+}
+
+.konzilo-pager a[aria-current='page'] {
+  border-color: var(--body-text);
+  color: var(--body-text);
+  font-weight: 700;
+}

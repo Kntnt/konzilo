@@ -1,0 +1,726 @@
+{
+  "youtube": {
+    "provider": {
+      "name": "Google Ireland Limited",
+      "country": "IE",
+      "privacyPolicy": "https://policies.google.com/privacy"
+    },
+    "purpose": {
+      "en": "Plays videos from YouTube in the page.",
+      "sv": "Spelar upp videor från YouTube på sidan."
+    },
+    "advertising": true,
+    "storage": [],
+    "transfers": [
+      {
+        "country": "US",
+        "safeguards": [
+          "adequacy",
+          "scc"
+        ]
+      }
+    ],
+    "sources": {
+      "provider": {
+        "url": "https://policies.google.com/privacy",
+        "checked": "2026-10-30"
+      },
+      "purpose": {
+        "url": "https://support.google.com/youtube/answer/171780",
+        "checked": "2026-10-30"
+      },
+      "advertising": {
+        "url": "https://policies.google.com/privacy",
+        "checked": "2026-10-30"
+      },
+      "storage": {
+        "url": "https://policies.google.com/technologies/cookies",
+        "checked": "2026-10-30"
+      },
+      "transfers": {
+        "url": "https://policies.google.com/privacy/frameworks",
+        "checked": "2026-10-30"
+      }
+    }
+  },
+  "vimeo": {
+    "provider": {
+      "name": "Vimeo.com, Inc.",
+      "country": "US",
+      "privacyPolicy": "https://vimeo.com/legal/privacy/policy"
+    },
+    "purpose": {
+      "en": "Plays videos from Vimeo in the page.",
+      "sv": "Spelar upp videor från Vimeo på sidan."
+    },
+    "advertising": true,
+    "storage": [
+      {
+        "name": "player_clearance",
+        "kind": "cookie",
+        "lifetime": "P7D",
+        "party": "third"
+      },
+      {
+        "name": "cf_clearance",
+        "kind": "cookie",
+        "lifetime": "P1Y",
+        "party": "third"
+      },
+      {
+        "name": "__cf_bm",
+        "kind": "cookie",
+        "lifetime": "PT30M",
+        "party": "third"
+      },
+      {
+        "name": "_cfuvid",
+        "kind": "cookie",
+        "lifetime": "session",
+        "party": "third"
+      }
+    ],
+    "transfers": [
+      {
+        "country": "US",
+        "safeguards": [
+          "adequacy",
+          "scc"
+        ]
+      }
+    ],
+    "sources": {
+      "provider": {
+        "url": "https://vimeo.com/legal/privacy/policy",
+        "checked": "2026-10-30"
+      },
+      "purpose": {
+        "url": "https://help.vimeo.com/hc/en-us/articles/12426260232977-About-Player-Parameters",
+        "checked": "2026-10-30"
+      },
+      "advertising": {
+        "url": "https://vimeo.com/legal/privacy/policy",
+        "checked": "2026-10-30"
+      },
+      "storage": {
+        "url": "https://help.vimeo.com/hc/en-us/articles/26080940921361-Vimeo-Player-Cookies",
+        "checked": "2026-10-30"
+      },
+      "transfers": {
+        "url": "https://vimeo.com/legal/privacy/policy",
+        "checked": "2026-10-30"
+      }
+    }
+  },
+  "screen9": {
+    "provider": {
+      "name": "Quickchannel AB",
+      "country": "SE",
+      "privacyPolicy": "https://quickchannel.com/en/privacy-policy/"
+    },
+    "purpose": {
+      "en": "Plays videos hosted on Screen9 (now Quickchannel) in the page.",
+      "sv": "Spelar upp videor från Screen9 (numera Quickchannel) på sidan."
+    },
+    "advertising": true,
+    "storage": [
+      {
+        "name": "screen9.uid",
+        "kind": "localStorage",
+        "lifetime": "persistent",
+        "party": "third"
+      },
+      {
+        "name": "s9-player-volume",
+        "kind": "localStorage",
+        "lifetime": "persistent",
+        "party": "third"
+      },
+      {
+        "name": "s9-player-muted",
+        "kind": "localStorage",
+        "lifetime": "persistent",
+        "party": "third"
+      },
+      {
+        "name": "Vjs-text-track-settings",
+        "kind": "localStorage",
+        "lifetime": "persistent",
+        "party": "third"
+      },
+      {
+        "name": "s9-text-track-selected-language",
+        "kind": "localStorage",
+        "lifetime": "persistent",
+        "party": "third"
+      },
+      {
+        "name": "ga:screen9ClientId",
+        "kind": "localStorage",
+        "lifetime": "persistent",
+        "party": "third"
+      },
+      {
+        "name": "s9-auth-sso",
+        "kind": "cookie",
+        "lifetime": "session",
+        "party": "third"
+      },
+      {
+        "name": "GED_PLAYLIST_ACTIVITY",
+        "kind": "cookie",
+        "lifetime": "session",
+        "party": "third"
+      },
+      {
+        "name": "__gads",
+        "kind": "cookie",
+        "lifetime": "P30M",
+        "party": "third"
+      }
+    ],
+    "transfers": [
+      {
+        "country": "US",
+        "safeguards": [
+          "adequacy",
+          "scc"
+        ]
+      }
+    ],
+    "sources": {
+      "provider": {
+        "url": "https://quickchannel.com/en/privacy-policy/",
+        "checked": "2026-10-30"
+      },
+      "purpose": {
+        "url": "https://support.screen9.com/kb/faq.php?id=251",
+        "checked": "2026-10-30"
+      },
+      "advertising": {
+        "url": "https://quickchannel.com/en/cookie-information/",
+        "checked": "2026-10-30"
+      },
+      "storage": {
+        "url": "https://quickchannel.com/en/cookie-information/",
+        "checked": "2026-10-30"
+      },
+      "transfers": {
+        "url": "https://policies.google.com/privacy/frameworks",
+        "checked": "2026-10-30"
+      }
+    }
+  },
+  "loom": {
+    "provider": {
+      "name": "Atlassian Pty Ltd",
+      "country": "AU",
+      "privacyPolicy": "https://www.atlassian.com/legal/privacy-policy"
+    },
+    "purpose": {
+      "en": "Plays Loom video recordings in the page.",
+      "sv": "Spelar upp videoinspelningar från Loom på sidan."
+    },
+    "advertising": true,
+    "storage": [],
+    "transfers": [
+      {
+        "country": "US",
+        "safeguards": [
+          "adequacy",
+          "scc"
+        ]
+      },
+      {
+        "country": "AU",
+        "safeguards": [
+          "scc"
+        ]
+      },
+      {
+        "country": "BR",
+        "safeguards": [
+          "scc"
+        ]
+      },
+      {
+        "country": "IN",
+        "safeguards": [
+          "scc"
+        ]
+      },
+      {
+        "country": "MX",
+        "safeguards": [
+          "scc"
+        ]
+      },
+      {
+        "country": "PH",
+        "safeguards": [
+          "scc"
+        ]
+      },
+      {
+        "country": "SG",
+        "safeguards": [
+          "scc"
+        ]
+      },
+      {
+        "country": "ZA",
+        "safeguards": [
+          "scc"
+        ]
+      },
+      {
+        "country": "TR",
+        "safeguards": [
+          "scc"
+        ]
+      },
+      {
+        "country": "CA",
+        "safeguards": [
+          "adequacy"
+        ]
+      },
+      {
+        "country": "JP",
+        "safeguards": [
+          "adequacy"
+        ]
+      },
+      {
+        "country": "NZ",
+        "safeguards": [
+          "adequacy"
+        ]
+      },
+      {
+        "country": "KR",
+        "safeguards": [
+          "adequacy"
+        ]
+      },
+      {
+        "country": "CH",
+        "safeguards": [
+          "adequacy"
+        ]
+      },
+      {
+        "country": "GB",
+        "safeguards": [
+          "adequacy"
+        ]
+      }
+    ],
+    "sources": {
+      "provider": {
+        "url": "https://www.atlassian.com/legal/privacy-policy",
+        "checked": "2026-10-30"
+      },
+      "purpose": {
+        "url": "https://support.atlassian.com/loom/docs/embed-your-video-into-a-webpage/",
+        "checked": "2026-10-30"
+      },
+      "advertising": {
+        "url": "https://www.atlassian.com/legal/privacy-policy",
+        "checked": "2026-10-30"
+      },
+      "storage": {
+        "url": "https://www.atlassian.com/legal/cookies",
+        "checked": "2026-10-30"
+      },
+      "transfers": {
+        "url": "https://www.atlassian.com/legal/data-transfer-impact-assessment",
+        "checked": "2026-10-30"
+      }
+    }
+  },
+  "spotify": {
+    "provider": {
+      "name": "Spotify AB",
+      "country": "SE",
+      "privacyPolicy": "https://www.spotify.com/ie/legal/privacy-policy/"
+    },
+    "purpose": {
+      "en": "Plays music and podcasts from Spotify in the page.",
+      "sv": "Spelar upp musik och poddar från Spotify på sidan."
+    },
+    "advertising": true,
+    "storage": [],
+    "transfers": [
+      {
+        "country": null,
+        "safeguards": [
+          "adequacy",
+          "scc"
+        ]
+      }
+    ],
+    "sources": {
+      "provider": {
+        "url": "https://www.spotify.com/ie/legal/privacy-policy/",
+        "checked": "2026-10-30"
+      },
+      "purpose": {
+        "url": "https://developer.spotify.com/documentation/embeds",
+        "checked": "2026-10-30"
+      },
+      "advertising": {
+        "url": "https://www.spotify.com/ie/legal/privacy-policy/",
+        "checked": "2026-10-30"
+      },
+      "storage": {
+        "url": "https://www.spotify.com/ie/legal/cookies-policy/",
+        "checked": "2026-10-30"
+      },
+      "transfers": {
+        "url": "https://www.spotify.com/ie/legal/privacy-policy/",
+        "checked": "2026-10-30"
+      }
+    }
+  },
+  "acast": {
+    "provider": {
+      "name": "Acast AB (publ)",
+      "country": "SE",
+      "privacyPolicy": "https://www.acast.com/en/privacy/general-data-protection-regulation-gdpr-privacy-policy"
+    },
+    "purpose": {
+      "en": "Plays podcast episodes hosted on Acast in the page.",
+      "sv": "Spelar upp poddavsnitt från Acast på sidan."
+    },
+    "advertising": true,
+    "storage": [],
+    "transfers": [
+      {
+        "country": "US",
+        "safeguards": [
+          "adequacy",
+          "scc"
+        ]
+      }
+    ],
+    "sources": {
+      "provider": {
+        "url": "https://www.acast.com/en/privacy/general-data-protection-regulation-gdpr-privacy-policy",
+        "checked": "2026-10-30"
+      },
+      "purpose": {
+        "url": "https://learn.acast.com/en/articles/4631949-embed-player-faq",
+        "checked": "2026-10-30"
+      },
+      "advertising": {
+        "url": "https://www.acast.com/en/privacy/general-data-protection-regulation-gdpr-privacy-policy",
+        "checked": "2026-10-30"
+      },
+      "storage": {
+        "url": "https://learn.acast.com/en/articles/4631949-embed-player-faq",
+        "checked": "2026-10-30"
+      },
+      "transfers": {
+        "url": "https://www.acast.com/en/privacy/general-data-protection-regulation-gdpr-privacy-policy",
+        "checked": "2026-10-30"
+      }
+    }
+  },
+  "apple-podcasts": {
+    "provider": {
+      "name": "Apple Distribution International Limited",
+      "country": "IE",
+      "privacyPolicy": "https://www.apple.com/legal/privacy/en-ww/"
+    },
+    "purpose": {
+      "en": "Plays podcast episodes from Apple Podcasts in the page.",
+      "sv": "Spelar upp poddavsnitt från Apple Podcasts på sidan."
+    },
+    "advertising": true,
+    "storage": [],
+    "transfers": [
+      {
+        "country": "US",
+        "safeguards": [
+          "scc"
+        ]
+      }
+    ],
+    "sources": {
+      "provider": {
+        "url": "https://www.apple.com/legal/privacy/en-ww/",
+        "checked": "2026-10-30"
+      },
+      "purpose": {
+        "url": "https://podcasters.apple.com/support/5619-apple-podcasts-embed-player",
+        "checked": "2026-10-30"
+      },
+      "advertising": {
+        "url": "https://www.apple.com/legal/privacy/data/en/apple-advertising/",
+        "checked": "2026-10-30"
+      },
+      "storage": {
+        "url": "https://www.apple.com/legal/privacy/en-ww/",
+        "checked": "2026-10-30"
+      },
+      "transfers": {
+        "url": "https://www.apple.com/legal/privacy/en-ww/",
+        "checked": "2026-10-30"
+      }
+    }
+  },
+  "speaker-deck": {
+    "provider": {
+      "name": "Speaker Deck LLC",
+      "country": "US",
+      "privacyPolicy": "https://speakerdeck.com/privacy"
+    },
+    "purpose": {
+      "en": "Shows slide presentations from Speaker Deck in the page.",
+      "sv": "Visar bildspel från Speaker Deck på sidan."
+    },
+    "advertising": false,
+    "storage": [],
+    "transfers": [
+      {
+        "country": "US",
+        "safeguards": []
+      }
+    ],
+    "sources": {
+      "provider": {
+        "url": "https://speakerdeck.com/tos",
+        "checked": "2026-10-30"
+      },
+      "purpose": {
+        "url": "https://help.speakerdeck.com/help/how-do-i-share-a-deck",
+        "checked": "2026-10-30"
+      },
+      "advertising": {
+        "url": "https://speakerdeck.com/privacy",
+        "checked": "2026-10-30"
+      },
+      "storage": {
+        "url": "https://speakerdeck.com/privacy",
+        "checked": "2026-10-30"
+      },
+      "transfers": {
+        "url": "https://speakerdeck.com/tos",
+        "checked": "2026-10-30"
+      }
+    }
+  },
+  "datawrapper": {
+    "provider": {
+      "name": "Datawrapper GmbH",
+      "country": "DE",
+      "privacyPolicy": "https://www.datawrapper.de/privacy"
+    },
+    "purpose": {
+      "en": "Shows charts, maps and tables made with Datawrapper in the page.",
+      "sv": "Visar diagram, kartor och tabeller från Datawrapper på sidan."
+    },
+    "advertising": false,
+    "storage": [],
+    "transfers": [],
+    "sources": {
+      "provider": {
+        "url": "https://www.datawrapper.de/privacy",
+        "checked": "2026-10-30"
+      },
+      "purpose": {
+        "url": "https://www.datawrapper.de/embed-privacy",
+        "checked": "2026-10-30"
+      },
+      "advertising": {
+        "url": "https://www.datawrapper.de/embed-privacy",
+        "checked": "2026-10-30"
+      },
+      "storage": {
+        "url": "https://www.datawrapper.de/embed-privacy",
+        "checked": "2026-10-30"
+      },
+      "transfers": {
+        "url": "https://www.datawrapper.de/embed-privacy",
+        "checked": "2026-10-30"
+      }
+    }
+  },
+  "codepen": {
+    "provider": {
+      "name": "CodePen",
+      "country": "US",
+      "privacyPolicy": "https://blog.codepen.io/legal/privacy-policy/"
+    },
+    "purpose": {
+      "en": "Shows and runs code examples (Pens) from CodePen in the page.",
+      "sv": "Visar och kör kodexempel från CodePen på sidan."
+    },
+    "advertising": true,
+    "storage": [],
+    "transfers": [
+      {
+        "country": "US",
+        "safeguards": []
+      }
+    ],
+    "sources": {
+      "provider": {
+        "url": "https://blog.codepen.io/legal/terms-of-service/",
+        "checked": "2026-10-30"
+      },
+      "purpose": {
+        "url": "https://blog.codepen.io/documentation/embedded-pens/",
+        "checked": "2026-10-30"
+      },
+      "advertising": {
+        "url": "https://blog.codepen.io/legal/privacy-policy/",
+        "checked": "2026-10-30"
+      },
+      "storage": {
+        "url": "https://blog.codepen.io/legal/privacy-policy/",
+        "checked": "2026-10-30"
+      },
+      "transfers": {
+        "url": "https://blog.codepen.io/legal/terms-of-service/",
+        "checked": "2026-10-30"
+      }
+    }
+  },
+  "linkedin": {
+    "provider": {
+      "name": "LinkedIn Ireland Unlimited Company",
+      "country": "IE",
+      "privacyPolicy": "https://www.linkedin.com/legal/privacy-policy"
+    },
+    "purpose": {
+      "en": "Shows posts from LinkedIn in the page.",
+      "sv": "Visar inlägg från LinkedIn på sidan."
+    },
+    "advertising": true,
+    "storage": [
+      {
+        "name": "bcookie",
+        "kind": "cookie",
+        "lifetime": "P1Y",
+        "party": "third"
+      },
+      {
+        "name": "bscookie",
+        "kind": "cookie",
+        "lifetime": "P1Y",
+        "party": "third"
+      },
+      {
+        "name": "JSESSIONID",
+        "kind": "cookie",
+        "lifetime": "session",
+        "party": "third"
+      },
+      {
+        "name": "lang",
+        "kind": "cookie",
+        "lifetime": "session",
+        "party": "third"
+      },
+      {
+        "name": "lidc",
+        "kind": "cookie",
+        "lifetime": "P1D",
+        "party": "third"
+      },
+      {
+        "name": "sdsc",
+        "kind": "cookie",
+        "lifetime": "session",
+        "party": "third"
+      },
+      {
+        "name": "li_gc",
+        "kind": "cookie",
+        "lifetime": "P6M",
+        "party": "third"
+      },
+      {
+        "name": "li_mc",
+        "kind": "cookie",
+        "lifetime": "P6M",
+        "party": "third"
+      },
+      {
+        "name": "UserMatchHistory",
+        "kind": "cookie",
+        "lifetime": "P30D",
+        "party": "third"
+      },
+      {
+        "name": "AnalyticsSyncHistory",
+        "kind": "cookie",
+        "lifetime": "P30D",
+        "party": "third"
+      },
+      {
+        "name": "lms_ads",
+        "kind": "cookie",
+        "lifetime": "P30D",
+        "party": "third"
+      },
+      {
+        "name": "lms_analytics",
+        "kind": "cookie",
+        "lifetime": "P30D",
+        "party": "third"
+      },
+      {
+        "name": "li_sugr",
+        "kind": "cookie",
+        "lifetime": "P90D",
+        "party": "third"
+      },
+      {
+        "name": "_guid",
+        "kind": "cookie",
+        "lifetime": "P90D",
+        "party": "third"
+      },
+      {
+        "name": "BizographicsOptOut",
+        "kind": "cookie",
+        "lifetime": "P10Y",
+        "party": "third"
+      }
+    ],
+    "transfers": [
+      {
+        "country": "US",
+        "safeguards": [
+          "adequacy",
+          "scc"
+        ]
+      }
+    ],
+    "sources": {
+      "provider": {
+        "url": "https://www.linkedin.com/legal/privacy/eu",
+        "checked": "2026-10-30"
+      },
+      "purpose": {
+        "url": "https://www.linkedin.com/help/linkedin/answer/a529065",
+        "checked": "2026-10-30"
+      },
+      "advertising": {
+        "url": "https://www.linkedin.com/legal/privacy-policy",
+        "checked": "2026-10-30"
+      },
+      "storage": {
+        "url": "https://www.linkedin.com/legal/l/cookie-table",
+        "checked": "2026-10-30"
+      },
+      "transfers": {
+        "url": "https://www.linkedin.com/help/linkedin/answer/62533",
+        "checked": "2026-10-30"
+      }
+    }
+  }
+}

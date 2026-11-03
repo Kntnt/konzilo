@@ -1,0 +1,56 @@
+#!/bin/sh
+# Create a site repository that pins this checkout of the core.
+#
+#   new-site <name>
+#
+# Creates the folder <name> in the current directory as a git repository with
+# one commit: the site template (site-template/files/), with the core pinned
+# by its path in package.json. A site's demo content, which is fictional, comes
+# from the core the first time `npm run dev` or `npm run build` runs and finds
+# no content/ folder.
+#
+# The name becomes the folder, and later the site's hostnames, so it must be a
+# hostname label. Needs git, Node and npm.
+
+set -eu
+
+fail() {
+	echo "new-site: $1" >&2
+	exit "${2:-1}"
+}
+
+[ $# -eq 1 ] || fail "usage: new-site <name>" 2
+name=$1
+
+printf '%s\n' "$name" | grep -Eq '^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$' ||
+	fail "the name must be lowercase letters, digits and inner hyphens, at most 63: $name" 2
+
+core=$(cd "$(dirname "$0")/.." && pwd -P)
+target="$(pwd -P)/$name"
+[ ! -e "$target" ] || fail "$target already exists"
+
+for tool in git node npm; do
+	command -v "$tool" >/dev/null 2>&1 || fail "needs $tool on the PATH"
+done
+
+# A folder that new-site did not finish goes again.
+trap 'status=$?; [ "$status" -eq 0 ] || rm -rf "$target"; exit "$status"' EXIT
+
+# Every pin, checked as a whole before anything is written.
+astro=$(sh "$core/scripts/versions" ASTRO)
+
+mkdir "$target"
+template="$core/site-template/files"
+(cd "$template" && find . -type f) | while IFS= read -r file; do
+	mkdir -p "$target/$(dirname "$file")"
+	sed -e "s|@NAME@|$name|g" -e "s|@ASTRO@|$astro|g" -e "s|@CORE@|file:$core|g" "$template/$file" >"$target/$file"
+done
+
+git -C "$target" init --quiet --initial-branch=main
+git -C "$target" add --all
+git -C "$target" -c user.name="${GIT_AUTHOR_NAME:-$(git config user.name || echo new-site)}" \
+	-c user.email="${GIT_AUTHOR_EMAIL:-$(git config user.email || echo new-site@example.com)}" \
+	commit --quiet --message="Create the site $name with new-site"
+
+trap - EXIT
+echo "new-site: created $target; start it with: cd $name && npm install && npm run dev"

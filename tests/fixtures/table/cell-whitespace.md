@@ -1,0 +1,3 @@
+| Name | Size |
+| --- | --- |
+| Tent | **Large** |

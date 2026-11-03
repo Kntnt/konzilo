@@ -1,0 +1,46 @@
+---
+// A form the site description declares, by its name, wherever a
+// template places it, in the site's language, the page's on a site in
+// several, with the site's own texts in it (site-texts.js):
+//
+//   import Form from '@kntnt/konzilo/astro/Form.astro';
+//   <Form name="contact" />
+//
+// A plain HTML form that posts to /_konzilo/forms/<form>: a label for every
+// field, the field's kind as its input type, `required`, `maxlength` and
+// the options as declared, the help text tied to its field, and the trap
+// field hidden from people and from assistive technology (FormView.astro).
+// Without JavaScript the browser checks the fields itself and posts the
+// form, and the endpoint leads it back to this page with the outcome in the
+// fragment, `#konzilo-form-<form>-sent`, `-invalid`, `-too-many` or
+// `-refused`: each outcome is an element of that id, hidden, which the
+// site's styles show with :target. With JavaScript, the integration's
+// script (forms.js) sends the form itself and shows the outcome in place,
+// the confirmation text an Admin sets among the site settings once it is
+// sent.
+//
+// In a preview, or behind a share link, below a base of its own, the form
+// shows, says it is a preview and sends nothing.
+//
+// The elements carry classes of their own, `konzilo-form-*`, which the site
+// styles: its styles show an outcome with :target, keep the trap field out
+// of sight, and keep an element with `hidden` hidden. The component has no
+// style of its own: Astro cannot compile one in a package outside the
+// site's root, as a site that pins a checkout of the core has it. Place a
+// form once on a page.
+//
+import { forms } from 'virtual:konzilo/forms';
+import { textsIn } from 'virtual:konzilo/texts';
+import { formView } from './forms.js';
+import FormView from './FormView.astro';
+import { publicSite } from './public-site.js';
+import { siteSettings } from './site-settings.js';
+
+const { name } = Astro.props;
+// The page's language's settings, whose confirmation text is translated on
+// a site in several languages.
+const settings = await siteSettings(Astro.url);
+const { locale, languageTag } = publicSite(Astro.url);
+const view = formView(name, { forms, settings, locale, languageTag, base: import.meta.env.BASE_URL, page: Astro.url.pathname, texts: textsIn(locale).forms });
+---
+<FormView view={view} />

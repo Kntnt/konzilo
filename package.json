@@ -1,0 +1,51 @@
+{
+  "name": "@kntnt/konzilo",
+  "version": "0.0.0",
+  "description": "Konzilo's content format and Astro integration.",
+  "license": "UNLICENSED",
+  "private": true,
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Kntnt/konzilo.git"
+  },
+  "exports": {
+    "./astro": "./src/astro/index.js",
+    "./astro/*.astro": "./src/astro/*.astro",
+    "./astro/breadcrumbs": "./src/astro/breadcrumbs.js",
+    "./astro/helpers": "./src/astro/helpers.js",
+    "./astro/post-lists": "./src/astro/post-lists.js",
+    "./astro/site-settings": "./src/astro/site-settings.js",
+    "./astro/languages": "./src/astro/site-languages.js",
+    "./post-lists": "./src/post-lists.js",
+    "./search": "./src/search.js"
+  },
+  "bin": {
+    "konzilo-search": "./bin/konzilo-search.js",
+    "konzilo-demo-content": "./bin/konzilo-demo-content.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "site-template/demo-content",
+    "content-format.md"
+  ],
+  "scripts": {
+    "test": "node --test --test-concurrency=3 \"tests/**/*.test.js\""
+  },
+  "dependencies": {
+    "lightningcss": "1.33.0",
+    "satteri": "0.10.5",
+    "sharp": "0.35.5"
+  },
+  "peerDependencies": {
+    "astro": "7.4.2"
+  },
+  "devDependencies": {
+    "astro": "7.4.2",
+    "jsdom": "30.1.1"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

@@ -1,0 +1,29 @@
+---
+// The pager of a post list with pages of its own, which a
+// presentation places where it wants it, given the pager's data it is
+// handed as `pager`:
+//
+//   import Pager from '@kntnt/konzilo/astro/Pager.astro';
+//   const { posts, options, empty, pager } = Astro.props;
+//   ...
+//   {pager && <Pager pager={pager} />}
+//
+// Plain links in a `nav` labelled in the site's language, the current page
+// marked with aria-current, and links to the page before and after, so that
+// it works without JavaScript. A list that fills one page has no pager. The
+// elements carry classes of their own, `konzilo-pager*`, which the site
+// styles; the component has no style of its own, as Form.astro has none.
+
+const { pager } = Astro.props;
+---
+{pager && pager.items.length > 1 && (
+  <nav class="konzilo-pager" aria-label={pager.label}>
+    <ul>
+      {pager.previous && <li class="konzilo-pager-previous"><a href={pager.previous.url} rel="prev">{pager.previous.label}</a></li>}
+      {pager.items.map((item) => (item.gap
+        ? <li class="konzilo-pager-gap" aria-hidden="true">…</li>
+        : <li><a href={item.url} aria-label={item.label} aria-current={item.current ? 'page' : undefined}>{item.number}</a></li>))}
+      {pager.next && <li class="konzilo-pager-next"><a href={pager.next.url} rel="next">{pager.next.label}</a></li>}
+    </ul>
+  </nav>
+)}

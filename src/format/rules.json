@@ -1,0 +1,528 @@
+{
+  "elements": {
+    "paragraph": {
+      "inline": [
+        "strong",
+        "em",
+        "a",
+        "sup",
+        "sub",
+        "br",
+        "code",
+        "s",
+        "footnote"
+      ]
+    },
+    "heading": {
+      "levels": [
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "anchor": "^[a-z0-9_-]*$",
+      "inline": [
+        "strong",
+        "em",
+        "a",
+        "sup",
+        "sub",
+        "code",
+        "s"
+      ]
+    },
+    "list": {
+      "inline": [
+        "strong",
+        "em",
+        "a",
+        "sup",
+        "sub",
+        "br",
+        "code",
+        "s",
+        "footnote"
+      ],
+      "inner": [
+        "list"
+      ]
+    },
+    "quote": {
+      "inner": [
+        "paragraph",
+        "heading",
+        "list",
+        "quote"
+      ],
+      "citation": [
+        "strong",
+        "em",
+        "a",
+        "sup",
+        "sub",
+        "code",
+        "s"
+      ]
+    },
+    "code": {},
+    "table": {
+      "inline": [
+        "strong",
+        "em",
+        "a",
+        "sup",
+        "sub",
+        "code",
+        "s"
+      ]
+    },
+    "footnotes": {
+      "inline": [
+        "strong",
+        "em",
+        "a",
+        "sup",
+        "sub",
+        "br",
+        "code",
+        "s"
+      ]
+    },
+    "embed": {},
+    "image": {
+      "inline": [
+        "strong",
+        "em",
+        "code",
+        "sup",
+        "sub"
+      ]
+    },
+    "gallery": {
+      "inner": [
+        "image"
+      ],
+      "inline": [
+        "strong",
+        "em",
+        "code",
+        "sup",
+        "sub"
+      ]
+    },
+    "post-list": {
+      "directive": {
+        "name": "post-list",
+        "form": "leaf",
+        "attributes": {
+          "type": {
+            "type": "string",
+            "required": true
+          },
+          "include": {
+            "type": "string"
+          },
+          "exclude": {
+            "type": "string"
+          },
+          "where": {
+            "type": "string"
+          },
+          "order": {
+            "type": "string"
+          },
+          "direction": {
+            "type": "string",
+            "values": [
+              "ascending",
+              "descending"
+            ],
+            "refusal": "the site cannot publish a list in the direction \"{value}\": a list is ascending or descending"
+          },
+          "offset": {
+            "type": "integer",
+            "default": 0,
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "refusal": "the site cannot publish a list that skips {value} posts: a list skips none, or a whole number of them"
+          },
+          "number": {
+            "type": "integer",
+            "default": 10,
+            "pattern": "^([1-9]|[1-9][0-9]|100)$",
+            "refusal": "the site cannot publish a list of {value} posts: a list shows 1 to 100 posts"
+          },
+          "leaveOutThis": {
+            "type": "boolean",
+            "default": true
+          },
+          "leaveOutShown": {
+            "type": "boolean",
+            "default": true
+          },
+          "pages": {
+            "type": "boolean",
+            "default": false
+          },
+          "presentation": {
+            "type": "string",
+            "required": true
+          },
+          "empty": {
+            "type": "string"
+          }
+        },
+        "body": "none",
+        "optionsOf": "presentation"
+      }
+    },
+    "form": {
+      "directive": {
+        "name": "form",
+        "form": "leaf",
+        "attributes": {
+          "name": {
+            "type": "string",
+            "required": true,
+            "declared": "forms",
+            "refusal": "the site declares no form \"{value}\"; it declares {declared}"
+          }
+        },
+        "body": "none"
+      }
+    }
+  },
+  "inline": {
+    "strong": {
+      "attributes": []
+    },
+    "em": {
+      "attributes": []
+    },
+    "a": {
+      "attributes": [
+        "href",
+        "target",
+        "rel"
+      ],
+      "values": {
+        "target": {
+          "values": [
+            "_blank"
+          ],
+          "refusal": "a link that opens anywhere but a new tab (target \"{value}\")"
+        },
+        "rel": {
+          "words": [
+            "noreferrer",
+            "noopener",
+            "nofollow",
+            "sponsored",
+            "ugc"
+          ],
+          "refusal": "a link with the rel value \"{value}\"; a link's rel may hold {words}, each once"
+        }
+      }
+    },
+    "sup": {
+      "attributes": []
+    },
+    "sub": {
+      "attributes": []
+    },
+    "br": {
+      "attributes": []
+    },
+    "code": {
+      "attributes": []
+    },
+    "s": {
+      "attributes": []
+    },
+    "footnote": {}
+  },
+  "links": {
+    "schemes": [
+      "http",
+      "https",
+      "mailto",
+      "tel"
+    ],
+    "paths": true
+  },
+  "embeds": {
+    "refusal": "the site cannot embed content from {host}; it embeds content from {services}",
+    "services": {
+      "youtube": {
+        "name": "YouTube",
+        "hosts": [
+          "youtube.com",
+          "youtu.be"
+        ],
+        "refusal": "the site cannot embed this address from YouTube; use the address of a video or a playlist, such as https://www.youtube.com/watch?v=…, with no parameter but a start time (t)",
+        "addresses": [
+          {
+            "pattern": "^https://(?:www\\.|m\\.)?youtube\\.com/watch\\?v=(?<id>[\\w-]{11})$",
+            "player": "https://www.youtube-nocookie.com/embed/{id}"
+          },
+          {
+            "pattern": "^https://(?:www\\.|m\\.)?youtube\\.com/watch\\?v=(?<id>[\\w-]{11})&t=(?<start>\\d+)s?$",
+            "player": "https://www.youtube-nocookie.com/embed/{id}?start={start}"
+          },
+          {
+            "pattern": "^https://youtu\\.be/(?<id>[\\w-]{11})(?:\\?si=[\\w-]+)?$",
+            "player": "https://www.youtube-nocookie.com/embed/{id}"
+          },
+          {
+            "pattern": "^https://youtu\\.be/(?<id>[\\w-]{11})\\?(?:si=[\\w-]+&)?t=(?<start>\\d+)s?$",
+            "player": "https://www.youtube-nocookie.com/embed/{id}?start={start}"
+          },
+          {
+            "pattern": "^https://(?:www\\.|m\\.)?youtube\\.com/(?:shorts|live|embed)/(?<id>[\\w-]{11})(?:\\?si=[\\w-]+)?$",
+            "player": "https://www.youtube-nocookie.com/embed/{id}"
+          },
+          {
+            "pattern": "^https://(?:www\\.|m\\.)?youtube\\.com/playlist\\?list=(?<list>[\\w-]+)$",
+            "player": "https://www.youtube-nocookie.com/embed/videoseries?list={list}"
+          }
+        ],
+        "ratio": "16 / 9",
+        "allow": "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+      },
+      "vimeo": {
+        "name": "Vimeo",
+        "hosts": [
+          "vimeo.com"
+        ],
+        "refusal": "the site cannot embed this address from Vimeo; use the address of a video, such as https://vimeo.com/…",
+        "addresses": [
+          {
+            "pattern": "^https://(?:www\\.)?vimeo\\.com/(?:channels/[\\w-]+/|groups/[\\w-]+/videos/)?(?<id>\\d+)/?(?:\\?share=copy)?$",
+            "player": "https://player.vimeo.com/video/{id}?dnt=1"
+          },
+          {
+            "pattern": "^https://(?:www\\.)?vimeo\\.com/(?<id>\\d+)/(?<hash>[\\da-f]+)/?(?:\\?share=copy)?$",
+            "player": "https://player.vimeo.com/video/{id}?h={hash}&dnt=1"
+          },
+          {
+            "pattern": "^https://player\\.vimeo\\.com/video/(?<id>\\d+)/?$",
+            "player": "https://player.vimeo.com/video/{id}?dnt=1"
+          },
+          {
+            "pattern": "^https://player\\.vimeo\\.com/video/(?<id>\\d+)\\?h=(?<hash>[\\da-f]+)$",
+            "player": "https://player.vimeo.com/video/{id}?h={hash}&dnt=1"
+          }
+        ],
+        "ratio": "16 / 9",
+        "allow": "autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media; web-share"
+      },
+      "screen9": {
+        "name": "Screen9",
+        "hosts": [
+          "screen9.com",
+          "screen9.tv",
+          "qcnl.tv"
+        ],
+        "refusal": "the site cannot embed this address from Screen9; use the address in the video's embed code, such as https://qcnl.tv/e/…",
+        "addresses": [
+          {
+            "pattern": "^https://qcnl\\.tv/e/(?<token>[\\w-]+)$",
+            "player": "https://qcnl.tv/e/{token}"
+          },
+          {
+            "pattern": "^https://qcnl\\.tv/e/(?<token>[\\w-]+)\\?ratio=(?<ratio>(?=[\\d.]*[1-9])\\d*\\.?\\d+)$",
+            "player": "https://qcnl.tv/e/{token}?ratio={ratio}",
+            "ratio": "1 / {ratio}"
+          },
+          {
+            "pattern": "^https://api\\.screen9\\.com/embed/(?<token>[\\w-]+)$",
+            "player": "https://api.screen9.com/embed/{token}"
+          },
+          {
+            "pattern": "^https://api\\.screen9\\.com/embed/(?<token>[\\w-]+)\\?ratio=(?<ratio>(?=[\\d.]*[1-9])\\d*\\.?\\d+)$",
+            "player": "https://api.screen9.com/embed/{token}?ratio={ratio}",
+            "ratio": "1 / {ratio}"
+          }
+        ],
+        "ratio": "16 / 9",
+        "allow": "autoplay; fullscreen"
+      },
+      "loom": {
+        "name": "Loom",
+        "hosts": [
+          "loom.com"
+        ],
+        "refusal": "the site cannot embed this address from Loom; use the address of a video, such as https://www.loom.com/share/…",
+        "addresses": [
+          {
+            "pattern": "^https://(?:www\\.)?loom\\.com/(?:share|embed)/(?:[\\w-]*-)?(?<id>[\\da-f]{32})/?(?:\\?sid=[\\w-]+)?$",
+            "player": "https://www.loom.com/embed/{id}"
+          }
+        ],
+        "ratio": "16 / 9",
+        "allow": "fullscreen"
+      },
+      "spotify": {
+        "name": "Spotify",
+        "hosts": [
+          "spotify.com",
+          "spotify.link"
+        ],
+        "refusal": "the site cannot embed this address from Spotify; use the address of a track, an episode, a show, an album, a playlist or an artist, such as https://open.spotify.com/track/…",
+        "addresses": [
+          {
+            "pattern": "^https://open\\.spotify\\.com/(?:intl-[a-z]{2}(?:-[A-Za-z]{2})?/)?(?:embed/)?(?<kind>track|episode|show)/(?<id>[A-Za-z0-9]{22})(?:\\?si=[\\w-]+)?$",
+            "player": "https://open.spotify.com/embed/{kind}/{id}",
+            "height": 152
+          },
+          {
+            "pattern": "^https://open\\.spotify\\.com/(?:intl-[a-z]{2}(?:-[A-Za-z]{2})?/)?(?:embed/)?(?<kind>album|playlist|artist)/(?<id>[A-Za-z0-9]{22})(?:\\?si=[\\w-]+)?$",
+            "player": "https://open.spotify.com/embed/{kind}/{id}",
+            "height": 352
+          }
+        ],
+        "allow": "autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+      },
+      "acast": {
+        "name": "Acast",
+        "hosts": [
+          "acast.com"
+        ],
+        "refusal": "the site cannot embed this address from Acast; use the address of an episode, such as https://shows.acast.com/…/episodes/…",
+        "addresses": [
+          {
+            "pattern": "^https://shows\\.acast\\.com/(?<show>[\\w-]+)/episodes/(?<episode>[\\w-]+)/?$",
+            "player": "https://embed.acast.com/{show}/{episode}"
+          },
+          {
+            "pattern": "^https://play\\.acast\\.com/s/(?<show>[\\w-]+)/(?<episode>[\\w-]+)/?$",
+            "player": "https://embed.acast.com/{show}/{episode}"
+          },
+          {
+            "pattern": "^https://embed\\.acast\\.com/(?<show>[\\w-]+)/(?<episode>[\\w-]+)/?$",
+            "player": "https://embed.acast.com/{show}/{episode}"
+          }
+        ],
+        "height": 180,
+        "allow": ""
+      },
+      "apple-podcasts": {
+        "name": "Apple Podcasts",
+        "hosts": [
+          "podcasts.apple.com"
+        ],
+        "refusal": "the site cannot embed this address from Apple Podcasts; use the address of a show or an episode, such as https://podcasts.apple.com/…/podcast/…/id…",
+        "addresses": [
+          {
+            "pattern": "^https://podcasts\\.apple\\.com/(?<country>[a-z]{2})/podcast/(?:[\\w%.~-]+/)?id(?<show>\\d+)$",
+            "player": "https://embed.podcasts.apple.com/{country}/podcast/id{show}",
+            "height": 450
+          },
+          {
+            "pattern": "^https://podcasts\\.apple\\.com/(?<country>[a-z]{2})/podcast/(?:[\\w%.~-]+/)?id(?<show>\\d+)\\?i=(?<episode>\\d+)$",
+            "player": "https://embed.podcasts.apple.com/{country}/podcast/id{show}?i={episode}",
+            "height": 175
+          }
+        ],
+        "allow": "autoplay *; encrypted-media *; fullscreen *; clipboard-write"
+      },
+      "speaker-deck": {
+        "name": "Speaker Deck",
+        "hosts": [
+          "speakerdeck.com"
+        ],
+        "refusal": "the site cannot embed this address from Speaker Deck; use the address in the presentation's embed code, such as https://speakerdeck.com/player/…",
+        "addresses": [
+          {
+            "pattern": "^https://speakerdeck\\.com/player/(?<id>[\\da-f]{32})/?$",
+            "player": "https://speakerdeck.com/player/{id}"
+          }
+        ],
+        "ratio": "16 / 9",
+        "allow": "fullscreen"
+      },
+      "datawrapper": {
+        "name": "Datawrapper",
+        "hosts": [
+          "datawrapper.de",
+          "dwcdn.net"
+        ],
+        "refusal": "the site cannot embed this address from Datawrapper; use the address of a published chart, such as https://datawrapper.dwcdn.net/…/",
+        "addresses": [
+          {
+            "pattern": "^https://datawrapper\\.dwcdn\\.net/(?<id>[A-Za-z0-9]{5})/?$",
+            "player": "https://datawrapper.dwcdn.net/{id}/"
+          },
+          {
+            "pattern": "^https://datawrapper\\.dwcdn\\.net/(?<id>[A-Za-z0-9]{5})/(?<version>\\d+)/?$",
+            "player": "https://datawrapper.dwcdn.net/{id}/{version}/"
+          },
+          {
+            "pattern": "^https://www\\.datawrapper\\.de/_/(?<id>[A-Za-z0-9]{5})/?$",
+            "player": "https://datawrapper.dwcdn.net/{id}/"
+          }
+        ],
+        "height": 400,
+        "allow": ""
+      },
+      "codepen": {
+        "name": "CodePen",
+        "hosts": [
+          "codepen.io"
+        ],
+        "refusal": "the site cannot embed this address from CodePen; use the address of a pen, such as https://codepen.io/…/pen/…",
+        "addresses": [
+          {
+            "pattern": "^https://codepen\\.io/(?<user>[\\w-]+)/(?:pen|embed|full|details)/(?<pen>[A-Za-z0-9]+)/?$",
+            "player": "https://codepen.io/{user}/embed/{pen}"
+          }
+        ],
+        "height": 300,
+        "allow": ""
+      },
+      "linkedin": {
+        "name": "LinkedIn",
+        "hosts": [
+          "linkedin.com"
+        ],
+        "refusal": "the site cannot embed this address from LinkedIn; use the address of a public post, such as https://www.linkedin.com/posts/…",
+        "addresses": [
+          {
+            "pattern": "^https://www\\.linkedin\\.com/(?:embed/)?feed/update/urn:li:(?<kind>activity|share|ugcPost):(?<id>\\d+)/?$",
+            "player": "https://www.linkedin.com/embed/feed/update/urn:li:{kind}:{id}"
+          },
+          {
+            "pattern": "^https://www\\.linkedin\\.com/posts/[\\w%-]*-(?<kind>activity|ugcPost)-(?<id>\\d+)-[\\w-]+/?(?:\\?[\\w=&%.-]*)?$",
+            "player": "https://www.linkedin.com/embed/feed/update/urn:li:{kind}:{id}"
+          }
+        ],
+        "height": 600,
+        "allow": ""
+      }
+    }
+  },
+  "structuredDataTypes": [
+    "Article",
+    "BlogPosting",
+    "NewsArticle",
+    "WebPage",
+    "AboutPage",
+    "ContactPage",
+    "CollectionPage"
+  ],
+  "addresses": {
+    "reserved": [
+      "/",
+      "/_astro/*",
+      "/_konzilo/*",
+      "/_redirects",
+      "/_headers",
+      "/_markdown",
+      "/robots.txt",
+      "/sitemap.xml",
+      "/sitemap-{n}.xml",
+      "/llms.txt",
+      "/llms-full.txt"
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+---
+// A form the site description declares, by its name, wherever a template
+// places it: `<Form name="contact" />`. Konzilo's form component renders it
+// in the site's language, a plain HTML form that also sends without
+// JavaScript, and the page's script sends it where JavaScript runs ;
+// src/styles/forms.css styles it from the demo design's tokens. A
+// customer's design restyles it there, or replaces this file with a form of
+// its own that keeps the markup Konzilo's script reads.
+import KonziloForm from '@kntnt/konzilo/astro/Form.astro';
+import '../styles/forms.css';
+
+const { name } = Astro.props;
+---
+<KonziloForm name={name} />

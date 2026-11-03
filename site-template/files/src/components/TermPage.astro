@@ -1,0 +1,33 @@
+---
+// A term's page, which Konzilo's integration puts at the address of each
+// taxonomy whose site-description.json declares one, such as
+// `"address": "/category/{slug}/"` (astro.config.mjs names it in
+// `termPage`). The demo model declares none, so no term has a page until a
+// taxonomy does. Konzilo's termPages() gives each term
+// of the taxonomy its pages: the term, its posts of every type that takes
+// the taxonomy, newest first, ten a page, those of the terms below it among
+// them, from a second page on the pager, at /category/<slug>/page/2/ and
+// on, and the text for a term with no post, in the site's language, the
+// site's own or the core's. The page shows the term's name and its
+// description, then its posts as the presentation `list` shows them, with
+// their dates and excerpts, and the layout gives Konzilo's Head the term,
+// so that its head says the term's name and description, links its feed,
+// makes a later page noindex and gives the page its breadcrumbs. The page
+// is no post's body, so it is not in the body class.
+import { termPages } from '@kntnt/konzilo/astro/post-lists';
+import Site from '../layouts/Site.astro';
+import List from './List.astro';
+
+export async function getStaticPaths({ routePattern }) {
+  return termPages(routePattern);
+}
+
+const { term, page, posts, pager, empty } = Astro.props;
+---
+<Site entry={term} page={page}>
+  <main class="term-page">
+    <h1>{term.data.name}</h1>
+    {term.data.description && <p class="term-description">{term.data.description}</p>}
+    <List posts={posts} options={{ date: true, excerpt: true }} empty={empty} pager={pager} />
+  </main>
+</Site>

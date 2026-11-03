@@ -1,0 +1,18 @@
+{
+  "site": [
+    { "variable": "site.title", "label": "the site's title" },
+    { "variable": "site.description", "label": "the site's description" },
+    { "variable": "sep", "label": "the separator" },
+    { "variable": "current.year", "label": "the current year" }
+  ],
+  "post": [
+    { "variable": "post.title", "label": "the post's title" },
+    { "variable": "post.auto_description", "label": "the post's summary: its excerpt, or else the start of its body" },
+    { "variable": "post.excerpt", "label": "the post's excerpt", "field": "excerpt" },
+    { "variable": "post.date", "label": "the post's date", "field": "date" },
+    { "variable": "post.modified_date", "label": "the day the post last changed", "field": "modified" },
+    { "variable": "post.custom_field.{key}", "label": "{label}, a field of the post", "field": "meta" },
+    { "variable": "post.tax.{taxonomy}", "label": "{plural}: the names of the post's terms", "field": "terms" },
+    { "variable": "post_type.labels.singular", "label": "the type's label, {type}" }
+  ]
+}

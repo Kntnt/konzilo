@@ -1,0 +1,52 @@
+#!/bin/sh
+# Print the core's pinned versions from versions.env.
+#
+#   versions [--file PATH]        every pin as KEY=value, comments dropped
+#   versions [--file PATH] KEY    the value of one pin
+#
+# The whole file is checked before anything is printed: a malformed line or a
+# repeated key exits 2, an unknown KEY exits 1. POSIX sh and awk only. Never
+# source versions.env; read it through this command.
+
+set -eu
+
+file="$(dirname "$0")/../versions.env"
+
+if [ "${1-}" = "--file" ]; then
+	[ $# -ge 2 ] || { echo "versions: --file needs a path" >&2; exit 2; }
+	file=$2
+	shift 2
+fi
+
+[ $# -le 1 ] || { echo "usage: versions [--file PATH] [KEY]" >&2; exit 2; }
+[ -r "$file" ] || { echo "versions: cannot read $file" >&2; exit 2; }
+
+awk -v want="${1-}" -v file="$file" '
+	/^[[:space:]]*(#|$)/ { next }
+	!/^[A-Z][A-Z0-9_]*=[0-9A-Za-z.+~-]+$/ {
+		printf "versions: %s:%d: not KEY=value: %s\n", file, NR, $0 > "/dev/stderr"
+		bad = 1; next
+	}
+	{
+		eq = index($0, "=")
+		key = substr($0, 1, eq - 1)
+		if (key in value) {
+			printf "versions: %s:%d: %s is pinned twice\n", file, NR, key > "/dev/stderr"
+			bad = 1; next
+		}
+		value[key] = substr($0, eq + 1)
+		order[++n] = key
+	}
+	END {
+		if (bad) exit 2
+		if (want == "") {
+			for (i = 1; i <= n; i++) print order[i] "=" value[order[i]]
+			exit 0
+		}
+		if (!(want in value)) {
+			printf "versions: %s pins no %s\n", file, want > "/dev/stderr"
+			exit 1
+		}
+		print value[want]
+	}
+' "$file"

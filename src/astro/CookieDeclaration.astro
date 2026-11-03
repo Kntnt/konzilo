@@ -1,0 +1,120 @@
+---
+// The cookie declaration, rendered from the service registry,
+// content/consent.json, in the site's language, on the page the site
+// settings choose as the cookie policy, and on no other. A site's templates
+// place it after a page's body, in every template of a type with an
+// address, since the cookie policy may be a post of any of them:
+//
+//   import CookieDeclaration from '@kntnt/konzilo/astro/CookieDeclaration.astro';
+//   <Body post={page}><Content /></Body>
+//   <CookieDeclaration />
+//
+// `level` is the level of its top headings, 2 by default, below the page's
+// title; each category's heading is one level below, each service's two.
+//
+// It shows the visitor's own consent first: with the integration's script
+// (cookie-declaration.js) the consent ID, when the choice was made and what
+// it allows, beside Change privacy settings and Withdraw consent, which the
+// consent client shows and acts on; without it, a sentence that this part
+// needs the script. Then each category of the registry, in its order, with
+// its name, its description and its services, each with its provider,
+// purpose, why it is necessary where it is, the hosts it reaches, its
+// transfers outside the EU and EEA and a table of what it stores, after the
+// day the registry last changed; and each departure with its reason. The
+// elements carry classes of their own, `konzilo-declaration-*`, which the
+// site styles, keeping an element with `hidden` hidden; the component has
+// no style of its own, as ConsentBanner.astro says.
+import { getEntry } from 'astro:content';
+import { declarationView, isCookiePolicy } from './cookie-declaration.js';
+import { publicSite } from './public-site.js';
+import { siteSettings } from './site-settings.js';
+
+const { level = 2 } = Astro.props;
+const registry = (await getEntry('consent', 'registry'))?.data;
+const settings = await siteSettings(Astro.url);
+const { locale, languageTag } = publicSite(Astro.url);
+const base = import.meta.env.BASE_URL;
+const view = registry && isCookiePolicy(Astro.url.pathname, settings, base) ? declarationView(registry, settings, { locale, languageTag, base }) : null;
+const [Top, Category, Service] = [0, 1, 2].map((below) => `h${Math.min(level + below, 6)}`);
+---
+{view && (
+  <div class="konzilo-declaration" data-konzilo-declaration>
+    <section class="konzilo-declaration-consent" aria-labelledby="konzilo-declaration-consent">
+      <Top id="konzilo-declaration-consent">{view.words.consent}</Top>
+      {view.asks
+        ? (
+          <Fragment>
+            <p class="konzilo-declaration-no-script">{view.words.noScript}</p>
+            <p class="konzilo-declaration-none" hidden>{view.words.none}</p>
+            <dl class="konzilo-declaration-choice" hidden>
+              <dt>{view.words.id}</dt>
+              <dd><code data-konzilo-declaration-id></code></dd>
+              <dt>{view.words.given}</dt>
+              <dd><time data-konzilo-declaration-time></time></dd>
+              <dt>{view.words.allows}</dt>
+              <dd>
+                <ul>
+                  {view.categories.map((category) => <li data-konzilo-declaration-category={category.id} hidden={!category.necessary}>{category.name}</li>)}
+                  {view.categories.filter((category) => !category.necessary).flatMap((category) => category.services.map((service) => (
+                    <li data-konzilo-declaration-service={service.id} data-konzilo-declaration-in={category.id} hidden>{service.name}</li>
+                  )))}
+                </ul>
+              </dd>
+            </dl>
+            <div class="konzilo-consent-buttons">
+              <button type="button" class="konzilo-consent-secondary" data-konzilo-consent-action="change" hidden>{view.footer.change}</button>
+              <button type="button" class="konzilo-consent-secondary" data-konzilo-consent-action="withdraw" hidden>{view.footer.withdraw}</button>
+            </div>
+          </Fragment>
+        )
+        : <p>{view.words.asksNone}</p>}
+    </section>
+    <section class="konzilo-declaration-services" aria-labelledby="konzilo-declaration-services">
+      <Top id="konzilo-declaration-services">{view.words.services}</Top>
+      <p class="konzilo-declaration-revised">{view.revised.before}<time datetime={view.revised.datetime}>{view.revised.date}</time>{view.revised.after}</p>
+      {view.categories.map((category) => (
+        <section class="konzilo-declaration-category" aria-labelledby={`konzilo-declaration-category-${category.id}`}>
+          <Category id={`konzilo-declaration-category-${category.id}`}>{category.name}</Category>
+          <p>{category.description}</p>
+          {category.services.map((service) => (
+            <section class="konzilo-declaration-service" id={`konzilo-declaration-service-${service.id}`} aria-labelledby={`konzilo-declaration-service-${service.id}-name`}>
+              <Service id={`konzilo-declaration-service-${service.id}-name`}>{service.name}</Service>
+              <dl>
+                <dt>{view.words.provider}</dt>
+                <dd>
+                  {service.provider.country ? `${service.provider.name}, ${service.provider.country}.` : `${service.provider.name}.`}
+                  {service.provider.privacyPolicy && <Fragment> <a href={service.provider.privacyPolicy.href}>{service.provider.privacyPolicy.title}</a></Fragment>}
+                </dd>
+                <dt>{view.words.purpose}</dt>
+                <dd>{service.purpose}</dd>
+                {service.necessity && <dt>{view.words.necessity}</dt>}
+                {service.necessity && <dd>{service.necessity}</dd>}
+                <dt>{view.words.hosts}</dt>
+                <dd>{service.hosts.length > 0 ? <ul>{service.hosts.map((host) => <li><code>{host}</code></li>)}</ul> : view.words.noHosts}</dd>
+                <dt>{view.words.transfers}</dt>
+                <dd>{service.transfers.length > 0 ? <ul>{service.transfers.map((transfer) => <li>{transfer}</li>)}</ul> : view.words.noTransfers}</dd>
+              </dl>
+              {service.storage.length > 0
+                ? (
+                  <table>
+                    <caption>{service.caption}</caption>
+                    <thead><tr>{view.words.columns.map((column) => <th scope="col">{column}</th>)}</tr></thead>
+                    <tbody>
+                      {service.storage.map((item) => <tr><td><code>{item.name}</code></td><td>{item.kind}</td><td>{item.lifetime}</td><td>{item.party}</td></tr>)}
+                    </tbody>
+                  </table>
+                )
+                : <p>{view.words.nothing}</p>}
+            </section>
+          ))}
+        </section>
+      ))}
+    </section>
+    {view.departures.length > 0 && (
+      <section class="konzilo-declaration-departures" aria-labelledby="konzilo-declaration-departures">
+        <Top id="konzilo-declaration-departures">{view.words.departures}</Top>
+        <ul>{view.departures.map((departure) => <li>{departure.text} {view.words.reason} {departure.reason}</li>)}</ul>
+      </section>
+    )}
+  </div>
+)}

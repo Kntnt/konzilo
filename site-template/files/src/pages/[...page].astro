@@ -1,0 +1,39 @@
+---
+// A page, at its address: /pages/<path>/, the slugs of its parents and its
+// own, as /pages/about-us/team/ for Team under About us, as the type's
+// address in site-description.json has it, under its language's prefix on a
+// site in several languages, wrapped in the class the
+// body styles name (astro.config.mjs). Konzilo's Breadcrumbs above its
+// heading show where it sits: its language's start page, each page above it
+// and the page itself, by its name in breadcrumbs or its title, the same
+// levels its structured data holds. Its body goes
+// through Konzilo's Body, which renders each post list in it with its
+// presentation. The cookie declaration follows the body of the page chosen
+// as the cookie policy, and of no other.
+//
+// A page whose post list has pages of its own has them at
+// <address>page/2/ and on: Konzilo's entryPages() gives each page's pages,
+// and the page goes to Body, which shows the list's slice for it, and
+// through the layout to Head, which makes a later page noindex.
+import Body from '@kntnt/konzilo/astro/Body.astro';
+import Breadcrumbs from '@kntnt/konzilo/astro/Breadcrumbs.astro';
+import CookieDeclaration from '@kntnt/konzilo/astro/CookieDeclaration.astro';
+import { entryPages } from '@kntnt/konzilo/astro/languages';
+import { render } from 'astro:content';
+import Site from '../layouts/Site.astro';
+
+export function getStaticPaths() {
+  return entryPages('pages', 'page');
+}
+
+const { entry: page, page: number } = Astro.props;
+const { Content } = await render(page);
+---
+<Site entry={page} page={number}>
+  <main class="body-text">
+    <Breadcrumbs entry={page} />
+    <h1>{page.data.title}</h1>
+    <Body post={page} page={number}><Content /></Body>
+    <CookieDeclaration />
+  </main>
+</Site>

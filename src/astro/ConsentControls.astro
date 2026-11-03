@@ -1,0 +1,41 @@
+---
+// The footer controls of the consent, on every page: links to
+// the privacy policy and the cookie policy the site settings choose, those
+// of the page's language on a site in several, and two buttons, since neither navigates: Change privacy settings, which opens
+// the dialog of ConsentBanner.astro, and Withdraw consent, which at once
+// rejects every optional category and service and reloads the page. A
+// site's layout places it in the footer:
+//
+//   import ConsentControls from '@kntnt/konzilo/astro/ConsentControls.astro';
+//   <footer>... <ConsentControls /></footer>
+//
+// `links={false}` leaves the links out, for a footer that links the legal
+// pages itself. The buttons show only with JavaScript, and only where the
+// registry asks for consent. The elements carry classes of their own,
+// `konzilo-consent-*`, which the site styles, as ConsentBanner.astro says.
+import { getEntry } from 'astro:content';
+import { consentView } from './consent.js';
+import { publicSite } from './public-site.js';
+import { siteSettings } from './site-settings.js';
+
+const { links = true } = Astro.props;
+const registry = (await getEntry('consent', 'registry'))?.data;
+const settings = await siteSettings(Astro.url);
+const { locale, languageTag } = publicSite(Astro.url);
+const view = registry && consentView(registry, settings, { locale, languageTag, base: import.meta.env.BASE_URL });
+const policies = links && view ? view.policies : [];
+---
+{view && (policies.length > 0 || view.asks) && (
+  <div class="konzilo-consent-controls">
+    {policies.length > 0 && (
+      <ul class="konzilo-consent-policies">{policies.map((page) => <li><a href={page.href}>{page.title}</a></li>)}</ul>
+    )}
+    {view.asks && (
+      <div class="konzilo-consent-buttons">
+        <button type="button" class="konzilo-consent-secondary" data-konzilo-consent-action="change" hidden>{view.texts.footer.change}</button>
+        <button type="button" class="konzilo-consent-secondary" data-konzilo-consent-action="withdraw" hidden>{view.texts.footer.withdraw}</button>
+      </div>
+    )}
+  </div>
+)}
+

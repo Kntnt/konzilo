@@ -1,0 +1,29 @@
+---
+// The language switcher: on a site in several
+// languages, the page in each language it is in, each language by its own
+// name, the page's own marked as the current one and the others linked: a
+// post's translations, those the site has, and a language's start page the
+// other languages' start pages. A page in one language alone, and every
+// page of a site in one language, shows none. Its label is Konzilo's text
+// in the page's language, or the site's own (`konzilo({ texts })` in
+// astro.config.mjs). Each link starts at the site's base, so that it stays
+// in the preview.
+import { languageSwitcher } from '@kntnt/konzilo/astro/languages';
+
+const { entry = null } = Astro.props;
+const switcher = await languageSwitcher(Astro.url, entry);
+---
+{switcher && (
+  <nav class="language-switcher" aria-label={switcher.label}>
+    <ul>
+      {switcher.links.map((link) => (
+        <li>
+          {link.current
+            ? <span aria-current="page" lang={link.language.tag}>{link.name}</span>
+            : <a href={link.url} hreflang={link.language.tag} lang={link.language.tag}>{link.name}</a>}
+        </li>
+      ))}
+    </ul>
+  </nav>
+)}
+
