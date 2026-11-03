@@ -72,6 +72,10 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Crepe field**: The body field in Sveltia, built on Milkdown's Crepe with Konzilo's own nodes. _Avoid_: block editor, rich text editor.
 
+**Kept block**: A block in the Crepe field holding an element it has no form of yet, or one its post type does not take, as its own bytes, shown as source and moved whole. _Avoid_: protected block, raw block.
+
+**Early check**: The body check in the browser, in the Crepe field and at Save, by Sätteri's WebAssembly build. The intake remains the check that counts. _Avoid_: client-side validation.
+
 **Intake**: The program that reads the source files, checks each file and the whole set, and writes the content files or refuses. _Avoid_: converter, serializer, gate.
 
 **Body check**: The one implementation that reads a post's body against the rule data and writes it in the exact form, handed its reader so that the intake and the field run the same code. _Avoid_: validator, serializer.

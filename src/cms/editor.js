@@ -5,6 +5,10 @@
 import './manual-start.js';
 import CMS from '@sveltia/cms';
 
+import { registerBodyField } from './body/register.js';
+
 const answer = await fetch('./config.json', { cache: 'no-store' });
 if (!answer.ok) throw new Error(`no configuration: ${answer.status}`);
-CMS.init({ config: await answer.json() });
+const config = await answer.json();
+registerBodyField(CMS, config);
+CMS.init({ config });

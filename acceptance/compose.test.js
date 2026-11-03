@@ -5,8 +5,12 @@
 
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 
+import { intake } from '../src/intake/index.js';
+import { readSiteDescription } from '../src/site-description.js';
+import { namedImages, NOW } from '../tests/lib/intake.js';
 import { ENGINES, openEditor, signIn } from './lib/editor.js';
 import { makeSite } from './lib/site.js';
 
@@ -42,6 +46,38 @@ describe('a site in Compose', () => {
       if (text.includes(`title: ${title}`) || text.includes(`title: "${title}"`)) return { path: file.path, text };
     }
     return null;
+  };
+
+  // The source repository as it stands, through the intake.
+  const throughIntake = async () => {
+    const { tree } = await api(`${repository()}/git/trees/main?recursive=true`);
+    const files = [];
+    for (const { path: name, type } of tree) {
+      if (type !== 'blob' || name.startsWith('.')) continue;
+      // An original in LFS is no text to read: the seam says what a master would be.
+      if (name.startsWith('media/')) {
+        files.push({ path: name, contents: 'an original' });
+        continue;
+      }
+      const { content } = await api(`${repository()}/contents/${name}`);
+      files.push({ path: name, contents: Buffer.from(content, 'base64').toString() });
+    }
+    const description = readSiteDescription(join(site.directory, 'site-description.json'));
+    return intake({ files, site: description, now: NOW, images: namedImages(), changes: {} });
+  };
+
+  // Each editor's commit, and that a post's file is the last it touched.
+  const lastCommit = async (path) => (await api(`${repository()}/commits?path=${path}&limit=1`))[0];
+
+  const waitForFile = async (page, path, holds) => {
+    const deadline = Date.now() + 30_000;
+    for (;;) {
+      const { content } = await api(`${repository()}/contents/${path}`);
+      const text = Buffer.from(content, 'base64').toString();
+      if (holds(text)) return text;
+      if (Date.now() > deadline) return text;
+      await page.waitForTimeout(500);
+    }
   };
 
   before(async () => {
@@ -224,6 +260,49 @@ describe('a site in Compose', () => {
         assert.equal(commit.author?.login ?? commit.commit.author.name, 'anna');
       });
 
+      test('leaves a body alone when it is only opened and clicked in', async () => {
+        const { page } = session;
+        await page.getByText(`A title saved in ${engine}`).first().click();
+        const editor = page.locator('.konzilo-body-visual .ProseMirror');
+        await editor.waitFor({ timeout: 30_000 });
+        await page.getByRole('button', { name: 'Save', exact: true }).waitFor();
+        await editor.click();
+        await page.getByRole('textbox', { name: 'Title' }).click();
+        await page.waitForTimeout(300);
+        assert.equal(await page.getByRole('button', { name: 'Save', exact: true }).isDisabled(), true, 'nothing to save');
+      });
+
+      test('saves text typed and made bold in the body, and the intake takes it', async () => {
+        const { page } = session;
+        const word = `typed${engine}`;
+        const editor = page.locator('.konzilo-body-visual .ProseMirror');
+        await editor.locator('p').first().click();
+        await page.keyboard.press(process.platform === 'darwin' ? 'Meta+ArrowUp' : 'Control+Home');
+        await page.keyboard.type(`${word} `, { delay: 30 });
+        await page.waitForTimeout(100);
+        await editor.locator('p').first().evaluate((paragraph, text) => {
+          const node = paragraph.firstChild;
+          const range = document.createRange();
+          range.setStart(node, 0);
+          range.setEnd(node, text.length);
+          const selection = document.getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }, word);
+        await page.waitForTimeout(100);
+        await page.keyboard.press(`${process.platform === 'darwin' ? 'Meta' : 'Control'}+b`);
+        await page.getByRole('button', { name: 'Save', exact: true }).click();
+
+        const saved = await fileNamed('articles', `A title saved in ${engine}`);
+        const text = await waitForFile(page, saved.path, (held) => held.includes(`**${word}**`));
+        assert.match(text, new RegExp(`\\*\\*${word}\\*\\* `), 'the file holds the bold text');
+        const commit = await lastCommit(saved.path);
+        assert.equal(commit.author?.login ?? commit.commit.author.name, 'anna');
+        const taken = await throughIntake();
+        assert.deepEqual(taken.refusals.map((refusal) => refusal.message), [], 'the intake refuses nothing');
+        assert.ok(taken.files.some(({ path, contents }) => path.endsWith('.md') && String(contents).includes(`**${word}**`)), 'and publishes the text');
+      });
+
       test('asks nothing outside this copy of the site, and breaks no policy', () => {
         assert.deepEqual(session.seen.outside, []);
         assert.deepEqual(session.seen.refused, []);
@@ -238,6 +317,42 @@ describe('a site in Compose', () => {
       try {
         await session.page.getByRole('button', { name: /Logga in med/ }).waitFor();
         assert.deepEqual(session.seen.outside, []);
+      } finally {
+        await session.browser.close();
+      }
+    });
+  });
+
+  describe('a body the site cannot publish', () => {
+    test('is refused in the browser with the reason, makes no commit, loses no text, and saves once it is fixed', async () => {
+      const session = await openEditor('chromium', site);
+      try {
+        await signIn(session, site);
+        const { page } = session;
+        await page.getByText('Northern islands and the meadow').first().click();
+        await page.getByRole('button', { name: 'Show Markdown' }).click();
+        const source = page.locator('.konzilo-body-source');
+        const was = await source.inputValue();
+        await source.fill(`# A title in the body\n\n${was}`);
+        const { path } = await fileNamed('articles', 'Northern islands and the meadow');
+        const before = await lastCommit(path);
+        await page.getByRole('button', { name: 'Save', exact: true }).click();
+
+        const dialog = page.getByRole('alertdialog');
+        await dialog.getByText('The site cannot publish this, so nothing has been saved').waitFor();
+        await dialog.getByText('level 1', { exact: false }).waitFor();
+        assert.equal(await dialog.getByText('Please try again later').count(), 0);
+        assert.equal((await lastCommit(path)).sha, before.sha, 'no commit');
+        await dialog.getByRole('button', { name: 'OK' }).click();
+        assert.equal(await source.inputValue(), `# A title in the body\n\n${was}`, 'the editor\'s text is all there');
+
+        await source.fill(`## A heading in the body\n\n${was}`);
+        await page.getByRole('button', { name: 'Save', exact: true }).click();
+        const text = await waitForFile(page, path, (held) => held.includes('## A heading in the body'));
+        assert.match(text, /^## A heading in the body$/m);
+        assert.notEqual((await lastCommit(path)).sha, before.sha);
+        assert.deepEqual(session.seen.outside, []);
+        assert.deepEqual(session.seen.refused, []);
       } finally {
         await session.browser.close();
       }

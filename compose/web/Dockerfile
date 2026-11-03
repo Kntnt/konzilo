@@ -10,8 +10,11 @@ FROM node:${NODE}-bookworm-slim@sha256:${NODE_DIGEST} AS editor
 WORKDIR /core
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund --ignore-scripts
-COPY scripts/build-editor.js scripts/
+COPY scripts/build-editor.js scripts/wasm-reader.js scripts/
 COPY src/cms src/cms
+COPY src/format src/format
+COPY src/texts.js src/
+COPY src/astro/reader-features.js src/astro/
 RUN node scripts/build-editor.js /editor
 
 FROM caddy:${CADDY}-alpine@sha256:${CADDY_DIGEST}

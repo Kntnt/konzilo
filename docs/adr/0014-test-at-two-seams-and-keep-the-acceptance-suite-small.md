@@ -34,3 +34,4 @@
 - Setting a user up in the browser ran some thirty times a run and sometimes ran past the test limit, failing whichever test made the user.
 - A test that took ten minutes to open a hundred posts in the editor stood at its limit; a limit a third over what a test takes is the least.
 - A rig's browser builds are not the browsers people have: Chrome and Firefox as installed were not run, and Safari itself only for sign-in and saving.
+- The field's round trip needs no Compose: a small page, built in a second and served under the admin host's policy, takes every fixture, example and demo post through a real keyboard in Chromium in about half a minute, with Sveltia on its test repository for a site in two languages, which Compose does not have.

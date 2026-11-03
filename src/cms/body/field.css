@@ -1,0 +1,211 @@
+/* Crepe's theme parts one by one, since its whole stylesheet is 1.5 MB with fonts inlined
+   (ADR 0030). No font is asked for: the theme's stacks fall back on what a machine has. */
+@import '@milkdown/crepe/theme/common/prosemirror.css';
+@import '@milkdown/crepe/theme/common/reset.css';
+@import '@milkdown/crepe/theme/common/block-edit.css';
+@import '@milkdown/crepe/theme/common/cursor.css';
+@import '@milkdown/crepe/theme/common/link-tooltip.css';
+@import '@milkdown/crepe/theme/common/list-item.css';
+@import '@milkdown/crepe/theme/common/placeholder.css';
+@import '@milkdown/crepe/theme/common/toolbar.css';
+@import '@milkdown/crepe/theme/common/table.css';
+@import '@milkdown/crepe/theme/frame.css';
+
+.konzilo-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.konzilo-body-bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.konzilo-body-notes {
+  flex: 1;
+  min-width: 0;
+}
+
+.konzilo-body-note {
+  margin: 0 0 4px;
+  padding: 8px 10px;
+  border-left: 3px solid #b8860b;
+  background: #fff8e1;
+  color: #3d2f00;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.konzilo-body-toggle {
+  flex: none;
+  padding: 4px 10px;
+  border: 1px solid #a8a8a8;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.konzilo-body-loading {
+  margin: 0;
+  padding: 16px;
+  font-size: 14px;
+  opacity: 0.7;
+}
+
+.konzilo-body-source {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 320px;
+  padding: 12px;
+  border: 1px solid #a8a8a8;
+  border-radius: 4px;
+  background: #fff;
+  color: #000;
+  font: 14px/1.5 Menlo, Monaco, Consolas, 'Courier New', monospace;
+  white-space: pre-wrap;
+  resize: vertical;
+}
+
+.konzilo-body-visual {
+  min-height: 200px;
+  border: 1px solid #a8a8a8;
+  border-radius: 4px;
+}
+
+.konzilo-body-visual .milkdown .ProseMirror {
+  padding: 16px 20px 16px 56px;
+  min-height: 200px;
+  white-space: pre-wrap;
+}
+
+.konzilo-source {
+  margin: 12px 0;
+  padding: 8px 10px;
+  border: 1px dashed #a8a8a8;
+  border-radius: 4px;
+  background: #f7f7f7;
+  cursor: default;
+}
+
+.konzilo-source.ProseMirror-selectednode {
+  outline: 2px solid #333;
+}
+
+.konzilo-source-label {
+  margin-bottom: 4px;
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.konzilo-source pre {
+  margin: 0;
+  font: 13px/1.4 Menlo, Monaco, Consolas, 'Courier New', monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.milkdown .ProseMirror cite[data-konzilo-citation] {
+  display: block;
+  margin-top: 8px;
+  font-size: 0.9em;
+  font-style: italic;
+}
+
+.milkdown .ProseMirror span[data-type='html'] {
+  padding: 0 3px;
+  border-radius: 3px;
+  background: #ededed;
+  color: #4d4d4d;
+  font: 12px Menlo, Monaco, Consolas, 'Courier New', monospace;
+}
+
+.milkdown .ProseMirror span[data-type='html'][data-value^='<!--'] {
+  display: none;
+}
+
+.milkdown .ProseMirror .konzilo-nbsp {
+  background: #e8e8e8;
+  border-radius: 2px;
+}
+
+.milkdown .ProseMirror dl[data-type='footnote_definition'] {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0 0;
+  font-size: 0.9em;
+}
+
+.milkdown .ProseMirror dl[data-type='footnote_definition'] dd {
+  flex: 1;
+  min-width: 0;
+}
+
+.milkdown .ProseMirror sup[data-type='footnote_reference'] {
+  padding: 0 2px;
+  color: #4d4d4d;
+}
+
+.konzilo-anchor {
+  position: relative;
+  float: right;
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: normal;
+  line-height: 1.8;
+}
+
+.konzilo-anchor-badge {
+  padding: 0 4px;
+  border-radius: 3px;
+  background: transparent;
+  color: #4d4d4d;
+  cursor: pointer;
+  font: 12px Menlo, Monaco, Consolas, 'Courier New', monospace;
+  opacity: 0.35;
+}
+
+.konzilo-anchor-badge.has-anchor {
+  background: #ededed;
+  opacity: 1;
+}
+
+.konzilo-anchor-badge:hover,
+.konzilo-anchor-badge:focus-visible {
+  opacity: 1;
+}
+
+.milkdown .konzilo-anchor-input {
+  width: 16em;
+  padding: 2px 4px;
+  border: 1px solid #a8a8a8;
+  border-radius: 3px;
+  background: #fff;
+  font: 12px Menlo, Monaco, Consolas, 'Courier New', monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  .konzilo-body-note {
+    background: #332a00;
+    color: #ffe9a8;
+  }
+
+  .konzilo-body-source {
+    background: #1c1c1c;
+    color: #f0f0f0;
+  }
+
+  .konzilo-source {
+    background: #2a2a2a;
+    color: #f0f0f0;
+  }
+
+  .milkdown .ProseMirror .konzilo-nbsp {
+    background: #444;
+  }
+}
