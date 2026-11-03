@@ -88,6 +88,12 @@ export const TRANSLATION_KEY = 'translationKey';
 // keys, in the map's order.
 export const SEO_FIELD = 'seo';
 export const SEO_KEYS = Object.freeze(['title', 'breadcrumb', 'description', 'socialTitle', 'socialDescription', 'socialImage', 'socialImageAlt', 'schema', 'noindex', 'nofollow']);
+// How a source file holds them, in the parts an editor sees: not the content file's flat map.
+export const SEO_PARTS = Object.freeze({
+  search: Object.freeze(['title', 'description', 'breadcrumb']),
+  sharing: Object.freeze(['socialTitle', 'socialDescription', 'socialImage', 'socialImageAlt']),
+  advanced: Object.freeze(['schema', 'noindex', 'nofollow']),
+});
 
 // The site's identity: its title, logo and site icon, which settings.json holds
 // before the site's own settings, under these names. No setting of the site's own, and no settings

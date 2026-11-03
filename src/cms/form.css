@@ -1,0 +1,11 @@
+/* The form around the fields, with Sveltia's first paint, so it is small. */
+
+/* An accordion's label stands in its bar, and needs no line above it (patches.json). */
+section[data-accordion] > header {
+  display: none !important;
+}
+
+/* A closed bar's hint can be long, and a form of closed bars is there to be read at a glance. */
+section[data-accordion]:has(> .field-wrapper > .wrapper > .header button[aria-expanded='false']) > .footer {
+  display: none;
+}

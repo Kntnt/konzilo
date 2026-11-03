@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 import { cmsConfig } from '../src/cms/config.js';
 import { demoSource } from '../src/demo-source.js';
-import { siteDescription } from '../src/site-description.js';
+import { SCHEMA_TYPES, SEO_KEYS, siteDescription } from '../src/site-description.js';
 
 const file = (path) => fileURLToPath(new URL(`../${path}`, import.meta.url));
 const place = { forgejo: 'http://localhost:4403', repository: 'lantern/source', clientId: 'the-client', site: 'http://localhost:4401' };
@@ -157,4 +157,56 @@ test('gives a child page its parent by ID, and gives the same files each time', 
   const parentId = /([0-9a-f]{12})\.md$/.exec(parent.path)[1];
   assert.match(child.content, new RegExp(`\\nparent: "${parentId}"\\n`));
   assert.deepEqual(demoSource(description, file('site-template/demo-content')).map((one) => one.path), files.map((one) => one.path));
+});
+
+test('makes nothing from inside another\'s form, but for a post\'s terms', () => {
+  const allowed = [];
+  const walk = (fields) => {
+    for (const one of fields ?? []) {
+      if (one.widget === 'relation' && one.allow_add !== false) allowed.push(one.name);
+      walk(one.fields);
+    }
+  };
+  for (const entry of config.collections) {
+    walk(entry.fields);
+    for (const file of entry.files ?? []) walk(file.fields);
+  }
+  assert.deepEqual([...new Set(allowed)].sort(), ['categories', 'tags']);
+});
+
+test('holds search and sharing in closed parts, each key once, with nothing required', () => {
+  for (const type of Object.values(description.types)) {
+    const seo = field(collection(type.collection).fields, 'seo');
+    if (!seo) continue;
+    assert.equal(seo.accordion, true);
+    assert.equal(seo.collapsed, true);
+    assert.equal(seo.required, false);
+    assert.deepEqual(seo.fields.map((part) => part.name), ['search', 'sharing', 'advanced']);
+    const keys = seo.fields.flatMap((part) => {
+      assert.equal(part.accordion, true);
+      assert.equal(part.collapsed, true);
+      assert.equal(part.required, false);
+      return part.fields.map((one) => {
+        assert.equal(one.required, false);
+        return one.name;
+      });
+    });
+    assert.deepEqual([...keys].sort(), [...SEO_KEYS].sort());
+    assert.deepEqual(field(field(seo.fields, 'advanced').fields, 'schema').options, [...SCHEMA_TYPES]);
+  }
+});
+
+test('holds search and sharing per language on a site in several', () => {
+  const { language: _one, ...declared } = JSON.parse(readFileSync(file('site-template/files/site-description.json'), 'utf8'));
+  declared.languages = ['sv_SE', 'en_GB'];
+  for (const type of Object.values(declared.types)) {
+    if (typeof type.address === 'string') type.address = { sv_SE: type.address, en_GB: type.address.replace(/^\/(?=[a-z]+\/)/, '/en-') };
+  }
+  const several = cmsConfig(siteDescription(declared), place);
+  const seo = several.collections.find((one) => one.name === 'articles').fields.find((one) => one.name === 'seo');
+  assert.equal(seo.i18n, true);
+  for (const part of seo.fields) {
+    assert.equal(part.i18n, true);
+    for (const one of part.fields) assert.equal(one.i18n, true);
+  }
 });

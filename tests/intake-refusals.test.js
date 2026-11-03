@@ -178,10 +178,10 @@ const cases = {
   'icon-square': [() => run({ 'settings.json': { ...settled, icon: { src: '/media/wide.png' } } }, site, { images: namedImages({ width: 800, height: 600 }) }), { setting: 'icon' }],
   'icon-small': [() => run({ 'settings.json': { ...settled, icon: { src: '/media/site-icon.png' } } }, site, { images: namedImages({ width: 100, height: 100 }) }), { setting: 'icon' }],
   'seo-shape': [() => onePost({ seo: 'none' }), { field: 'seo' }],
-  'seo-flag': [() => onePost({ seo: { noindex: 'yes' } }), { field: 'seo.noindex' }],
-  'seo-text': [() => onePost({ seo: { title: { a: 1 } } }), { field: 'seo.title' }],
-  'seo-schema': [() => onePost({ seo: { schema: 'Blog' } }), { field: 'seo.schema' }],
-  'seo-image-alt': [() => onePost({ seo: { socialImage: '/media/a.png' } }), { field: 'seo.socialImageAlt' }],
+  'seo-flag': [() => onePost({ seo: { advanced: { noindex: 'yes' } } }), { field: 'seo.advanced.noindex' }],
+  'seo-text': [() => onePost({ seo: { search: { title: { a: 1 } } } }), { field: 'seo.search.title' }],
+  'seo-schema': [() => onePost({ seo: { advanced: { schema: 'Blog' } } }), { field: 'seo.advanced.schema' }],
+  'seo-image-alt': [() => onePost({ seo: { sharing: { socialImage: '/media/a.png' } } }), { field: 'seo.sharing.socialImageAlt' }],
   'other-shape': [() => onePost({ otherAddresses: 'none' }), { field: 'otherAddresses' }],
   'other-address': [() => onePost({ otherAddresses: [{ address: 'not a path' }] }), { field: 'otherAddresses' }],
   'other-answer': [() => onePost({ otherAddresses: [{ address: '/x/', answer: 404 }] }), { field: 'otherAddresses' }],
@@ -382,4 +382,9 @@ test('a non-Admin may change a post, and an Admin what is an Admin\'s', () => {
     'articles/aaaaaaaaaaaa.md': article(),
   }, { changes: { 'settings.json': admin, 'menus/main.json': admin, 'pages/cccccccccccc.md': admin, 'articles/aaaaaaaaaaaa.md': { by: 'editor@example.com', admin: false } } });
   assert.deepEqual(refusals, []);
+});
+
+test('search and sharing fields in the content file\'s flat form are refused, not dropped', () => {
+  const { refusals } = onePost({ seo: { title: 'A title' } });
+  assert.deepEqual(refusals.map((one) => /cannot read the search and sharing fields/.test(one.message)), [true]);
 });

@@ -6,6 +6,7 @@ import './manual-start.js';
 import CMS from '@sveltia/cms';
 
 import { registerBodyField } from './body/register.js';
+import './form.css';
 
 const answer = await fetch('./config.json', { cache: 'no-store' });
 if (!answer.ok) throw new Error(`no configuration: ${answer.status}`);
