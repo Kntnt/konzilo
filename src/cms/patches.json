@@ -76,5 +76,11 @@
     "why": "A first click in a table's cell selects all its text a frame later, on the state it saw at the click, so that the next key replaces the cell where a person expects the cursor where they clicked, and it throws \"Applying a mismatched transaction\" if the state has moved meanwhile (ADR 0021). A click in a cell does what a click does anywhere else.",
     "find": "handleClick_fn = function(event) {\n  const view = this.view;",
     "replace": "handleClick_fn = function(event) {\n  return false;\n  const view = this.view;"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "The preview pane is a blob document in a frame. WebKit refuses one under the editor's frame-ancestors, and sends no cookie to a frame inside one, so the live preview would stand empty. A document given as srcdoc is the editor's own to every engine (ADR 0032).",
+    "find": "origin:window.location.origin}),a=URL.createObjectURL(new Blob([n],{type:`text/html`}));B(i).addEventListener(`load`,async()=>{try{await e()}catch(e){f(e)}URL.revokeObjectURL(a),N(r,!0),t.onLoad?.(B(i))},{once:!0}),B(i).src=a};",
+    "replace": "origin:window.location.origin});B(i).addEventListener(`load`,async()=>{try{await e()}catch(e){f(e)}N(r,!0),t.onLoad?.(B(i))},{once:!0}),B(i).srcdoc=n};"
   }
 ]

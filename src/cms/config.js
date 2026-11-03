@@ -79,7 +79,7 @@ const SAME_IN_EACH = { i18n: 'duplicate' };
  * @param {string} place.clientId the OAuth client of this Forgejo
  * @param {string} place.site the public site's origin
  */
-export function cmsConfig(description, { forgejo, repository, clientId, site }) {
+export function cmsConfig(description, { forgejo, repository, clientId, site, preview = null }) {
   const say = (key) => inLanguage(TEXTS[key], description.language);
   const several = description.languages.length > 1;
   const within = (extra) => (several ? extra : {});
@@ -359,6 +359,11 @@ export function cmsConfig(description, { forgejo, repository, clientId, site }) 
 
   return {
     load_config_file: false,
+    // Konzilo's own, which the editor takes out before Sveltia sees the rest: where this copy
+    // of the site has its live preview, and which collections have pages to show there.
+    ...(preview === null ? {} : {
+      konzilo: { preview: { origin: preview, collections: Object.values(description.types).filter((type) => type.address).map((type) => type.collection) } },
+    }),
     app_title: 'Konzilo',
     site_url: site,
     display_url: site,

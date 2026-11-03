@@ -7,6 +7,7 @@
 // stopped half way can run again.
 
 import { execFileSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -23,6 +24,8 @@ const {
   KONZILO_ADMIN_ORIGIN: adminOrigin,
 } = process.env;
 const REPOSITORY = 'source';
+const READER = 'preview-reader';
+const READ_TOKEN = '/preview-secret/read-token';
 
 const secret = (name) => readFileSync(`/run/secrets/${name}`, 'utf8').trim();
 const known = (name) => (existsSync(join(STATE, name)) ? readFileSync(join(STATE, name), 'utf8').trim() : null);
@@ -101,6 +104,16 @@ const api = (token) => async (method, path, body) => {
   return { status: answer.status, body: text && answer.headers.get('content-type')?.includes('json') ? JSON.parse(text) : text };
 };
 
+const request = async (path, body, authorization, otp) => {
+  const answer = await fetch(`${FORGEJO}/api/v1${path}`, {
+    method: 'POST',
+    headers: { authorization, 'x-forgejo-otp': otp, 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const text = await answer.text();
+  return { status: answer.status, body: text && answer.headers.get('content-type')?.includes('json') ? JSON.parse(text) : text };
+};
+
 const must = (what, { status, body }, ...expected) => {
   if (!expected.includes(status)) throw new Error(`${what}: ${status} ${JSON.stringify(body)}`);
   return body;
@@ -132,14 +145,36 @@ async function pushDemoContent(token) {
   git('push', '--quiet', 'origin', 'main');
 }
 
-async function main() {
-  if (known('seeded')) return;
+// The live preview's credential, in a volume of its own, so that the preview has nothing
+// else of what the seed knows: an account that can only read the source repository, whose
+// password nobody keeps, since this token is all it is for (ADR 0032).
+async function previewReader(call) {
+  if (existsSync(READ_TOKEN)) return;
+  const password = randomBytes(24).toString('base64url');
+  must('making the preview\'s account', await call('POST', '/admin/users', {
+    username: READER,
+    email: `${READER}@localhost.invalid`,
+    password,
+    must_change_password: false,
+    send_notify: false,
+    visibility: 'private',
+  }), 201);
+  const key = await enrol(READER, password, 'reader-totp');
+  must('letting the preview read', await call('PUT', `/repos/${site}/${REPOSITORY}/collaborators/${READER}`, { permission: 'read' }), 204);
+  const { sha1 } = must('making the preview\'s token', await request(`/users/${READER}/tokens`, { name: 'preview', scopes: ['read:repository'] }, basic(READER, password), totp(key)), 201);
+  writeFileSync(READ_TOKEN, `${sha1}\n`, { mode: 0o600 });
+}
 
+async function main() {
   const instancePassword = secret('instance-password');
   const accountPassword = secret('account-password');
   const instanceKey = await enrol('konzilo', instancePassword, 'instance-totp');
   const token = await instanceToken(instancePassword, instanceKey);
   const call = api(token);
+  if (known('seeded')) {
+    await previewReader(call);
+    return;
+  }
 
   must('making the account', await call('POST', '/admin/users', {
     username: account,
@@ -186,6 +221,7 @@ async function main() {
     remember('oauth-client', client.client_id);
   }
 
+  await previewReader(call);
   remember('seeded', new Date().toISOString());
 }
 

@@ -18,7 +18,7 @@ const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/ja
 
 const adminPolicy = () => {
   const caddyfile = readFileSync(join(core, 'compose/web/Caddyfile'), 'utf8');
-  return /Content-Security-Policy "([^"]+)"/.exec(caddyfile)[1].replaceAll('{$KONZILO_FORGEJO_ORIGIN}', 'http://localhost:1');
+  return /Content-Security-Policy "([^"]+)"/.exec(caddyfile)[1].replaceAll('{$KONZILO_FORGEJO_ORIGIN}', 'http://localhost:1').replaceAll('{$KONZILO_PREVIEW_ORIGIN}', 'http://localhost:3');
 };
 
 async function serve(folder, config) {

@@ -50,7 +50,7 @@ test('publishes ports on the web server alone, and on this machine alone', () =>
   assert.equal(withPorts.length, 1);
   assert.match(withPorts[0], /^web:/);
   const ports = /^ {4}ports:\n((?: {6}- .*\n)+)/m.exec(withPorts[0])[1].trim().split('\n');
-  assert.equal(ports.length, 3);
+  assert.equal(ports.length, 4);
   for (const port of ports) assert.match(port, /- 127\.0\.0\.1:/);
 });
 

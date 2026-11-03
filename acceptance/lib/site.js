@@ -24,12 +24,13 @@ export async function makeSite() {
   const folder = realpathSync(mkdtempSync(join(tmpdir(), 'konzilo-acceptance-')));
   execFileSync(join(core, 'bin/new-site'), [name], { cwd: folder, stdio: 'pipe' });
   const directory = join(folder, name);
-  const ports = { site: await freePort(), admin: await freePort(), git: await freePort() };
+  const ports = { site: await freePort(), admin: await freePort(), git: await freePort(), preview: await freePort() };
   const env = {
     ...process.env,
     KONZILO_PORT_SITE: String(ports.site),
     KONZILO_PORT_ADMIN: String(ports.admin),
     KONZILO_PORT_GIT: String(ports.git),
+    KONZILO_PORT_PREVIEW: String(ports.preview),
   };
 
   const compose = (...args) => {
@@ -45,6 +46,7 @@ export async function makeSite() {
       site: `http://localhost:${ports.site}`,
       admin: `http://localhost:${ports.admin}`,
       git: `http://localhost:${ports.git}`,
+      preview: `http://localhost:${ports.preview}`,
     },
     compose,
     up: (...args) => compose('up', '--wait', '--wait-timeout', '600', ...args),

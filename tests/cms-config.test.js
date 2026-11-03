@@ -201,6 +201,14 @@ test('holds search and sharing in closed parts, each key once, with nothing requ
   }
 });
 
+test('says where the live preview is, and which collections have pages to show there', () => {
+  const given = cmsConfig(description, { forgejo: 'http://localhost:1', repository: 'a/b', clientId: 'c', site: 'http://localhost:2', preview: 'http://localhost:3' });
+  const withPages = Object.values(description.types).filter((type) => type.address).map((type) => type.collection);
+  assert.deepEqual(given.konzilo, { preview: { origin: 'http://localhost:3', collections: withPages } });
+  assert.ok(withPages.length > 0);
+  assert.equal(cmsConfig(description, { forgejo: 'http://localhost:1', repository: 'a/b', clientId: 'c', site: 'http://localhost:2' }).konzilo, undefined);
+});
+
 test('holds search and sharing per language on a site in several', () => {
   const { language: _one, ...declared } = JSON.parse(readFileSync(file('site-template/files/site-description.json'), 'utf8'));
   declared.languages = ['sv_SE', 'en_GB'];

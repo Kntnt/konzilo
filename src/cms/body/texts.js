@@ -5,6 +5,12 @@ import { inLanguage } from '../../texts.js';
 
 const TEXTS = {
   loading: { en: 'Loading the editor…', sv: 'Läser in redigeraren…' },
+  previewTitle: { en: 'The page as it would look', sv: 'Sidan så som den skulle se ut' },
+  previewStarting: { en: 'Starting the preview…', sv: 'Startar förhandsvisningen…' },
+  previewOff: { en: 'The preview is not answering. This is about the preview alone: your text is still here, and can be saved.', sv: 'Förhandsvisningen svarar inte. Det gäller bara förhandsvisningen: din text finns kvar och går att spara.' },
+  previewRefused: { en: 'The site cannot publish this yet, so the page below is the last good one. What to change:', sv: 'Webbplatsen kan inte publicera det här än, så sidan nedan är den senaste som gick. Det här behöver ändras:' },
+  previewRefusedNoPage: { en: 'The site cannot publish this yet, so there is no page to show. What to change:', sv: 'Webbplatsen kan inte publicera det här än, så det finns ingen sida att visa. Det här behöver ändras:' },
+  previewNoPage: { en: 'This has no page of its own.', sv: 'Det här har ingen egen sida.' },
   fieldOff: { en: 'The editor could not load. Reload the page; nothing has been changed.', sv: 'Redigeraren gick inte att läsa in. Ladda om sidan; inget har ändrats.' },
   placeholder: { en: 'Write here, or type / for more', sv: 'Skriv här, eller skriv / för mer' },
   showMarkdown: { en: 'Show Markdown', sv: 'Visa Markdown' },
