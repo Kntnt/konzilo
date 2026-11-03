@@ -1,4 +1,6 @@
-// A site's content files, as the intake writes them, for a test's own site.
+// A site's content files, shaped as the intake writes them, for a test of the Astro side
+// that wants a site of its own in few lines. What a test can take from the intake itself it
+// does; the intake's own suite holds the rest to the format.
 
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -6,7 +8,7 @@ import { dirname, extname, join } from 'node:path';
 import { embedsInFile } from '../../src/astro/reader.js';
 import { registryFile } from '../../src/format/consent.js';
 import { declaredServices } from '../../src/format/declared-services.js';
-import { groupsIn, isSiteTitle } from '../../src/settings-groups.js';
+import { settingsFor } from '../../src/intake/settings.js';
 import { SEO_KEYS, siteDescription } from '../../src/site-description.js';
 
 const yaml = (value) => {
@@ -20,43 +22,17 @@ export function postFile({ body = '', ...frontmatter }) {
   return `---\n${lines.join('\n')}\n---\n\n${body}\n`;
 }
 
-// The settings file of a site (the description as declared): each group that
-// applies with its defaults, the given values over them, by group. What a group
-// takes per type or per form is filled in the same way.
+// The settings file of a site (the description as declared), by the intake's own reading
+// of settings: each group that applies with its defaults, the given values over them,
+// by group. A test gives a chosen post or an image as the file holds it, having no source
+// files to resolve them from.
 export function settingsFile(declared, { identity = {}, settings = {}, groups = {}, locale = null } = {}) {
   const site = siteDescription(declared);
-  const defaults = (declaredSettings) => Object.fromEntries(declaredSettings
-    .filter((setting) => setting.published !== false && setting.default !== undefined && (!isSiteTitle(setting.default) || identity.title))
-    .map((setting) => [setting.name, isSiteTitle(setting.default) ? identity.title : setting.default]));
-  const merged = (base, over) => {
-    const out = { ...base };
-    for (const [key, value] of Object.entries(over ?? {})) {
-      out[key] = value !== null && typeof value === 'object' && !Array.isArray(value) && typeof out[key] === 'object' ? merged(out[key], value) : value;
-    }
-    return out;
-  };
-  const whole = { ...identity, ...settings };
-  for (const group of locale ? groupsIn(site.groups, locale, identity.title) : site.groups) {
-    const values = { ...defaults(group.settings) };
-    for (const part of group.parts) values[part.name] = defaults(part.settings);
-    for (const item of group.each ?? []) values[item.name] = defaults(item.settings);
-    if (group.types !== null) values.types = Object.fromEntries(group.types.map((part) => [part.type, defaults(part.settings)]));
-    // The 404 page's group is the collection `notFound` instead.
-    if (group.name !== 'notFound') whole[group.name] = typedGroup(group, merged(values, groups[group.name]));
-  }
-  return `${JSON.stringify(whole, null, 2)}\n`;
-}
-
-// A group's values, each typed by its setting.
-function typedGroup(group, values) {
-  const each = (settings, into) => {
-    for (const setting of settings) if (into[setting.name] !== undefined) into[setting.name] = typed(into[setting.name], setting);
-  };
-  each(group.settings, values);
-  for (const part of group.parts) if (values[part.name]) each(part.settings, values[part.name]);
-  for (const item of group.each ?? []) if (values[item.name]) each(item.settings, values[item.name]);
-  for (const part of group.types ?? []) if (values.types?.[part.type]) each(part.settings, values.types[part.type]);
-  return values;
+  const language = locale ? site.languages.find((one) => one.locale === locale) : site.languages[0] ?? null;
+  const source = { ...identity, ...settings, ...groups };
+  const { values, problems } = settingsFor(site, source, language, { title: identity.title, choice: (value) => ({ value }), image: (value) => ({ value }) });
+  if (problems.length > 0) throw new Error(`a test's settings: ${problems.map((one) => `${one.setting}: ${one.reason}`).join('; ')}`);
+  return `${JSON.stringify(values, null, 2)}\n`;
 }
 
 // Write `files`, by their paths from `folder`.

@@ -61,10 +61,7 @@ describe('the examples of content-format.md', () => {
     const result = intake({ files, site, now: NOW, ledger, images: namedImages(), changes: {} });
     assert.deepEqual(result.refusals, []);
     const got = written(result);
-    for (const [path, contents] of Object.entries(expected)) {
-      // Its registry holds no embed, and its ledger only what those files make.
-      assert.equal(got[path], contents, path);
-    }
+    for (const [path, contents] of Object.entries(expected)) assert.equal(got[path], contents, path);
   });
 
   test('a site in several languages', () => {
@@ -75,6 +72,15 @@ describe('the examples of content-format.md', () => {
     assert.deepEqual(result.refusals, []);
     const got = written(result);
     for (const { path, contents } of published) assert.equal(got[path], contents, path);
+  });
+
+  test('its tour of every element', () => {
+    const tour = marked.checked.find((one) => one.attributes.tour);
+    const { path, contents } = exampleFile(tour);
+    const body = contents.replace(/^---\n[\s\S]*?\n---\n\n/, '').replace(/\n$/, '');
+    const result = run({ [pagePath]: sourcePost({ title: 'A tour of every element', slug: 'a-tour', status: 'published' }, body) }, site);
+    assert.deepEqual(result.refusals, []);
+    assert.equal(written(result)[path], contents);
   });
 
   for (const example of marked.checked.filter((one) => one.attributes.body && !one.attributes['reader-only'])) {

@@ -74,6 +74,8 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Intake**: The program that reads the source files, checks each file and the whole set, and writes the content files or refuses. _Avoid_: converter, serializer, gate.
 
+**Body check**: The one implementation that reads a post's body against the rule data and writes it in the exact form, handed its reader so that the intake and the field run the same code. _Avoid_: validator, serializer.
+
 **Refusal**: The intake's or `preSave`'s no to something it cannot publish, naming the post, the block or the field, or the file and line, and the reason. _Avoid_: error, validation failure.
 
 **Warning**: The intake's word about a post it publishes otherwise than it holds, such as a link shown as text while its target has no page. _Avoid_: refusal, error.

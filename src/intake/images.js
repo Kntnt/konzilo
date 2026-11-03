@@ -86,20 +86,23 @@ export async function originalFacts(bytes, existing = null) {
 }
 
 // The seam for a set of originals, each { path, contents }: a function of a path below
-// `media/`. `masters`, the content folder's, name to bytes, so that a master already
-// there is left alone, by the hash its name holds.
+// `media/`. `masters`, the content folder's, name to its bytes, so that a master already
+// there is left alone, by the hash its name holds. Either's contents may be a function
+// that reads them, so that a site's originals are in memory one at a time, as they can
+// be 30 MB each, and a master only when its original is at hand.
 export async function imagesFrom(originals, masters = new Map()) {
+  const read = (contents) => (typeof contents === 'function' ? contents() : Buffer.from(contents));
   const byHash = new Map();
-  for (const [name, bytes] of masters) {
+  for (const [name, contents] of masters) {
     const hash = /-([0-9a-f]{10})\.(?:webp|svg)$/.exec(name)?.[1];
-    if (hash) byHash.set(hash, bytes);
+    if (hash) byHash.set(hash, contents);
   }
   const facts = new Map();
   for (const { path, contents } of originals) {
-    const bytes = Buffer.from(contents);
-    const digits = hashDigits(createHash('sha256').update(bytes).digest('hex'));
+    const bytes = read(contents);
+    const existing = byHash.get(hashDigits(createHash('sha256').update(bytes).digest('hex')));
     // One at a time: sharp keeps its own pool of threads, and a site has many images.
-    facts.set(path, await originalFacts(bytes, byHash.get(digits) ?? null));
+    facts.set(path, await originalFacts(bytes, existing === undefined ? null : read(existing)));
   }
   return (path) => facts.get(path) ?? null;
 }

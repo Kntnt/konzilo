@@ -1152,10 +1152,12 @@ function escapedText(value, context) {
   return out;
 }
 
+// What GFM would make a link of itself, split by an empty comment. The reader takes a
+// scheme with a letter right before it for an address as well.
 function splitAutolinks(text) {
   return text
     .replace(/(?<![\p{L}\p{N}])www\./giu, (found) => `${found.slice(0, 3)}${COMMENT}.`)
-    .replace(/(?<![\p{L}\p{N}])(https?|ftp):\/\//giu, (_, scheme) => `${scheme}${COMMENT}://`)
+    .replace(/(https?|ftp):\/\//giu, (_, scheme) => `${scheme}${COMMENT}://`)
     .replace(/([\p{L}\p{N}._+-]+)@(?=[\p{L}\p{N}-]+\.[\p{L}\p{N}.-]*[\p{L}\p{N}])/gu, `$1${COMMENT}@`);
 }
 

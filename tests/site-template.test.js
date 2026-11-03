@@ -614,6 +614,8 @@ describe('the site template in Swedish and English, built by Astro', () => {
     const swedish = ['https://www.example.com/sv/hamnljus/', 'https://www.example.com/sv/bara-svenska/'];
     const english = ['https://www.example.com/en/english-only/', 'https://www.example.com/en/harbour-lights/'];
     assert.deepEqual(links('sv/feed/index.rss'), swedish);
+    // A guid by the post's ID, so that a moved post is no new item to a feed reader.
+    assert.match(page('sv/feed/index.rss'), /<guid isPermaLink="false">https:\/\/www\.example\.com\/\?p=[^<]+<\/guid>/);
     assert.deepEqual(links('en/feed/index.rss'), english);
     assert.deepEqual(links('sv/category/hamnar/feed/index.rss'), swedish);
     assert.deepEqual(links('en/category/hamnar/feed/index.rss'), english);

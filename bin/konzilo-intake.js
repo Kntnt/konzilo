@@ -67,13 +67,13 @@ function lastChanges(admins) {
 
 try {
   const site = readSiteDescription(join(siteFolder, SITE_DESCRIPTION_FILE));
-  const files = walk(checkout).map((path) => {
-    const inner = relative(checkout, path);
-    return { path: inner, contents: inner.startsWith('media/') ? readFileSync(path) : readFileSync(path, 'utf8') };
-  });
+  // An original reaches the function only through the seam.
+  const paths = walk(checkout).map((path) => relative(checkout, path));
+  const files = paths.filter((path) => !path.startsWith('media/')).map((path) => ({ path, contents: readFileSync(join(checkout, path), 'utf8') }));
   const media = join(content, 'media');
-  const masters = new Map(walk(media).map((path) => [relative(media, path), readFileSync(path)]));
-  const images = await imagesFrom(files.filter(({ path }) => path.startsWith('media/')), masters);
+  const masters = new Map(walk(media).map((path) => [relative(media, path), () => readFileSync(path)]));
+  const originals = paths.filter((path) => path.startsWith('media/')).map((path) => ({ path, contents: () => readFileSync(join(checkout, path)) }));
+  const images = await imagesFrom(originals, masters);
   const ledgerFile = join(content, POST_IDS_FILE);
   const ledger = existsSync(ledgerFile) ? JSON.parse(readFileSync(ledgerFile, 'utf8')) : null;
   const admins = parsed.values.admins ? JSON.parse(readFileSync(parsed.values.admins, 'utf8')) : null;

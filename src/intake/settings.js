@@ -86,7 +86,9 @@ function settingValue(setting, raw, at, context) {
     if (empty) return setting.required ? { reason: say('setting-required') } : {};
     return context.image(raw, stemOf(at));
   }
-  if (empty || (typeof raw === 'string' && raw.trim() === '')) {
+  // An empty yes-or-no is a no, which a default must not turn into a yes.
+  const unset = raw === undefined || raw === null || (setting.type !== 'boolean' && typeof raw === 'string' && raw.trim() === '');
+  if (unset) {
     if (setting.default !== undefined) {
       if (isSiteTitle(setting.default)) return context.title === undefined ? {} : { value: context.title };
       return { value: setting.default };

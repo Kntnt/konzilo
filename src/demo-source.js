@@ -66,8 +66,8 @@ function postsOf(description, published) {
 }
 
 // Body links that lead to a post by its address, as references by its ID, and images by
-// their place in the media folder, as the editing tool stores them. Code is left alone by
-// the simple means of a link's form: a line of code that holds one is written the same.
+// their place in the media folder, as the editing tool stores them. It reads the text
+// alone, so a code block that shows such a link would change too; the demo's show none.
 function bodyAsSource(body, ids) {
   return body
     .replace(/(!\[[^\]\n]*\]\()(?:\.\.\/)*media\/([^)\s]+)\)/g, (_, open, name) => `${open}/media/${name})`)
@@ -180,12 +180,10 @@ function differs(setting, value, title) {
 // A setting's value as source holds it, or undefined for what a default gives.
 function settingAsSource(setting, value, title, titled) {
   if (value === undefined) return undefined;
-  if (setting.type === 'post') return ids(titled, value);
+  if (setting.type === 'post') return titled.get(value.url)?.id;
   if (setting.type === 'image') return { ...value, src: mediaPath(value.src) };
   return differs(setting, value, title) ? value : undefined;
 }
-
-const ids = (titled, value) => titled.get(value.url)?.id;
 
 // Settings as source holds them: what differs from a default, each part kept only when
 // anything in it does.

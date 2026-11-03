@@ -129,6 +129,36 @@ test('reads a source the same with any other parser that gives the same tree', (
   assert.equal(checkBody('* One', hands).body, '- One');
 });
 
+test('whatever an editor types comes back as typed, in any block, and is a fixed point', () => {
+  const hands = { reader, rules, embedOf, elements: Object.keys(rules.elements), link: () => ({ href: '/x/' }), image: (address) => ({ src: address }) };
+  const pieces = ['*', '_', '`', '~', '[', ']', '(', ')', '<', '>', '&', '#', '|', '\\', ':', '!', '-', '+', '=', '.', '1', 'a', ' ', '^', '"', 'www.', '@', 'b', '/', ';', '{', '}', 'é', ' '];
+  let seed = 1;
+  const next = (below) => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed % below;
+  };
+  const textOf = (nodes) => nodes.map((node) => node.value ?? textOf(node.children ?? [])).join('');
+  const shapes = [
+    [(text) => text, ([first]) => first.children],
+    [(text) => `## ${text}`, ([first]) => first.children],
+    [(text) => `- ${text}`, ([first]) => first.children[0].children[0].children],
+    [(text) => `> ${text}`, ([first]) => first.children[0].children],
+    [(text) => `| A |\n| --- |\n| ${text} |`, ([first]) => first.children[1].children[0].children],
+  ];
+  for (let round = 0; round < 300; round += 1) {
+    const typed = Array.from({ length: 1 + next(12) }, () => pieces[next(pieces.length)]).join('').trim();
+    if (typed === '') continue;
+    // Every character of punctuation escaped: the plainest way to say that it is text.
+    const source = [...typed].map((c) => (/[!-/:-@[-`{-~]/.test(c) ? `\\${c}` : c)).join('');
+    for (const [shape, read] of shapes) {
+      const { body, problems } = checkBody(shape(source), hands);
+      assert.deepEqual(problems, [], typed);
+      assert.equal(textOf(read(reader.tree(body).children)).replaceAll('<!-- -->', ''), typed);
+      assert.equal(checkBody(body, hands).body, body, typed);
+    }
+  }
+});
+
 test('imports nothing, so that the field can run it in the browser', () => {
   const text = readFileSync(fileURLToPath(new URL('../src/format/body.js', import.meta.url)), 'utf8');
   assert.doesNotMatch(text, /^\s*import\b|\bimport\(|\brequire\(/m);
