@@ -513,7 +513,7 @@ function languagesOf({ language, languages }, problems) {
   }
   if (language === undefined) return [];
   if (typeof language === 'string' && LOCALE.test(language)) return [{ locale: language, tag: languageTag(language), prefix: null, main: true }];
-  problems.push(`language: ${JSON.stringify(language)} is not one of ${LANGUAGES.slice(0, -1).join(', ')} and ${LANGUAGES.at(-1)}`);
+  problems.push(`language: ${JSON.stringify(language)} is not a locale, such as sv_SE or fi`);
   return [];
 }
 
