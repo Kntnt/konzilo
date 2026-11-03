@@ -52,7 +52,16 @@ test('makes a new post a draft, and leaves out what the intake derives', () => {
   assert.deepEqual(field(fields, 'status').options.map((option) => option.value), ['draft', 'scheduled', 'published']);
   assert.equal(field(fields, 'modified'), undefined);
   assert.equal(field(fields, 'oldAddresses'), undefined);
-  assert.equal(field(fields, 'body').widget, 'markdown');
+});
+
+test('edits a body in Konzilo\'s own field, which knows what its type takes and which forms the site has', () => {
+  for (const type of Object.values(description.types)) {
+    const body = field(collection(type.collection).fields, 'body');
+    assert.equal(body.widget, 'konzilo-body');
+    assert.deepEqual(body.elements, type.elements);
+    assert.deepEqual(body.forms, Object.keys(description.forms ?? {}));
+    assert.equal(body.required, false);
+  }
 });
 
 test('refers to a term and a parent by ID', () => {

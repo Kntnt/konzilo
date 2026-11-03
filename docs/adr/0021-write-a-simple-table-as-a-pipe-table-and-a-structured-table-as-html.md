@@ -36,7 +36,7 @@ A line for each tag that opens or closes the table and its sections, one for the
 
 **Refused for good:** a table without a header row, more than one, a plain cell in it, a header cell outside it, a column aligned differently, an empty table, a line break in a cell, and a table inside a quote or a list. **A merged cell is counted by its spans:** every row of each section must cover each column once; a cell merged past its section, overlaps and rows of different widths are refused. A column's alignment is that of the cells that start in it. **A footnote mark** cannot stand in either kind.
 
-**In the field,** a caption is edited in place, written in the structured form; a footer and merged cells are a protected source block (ADR 0030).
+**In the field,** a caption is edited in place, written in the structured form; a footer and merged cells are a kept block (ADR 0030).
 
 ## Why
 
@@ -57,4 +57,4 @@ A line for each tag that opens or closes the table and its sections, one for the
 
 ## What practice has shown
 
-The caption in Crepe passed 14 of 14 checks in all three engines, twice: opening changes no byte; typing in place; escapes; marks; undo gives the bytes back; editing a cell keeps the form; clearing it gives a pipe table; adding one makes it structured; a footer and merged cells stay source, byte for byte. One unexplained page error remains, "Applying a mismatched transaction", on clicking a cell in Crepe's table, with or without a caption. Nothing visible follows from it.
+The caption in Crepe passed 14 of 14 checks in all three engines, twice: opening changes no byte; typing in place; escapes; marks; undo gives the bytes back; editing a cell keeps the form; clearing it gives a pipe table; adding one makes it structured; a footer and merged cells stay source, byte for byte. A page error, "Applying a mismatched transaction", on clicking a cell in Crepe's table, comes from its click handler, which a frame after a first click selects all the cell's text, on the state it saw at the click. That also makes the next key replace the cell, or not, by a race. A patch takes the handler away, so a click in a cell puts the cursor where it does anywhere else. The caption itself waits for the field's later stage (ADR 0030), and until then a structured table is a kept block.

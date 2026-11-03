@@ -10,5 +10,29 @@
     "why": "An editor has no use for an advertisement for Sveltia's mobile sign-in, which the admin host does not offer (ADR 0029).",
     "find": "let n=r9(`mobileCta`);R(()=>{n.showIfNeeded()});",
     "replace": "let n=r9(`mobileCta`);"
+  },
+  {
+    "module": "@milkdown/components/lib/list-item-block/index.js",
+    "why": "A list item puts back the selection it saw when it mounted, one frame later, even when the cursor has moved since, so text typed within that frame lands in another item (Milkdown issues 2501 and 2506). A selection that has moved is newer than the one put back.",
+    "find": "if (!last) return;",
+    "replace": "if (!last || last.anchor !== state.selection.anchor || last.head !== state.selection.head) return;"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "Above a reason from `preSave`, Sveltia says there was an error and to try again later, which is wrong for a refusal: nothing failed, and trying again gives the same answer. The field gives its own words for its own refusal, in the editor's language, and any other failure keeps Sveltia's (ADR 0029).",
+    "find": "z(e=>G(r,`${e??``} `),[()=>X(`saving_entry.error.description`)])",
+    "replace": "z(e=>G(r,`${e??``} `),[()=>globalThis.__KONZILO_REFUSAL_WORDS__?.(B(p))??X(`saving_entry.error.description`)])"
+  },
+  {
+    "module": "@emnapi/runtime/dist/emnapi.esm-bundler.js",
+    "why": "Sätteri's WebAssembly runtime tries `new Function()` to see whether it may, and the admin host's policy refuses it, as it should: Firefox reports that as a violation. It takes the same way it takes on refusal, without asking.",
+    "find": "f = new Function();",
+    "replace": "throw new Error('no eval on the admin host');"
+  },
+  {
+    "module": "@milkdown/components/lib/table-block/index.js",
+    "why": "A first click in a table's cell selects all its text a frame later, on the state it saw at the click, so that the next key replaces the cell where a person expects the cursor where they clicked, and it throws \"Applying a mismatched transaction\" if the state has moved meanwhile (ADR 0021). A click in a cell does what a click does anywhere else.",
+    "find": "handleClick_fn = function(event) {\n  const view = this.view;",
+    "replace": "handleClick_fn = function(event) {\n  return false;\n  const view = this.view;"
   }
 ]

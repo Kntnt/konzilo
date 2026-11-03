@@ -5,7 +5,9 @@
 // ID. Empty optional fields are left out, since the intake's schemas refuse an
 // empty string.
 
+import { declaredNames } from '../site-description.js';
 import { inLanguage } from '../texts.js';
+import { BODY_WIDGET } from './body/widget.js';
 
 const TEXTS = {
   title: { en: 'Title', sv: 'Titel' },
@@ -75,6 +77,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site }) 
   const say = (key) => inLanguage(TEXTS[key], description.language);
   const several = description.languages.length > 1;
   const within = (extra) => (several ? extra : {});
+  const { forms } = declaredNames(description);
 
   const required = (field) => ({ required: field === true });
 
@@ -284,7 +287,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site }) 
       },
       ...type.fields.map(postField).filter(Boolean),
       ...(type.address === null ? [] : [otherAddressesField()]),
-      { name: 'body', label: say('body'), widget: 'markdown', required: false, ...within(TRANSLATED) },
+      { name: 'body', label: say('body'), widget: BODY_WIDGET, required: false, elements: type.elements, forms, ...within(TRANSLATED) },
     ],
   });
 
