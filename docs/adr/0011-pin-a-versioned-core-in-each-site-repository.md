@@ -30,4 +30,4 @@
 
 - A fine-grained token with *Contents: read* is untried; a workflow's own token and the GitHub CLI's are proven.
 - GitHub may change how it compresses archives, with six months' notice. The bytes would change though the files do not, and the lock's integrity would stop the install; pinning again re-pins the same release.
-- Chained shell commands and a guard that greps under `pipefail` have tagged the wrong commit. Verifying and tagging are separate steps, and each result is read before the next.
+- Chained shell commands and a guard that greps under `pipefail` can tag the wrong commit. Verifying and tagging are separate steps, and each result is read before the next.

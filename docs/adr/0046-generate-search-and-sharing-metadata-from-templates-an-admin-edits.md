@@ -17,7 +17,7 @@
 
 ## Why
 
-Visitors meet what Konzilo builds (ADR 0043), and Slim SEO's syntax is one that people who write such templates know.
+Visitors meet what Konzilo builds (ADR 0043), and templates in the manner of Slim SEO are Thomas's choice.
 
 ## Considered and rejected
 

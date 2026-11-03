@@ -6,11 +6,11 @@
 
 - **One format moves a site.** `konzilo export` writes one archive, and `konzilo import` takes one, in every case. Backups, the restore drill, handover packages, moving between local and live, and a customer leaving all use it.
 - **It holds:** the customer's Forgejo data with the source repository and its LFS objects, the site's code, the content repository, the service's SQLite and the accounts.
-- **A backup keeps everything, encrypted,** so that a restore gives back the logins people had. **An export for leaving scrubs secrets** and leaves out passwords and second factors, so that people set new ones. What logs in, resets a login or opens something goes: passwords, reset keys, sessions, second factors and their recovery codes, tokens, stored keys. The customer's own data stays. A test proves that no secret is left, at any depth.
+- **A backup keeps everything, encrypted,** so that a restore gives back the logins people had. **An export for leaving scrubs secrets** and leaves out passwords and second factors, so that people set new ones. Kntnt's administrator account comes along without them, and the instruction says to remove it once it is not needed. What logs in, resets a login or opens something goes: passwords, reset keys, sessions, second factors and their recovery codes, tokens, stored keys. The customer's own data stays. A test proves that no secret is left, at any depth.
 - **Everything a customer owns can be found in Forgejo, or in the archive.** A hosted site's code stays on GitHub and is mirrored into the customer's Forgejo. On a stand-alone site, Forgejo holds the code outright. Form submissions and consent records are not in Git, so they come only with the archive.
 - **Git history travels as objects and refs alone,** so no hook or setting travels with it, and LFS objects travel beside it.
 - **The service's SQLite is taken through its backup API,** so that a copy is consistent while the service runs.
-- **Leaving is proved.** An acceptance test exports a hosted site, imports it into a fresh Compose with no setting or package of Kntnt's, and checks that it publishes, signs in and takes a form.
+- **Leaving is proved.** An acceptance test exports a hosted site, imports it into a fresh Compose with no setting or package of Kntnt's, and checks that it publishes, signs in and takes a form. It runs in every release's suite, and on any change to the archive's code.
 - **Public packages and images are part of leaving.** An imported site pins the core, so these must be available without a token by the day a customer leaves.
 - **The archive comes with an instruction,** written for a developer who does not know Konzilo: what each part is, how to run it, how to check that it works, and what it leaves out.
 

@@ -30,7 +30,7 @@
 
 ## What practice has shown
 
-- A suite of this kind grew to about two hours on a CI runner, with seven of eleven runs failing, nearly all on a test or two that passed in the runs around them. Each rerun cost the two hours again, and one release took about 490 minutes of Actions. Requests that never reached the site, through a router of the local environment, caused most of it, and a dev server that answered 404 for over a minute for a page whose file it had just reloaded caused the rest.
+- A suite of this kind grew to about two hours on a CI runner, with seven of eleven runs failing, nearly all on a test or two that passed in the runs around them. Each rerun cost the two hours again, and a release that runs it twice took about 490 minutes of Actions. Requests that never reached the site, through a router of the local environment, caused most of it, and a dev server that answered 404 for over a minute for a page whose file it had just reloaded caused the rest.
 - Setting a user up in the browser ran some thirty times a run and sometimes ran past the test limit, failing whichever test made the user.
 - A test that took ten minutes to open a hundred posts in the editor stood at its limit; a limit a third over what a test takes is the least.
 - A rig's browser builds are not the browsers people have: Chrome and Firefox as installed were not run, and Safari itself only for sign-in and saving.

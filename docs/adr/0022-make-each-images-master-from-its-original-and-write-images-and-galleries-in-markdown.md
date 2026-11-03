@@ -58,4 +58,4 @@ Between two images, and before the gallery's caption, is a soft line break; betw
 - An unsaved upload has a `blob:` address in the draft, and the reader drops such an image, so the preview's template sends the file too (ADR 0032).
 - Uploading through Sveltia lands in LFS, as a pointer in Git, with no help.
 - Sveltia's media library fetches whole originals as thumbnails: six visible images were 3.7 MB, and a dozen turns of the wheel 75 requests and 46 MB. It works, but on a phone connection it wants real thumbnails later.
-- Sharp converts colour profiles and strips GPS and camera data, which is acceptable only while a file is private.
+- Sharp converts colour profiles and strips GPS and camera data, so a master never carries them. An original keeps them, which is acceptable only because originals are private.

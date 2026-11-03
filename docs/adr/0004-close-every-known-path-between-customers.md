@@ -10,7 +10,7 @@ No one can honestly promise a risk of zero. So the bar means that every known pa
 
 - **A Forgejo per customer,** as its own container with its own files and accounts. A login or a token from one customer is worthless at another, since they are separate systems. A customer with several sites has one Forgejo for them.
 - **A network per customer.** One customer's containers cannot reach another's at all. Only the web server crosses, and it holds no content, only the static pages it serves.
-- **Cookies.** Every login and session cookie, Forgejo's and the preview's, has the `__Host-` prefix, and is `Secure` and `SameSite`. A browser refuses such a cookie from any other host. The admin hosts hold no cookies at all.
+- **Cookies.** Every login and session cookie, Forgejo's and the preview's, has the `__Host-` prefix, and is `Secure` and `SameSite`; a share link's cookie is bound to its own path instead (ADR 0032). A browser refuses such a cookie from any other host. The admin hosts hold no cookies at all.
 - **An attack in the suite.** An acceptance test, with two customers on one server, has a page on one customer's hosts try to set and send cookies to the other's, use a token across, and reach the other's containers. Every attempt must fail.
 - **The Public Suffix List.** Kntnt applies to list `konzilo.app`, so that browsers treat each customer's name as a site of its own. It is an extra layer that nothing relies on: the list may decline a small project, and it promises no time.
 - **What faces visitors holds no drafts.** The container that takes visitors' requests holds no credential for the source repository and mounts none of it.
