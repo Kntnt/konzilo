@@ -9,7 +9,7 @@ The admin host is reachable from the internet, and a login reaches a customer's 
 ## Decision
 
 - **Forgejo's closed settings:** no registration, sign-in required to see anything, no user list, `GLOBAL_TWO_FACTOR_REQUIREMENT = all`, no Forgejo SSH, `LOGIN_REMEMBER_DAYS = 0`. Sveltia's OAuth application is a public client per admin host, with PKCE only and no token sign-in.
-- **Only these paths reach Forgejo:** `/user/login*`, `/user/two_factor*`, `/user/webauthn*`, `/user/logout`, `/user/settings/security*`, `/login/oauth/*`, `/assets/*`, `/avatars/*`, `/api/v1/*`, `/api/forgejo/*`, `/api/healthz`, `/<org>/<repo>.git/info/lfs/*`, `/<org>/<repo>/media/*`, `/<org>/<repo>/raw/*`. Refused within those: `/api/v1/users/*/tokens*`, `/api/v1/user/applications/*`, `/api/v1/user/keys*`, `/api/v1/user/gpg_keys*`. The block stands from the first start, since a token made before it goes on working.
+- **Only these paths reach Forgejo:** `/user/login*`, `/user/two_factor*`, `/user/webauthn*`, `/user/logout`, `/user/forgot_password`, `/user/recover_account`, `/user/settings/security*`, `/login/oauth/*`, `/assets/*`, `/avatars/*`, `/api/v1/*`, `/api/forgejo/*`, `/api/healthz`, `/<org>/<repo>.git/info/lfs/*`, `/<org>/<repo>/media/*`, `/<org>/<repo>/raw/*`. Refused within those: `/api/v1/users/*/tokens*`, `/api/v1/user/applications/*`, `/api/v1/user/keys*`, `/api/v1/user/gpg_keys*`. The block stands from the first start, since a token made before it goes on working.
 - **The proxy removes `X-Real-IP`** on its way to Forgejo (`header_up -X-Real-IP`), and the jail against guessing reads the proxy's own log (hosting).
 - **The consent page answers itself:** a template override, `custom/templates/user/auth/grant.tmpl`, clicks `#authorize-app`. It is safe only because the allow-list leaves one OAuth client per Forgejo, and is checked at each raise.
 - **Every person sets up a second factor before anything else.** An account with none is refused everywhere, tokens included. People are individual accounts, and someone who works for two customers has an account at each.
@@ -32,6 +32,11 @@ The admin host is reachable from the internet, and a login reaches a customer's 
 ## What practice has shown
 
 Forgejo 17.0.1:
+
+- The login form and the enrolment form take no CSRF token from a client without a browser's headers. The enrolment page shows the key once, as "Or enter the secret: …", so the seed reads it there and keeps it: a local account's key is fixed for the life of that copy, not across copies. A code enrolled with may not work at the next login until the period has passed.
+- A forgotten password's routes are `/user/forgot_password` and `/user/recover_account`, the second being the link in the mail, so a first password and a reset both go through the proxy. Whether a reset keeps the second factor is to be tried when a copy has mail.
+- Caddy runs `handle` before a bare `respond`, so a refusal must be a `handle` of its own, first. A test tries the token routes with both factors, in several spellings.
+- Forgejo's pages link `/manifest.json`, which WebKit alone asks for, and the proxy leaves closed.
 
 - `manage_credentials` does not exist. A password alone gets nothing: API, Git and token creation all answer 401. But password and code through `X-Forgejo-OTP` make a token that needs no second factor from then on, and it wrote to the repository. The form at `/user/settings/applications/tokens/new` is open to a signed-in user too. With the allow-list, sign-in, saving and LFS all work.
 - The login form's remember box gave a cookie that alone reached settings and the token form for 31 days, with no password or code. With `LOGIN_REMEMBER_DAYS = 0` the cookie alone leads to the login page. The box still shows until a template hides it.

@@ -1,0 +1,207 @@
+# One site in containers, with a Forgejo of its own (ADR 0002): what a site
+# repository includes, on a laptop and on one's own server alike. `docker compose
+# up --wait` in the site repository brings it up and returns when its hosts answer.
+#
+# Every service runs with no capabilities, a read-only file system and limits
+# (ADR 0005), and only the web server has ports. compose/README.md lists what each
+# volume holds.
+
+name: ${KONZILO_SITE}
+
+x-hardened: &hardened
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs: ["/tmp:noexec,nosuid,size=256m"]
+  pids_limit: 512
+
+x-forgejo: &forgejo
+  <<: *hardened
+  image: codeberg.org/forgejo/forgejo:${FORGEJO}-rootless@sha256:${FORGEJO_DIGEST}
+  mem_limit: 1g
+  volumes:
+    - forgejo-data:/var/lib/gitea
+    - forgejo-config:/etc/gitea
+    - ${KONZILO_CORE}/compose/forgejo/templates:/konzilo/templates:ro
+    - ${KONZILO_CORE}/compose/forgejo/init.sh:/konzilo/init.sh:ro
+  environment:
+    FORGEJO__server__ROOT_URL: http://localhost:${KONZILO_PORT_GIT}/
+    FORGEJO__server__HTTP_PORT: "3000"
+    FORGEJO__server__DISABLE_SSH: "true"
+    FORGEJO__server__START_SSH_SERVER: "false"
+    FORGEJO__server__LFS_START_SERVER: "true"
+    FORGEJO__database__DB_TYPE: sqlite3
+    FORGEJO__security__INSTALL_LOCK: "true"
+    FORGEJO__security__GLOBAL_TWO_FACTOR_REQUIREMENT: all
+    FORGEJO__security__LOGIN_REMEMBER_DAYS: "0"
+    # Cookies are shared across ports on localhost, so each site names its own.
+    FORGEJO__security__COOKIE_REMEMBER_NAME: ${KONZILO_SITE}_remember
+    FORGEJO__security__CSRF_COOKIE_NAME: ${KONZILO_SITE}_csrf
+    FORGEJO__session__COOKIE_NAME: ${KONZILO_SITE}_session
+    # WebKit and Safari refuse a Secure cookie on http://localhost (ADR 0002).
+    FORGEJO__session__COOKIE_SECURE: "false"
+    FORGEJO__service__DISABLE_REGISTRATION: "true"
+    FORGEJO__service__REQUIRE_SIGNIN_VIEW: "true"
+    FORGEJO__service__DEFAULT_ALLOW_CREATE_ORGANIZATION: "false"
+    FORGEJO__service.explore__DISABLE_USERS_PAGE: "true"
+    FORGEJO__repository__DEFAULT_PRIVATE: private
+    FORGEJO__cors__ENABLED: "true"
+    FORGEJO__cors__ALLOW_DOMAIN: http://localhost:${KONZILO_PORT_ADMIN}
+    FORGEJO__cors__METHODS: GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS
+    FORGEJO__cors__HEADERS: Content-Type,User-Agent,Authorization,Accept
+    FORGEJO__log__LEVEL: Warn
+    FORGEJO__metrics__ENABLED: "false"
+    FORGEJO__packages__ENABLED: "false"
+    FORGEJO__actions__ENABLED: "false"
+
+services:
+  # Makes the database and the instance's administrator before Forgejo first starts.
+  forgejo-init:
+    <<: *forgejo
+    command: ["sh", "/konzilo/init.sh"]
+    restart: "no"
+    secrets: [instance-password]
+
+  forgejo:
+    <<: *forgejo
+    depends_on:
+      forgejo-init: { condition: service_completed_successfully }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/api/healthz"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+
+  # The only one with ports. Each host is its own port, which is the same inside the
+  # container, so that a container sharing this network can reach Forgejo under the
+  # address its answers name (ADR 0005).
+  web:
+    <<: *hardened
+    build:
+      context: ${KONZILO_CORE}
+      dockerfile: compose/web/Dockerfile
+      args:
+        NODE: ${NODE_RELEASE}
+        NODE_DIGEST: ${NODE_DIGEST}
+        CADDY: ${CADDY}
+        CADDY_DIGEST: ${CADDY_DIGEST}
+    image: konzilo-web:local
+    depends_on:
+      forgejo: { condition: service_healthy }
+    restart: unless-stopped
+    mem_limit: 256m
+    ports:
+      - 127.0.0.1:${KONZILO_PORT_SITE}:${KONZILO_PORT_SITE}
+      - 127.0.0.1:${KONZILO_PORT_ADMIN}:${KONZILO_PORT_ADMIN}
+      - 127.0.0.1:${KONZILO_PORT_GIT}:${KONZILO_PORT_GIT}
+    environment:
+      KONZILO_PORT_SITE: ${KONZILO_PORT_SITE}
+      KONZILO_PORT_ADMIN: ${KONZILO_PORT_ADMIN}
+      KONZILO_PORT_GIT: ${KONZILO_PORT_GIT}
+      KONZILO_REPOSITORY: ${KONZILO_SITE}/source
+      KONZILO_FORGEJO_ORIGIN: http://localhost:${KONZILO_PORT_GIT}
+    volumes:
+      - site-public:/srv/site:ro
+      - admin-config:/srv/admin-config:ro
+      - caddy-data:/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          wget -q -O /dev/null http://127.0.0.1:${KONZILO_PORT_ADMIN}/ &&
+          wget -q -O /dev/null http://127.0.0.1:${KONZILO_PORT_GIT}/api/healthz
+      interval: 2s
+      timeout: 3s
+      retries: 60
+
+  # Fills Forgejo the first time: an organisation, a repository with the demo content
+  # as source files, an account and the editor's OAuth client.
+  seed:
+    <<: *hardened
+    build: &builder
+      context: ${KONZILO_CORE}
+      dockerfile: compose/builder/Dockerfile
+      args:
+        NODE: ${NODE_RELEASE}
+        NODE_DIGEST: ${NODE_DIGEST}
+    image: konzilo-builder:local
+    depends_on:
+      web: { condition: service_started }
+    network_mode: service:web
+    restart: "no"
+    mem_limit: 512m
+    command: ["node", "/konzilo/compose/seed/seed.js"]
+    environment:
+      KONZILO_SITE: ${KONZILO_SITE}
+      KONZILO_ACCOUNT: ${KONZILO_ACCOUNT}
+      KONZILO_FORGEJO_ORIGIN: http://localhost:${KONZILO_PORT_GIT}
+      KONZILO_ADMIN_ORIGIN: http://localhost:${KONZILO_PORT_ADMIN}
+    secrets: [instance-password, account-password]
+    volumes:
+      - state:/state
+      - ${KONZILO_SITE_DIR:-.}/site-description.json:/site/site-description.json:ro
+
+  # Builds the site and writes the editor's configuration, then stays up and sleeps:
+  # what runs on demand starts itself, so that `up` is all a machine needs and no
+  # container gets Docker's socket (ADR 0002). If it stops with a fault, `up --wait`
+  # says so at once. One build at a start for now: saving through to a published page
+  # is a later step of the work.
+  builder:
+    <<: *hardened
+    build: *builder
+    image: konzilo-builder:local
+    init: true
+    depends_on:
+      seed: { condition: service_completed_successfully }
+    restart: "no"
+    stop_grace_period: 1s
+    mem_limit: 3g
+    healthcheck:
+      # In temporary space, which every start begins without.
+      test: ["CMD", "test", "-f", "/tmp/built"]
+      interval: 2s
+      timeout: 3s
+      retries: 300
+    command: ["sh", "/konzilo/compose/builder/build-site.sh"]
+    environment:
+      KONZILO_ORIGIN: http://localhost:${KONZILO_PORT_SITE}
+      KONZILO_SITE_ORIGIN: http://localhost:${KONZILO_PORT_SITE}
+      KONZILO_FORGEJO_ORIGIN: http://localhost:${KONZILO_PORT_GIT}
+      KONZILO_REPOSITORY: ${KONZILO_SITE}/source
+      ASTRO_TELEMETRY_DISABLED: "1"
+    volumes:
+      - state:/state:ro
+      - site-work:/work
+      - site-public:/public
+      - admin-config:/admin-config
+      - ${KONZILO_SITE_DIR:-.}:/site:ro
+      - ${KONZILO_CORE}:${KONZILO_CORE}:ro
+
+  # `docker compose run --rm code` prints the seeded account's current code.
+  code:
+    <<: *hardened
+    build: *builder
+    image: konzilo-builder:local
+    profiles: [tools]
+    network_mode: none
+    command: ["node", "/konzilo/bin/konzilo-code.js"]
+    volumes:
+      - state:/state:ro
+
+# Files, since Compose can write no secret into a read-only container, and a secret
+# is never in the environment (ADR 0005). A local copy's passwords are known.
+secrets:
+  instance-password:
+    file: ${KONZILO_SECRETS:-./local-secrets}/instance-password
+  account-password:
+    file: ${KONZILO_SECRETS:-./local-secrets}/account-password
+
+volumes:
+  forgejo-data:
+  forgejo-config:
+  caddy-data:
+  state:
+  site-work:
+  site-public:
+  admin-config:

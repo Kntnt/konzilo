@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // The checks a commit must pass before it joins main, as thoroughly as a CI run
 // would make them: from a fresh clone, so nothing depends on what lies around in
-// this checkout, and in a Linux container on the pinned Node as well, since this
-// machine's Node and its file system's handling of case can differ from a server's.
+// this checkout; in a Linux container on the pinned Node as well, since this
+// machine's Node and its file system's handling of case can differ from a server's;
+// and in a real Compose project, with real browsers.
 //
 //   gate          check the current commit; the working tree must be clean
 //   gate --here   run the checks where it stands, which is what a CI job would call
@@ -62,7 +63,7 @@ if (read('git', ['status', '--porcelain'], root).stdout !== '') stop('commit fir
 if (!run('docker', ['info', '--format', 'Docker {{.ServerVersion}}'], root)) stop('Docker is not running');
 
 const commit = read('git', ['rev-parse', '--short', 'HEAD'], root).stdout.trim();
-const node = read('sh', [join(root, 'scripts/versions'), 'NODE'], root).stdout.trim();
+const node = read('sh', [join(root, 'scripts/versions'), 'NODE_RELEASE'], root).stdout.trim();
 const folder = mkdtempSync(join(realpathSync(tmpdir()), 'konzilo-gate-'));
 const clean = () => rmSync(folder, { recursive: true, force: true });
 process.on('exit', clean);
@@ -74,7 +75,8 @@ const clone = (name) => {
 };
 
 console.log(`\n=== ${commit} on this machine, Node ${process.version}\n`);
-here(clone('here'));
+const first = clone('here');
+here(first);
 
 console.log(`\n=== ${commit} in Linux, Node ${node}\n`);
 const inside = [
@@ -88,4 +90,10 @@ const container = `konzilo-gate-${process.pid}`;
 const linux = run('docker', ['run', '--rm', '--name', container, '--volume', `${clone('linux')}:/source:ro`, `node:${node}-bookworm-slim`, 'sh', '-c', inside], root);
 if (!linux) stop('the checks failed in Linux');
 
-console.log(`\ngate passed: ${commit}, on this machine and in Linux`);
+// Compose and real browsers, which only this machine can run: a container here has no
+// Docker of its own.
+console.log(`\n=== ${commit} in Compose and three browser engines\n`);
+if (!run('npx', ['playwright-core', 'install', 'chromium', 'firefox', 'webkit'], first)) stop('the browsers did not install');
+if (!run('npm', ['run', 'acceptance'], first)) stop('the acceptance suite failed');
+
+console.log(`\ngate passed: ${commit}, on this machine, in Linux, and in Compose with three browser engines`);

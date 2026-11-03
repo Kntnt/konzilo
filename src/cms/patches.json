@@ -1,0 +1,14 @@
+[
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "Sveltia joins Forgejo's OAuth scopes with commas, which reaches notifications and organisations; a space asks for what it names (ADR 0029).",
+    "find": "`read:user`].join(`,`)",
+    "replace": "`read:user`].join(` `)"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "An editor has no use for an advertisement for Sveltia's mobile sign-in, which the admin host does not offer (ADR 0029).",
+    "find": "let n=r9(`mobileCta`);R(()=>{n.showIfNeeded()});",
+    "replace": "let n=r9(`mobileCta`);"
+  }
+]
