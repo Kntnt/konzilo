@@ -193,6 +193,11 @@ test('holds search and sharing in closed parts, each key once, with nothing requ
     });
     assert.deepEqual([...keys].sort(), [...SEO_KEYS].sort());
     assert.deepEqual(field(field(seo.fields, 'advanced').fields, 'schema').options, [...SCHEMA_TYPES]);
+    // What the field holds is a name: the levels themselves follow from where the post sits.
+    const breadcrumb = field(field(seo.fields, 'search').fields, 'breadcrumb');
+    assert.equal(breadcrumb.label, 'Name in breadcrumbs');
+    assert.match(breadcrumb.hint, /instead of the title/i);
+    assert.match(breadcrumb.hint, /follow/i);
   }
 });
 

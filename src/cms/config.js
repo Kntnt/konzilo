@@ -33,7 +33,8 @@ const TEXTS = {
   seoFollows: { en: 'Left empty, the template for this type of post decides.', sv: 'Lämnas den tom bestämmer mallen för den här inläggstypen.' },
   seoImageAltHint: { en: 'Needed with a sharing image.', sv: 'Krävs när det finns en delningsbild.' },
   seoTitle: { en: 'Title tag', sv: 'Titeltagg' },
-  seoBreadcrumb: { en: 'Breadcrumb', sv: 'Brödsmula' },
+  seoBreadcrumb: { en: 'Name in breadcrumbs', sv: 'Namn i brödsmulor' },
+  seoBreadcrumbHint: { en: 'Instead of the title, when a shorter name fits better. The levels themselves follow from where the post sits.', sv: 'I stället för titeln, när ett kortare namn passar bättre. Själva nivåerna följer av var inlägget ligger.' },
   seoDescription: { en: 'Meta description', sv: 'Metabeskrivning' },
   seoSocialTitle: { en: 'Sharing title', sv: 'Delningstitel' },
   seoSocialDescription: { en: 'Sharing description', sv: 'Delningsbeskrivning' },
@@ -197,7 +198,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site }) 
   const seoField = (field) => {
     const keys = {
       title: { widget: 'string', hint: say('seoFollows') },
-      breadcrumb: { widget: 'string' },
+      breadcrumb: { widget: 'string', hint: say('seoBreadcrumbHint') },
       description: { widget: 'text' },
       socialTitle: { widget: 'string', hint: say('seoFollows') },
       socialDescription: { widget: 'text' },
