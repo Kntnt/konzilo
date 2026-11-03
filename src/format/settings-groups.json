@@ -1,0 +1,719 @@
+{
+  "search": {
+    "label": "Search and sharing",
+    "description": "What search engines and social networks show of the site's pages: the title tag, the meta description and the sharing card of each, made from the templates below, its structured data type, and the publisher behind the site. A template is text with variables, such as {{ post.title }}; each part lists those it may use.",
+    "settings": {
+      "separator": {
+        "label": "Separator",
+        "type": "string",
+        "control": "text",
+        "default": "–"
+      },
+      "description": {
+        "label": "Site description",
+        "type": "string",
+        "control": "textarea",
+        "translated": true
+      },
+      "image": {
+        "label": "Default sharing image",
+        "type": "image",
+        "control": "image"
+      }
+    },
+    "parts": {
+      "publisher": {
+        "label": "Publisher",
+        "description": "Who offers the site: every page's footer shows the publisher's name, organisation number, postal address, email and VAT number, and the structured data and the privacy texts name the publisher too. Sweden's e-handelslagen asks a business that offers services on its site to give its name, postal address, email and organisation number, its VAT number where it has one, the register it is entered in, and, under a permit or in a regulated profession, its supervisory authority. Everything filled in here is public, the organisation number too, which for a sole trader is the owner's personal identity number. Konzilo gives no legal advice: which details the site must give is the publisher's to decide.",
+        "settings": {
+          "kind": {
+            "label": "Kind",
+            "type": "string",
+            "control": "select",
+            "options": [
+              "Organization",
+              "Person"
+            ],
+            "default": "Organization"
+          },
+          "name": {
+            "label": "Name",
+            "type": "string",
+            "control": "text",
+            "default": {
+              "identity": "title"
+            }
+          },
+          "organisationNumber": {
+            "label": "Organisation number",
+            "type": "string",
+            "control": "text"
+          },
+          "vatNumber": {
+            "label": "VAT number",
+            "type": "string",
+            "control": "text",
+            "help": "The VAT registration number, such as SE556677889901, where the publisher is registered for VAT."
+          },
+          "tradeRegister": {
+            "label": "Trade register",
+            "type": "string",
+            "control": "text",
+            "help": "The register the publisher is entered in, such as Bolagsverket's trade register, with the registration number where it differs from the organisation number."
+          },
+          "supervisoryAuthority": {
+            "label": "Supervisory authority",
+            "type": "string",
+            "control": "textarea",
+            "help": "Only for a business that needs a permit, or that works in a regulated profession: the authority that supervises it, with its contact details, or the professional body it belongs to, with its professional title and the country that gave it."
+          },
+          "street": {
+            "label": "Street address",
+            "type": "string",
+            "control": "text"
+          },
+          "postalCode": {
+            "label": "Postal code",
+            "type": "string",
+            "control": "text"
+          },
+          "locality": {
+            "label": "Locality",
+            "type": "string",
+            "control": "text"
+          },
+          "country": {
+            "label": "Country",
+            "type": "string",
+            "control": "text"
+          },
+          "email": {
+            "label": "Email",
+            "type": "string",
+            "control": "text"
+          },
+          "telephone": {
+            "label": "Telephone",
+            "type": "string",
+            "control": "text"
+          },
+          "profiles": {
+            "label": "Profiles",
+            "type": "string",
+            "control": "textarea"
+          }
+        }
+      },
+      "home": {
+        "label": "Start page",
+        "settings": {
+          "title": {
+            "label": "Title tag",
+            "type": "string",
+            "control": "text",
+            "template": true,
+            "default": "{{ site.title }}",
+            "translated": true
+          },
+          "description": {
+            "label": "Meta description",
+            "type": "string",
+            "control": "textarea",
+            "template": true,
+            "default": "{{ site.description }}",
+            "translated": true
+          },
+          "socialTitle": {
+            "label": "Sharing title",
+            "type": "string",
+            "control": "text",
+            "template": true,
+            "default": "{{ site.title }}",
+            "translated": true
+          },
+          "socialDescription": {
+            "label": "Sharing description",
+            "type": "string",
+            "control": "textarea",
+            "template": true,
+            "default": "{{ site.description }}",
+            "translated": true
+          }
+        }
+      }
+    },
+    "types": {
+      "only": "address",
+      "settings": {
+        "title": {
+          "label": "Title tag",
+          "type": "string",
+          "control": "text",
+          "template": true,
+          "default": "{{ post.title }} {{ sep }} {{ site.title }}",
+          "translated": true
+        },
+        "description": {
+          "label": "Meta description",
+          "type": "string",
+          "control": "textarea",
+          "template": true,
+          "default": "{{ post.auto_description }}",
+          "translated": true
+        },
+        "socialTitle": {
+          "label": "Sharing title",
+          "type": "string",
+          "control": "text",
+          "template": true,
+          "default": "{{ post.title }}",
+          "translated": true
+        },
+        "socialDescription": {
+          "label": "Sharing description",
+          "type": "string",
+          "control": "textarea",
+          "template": true,
+          "default": "{{ post.auto_description }}",
+          "translated": true
+        },
+        "schema": {
+          "label": "Structured data type",
+          "type": "string",
+          "control": "select",
+          "options": [
+            "Article",
+            "BlogPosting",
+            "NewsArticle",
+            "WebPage",
+            "AboutPage",
+            "ContactPage",
+            "CollectionPage"
+          ],
+          "default": "WebPage",
+          "defaultFor": {
+            "date": "Article"
+          }
+        }
+      }
+    }
+  },
+  "ai": {
+    "label": "AI visibility",
+    "description": "How AI agents find the site's pages and may use them: which pages they get in Markdown, at the page's address with .md, and which of those llms.txt lists and llms-full.txt holds in full, for the start page and by type; the paths left out of all three; and the content signals robots.txt gives.",
+    "table": [
+      "home"
+    ],
+    "settings": {
+      "excludedPaths": {
+        "label": "Excluded paths",
+        "type": "string",
+        "control": "textarea",
+        "patterns": true,
+        "help": "One regular expression per line, without delimiters or flags, matched against each page's path from the site's root: ^/pages/ leaves out every page whose path begins /pages/, and /cookies/ every page with /cookies/ in its path. Case does not matter, and letters beyond English match as they read. A page whose path matches is left out of its Markdown, llms.txt and llms-full.txt. A line that is not a regular expression is not saved: the paths stay as they were, and the page says which line."
+      }
+    },
+    "parts": {
+      "home": {
+        "label": "Start page",
+        "settings": {
+          "markdown": {
+            "label": "Markdown (.md)",
+            "type": "boolean",
+            "control": "toggle",
+            "default": true
+          },
+          "llms": {
+            "label": "In llms.txt",
+            "type": "boolean",
+            "control": "toggle",
+            "default": true,
+            "requires": "markdown"
+          },
+          "llmsFull": {
+            "label": "In llms-full.txt",
+            "type": "boolean",
+            "control": "toggle",
+            "default": true,
+            "requires": "markdown"
+          }
+        }
+      },
+      "signals": {
+        "label": "Content signals",
+        "settings": {
+          "search": {
+            "label": "Search",
+            "type": "string",
+            "control": "select",
+            "options": [
+              "grant",
+              "reserve",
+              "defer"
+            ],
+            "default": "defer",
+            "help": "Whether search engines may show the site's pages in their results: grant writes search=yes, reserve search=no, and defer says nothing, which leaves it to the site's other signals. Warning: reserve may take the site out of search results, and search engines may ignore it; to keep a page out of them, hide it from search engines in its Search and sharing panel instead. Note: grant may contradict a page hidden from search engines, which wins."
+          },
+          "aiInput": {
+            "label": "AI input",
+            "type": "string",
+            "control": "select",
+            "options": [
+              "grant",
+              "reserve",
+              "defer"
+            ],
+            "default": "grant",
+            "help": "Whether AI may use the site's content to answer questions, which is what AI visibility is for: grant writes ai-input=yes, reserve ai-input=no, and defer says nothing. Note: reserve works against the rest of these settings."
+          },
+          "aiTrain": {
+            "label": "AI training",
+            "type": "string",
+            "control": "select",
+            "options": [
+              "grant",
+              "reserve",
+              "defer"
+            ],
+            "default": "defer",
+            "help": "Whether AI may be trained on the site's content: grant writes ai-train=yes and reserve ai-train=no; defer says nothing, which leaves it to law and practice, in many places a tacit yes."
+          }
+        }
+      }
+    },
+    "types": {
+      "only": "address",
+      "settings": {
+        "markdown": {
+          "label": "Markdown (.md)",
+          "type": "boolean",
+          "control": "toggle",
+          "default": true,
+          "help": "A Markdown version of each page, at its address with .md, made from the page as visitors see it."
+        },
+        "llms": {
+          "label": "In llms.txt",
+          "type": "boolean",
+          "control": "toggle",
+          "default": true,
+          "requires": "markdown",
+          "help": "Each page listed in llms.txt, the site's index for AI agents, which links to its Markdown. Needs Markdown, and is off wherever Markdown is off."
+        },
+        "llmsFull": {
+          "label": "In llms-full.txt",
+          "type": "boolean",
+          "control": "toggle",
+          "default": false,
+          "defaultFor": {
+            "page": true
+          },
+          "requires": "markdown",
+          "help": "Each page's Markdown in llms-full.txt, the chosen pages in one document. Needs Markdown, and is off wherever Markdown is off."
+        }
+      }
+    }
+  },
+  "consent": {
+    "label": "Consent texts",
+    "description": "What the privacy banner, the privacy settings and the content waiting for consent say to visitors. A text left empty is the default in the site's language; {service} stands for a service's name.",
+    "settings": {
+      "bannerTitle": {
+        "label": "Banner: title",
+        "type": "string",
+        "control": "text",
+        "translated": true,
+        "default": {
+          "en": "Your privacy",
+          "sv": "Din integritet"
+        }
+      },
+      "bannerText": {
+        "label": "Banner: text",
+        "type": "string",
+        "control": "textarea",
+        "translated": true,
+        "default": {
+          "en": "This site uses only what it needs to work, unless you allow more. With your consent it also loads content from other services, such as videos, which may store data in your browser and use what they learn for their own purposes. You can change or withdraw your consent at any time, from the bottom of every page.",
+          "sv": "Webbplatsen använder bara det den behöver för att fungera, om du inte tillåter mer. Med ditt samtycke laddar den också innehåll från andra tjänster, till exempel videor, som kan lagra uppgifter i din webbläsare och använda det de får veta för egna syften. Du kan ändra eller återkalla ditt samtycke när som helst, längst ned på varje sida."
+        }
+      },
+      "bannerAccept": {
+        "label": "Banner: accept button",
+        "type": "string",
+        "control": "text",
+        "translated": true,
+        "default": {
+          "en": "Accept all",
+          "sv": "Acceptera alla"
+        }
+      },
+      "bannerReject": {
+        "label": "Banner: reject button",
+        "type": "string",
+        "control": "text",
+        "translated": true,
+        "default": {
+          "en": "Reject optional",
+          "sv": "Neka valfria"
+        }
+      },
+      "bannerCustomise": {
+        "label": "Banner: customise button",
+        "type": "string",
+        "control": "text",
+        "translated": true,
+        "default": {
+          "en": "Customise",
+          "sv": "Anpassa"
+        }
+      },
+      "dialogTitle": {
+        "label": "Privacy settings: title",
+        "type": "string",
+        "control": "text",
+        "translated": true,
+        "default": {
+          "en": "Privacy settings",
+          "sv": "Integritetsinställningar"
+        }
+      },
+      "dialogIntroduction": {
+        "label": "Privacy settings: introduction",
+        "type": "string",
+        "control": "textarea",
+        "translated": true,
+        "default": {
+          "en": "Choose what the site may load and store beyond what it needs to work. Each category lists its services, who provides them, what they store and for how long. Your choice holds for 12 months. You can change or withdraw it at any time from the footer of every page.",
+          "sv": "Välj vad webbplatsen får ladda och lagra utöver det den behöver för att fungera. Varje kategori visar sina tjänster, vem som tillhandahåller dem, vad de lagrar och hur länge. Ditt val gäller i 12 månader. Du kan när som helst ändra eller återkalla det i sidfoten på varje sida."
+        }
+      },
+      "dialogAccept": {
+        "label": "Privacy settings: accept button",
+        "type": "string",
+        "control": "text",
+        "translated": true,
+        "default": {
+          "en": "Accept all",
+          "sv": "Acceptera alla"
+        }
+      },
+      "dialogReject": {
+        "label": "Privacy settings: reject button",
+        "type": "string",
+        "control": "text",
+        "translated": true,
+        "default": {
+          "en": "Reject optional",
+          "sv": "Neka valfria"
+        }
+      },
+      "dialogSave": {
+        "label": "Privacy settings: save button",
+        "type": "string",
+        "control": "text",
+        "translated": true,
+        "default": {
+          "en": "Save my choices",
+          "sv": "Spara mina val"
+        }
+      },
+      "dialogClose": {
+        "label": "Privacy settings: close button",
+        "type": "string",
+        "control": "text",
+        "translated": true,
+        "default": {
+          "en": "Close",
+          "sv": "Stäng"
+        }
+      },
+      "footerChange": {
+        "label": "Footer: change privacy settings",
+        "type": "string",
+        "control": "text",
+        "translated": true,
+        "default": {
+          "en": "Change privacy settings",
+          "sv": "Ändra integritetsinställningar"
+        }
+      },
+      "footerWithdraw": {
+        "label": "Footer: withdraw consent",
+        "type": "string",
+        "control": "text",
+        "translated": true,
+        "default": {
+          "en": "Withdraw consent",
+          "sv": "Återkalla samtycke"
+        }
+      },
+      "placeholderQuestion": {
+        "label": "Content waiting for consent: question",
+        "type": "string",
+        "control": "text",
+        "translated": true,
+        "default": {
+          "en": "Allow {service} to play this content?",
+          "sv": "Vill du låta {service} spela upp det här innehållet?"
+        }
+      },
+      "placeholderButton": {
+        "label": "Content waiting for consent: button",
+        "type": "string",
+        "control": "text",
+        "translated": true,
+        "default": {
+          "en": "Allow and play",
+          "sv": "Tillåt och spela upp"
+        }
+      },
+      "necessaryName": {
+        "label": "Necessary: name",
+        "type": "string",
+        "control": "text",
+        "translated": true,
+        "default": {
+          "en": "Necessary",
+          "sv": "Nödvändiga"
+        }
+      },
+      "necessaryDescription": {
+        "label": "Necessary: description",
+        "type": "string",
+        "control": "textarea",
+        "translated": true,
+        "default": {
+          "en": "What the site needs to work and to remember your choice. Always on.",
+          "sv": "Det webbplatsen behöver för att fungera och för att komma ihåg ditt val. Alltid på."
+        }
+      },
+      "functionalName": {
+        "label": "Functional: name",
+        "type": "string",
+        "control": "text",
+        "translated": true,
+        "default": {
+          "en": "Functional",
+          "sv": "Funktionella"
+        }
+      },
+      "functionalDescription": {
+        "label": "Functional: description",
+        "type": "string",
+        "control": "textarea",
+        "translated": true,
+        "default": {
+          "en": "Content and features from other services, such as videos and charts, whose providers do not use what they learn for their own advertising or profiling.",
+          "sv": "Innehåll och funktioner från andra tjänster, till exempel videor och diagram, vars leverantörer inte använder det de får veta för egen annonsering eller profilering."
+        }
+      },
+      "statisticsName": {
+        "label": "Statistics: name",
+        "type": "string",
+        "control": "text",
+        "translated": true,
+        "default": {
+          "en": "Statistics",
+          "sv": "Statistik"
+        }
+      },
+      "statisticsDescription": {
+        "label": "Statistics: description",
+        "type": "string",
+        "control": "textarea",
+        "translated": true,
+        "default": {
+          "en": "Measuring how visitors use the site, so that it can be made better.",
+          "sv": "Mätning av hur besökare använder webbplatsen, så att den kan bli bättre."
+        }
+      },
+      "marketingName": {
+        "label": "Marketing: name",
+        "type": "string",
+        "control": "text",
+        "translated": true,
+        "default": {
+          "en": "Marketing",
+          "sv": "Marknadsföring"
+        }
+      },
+      "marketingDescription": {
+        "label": "Marketing: description",
+        "type": "string",
+        "control": "textarea",
+        "translated": true,
+        "default": {
+          "en": "Content and features from services whose providers may use what they learn about you for their own advertising or profiling.",
+          "sv": "Innehåll och funktioner från tjänster vars leverantörer kan använda det de får veta om dig för egen annonsering eller profilering."
+        }
+      }
+    }
+  },
+  "tagManager": {
+    "label": "Tag manager",
+    "description": "The tag manager the public site loads, from the container set up in it, with its tags. It loads on the customer's domain alone, never at the pre-launch address, in a preview or locally, and only once the visitor consents to statistics, unless the site description departs from that. Its tags fire on the visitor's consent, which the site gives the tag manager on every page and at every change; a tag that loads another service needs that service declared on the Services screen. Matomo itself, and how long it keeps what it measures, are set up in Matomo.",
+    "when": [
+      "types.*.address"
+    ],
+    "settings": {
+      "manager": {
+        "label": "Tag manager",
+        "type": "string",
+        "control": "select",
+        "options": [
+          "None",
+          "Matomo Tag Manager"
+        ],
+        "default": "None"
+      },
+      "address": {
+        "label": "Matomo address",
+        "type": "string",
+        "control": "text",
+        "format": {
+          "pattern": "^https://(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+(?:[A-Za-z]{2,63}|xn--[A-Za-z0-9-]{1,59})(?:/[A-Za-z0-9._~%!$&'()*+,;=:@/-]*)?$",
+          "reason": "must be the https:// address of the Matomo instance, its host with a path or none, such as https://matomo.example.com/, with no port, query or fragment"
+        },
+        "help": "The address of the Matomo instance, as the address bar shows it without index.php: https:// and its host, with a path where Matomo is below one, such as https://matomo.example.com/ or https://www.example.com/matomo/."
+      },
+      "container": {
+        "label": "Container ID",
+        "type": "string",
+        "control": "text",
+        "format": {
+          "pattern": "^[A-Za-z1-9][A-Za-z0-9]{7}$",
+          "reason": "must be the container's ID as Matomo gives it, eight letters and digits, such as aBcD1234"
+        },
+        "help": "The container's ID, eight letters and digits, as Matomo shows it under Tag Manager › Containers and in the code it offers to install: aBcD1234 in container_aBcD1234.js."
+      }
+    },
+    "parts": {
+      "provider": {
+        "label": "Who runs Matomo",
+        "description": "Who runs the Matomo instance, which the privacy settings and the cookie declaration name as Matomo's provider. Leave all three empty when the site's publisher runs it; they then name the site itself. Where it is established outside the EU and EEA, they also say that what visitors' browsers send Matomo goes to its country.",
+        "settings": {
+          "name": {
+            "label": "Legal name",
+            "type": "string",
+            "control": "text"
+          },
+          "country": {
+            "label": "Country",
+            "type": "string",
+            "control": "text",
+            "format": {
+              "pattern": "^[A-Z]{2}$",
+              "reason": "must be the country's two-letter code in capitals, such as SE"
+            },
+            "help": "The country it is established in, by its two-letter code, such as SE for Sweden."
+          },
+          "privacyPolicy": {
+            "label": "Privacy policy",
+            "type": "string",
+            "control": "text",
+            "format": {
+              "pattern": "^https://(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+(?:[A-Za-z]{2,63}|xn--[A-Za-z0-9-]{1,59})(?:[/?#][^\\s<>\"{}|\\\\^`]*)?$",
+              "reason": "must be the https:// address of its privacy policy, such as https://www.example.com/privacy/"
+            }
+          }
+        }
+      }
+    }
+  },
+  "legalPages": {
+    "label": "Legal pages",
+    "description": "The pages every page of the site links to from its footer.",
+    "when": [
+      "types.*.address"
+    ],
+    "settings": {
+      "privacyPolicy": {
+        "label": "Privacy policy",
+        "type": "post",
+        "control": "post"
+      },
+      "cookiePolicy": {
+        "label": "Cookie policy",
+        "type": "post",
+        "control": "post"
+      },
+      "accessibilityStatement": {
+        "label": "Accessibility statement",
+        "type": "post",
+        "control": "post"
+      }
+    }
+  },
+  "forms": {
+    "label": "Forms",
+    "description": "Who gets each form's submissions by mail, what visitors see once they have sent it, and how many days the site keeps each submission. The recipients and the retention stay out of the published files; a submission held as spam is deleted after 7 days.",
+    "each": "forms",
+    "settings": {
+      "recipients": {
+        "label": "Recipients",
+        "type": "string",
+        "control": "text",
+        "published": false
+      },
+      "confirmation": {
+        "label": "Confirmation text",
+        "type": "string",
+        "control": "textarea",
+        "translated": true,
+        "default": {
+          "en": "Thank you. Your message has been sent.",
+          "sv": "Tack! Ditt meddelande är skickat."
+        }
+      },
+      "retention": {
+        "label": "Retention in days",
+        "type": "integer",
+        "control": "number",
+        "default": 30,
+        "published": false
+      }
+    }
+  },
+  "notFound": {
+    "label": "Addresses not found",
+    "description": "The page visitors see at an address the site has nothing at, and where a redirect rule answers 404 or 410. The chosen page has no address of its own, and no list, menu or sitemap holds it; without one, the site shows a short text of its own.",
+    "when": [
+      "types.*.address"
+    ],
+    "settings": {
+      "page": {
+        "label": "Page for addresses not found",
+        "type": "post",
+        "control": "post"
+      }
+    }
+  },
+  "feeds": {
+    "label": "Feeds",
+    "description": "The site's RSS feeds, which feed readers and newsletter tools follow, at the addresses the site description gives them: one for each post type that declares one, and one for each term of a taxonomy that does. Each item begins with the post's featured image.",
+    "when": [
+      "types.*.feed",
+      "taxonomies.*.feed"
+    ],
+    "settings": {
+      "item": {
+        "label": "Each item holds",
+        "type": "string",
+        "control": "select",
+        "options": [
+          "The summary",
+          "The whole text"
+        ],
+        "default": "The summary",
+        "help": "The summary is the post's excerpt, or else the start of its text. The whole text gives a feed reader the post's whole body too, as the site shows it."
+      },
+      "posts": {
+        "label": "Posts in each feed",
+        "type": "integer",
+        "control": "number",
+        "min": 1,
+        "default": 10
+      }
+    }
+  }
+}

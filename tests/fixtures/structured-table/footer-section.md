@@ -1,0 +1,11 @@
+<table>
+<thead>
+<tr><th>Item</th><th>Price</th></tr>
+</thead>
+<tbody>
+<tr><td>Tent</td><td>120</td></tr>
+</tbody>
+<tfoot>
+<tr><td>Total</td><td>120</td></tr>
+</tfoot>
+</table>

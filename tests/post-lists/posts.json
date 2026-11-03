@@ -1,0 +1,19 @@
+[
+  { "id": "kilo", "title": "Kilo", "terms": { "category": ["news"], "tag": ["local", "world"] }, "fields": { "date": "2026-08-08T09:00:00Z", "price": 45 } },
+  { "id": "oscar", "title": "Oscar", "terms": { "category": ["sport"], "tag": ["local"] }, "fields": { "date": "2026-06-06T09:00:00Z", "price": 70 } },
+  { "id": "delta", "title": "Delta", "terms": { "category": ["news"], "tag": ["local", "sport"] }, "fields": { "date": "2026-05-01T09:00:00Z", "price": 10 } },
+  { "id": "mike", "title": "Mike", "terms": { "category": ["news"], "tag": ["local"] }, "fields": { "date": "2026-10-01T09:00:00Z", "price": 22 } },
+  { "id": "alfa", "title": "Alfa", "terms": { "category": ["news"], "tag": ["local"] }, "fields": { "date": "2026-01-10T09:00:00Z", "price": 5 } },
+  { "id": "quebec", "title": "Quebec", "terms": { "category": ["news", "culture"], "tag": ["sport"] }, "fields": { "date": "2026-04-04T09:00:00Z", "price": 18 } },
+  { "id": "hotel", "title": "Hotel", "terms": { "category": ["news"], "tag": ["local"] }, "fields": { "date": "2026-02-01T09:00:00Z", "price": 35 } },
+  { "id": "golf", "title": "Golf", "terms": { "category": ["news"], "tag": ["local", "sport"] }, "fields": { "date": "2026-06-11T23:30:00Z", "price": 30 } },
+  { "id": "november", "title": "November", "terms": { "category": ["news"], "tag": ["world"] }, "fields": { "date": "2026-05-05T09:00:00Z", "price": 60 } },
+  { "id": "bravo", "title": "Bravo", "terms": { "category": ["news"], "tag": ["local", "world"] }, "fields": { "date": "2026-03-02T09:00:00Z", "price": 25 } },
+  { "id": "india", "title": "India", "terms": { "category": ["news"], "tag": ["local"] }, "fields": { "date": "2026-07-07T09:00:00Z" } },
+  { "id": "papa", "title": "Papa", "terms": { "category": ["culture"], "tag": ["world", "sport"] }, "fields": { "date": "2026-07-17T09:00:00Z", "price": 8 } },
+  { "id": "echo", "title": "Echo", "terms": { "category": ["news"], "tag": ["local"] }, "fields": { "date": "2026-04-20T09:00:00Z", "price": 20 } },
+  { "id": "juliett", "title": "Juliett", "terms": { "category": ["news"], "tag": ["local"] }, "fields": { "date": "2026-03-15T09:00:00Z", "price": 50 } },
+  { "id": "charlie", "title": "Charlie", "terms": { "category": ["news"], "tag": ["local"] }, "fields": { "date": "2026-02-14T09:00:00Z", "price": 40 } },
+  { "id": "lima", "title": "Lima", "terms": { "category": ["news"], "tag": ["local"] }, "fields": { "date": "2026-09-09T09:00:00Z", "price": 12 } },
+  { "id": "foxtrot", "title": "Foxtrot", "terms": { "category": ["news"], "tag": ["local"] }, "fields": { "date": "2026-01-30T09:00:00Z", "price": 15 } }
+]

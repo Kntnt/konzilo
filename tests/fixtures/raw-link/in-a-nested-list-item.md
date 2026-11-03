@@ -1,0 +1,2 @@
+- Shops
+  - <a href="https://example.com/" target="_blank" rel="noreferrer noopener">A shop</a> in town
