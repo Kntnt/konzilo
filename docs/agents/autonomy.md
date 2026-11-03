@@ -13,7 +13,7 @@ Harnesses on this machine run without permission prompts. These gates are the on
 **Allowed without asking:**
 
 - work in this repository and its worktrees;
-- committing, pushing branches, and merging to `main` when CI is green, or when the checks pass locally while CI is off (`docs/agents/status.md` says which);
+- committing, pushing branches, and merging to `main` when CI is green, or when `npm run gate` passes while CI is off (`docs/agents/status.md` says which);
 - throwaway servers in `kntnt-lab` that the tests create and destroy;
 - DNS records in the test zone.
 

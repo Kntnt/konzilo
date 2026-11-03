@@ -144,8 +144,10 @@ describe('new-site', () => {
 
       before(async () => {
         const port = await freePort();
-        origin = `http://localhost:${port}`;
-        server = spawn('npm', ['run', 'dev', '--', '--host', 'localhost', '--port', String(port), '--ignore-lock'], { cwd: site, env: environment, stdio: 'ignore', detached: true });
+        // An address, not `localhost`: in a Linux container the server binds that name
+        // to ::1 alone, while Node's fetch reaches for 127.0.0.1 and is refused.
+        origin = `http://127.0.0.1:${port}`;
+        server = spawn('npm', ['run', 'dev', '--', '--host', '127.0.0.1', '--port', String(port), '--ignore-lock'], { cwd: site, env: environment, stdio: 'ignore', detached: true });
         await until(async () => (await (await fetch(`${origin}/`)).text()).includes('The Gentle Garden'));
       });
 
