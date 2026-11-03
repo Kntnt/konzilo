@@ -601,7 +601,7 @@ describe('the site template in Swedish and English, built by Astro', () => {
     assert.match(head(page('en/pages/the-harbour/index.html')), /<meta name="robots" content="noindex">/);
   });
 
-  // Spec #70: a feed per language, below the prefix, and below a term's
+  // A feed per language, below the prefix, and below a term's
   // address in that language, holding that language's posts alone, its
   // language the tag, its titles from the translated settings.
   test('gives each language its feeds below its prefix, with its posts alone, its language and its titles, and leads each feed\'s address without a prefix to the main language\'s', () => {
@@ -632,7 +632,7 @@ describe('the site template in Swedish and English, built by Astro', () => {
     assert.ok(lines.includes('/category/hamnar/feed/ /sv/category/hamnar/feed/ 301'), page('_redirects'));
   });
 
-  // Spec #70: an unknown address below a language's prefix gets the 404
+  // An unknown address below a language's prefix gets the 404
   // page in that language; without a chosen page, the template's plain text
   // in that language, as the root's is in the main language.
   test('builds a 404 page for each language below its prefix, in its language and its frame, beside the root\'s in the main language', () => {
@@ -648,7 +648,7 @@ describe('the site template in Swedish and English, built by Astro', () => {
     assert.equal(page('en/404/index.html'), null);
   });
 
-  // Spec #70: a language's search page searches that language alone, with
+  // A language's search page searches that language alone, with
   // that language's analysis; it is a page under the language's prefix.
   test('builds a search page for each language below its prefix, in its language, which searches that language alone, and leads the address without a prefix to the main language\'s', () => {
     const swedish = page('sv/search/index.html');
@@ -721,7 +721,7 @@ describe('the site template in Swedish and English, built by Astro', () => {
     assert.equal(JSON.parse(page('site.webmanifest')).name, 'Lyktan');
   });
 
-  // Spec #70: the chosen 404 page is a page in the main language, and an
+  // The chosen 404 page is a page in the main language, and an
   // unknown address below another language's prefix gets its translation
   // there, which has no address of its own either.
   test('builds the chosen 404 page\'s translation as its language\'s 404 page, and gives the translation no page of its own', () => {

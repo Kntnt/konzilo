@@ -82,7 +82,7 @@ function build(files, directives = {}) {
     mkdirSync(dirname(join(repository, path)), { recursive: true });
     writeFileSync(join(repository, path), contents);
   };
-  write('astro.config.mjs', `import konzilo from ${JSON.stringify(integration)};\n\nexport default { cacheDir: './${CACHE_DIR}', integrations: [konzilo({ directives: ${JSON.stringify(directives)} })] };\n`);
+  write('astro.config.mjs', `import konzilo from ${JSON.stringify(integration)};\n\nexport default { cacheDir: './${CACHE_DIR}', vite: { cacheDir: './${CACHE_DIR}/vite' }, integrations: [konzilo({ directives: ${JSON.stringify(directives)} })] };\n`);
   write('src/content.config.mjs', `import { collections as konziloCollections } from ${JSON.stringify(integration)};\n\nexport const collections = konziloCollections();\n`);
   write('site-description.json', JSON.stringify(site));
   write('src/pages/[slug].astro', page);

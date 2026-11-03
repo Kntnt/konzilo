@@ -144,7 +144,7 @@ function build(files, given = options) {
     mkdirSync(dirname(join(repository, path)), { recursive: true });
     writeFileSync(join(repository, path), contents);
   };
-  write('astro.config.mjs', `import konzilo from ${JSON.stringify(integration)};\n\nexport default { cacheDir: './${CACHE_DIR}', integrations: [konzilo(${JSON.stringify(given)})] };\n`);
+  write('astro.config.mjs', `import konzilo from ${JSON.stringify(integration)};\n\nexport default { cacheDir: './${CACHE_DIR}', vite: { cacheDir: './${CACHE_DIR}/vite' }, integrations: [konzilo(${JSON.stringify(given)})] };\n`);
   write('src/content.config.mjs', `import { collections as konziloCollections } from ${JSON.stringify(integration)};\n\nexport const collections = konziloCollections();\n`);
   write('site-description.json', JSON.stringify(site));
   for (const [path, contents] of Object.entries({ ...components, ...content, ...files })) write(path, contents);
@@ -199,7 +199,7 @@ describe('a site whose categories have pages', () => {
     assert.doesNotMatch(sitemap, /\/page\/\d/);
   });
 
-  // Page 1 of a term's posts is the term's own page (#138, #139).
+  // Page 1 of a term's posts is the term's own page.
   test('leads each term\'s page/1/ to its page with 301, as a post list\'s', () => {
     assert.equal(built.status, 0, built.output);
     const lines = built.text('_redirects').split('\n');

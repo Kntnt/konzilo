@@ -292,9 +292,8 @@ describe('a site with an icon file of its own', () => {
   });
 });
 
-// A site that names its colours to the integration as its tokens (ADR
-// 0108), in a stylesheet every page loads: `colours`, the custom property
-// of each role of Ollie's palette it names, and `css`, the stylesheet's
+// A site that names its colours to the integration as its tokens, in a stylesheet every page loads: `colours`, the custom property
+// of each role it names, and `css`, the stylesheet's
 // rules.
 function colouredSite(colours, css) {
   return {
@@ -315,7 +314,7 @@ function themeColours(html) {
 }
 
 // The manifest's colours and theme-color are the site's brand colour,
-// Ollie's `primary`, and its page background, Ollie's `base`, as the start
+// `primary`, and its page background, `base`, as the start
 // page's root resolves the tokens that name them; the Apple touch icon is
 // laid on the background.
 describe('the site\'s colours, from the tokens it names', () => {

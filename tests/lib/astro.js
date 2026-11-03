@@ -5,8 +5,10 @@
 // cache, node_modules/.astro, would be one folder for every build the suite
 // runs, the content layer's data store in it among them: builds that run at
 // once, as the test runner runs the files, then read and write each other's
-// content, and a page goes missing now and then. Each repository's builds
-// keep their cache in the repository itself, in CACHE_DIR.
+// content, and a page goes missing now and then. Vite's cache of optimised
+// dependencies, node_modules/.vite, is shared the same way: dev servers that
+// start at once on an empty cache write over each other's work, and one may
+// never answer. Each repository keeps both caches in itself, in CACHE_DIR.
 
 export const CACHE_DIR = '.astro-cache';
 
@@ -22,5 +24,5 @@ export const astroEnvironment = { ...process.env, ASTRO_TELEMETRY_DISABLED: '1',
 // them, if any.
 export function astroConfig(integration, options) {
   const given = options === undefined ? '' : JSON.stringify(options);
-  return `import konzilo from ${JSON.stringify(integration)};\n\nexport default { cacheDir: './${CACHE_DIR}', integrations: [konzilo(${given})] };\n`;
+  return `import konzilo from ${JSON.stringify(integration)};\n\nexport default { cacheDir: './${CACHE_DIR}', vite: { cacheDir: './${CACHE_DIR}/vite' }, integrations: [konzilo(${given})] };\n`;
 }

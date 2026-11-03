@@ -145,7 +145,7 @@ const SITEMAP = `<?xml version="1.0" encoding="UTF-8"?>
 </urlset>
 `;
 
-// robots.txt for https://www.example.com, as the ticket gives it,
+// robots.txt for https://www.example.com,
 // with AI visibility's default content signals.
 const ROBOTS = `User-agent: *
 Allow: /
