@@ -1,6 +1,6 @@
 # ADR 0004: Close every known path between customers
 
-**Date:** 2026-11-02 · **Status:** Accepted, settled by Thomas on 2026-11-02. His bar: no way into another site than one's own, since some customers prepare market-sensitive press releases here. One Forgejo per customer replaces his earlier yes to one shared. The login cookies are a technical choice he has seen.
+**Date:** 2026-11-02 · **Status:** Accepted, settled by Thomas on 2026-11-02. His bar: no way into another site than one's own, since some customers prepare market-sensitive press releases here. He weighed one Forgejo shared by a server's customers, and chose one per customer. The login cookies are a technical choice he has seen.
 
 ## Context
 

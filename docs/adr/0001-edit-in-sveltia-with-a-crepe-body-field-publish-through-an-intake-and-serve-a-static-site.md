@@ -10,6 +10,7 @@ He also wants: an editor that writes good Markdown and feels right, which after 
 
 ## Decision
 
+- **The core is named Konzilo** (Thomas, 2026-10-27).
 - **Editors write in Sveltia CMS, with a body field built on Crepe,** and see the page from the site's own templates beside the form, about a second after they stop typing.
 - **Each site has two repositories of content.** The *source repository*, in a Forgejo of the customer's own, holds what editors write, as source files named by a generated ID. The *content repository* holds the site's published files, written by one program.
 - **An intake sits between them.** It reads the source files, checks each file and the whole set, and writes the published content files or refuses. A refused post keeps the file it was last published with. A draft, or a post whose time has not come, has no published file. So a file means *published*, and Astro, search, feeds, the sitemap and every other reader need no filter on status.
