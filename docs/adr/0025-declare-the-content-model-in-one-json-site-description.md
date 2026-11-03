@@ -6,7 +6,7 @@
 
 **One file, `site-description.json`, at the root of the site repository.** The intake reads it, the Astro integration reads it, and Sveltia's configuration is generated from it (ADR 0029).
 
-- **`types`,** at least one, each with a `label` and a `plural`, a `collection`, the `blocks` it takes, by element name, each one the rule data knows, and its `fields`. `article` and `page` are names like any other; nothing is built in.
+- **`types`,** at least one, each with a `label` and a `plural`, a `collection`, the `elements` it takes, by name, each one the rule data knows, and its `fields`. `article` and `page` are names like any other; nothing is built in.
 - **`taxonomies`,** each with a `label`, a `plural`, a `collection` and `hierarchical`.
 - **Every post has its title and its slug,** so neither is declared.
 - **A field** is one of four kinds, by its name and keys, written into the frontmatter in the order declared: the core's own (`date`, `modified`, `excerpt`, `image`), the group `seo`, a taxonomy's terms (`taxonomy`, which may be `required`, at least one term), or one of the site's own, with a `label`, a `type`, a `control`, `options` for a select, and `required`.
@@ -22,10 +22,10 @@
 
   Field names are letters, digits and underscores starting with a lowercase letter. A required field left empty refuses the post, naming the field; a wrong value says so: `readingTime: the site cannot publish "seven" as a whole number`.
 - **It also declares** `menus`, `settings`, `images`, `language` or `languages`, `presentations`, `forms`, `components`, `search`, `security` and `consent`, each in its own ADR.
-- **Nothing else is accepted.** An unknown key, a block the rules do not know, two collections with one name: the checker names every problem by its path, and the description is refused whole.
+- **Nothing else is accepted.** An unknown key, an element the rules do not know, two collections with one name: the checker names every problem by its path, and the description is refused whole.
 - **One checker, in the npm package.** The intake and Astro's `collections()` both run it, so every build and every start of the dev server checks the description. A deploy checks it before it switches.
 - **Astro makes one collection per type and per taxonomy,** each with a strict schema, so a template meets exactly the declared fields, typed. A changed description gives a build first and then a restart of the dev server, since a file of the old one fails the new schema and Astro stops watching a collection that fails to load.
-- **Demo content is files,** fictional, in the core, copied into a local copy alone, so that no live site can run it.
+- **Demo content is files,** fictional, in the core, copied into a local copy alone, so that no live site can run it: the command that copies it refuses a public host.
 
 ## Why
 
@@ -41,5 +41,5 @@
 
 ## Consequences
 
-- `site-description.json`'s blocks use element names, `paragraph`, not any tool's.
+- `site-description.json` uses element names, `paragraph`, not any tool's.
 - A new element, field kind or file changes the checker in the same change as `content-format.md` (ADR 0015).

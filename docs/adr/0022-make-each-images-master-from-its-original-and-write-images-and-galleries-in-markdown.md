@@ -11,7 +11,7 @@
 - WebP at quality 90, its longest side at most 2520 px, scaled down only, turned upright, converted to sRGB by the original's own profile, and then without any metadata. The same original gives the same bytes.
 - Named `<slug>-<first 10 hex digits of the original's SHA-256>.webp`, in `content/media/`. A content file names it `../media/<name>`.
 - A master already there is left alone. Each build removes every master no content file names, a refused post's kept file among them.
-- An image is refused, naming the field or the block, when its original is gone or its first bytes are not a still JPEG, PNG or WebP, whatever its name says. HEIC, GIF, TIFF, BMP and a moving WebP are refused saying what to do instead. Uploads are at most 30 MB. `images: { smallestWidth, displayWidth }` in the site description gives the widths, required where a type takes images; below the smallest is refused, and below the display width warned of. Width is measured as the master's.
+- An image is refused, naming the field or the block, when its original is gone or its first bytes are not a still JPEG, PNG or WebP, whatever its name says; an SVG goes by ADR 0023 instead. HEIC, GIF, TIFF, BMP and a moving WebP are refused saying what to do instead. Uploads are at most 30 MB. `images: { smallestWidth, displayWidth }` in the site description gives the widths, required where a type takes images; below the smallest is refused, and below the display width warned of. Width is measured as the master's.
 
 **The featured image** is a field, `image: {"src":"../media/<name>","alt":"…"}`. Its alt text belongs to the post. A draft saves without it; publishing or scheduling without it is refused. A post whose original is gone is refused, naming the field.
 
