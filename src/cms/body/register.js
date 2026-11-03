@@ -28,8 +28,11 @@ export function registerBodyField(CMS, config) {
     handler: async ({ entry }) => {
       const body = bodies.get(entry.get('collection'));
       if (!body) return;
-      const { refusalOf } = await import('./pre-save.js');
-      const refusal = await refusalOf(entry, body);
+      const refusal = await import('./pre-save.js').then(({ refusalOf }) => refusalOf(entry, body), (error) => {
+        // The intake remains the check that counts, so a check that could not load stops nothing.
+        console.warn(`The early check did not load: ${error.message}`);
+        return null;
+      });
       if (refusal === null) return;
       lastRefusal = refusal;
       throw new Error(refusal);

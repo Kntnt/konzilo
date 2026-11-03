@@ -265,6 +265,8 @@ describe('a site in Compose', () => {
         await page.getByText(`A title saved in ${engine}`).first().click();
         const editor = page.locator('.konzilo-body-visual .ProseMirror');
         await editor.waitFor({ timeout: 30_000 });
+        // The field goes on without its check if it does not load, so nothing else would tell.
+        assert.equal(await page.locator('.konzilo-body-note:visible').count(), 0, 'the early check is on');
         await page.getByRole('button', { name: 'Save', exact: true }).waitFor();
         await editor.click();
         await page.getByRole('textbox', { name: 'Title' }).click();
@@ -329,7 +331,9 @@ describe('a site in Compose', () => {
       try {
         await signIn(session, site);
         const { page } = session;
+        const reader = page.waitForResponse((response) => response.url().endsWith('.wasm'));
         await page.getByText('Northern islands and the meadow').first().click();
+        assert.equal((await reader).headers()['content-encoding'] !== undefined, true, 'its 3 MB of WebAssembly travel compressed');
         await page.getByRole('button', { name: 'Show Markdown' }).click();
         const source = page.locator('.konzilo-body-source');
         const was = await source.inputValue();

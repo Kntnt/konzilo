@@ -11,6 +11,11 @@
 @import '@milkdown/crepe/theme/common/table.css';
 @import '@milkdown/crepe/theme/frame.css';
 
+/* No serif asked for and none loaded: the theme's title font would fall back on Times. */
+.konzilo-body .milkdown {
+  --crepe-font-title: var(--crepe-font-default);
+}
+
 .konzilo-body {
   display: flex;
   flex-direction: column;

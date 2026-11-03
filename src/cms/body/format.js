@@ -220,10 +220,43 @@ function text(node, _, state, info) {
 
 const isEmpty = (node) => node.type === 'paragraph' && (node.children ?? []).length === 0;
 
+const textAtEdge = (node, last) => {
+  let at = node;
+  while (at?.children?.length) at = last ? at.children.at(-1) : at.children[0];
+  return at?.type === 'text' ? at : null;
+};
+
+const trimStart = (node) => {
+  const text = textAtEdge(node, false);
+  if (text) text.value = text.value.replace(/^[ \t]+/, '');
+};
+
+const trimEnd = (node) => {
+  const text = textAtEdge(node, true);
+  if (text) text.value = text.value.replace(/[ \t]+$/, '');
+};
+
+// A space at a block's edge or at the start of a line means nothing on a page, and the writer
+// could only write it as `&#x20;`. A non-breaking space is meant, and stays, and so does a
+// space before a line break, which the intake keeps too.
+function trimSpaces(block) {
+  const { children } = block;
+  if (!children?.length) return;
+  trimStart(children[0]);
+  trimEnd(children.at(-1));
+  children.forEach((child, index) => {
+    if (child.type === 'break' && index + 1 < children.length) trimStart(children[index + 1]);
+  });
+  block.children = children.filter((child) => child.type !== 'text' || child.value !== '');
+}
+
+const HOLD_TEXT = new Set(['paragraph', 'heading', 'tableCell']);
+
 // The tree before it is written: an empty paragraph goes, a list is always tight.
 function tidy(node) {
   if (node.type === 'list' || node.type === 'listItem') node.spread = false;
   if (!node.children) return;
+  for (const child of node.children) if (HOLD_TEXT.has(child.type)) trimSpaces(child);
   const kept = node.children.filter((child) => !isEmpty(child) || node.type === 'listItem');
   node.children = kept;
   for (const child of kept) tidy(child);

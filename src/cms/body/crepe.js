@@ -96,7 +96,7 @@ import {
   toggleSubscript,
   toggleSuperscript,
 } from './nodes.js';
-import { reducedText, reducePasted } from './paste.js';
+import { inCell, oneLine, reducedText, reducePasted } from './paste.js';
 import { say } from './texts.js';
 
 const ICON = (body) => `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">${body}</svg>`;
@@ -225,12 +225,18 @@ export async function makeEditor({ root, value, elements, changed }) {
         return html;
       },
       transformPasted: (slice, view) => (ownPaste || view.dragging ? slice : reducePasted(slice)),
-      handlePaste: (view, event) => {
+      handlePaste: (view, event, given) => {
         // Plain text is read as Markdown, and what it holds of the unadmitted is reduced
         // here; pasted HTML has been through `transformPasted`.
         const { clipboardData } = event;
         if (!clipboardData || view.state.selection.$from.parent.type.spec.code) return false;
-        if (clipboardData.getData('text/html').length > 0 || clipboardData.getData('vscode-editor-data')) return false;
+        const cell = inCell(view.state);
+        const put = (slice) => view.dispatch(view.state.tr.replaceSelection(slice).scrollIntoView());
+        if (clipboardData.getData('text/html').length > 0 || clipboardData.getData('vscode-editor-data')) {
+          if (!cell) return false;
+          put(oneLine(given, view.state.schema));
+          return true;
+        }
         const text = clipboardData.getData('text/plain');
         if (text.length === 0) return false;
         policy.pasting = true;
@@ -240,7 +246,8 @@ export async function makeEditor({ root, value, elements, changed }) {
         } finally {
           policy.pasting = false;
         }
-        view.dispatch(view.state.tr.replaceSelection(reducedText(doc)).scrollIntoView());
+        const reduced = reducedText(doc);
+        put(cell ? oneLine(reduced, view.state.schema) : reduced);
         return true;
       },
     }));

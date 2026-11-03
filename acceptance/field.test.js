@@ -330,6 +330,8 @@ describe('the body field, alone', () => {
     test('a table takes text through a real click, and writes it unpadded', async () => {
       await call('open', '| A | B |\n| --- | --- |\n| 1 | 2 |');
       await page.locator('.ProseMirror td').last().click();
+      // Long enough for anything Crepe would do a frame after a click.
+      await page.waitForTimeout(100);
       await page.keyboard.type('3', { delay: KEY_DELAY });
       await call('flush');
       assert.equal(intake(await call('value')), pageFile('| A | B |\n| --- | --- |\n| 1 | 23 |'));
@@ -347,6 +349,40 @@ describe('the body field, alone', () => {
       await page.keyboard.type('four', { delay: KEY_DELAY });
       await call('flush');
       assert.equal(await call('value'), 'One **two** three\\\nfour');
+    });
+
+    test('a space at a block\'s edge or beside a line break stays out of the file', async () => {
+      for (const [open, keys, exact] of [
+        ['', ['word '], 'word'],
+        ['', [' word'], 'word'],
+        ['## Head', [' '], '## Head'],
+        ['', ['a ', 'Shift+Enter', ' b'], 'a \\\nb'],
+        ['', ['a ', 'ControlOrMeta+b', 'b '], 'a **b**'],
+      ]) {
+        await call('open', open);
+        await call('focusEnd');
+        for (const key of keys) {
+          if (/\+/.test(key)) await page.keyboard.press(key);
+          else await page.keyboard.type(key, { delay: KEY_DELAY });
+        }
+        await call('flush');
+        assert.equal(await call('value'), exact);
+      }
+      await call('open', '');
+      await call('focusEnd');
+      await page.keyboard.type('word ', { delay: KEY_DELAY });
+      await call('flush');
+      await page.keyboard.type('more', { delay: KEY_DELAY });
+      await call('flush');
+      assert.equal(await call('value'), 'word more', 'and typing goes on past the space');
+    });
+
+    test('backspace takes a citation to a paragraph in its quote, in no other form', async () => {
+      await call('open', '> Words\n>\n> <cite>Someone</cite>');
+      await call('focusParagraphStart', 1);
+      await page.keyboard.press('Backspace');
+      await call('flush');
+      assert.equal(await call('value'), '> Words\n>\n> Someone');
     });
 
     test('text typed right after Enter lands where it is typed', async () => {
@@ -407,6 +443,33 @@ describe('the body field, alone', () => {
       assert.deepEqual(await call('changes'), [], 'from anywhere else, it is no kept block');
     });
 
+    test('in a table\'s cell, what is pasted is one line, and the table stays as it was', async () => {
+      const table = '| A | B |\n| --- | --- |\n| 1 | 2 |';
+      for (const [what, exact] of [
+        [{ text: 'First para\n\nSecond para' }, '2First para Second para'],
+        [{ html: '<p>First <strong>bold</strong></p><p>Second</p>' }, '2First **bold** Second'],
+        [{ html: '<ul><li>a</li><li>b</li></ul>' }, '2a b'],
+        [{ text: 'One\\\ntwo' }, '2One two'],
+        [{ text: 'word' }, '2word'],
+        [{ html: '<table><tr><th>X</th><th>Y</th></tr><tr><td>Z</td><td>W</td></tr></table>' }, '2X Y Z W'],
+      ]) {
+        await call('open', table);
+        await page.locator('.ProseMirror td').last().click();
+        await page.waitForTimeout(50);
+        await call('paste', what);
+        await call('flush');
+        assert.equal(intake(await call('value')), pageFile(`| A | B |\n| --- | --- |\n| 1 | ${exact} |`));
+        assert.deepEqual(await call('tablesAndCells'), [1, 4]);
+      }
+    });
+
+    test('a pasted numbered list starts at 1, which is all the site can publish', async () => {
+      await call('open', '');
+      await call('paste', { html: '<ol start="5"><li>Five</li><li>Six</li></ol>' });
+      await call('flush');
+      assert.equal(await call('value'), '1. Five\n2. Six');
+    });
+
     test('what a type does not take comes as its text', async () => {
       await call('open', '', { elements: ['paragraph'] });
       await call('paste', { text: '## A title\n\n> A quote\n\n- An item' });
@@ -447,6 +510,47 @@ describe('the body field, alone', () => {
       assert.equal(await call('value'), body);
       await call('remount');
       assert.deepEqual((await call('changes')).at(-1), body);
+    });
+
+    test('what it wrote itself, coming back after the next key, leaves the editor alone', async () => {
+      await call('open', '', { answering: true });
+      await call('focusEnd');
+      await call('sameEditorAs', true);
+      await page.keyboard.type('a', { delay: KEY_DELAY });
+      await call('flush');
+      await page.keyboard.type('b', { delay: KEY_DELAY });
+      await call('answer');
+      assert.equal(await call('sameEditorAs'), true, 'the editor was not opened anew');
+      await page.keyboard.type('c', { delay: KEY_DELAY });
+      await call('flush');
+      await call('answer');
+      assert.equal(await call('value'), 'abc');
+      assert.equal(await call('sameEditorAs'), true);
+    });
+
+    test('what it wrote itself, coming back after the next key, leaves the Markdown alone', async () => {
+      await call('open', 'x', { answering: true });
+      await page.getByRole('button', { name: 'Show Markdown' }).click();
+      const source = page.locator('.konzilo-body-source');
+      await source.press('End');
+      await page.keyboard.type('ab', { delay: KEY_DELAY });
+      await call('answer');
+      await page.keyboard.type('c', { delay: KEY_DELAY });
+      assert.equal(await source.inputValue(), 'xabc');
+      await call('answer');
+      assert.equal(await source.inputValue(), 'xabc');
+      assert.equal(await call('value'), 'xabc');
+    });
+
+    test('a value from outside, while its own are on their way back, still opens anew', async () => {
+      await call('open', '', { answering: true });
+      await call('focusEnd');
+      await page.keyboard.type('a', { delay: KEY_DELAY });
+      await call('flush');
+      await call('setValue', 'From outside');
+      await call('settled');
+      assert.equal(await call('written'), 'From outside');
+      assert.equal(await call('value'), 'From outside');
     });
 
     test('a value from outside opens anew, and writes nothing', async () => {
@@ -592,6 +696,29 @@ describe('the body field in Sveltia, on a site in two languages', () => {
     assert.deepEqual(await editors().allTextContents(), ['Svensk text', 'English text']);
   });
 
+  // A person's keys come further apart than the field's short wait, so a write and the value
+  // coming back from Sveltia fall between them.
+  test('typing at a person\'s pace loses no key and keeps the editor', async () => {
+    const sentence = 'The quick brown fox jumps over the lazy dog';
+    await editors().first().click();
+    await page.keyboard.press('End');
+    await page.evaluate(() => {
+      globalThis.typingIn = document.querySelector('.konzilo-body-visual .ProseMirror');
+    });
+    const was = await editors().first().textContent();
+    for (const gap of [46, 52, 58, 64]) {
+      for (const key of ` ${sentence}`) {
+        await page.keyboard.type(key);
+        await page.waitForTimeout(gap);
+      }
+    }
+    await page.waitForTimeout(150);
+    assert.equal(await editors().first().textContent(), `${was}${` ${sentence}`.repeat(4)}`);
+    assert.equal(await page.evaluate(() => globalThis.typingIn === document.querySelector('.konzilo-body-visual .ProseMirror')), true);
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.type(was, { delay: KEY_DELAY });
+  });
+
   test('crossing the responsive breakpoint changes nothing and keeps the undo', async () => {
     await editors().first().click();
     await page.keyboard.press('End');
@@ -626,5 +753,36 @@ describe('the body field in Sveltia, on a site in two languages', () => {
     await page.getByRole('button', { name: 'Create New Entry' }).first().waitFor();
     assert.deepEqual(seen.outside, []);
     assert.deepEqual(seen.refused, []);
+  });
+
+  // A build replaced while an editor has the page open, or a dropped connection.
+  test('saves when the check before a save does not load, since the intake is what counts', async () => {
+    const off = await site.newPage({ viewport: { width: 1600, height: 900 }, block: (url) => /\/pre-save-[^/]+\.js$/.test(url.pathname) });
+    try {
+      await off.page.getByRole('button', { name: 'Work with Test Repository' }).click();
+      await off.page.getByText('Pages', { exact: true }).first().click();
+      await off.page.getByRole('button', { name: 'Create New Entry' }).first().click();
+      await off.page.getByRole('radio', { name: 'English (UK)' }).last().click();
+      await off.page.locator('.konzilo-body-visual .ProseMirror').nth(1).waitFor();
+      await off.page.getByRole('textbox', { name: 'Titel' }).first().fill('En titel');
+      await off.page.getByRole('textbox', { name: 'Titel' }).last().fill('A title');
+      await off.page.getByRole('button', { name: 'Save', exact: true }).click();
+      await off.page.getByRole('button', { name: 'Create New Entry' }).first().waitFor();
+    } finally {
+      await off.context.close();
+    }
+  });
+
+  test('says so when the field does not load, and leaves the body as it was', async () => {
+    const off = await site.newPage({ viewport: { width: 1600, height: 900 }, block: (url) => /\/field-[^/]+\.js$/.test(url.pathname) });
+    try {
+      await off.page.getByRole('button', { name: 'Work with Test Repository' }).click();
+      await off.page.getByText('Pages', { exact: true }).first().click();
+      await off.page.getByRole('button', { name: 'Create New Entry' }).first().click();
+      await off.page.getByText('The editor could not load').first().waitFor();
+      assert.equal(await off.page.getByRole('button', { name: 'Save', exact: true }).isDisabled(), false);
+    } finally {
+      await off.context.close();
+    }
   });
 });

@@ -14,6 +14,8 @@ import { elementName, say } from './texts.js';
 
 // A short wait, so that a burst of keys is written once. Blur and Mod-S write at once.
 const WRITE_AFTER = 50;
+// An owner that never answers must not make the list grow without end.
+const UNANSWERED_AT_MOST = 64;
 
 const element = (tag, className, parent) => {
   const made = document.createElement(tag);
@@ -56,6 +58,15 @@ export function mountBodyField(host, { value: given, changed, elements, forms, a
   let timer = null;
   let generation = 0;
   let gone = false;
+  // What the owner has been told and has not answered yet. It answers a write with the value,
+  // later than a person's next key can come, so an answer is no news from outside.
+  const unanswered = [];
+
+  const tell = (next) => {
+    unanswered.push(next);
+    if (unanswered.length > UNANSWERED_AT_MOST) unanswered.shift();
+    changed(next);
+  };
 
   const closeEditor = () => {
     if (!editor) return;
@@ -76,7 +87,7 @@ export function mountBodyField(host, { value: given, changed, elements, forms, a
     const next = written === baseline ? openedValue : written;
     if (next === value) return;
     value = next;
-    changed(next);
+    tell(next);
   };
 
   const schedule = () => {
@@ -184,7 +195,7 @@ export function mountBodyField(host, { value: given, changed, elements, forms, a
   source.addEventListener('input', () => {
     if (source.value === value) return;
     value = source.value;
-    changed(value);
+    tell(value);
   });
   visual.addEventListener('focusout', () => {
     if (timer !== null) flush();
@@ -195,8 +206,14 @@ export function mountBodyField(host, { value: given, changed, elements, forms, a
     // A value from outside, a revert or a restored backup, opens anew and writes nothing.
     setValue(next) {
       const newer = next ?? '';
+      const answered = unanswered.indexOf(newer);
+      if (answered !== -1) {
+        unanswered.splice(0, answered + 1);
+        return;
+      }
       if (timer !== null) flush();
       if (newer === value) return;
+      unanswered.length = 0;
       value = newer;
       if (mode === 'markdown') source.value = value;
       else void openEditor();

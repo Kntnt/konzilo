@@ -4,17 +4,21 @@
 // Crossing Sveltia's responsive breakpoint remounts a control. The field is kept across that,
 // by its entry and name, so that a remount changes nothing and the editor keeps its undo.
 
+import { say } from './texts.js';
+
 const KEEP_FOR = 2000;
 const kept = new Map();
 
 const plain = (value) => (value?.toJS ? value.toJS() : value);
+
+const loadField = () => import('./field.js');
 
 // A control's ID changes with each mount, and its props do not say which language it is in, so
 // a field is found again by its entry, its name and the value it holds. Two languages with one
 // value can only be told apart by their undo, which a person would not miss across a remount.
 const keyOf = (field, entry, value) => [entry?.get?.('collection'), entry?.get?.('slug'), field.get('name'), value ?? ''].join('|');
 
-export function bodyControl({ adminHost }) {
+export function bodyControl({ adminHost, load = loadField }) {
   return function KonziloBody(props) {
     const React = window.__SVELTIA_CMS_REACT__;
     const { value, onChange, field, entry, forID } = props;
@@ -22,6 +26,9 @@ export function bodyControl({ adminHost }) {
     const live = React.useRef(null);
     const latest = React.useRef(onChange);
     latest.current = onChange;
+    // The field takes a while to load, and a backup restored meanwhile is what it must open on.
+    const latestValue = React.useRef(value);
+    latestValue.current = value;
 
     React.useEffect(() => {
       const held = kept.get(keyOf(field, entry, value));
@@ -33,10 +40,10 @@ export function bodyControl({ adminHost }) {
         held.setChanged((next) => latest.current(next));
       } else {
         let changedTo = (next) => latest.current(next);
-        void import('./field.js').then(({ mountBodyField }) => {
+        void load().then(({ mountBodyField }) => {
           if (host.current === null) return;
           const made = mountBodyField(host.current, {
-            value,
+            value: latestValue.current,
             changed: (next) => changedTo(next),
             elements: plain(field.get('elements')) ?? [],
             forms: plain(field.get('forms')) ?? [],
@@ -46,6 +53,10 @@ export function bodyControl({ adminHost }) {
             changedTo = to;
           };
           live.current = made;
+        }, (error) => {
+          // A build replaced while the page was open, or a dropped connection.
+          console.warn(`The body field did not load: ${error.message}`);
+          if (host.current !== null) host.current.textContent = say('fieldOff');
         });
       }
       return () => {

@@ -5,6 +5,7 @@ import { inLanguage } from '../../texts.js';
 
 const TEXTS = {
   loading: { en: 'Loading the editor…', sv: 'Läser in redigeraren…' },
+  fieldOff: { en: 'The editor could not load. Reload the page; nothing has been changed.', sv: 'Redigeraren gick inte att läsa in. Ladda om sidan; inget har ändrats.' },
   placeholder: { en: 'Write here, or type / for more', sv: 'Skriv här, eller skriv / för mer' },
   showMarkdown: { en: 'Show Markdown', sv: 'Visa Markdown' },
   showEditor: { en: 'Show the editor', sv: 'Visa redigeraren' },

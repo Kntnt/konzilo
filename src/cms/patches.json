@@ -31,14 +31,8 @@
   },
   {
     "module": "@milkdown/components/lib/table-block/index.js",
-    "why": "A click in a table's cell keeps the state it saw and dispatches on it later, which throws \"Applying a mismatched transaction\" if anything has changed the state meanwhile, as typing or the selection's own change does (ADR 0021). A state that has moved is newer.",
-    "find": "setTimeout(() => {\n      dispatch(state.tr.setSelection(selection).scrollIntoView());",
-    "replace": "setTimeout(() => {\n      if (view.state === state) dispatch(state.tr.setSelection(selection).scrollIntoView());"
-  },
-  {
-    "module": "@milkdown/components/lib/table-block/index.js",
-    "why": "A click in a table's cell keeps the state it saw and dispatches on it later, which throws \"Applying a mismatched transaction\" if anything has changed the state meanwhile, as typing or the selection's own change does (ADR 0021). A state that has moved is newer.",
-    "find": "requestAnimationFrame(() => {\n      dispatch(state.tr.setSelection(selection).scrollIntoView());",
-    "replace": "requestAnimationFrame(() => {\n      if (view.state === state) dispatch(state.tr.setSelection(selection).scrollIntoView());"
+    "why": "A first click in a table's cell selects all its text a frame later, on the state it saw at the click, so that the next key replaces the cell where a person expects the cursor where they clicked, and it throws \"Applying a mismatched transaction\" if the state has moved meanwhile (ADR 0021). A click in a cell does what a click does anywhere else.",
+    "find": "handleClick_fn = function(event) {\n  const view = this.view;",
+    "replace": "handleClick_fn = function(event) {\n  return false;\n  const view = this.view;"
   }
 ]

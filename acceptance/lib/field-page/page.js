@@ -21,12 +21,19 @@ const settled = () => new Promise((resolve) => {
   else setTimeout(resolve, 0);
 });
 
-const mount = (value, { elements = EVERY_ELEMENT, forms = ['contact', 'newsletter'] } = {}) => {
+// `answering` keeps what the field writes, as an owner would hold it on its way back, until
+// the test lets the answers come.
+const mount = (value, { elements = EVERY_ELEMENT, forms = ['contact', 'newsletter'], answering = false } = {}) => {
   const changes = [];
+  const answers = [];
   const host = document.createElement('div');
   document.body.append(host);
-  const field = mountBodyField(host, { value, changed: (next) => changes.push(next), elements, forms, adminHost: null });
-  return { field, changes, host };
+  const changed = (next) => {
+    changes.push(next);
+    if (answering) answers.push(next);
+  };
+  const field = mountBodyField(host, { value, changed, elements, forms, adminHost: null });
+  return { field, changes, host, answers };
 };
 
 const clear = () => {
@@ -179,5 +186,21 @@ globalThis.fieldPage = {
   written: () => current().field.written(),
   flush: () => current().field.flush(),
   setValue: (value) => current().field.setValue(value),
+  answer() {
+    const { field, answers } = current();
+    for (const next of answers.splice(0)) field.setValue(next);
+  },
+  sameEditorAs(mark) {
+    const { view } = current().field;
+    if (mark) globalThis.markedView = view;
+    return globalThis.markedView === view;
+  },
+  tablesAndCells() {
+    const count = { table: 0, table_header: 0, table_cell: 0 };
+    viewOf().state.doc.descendants((node) => {
+      if (node.type.name in count) count[node.type.name] += 1;
+    });
+    return [count.table, count.table_header + count.table_cell];
+  },
   notes: () => [...current().field.frame.querySelectorAll('.konzilo-body-note')].filter((note) => !note.hidden).map((note) => note.textContent),
 };

@@ -252,8 +252,9 @@ export const fieldKeys = $prose((ctx) => keymap({
     dispatch?.(state.tr.insertText(NON_BREAKING).scrollIntoView());
     return true;
   },
-  // A heading goes back to a paragraph, not to the level above, which would end at level 1.
-  Backspace: (state, dispatch, view) => (atStartOf(state, 'heading') ? setBlockType(state.schema.nodes.paragraph)(state, dispatch, view) : false),
+  // A heading goes back to a paragraph, not to the level above, which would end at level 1. A
+  // citation does too, or the browser would merge it upward and leave its italics as a mark.
+  Backspace: (state, dispatch, view) => (atStartOf(state, 'heading') || atStartOf(state, 'konzilo_citation') ? setBlockType(state.schema.nodes.paragraph)(state, dispatch, view) : false),
   // A citation is its quote's last block, so Enter leaves the quote.
   Enter: (state, dispatch) => {
     const { $from } = state.selection;

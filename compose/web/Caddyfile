@@ -21,6 +21,7 @@
 # opener policy, since its sign-in uses a popup. It holds a write token in the
 # browser, so it never shows anything an editor wrote as HTML.
 :{$KONZILO_PORT_ADMIN} {
+	encode zstd gzip
 	header {
 		Content-Security-Policy "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: {$KONZILO_FORGEJO_ORIGIN}; media-src 'self' blob: {$KONZILO_FORGEJO_ORIGIN}; font-src 'self' data:; connect-src 'self' blob: data: {$KONZILO_FORGEJO_ORIGIN}; worker-src 'self' blob:; manifest-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 		Referrer-Policy "no-referrer"
