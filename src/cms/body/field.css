@@ -83,8 +83,10 @@
   border-radius: 4px;
 }
 
+/* On the left, room for the block handle: two buttons of 32 px with 2 px between, 6 px to its
+   block, and 8 px to the field's edge. */
 .konzilo-body-visual .milkdown .ProseMirror {
-  padding: 16px 20px 16px 56px;
+  padding: 16px 20px 16px 80px;
   min-height: 200px;
   white-space: pre-wrap;
 }

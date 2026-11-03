@@ -254,6 +254,17 @@ describe('the body field, alone', () => {
       assert.equal((await call('value')).split('## A heading').length, 2);
     });
 
+    test('the block handle stands inside the field, with a margin', async () => {
+      for (const [body, block] of [['A paragraph', 'p'], ['## A heading', 'h2'], ['- An item', 'li'], ['> A quote', 'blockquote'], ['| A |\n| --- |\n| 1 |', 'td']]) {
+        await call('open', body);
+        await page.locator(`.ProseMirror ${block}`).first().hover();
+        const handle = page.locator('.milkdown-block-handle[data-show="true"]');
+        await handle.waitFor();
+        const [box, frame] = await Promise.all([handle.boundingBox(), page.locator('.konzilo-body-visual').boundingBox()]);
+        assert.ok(box.x >= frame.x + 4, `${body}: the handle starts ${box.x - frame.x} px inside the field`);
+      }
+    });
+
     test('text and a formatted run reach the file as the format has them', async () => {
       await call('open', '');
       await typeAtTheEnd('Plain bold plain');
