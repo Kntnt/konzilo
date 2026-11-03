@@ -153,6 +153,11 @@ const cases = {
     'articles/de-DE/bbbbbbbbbbbb.md': article({ slug: 'annat' }, 'Text.'),
   }, { languages: ['sv_SE', 'en_GB'], types: { article: { label: 'A', plural: 'As', collection: 'articles', address: '/{slug}/', elements: ['paragraph'] } } }), { post: true }],
   'admin-file': [() => withFiles({ 'menus/main.json': { items: [] } }, { changes: { 'menus/main.json': { by: 'editor@example.com', admin: false } } }), { file: 'menus/main.json' }],
+  'admin-legal-gone': [() => {
+    const legal = { 'settings.json': { ...settled, legalPages: { privacyPolicy: 'cccccccccccc' } } };
+    const first = run({ ...legal, 'pages/cccccccccccc.md': sourcePost({ title: 'Privacy', slug: 'privacy', status: 'published' }, 'Text.') }, site);
+    return run(legal, site, { ledger: first.ledger, changes: { 'pages/cccccccccccc.md': { by: 'editor@example.com', admin: false } } });
+  }, { post: true }],
   'admin-legal': [() => withFiles({
     'settings.json': { ...settled, legalPages: { privacyPolicy: 'cccccccccccc' } },
     ...Object.fromEntries([pagePost('cccccccccccc', { slug: 'privacy' })]),

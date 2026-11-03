@@ -890,6 +890,7 @@ An ID is text, the name of the post's source file, such as `96ba709ec918`, which
 - **`terms`**, by the term's ID, each with the `address` of its page and the `addresses` it has had, for a taxonomy with an address.
 - **`files`**, the SHA-256 of each of an Admin's source files the site last took.
 - **`chosen`**, the posts the settings last chose as `legalPages` and for `notFound`.
+- **`settingsMedia`**, the masters the settings last named, which stay while a later settings file is refused.
 - **`consent`**, the service registry's `revision`, and `revised`, the day it last changed.
 
 ```json file=.post-ids.json
@@ -1021,6 +1022,11 @@ An ID is text, the name of the post's source file, such as `96ba709ec918`, which
     ],
     "notFound": "84d238eb4622"
   },
+  "settingsMedia": [
+    "media/hero-image-dc2dd17407.webp",
+    "media/logo-908319c58a.svg",
+    "media/site-icon-f521d4c15b.svg"
+  ],
   "consent": {
     "revision": "786376240bce7ea0",
     "revised": "2026-10-30"

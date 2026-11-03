@@ -4,7 +4,7 @@
 
 ## Decision
 
-- **The legal pages** are the privacy policy, the cookie policy and the accessibility statement, in the group `legalPages`. Each is a choice of one published post of a type with an address, kept by ID, and may be left unchosen. The cookie policy may be the privacy policy itself. An Admin writes the chosen pages; an Editor cannot. An Editor's change to a post chosen as a legal page is refused by the intake, and the post keeps its last published version (Thomas, 2026-11-03).
+- **The legal pages** are the privacy policy, the cookie policy and the accessibility statement, in the group `legalPages`. Each is a choice of one published post of a type with an address, kept by ID, and may be left unchosen. The cookie policy may be the privacy policy itself. An Admin writes the chosen pages; an Editor cannot. An Editor's change to a post chosen as a legal page is refused by the intake, and the post keeps its last published version (Thomas, 2026-11-03). Taking it off the site is such a change, by a draft's status, a date ahead or a deleted source file. An Admin can do all of these, and an Editor's deletion stands once an Admin has chosen another page.
 - **The intake writes each chosen page into `settings.json`** as its title and current address. One with no page now is left out, with a warning.
 - **A site that asks for consent warns at every build** while it has no privacy policy or cookie policy to link to.
 - **The footer links to the three pages,** each once and by its title; the banner links to the first two.

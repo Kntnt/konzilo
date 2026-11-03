@@ -6,12 +6,13 @@
 // its published version last changed; and what its file names, since a refused post's
 // kept file holds on to them. Beside the posts: the old addresses of terms' pages, the
 // source hash of each file of an Admin's that was accepted, what the settings last
-// chose, and the consent revision with the day it last changed.
+// chose and the masters they last named, since a refused settings file's kept file holds
+// on to them, and the consent revision with the day it last changed.
 
 import { isObject } from '../checks.js';
 import { keyOf } from '../format/redirects.js';
 
-export const emptyLedger = () => ({ posts: {}, terms: {}, files: {}, chosen: { legalPages: [], notFound: null }, consent: null });
+export const emptyLedger = () => ({ posts: {}, terms: {}, files: {}, chosen: { legalPages: [], notFound: null }, settingsMedia: [], consent: null });
 
 // A ledger read from a file: only the shape the intake writes is believed. A file written
 // by another hand is not assumed to be right, and counts for nothing.
@@ -23,6 +24,7 @@ export function normalLedger(given) {
     terms: isObject(given.terms) ? given.terms : empty.terms,
     files: isObject(given.files) ? given.files : empty.files,
     chosen: isObject(given.chosen) ? { legalPages: given.chosen.legalPages ?? [], notFound: given.chosen.notFound ?? null } : empty.chosen,
+    settingsMedia: Array.isArray(given.settingsMedia) ? given.settingsMedia : empty.settingsMedia,
     consent: isObject(given.consent) ? given.consent : null,
   };
 }
@@ -103,6 +105,7 @@ export function nextLedger(run, settings) {
     terms: sortedKeys(terms),
     files: sortedKeys(files),
     chosen: settings.refused ? ledger.chosen : run.chosen,
+    settingsMedia: settings.refused ? ledger.settingsMedia : [...settings.masters.keys()].sort(),
     consent: run.consentRecord ?? ledger.consent,
   };
 }

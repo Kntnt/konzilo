@@ -3,14 +3,15 @@
 // in the site's build, as the site's user. The checks are one function with no input or
 // output of its own (src/intake/index.js); this is what reads and writes for it.
 //
-//   konzilo-intake <checkout> [--site <folder>] [--content <folder>] [--confirm <code>] [--admins <file>]
+//   konzilo-intake <checkout> (--admins <file> | --no-roles) [--site <folder>] [--content <folder>] [--confirm <code>]
 //
+// --admins    a JSON list of the addresses of the accounts that are Admins, against which
+//             it reads who last changed each file, from Git's log
+// --no-roles  hold nothing to a role, as in a developer's own checkout: said out loud,
+//             so that a build that forgets the list stops rather than lets everyone through
 // --site      the site repository, whose site-description.json it reads; here by default
 // --content   the content folder; $KONZILO_CONTENT or `content` by default
 // --confirm   the code of a deletion the guard stopped, which holds for this build alone
-// --admins    a JSON list of the addresses of the accounts that are Admins, against which
-//             it reads who last changed each file, from Git's log: without it, nothing
-//             is held to a role, as in a developer's own checkout
 //
 // It prints what the build reports, as JSON: { refusals, warnings, written, removed, next }.
 // A refusal is data, and exits 0, with other posts published. It exits 3 when the guard
@@ -28,18 +29,19 @@ import { deletion, intake } from '../src/intake/index.js';
 import { readSiteDescription, SITE_DESCRIPTION_FILE } from '../src/site-description.js';
 
 const usage = () => {
-  console.error('usage: konzilo-intake <checkout> [--site <folder>] [--content <folder>] [--confirm <code>] [--admins <file>]');
+  console.error('usage: konzilo-intake <checkout> (--admins <file> | --no-roles) [--site <folder>] [--content <folder>] [--confirm <code>]');
   process.exit(2);
 };
 
 let parsed;
 try {
-  parsed = parseArgs({ allowPositionals: true, options: { site: { type: 'string' }, content: { type: 'string' }, confirm: { type: 'string' }, admins: { type: 'string' } } });
+  parsed = parseArgs({ allowPositionals: true, options: { site: { type: 'string' }, content: { type: 'string' }, confirm: { type: 'string' }, admins: { type: 'string' }, 'no-roles': { type: 'boolean' } } });
 } catch {
   usage();
 }
 const [given] = parsed.positionals;
 if (!given || parsed.positionals.length > 1) usage();
+if (Boolean(parsed.values.admins) === Boolean(parsed.values['no-roles'])) usage();
 
 const checkout = resolve(given);
 const siteFolder = resolve(parsed.values.site ?? '.');
@@ -52,9 +54,13 @@ const walk = (folder) => (existsSync(folder) ? readdirSync(folder, { withFileTyp
 }) : []);
 
 // Who last changed each of the paths: Git's log, newest first, and the first time a
-// path is named is the last time it changed.
+// path is named is the last time it changed. Without renames, or moving a file away would
+// name only where it went. A shallow clone would blame its one commit for every file, so
+// it stops the check.
 function lastChanges(admins) {
-  const log = execFileSync('git', ['log', '--format=%x00%ae', '--name-only'], { cwd: checkout, encoding: 'utf8', maxBuffer: 1024 * 1024 * 256 });
+  const shallow = execFileSync('git', ['rev-parse', '--is-shallow-repository'], { cwd: checkout, encoding: 'utf8' }).trim();
+  if (shallow !== 'false') throw new Error('a shallow clone cannot say who last changed a file; give the intake the whole history');
+  const log = execFileSync('git', ['log', '--no-renames', '--format=%x00%ae', '--name-only'], { cwd: checkout, encoding: 'utf8', maxBuffer: 1024 * 1024 * 256 });
   const changes = {};
   for (const commit of log.split('\0').slice(1)) {
     const [by, ...paths] = commit.split('\n');

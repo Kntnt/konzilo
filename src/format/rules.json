@@ -619,6 +619,7 @@
     "language-folder": "the folder {folder} is none of the site's languages, so the post cannot be published; move it to a language the site declares",
     "admin-file": "{by} is no Admin, and only an Admin may change {file}, so visitors still get the last version an Admin left; ask an Admin to save it",
     "admin-legal": "{by} is no Admin, and only an Admin may change a post chosen as a legal page, so visitors still see its last version; ask an Admin to save it",
+    "admin-legal-gone": "{by} is no Admin, and only an Admin may take a post chosen as a legal page off the site, so visitors still see it; ask an Admin to restore it, or to choose another page in the settings",
     "title-empty": "the site cannot publish a post without a title; give it one",
     "title-markup": "the site cannot publish a title holding HTML; write it as plain text",
     "slug": "the site cannot use \"{slug}\" as a slug: a slug holds a to z in lowercase, digits, hyphens and underscores",

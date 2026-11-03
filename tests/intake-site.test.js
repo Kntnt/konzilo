@@ -8,7 +8,7 @@ import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { cmsConfig } from '../src/cms/config.js';
 import { demoSource, sourceFrom } from '../src/demo-source.js';
-import { intake } from '../src/intake/index.js';
+import { deletion, intake } from '../src/intake/index.js';
 import { siteDescription } from '../src/site-description.js';
 import { namedImages, NOW, run, sourcePost, written } from './lib/intake.js';
 
@@ -390,6 +390,20 @@ describe('what is an Admin\'s alone', () => {
     assert.equal(written(gone)['settings.json'], undefined);
   });
 
+  test('a settings file that is refused keeps the images its last version names', () => {
+    const settings = { logo: { src: '/media/logo.svg', alt: 'A logo' } };
+    const first = run({ 'settings.json': settings }, site);
+    const master = Object.keys(written(first)).find((path) => path.startsWith('media/'));
+    assert.ok(master);
+    const broken = run({ 'settings.json': '{ not json' }, site, { ledger: first.ledger });
+    assert.deepEqual(broken.keep, [master]);
+    const held = run({ 'settings.json': { title: 'Mine' } }, site, { ledger: broken.ledger, changes: { 'settings.json': editor } });
+    assert.deepEqual(held.keep, [master], 'and goes on keeping them');
+    const replaced = run({ 'settings.json': { title: 'Mine' } }, site, { ledger: held.ledger, changes: { 'settings.json': admin } });
+    assert.deepEqual(replaced.keep, [], 'until an Admin\'s next version names none');
+    assert.deepEqual(replaced.ledger.settingsMedia, []);
+  });
+
   const legal = { 'settings.json': { legalPages: { privacyPolicy: 'legallegal00' } }, 'pages/legallegal00.md': page('privacy') };
 
   test('a non-Admin\'s change to a post chosen as a legal page keeps its last version', () => {
@@ -412,6 +426,83 @@ describe('what is an Admin\'s alone', () => {
       'pages/legallegal00.md': sourcePost({ title: 'Changed', slug: 'privacy', status: 'published' }, 'Changed.'),
     }, site, { ledger: first.ledger, changes: { 'settings.json': editor, 'pages/legallegal00.md': editor } });
     assert.deepEqual(second.refusals.map((one) => one.file), ['settings.json', 'pages/legallegal00.md']);
+  });
+
+  // What would take a legal page off the site is a change as well.
+  for (const [what, fields] of [
+    ['a draft', { title: 'Privacy', slug: 'privacy', status: 'draft' }],
+    ['a date ahead', { title: 'Privacy', slug: 'privacy', status: 'published', date: '2099-01-01T00:00:00Z' }],
+    ['a status it does not know', { title: 'Privacy', slug: 'privacy', status: 'gone' }],
+  ]) {
+    test(`a non-Admin cannot take a legal page off the site with ${what}`, () => {
+      const first = run(legal, site);
+      const second = run({ ...legal, 'pages/legallegal00.md': sourcePost(fields, 'Text.') }, site, { ledger: first.ledger, changes: { 'pages/legallegal00.md': editor } });
+      assert.match(second.refusals[0].reason, /^editor@example\.com is no Admin/);
+      assert.deepEqual(second.keep, ['pages/privacy.md']);
+      assert.ok(second.ledger.posts.legallegal00.path, 'the ledger holds on to its file');
+      assert.ok(written(second)['settings.json'].includes('/privacy/'), 'the settings still lead to it');
+      assert.equal(second.next, null);
+    });
+  }
+
+  test('a non-Admin cannot take a legal page off the site by deleting it', () => {
+    const first = run(legal, site);
+    const { 'pages/legallegal00.md': _, ...without } = legal;
+    const second = run(without, site, { ledger: first.ledger, changes: { 'pages/legallegal00.md': editor } });
+    assert.equal(second.refusals.length, 1);
+    assert.equal(second.refusals[0].post.id, 'legallegal00');
+    assert.match(second.refusals[0].reason, /^editor@example\.com is no Admin, and only an Admin may take/);
+    assert.deepEqual(second.keep, ['pages/privacy.md']);
+    assert.ok(second.ledger.posts.legallegal00.path);
+    assert.ok(written(second)['settings.json'].includes('/privacy/'));
+    assert.equal(deletion(['pages/privacy.md'], second).paths.length, 0);
+    // Another post cannot take the address it still holds.
+    const third = run({ ...without, 'pages/bbbbbbbbbbbb.md': page('privacy') }, site, { ledger: second.ledger, changes: { 'pages/legallegal00.md': editor } });
+    assert.ok(third.refusals.some((one) => one.post?.id === 'bbbbbbbbbbbb'));
+    assert.deepEqual(third.keep, ['pages/privacy.md']);
+  });
+
+  test('a legal page an Admin takes off goes, by draft, by deletion, and once it is no longer chosen', () => {
+    const first = run(legal, site);
+    const drafted = run({ ...legal, 'pages/legallegal00.md': sourcePost({ title: 'Privacy', slug: 'privacy', status: 'draft' }, 'Text.') }, site, { ledger: first.ledger, changes: { 'pages/legallegal00.md': admin } });
+    assert.deepEqual(drafted.refusals, []);
+    assert.deepEqual(drafted.keep, []);
+    const { 'pages/legallegal00.md': _, ...without } = legal;
+    const deleted = run(without, site, { ledger: first.ledger, changes: { 'pages/legallegal00.md': admin } });
+    assert.deepEqual(deleted.refusals, []);
+    assert.deepEqual(deleted.keep, []);
+    // An Editor deleted it, and an Admin then chooses another page: the deletion stands.
+    const unchosen = run({ ...without, 'settings.json': { legalPages: {} } }, site, { ledger: first.ledger, changes: { 'pages/legallegal00.md': editor, 'settings.json': admin } });
+    assert.deepEqual(unchosen.refusals, []);
+    assert.deepEqual(unchosen.keep, []);
+  });
+
+  test('a legal page not yet on the site is its editor\'s to draft, and an Admin\'s to publish', () => {
+    const draft = sourcePost({ title: 'Privacy', slug: 'privacy', status: 'draft' }, 'A draft.');
+    const first = run({ ...legal, 'pages/legallegal00.md': draft }, site, { changes: { 'pages/legallegal00.md': editor } });
+    assert.deepEqual(first.refusals, []);
+    const published = run(legal, site, { ledger: first.ledger, changes: { 'pages/legallegal00.md': editor } });
+    assert.match(published.refusals[0].reason, /^editor@example\.com is no Admin/);
+    assert.equal(written(published)['pages/privacy.md'], undefined);
+  });
+
+  test('holds a legal page in the language an Editor took it away in, and in that alone', () => {
+    const inTwo = {
+      languages: ['sv_SE', 'en_GB'],
+      types: { page: { label: 'P', plural: 'Ps', collection: 'pages', address: { sv_SE: '/sidor/{slug}/', en_GB: '/pages/{slug}/' }, elements: ['paragraph'] } },
+    };
+    const source = {
+      'settings.json': { legalPages: { privacyPolicy: 'legallegal00' } },
+      'pages/sv-SE/legallegal00.md': sourcePost({ title: 'Integritet', slug: 'integritet', status: 'published' }, 'Text.'),
+      'pages/en-GB/legallegal00.md': sourcePost({ title: 'Privacy', slug: 'privacy', status: 'published' }, 'Text.'),
+    };
+    const first = run(source, inTwo);
+    assert.deepEqual(first.refusals, []);
+    const { 'pages/en-GB/legallegal00.md': _, ...without } = source;
+    const second = run(without, inTwo, { ledger: first.ledger, changes: { 'pages/en-GB/legallegal00.md': editor } });
+    assert.deepEqual(second.refusals.map((one) => one.file), ['pages/en-GB/legallegal00.md']);
+    assert.deepEqual(second.keep, ['pages/en-GB/privacy.md']);
+    assert.ok(written(second)['pages/sv-SE/integritet.md']);
   });
 
   test('a post an Editor last touched before it was chosen stands, until its version changes', () => {

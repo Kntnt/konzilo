@@ -52,7 +52,8 @@ describe('konzilo-intake', () => {
     const env = { ...process.env };
     delete env.KONZILO_CONTENT;
     delete env.KONZILO_ADMIN_ORIGIN;
-    const result = spawnSync(process.execPath, [command, checkout, ...args], { cwd: root, env, encoding: 'utf8' });
+    const roles = args.includes('--admins') || args.includes('--bare') ? [] : ['--no-roles'];
+    const result = spawnSync(process.execPath, [command, checkout, ...roles, ...args.filter((arg) => arg !== '--bare')], { cwd: root, env, encoding: 'utf8' });
     return { ...result, report: result.status === 0 || result.status === 3 ? JSON.parse(result.stdout) : null };
   };
 
@@ -164,6 +165,93 @@ describe('konzilo-intake', () => {
     const { status, stderr } = spawnSync(process.execPath, [command], { encoding: 'utf8' });
     assert.equal(status, 2);
     assert.match(stderr, /usage/);
+  });
+
+  test('exits 2 when it is not told how to hold roles, and writes nothing', () => {
+    const site = newSite({ 'articles/aaaaaaaaaaaa.md': post('first') });
+    const { status, stderr } = intake(site, '--bare');
+    assert.equal(status, 2);
+    assert.match(stderr, /--no-roles/);
+    assert.deepEqual(listing(site.content), []);
+    const admins = join(site.root, 'admins.json');
+    writeFileSync(admins, '[]');
+    assert.equal(intake(site, '--admins', admins, '--no-roles').status, 2);
+  });
+
+  // A checkout with Git history: `commit` adds what is there as the person with this address.
+  const inGit = (site) => {
+    const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' };
+    const git = (...args) => execFileSync('git', args, { cwd: site.checkout, stdio: ['ignore', 'pipe', 'ignore'], env });
+    git('init', '--quiet');
+    const admins = join(site.root, 'admins.json');
+    writeFileSync(admins, '["admin@example.com"]');
+    return {
+      git,
+      admins,
+      commit: (email) => {
+        git('add', '--all');
+        git('-c', 'user.name=Someone', '-c', `user.email=${email}`, 'commit', '--quiet', '--message=A change');
+      },
+    };
+  };
+
+  test('a file moved away by a non-Admin is theirs, also where Git would see a rename', () => {
+    const settings = '{"title":"A long enough title for Git to call a move of this file a rename"}\n';
+    const site = newSite({ 'settings.json': settings, 'articles/aaaaaaaaaaaa.md': post('first') });
+    const { git, admins, commit } = inGit(site);
+    commit('admin@example.com');
+    assert.deepEqual(intake(site, '--admins', admins).report.refusals, []);
+    git('mv', 'settings.json', 'elsewhere.json');
+    commit('editor@example.com');
+    const { report } = intake(site, '--admins', admins);
+    assert.equal(report.refusals[0].file, 'settings.json');
+    assert.match(report.refusals[0].reason, /^editor@example\.com is no Admin/);
+  });
+
+  test('a legal page a non-Admin deleted stays on the site, in Git\'s own words', () => {
+    const settings = '{"legalPages":{"privacyPolicy":"aaaaaaaaaaaa"}}\n';
+    const site = newSite({ 'settings.json': settings, 'articles/aaaaaaaaaaaa.md': post('privacy'), 'articles/bbbbbbbbbbbb.md': post('other') });
+    const { git, admins, commit } = inGit(site);
+    commit('admin@example.com');
+    assert.deepEqual(intake(site, '--admins', admins).report.refusals, []);
+    assert.ok(existsSync(join(site.content, 'articles/privacy.md')));
+    git('rm', '--quiet', 'articles/aaaaaaaaaaaa.md');
+    commit('editor@example.com');
+    const { status, report } = intake(site, '--admins', admins);
+    assert.equal(status, 0);
+    assert.match(report.refusals[0].reason, /^editor@example\.com is no Admin, and only an Admin may take a post chosen as a legal page off the site/);
+    assert.deepEqual(report.removed, []);
+    assert.ok(existsSync(join(site.content, 'articles/privacy.md')));
+  });
+
+  test('the logo stays on disk while the settings that name it are refused', () => {
+    const logo = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10"/></svg>';
+    const site = newSite({ 'settings.json': '{"logo":{"src":"/media/logo.svg","alt":"A logo"}}', 'media/logo.svg': logo, 'articles/aaaaaaaaaaaa.md': post('first') });
+    const { report } = intake(site);
+    assert.deepEqual(report.refusals, []);
+    const master = report.written.find((path) => path.startsWith('media/'));
+    assert.ok(master);
+    put(site.checkout, { 'settings.json': '{ not json' });
+    const second = intake(site);
+    assert.equal(second.status, 0);
+    assert.deepEqual(second.report.removed, []);
+    assert.ok(existsSync(join(site.content, master)));
+    assert.match(readFileSync(join(site.content, 'settings.json'), 'utf8'), /logo/);
+  });
+
+  test('stops at a shallow clone, which cannot say who changed what', () => {
+    const whole = newSite({ 'articles/aaaaaaaaaaaa.md': post('first') });
+    const { admins, commit } = inGit(whole);
+    commit('admin@example.com');
+    put(whole.checkout, { 'articles/bbbbbbbbbbbb.md': post('second') });
+    commit('admin@example.com');
+    const site = newSite();
+    rmSync(site.checkout, { recursive: true });
+    execFileSync('git', ['clone', '--quiet', '--depth=1', `file://${whole.checkout}`, site.checkout], { stdio: 'ignore', env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' } });
+    const { status, stderr } = intake(site, '--admins', admins);
+    assert.equal(status, 1);
+    assert.match(stderr, /shallow clone/);
+    assert.deepEqual(listing(site.content), []);
   });
 
   test('reads who last changed each file from Git, against the list of Admins', () => {

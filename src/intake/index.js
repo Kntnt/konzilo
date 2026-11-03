@@ -36,7 +36,8 @@ const MARKUP = /<\/?[a-zA-Z!?][^<>]*>/;
 //
 // Returns { files, refusals, warnings, keep, ledger, next }: `keep`, the paths of the
 // content files that stay though no file here writes them, a refused post's own and what
-// it names; `next`, the next scheduled moment, or null.
+// it names, and what a refused settings file names; `next`, the next scheduled moment,
+// or null.
 export function intake({ files, site: described, now, ledger = null, changes = {}, images = () => null, adminHost = null, reader = siteReader }) {
   const site = siteDescription(described);
   const clock = typeof now === 'function' ? now() : now;
@@ -56,10 +57,11 @@ export function intake({ files, site: described, now, ledger = null, changes = {
     source: readSource(files, site),
   };
   run.refusals.push(...run.source.refusals);
-  run.posts = new Map(run.source.posts.map((post) => [post.key, post]));
-  run.postsById = groupBy(run.source.posts, (post) => post.id);
   readTerms(run);
   readAdminFiles(run);
+  holdLegalPagesTaken(run);
+  run.posts = new Map(run.source.posts.map((post) => [post.key, post]));
+  run.postsById = groupBy(run.source.posts, (post) => post.id);
   for (const post of run.source.posts) stateOf(post, run);
   for (const post of run.source.posts) if (post.on) checkPost(post, run);
   settle(run);
@@ -103,6 +105,34 @@ function readAdminFiles(run) {
   if (run.rulesRefused) run.rules = { exact: [], patterns: [], problems: [], warnings: [] };
 }
 
+// A post chosen as a legal page whose source a non-Admin was the last to change, which
+// a file back at what was last accepted is not.
+function legalChangedBy(post, run) {
+  if (!run.chosen.legalPages.includes(post.id)) return null;
+  const change = run.changes?.[post.path];
+  if (!change || change.admin !== false || post.hash === run.ledger.posts[post.key]?.source) return null;
+  return change;
+}
+
+// A legal page on the site whose source file a non-Admin took away is held like any
+// other change of theirs: what it stands on comes from the ledger, as it does for every
+// refused post. An Admin who wants it gone chooses another page first, which frees it.
+function holdLegalPagesTaken(run) {
+  const { source, ledger, site } = run;
+  const present = new Set(source.posts.map((post) => post.key));
+  for (const [key, entry] of Object.entries(ledger.posts)) {
+    const id = key.split('/').at(-1);
+    if (!entry.path || present.has(key) || !run.chosen.legalPages.includes(id)) continue;
+    const collection = entry.path.split('/')[0];
+    const type = Object.values(site.types).find((one) => one.collection === collection);
+    const path = `${collection}/${key}.md`;
+    if (!type || run.changes?.[path]?.admin !== false) continue;
+    const tag = key.includes('/') ? key.split('/')[0] : null;
+    source.posts.push({ key, id, tag, language: tag ? site.languages.find((one) => one.tag === tag) ?? null : site.languages[0] ?? null, type, path, hash: null, fields: {}, body: '', bodyLine: 1, title: entry.title, gone: true });
+  }
+  source.posts.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+}
+
 // Whether a post is on the site's way: published, its date come. A draft is nobody's
 // business but its editor's, and is not checked.
 function stateOf(post, run) {
@@ -111,6 +141,15 @@ function stateOf(post, run) {
   if (post.unreadable) {
     post.on = true;
     refuse(run, post, { reason: post.unreadable.reason, line: post.unreadable.line });
+    return;
+  }
+  // A legal page on the site stays until an Admin says otherwise, so this comes before
+  // anything that would take it off: a draft's status, a date ahead, a file gone.
+  const taking = run.ledger.posts[post.key]?.path ? legalChangedBy(post, run) : null;
+  if (taking) {
+    post.on = true;
+    post.notFound = run.chosen.notFound === post.id;
+    refuse(run, post, { reason: say(post.gone ? 'admin-legal-gone' : 'admin-legal', { by: taking.by ?? 'this person' }) });
     return;
   }
   if (status === 'draft' || status === null) return;
@@ -136,17 +175,13 @@ function stateOf(post, run) {
     return;
   }
   post.notFound = run.chosen.notFound === post.id;
-  if (run.chosen.legalPages.includes(post.id)) {
-    const change = run.changes?.[post.path];
-    if (change && change.admin === false && post.hash !== run.ledger.posts[post.key]?.source) {
-      refuse(run, post, { reason: say('admin-legal', { by: change.by ?? 'this person' }) });
-    }
-  }
+  const change = legalChangedBy(post, run);
+  if (change) refuse(run, post, { reason: say('admin-legal', { by: change.by ?? 'this person' }) });
 }
 
 // A post's own problems, what no other post can change.
 function checkPost(post, run) {
-  if (post.unreadable || post.keepsNothing) return;
+  if (post.unreadable || post.keepsNothing || post.gone) return;
   if (post.title === null) refuse(run, post, { field: 'title', reason: say('title-empty') });
   else if (MARKUP.test(post.title)) refuse(run, post, { field: 'title', reason: say('title-markup') });
   const slug = slugOf(post);
@@ -274,6 +309,7 @@ function assemble(run) {
   let settings = { refused: true, masters: new Map(), values: null };
   if (!run.settingsRefused) settings = settingsFiles(run, files);
   for (const [path, contents] of settings.masters) masters.set(path, contents);
+  if (settings.refused) for (const path of ledger.settingsMedia) keep.add(path);
   menuFiles(run, files);
   redirectsFile(run, files);
   consentFile(run, files, settings, embeds);
