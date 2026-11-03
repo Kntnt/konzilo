@@ -31,7 +31,8 @@
     "content-format.md"
   ],
   "scripts": {
-    "test": "node scripts/test.js"
+    "test": "node scripts/test.js",
+    "gate": "node scripts/gate.js"
   },
   "dependencies": {
     "lightningcss": "1.33.0",
