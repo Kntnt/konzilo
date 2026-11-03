@@ -1,0 +1,73 @@
+#!/usr/bin/env node
+// Raise the Public Suffix List the core checks a declared host's `*.` against
+//, or check the one it holds.
+//
+//   public-suffix-list [COMMIT]   take the list at COMMIT of the default branch
+//                                 of github.com/publicsuffix/list, its newest
+//                                 commit by default: write its rules, its file's
+//                                 SHA-256 and the commit into
+//                                 src/format/public-suffixes.json, and pin
+//                                 the commit in versions.env, PUBLIC_SUFFIX_LIST
+//   public-suffix-list --check    fetch the list at the commit versions.env pins
+//                                 and check that public-suffixes.json holds what
+//                                 it gives, its SHA-256 and its commit
+//
+// Reads GitHub alone, over HTTPS, and needs Node. Commit what it changes in
+// one commit; tests/versions.test.js checks the pin and the file's copy of it
+// agree.
+
+import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { suffixesOf } from '../src/format/public-suffixes.js';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const FILE = join(ROOT, 'src/format/public-suffixes.json');
+const VERSIONS = join(ROOT, 'versions.env');
+const REPOSITORY = 'publicsuffix/list';
+const COMMIT = /^[0-9a-f]{40}$/;
+
+// The bytes an address on GitHub answers with.
+async function fetched(address, headers = {}) {
+  const answer = await fetch(address, { headers: { 'User-Agent': 'konzilo-public-suffix-list', ...headers } });
+  if (!answer.ok) throw new Error(`${address} answers ${answer.status}`);
+  return Buffer.from(await answer.arrayBuffer());
+}
+
+// The list's file at a commit, and what public-suffixes.json holds of it.
+async function listAt(commit) {
+  const file = await fetched(`https://raw.githubusercontent.com/${REPOSITORY}/${commit}/public_suffix_list.dat`);
+  const sha256 = createHash('sha256').update(file).digest('hex');
+  return { version: commit, sha256, ...suffixesOf(file.toString('utf8')) };
+}
+
+const contents = (data) => `${JSON.stringify(data, null, 2)}\n`;
+
+async function main(args) {
+  if (args[0] === '--check') {
+    const pinned = execFileSync('sh', [join(ROOT, 'scripts/versions'), 'PUBLIC_SUFFIX_LIST'], { encoding: 'utf8' }).trim();
+    const made = contents(await listAt(pinned));
+    if (readFileSync(FILE, 'utf8') !== made) {
+      console.error(`public-suffix-list: src/format/public-suffixes.json is not the list at ${pinned}; run scripts/public-suffix-list ${pinned}`);
+      return 1;
+    }
+    console.log(`public-suffix-list: public-suffixes.json is the list at ${pinned}`);
+    return 0;
+  }
+  if (args.length > 1 || (args[0] !== undefined && !COMMIT.test(args[0]))) {
+    console.error('usage: public-suffix-list [COMMIT | --check]');
+    return 2;
+  }
+  const commit = args[0] ?? (await fetched(`https://api.github.com/repos/${REPOSITORY}/commits/HEAD`, { Accept: 'application/vnd.github.sha' })).toString('utf8').trim();
+  if (!COMMIT.test(commit)) throw new Error(`GitHub names no commit of ${REPOSITORY}: ${commit}`);
+  writeFileSync(FILE, contents(await listAt(commit)));
+  const versions = readFileSync(VERSIONS, 'utf8');
+  if (!/^PUBLIC_SUFFIX_LIST=.*$/m.test(versions)) throw new Error('versions.env pins no PUBLIC_SUFFIX_LIST');
+  writeFileSync(VERSIONS, versions.replace(/^PUBLIC_SUFFIX_LIST=.*$/m, `PUBLIC_SUFFIX_LIST=${commit}`));
+  console.log(`public-suffix-list: the list at ${commit}`);
+  return 0;
+}
+
+process.exitCode = await main(process.argv.slice(2));
