@@ -73,7 +73,7 @@ export function drawing(options) {
 }
 
 // The drawing holding one construct the site refuses, by its name, with the
-// words the exporter refuses it in (node/src/exporter/masters.js, REASONS).
+// words an unusable image is refused in.
 export const REFUSED_DRAWINGS = {
   'a script': {
     reason: 'script',

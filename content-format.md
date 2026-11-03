@@ -485,7 +485,7 @@ A post list, a list of posts the site picks at every build, is the leaf directiv
 ::post-list{type="article" order="title" presentation="cards" columns="3"}
 ```
 
-A directive's name follows `::` for a leaf, a directive with no body, and `:::` for a container, which holds blocks, then a blank line, the blocks, a blank line and its closing fence, a colon more than any fence inside. Its attributes are `name="value"`, apart by a space, a value with `&`, `"` and `}` written as `&amp;`, `&quot;` and `&#125;`, and a line feed and a carriage return as `&#10;` and `&#13;`. The rule data registers each directive the site knows, the post list, the [form](#forms) and the [built form](#built-forms) with its fields today; a directive it does not register reads as its text, and the exporter escapes every colon that would begin one ([Escapes and fallbacks](#escapes-and-fallbacks)).
+A directive's name follows `::` for a leaf, a directive with no body, and `:::` for a container, which holds blocks, then a blank line, the blocks, a blank line and its closing fence, a colon more than any fence inside. Its attributes are `name="value"`, apart by a space, a value with `&`, `"` and `}` written as `&amp;`, `&quot;` and `&#125;`, and a line feed and a carriage return as `&#10;` and `&#13;`. The rule data registers each directive the site knows, the post list and the [form](#forms) today; a directive it does not register reads as its text, and the intake escapes every colon that would begin one ([Escapes and fallbacks](#escapes-and-fallbacks)).
 
 ### Forms
 
@@ -783,7 +783,7 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
 
 ### The service registry
 
-`consent.json` is the service registry: every service the site's pages may let a visitor's browser reach, which the site's consent banner asks about. It holds `revision`, 16 hexadecimal digits that change with what a visitor consents to, and `revised`, the day it last changed; `categories`, each with `id` (`necessary`, `functional`, `statistics` or `marketing`), `name`, `description` and the ids of its `services`; `services`, each with its `id`, `name`, `category`, `provider` (`null` for the site itself), `purpose`, `storage`, `hosts`, `transfers` and `necessity`; `departures`, the site's departures from the consent rules; and `texts`, the consent texts. Every build writes it, from the site settings, the embeds of the published posts and the services an Admin declares; nothing in it is a post's, and the importer passes over it.
+`consent.json` is the service registry: every service the site's pages may let a visitor's browser reach, which the site's consent banner asks about. It holds `revision`, 16 hexadecimal digits that change with what a visitor consents to, and `revised`, the day it last changed; `categories`, each with `id` (`necessary`, `functional`, `statistics` or `marketing`), `name`, `description` and the ids of its `services`; `services`, each with its `id`, `name`, `category`, `provider` (`null` for the site itself), `purpose`, `storage`, `hosts`, `transfers` and `necessity`; `departures`, the site's departures from the consent rules; and `texts`, the consent texts. Every build writes it, from the site settings, the embeds of the published posts and the services an Admin declares; nothing in it is a post's.
 
 ```json file=consent.json
 {

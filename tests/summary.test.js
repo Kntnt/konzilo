@@ -3,7 +3,7 @@
 // characters, with `…` when cut. The title tag's and the meta description's
 // templates name it as {{ post.auto_description }}, and the feeds  and
 // llms.txt  show it too. A post is given as Astro hands a template an
-// entry: its frontmatter as `data` and its body, Markdown as the exporter
+// entry: its frontmatter as `data` and its body, Markdown as the intake
 // writes it, as `body`.
 
 import assert from 'node:assert/strict';
