@@ -1,0 +1,37 @@
+{
+  "konzilo-test/badge": {
+    "directive": {
+      "name": "badge",
+      "form": "leaf",
+      "attributes": {
+        "label": { "type": "string", "required": true },
+        "count": { "type": "integer" },
+        "wide": { "type": "boolean", "default": false },
+        "tone": { "type": "string", "values": ["info", "warning"], "default": "info", "refusal": "the site cannot publish a badge of the tone {value}" }
+      },
+      "body": "none"
+    }
+  },
+  "konzilo-test/callout": {
+    "directive": {
+      "name": "callout",
+      "form": "leaf",
+      "attributes": {
+        "tone": { "type": "string", "values": ["info", "warning"], "default": "info" }
+      },
+      "body": "text"
+    },
+    "inline": ["strong", "em", "code", "a"]
+  },
+  "konzilo-test/note": {
+    "directive": {
+      "name": "note",
+      "form": "container",
+      "attributes": {
+        "title": { "type": "string" }
+      },
+      "body": "blocks"
+    },
+    "inner": ["paragraph", "list", "konzilo-test/badge", "konzilo-test/note"]
+  }
+}
