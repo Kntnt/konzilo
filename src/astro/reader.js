@@ -3,15 +3,13 @@
 // HTML tree plugins below. The Astro integration sets both on the site.
 
 import { parseFrontmatter } from 'astro/markdown';
-import { markdownToHtml, markdownToMdast } from 'satteri';
+import { htmlToHast, markdownToHtml, markdownToMdast } from 'satteri';
 import { directiveReader, readDirective, withDefaults } from './directives.js';
 import { embedsIn } from './embeds.js';
 import { figures } from './figures.js';
+import { markdownFeatures } from './reader-features.js';
 
-// GFM and raw HTML on, smart punctuation off, which Astro turns on unless told
-// otherwise. Directives are on, for the components the rule data registers;
-// a content file escapes every colon that would otherwise begin one.
-export const markdownFeatures = Object.freeze({ gfm: true, rawHtml: true, smartPunctuation: false, directive: true });
+export { markdownFeatures };
 
 const headingTags = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
 
@@ -78,6 +76,17 @@ export function readContentFile(text) {
     html: markdownToHtml(body, { features: markdownFeatures, mdastPlugins: [reader], hastPlugins: [...markdownHastPlugins] }).html,
     problems,
   };
+}
+
+// The ids of the embed services a content file shows, as the site renders it: each
+// embed's panel names its service.
+export function embedsInFile(contents, found = new Set()) {
+  const walk = (node) => {
+    if (node.type === 'element' && node.tagName === 'figure' && typeof node.properties?.dataEmbed === 'string') found.add(node.properties.dataEmbed);
+    for (const child of node.children ?? []) walk(child);
+  };
+  walk(htmlToHast(readContentFile(contents).html, { fragment: true }));
+  return found;
 }
 
 // The post lists of a content file's body, in order, each as

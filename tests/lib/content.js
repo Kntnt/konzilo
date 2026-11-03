@@ -3,7 +3,8 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, extname, join } from 'node:path';
-import { embedsInFile, registryFile } from '../../src/format/consent.js';
+import { embedsInFile } from '../../src/astro/reader.js';
+import { registryFile } from '../../src/format/consent.js';
 import { declaredServices } from '../../src/format/declared-services.js';
 import { groupsIn, isSiteTitle } from '../../src/settings-groups.js';
 import { SEO_KEYS, siteDescription } from '../../src/site-description.js';
