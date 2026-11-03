@@ -101,7 +101,7 @@ describe('a site in Compose', () => {
   test('has ports on the web server alone, on this machine alone', () => {
     const services = site.compose('ps', '--format', 'json').trim().split('\n').map((line) => JSON.parse(line));
     const published = services.flatMap((service) => service.Publishers.filter((one) => one.PublishedPort > 0).map((one) => ({ ...one, service: service.Service })));
-    assert.equal(published.length, 3);
+    assert.equal(published.length, 4);
     for (const one of published) {
       assert.equal(one.service, 'web');
       assert.equal(one.URL, '127.0.0.1');
