@@ -1013,7 +1013,7 @@ function writtenAttributes(values, directive) {
 function footnotesOf(scope, rules) {
   const inner = (label) => ({ ...scope, path: `footnote ${label}`, marks: null });
   const { marks, definitions } = scope;
-  const taken2 = scope.elements === undefined || scope.elements.includes('footnotes');
+  const takesThem = scope.elements === undefined || scope.elements.includes('footnotes');
   const numbers = new Map();
   for (const { mark, node, path, element } of marks) {
     const label = String(mark.n);
@@ -1024,7 +1024,7 @@ function footnotesOf(scope, rules) {
     numbers.set(label, numbers.size + 1);
     mark.n = numbers.get(label);
   }
-  if (marks.length > 0 && !taken2) scope.problems.push({ path: marks[0].path, name: 'footnotes', line: lineOf(marks[0].node), reason: say(rules, 'element-not-taken', { element: labelOf(rules, 'footnotes') }) });
+  if (marks.length > 0 && !takesThem) scope.problems.push({ path: marks[0].path, name: 'footnotes', line: lineOf(marks[0].node), reason: say(rules, 'element-not-taken', { element: labelOf(rules, 'footnotes') }) });
   const blocks = [];
   for (const definition of definitions) {
     const label = definition.identifier;

@@ -361,7 +361,7 @@ describe('what is an Admin\'s alone', () => {
   const editor = { by: 'editor@example.com', admin: false };
   const admin = { by: 'admin@example.com', admin: true };
 
-  for (const [path, contents, written2] of [
+  for (const [path, contents, published] of [
     ['settings.json', { title: 'Mine' }, 'settings.json'],
     ['menus/main.json', { items: [] }, 'menus/main.json'],
     ['redirects.json', { rules: [] }, 'redirects.json'],
@@ -371,13 +371,13 @@ describe('what is an Admin\'s alone', () => {
       const result = run({ [path]: contents }, site, { changes: { [path]: editor } });
       assert.equal(result.refusals[0].file, path);
       assert.match(result.refusals[0].reason, /^editor@example\.com is no Admin/);
-      assert.equal(written(result)[written2], undefined);
+      assert.equal(written(result)[published], undefined);
     });
 
     test(`${path}: an Admin's change goes through, and a file back at what was accepted is no change`, () => {
       const accepted = run({ [path]: contents }, site, { changes: { [path]: admin } });
       assert.deepEqual(accepted.refusals, []);
-      assert.ok(written(accepted)[written2]);
+      assert.ok(written(accepted)[published]);
       const later = run({ [path]: contents }, site, { changes: { [path]: editor }, ledger: accepted.ledger });
       assert.deepEqual(later.refusals, []);
     });
@@ -534,8 +534,8 @@ describe('source files as the editing tool writes them', () => {
 
   test('come back from what the intake writes, as the same source', () => {
     const files = source.map(({ path, content }) => ({ path, contents: content }));
-    const written2 = intake({ files, site: description, now: NOW, images: namedImages() });
-    const published = written2.files.filter(({ path }) => path !== '.post-ids.json' && path !== 'consent.json').map(({ path, contents }) => ({ path, content: contents }));
+    const result = intake({ files, site: description, now: NOW, images: namedImages() });
+    const published = result.files.filter(({ path }) => path !== '.post-ids.json' && path !== 'consent.json').map(({ path, contents }) => ({ path, content: contents }));
     const again = sourceFrom(description, published);
     const texts = (list) => list.filter(({ path }) => !path.startsWith('media/')).map(({ path, content }) => [path, content]);
     assert.deepEqual(texts(again), texts(source));

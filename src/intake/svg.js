@@ -96,9 +96,9 @@ export function svgProblem(bytes) {
     }
   };
   parser.onclosetag = () => stack.pop();
-  const css = (text2) => {
+  const css = (inner) => {
     if (stack.at(-1) !== 'style') return;
-    const reference = cssReference(text2);
+    const reference = cssReference(inner);
     if (reference) refuse(`the reference ${reference} outside the file`);
   };
   parser.ontext = css;

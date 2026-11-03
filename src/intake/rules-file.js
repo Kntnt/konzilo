@@ -24,45 +24,46 @@ export function readRules(given) {
   }
   const seen = new Set();
   (list ?? []).forEach((rule, index) => {
-    const entry = String(index + 1);
-    const fail = (reason) => problems.push({ entry, reason });
-    if (!isObject(rule)) {
-      fail(say('rule-shape'));
-      return;
-    }
-    const status = /^\d+$/.test(String(rule.status)) ? Number(rule.status) : rule.status ?? 301;
-    const pattern = rule.pattern ?? (typeof rule.from === 'string' && rule.from.startsWith('^') ? rule.from : undefined);
-    if (pattern !== undefined) {
-      if (rule.post || rule.term) return void fail(say('rule-pattern-post', { pattern }));
-      const problem = typeof pattern !== 'string' || pattern.length > PATTERN_LENGTH ? say('rule-pattern-long', { most: PATTERN_LENGTH }) : patternProblem({ from: pattern, to: rule.to, status });
-      if (problem) return void fail(problem);
-      if (seen.has(pattern)) return void fail(say('rule-twice', { source: pattern }));
-      seen.add(pattern);
-      if (patterns.length >= PATTERNS) return void fail(say('rule-patterns', { most: PATTERNS }));
-      patterns.push({ pattern, ...(rule.to === undefined ? {} : { to: rule.to }), status });
-      return undefined;
-    }
-    const { from } = rule;
-    if (!isSource(from)) return void fail(say('rule-source', { source: String(from) }));
-    if (reservedBy(from) !== null) return void fail(say('rule-reserved', { source: from }));
-    if (from.includes('?') && from.slice(from.indexOf('?') + 1).split('&').length > MOST_PARAMETERS) return void fail(say('rule-parameters', { source: from, most: MOST_PARAMETERS }));
-    if (!STATUSES.includes(status)) return void fail(say('rule-status', { source: from, status: String(status), statuses: STATUSES.join(', ') }));
-    const key = keyOf(from);
-    if (seen.has(key)) return void fail(say('rule-twice', { source: from }));
-    seen.add(key);
-    const redirect = REDIRECT_STATUSES.includes(status);
-    if (rule.post || rule.term) {
-      if (!redirect) return void fail(say('rule-target', { source: from, reason: `a ${status} answers without a target` }));
-      exact.push({ from, status, post: rule.post ? String(rule.post) : undefined, term: rule.term ? String(rule.term) : undefined });
-      return undefined;
-    }
-    const problem = redirect ? targetProblem(rule.to) : rule.to === undefined ? null : `a ${status} answers without a target`;
-    if (problem) return void fail(say('rule-target', { source: from, reason: problem }));
-    exact.push({ from, status, ...(redirect ? { to: rule.to } : {}) });
-    return undefined;
+    const reason = readRule(rule, { exact, patterns, seen });
+    if (reason) problems.push({ entry: String(index + 1), reason });
   });
   if (problems.length === 0) loopsAndChains(exact, problems, warnings);
   return { exact, patterns, problems, warnings };
+}
+
+// One rule into `exact` or `patterns`, or why the site cannot publish it.
+function readRule(rule, { exact, patterns, seen }) {
+  if (!isObject(rule)) return say('rule-shape');
+  const status = /^\d+$/.test(String(rule.status)) ? Number(rule.status) : rule.status ?? 301;
+  const pattern = rule.pattern ?? (typeof rule.from === 'string' && rule.from.startsWith('^') ? rule.from : undefined);
+  if (pattern !== undefined) {
+    if (rule.post || rule.term) return say('rule-pattern-post', { pattern });
+    const problem = typeof pattern !== 'string' || pattern.length > PATTERN_LENGTH ? say('rule-pattern-long', { most: PATTERN_LENGTH }) : patternProblem({ from: pattern, to: rule.to, status });
+    if (problem) return problem;
+    if (seen.has(pattern)) return say('rule-twice', { source: pattern });
+    seen.add(pattern);
+    if (patterns.length >= PATTERNS) return say('rule-patterns', { most: PATTERNS });
+    patterns.push({ pattern, ...(rule.to === undefined ? {} : { to: rule.to }), status });
+    return null;
+  }
+  const { from } = rule;
+  if (!isSource(from)) return say('rule-source', { source: String(from) });
+  if (reservedBy(from) !== null) return say('rule-reserved', { source: from });
+  if (from.includes('?') && from.slice(from.indexOf('?') + 1).split('&').length > MOST_PARAMETERS) return say('rule-parameters', { source: from, most: MOST_PARAMETERS });
+  if (!STATUSES.includes(status)) return say('rule-status', { source: from, status: String(status), statuses: STATUSES.join(', ') });
+  const key = keyOf(from);
+  if (seen.has(key)) return say('rule-twice', { source: from });
+  seen.add(key);
+  const redirect = REDIRECT_STATUSES.includes(status);
+  if (rule.post || rule.term) {
+    if (!redirect) return say('rule-target', { source: from, reason: `a ${status} answers without a target` });
+    exact.push({ from, status, post: rule.post ? String(rule.post) : undefined, term: rule.term ? String(rule.term) : undefined });
+    return null;
+  }
+  const problem = redirect ? targetProblem(rule.to) : rule.to === undefined ? null : `a ${status} answers without a target`;
+  if (problem) return say('rule-target', { source: from, reason: problem });
+  exact.push({ from, status, ...(redirect ? { to: rule.to } : {}) });
+  return null;
 }
 
 // A loop never answers, and a chain answers twice: each rule's target on the site
