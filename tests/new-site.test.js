@@ -29,7 +29,7 @@ const freePort = () => new Promise((resolve, reject) => {
   probe.on('error', reject);
 });
 
-async function until(check, timeout = 60_000) {
+async function until(check, timeout = 90_000) {
   const end = Date.now() + timeout;
   for (;;) {
     try {

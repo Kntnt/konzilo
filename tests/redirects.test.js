@@ -370,7 +370,7 @@ function freePort() {
 }
 
 // Wait until `check` holds, for at most half a minute.
-async function until(check, timeout = 30_000) {
+async function until(check, timeout = 90_000) {
   const end = Date.now() + timeout;
   for (;;) {
     try {

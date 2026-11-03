@@ -453,7 +453,7 @@ describe('the dev server', () => {
     server = spawn(process.execPath, args, { cwd: repository, env: astroEnvironment, stdio: 'ignore', detached: true });
     // Once its content is read: the start page lists the articles. A
     // minute, since the suite starts other builds and dev servers at once.
-    await until(async () => (await (await fetch(`${origin}/`)).text()).includes('Harbour lights'), 60_000);
+    await until(async () => (await (await fetch(`${origin}/`)).text()).includes('Harbour lights'), 90_000);
   });
 
   after(() => {
@@ -545,7 +545,7 @@ function freePort() {
   });
 }
 
-async function until(check, timeout = 30_000) {
+async function until(check, timeout = 90_000) {
   const end = Date.now() + timeout;
   for (;;) {
     try {

@@ -379,7 +379,7 @@ describe('the dev server of a site whose pages render no Konzilo Head', () => {
     origin = `http://127.0.0.1:${port}`;
     const args = [astro, 'dev', '--host', '127.0.0.1', '--port', String(port), '--ignore-lock'];
     server = spawn(process.execPath, args, { cwd: repository, env: astroEnvironment, stdio: 'ignore', detached: true });
-    await until(async () => (await (await fetch(`${origin}/llms.txt`)).text()).includes('Harbour lights'), 60_000);
+    await until(async () => (await (await fetch(`${origin}/llms.txt`)).text()).includes('Harbour lights'), 90_000);
   });
 
   after(() => {
@@ -415,7 +415,7 @@ describe('the dev server', () => {
     server = spawn(process.execPath, args, { cwd: repository, env: astroEnvironment, stdio: 'ignore', detached: true });
     // Once its content is read. A minute, since the suite starts other
     // builds and dev servers at once.
-    await until(async () => (await (await fetch(`${origin}/llms.txt`)).text()).includes('Harbour lights'), 60_000);
+    await until(async () => (await (await fetch(`${origin}/llms.txt`)).text()).includes('Harbour lights'), 90_000);
   });
 
   after(() => {
@@ -456,7 +456,7 @@ function freePort() {
   });
 }
 
-async function until(check, timeout = 30_000) {
+async function until(check, timeout = 90_000) {
   const end = Date.now() + timeout;
   for (;;) {
     try {

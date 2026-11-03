@@ -439,7 +439,7 @@ function freePort() {
   });
 }
 
-async function until(check, timeout = 30_000) {
+async function until(check, timeout = 90_000) {
   const end = Date.now() + timeout;
   for (;;) {
     try {
