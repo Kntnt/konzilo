@@ -91,23 +91,26 @@
   white-space: pre-wrap;
 }
 
+/* Its colours are the theme's, since the field stays light whatever the machine is set to. */
 .konzilo-kept {
   margin: 12px 0;
   padding: 8px 10px;
-  border: 1px dashed #a8a8a8;
+  border: 1px dashed var(--crepe-color-outline);
   border-radius: 4px;
-  background: #f7f7f7;
+  background: var(--crepe-color-surface);
+  color: var(--crepe-color-on-surface);
   cursor: default;
 }
 
-.konzilo-kept.ProseMirror-selectednode {
-  outline: 2px solid #333;
+/* As specific as the theme's rule, which takes every chosen node's outline away. */
+.milkdown .ProseMirror .konzilo-kept.ProseMirror-selectednode {
+  outline: 2px solid var(--crepe-color-primary);
 }
 
 .konzilo-kept-label {
   margin-bottom: 4px;
   font-size: 12px;
-  opacity: 0.75;
+  color: var(--crepe-color-on-surface-variant);
 }
 
 .konzilo-kept pre {
@@ -205,14 +208,5 @@
   .konzilo-body-source {
     background: #1c1c1c;
     color: #f0f0f0;
-  }
-
-  .konzilo-kept {
-    background: #2a2a2a;
-    color: #f0f0f0;
-  }
-
-  .milkdown .ProseMirror .konzilo-nbsp {
-    background: #444;
   }
 }
