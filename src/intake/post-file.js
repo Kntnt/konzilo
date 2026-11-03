@@ -9,7 +9,7 @@ import { ownValue } from '../format/frontmatter.js';
 import { readPostList, SECOND_PAGED_LIST } from '../format/post-list.js';
 import { isSource, OTHER_ANSWERS, SHOW } from '../format/redirects.js';
 import rules from '../format/rules.json' with { type: 'json' };
-import { declaredNames, postListModel, SCHEMA_TYPES, SEO_KEYS } from '../site-description.js';
+import { declaredNames, postListModel, SCHEMA_TYPES, SEO_KEYS, SEO_PARTS } from '../site-description.js';
 import { sha256 } from './source.js';
 import { say } from './words.js';
 
@@ -98,28 +98,39 @@ function featuredImage(field, value, images) {
 
 function seoValue(field, value, images) {
   if (value === undefined || value === null) return {};
-  if (!isObject(value)) return { reason: say('seo-shape') };
+  if (!isObject(value) || SEO_KEYS.some((key) => Object.hasOwn(value, key))) return { reason: say('seo-shape') };
+  const given = {};
+  const placeOf = {};
+  for (const [part, keys] of Object.entries(SEO_PARTS)) {
+    const inPart = value[part];
+    if (inPart === undefined || inPart === null) continue;
+    if (!isObject(inPart)) return { reason: say('seo-shape'), part: `seo.${part}` };
+    for (const key of keys) {
+      given[key] = inPart[key];
+      placeOf[key] = `seo.${part}.${key}`;
+    }
+  }
   const written = {};
   let warning;
   for (const key of SEO_KEYS) {
-    const given = value[key];
-    if (given === undefined || given === null || given === '' || given === false) continue;
+    const one = given[key];
+    if (one === undefined || one === null || one === '' || one === false) continue;
     if (key === 'noindex' || key === 'nofollow') {
-      if (given !== true) return { reason: say('seo-flag', { key }), part: `seo.${key}` };
+      if (one !== true) return { reason: say('seo-flag', { key }), part: placeOf[key] };
       written[key] = true;
     } else if (key === 'socialImage') {
-      const master = images(given, 'seo.socialImage');
-      if (master.reason) return { ...master, part: 'seo.socialImage' };
+      const master = images(one, placeOf[key]);
+      if (master.reason) return { ...master, part: placeOf[key] };
       written[key] = master.src;
       warning = master.warning;
     } else {
-      const trimmed = text(given)?.trim();
-      if (!trimmed) return { reason: say('seo-text', { key }), part: `seo.${key}` };
-      if (key === 'schema' && !SCHEMA_TYPES.includes(trimmed)) return { reason: say('seo-schema', { value: trimmed, types: SCHEMA_TYPES.join(', ') }), part: 'seo.schema' };
+      const trimmed = text(one)?.trim();
+      if (!trimmed) return { reason: say('seo-text', { key }), part: placeOf[key] };
+      if (key === 'schema' && !SCHEMA_TYPES.includes(trimmed)) return { reason: say('seo-schema', { value: trimmed, types: SCHEMA_TYPES.join(', ') }), part: placeOf[key] };
       written[key] = trimmed;
     }
   }
-  if ((written.socialImage === undefined) !== (written.socialImageAlt === undefined)) return { reason: say('seo-image-alt'), part: 'seo.socialImageAlt' };
+  if ((written.socialImage === undefined) !== (written.socialImageAlt === undefined)) return { reason: say('seo-image-alt'), part: 'seo.sharing.socialImageAlt' };
   return Object.keys(written).length === 0 ? {} : { yaml: JSON.stringify(written), warning };
 }
 

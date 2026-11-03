@@ -5,7 +5,7 @@
 // ID. Empty optional fields are left out, since the intake's schemas refuse an
 // empty string.
 
-import { declaredNames } from '../site-description.js';
+import { declaredNames, SCHEMA_TYPES, SEO_PARTS } from '../site-description.js';
 import { inLanguage } from '../texts.js';
 import { BODY_WIDGET } from './body/widget.js';
 
@@ -27,8 +27,14 @@ const TEXTS = {
   name: { en: 'Name', sv: 'Namn' },
   description: { en: 'Description', sv: 'Beskrivning' },
   seo: { en: 'Search and sharing', sv: 'Sök och delning' },
+  seoPartSearch: { en: 'In search results', sv: 'I sökresultat' },
+  seoPartSharing: { en: 'When shared', sv: 'När det delas' },
+  seoPartAdvanced: { en: 'Advanced', sv: 'Avancerat' },
+  seoFollows: { en: 'Left empty, the template for this type of post decides.', sv: 'Lämnas den tom bestämmer mallen för den här inläggstypen.' },
+  seoImageAltHint: { en: 'Needed with a sharing image.', sv: 'Krävs när det finns en delningsbild.' },
   seoTitle: { en: 'Title tag', sv: 'Titeltagg' },
-  seoBreadcrumb: { en: 'Breadcrumb', sv: 'Brödsmula' },
+  seoBreadcrumb: { en: 'Name in breadcrumbs', sv: 'Namn i brödsmulor' },
+  seoBreadcrumbHint: { en: 'Instead of the title, when a shorter name fits better. The levels themselves follow from where the post sits.', sv: 'I stället för titeln, när ett kortare namn passar bättre. Själva nivåerna följer av var inlägget ligger.' },
   seoDescription: { en: 'Meta description', sv: 'Metabeskrivning' },
   seoSocialTitle: { en: 'Sharing title', sv: 'Delningstitel' },
   seoSocialDescription: { en: 'Sharing description', sv: 'Delningsbeskrivning' },
@@ -100,12 +106,15 @@ export function cmsConfig(description, { forgejo, repository, clientId, site }) 
     return types.find((type) => type.name === 'page') ?? types[0] ?? null;
   };
 
+  // Nothing is made from inside another's form, but for a post's terms, where a new one is
+  // what the choice is for.
   const relation = (collection, display, extra = {}) => ({
     widget: 'relation',
     collection,
     value_field: '{{slug}}',
     display_fields: [display],
     search_fields: [display],
+    allow_add: false,
     ...extra,
   });
 
@@ -168,6 +177,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site }) 
     label,
     widget: 'object',
     required: false,
+    accordion: true,
     collapsed: true,
     ...(hint ? { hint } : {}),
     fields,
@@ -183,31 +193,46 @@ export function cmsConfig(description, { forgejo, repository, clientId, site }) 
     return part(group.name, group.label, group.description, parts);
   };
 
+  // Closed, since an editor who sets none of it leaves the type's templates to say it, and in
+  // parts, since all of it open is a lot to take in (ADR 0029).
   const seoField = (field) => {
     const keys = {
-      title: { widget: 'string' },
-      breadcrumb: { widget: 'string' },
+      title: { widget: 'string', hint: say('seoFollows') },
+      breadcrumb: { widget: 'string', hint: say('seoBreadcrumbHint') },
       description: { widget: 'text' },
-      socialTitle: { widget: 'string' },
+      socialTitle: { widget: 'string', hint: say('seoFollows') },
       socialDescription: { widget: 'text' },
       socialImage: { widget: 'image' },
-      socialImageAlt: { widget: 'string' },
-      schema: { widget: 'string' },
+      socialImageAlt: { widget: 'string', hint: say('seoImageAltHint') },
+      schema: { widget: 'select', options: [...SCHEMA_TYPES] },
       noindex: { widget: 'boolean' },
       nofollow: { widget: 'boolean' },
     };
+    const onePart = (name, inPart) => ({
+      name,
+      label: say(`seoPart${name[0].toUpperCase()}${name.slice(1)}`),
+      widget: 'object',
+      required: false,
+      accordion: true,
+      collapsed: true,
+      ...within(TRANSLATED),
+      fields: inPart.map((key) => ({
+        name: key,
+        label: say(`seo${key[0].toUpperCase()}${key.slice(1)}`),
+        required: false,
+        ...keys[key],
+        ...within(TRANSLATED),
+      })),
+    });
     return {
       name: field.name,
       label: say('seo'),
       widget: 'object',
       required: false,
+      accordion: true,
       collapsed: true,
-      fields: field.keys.map((key) => ({
-        name: key,
-        label: say(`seo${key[0].toUpperCase()}${key.slice(1)}`),
-        required: false,
-        ...keys[key],
-      })),
+      ...within(TRANSLATED),
+      fields: Object.entries(SEO_PARTS).map(([name, inPart]) => onePart(name, inPart)),
     };
   };
 
@@ -227,7 +252,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site }) 
         return {
           name: field.name,
           label: field.taxonomy.plural,
-          ...relation(field.taxonomy.collection, 'name'),
+          ...relation(field.taxonomy.collection, 'name', { allow_add: true }),
           multiple: true,
           ...required(field.required),
           ...within(SAME_IN_EACH),

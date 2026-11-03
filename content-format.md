@@ -992,7 +992,7 @@ An ID is text, the name of the post's source file, such as `96ba709ec918`, which
         "/harbour-lights/"
       ],
       "title": "Harbour lights & lanterns",
-      "source": "ad0e2388f7213bfaa56b18f37adb85836280f7dd26770226f9e85461de8a82e0",
+      "source": "a8efbd67b32321b2fd4ed29f8c1ce3f8527b9b9d742ca7e23f3c9ea3c6f5857c",
       "published": "d231912b13020756583f55539fd31d904788a8eea83dc987471426abbda5ce00",
       "taken": "2026-10-20T08:00:00Z",
       "modified": "2026-10-21T09:30:00Z",

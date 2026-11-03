@@ -11,6 +11,7 @@ import { join, relative } from 'node:path';
 import { isObject } from './checks.js';
 import { publicAddress } from './format/addresses.js';
 import { isSiteTitle } from './settings-groups.js';
+import { SEO_PARTS } from './site-description.js';
 
 // Twelve hexadecimal digits, the shape of Sveltia's {{uuid_short}}.
 export const idOf = (collection, place) => createHash('sha256').update(`${collection}/${place}`).digest('hex').slice(0, 12);
@@ -107,6 +108,12 @@ export function sourceFrom(description, published) {
     }
   }
 
+  // A content file holds these in one flat map, and a source file in the parts an editor sees.
+  const seoInParts = (flat) => Object.fromEntries(Object.entries(SEO_PARTS).flatMap(([part, keys]) => {
+    const inPart = Object.fromEntries(keys.filter((key) => Object.hasOwn(flat, key)).map((key) => [key, key === 'socialImage' ? mediaPath(flat[key]) : flat[key]]));
+    return Object.keys(inPart).length === 0 ? [] : [[part, inPart]];
+  }));
+
   for (const post of posts) {
     const { type, tag, place, fields, body, id } = post;
     const segments = place.split('/');
@@ -118,7 +125,7 @@ export function sourceFrom(description, published) {
       if (key === 'title') continue;
       if (fieldsTaking.has(key)) written[key] = value.map((term) => idOf(fieldsTaking.get(key), term.split('/').at(-1)));
       else if (key === 'image') written.image = toMedia(value);
-      else if (key === 'seo' && value.socialImage) written.seo = { ...value, socialImage: mediaPath(value.socialImage) };
+      else if (key === 'seo') written.seo = seoInParts(value);
       else written[key] = value;
     }
     files.push({ path: `${type.collection}/${tag ? `${tag}/` : ''}${id}.md`, content: writePost(written, bodyAsSource(body, ids)) });

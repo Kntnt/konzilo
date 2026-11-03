@@ -254,6 +254,17 @@ describe('the body field, alone', () => {
       assert.equal((await call('value')).split('## A heading').length, 2);
     });
 
+    test('the block handle stands inside the field, with a margin', async () => {
+      for (const [body, block] of [['A paragraph', 'p'], ['## A heading', 'h2'], ['- An item', 'li'], ['> A quote', 'blockquote'], ['| A |\n| --- |\n| 1 |', 'td']]) {
+        await call('open', body);
+        await page.locator(`.ProseMirror ${block}`).first().hover();
+        const handle = page.locator('.milkdown-block-handle[data-show="true"]');
+        await handle.waitFor();
+        const [box, frame] = await Promise.all([handle.boundingBox(), page.locator('.konzilo-body-visual').boundingBox()]);
+        assert.ok(box.x >= frame.x + 4, `${body}: the handle starts ${box.x - frame.x} px inside the field`);
+      }
+    });
+
     test('text and a formatted run reach the file as the format has them', async () => {
       await call('open', '');
       await typeAtTheEnd('Plain bold plain');
@@ -626,6 +637,57 @@ describe('the body field, alone', () => {
   test('has asked nothing outside, and broken no policy', () => {
     assert.deepEqual(seen.outside, []);
     assert.deepEqual(seen.refused, []);
+  });
+
+  describe('a kept block', () => {
+    // The contrast of an element's text against what stands behind it, up to the page.
+    const contrastOf = (selector) => page.locator(selector).first().evaluate((element) => {
+      const parsed = (text) => {
+        const srgb = /color\(srgb ([\d.e-]+) ([\d.e-]+) ([\d.e-]+)(?: \/ ([\d.e-]+))?\)/.exec(text);
+        if (srgb) return { rgb: srgb.slice(1, 4).map((one) => Number(one) * 255), alpha: srgb[4] === undefined ? 1 : Number(srgb[4]) };
+        const [r, g, b, alpha = 1] = text.match(/[\d.]+/g).map(Number);
+        return { rgb: [r, g, b], alpha };
+      };
+      const over = (top, under) => top.rgb.map((one, index) => one * top.alpha + under[index] * (1 - top.alpha));
+      const layers = [];
+      for (let at = element; at; at = at.parentElement) layers.unshift(parsed(getComputedStyle(at).backgroundColor));
+      const behind = layers.reduce((under, layer) => over(layer, under), [255, 255, 255]);
+      const text = parsed(getComputedStyle(element).color);
+      const seen = over({ rgb: text.rgb, alpha: text.alpha * Number(getComputedStyle(element).opacity) }, behind);
+      const luminance = (rgb) => {
+        const [r, g, b] = rgb.map((one) => {
+          const part = one / 255;
+          return part <= 0.04045 ? part / 12.92 : ((part + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      };
+      const [lighter, darker] = [luminance(seen), luminance(behind)].sort((a, b) => b - a);
+      return (lighter + 0.05) / (darker + 0.05);
+    });
+
+    for (const colorScheme of ['light', 'dark']) {
+      test(`reads clearly, chosen or not, on a machine set to ${colorScheme}`, async () => {
+        await page.emulateMedia({ colorScheme });
+        try {
+          assert.equal(await call('open', 'One\n\nhttps://vimeo.com/123456789'), 'editor');
+          const kept = page.locator('.konzilo-kept');
+          assert.equal(await kept.count(), 1);
+          for (const state of ['not chosen', 'chosen']) {
+            if (state === 'chosen') {
+              await kept.click();
+              assert.match(await kept.getAttribute('class'), /ProseMirror-selectednode/);
+              assert.notEqual(await kept.evaluate((element) => getComputedStyle(element).outlineStyle), 'none', 'it shows it is chosen');
+            }
+            for (const part of ['.konzilo-kept-label', '.konzilo-kept pre']) {
+              const contrast = await contrastOf(part);
+              assert.ok(contrast >= 4.5, `${part}, ${state}: contrast ${contrast.toFixed(2)}`);
+            }
+          }
+        } finally {
+          await page.emulateMedia({ colorScheme: null });
+        }
+      });
+    }
   });
 
   describe('two fields on one page', () => {

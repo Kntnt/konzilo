@@ -146,11 +146,15 @@ describe('the dev server\'s count', () => {
 
   const NOW = 1793361600;
   const DAY = 86400;
+  let folder;
   let file;
 
   before(() => {
-    file = join(mkdtempSync(join(tmpdir(), 'konzilo-not-found-count-')), 'not-found.json');
+    folder = mkdtempSync(join(tmpdir(), 'konzilo-not-found-count-'));
+    file = join(folder, 'not-found.json');
   });
+
+  after(() => rmSync(folder, { recursive: true, force: true }));
 
   test('keeps when each address was last asked for, and lets it go 30 days after', async () => {
     writeFileSync(file, JSON.stringify({ addresses: { '/stale/': { count: 4, last: NOW - KEPT }, '/fresh/': { count: 2, last: NOW - 3 * DAY, hidden: true } } }));

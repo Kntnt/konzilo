@@ -12,6 +12,48 @@
     "replace": "let n=r9(`mobileCta`);"
   },
   {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "A relation offers to make a new entry right in the form, and has no option to leave that out. Under a parent it makes the new page the parent of the page in hand, the reverse of what it looks like, and nobody should make a page from a page (ADR 0029). A relation with `allow_add: false` does not offer it.",
+    "find": "I6e=({fieldConfig:{collection:e,file:t},draft:n})=>{if(t)return;",
+    "replace": "I6e=({fieldConfig:{collection:e,file:t,allow_add:a},draft:n})=>{if(t||a===!1)return;"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "An optional object offers only a box to tick, which fills the form with all it holds, and a required one says so with a star over fields that are not, and shows a bar with no words. An object with `accordion: true` is a closed bar with its label, that opens to its fields, and holds nothing until something is written in it (ADR 0029).",
+    "find": "K(Te,e=>{!B(te)&&!l()&&e(Ee)})",
+    "replace": "K(Te,e=>{!B(te)&&!l()&&!t.fieldConfig.accordion&&e(Ee)})"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "An optional object offers only a box to tick, which fills the form with all it holds, and a required one says so with a star over fields that are not, and shows a bar with no words. An object with `accordion: true` is a closed bar with its label, that opens to its fields, and holds nothing until something is written in it (ADR 0029).",
+    "find": "K(je,e=>{(l()&&!B(te)||B(T))&&e(Me)})",
+    "replace": "K(je,e=>{(l()&&!B(te)||B(T)||t.fieldConfig.accordion)&&e(Me)})"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "An optional object offers only a box to tick, which fills the form with all it holds, and a required one says so with a star over fields that are not, and shows a bar with no words. An object with `accordion: true` is a closed bar with its label, that opens to its fields, and holds nothing until something is written in it (ADR 0029).",
+    "find": "p=j(()=>t.fieldConfig.name),m=j(()=>t.fieldConfig.collapsed),h=j(()=>t.fieldConfig.summary)",
+    "replace": "p=j(()=>t.fieldConfig.name),konziloBar=j(()=>t.fieldConfig.accordion?t.fieldLabel:``),m=j(()=>t.fieldConfig.collapsed),h=j(()=>t.fieldConfig.summary)"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "An optional object offers only a box to tick, which fills the form with all it holds, and a required one says so with a star over fields that are not, and shows a bar with no words. An object with `accordion: true` is a closed bar with its label, that opens to its fields, and holds nothing until something is written in it (ADR 0029).",
+    "find": "i=j(()=>B(te)?B(ue):``),a=j(()=>B(ce).length>0);I6(e,",
+    "replace": "i=j(()=>B(te)?B(ue):B(konziloBar)),a=j(()=>B(ce).length>0);I6(e,"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "An optional object offers only a box to tick, which fills the form with all it holds, and a required one says so with a star over fields that are not, and shows a bar with no words. An object with `accordion: true` is a closed bar with its label, that opens to its fields, and holds nothing until something is written in it (ADR 0029). The attribute lets its label above the bar go.",
+    "find": "get\"data-key-path\"(){return t.keyPath},get\"data-typed-key-path\"(){return t.typedKeyPath},get hidden(){return B(Ce)},children:(e,a)=>{var s=O0e()",
+    "replace": "get\"data-key-path\"(){return t.keyPath},get\"data-accordion\"(){return t.fieldConfig.accordion?``:void 0},get\"data-typed-key-path\"(){return t.typedKeyPath},get hidden(){return B(Ce)},children:(e,a)=>{var s=O0e()"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "A closed bar hides what it holds, and what it holds may matter: a post kept out of search engines, say. So an accordion opens by itself where something is written in it (ADR 0029).",
+    "find": "W0e({draft:e,key:n,locale:t.locale,collapsed:B(m)})}})},fe=({type:e}={})=>",
+    "replace": "W0e({draft:e,key:n,locale:t.locale,collapsed:t.fieldConfig.accordion?!B(T):B(m)})}})},fe=({type:e}={})=>"
+  },
+  {
     "module": "@milkdown/components/lib/list-item-block/index.js",
     "why": "A list item puts back the selection it saw when it mounted, one frame later, even when the cursor has moved since, so text typed within that frame lands in another item (Milkdown issues 2501 and 2506). A selection that has moved is newer than the one put back.",
     "find": "if (!last) return;",

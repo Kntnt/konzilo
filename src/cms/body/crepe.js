@@ -125,6 +125,8 @@ const menu = (takes) => {
   const headings = takes('heading') ? {} : null;
   const item = (key) => ({ label: say(key) });
   return {
+    // Close to its block, so that the field's left margin need not be wider than it is.
+    blockHandle: { getOffset: () => 6 },
     textGroup: {
       label: say('textGroup'),
       text: item('text'),
