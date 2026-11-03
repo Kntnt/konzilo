@@ -5,7 +5,7 @@ modified: 2026-01-17T08:00:00Z
 excerpt: "The small meadow keeps the open library."
 categories: ["kitchens","orchards"]
 tags: ["islands","kitchens"]
-image: {"src":"../media/patient-rivers-and-the-meadow-6f7a58ad5a.webp","alt":"A distant landscape with a low sun over the land"}
+image: {"src":"../media/patient-rivers-and-the-meadow-48f5709f6b.webp","alt":"A distant landscape with a low sun over the land"}
 ---
 
 The small island lights the golden workshop. The bright island keeps the early kitchen. The hidden bridge welcomes the golden library.

@@ -5,7 +5,7 @@ modified: 2026-01-11T08:00:00Z
 excerpt: "The patient valley changes the small lantern."
 categories: ["meadows"]
 tags: ["orchards","rivers"]
-image: {"src":"../media/golden-harbours-and-the-harbour-d11f7fbef0.webp","alt":"A golden landscape with a low sun over the land"}
+image: {"src":"../media/golden-harbours-and-the-harbour-898a545757.webp","alt":"A golden landscape with a low sun over the land"}
 ---
 
 The hidden bridge crosses the golden kitchen. The early valley keeps the early orchard. The careful garden gathers the careful library.

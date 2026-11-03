@@ -1,0 +1,69 @@
+// A menu's published file: each entry leads to a post's or a term's current address, by
+// ID, labelled with its title unless it has its own, or to an address of its own. An
+// entry whose target has no page now is left out, with the entries under it, and comes
+// back by itself. A menu the site cannot publish is refused whole, naming each entry by
+// its place, and keeps its last file.
+
+import { isObject } from '../checks.js';
+import { say } from './words.js';
+
+const SCHEMES = /^(?:https?:\/\/|mailto:|tel:)/;
+
+const validUrl = (url) => typeof url === 'string' && (SCHEMES.test(url) || (url.startsWith('/') && !url.startsWith('//'))) && !/\s/.test(url);
+
+// The entries of a menu as a file writes them: { items, problems, warnings }.
+// `leadsTo(id)` gives { address, title }, { none, words } or { reason }.
+export function menuItems(given, leadsTo) {
+  const problems = [];
+  const warnings = [];
+  const entries = (list, path) => {
+    if (list === undefined || list === null) return [];
+    if (!Array.isArray(list)) {
+      problems.push({ entry: path || 'the menu', reason: say('menu-shape') });
+      return [];
+    }
+    const out = [];
+    list.forEach((entry, index) => {
+      const place = path ? `${path}.${index + 1}` : String(index + 1);
+      if (!isObject(entry)) {
+        problems.push({ entry: place, reason: say('menu-shape') });
+        return;
+      }
+      const label = typeof entry.title === 'string' ? entry.title.trim() : '';
+      let url;
+      let title = label;
+      if (entry.post) {
+        const target = leadsTo(String(entry.post));
+        if (target.reason) {
+          problems.push({ entry: place, reason: target.reason });
+          return;
+        }
+        if (target.none !== undefined) {
+          warnings.push({ entry: place, reason: say('menu-no-page', { title: label || target.none || String(entry.post) }) });
+          return;
+        }
+        url = target.address;
+        title = label || target.title;
+      } else if (entry.url) {
+        if (!validUrl(entry.url)) {
+          problems.push({ entry: place, reason: say('menu-url', { url: String(entry.url) }) });
+          return;
+        }
+        url = entry.url;
+      }
+      const items = entries(entry.items, place);
+      if (title === '') {
+        problems.push({ entry: place, reason: say('menu-title') });
+        return;
+      }
+      if (url === undefined && items.length === 0 && (entry.items ?? []).length === 0) {
+        problems.push({ entry: place, reason: say('menu-nowhere', { title }) });
+        return;
+      }
+      out.push({ title, ...(url === undefined ? {} : { url }), ...(items.length > 0 ? { items } : {}) });
+    });
+    return out;
+  };
+  const items = entries(isObject(given) ? given.items : given, '');
+  return { items, problems, warnings };
+}

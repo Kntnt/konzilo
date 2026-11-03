@@ -1,6 +1,7 @@
 {
   "elements": {
     "paragraph": {
+      "label": "a paragraph",
       "inline": [
         "strong",
         "em",
@@ -14,6 +15,7 @@
       ]
     },
     "heading": {
+      "label": "a heading",
       "levels": [
         2,
         3,
@@ -33,6 +35,7 @@
       ]
     },
     "list": {
+      "label": "a list",
       "inline": [
         "strong",
         "em",
@@ -49,6 +52,7 @@
       ]
     },
     "quote": {
+      "label": "a quote",
       "inner": [
         "paragraph",
         "heading",
@@ -65,8 +69,11 @@
         "s"
       ]
     },
-    "code": {},
+    "code": {
+      "label": "a code block"
+    },
     "table": {
+      "label": "a table",
       "inline": [
         "strong",
         "em",
@@ -78,6 +85,7 @@
       ]
     },
     "footnotes": {
+      "label": "footnotes",
       "inline": [
         "strong",
         "em",
@@ -89,8 +97,11 @@
         "s"
       ]
     },
-    "embed": {},
+    "embed": {
+      "label": "an embed"
+    },
     "image": {
+      "label": "an image",
       "inline": [
         "strong",
         "em",
@@ -100,6 +111,7 @@
       ]
     },
     "gallery": {
+      "label": "a gallery",
       "inner": [
         "image"
       ],
@@ -112,6 +124,7 @@
       ]
     },
     "post-list": {
+      "label": "a post list",
       "directive": {
         "name": "post-list",
         "form": "leaf",
@@ -177,6 +190,7 @@
       }
     },
     "form": {
+      "label": "a form",
       "directive": {
         "name": "form",
         "form": "leaf",
@@ -194,12 +208,15 @@
   },
   "inline": {
     "strong": {
+      "label": "bold",
       "attributes": []
     },
     "em": {
+      "label": "italic",
       "attributes": []
     },
     "a": {
+      "label": "a link",
       "attributes": [
         "href",
         "target",
@@ -225,21 +242,28 @@
       }
     },
     "sup": {
+      "label": "superscript",
       "attributes": []
     },
     "sub": {
+      "label": "subscript",
       "attributes": []
     },
     "br": {
+      "label": "a line break",
       "attributes": []
     },
     "code": {
+      "label": "inline code",
       "attributes": []
     },
     "s": {
+      "label": "strikethrough",
       "attributes": []
     },
-    "footnote": {}
+    "footnote": {
+      "label": "a footnote's mark"
+    }
   },
   "links": {
     "schemes": [
@@ -524,5 +548,164 @@
       "/llms.txt",
       "/llms-full.txt"
     ]
+  },
+  "refusals": {
+    "element-not-taken": "this kind of post cannot hold {element}; take it out, or ask the site's developer to allow it",
+    "inline-element": "the site cannot publish {inline} in {element}; take it out",
+    "soft-break": "the site cannot keep a line break made by a plain new line; join the lines, or make it a line break of its own",
+    "raw-html": "the site cannot publish the raw HTML {tag}; use the editor's own formats",
+    "raw-unclosed": "the raw HTML <{tag}> is never closed; close it, or use the editor's own formats",
+    "construct": "the site cannot publish this: Markdown calls it {type}; take it out",
+    "constructs": {
+      "thematicBreak": "the site cannot publish a separator; take it out",
+      "linkReference": "the site cannot publish a link that names its address elsewhere; write it as [text](address)",
+      "imageReference": "the site cannot publish an image that names its address elsewhere; add the image again",
+      "definition": "the site cannot publish a link definition; write the address in the link itself"
+    },
+    "heading-level": "the site cannot publish a heading at level {level}: the post's title is its level 1; use a level from {levels}",
+    "heading-empty": "the site cannot publish a heading without text; write its text, or take it out",
+    "anchor-form": "the site cannot publish the anchor \"{anchor}\": an anchor holds only a to z, digits, hyphens and underscores",
+    "anchor-place": "an anchor stands first in a heading; move it there, or take it out",
+    "anchor-twice": "block {block} has the anchor \"{anchor}\" too, and a link to it would land on the first; give each heading its own",
+    "anchor-taken": "the site keeps the anchor \"{anchor}\" for its footnotes; give the heading another",
+    "list-start": "the site cannot publish a numbered list that starts at {start}; start it at 1",
+    "list-loose": "the site cannot publish a list with blank lines between its items; take the blank lines out",
+    "list-task": "the site cannot publish a task list; write its items as plain text",
+    "list-item-empty": "the site cannot publish a list item without text; write its text, or take it out",
+    "list-item-blocks": "a list item holds one paragraph, and a list under it at most; move the rest out of the list",
+    "quote-empty": "the site cannot publish a quote without text; write its text, or take it out",
+    "quote-block": "a quote cannot hold {block}; move it out of the quote",
+    "citation-place": "a citation is a quote's last paragraph, wrapped whole in <cite>; move it there, or take it out",
+    "code-empty": "the site cannot publish an empty code block; write its code, or take it out",
+    "code-language": "the site shows a code block without a language, so \"{language}\" is left out",
+    "table-row": "row {row} of the table has {cells} cells and its header {columns}; give every row the header's number of cells",
+    "table-no-header": "the site cannot publish a table without a header row; give it one",
+    "table-header-rows": "the site cannot publish a table with more than one header row; make the others plain rows",
+    "table-header-plain": "a table's header row holds header cells alone; make each cell in it a header cell",
+    "table-header-outside": "a header cell stands in a table's header row alone; make the others plain cells",
+    "table-empty": "the site cannot publish an empty table; give it its cells, or take it out",
+    "table-spans": "row {row} of the table does not cover each of its columns once; check the merged cells",
+    "table-align": "column {column} of the table is aligned differently in different rows; align the whole column alike",
+    "table-shape": "the site cannot publish this table's HTML{tag}: it reads only a caption, a header, a body and a footer, with the formats bold, italic, link, superscript, subscript, code and strikethrough",
+    "table-cell-attribute": "the site cannot publish the table cell {tag}: a cell takes colspan, rowspan and a text-align of left, center or right",
+    "link-title": "the site cannot publish a link with a title; take the title out",
+    "link-address": "the site cannot link to {address}: a link leads to a path on the site, or to {schemes}",
+    "link-fragment": "the site cannot link to {address} alone; link to the post and the anchor, as a path on the site",
+    "link-admin": "the site cannot link to {address}, the host where editors sign in, which visitors never reach",
+    "image-alone": "an image stands alone in its paragraph, with its caption after a line break; move the rest out",
+    "image-place": "an image stands at the top of the body, never in a quote or a list; move it out",
+    "image-alt": "the site cannot publish an image without alt text; describe the image",
+    "image-alt-lines": "an image's alt text is one line; join its lines",
+    "image-title": "the site cannot publish an image with a title; take the title out, or make it the caption",
+    "embed-place": "an embed stands at the top of the body, never in a quote or a list; move it out",
+    "embed-caption": "the site cannot show a caption with the embed {address}; take the caption out",
+    "directive-unknown": "the site has no directive {name}; choose one it offers, or write the colons as \\:",
+    "directive-form": "the site writes the directive {name} as {form}",
+    "directive-label": "the site cannot publish the directive {name} with a label; take it out",
+    "directive-attribute": "the directive {name} takes no setting \"{attribute}\"; take it out",
+    "directive-required": "{label} needs its setting \"{attribute}\"; choose one",
+    "directive-value": "the site cannot publish the setting \"{attribute}\" with the value \"{value}\"; choose another",
+    "footnote-twice": "the footnote \"{label}\" is marked twice; give each mark a footnote of its own",
+    "footnote-unmarked": "the footnote \"{label}\" has no mark in the text; mark it, or take it out",
+    "footnote-empty": "the footnote \"{label}\" has no text; write its text, or take out the footnote and its mark",
+    "footnote-blocks": "the footnote \"{label}\" holds more than one paragraph of text; make it one",
+    "footnote-place": "a footnote's mark cannot stand in a link's text; move it out of the link",
+    "read-back": "the site would read {element} otherwise than it is written, whatever is escaped; reword what looks like Markdown in it",
+    "source-frontmatter": "the file does not start with its fields between two lines of ---; save the post again from the editing tool",
+    "source-yaml": "the fields at the top of the file cannot be read ({detail}); save the post again from the editing tool",
+    "source-json": "the file cannot be read as JSON ({detail}); save it again from the editing tool",
+    "status": "a post is a draft, scheduled or published, not \"{status}\"; choose one",
+    "scheduled-date": "a scheduled post needs its date and time; give it one, or make it a draft",
+    "language-folder": "the folder {folder} is none of the site's languages, so the post cannot be published; move it to a language the site declares",
+    "admin-file": "{by} is no Admin, and only an Admin may change {file}, so visitors still get the last version an Admin left; ask an Admin to save it",
+    "admin-legal": "{by} is no Admin, and only an Admin may change a post chosen as a legal page, so visitors still see its last version; ask an Admin to save it",
+    "admin-legal-gone": "{by} is no Admin, and only an Admin may take a post chosen as a legal page off the site, so visitors still see it; ask an Admin to restore it, or to choose another page in the settings",
+    "title-empty": "the site cannot publish a post without a title; give it one",
+    "title-markup": "the site cannot publish a title holding HTML; write it as plain text",
+    "slug": "the site cannot use \"{slug}\" as a slug: a slug holds a to z in lowercase, digits, hyphens and underscores",
+    "slug-empty": "the site cannot make a slug of this title; give the post a slug of a to z, digits and hyphens",
+    "field-required": "the site cannot publish a post without its {field}; fill it in",
+    "field-moment": "the site cannot publish \"{value}\" as a date and time in {field}; choose one",
+    "field-text": "the site cannot publish this as {field}; write it as plain text",
+    "field-markup": "the site cannot publish {field} holding HTML; write it as plain text",
+    "image-required": "the site cannot publish a post without its featured image; choose one, or keep the post as a draft",
+    "image-gone": "the original of the image {name} is gone from the media library; upload it again, or choose another",
+    "image-outside": "the site shows images from its media library, not {address}; upload the image, and choose it there",
+    "image-small": "this image is {width} pixels wide, and the site takes none narrower than {smallest}; choose a larger one",
+    "image-narrow": "the image {name} is {width} pixels wide, narrower than the {display} the site usually shows images at, so it may look soft",
+    "image-moving": "the site cannot show a moving image; choose a still JPEG, PNG or WebP, or a video",
+    "image-kind": "the site cannot use {kind} as an image; save it as a JPEG, PNG or WebP, and upload that",
+    "image-large": "this image is larger than the 30 MB the site takes; save it smaller, and upload it again",
+    "image-pointer": "the file holds a pointer to the image rather than the image, so the build could not fetch it; save the post again, or tell whoever runs the site",
+    "icon-square": "the site icon must be square; choose a square image",
+    "icon-small": "the site icon is {width} pixels wide, and must be at least 512, or an SVG; choose a larger one",
+    "svg": "the site cannot show this SVG, which holds {what}; save it without that, and upload it again",
+    "seo-shape": "the site cannot read the search and sharing fields; save the post again from the editing tool",
+    "seo-flag": "the search and sharing field {key} is on or off; turn it on, or leave it out",
+    "seo-text": "the search and sharing field {key} is plain text; fill it in, or leave it out",
+    "seo-schema": "the site cannot use \"{value}\" as a structured data type; choose one of {types}",
+    "seo-image-alt": "a sharing image comes with its alt text, and alt text with its image; fill in both, or neither",
+    "other-shape": "the site cannot read the other addresses; save the post again from the editing tool",
+    "other-address": "the site cannot use \"{address}\" as an other address: it is a path as a browser sends it, starting with a slash",
+    "other-answer": "the other address {address} cannot answer \"{answer}\": it answers 301, 302, 307, 308 or show",
+    "other-show-query": "the site cannot show a post at {address}: a post is shown at a path without a query; answer with a redirect, or take the query out",
+    "other-no-address": "{plural} have no page of their own, so they take no other addresses; take them out",
+    "other-held": "the address {address} belongs to \"{holder}\"; choose another",
+    "other-rule": "the site's redirect rules hold the address {address}; choose another, or ask an Admin to remove the rule",
+    "term-main": "the term \"{term}\" has no file in the main language, {language}; save it there first",
+    "term-name": "the term {term} has no name; give it one",
+    "term-markup": "the site cannot publish the term \"{term}\", whose name or description holds HTML; write them as plain text",
+    "term-slug": "the site cannot use \"{slug}\" as the slug of the term \"{term}\": a slug holds a to z in lowercase, digits, hyphens and underscores",
+    "term-language": "the term \"{term}\" has a file in the folder {folder}, which is none of the site's languages; remove it",
+    "term-differs": "the term \"{term}\" has another description or parent in {language} than in the main language; a term's are the same in every language",
+    "term-parent": "the parent of the term \"{term}\" is gone ({parent}); choose another",
+    "term-loop": "the term \"{term}\" stands under itself; choose another parent",
+    "term-gone": "the post names a term of its {plural} that no longer exists ({id}); choose another",
+    "term-translation": "the term \"{term}\" has no name in {language}, so it shows the main language's",
+    "list-term-gone": "a post list names a {taxonomy} that no longer exists ({term}), so it is left out of the list",
+    "reference-no-address": "a reference leads to \"{title}\", and {plural} have no page of their own; choose another",
+    "reference-term": "a reference leads to the term \"{term}\", and {plural} have no page of their own; choose another",
+    "link-gone": "the site shows \"{text}\" without its link, since what it leads to no longer exists",
+    "link-no-page": "the site shows \"{text}\" without its link until \"{title}\" is published",
+    "link-language": "the link \"{text}\" leads to another language, though its target has a translation in this post's",
+    "parent-missing": "the post's parent no longer exists ({parent}); choose another",
+    "parent-type": "the post's parent \"{parent}\" is not one of its {plural}; choose another",
+    "parent-loop": "the post stands under itself, through \"{parent}\"; choose another parent",
+    "parent-refused": "the post's parent \"{parent}\" cannot be published, and its address depends on it; fix the parent first",
+    "address-held": "the address {address} belongs to \"{holder}\"; change this post's slug or parent",
+    "address-reserved": "the site keeps the address {address} for itself; change this post's slug",
+    "address-feed": "the address {address} is {feed}; change this post's slug",
+    "address-search": "the address {address} is the site's search page; change this post's slug",
+    "address-list": "the address {address} is among the later pages of the list in \"{holder}\"; change this post's slug",
+    "address-term": "the address {address} is the page of the term \"{term}\"; change this post's slug",
+    "set-twice": "\"{holder}\" is this post's translation in the same language; a language holds one post of a set",
+    "not-found-none": "the post chosen for addresses not found cannot serve, so the site shows its plain text there; publish it, or choose another",
+    "setting-pattern": "the site cannot use the line \"{line}\" as a pattern; correct it",
+    "setting-shape": "the site cannot read this value; save the settings again from the editing tool",
+    "setting-required": "the site needs this setting; fill it in",
+    "setting-no-page": "the setting {setting} leads to \"{title}\", which has no page now, so it is left out until it does",
+    "setting-translation": "the setting leads to \"{title}\", which has no translation in {language}, so it leads to the chosen post",
+    "menu-shape": "the site cannot read this entry; save the menu again from the editing tool",
+    "menu-no-page": "the menu leaves out \"{title}\" and the entries under it, since it has no page now; it comes back by itself",
+    "menu-url": "the site cannot lead a menu to \"{url}\": an entry leads to a post, a path on the site, or http://, https://, mailto: or tel:",
+    "menu-title": "the entry has no label; give it one, or choose a post",
+    "menu-nowhere": "the entry \"{title}\" leads nowhere and holds nothing; give it an address, or take it out",
+    "rule-shape": "the site cannot read this rule; save the rules again from the Redirects page",
+    "rule-pattern-post": "the pattern {pattern} cannot lead to a post by ID; give it an address as its target",
+    "rule-pattern-long": "a pattern holds at most {most} characters; shorten it",
+    "rule-twice": "another rule has the source {source}; remove one of them",
+    "rule-patterns": "the site takes at most {most} patterns; remove some",
+    "rule-source": "the site cannot use \"{source}\" as a source: it is a path as a browser sends it, starting with a slash",
+    "rule-reserved": "the site keeps the address {source} for itself; a rule cannot answer there",
+    "rule-parameters": "the source {source} holds more than {most} query parameters; shorten it",
+    "rule-status": "the rule from {source} cannot answer \"{status}\": it answers {statuses}",
+    "rule-target": "the rule from {source} cannot answer so: {reason}",
+    "rule-loop": "the rule from {source} leads back to itself, so it would never answer; change its target",
+    "rule-chain": "the rule from {source} leads to another rule, so a visitor is sent on twice; point it straight at the end",
+    "rule-start": "the rule from {source} leads to the start page, which search engines may read as a page that is gone",
+    "rule-post-off": "the rule from {source} leads to what has no page now, so it does not answer until that is published",
+    "rule-shadowed": "the rule from {source} does not answer, since a post or a term's page is live at that address",
+    "legal-missing": "the site asks for consent, and has no {page} to link to; choose one among the legal pages",
+    "publisher-missing": "the site has no publisher's name, so the footer shows none of its details; give it one, or a title for the site"
   }
 }

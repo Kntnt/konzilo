@@ -11,7 +11,7 @@
 - **The bytes do not change unless the content does.** A build that changes nothing writes nothing.
 - **A paragraph is its text as typed,** with the minimal escapes, and one blank line between paragraphs. Spaces and tabs at its edges go, and so does an empty paragraph, as a page shows neither.
 - **Derived fields are the intake's alone:** `oldAddresses`, `modified`, masters, `translationKey`. No field of a site's own may take those names, nor `image_alt`, `seo` or a name starting `seo_`. No collection may be called `media`, `menus` or `settings`.
-- **A post's date** is its own field, and without one the moment the intake first took it, kept in the ledger. `modified` is the moment its published version last changed, read from Git.
+- **A post's date** is its own field, and without one the moment the intake first took it, kept in the ledger. `modified` is the moment its published version last changed, kept in the ledger, and to begin with the post's date, since a post has not changed since it came out.
 
 ## Why
 

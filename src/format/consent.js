@@ -7,8 +7,6 @@
 // all read this one file.
 
 import { createHash } from 'node:crypto';
-import { htmlToHast } from 'satteri';
-import { readContentFile } from '../astro/reader.js';
 import { inLanguage } from '../texts.js';
 
 import { tagManagerIds, tagManagerServices } from './tag-manager.js';
@@ -213,15 +211,4 @@ export function textsOf(texts) {
     place,
     Object.fromEntries(names.map((name) => [name, texts[`${place}${capital(name)}`]])),
   ]));
-}
-
-// The ids of the embed services a content file shows, as the site renders
-// it: each embed's panel names its service.
-export function embedsInFile(contents, found = new Set()) {
-  const walk = (node) => {
-    if (node.type === 'element' && node.tagName === 'figure' && typeof node.properties?.dataEmbed === 'string') found.add(node.properties.dataEmbed);
-    for (const child of node.children ?? []) walk(child);
-  };
-  walk(htmlToHast(readContentFile(contents).html, { fragment: true }));
-  return found;
 }

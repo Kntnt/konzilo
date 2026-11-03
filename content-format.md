@@ -302,7 +302,7 @@ Two  spaces and a	tab stay, as typed.
 
 ### Headings
 
-A heading is ATX, `##` to `######` and a space, at levels 2 to 6; level 1 is the page's title, never in the body. Its text takes the inline elements but the line break and the footnote mark. An anchor, which a link can lead to, is an empty raw `<a>` with its id before the text, of lowercase letters `a` to `z`, digits, hyphens and underscores; the site gives the heading that id.
+A heading is ATX, `##` to `######` and a space, at levels 2 to 6; level 1 is the page's title, never in the body. Its text takes the inline elements but the line break and the footnote mark. An anchor, which a link can lead to, is an empty raw `<a>` with its id before the text, of lowercase letters `a` to `z`, digits, hyphens and underscores; the site gives the heading that id. No two headings of a post hold one anchor, and none takes an id of the footnotes', `footnote-label` or one starting `user-content-fn`, since a link to it would land elsewhere.
 
 ```markdown body
 ## <a id="the-start"></a>The start
@@ -882,16 +882,155 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
 
 ### The post IDs
 
-`.post-ids.json` says which post each post's file is, by the post's ID, the files sorted by path. Every build writes it, and the content repository keeps it in every commit, so that a post can be erased from every commit of the history. Its name starts with a dot, so the site does not read it, and a file written by another tool has no entry in it.
+`.post-ids.json`, the *ledger*, says which post each post's file is, by the post's ID, and what the intake remembers of it from one build to the next. Only the intake writes it. Every build does, and the content repository keeps it in every commit, so that a post can be erased from every commit of the history. Its name starts with a dot, so no collection reads it, and a file written by another tool has no entry in it. A feed's `guid` is the one thing the site takes from it, `<origin>/?p=<ID>`, so that a moved post is no new item to a feed reader.
+
+An ID is text, the name of the post's source file, such as `96ba709ec918`, which never changes. A post's translations share it, so on a site in several languages an entry's key is `<tag>/<ID>`. The file holds, each sorted by its keys:
+
+- **`posts`**, by key, each with `path`, the post's file now, `null` while it has none; `paths`, every path it has had, the first first; `address`, where the current release shows it, which stays while it is off the site; `addresses`, those it had while live, from which its `oldAddresses` come; `title`, as it was published; `source`, the SHA-256 of the source file of its published version, and `published`, that of its published file without `modified`; `taken`, when the intake first took it, the post's `date` where it has none of its own; `modified`, when its published version last changed; and `names`, what its file names, `media`, `terms` and `embeds`, which stay for it while it is refused.
+- **`terms`**, by the term's ID, each with the `address` of its page and the `addresses` it has had, for a taxonomy with an address.
+- **`files`**, the SHA-256 of each of an Admin's source files the site last took.
+- **`chosen`**, the posts the settings last chose as `legalPages` and for `notFound`.
+- **`settingsMedia`**, the masters the settings last named, which stay while a later settings file is refused.
+- **`consent`**, the service registry's `revision`, and `revised`, the day it last changed.
 
 ```json file=.post-ids.json
 {
-  "articles/harbour-lights.md": 1,
-  "articles/opening-hours.md": 5,
-  "not-found.md": 4,
-  "pages/about-us.md": 2,
-  "pages/about-us/team.md": 3,
-  "pages/privacy.md": 6
+  "posts": {
+    "84bccaa20747": {
+      "path": "pages/about-us/team.md",
+      "paths": [
+        "pages/about-us/team.md"
+      ],
+      "address": "/pages/about-us/team/",
+      "addresses": [
+        "/pages/about-us/team/"
+      ],
+      "title": "Team",
+      "source": "467344dee0605842d503da619c9e3c2797bed57e84242ad5cf091a43bef10303",
+      "published": "6eb80b1320a80142a7a6f7fc11203f620b4fdddb7eb917e60e850d12cfd16693",
+      "taken": "2026-05-01T08:00:00Z",
+      "modified": "2026-05-01T08:00:00Z",
+      "names": {}
+    },
+    "84d238eb4622": {
+      "path": "not-found.md",
+      "paths": [
+        "not-found.md"
+      ],
+      "address": null,
+      "addresses": [],
+      "title": "Not found",
+      "source": "5bc2d038434bc1659c34c3373491db12179e390c9d68daf56e02a9e5782c8860",
+      "published": "c3ddfbcb3a115cb52b1bc7bbe5e164f2be1b8ec15ad66a8d757396a379fd3225",
+      "taken": "2026-05-01T08:00:00Z",
+      "modified": "2026-05-01T08:00:00Z",
+      "names": {}
+    },
+    "8d7010ec68d2": {
+      "path": "pages/about-us.md",
+      "paths": [
+        "pages/about-us.md"
+      ],
+      "address": "/pages/about-us/",
+      "addresses": [
+        "/pages/about-us/"
+      ],
+      "title": "About us",
+      "source": "b786c34b8ba834ff83e38e52fbae83e8c56a7228cd83753691bf38230d6fde62",
+      "published": "d0d2633153ad9f40d621f9f2b88f54d77c02515c31dba1f84e5c5cec3f921c1c",
+      "taken": "2026-05-01T08:00:00Z",
+      "modified": "2026-05-01T08:00:00Z",
+      "names": {}
+    },
+    "96ba709ec918": {
+      "path": "articles/opening-hours.md",
+      "paths": [
+        "articles/hours.md",
+        "articles/opening-hours.md"
+      ],
+      "address": "/opening-hours/",
+      "addresses": [
+        "/hours/",
+        "/opening-hours/"
+      ],
+      "title": "Opening hours",
+      "source": "a42f47a641570e9e43d57b63e870d26a8efd071fbb3514740dfb17b5bfe2145a",
+      "published": "d6738b89c8e28a40e81e785621123118b8f80e4b76217fd05451778259de5bb0",
+      "taken": "2026-10-20T08:00:00Z",
+      "modified": "2026-10-21T09:30:00Z",
+      "names": {
+        "terms": [
+          "categories/news.json"
+        ]
+      }
+    },
+    "9c39c3b2be4e": {
+      "path": "pages/privacy.md",
+      "paths": [
+        "pages/privacy.md"
+      ],
+      "address": "/pages/privacy/",
+      "addresses": [
+        "/pages/privacy/"
+      ],
+      "title": "Privacy policy",
+      "source": "2d7913d9adff38331ce91fa4d914e3f1ec5cb9d2d5961a5d1dd27a7486294d32",
+      "published": "0f6d48f2113e0608afebfb8c3306f9402a9c6c88d7170e196ec79f91adb2938f",
+      "taken": "2026-05-01T08:00:00Z",
+      "modified": "2026-05-01T08:00:00Z",
+      "names": {}
+    },
+    "de6aeaae949d": {
+      "path": "articles/harbour-lights.md",
+      "paths": [
+        "articles/harbour-light.md",
+        "articles/harbour-lights.md"
+      ],
+      "address": "/harbour-lights/",
+      "addresses": [
+        "/harbour-light/",
+        "/harbour-lights/"
+      ],
+      "title": "Harbour lights & lanterns",
+      "source": "ad0e2388f7213bfaa56b18f37adb85836280f7dd26770226f9e85461de8a82e0",
+      "published": "d231912b13020756583f55539fd31d904788a8eea83dc987471426abbda5ce00",
+      "taken": "2026-10-20T08:00:00Z",
+      "modified": "2026-10-21T09:30:00Z",
+      "names": {
+        "media": [
+          "harbour-lights-a7b543496f.webp",
+          "harbour-lights-e978159ef2.webp"
+        ],
+        "terms": [
+          "categories/local.json",
+          "categories/news.json",
+          "tags/harbours.json",
+          "tags/lanterns.json"
+        ]
+      }
+    }
+  },
+  "terms": {},
+  "files": {
+    "menus/main.json": "c908ea7d89d8c2d1afbf49c879448e82dce4e5c134daaaa0081d4864777ece69",
+    "redirects.json": "085117efe120292600d9f626c75d16f9653ac63a34b3c343b452d365925dbfc2",
+    "settings.json": "3c9694ca5bffd9b33099fcdd1661389867ef6ed864962d520d8f9db97502fa62"
+  },
+  "chosen": {
+    "legalPages": [
+      "9c39c3b2be4e"
+    ],
+    "notFound": "84d238eb4622"
+  },
+  "settingsMedia": [
+    "media/hero-image-dc2dd17407.webp",
+    "media/logo-908319c58a.svg",
+    "media/site-icon-f521d4c15b.svg"
+  ],
+  "consent": {
+    "revision": "786376240bce7ea0",
+    "revised": "2026-10-30"
+  }
 }
 ```
 
@@ -1119,6 +1258,24 @@ The site's reader gives these shapes a meaning beyond Markdown's:
 - **A quote's last paragraph wrapped in `<cite>`** is its citation ([Quotes](#quotes)).
 - **A directive the rule data registers**, the post list or the form, is that component; any other reads as its text ([Post lists](#post-lists), [Forms](#forms)).
 - **An empty HTML comment**, `<!-- -->`, shows nothing.
+
+## Source files
+
+The source files are what the intake reads: what editors save, one file per thing an editor edits, named by a generated ID that never changes, in the site's source repository. They are not published, and only the core reads them. Exact bytes are the intake's job, so they need not be in the exact form.
+
+| Path | What it holds |
+|---|---|
+| `<collection>/<ID>.md` | A post, its fields as YAML frontmatter, then its body as Markdown. On a site in several languages, `<collection>/<tag>/<ID>.md`, with the same ID in each language. |
+| `<taxonomy's collection>/<ID>.json` | A term, `name`, `slug`, `description` and `parent`, whether or not a post uses it. On a site in several languages, `<collection>/<tag>/<ID>.json`. |
+| `menus/<menu>.json`, `menus/<tag>/<menu>.json` | A menu: `items`, each with `title`, `post`, the ID of a post or a term, `url` and `items`. Without a file, a menu has no entries. |
+| `settings.json` | The site's identity and settings, and the groups under their names, each holding only what differs from a default; a translated setting as a value by locale. A choice of a post is its ID, and an image `{ "src": "/media/<name>", "alt": "…" }`. |
+| `redirects.json` | `rules`, each `{ "from", "status" }` with `to`, a path on the site or an `https://` address, or `post` or `term`, an ID; a source that starts with `^` is a pattern. A rule that leads to a post goes into its file. |
+| `services.json` | `services`, the services an Admin declares. |
+| `media/<name>` | Originals, as uploaded, in Git LFS. |
+
+A post's frontmatter holds `title`; `slug`, made from the title if left empty; `parent`, the ID of a post of its type, in a hierarchical type; `status`, `draft`, `scheduled` or `published`, a draft when left out; `date`, which also says when a scheduled post goes live; each field its type declares, a taxonomy's terms by their IDs, an image by `/media/<name>`; `otherAddresses`, each `{ "address", "answer" }`; and on a site in several languages `translationKey` where the same ID does not tie a translation set. What the intake derives is in no source file: `modified`, `oldAddresses`, masters, `consent.json` and `not-found.md`.
+
+In a body, a link to a post or to a term's page is `[text](konzilo:<ID>)`, with `#<anchor>` or not, and `konzilo:<tag>/<ID>` for one in another language. An image is `![alt](/media/<name>)`. A post list names its terms by their IDs. A file named with a leading dot, another kind of file, and a folder no collection names are left alone.
 
 ## What is not the format
 

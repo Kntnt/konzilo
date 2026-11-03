@@ -7,7 +7,7 @@
 - **Admin** is the customer's highest role: it manages the customer's users, changes menus and site settings, redirects and services, and writes the privacy policy. **Editor** writes content.
 - **A role is all that limits an editor.** There is no restriction per post type, and none is needed until a site asks for it.
 - **Within a customer's Forgejo:** one organisation and one source repository per site. Teams `admins` and `editors` have write access, never ownership, so no customer reaches webhooks or settings.
-- **The check that counts runs on the server.** The intake reads who made each commit, and refuses a change to settings, menus, redirects or services by someone who is not an Admin. `preSave` says so first. Forms for Admins cannot be hidden per person in Sveltia, so they are labelled.
+- **The check that counts runs on the server.** The intake reads who made each commit, and refuses a change to settings, menus, redirects or services, or to a post chosen as a legal page (ADR 0052), by someone who is not an Admin (Thomas, 2026-11-03). `preSave` says so first. Forms for Admins cannot be hidden per person in Sveltia, so they are labelled.
 - **Screens that read the service's data ask Forgejo who is asking,** per call, and decide by team.
 - **Users.** A *Users* page, through the service, lets an Admin add a colleague and choose a role, so that customers do not wait for Kntnt.
 - **Kntnt's account is the instance's administrator** and is not listed to others, so that a customer can never lock Kntnt out of a site Kntnt is responsible for, nor make a colleague an administrator. One rule holds for everyone but Kntnt: lists leave it out, and a question about it is answered as about a user who does not exist.
