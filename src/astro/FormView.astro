@@ -1,0 +1,81 @@
+---
+// The markup of a form on a page, as formView() in forms.js gives it,
+// `view`, for a form the site description declares (Form.astro). A plain HTML form that
+// posts to /_konzilo/forms/<form>: a label for every field, the field's
+// kind as its input type, `required`, `maxlength` and the options as
+// declared, the help text tied to its field, the trap field hidden from
+// people and from assistive technology, and each outcome at the id the
+// endpoint leads a browser without JavaScript back to.
+const { view } = Astro.props;
+const required = view.texts.required;
+---
+<form
+  class="konzilo-form"
+  id={view.id}
+  method="post"
+  action={view.preview ? undefined : view.action}
+  aria-label={view.label}
+  data-konzilo-form={view.preview ? undefined : view.data}
+  data-konzilo-form-preview={view.preview ? '' : undefined}
+>
+  {view.preview && <p class="konzilo-form-preview">{view.texts.preview}</p>}
+  {view.outcomes.map((outcome) => (
+    <div class={`konzilo-form-outcome konzilo-form-${outcome.outcome}`} id={outcome.id} tabindex="-1" hidden>
+      <p>{outcome.parts.map((part) => (typeof part === 'string' ? part : <a href={part.href}>{part.text}</a>))}</p>
+    </div>
+  ))}
+  <div class="konzilo-form-fields">
+    {view.fields.map((field) => {
+      const mark = field.required && <Fragment>{' '}<span class="konzilo-form-required">{required}</span></Fragment>;
+      const help = field.helpId && <p class="konzilo-form-help" id={field.helpId}>{field.help}</p>;
+      const problem = <p class="konzilo-form-problem" id={field.problemId} hidden></p>;
+      if (field.group) {
+        const radio = field.kind === 'radio';
+        return (
+          <fieldset class={`konzilo-form-field konzilo-form-${field.kind}`} id={field.id} role={radio ? 'radiogroup' : undefined} aria-required={radio && field.required ? 'true' : undefined} aria-describedby={field.helpId ?? undefined}>
+            <legend>{field.label}{mark}</legend>
+            {help}
+            {field.options.map((option) => (
+              <div class="konzilo-form-choice">
+                <input type={radio ? 'radio' : 'checkbox'} id={option.id} name={field.name} value={option.value} required={radio && field.required} />
+                <label for={option.id}>{option.value}</label>
+              </div>
+            ))}
+            {problem}
+          </fieldset>
+        );
+      }
+      if (field.kind === 'checkbox' || field.kind === 'acceptance') {
+        return (
+          <div class={`konzilo-form-field konzilo-form-${field.kind}`}>
+            <input type="checkbox" id={field.id} name={field.name} required={field.required} aria-describedby={field.helpId ?? undefined} />
+            <label for={field.id}>{field.label}{mark}</label>
+            {help}
+            {problem}
+          </div>
+        );
+      }
+      return (
+        <div class={`konzilo-form-field konzilo-form-${field.kind}`}>
+          <label for={field.id}>{field.label}{mark}</label>
+          {field.kind === 'textarea' && <textarea id={field.id} name={field.name} required={field.required} maxlength={field.maxLength} aria-describedby={field.helpId ?? undefined}></textarea>}
+          {field.kind === 'select' && (
+            <select id={field.id} name={field.name} required={field.required} aria-describedby={field.helpId ?? undefined}>
+              <option value="">{view.texts.choose}</option>
+              {field.options.map((option) => <option value={option.value}>{option.value}</option>)}
+            </select>
+          )}
+          {field.type && <input type={field.type} id={field.id} name={field.name} required={field.required} maxlength={field.maxLength} pattern={field.pattern ?? undefined} autocomplete={field.autocomplete ?? undefined} aria-describedby={field.helpId ?? undefined} />}
+          {help}
+          {problem}
+        </div>
+      );
+    })}
+    <div class="konzilo-form-trap" aria-hidden="true">
+      <label for={`${view.id}-website`}>{view.texts.trap}</label>
+      <input type="text" id={`${view.id}-website`} name="_website" tabindex="-1" autocomplete="off" />
+    </div>
+    <input type="hidden" name="_page" value={view.page} />
+    <button type="submit" class="konzilo-form-send" disabled={view.preview}>{view.texts.send}</button>
+  </div>
+</form>

@@ -1,0 +1,44 @@
+---
+// A post's body, with each directive the site gives a component of its own
+// (`konzilo({ directives })`) rendered by that component in place of its
+// plain rendering, and each post list evaluated and
+// rendered by the presentation the site registers for it (`konzilo({
+// presentations })`). A site's template renders a post's body as
+//
+//   <Body post={entry}><Content /></Body>
+//
+// with Content from Astro's render(entry), and `post` the post's entry,
+// which a list leaves out and ranks related posts by. Each component is
+// given the directive's attributes as its props, typed, those not given at
+// their defaults, and its body, if it has one, as its default slot,
+// rendered here again, so that a directive in a container's body gets its
+// component too. The lists are evaluated in the body's order, before any is
+// rendered, so that each leaves out the posts the lists above it showed. A
+// body without such a directive comes out as Content renders it.
+//
+// `page`: the page of the post shown, from 1, as the site's route has it
+// from postPages() (post-lists.js): the one list with pages of its own shows
+// that page's slice, and its presentation is given the pager; every other
+// list shows its first slice.
+//
+//   <Body post={entry} page={page}><Content /></Body>
+import components from 'virtual:konzilo/directives';
+import { bodyParts } from './directives.js';
+import { postList, shownOnPage } from './post-lists.js';
+
+const LIST = 'post-list';
+const { html = await Astro.slots.render('default'), post, shown = shownOnPage(), page = 1 } = Astro.props;
+const parts = bodyParts(html, [...Object.keys(components), LIST]);
+for (const part of parts) {
+  if (typeof part !== 'string' && part.name === LIST) part.list = await postList(part.attributes, { post, shown, page });
+}
+---
+{parts.map((part) => {
+  if (typeof part === 'string') return <Fragment set:html={part} />;
+  if (part.list) {
+    const { component: Presentation, posts, options, empty, pager } = part.list;
+    return <Presentation posts={posts} options={options} empty={empty} pager={pager} />;
+  }
+  const Component = components[part.name];
+  return part.body === null ? <Component {...part.attributes} /> : <Component {...part.attributes}><Astro.self html={part.body} post={post} shown={shown} page={page} /></Component>;
+})}

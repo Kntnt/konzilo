@@ -1,0 +1,28 @@
+---
+// A page's breadcrumbs on screen, where a site's design places
+// them, given the entry the page shows:
+//
+//   import Breadcrumbs from '@kntnt/konzilo/astro/Breadcrumbs.astro';
+//   <Breadcrumbs entry={entry} />    or <Breadcrumbs title="Search" /> on a page of its own
+//
+// The same levels as the page's structured data (breadcrumb-levels.js): a
+// navigation labelled in the site's language, holding an ordered list with
+// one item per level, a link for each but the last, and the last, the page
+// itself, marked as the current page, with no link. Its links keep the
+// preview's base. It carries no styling of its own. The start
+// page shows nothing, and so does a page of the site's own that gives no
+// `title`. `texts` gives any of the site's own texts over the core's
+// (BREADCRUMB_TEXTS): `home`, the start page's name, and `label`, the
+// navigation's.
+import { breadcrumbTexts } from './breadcrumb-levels.js';
+import { breadcrumbs } from './breadcrumbs.js';
+import { publicSite } from './public-site.js';
+
+const { entry = null, title, texts: given = {} } = Astro.props;
+const levels = await breadcrumbs(entry, Astro.url, { title, texts: given });
+const { label } = breadcrumbTexts(publicSite(Astro.url).locale, given);
+const last = levels.length - 1;
+---
+{levels.length > 0 && (
+  <nav aria-label={label}><ol>{levels.map((level, index) => (index === last ? <li aria-current="page">{level.name}</li> : <li><a href={level.href}>{level.name}</a></li>))}</ol></nav>
+)}

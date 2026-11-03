@@ -1,0 +1,31 @@
+---
+// The search box: a plain form that takes the visitor to the
+// site's search page with the query in `q`, which a site's layout places
+// where it wants it, in the header in the site template's:
+//
+//   import SearchBox from '@kntnt/konzilo/astro/SearchBox.astro';
+//   <SearchBox />                     or <SearchBox texts={{ label: '…' }} />
+//
+// It needs no script. Its label and button say the site's language's
+// texts, the page's on a site in several, where it leads to the
+// search page of the page's language, the site's own
+// (site-texts.js) or the core's (SEARCH_TEXTS in search.js), or those given. In a preview it leads to
+// the preview's search page, which says that search is not in the preview.
+// A site without search shows nothing of it.
+import { textsIn } from 'virtual:konzilo/texts';
+import { publicSite } from './public-site.js';
+import { searchPage, searchTexts } from './search.js';
+
+const { texts: given = {} } = Astro.props;
+const page = searchPage(Astro.url);
+const { locale } = publicSite(Astro.url);
+const texts = page && searchTexts(locale, { ...textsIn(locale).search, ...given });
+const action = page && `${import.meta.env.BASE_URL}${page.address.slice(1)}`;
+---
+{page && (
+  <form class="konzilo-search-box" role="search" method="get" action={action}>
+    <label for="konzilo-search-box-query">{texts.label}</label>
+    <input id="konzilo-search-box-query" type="search" name="q" />
+    <button type="submit">{texts.submit}</button>
+  </form>
+)}
