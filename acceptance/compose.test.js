@@ -371,9 +371,15 @@ describe('a site in Compose', () => {
         const { page } = session;
         await page.getByText('Northern islands and the meadow').first().click();
         await page.locator('.konzilo-body-visual .ProseMirror').waitFor({ timeout: 30_000 });
-        const bar = (name) => page.locator('button[aria-expanded]', { hasText: name }).first();
-        await bar('Search and sharing').click();
-        await bar('In search results').click();
+        // What holds something is open already, and a click would close it. A long form
+        // renders what is below the window as it comes near, so each bar goes to the top.
+        const open = async (name) => {
+          const bar = page.locator('button[aria-expanded]', { hasText: name }).first();
+          if (await bar.getAttribute('aria-expanded') === 'false') await bar.click();
+          await bar.evaluate((element) => element.scrollIntoView({ block: 'start' }));
+        };
+        await open('Search and sharing');
+        await open('In search results');
         await page.getByRole('textbox', { name: 'Title tag' }).fill('A title tag in parts');
         await page.getByRole('button', { name: 'Save', exact: true }).click();
 
