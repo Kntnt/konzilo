@@ -1,0 +1,11 @@
+# A site's content is its own repository's, never this one's. A local copy holds
+# the core's fictional demo content here.
+/content/
+
+/node_modules/
+
+# Astro's own output.
+/.astro/
+/dist/
+
+.DS_Store

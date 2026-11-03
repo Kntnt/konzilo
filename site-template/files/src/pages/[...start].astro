@@ -1,0 +1,30 @@
+---
+// The start page of each language: its articles, newest first. On a site in
+// one language it is at the root; on a site in several, each language's is
+// at its prefix, `/sv/` and `/en/`, with that language's articles alone, and
+// the root leads to the main language's. Its layout
+// stays in the site repository; the main menu and the footer come from the
+// site settings. Each link starts at the site's base, so that it stays in
+// a preview, which is served below a base of its own.
+import { entriesIn, entryUrl, startPages } from '@kntnt/konzilo/astro/languages';
+import Site from '../layouts/Site.astro';
+
+export function getStaticPaths() {
+  return startPages('start');
+}
+
+const { language } = Astro.props;
+const articles = (await entriesIn('articles', language)).sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+---
+<Site>
+  <main>
+    <ul class="post-list">
+      {articles.map((article) => (
+        <li>
+          <a href={entryUrl(article)}>{article.data.title}</a>
+          {article.data.excerpt && <p>{article.data.excerpt}</p>}
+        </li>
+      ))}
+    </ul>
+  </main>
+</Site>

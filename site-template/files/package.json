@@ -1,0 +1,15 @@
+{
+  "name": "@NAME@",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "predev": "konzilo-demo-content",
+    "dev": "astro dev",
+    "prebuild": "konzilo-demo-content",
+    "build": "astro build"
+  },
+  "dependencies": {
+    "@kntnt/konzilo": "@CORE@",
+    "astro": "@ASTRO@"
+  }
+}

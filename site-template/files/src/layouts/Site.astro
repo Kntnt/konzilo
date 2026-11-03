@@ -1,0 +1,104 @@
+---
+// Every page's frame: the site's logo, or its title where it has none, and
+// its main menu above, the footer text, the publisher's details and the
+// links to the legal pages below, all from the site settings
+// (content/settings.json and content/menus/main.json).
+// On a site in several languages they are those of the page's language,
+// by its address's prefix (content/settings/<tag>.json and
+// content/menus/<tag>/main.json), Konzilo's siteSettings() and siteMenu()
+// read them, and the site's title and its footer text are in that language;
+// the page says its language, the logo links to its language's start page,
+// and the language switcher after the main menu leads to the page in each
+// other language it is in, as the head's hreflang links do.
+// The title and the logo are the site's identity; the logo's alt text is its
+// own, or the title where it has none. The site's name is its title alone:
+// while it has neither a title nor a logo, the header shows neither. The
+// publisher's details are those Sweden's e-handelslagen asks a site that offers
+// services to give, from the publisher of Konzilo's search and sharing settings:
+// its name, the site's title by default, then, where filled, its organisation
+// number, postal address, email, VAT number, trade register and supervisory
+// authority, the last, a text of lines, on one line; without a name, none of
+// them.
+// The logo links to the start page below the site's base, so that it stays
+// in a preview, which is served below a base of its own. Each page's head holds
+// Konzilo's Head: the search and sharing tags, the title tag among them, from the
+// Search and sharing settings and the post's own values, for which a page gives
+// the layout the entry it shows, and the page of its post list with pages of its
+// own, from 1, the 404 page its title and the start page neither, and the links
+// to the icons every build makes from the site icon, the third part of the
+// identity, and to the web app manifest. The legal pages are those the site
+// settings name, each labelled with its title and linked once, since the cookie
+// policy may be the privacy policy itself; one that is not published is not
+// there. The page says its language, the site's, which site-description.json
+// declares, or the page's own on a site in several. The publisher's postal
+// address and supervisory authority and the legal pages come from Konzilo's
+// helpers.
+//
+// Konzilo's search box ends the header: a form that takes the visitor to the
+// search page, on a site whose description declares search, and nothing on
+// any other.
+//
+// Konzilo's consent banner, with its preferences dialog, comes first in the
+// body, and its footer controls last in the footer, after the legal pages,
+// which they leave the links to. src/styles/consent.css styles
+// them from the template's own tokens, those of src/styles/body.css, as
+// src/styles/site.css does this frame, the templates' post heads and the
+// lists of posts.
+import { publicSite } from '@kntnt/konzilo/astro';
+import Head from '@kntnt/konzilo/astro/Head.astro';
+import ConsentBanner from '@kntnt/konzilo/astro/ConsentBanner.astro';
+import ConsentControls from '@kntnt/konzilo/astro/ConsentControls.astro';
+import SearchBox from '@kntnt/konzilo/astro/SearchBox.astro';
+import { pageLanguage, startPage } from '@kntnt/konzilo/astro/languages';
+import { siteMenu, siteSettings } from '@kntnt/konzilo/astro/site-settings';
+import { legalPages as chosenLegalPages, oneLine, postalAddress as postalAddressOf } from '@kntnt/konzilo/astro/helpers';
+import { Image } from 'astro:assets';
+import LanguageSwitcher from '../components/LanguageSwitcher.astro';
+import MenuEntries from '../components/MenuEntries.astro';
+import '../styles/site.css';
+import '../styles/consent.css';
+
+const { entry, title, page } = Astro.props;
+const { languageTag } = publicSite(Astro.url);
+const settings = (await siteSettings(Astro.url)) ?? {};
+const main = (await siteMenu('main', Astro.url)) ?? [];
+const siteTitle = settings.title ?? '';
+const publisher = settings.search?.publisher ?? {};
+const postalAddress = postalAddressOf(publisher);
+const supervisoryAuthority = oneLine(publisher.supervisoryAuthority);
+const legalPages = chosenLegalPages(settings).map((page) => ({ ...page, items: [] }));
+---
+<html lang={languageTag}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="generator" content={Astro.generator} />
+    <Head entry={entry} title={title} page={page} />
+  </head>
+  <body>
+    <ConsentBanner />
+    <header>
+      {(settings.logo || siteTitle) && <a class="site-name" href={startPage(pageLanguage(Astro.url))}>{settings.logo ? <Image class="site-logo" src={settings.logo.src} alt={settings.logo.alt ?? siteTitle} /> : siteTitle}</a>}
+      {main.length > 0 && <nav aria-label="Main menu"><MenuEntries items={main} /></nav>}
+      <LanguageSwitcher entry={entry} />
+      <SearchBox />
+    </header>
+    <slot />
+    <footer>
+      {settings.footerText && <p class="footer-text">{settings.footerText}</p>}
+      {publisher.name && (
+        <address class="publisher">
+          <p>{publisher.name}</p>
+          {publisher.organisationNumber && <p>Organisation number {publisher.organisationNumber}</p>}
+          {postalAddress && <p>{postalAddress}</p>}
+          {publisher.email && <p><a href={`mailto:${publisher.email}`}>{publisher.email}</a></p>}
+          {publisher.vatNumber && <p>VAT number {publisher.vatNumber}</p>}
+          {publisher.tradeRegister && <p>Trade register {publisher.tradeRegister}</p>}
+          {supervisoryAuthority && <p>Supervisory authority {supervisoryAuthority}</p>}
+        </address>
+      )}
+      {legalPages.length > 0 && <nav aria-label="Legal pages"><MenuEntries items={legalPages} /></nav>}
+      <ConsentControls links={false} />
+    </footer>
+  </body>
+</html>

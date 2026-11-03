@@ -1,0 +1,74 @@
+{
+  "language": "en_GB",
+  "search": { "address": "/search/" },
+  "types": {
+    "article": {
+      "label": "Article",
+      "plural": "Articles",
+      "collection": "articles",
+      "address": "/{slug}/",
+      "feed": "/feed/",
+      "elements": ["paragraph", "heading", "list", "quote", "code", "table", "footnotes", "embed", "image", "gallery"],
+      "fields": {
+        "date": {},
+        "modified": {},
+        "excerpt": {},
+        "categories": { "taxonomy": "category", "required": true },
+        "tags": { "taxonomy": "tag" },
+        "image": {},
+        "seo": {}
+      }
+    },
+    "page": {
+      "label": "Page",
+      "plural": "Pages",
+      "collection": "pages",
+      "hierarchical": true,
+      "address": "/pages/{path}/",
+      "elements": ["paragraph", "heading", "list", "code", "table", "post-list", "form"],
+      "fields": {
+        "seo": {}
+      }
+    }
+  },
+  "taxonomies": {
+    "category": {
+      "label": "Category",
+      "plural": "Categories",
+      "collection": "categories",
+      "hierarchical": true,
+      "feed": "/category/{slug}/feed/"
+    },
+    "tag": {
+      "label": "Tag",
+      "plural": "Tags",
+      "collection": "tags",
+      "feed": "/tag/{slug}/feed/"
+    }
+  },
+  "presentations": {
+    "list": {
+      "label": "List",
+      "options": {
+        "date": { "label": "Date", "type": "boolean", "control": "toggle" },
+        "excerpt": { "label": "Excerpt", "type": "boolean", "control": "toggle" }
+      }
+    },
+    "cards": {
+      "label": "Cards",
+      "options": {
+        "columns": { "label": "Columns", "type": "string", "control": "select", "options": ["2", "3", "4"] }
+      }
+    }
+  },
+  "images": {
+    "smallestWidth": 400,
+    "displayWidth": 1280
+  },
+  "menus": {
+    "main": { "label": "Main menu" }
+  },
+  "settings": {
+    "footerText": { "label": "Footer text", "type": "string", "control": "textarea", "translated": true }
+  }
+}

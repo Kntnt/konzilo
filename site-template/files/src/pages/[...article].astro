@@ -1,0 +1,52 @@
+---
+// An article, at its address: its slug, as the type's address in
+// site-description.json has it, under its language's prefix on a site in
+// several languages. It shows its date in the page's
+// language and its categories, each after its parent, with Konzilo's helpers,
+// its tags and its featured image, wrapped in the class the body styles name
+// (astro.config.mjs), in the page's <main>, which its Markdown alternate is
+// made from. Its body goes through Konzilo's Body,
+// which renders each post list in it with its presentation. The cookie
+// declaration follows the body of the article chosen as the cookie policy,
+// if one is, and of no other.
+//
+// The route takes a rest parameter, the article's whole address, so that an
+// article whose post list has pages of its own has them at
+// <address>page/2/ and on: Konzilo's entryPages() gives each article's
+// pages, and the page goes to Body, which shows the list's slice for it,
+// and through the layout to Head, which makes a later page noindex
+//.
+import Body from '@kntnt/konzilo/astro/Body.astro';
+import CookieDeclaration from '@kntnt/konzilo/astro/CookieDeclaration.astro';
+import { longDate, termPath } from '@kntnt/konzilo/astro/helpers';
+import { entryPages } from '@kntnt/konzilo/astro/languages';
+import { Image } from 'astro:assets';
+import { getEntries, render } from 'astro:content';
+import Site from '../layouts/Site.astro';
+
+export function getStaticPaths() {
+  return entryPages('articles', 'article');
+}
+
+const { entry: article, page } = Astro.props;
+const { Content } = await render(article);
+const categories = await Promise.all((await getEntries(article.data.categories)).map((category) => termPath(category)));
+const tags = await getEntries(article.data.tags);
+---
+<Site entry={article} page={page}>
+  <main>
+    <article class="body-text">
+      <h1>{article.data.title}</h1>
+      <time datetime={article.data.date.toISOString()}>{longDate(article.data.date, Astro.url)}</time>
+      {categories.length + tags.length > 0 && (
+        <div class="terms">
+          {categories.length > 0 && <ul class="categories">{categories.map((category) => <li>{category}</li>)}</ul>}
+          {tags.length > 0 && <ul class="tags">{tags.map((tag) => <li>{tag.data.name}</li>)}</ul>}
+        </div>
+      )}
+      {article.data.image && <Image class="featured-image" src={article.data.image.src} alt={article.data.image.alt} />}
+      <Body post={article} page={page}><Content /></Body>
+      <CookieDeclaration />
+    </article>
+  </main>
+</Site>

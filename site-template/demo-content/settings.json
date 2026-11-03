@@ -1,0 +1,122 @@
+{
+  "title": "The Gentle Garden",
+  "logo": {
+    "src": "media/logo-de4e72ffac.svg",
+    "alt": "A lantern beside the words The Gentle Garden"
+  },
+  "icon": {
+    "src": "media/site-icon-07885d4a7e.svg"
+  },
+  "footerText": "The hidden harbour crosses the early bridge. The gentle bridge welcomes the quiet meadow.",
+  "search": {
+    "separator": "–",
+    "publisher": {
+      "kind": "Organization",
+      "name": "Northern Valley AB",
+      "organisationNumber": "556000-0000",
+      "vatNumber": "SE556000000001",
+      "tradeRegister": "Bolagsverket's trade register",
+      "supervisoryAuthority": "The Northern Valley Board, Box 1, 123 45 Northern Valley",
+      "street": "Valley Road 1",
+      "postalCode": "123 45",
+      "locality": "Northern Valley",
+      "country": "Sweden",
+      "email": "valley@example.com",
+      "telephone": "+46 70 174 06 50",
+      "profiles": "https://example.com/valley\nhttps://example.org/valley"
+    },
+    "home": {
+      "title": "{{ site.title }}",
+      "description": "{{ site.description }}",
+      "socialTitle": "{{ site.title }}",
+      "socialDescription": "{{ site.description }}"
+    },
+    "types": {
+      "article": {
+        "title": "{{ post.title }} {{ sep }} {{ site.title }}",
+        "description": "{{ post.auto_description }}",
+        "socialTitle": "{{ post.title }}",
+        "socialDescription": "{{ post.auto_description }}",
+        "schema": "Article"
+      },
+      "page": {
+        "title": "{{ post.title }} {{ sep }} {{ site.title }}",
+        "description": "{{ post.auto_description }}",
+        "socialTitle": "{{ post.title }}",
+        "socialDescription": "{{ post.auto_description }}",
+        "schema": "WebPage"
+      }
+    }
+  },
+  "ai": {
+    "home": {
+      "markdown": true,
+      "llms": true,
+      "llmsFull": true
+    },
+    "signals": {
+      "search": "defer",
+      "aiInput": "grant",
+      "aiTrain": "defer"
+    },
+    "types": {
+      "article": {
+        "markdown": true,
+        "llms": true,
+        "llmsFull": false
+      },
+      "page": {
+        "markdown": true,
+        "llms": true,
+        "llmsFull": true
+      }
+    }
+  },
+  "consent": {
+    "bannerTitle": "Your privacy on this demo site",
+    "bannerText": "This site uses only what it needs to work, unless you allow more. With your consent it also loads content from other services, such as videos, which may store data in your browser and use what they learn for their own purposes. You can change or withdraw your consent at any time, from the bottom of every page.",
+    "bannerAccept": "Accept all",
+    "bannerReject": "Reject optional",
+    "bannerCustomise": "Customise",
+    "dialogTitle": "Privacy settings",
+    "dialogIntroduction": "Choose what the site may load and store beyond what it needs to work. Each category lists its services, who provides them, what they store and for how long. Your choice holds for 12 months. You can change or withdraw it at any time from the footer of every page.",
+    "dialogAccept": "Accept all",
+    "dialogReject": "Reject optional",
+    "dialogSave": "Save my choices",
+    "dialogClose": "Close",
+    "footerChange": "Change privacy settings",
+    "footerWithdraw": "Withdraw consent",
+    "placeholderQuestion": "Allow {service} to play this content?",
+    "placeholderButton": "Allow and play",
+    "necessaryName": "Necessary",
+    "necessaryDescription": "What the site needs to work and to remember your choice. Always on.",
+    "functionalName": "Functional",
+    "functionalDescription": "Content and features from other services, such as videos and charts, whose providers do not use what they learn for their own advertising or profiling.",
+    "statisticsName": "Statistics",
+    "statisticsDescription": "Measuring how visitors use the site, so that it can be made better.",
+    "marketingName": "Marketing",
+    "marketingDescription": "Content and features from services whose providers may use what they learn about you for their own advertising or profiling."
+  },
+  "tagManager": {
+    "manager": "None",
+    "provider": {}
+  },
+  "legalPages": {
+    "privacyPolicy": {
+      "title": "Privacy policy",
+      "url": "/pages/privacy-policy/"
+    },
+    "cookiePolicy": {
+      "title": "Cookie policy",
+      "url": "/pages/cookie-policy/"
+    },
+    "accessibilityStatement": {
+      "title": "Accessibility statement",
+      "url": "/pages/accessibility-statement/"
+    }
+  },
+  "feeds": {
+    "item": "The summary",
+    "posts": 10
+  }
+}

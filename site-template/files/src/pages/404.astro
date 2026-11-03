@@ -1,0 +1,49 @@
+---
+// The site's 404 page, which Astro builds as 404.html: the web
+// server shows it at every address the site has nothing at, with 404, and
+// where a redirect rule answers 404 or 410, with that status; the dev server
+// and a preview do the same. It is the page an Admin chose in the Site
+// settings page, its title and its body, in the site's frame with its menu
+// and footer, or, where none is chosen or the chosen one cannot be
+// published, the template's own plain text in the site's language. On a site
+// in several languages every build also writes it for
+// each language, below its prefix, as `<prefix>/404.html`, which the web
+// server shows at an address below that prefix: in that language's frame,
+// with the chosen page's translation in that language, or, without one, the
+// plain text in that language, never another language's page; the root's
+// is the main language's. Its links start at the site's base, so that they
+// stay in a preview, which is served below a base of its own.
+import { publicSite } from '@kntnt/konzilo/astro';
+import { pageLanguage, startPage } from '@kntnt/konzilo/astro/languages';
+import { notFoundPage } from '@kntnt/konzilo/astro/site-settings';
+import { render } from 'astro:content';
+import Site from '../layouts/Site.astro';
+
+const texts = {
+  en: {
+    title: 'Page not found',
+    text: 'There is no page at this address. It may have moved, or the link that led here may be wrong.',
+    start: 'Go to the start page',
+  },
+  sv: {
+    title: 'Sidan finns inte',
+    text: 'Det finns ingen sida på den här adressen. Den kan ha flyttats, eller så är länken hit fel.',
+    start: 'Gå till startsidan',
+  },
+};
+const plain = texts[publicSite(Astro.url).languageTag.split('-')[0]] ?? texts.en;
+const page = await notFoundPage(Astro.url);
+const Content = page ? (await render(page)).Content : null;
+const heading = page?.data.title ?? plain.title;
+---
+<Site title={heading}>
+  <main class="body-text">
+    <h1>{heading}</h1>
+    {Content ? <Content /> : (
+      <>
+        <p>{plain.text}</p>
+        <p><a href={startPage(pageLanguage(Astro.url))}>{plain.start}</a></p>
+      </>
+    )}
+  </main>
+</Site>

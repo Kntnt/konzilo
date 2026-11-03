@@ -1,0 +1,28 @@
+---
+// The presentation `list` (site-description.json, astro.config.mjs): a post
+// list as the titles of its posts, each linked to its post, with its date
+// and its excerpt where the list asks for them. Konzilo
+// gives it `posts`, each { entry, url }, the post's entry and its address,
+// or null for a type without one; `options`, the presentation's options as
+// the list sets them; `empty`, the text for a list that matches nothing; and
+// `pager`, for a list with pages of its own, the pager's data, which
+// Konzilo's Pager renders after the list (src/styles/pager.css). A date is
+// in the page's language, by Konzilo's helper.
+import { longDate } from '@kntnt/konzilo/astro/helpers';
+import Pager from '@kntnt/konzilo/astro/Pager.astro';
+import '../styles/pager.css';
+
+const { posts, options, empty, pager } = Astro.props;
+---
+{posts.length === 0 ? <p class="post-list-empty">{empty}</p> : (
+  <ul class="post-list">
+    {posts.map(({ entry, url }) => (
+      <li>
+        {url ? <a href={url}>{entry.data.title}</a> : <span>{entry.data.title}</span>}
+        {options.date && entry.data.date && <time datetime={entry.data.date.toISOString()}>{longDate(entry.data.date, Astro.url)}</time>}
+        {options.excerpt && entry.data.excerpt && <p>{entry.data.excerpt}</p>}
+      </li>
+    ))}
+  </ul>
+)}
+{pager && <Pager pager={pager} />}

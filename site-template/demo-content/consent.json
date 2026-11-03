@@ -1,0 +1,165 @@
+{
+  "revision": "618a1e31d4c02779",
+  "revised": "2026-11-03",
+  "categories": [
+    {
+      "id": "necessary",
+      "name": "Necessary",
+      "description": "What the site needs to work and to remember your choice. Always on.",
+      "services": [
+        "consent"
+      ]
+    },
+    {
+      "id": "marketing",
+      "name": "Marketing",
+      "description": "Content and features from services whose providers may use what they learn about you for their own advertising or profiling.",
+      "services": [
+        "vimeo",
+        "youtube"
+      ]
+    }
+  ],
+  "services": [
+    {
+      "id": "consent",
+      "name": "Consent",
+      "category": "necessary",
+      "provider": null,
+      "purpose": "Remembers which categories and services you allowed, and when, so that the site respects your choice.",
+      "storage": [
+        {
+          "name": "konzilo-consent",
+          "kind": "localStorage",
+          "lifetime": "P12M",
+          "party": "first"
+        }
+      ],
+      "hosts": {
+        "scripts": [],
+        "frames": [],
+        "connections": [],
+        "images": [],
+        "styles": [],
+        "fonts": []
+      },
+      "transfers": [],
+      "necessity": "Without it the site could not keep to your choice, and would ask you on every page."
+    },
+    {
+      "id": "vimeo",
+      "name": "Vimeo",
+      "category": "marketing",
+      "provider": {
+        "name": "Vimeo.com, Inc.",
+        "country": "US",
+        "privacyPolicy": "https://vimeo.com/legal/privacy/policy"
+      },
+      "purpose": "Plays videos from Vimeo in the page.",
+      "storage": [
+        {
+          "name": "player_clearance",
+          "kind": "cookie",
+          "lifetime": "P7D",
+          "party": "third"
+        },
+        {
+          "name": "cf_clearance",
+          "kind": "cookie",
+          "lifetime": "P1Y",
+          "party": "third"
+        },
+        {
+          "name": "__cf_bm",
+          "kind": "cookie",
+          "lifetime": "PT30M",
+          "party": "third"
+        },
+        {
+          "name": "_cfuvid",
+          "kind": "cookie",
+          "lifetime": "session",
+          "party": "third"
+        }
+      ],
+      "hosts": {
+        "scripts": [],
+        "frames": [
+          "player.vimeo.com"
+        ],
+        "connections": [],
+        "images": [],
+        "styles": [],
+        "fonts": []
+      },
+      "transfers": [
+        {
+          "country": "US",
+          "safeguards": [
+            "adequacy",
+            "scc"
+          ]
+        }
+      ],
+      "necessity": null
+    },
+    {
+      "id": "youtube",
+      "name": "YouTube",
+      "category": "marketing",
+      "provider": {
+        "name": "Google Ireland Limited",
+        "country": "IE",
+        "privacyPolicy": "https://policies.google.com/privacy"
+      },
+      "purpose": "Plays videos from YouTube in the page.",
+      "storage": [],
+      "hosts": {
+        "scripts": [],
+        "frames": [
+          "www.youtube-nocookie.com"
+        ],
+        "connections": [],
+        "images": [],
+        "styles": [],
+        "fonts": []
+      },
+      "transfers": [
+        {
+          "country": "US",
+          "safeguards": [
+            "adequacy",
+            "scc"
+          ]
+        }
+      ],
+      "necessity": null
+    }
+  ],
+  "departures": [],
+  "texts": {
+    "banner": {
+      "title": "Your privacy on this demo site",
+      "text": "This site uses only what it needs to work, unless you allow more. With your consent it also loads content from other services, such as videos, which may store data in your browser and use what they learn for their own purposes. You can change or withdraw your consent at any time, from the bottom of every page.",
+      "accept": "Accept all",
+      "reject": "Reject optional",
+      "customise": "Customise"
+    },
+    "dialog": {
+      "title": "Privacy settings",
+      "introduction": "Choose what the site may load and store beyond what it needs to work. Each category lists its services, who provides them, what they store and for how long. Your choice holds for 12 months. You can change or withdraw it at any time from the footer of every page.",
+      "accept": "Accept all",
+      "reject": "Reject optional",
+      "save": "Save my choices",
+      "close": "Close"
+    },
+    "footer": {
+      "change": "Change privacy settings",
+      "withdraw": "Withdraw consent"
+    },
+    "placeholder": {
+      "question": "Allow {service} to play this content?",
+      "button": "Allow and play"
+    }
+  }
+}

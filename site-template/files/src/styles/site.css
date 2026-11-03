@@ -1,0 +1,504 @@
+/* The site's frame, what src/layouts/Site.astro and the templates put around
+   a post's body: the page, the header with the logo, the main menu and the
+   search box, the title and the terms of a post, the lists of posts, the
+   search page and the footer. Styled simply from the demo design's tokens,
+   those body.css declares, and the few of their own below; every colour but
+   the focus ring's is one of those tokens. A customer's design replaces this
+   file with its own, as the Konzilo Design System will. Whatever it looks like,
+   every target of the frame stays at least 44 px and the focus visible. */
+
+:root {
+  --site-width: 72rem;
+  --site-text-width: 46rem;
+  --site-gutter: clamp(1.25rem, 4vw, 2.5rem);
+  --site-edge: max(var(--site-gutter), calc((100% - var(--site-width)) / 2));
+  --site-radius: 0.375rem;
+  --site-target: 44px;
+  --site-focus: #b35c00;
+}
+
+/* The page: the footer at the foot of the window on a short page too. */
+body {
+  display: flex;
+  flex-direction: column;
+  min-block-size: 100vh;
+  margin: 0;
+  font-family: var(--body-font);
+  line-height: 1.6;
+  color: var(--body-text);
+  background: var(--body-background);
+}
+
+a {
+  color: var(--body-link);
+  text-underline-offset: 0.15em;
+}
+
+:focus-visible {
+  outline: 3px solid var(--site-focus);
+  outline-offset: 2px;
+}
+
+/* The header. */
+body > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 2rem;
+  padding: 0.75rem var(--site-edge);
+  border-block-end: 1px solid var(--body-rule);
+}
+
+.site-name {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--site-target);
+  font-family: var(--heading-font);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--body-text);
+  text-decoration: none;
+}
+
+.site-logo {
+  display: block;
+  inline-size: auto;
+  block-size: 2.5rem;
+  max-inline-size: 100%;
+}
+
+/* The main menu and the language switcher: entries in a row, each entry's
+   own entries in a panel below it while the pointer or the focus is in it. */
+header nav ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+header nav li {
+  position: relative;
+}
+
+header nav a,
+header nav span {
+  display: flex;
+  align-items: center;
+  min-block-size: var(--site-target);
+  color: var(--body-text);
+  text-decoration: none;
+}
+
+header nav a:hover {
+  color: var(--body-link);
+  text-decoration: underline;
+}
+
+header nav [aria-current] {
+  font-weight: 600;
+}
+
+header nav li:has(> ul) > :first-child::after {
+  content: "";
+  margin-inline-start: 0.4em;
+  border-block-start: 0.3em solid currentColor;
+  border-inline: 0.25em solid transparent;
+}
+
+header nav li > ul {
+  position: absolute;
+  inset-block-start: 100%;
+  inset-inline-start: -0.75rem;
+  z-index: 5;
+  display: none;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 0;
+  min-inline-size: 15rem;
+  padding: 0.25rem 0;
+  background: var(--body-background);
+  border: 1px solid var(--body-rule);
+  border-radius: var(--site-radius);
+  box-shadow: 0 0.25rem 1rem rgb(0 0 0 / 0.1);
+}
+
+header nav li li > ul {
+  inset-block-start: -0.25rem;
+  inset-inline-start: 100%;
+}
+
+header nav li:hover > ul,
+header nav li:focus-within > ul {
+  display: flex;
+}
+
+header nav li > ul a,
+header nav li > ul span {
+  padding-inline: 0.75rem;
+}
+
+/* The search box, last in the header, and the form on the search page. */
+.konzilo-search-box {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-inline-start: auto;
+}
+
+.konzilo-search-box label,
+.konzilo-search label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.konzilo-search form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.konzilo-search-box input,
+.konzilo-search input {
+  box-sizing: border-box;
+  inline-size: 11rem;
+  min-block-size: var(--site-target);
+  padding: 0 0.75rem;
+  font: inherit;
+  color: var(--body-text);
+  background: var(--body-background);
+  border: 1px solid var(--body-rule);
+  border-radius: var(--site-radius);
+}
+
+.konzilo-search input {
+  flex: 1 1 16rem;
+}
+
+.konzilo-search-box button,
+.konzilo-search button {
+  box-sizing: border-box;
+  min-block-size: var(--site-target);
+  padding: 0 1rem;
+  font: inherit;
+  font-weight: 600;
+  color: var(--body-background);
+  background: var(--body-link);
+  border: 1px solid var(--body-link);
+  border-radius: var(--site-radius);
+  cursor: pointer;
+}
+
+.konzilo-search-box button:hover,
+.konzilo-search button:hover {
+  text-decoration: underline;
+}
+
+.konzilo-search-status {
+  margin-block: 1rem;
+  color: var(--body-muted);
+}
+
+.konzilo-search-results {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.konzilo-search-result {
+  padding-block: 1.25rem;
+  border-block-end: 1px solid var(--body-rule);
+}
+
+.konzilo-search-result > a {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--body-text);
+  text-decoration: none;
+}
+
+.konzilo-search-result > a:hover {
+  color: var(--body-link);
+  text-decoration: underline;
+}
+
+.konzilo-search-about {
+  margin-block: 0.125rem 0;
+  font-size: 0.875rem;
+  color: var(--body-muted);
+}
+
+.konzilo-search-snippet {
+  margin-block: 0.5rem 0;
+}
+
+/* The main content, in a column one can read. */
+main {
+  flex: 1 0 auto;
+  inline-size: min(100% - 2 * var(--site-gutter), var(--site-text-width));
+  margin-inline: auto;
+  padding-block: clamp(2rem, 5vw, 3.5rem);
+}
+
+main h1 {
+  margin-block: 0 0.5em;
+  font-family: var(--heading-font);
+  font-size: clamp(2rem, 1.5rem + 2.5vw, 2.75rem);
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+/* A post's head: its date, its terms and its image. */
+article > time {
+  display: block;
+  font-size: 0.9375rem;
+  color: var(--body-muted);
+}
+
+.body-text > time,
+.body-text > .terms {
+  margin-block-start: 0.75rem;
+}
+
+.terms,
+.terms ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.terms ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.terms li {
+  padding: 0.125rem 0.625rem;
+  font-size: 0.8125rem;
+  color: var(--body-muted);
+  background: var(--body-surface);
+  border: 1px solid var(--body-rule);
+  border-radius: 1em;
+}
+
+.featured-image {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  border-radius: var(--site-radius);
+}
+
+/* The breadcrumbs above a page's title. */
+main > nav:first-child {
+  margin-block-end: 1rem;
+  font-size: 0.875rem;
+  color: var(--body-muted);
+}
+
+main > nav:first-child ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+main > nav:first-child li + li::before {
+  content: "/";
+  margin-inline-end: 0.5rem;
+}
+
+.body-text > nav:first-child + h1 {
+  margin-block-start: 0;
+}
+
+/* The lists of posts: the start page's, a term page's and a post list's. */
+.post-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.post-list > li {
+  padding-block: 1.5rem;
+  border-block-end: 1px solid var(--body-rule);
+}
+
+.post-list > li:first-child {
+  padding-block-start: 0;
+}
+
+.post-list > li > a,
+.post-list > li > span {
+  font-family: var(--heading-font);
+  font-size: 1.375rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--body-text);
+  text-decoration: none;
+}
+
+.post-list > li > a:hover {
+  color: var(--body-link);
+  text-decoration: underline;
+}
+
+.post-list > li > time {
+  display: block;
+  margin-block-start: 0.25rem;
+  font-size: 0.875rem;
+  color: var(--body-muted);
+}
+
+.post-list > li > p {
+  margin-block: 0.5rem 0;
+  color: var(--body-muted);
+}
+
+.post-list-empty,
+.term-description {
+  color: var(--body-muted);
+}
+
+.term-description {
+  margin-block: 0 2rem;
+}
+
+.post-card-image {
+  border-radius: var(--site-radius);
+}
+
+.post-card-excerpt {
+  margin-block: 0.25rem 0;
+  font-size: 0.9375rem;
+  color: var(--body-muted);
+}
+
+/* The footer: the footer text and the publisher's details, each on a line
+   of its own, then the legal pages and the consent controls in one row. */
+body > footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1.25rem 2rem;
+  padding: 2.5rem var(--site-edge) 1.5rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--body-muted);
+  background: var(--body-surface);
+  border-block-start: 1px solid var(--body-rule);
+}
+
+.footer-text,
+.publisher {
+  flex: 1 0 100%;
+}
+
+.footer-text {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--body-text);
+}
+
+.publisher {
+  font-style: normal;
+}
+
+.publisher p {
+  margin: 0;
+}
+
+.publisher p:first-child {
+  font-weight: 600;
+  color: var(--body-text);
+}
+
+body > footer a,
+body > footer .konzilo-consent-secondary {
+  color: inherit;
+}
+
+body > footer a:hover,
+body > footer .konzilo-consent-secondary:hover {
+  color: var(--body-link);
+}
+
+body > footer nav ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+body > footer nav a {
+  display: flex;
+  align-items: center;
+  min-block-size: var(--site-target);
+}
+
+body > footer .konzilo-consent-controls {
+  margin-inline-start: auto;
+}
+
+body > footer .konzilo-consent-buttons {
+  gap: 0 1.5rem;
+}
+
+body > footer .konzilo-consent-secondary {
+  padding-inline: 0;
+}
+
+/* On a narrow window, and where there is no pointer to hover with: the
+   entries' own entries are always there, indented below them. */
+@media (max-width: 48rem), (hover: none) {
+  header nav li:has(> ul) > :first-child::after {
+    content: none;
+  }
+
+  header nav li > ul,
+  header nav li li > ul {
+    position: static;
+    display: flex;
+    min-inline-size: 0;
+    padding: 0 0 0 0.75rem;
+    background: none;
+    border: 0;
+    box-shadow: none;
+  }
+
+  header nav li > ul a,
+  header nav li > ul span {
+    padding-inline: 0;
+  }
+}
+
+@media (max-width: 48rem) {
+  body > header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .konzilo-search-box {
+    margin-inline-start: 0;
+  }
+
+  .konzilo-search-box input {
+    flex: 1 1 auto;
+    inline-size: auto;
+    min-inline-size: 0;
+  }
+
+  body > footer .konzilo-consent-controls {
+    margin-inline-start: 0;
+  }
+}

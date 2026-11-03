@@ -1,0 +1,311 @@
+/* Konzilo's consent banner, preferences dialog and footer controls, and the cookie declaration on the cookie policy page,
+   styled simply from the demo design's tokens, those body.css declares, and
+   the few of their own below. The components carry the classes
+   konzilo-consent-* and konzilo-declaration-*; the declaration sits in the
+   page's body text, whose styles its headings and tables take. A customer's
+   design replaces this file with its own. Whatever it looks like, it keeps an element the consent's script
+   has not shown hidden, Accept all and Reject optional alike, every target
+   at least 44 px, motion only for those who have not asked for less, and
+   the banner out of print. */
+
+:root {
+  --consent-background: #ffffff;
+  --consent-on-accent: #ffffff;
+  --consent-focus: #b35c00;
+  --consent-space: 1rem;
+  --consent-radius: 0.375rem;
+  --consent-target: 44px;
+}
+
+/* What the script has not shown stays hidden, whatever else styles it. */
+.konzilo-consent [hidden],
+.konzilo-consent-controls [hidden],
+.konzilo-declaration [hidden] {
+  display: none !important;
+}
+
+/* The banner: a compact box at the foot of the window that blocks nothing. */
+.konzilo-consent-banner {
+  position: fixed;
+  inset-inline: var(--consent-space);
+  inset-block-end: var(--consent-space);
+  z-index: 10;
+  box-sizing: border-box;
+  max-inline-size: 36rem;
+  max-block-size: calc(100vh - 2 * var(--consent-space));
+  margin-inline: auto;
+  overflow: auto;
+  padding: var(--consent-space);
+  font-family: var(--body-font);
+  color: var(--body-text);
+  background: var(--consent-background);
+  border: 1px solid var(--body-rule);
+  border-radius: var(--consent-radius);
+  box-shadow: 0 0.25rem 1.5rem rgb(0 0 0 / 0.2);
+}
+
+.konzilo-consent-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+}
+
+.konzilo-consent-text,
+.konzilo-consent-introduction {
+  margin: 0 0 0.75rem;
+}
+
+.konzilo-consent-policies {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1rem;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.konzilo-consent-policies a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--consent-target);
+  color: var(--body-link);
+}
+
+/* The buttons wrap on a narrow screen. Accept all and Reject optional are
+   alike, and share a row equally; the third button is visibly secondary. */
+.konzilo-consent-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.konzilo-consent-buttons button,
+.konzilo-consent-close {
+  box-sizing: border-box;
+  min-block-size: var(--consent-target);
+  min-inline-size: var(--consent-target);
+  padding: 0.5rem 1rem;
+  font: inherit;
+  border-radius: var(--consent-radius);
+  cursor: pointer;
+}
+
+.konzilo-consent-choice {
+  flex: 1 1 10rem;
+  font-weight: 600;
+  color: var(--consent-on-accent);
+  background: var(--body-link);
+  border: 2px solid var(--body-link);
+}
+
+.konzilo-consent-secondary,
+.konzilo-consent-close {
+  color: var(--body-link);
+  background: transparent;
+  border: 2px solid transparent;
+  text-decoration: underline;
+}
+
+.konzilo-consent :focus-visible,
+.konzilo-consent-controls :focus-visible,
+.konzilo-declaration :focus-visible {
+  outline: 3px solid var(--consent-focus);
+  outline-offset: 2px;
+}
+
+/* The preferences dialog. */
+.konzilo-consent-dialog {
+  box-sizing: border-box;
+  inline-size: min(40rem, calc(100% - 2 * var(--consent-space)));
+  max-block-size: calc(100% - 2 * var(--consent-space));
+  padding: var(--consent-space);
+  font-family: var(--body-font);
+  color: var(--body-text);
+  background: var(--consent-background);
+  border: 1px solid var(--body-rule);
+  border-radius: var(--consent-radius);
+}
+
+.konzilo-consent-dialog::backdrop {
+  background: rgb(0 0 0 / 0.5);
+}
+
+.konzilo-consent-head,
+.konzilo-consent-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.konzilo-consent-head .konzilo-consent-title {
+  flex: 1 1 auto;
+  margin: 0;
+}
+
+.konzilo-consent-category {
+  padding-block: 0.75rem;
+  border-block-start: 1px solid var(--body-rule);
+}
+
+.konzilo-consent-category-name,
+.konzilo-consent-service-name {
+  flex: 1 1 auto;
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.konzilo-consent-service-name {
+  font-size: 1rem;
+}
+
+.konzilo-consent-count,
+.konzilo-consent-always {
+  color: var(--body-muted);
+}
+
+.konzilo-consent-description {
+  margin: 0.25rem 0 0.5rem;
+}
+
+.konzilo-consent-services summary {
+  padding-block: 0.625rem;
+  line-height: 1.5;
+  color: var(--body-link);
+  cursor: pointer;
+}
+
+.konzilo-consent-services ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.konzilo-consent-service {
+  padding-block: 0.5rem;
+  border-block-start: 1px dashed var(--body-rule);
+}
+
+.konzilo-consent-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 0.75rem;
+  margin: 0.5rem 0 0;
+}
+
+.konzilo-consent-facts dt {
+  font-weight: 600;
+}
+
+.konzilo-consent-facts dd {
+  margin: 0;
+}
+
+.konzilo-consent-facts ul {
+  padding-inline-start: 1.25rem;
+  list-style: disc;
+}
+
+.konzilo-consent-facts a {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--consent-target);
+  color: var(--body-link);
+}
+
+@media (max-width: 30rem) {
+  .konzilo-consent-facts {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* The cookie declaration: the visitor's own consent with its buttons, and
+   each service's facts beside their terms, then its table of what it
+   stores. */
+.konzilo-declaration-service {
+  margin-block: 1.5rem;
+  padding-block-start: 0.75rem;
+  border-block-start: 1px solid var(--body-rule);
+}
+
+.konzilo-declaration dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 1rem;
+}
+
+.konzilo-declaration dt {
+  font-weight: 600;
+}
+
+.konzilo-declaration dd {
+  margin: 0;
+}
+
+.konzilo-declaration dd ul {
+  margin: 0;
+  padding-inline-start: 1.25rem;
+}
+
+.konzilo-declaration-revised,
+.konzilo-declaration-no-script {
+  color: var(--body-muted);
+}
+
+@media (max-width: 30rem) {
+  .konzilo-declaration dl {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* A switch: a track with a knob, the whole of it a 44 px target. */
+.konzilo-consent-switch {
+  flex: none;
+  box-sizing: border-box;
+  inline-size: 4.5rem;
+  block-size: var(--consent-target);
+  margin: 0;
+  appearance: none;
+  background: radial-gradient(circle 14px at 20px 50%, var(--consent-background) 95%, transparent 100%) var(--body-muted);
+  border: 2px solid var(--body-muted);
+  border-radius: calc(var(--consent-target) / 2);
+  cursor: pointer;
+}
+
+.konzilo-consent-switch:checked {
+  background: radial-gradient(circle 14px at calc(100% - 20px) 50%, var(--consent-background) 95%, transparent 100%) var(--body-link);
+  border-color: var(--body-link);
+}
+
+.konzilo-consent-switch:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Motion only for a visitor who has not asked for less. */
+@media (prefers-reduced-motion: no-preference) {
+  .konzilo-consent-banner {
+    animation: konzilo-consent-in 0.2s ease-out;
+  }
+
+  .konzilo-consent-switch {
+    transition: background-color 0.15s;
+  }
+}
+
+@keyframes konzilo-consent-in {
+  from {
+    opacity: 0;
+    transform: translateY(1rem);
+  }
+}
+
+/* The banner, the dialog and the buttons that need a screen stay out of
+   print. */
+@media print {
+  .konzilo-consent-banner,
+  .konzilo-consent-dialog,
+  .konzilo-consent-controls .konzilo-consent-buttons,
+  .konzilo-declaration .konzilo-consent-buttons {
+    display: none !important;
+  }
+}
