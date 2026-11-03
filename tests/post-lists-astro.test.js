@@ -152,7 +152,7 @@ function build(files, options) {
     mkdirSync(dirname(join(repository, path)), { recursive: true });
     writeFileSync(join(repository, path), contents);
   };
-  write('astro.config.mjs', `import konzilo from ${JSON.stringify(integration)};\n\nexport default { cacheDir: './${CACHE_DIR}', integrations: [konzilo(${JSON.stringify(options)})] };\n`);
+  write('astro.config.mjs', `import konzilo from ${JSON.stringify(integration)};\n\nexport default { cacheDir: './${CACHE_DIR}', vite: { cacheDir: './${CACHE_DIR}/vite' }, integrations: [konzilo(${JSON.stringify(options)})] };\n`);
   write('src/content.config.mjs', `import { collections as konziloCollections } from ${JSON.stringify(integration)};\n\nexport const collections = konziloCollections();\n`);
   write('site-description.json', JSON.stringify(site));
   write('src/pages/[...slug].astro', template('articles'));
@@ -282,7 +282,7 @@ describe('a list with pages', () => {
   });
 
   test('builds the pages below a base of its own, as the preview is, the pager and page/1/ leading below it', () => {
-    const config = `import konzilo from ${JSON.stringify(integration)};\n\nexport default { base: '/preview/abc/', cacheDir: './${CACHE_DIR}', integrations: [konzilo(${JSON.stringify({ presentations })})] };\n`;
+    const config = `import konzilo from ${JSON.stringify(integration)};\n\nexport default { base: '/preview/abc/', cacheDir: './${CACHE_DIR}', vite: { cacheDir: './${CACHE_DIR}/vite' }, integrations: [konzilo(${JSON.stringify({ presentations })})] };\n`;
     const preview = build({ 'content/sections/paged.json': term('Paged'), 'content/pages/news.md': news, ...articles, 'astro.config.mjs': config }, { presentations });
     assert.equal(preview.status, 0, preview.output);
     assert.match(preview.main('pages/news/page/2'), /<a href="\/preview\/abc\/pages\/news\/page\/2\/" aria-label="Page 2" aria-current="page">2<\/a>/);
