@@ -31,7 +31,7 @@
     "content-format.md"
   ],
   "scripts": {
-    "test": "node --test --test-concurrency=3 \"tests/**/*.test.js\""
+    "test": "node scripts/test.js"
   },
   "dependencies": {
     "lightningcss": "1.33.0",
