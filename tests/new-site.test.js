@@ -74,6 +74,18 @@ describe('new-site', () => {
     }
   });
 
+  test('gives the site its own ports, with the same three every time, and points Compose at this core', () => {
+    const settings = readFileSync(join(site, '.env'), 'utf8');
+    const port = (key) => Number(new RegExp(`^KONZILO_PORT_${key}=(\\d+)$`, 'm').exec(settings)[1]);
+    assert.ok(port('SITE') >= 20000 && port('SITE') < 30000);
+    assert.equal(port('ADMIN'), port('SITE') + 1);
+    assert.equal(port('GIT'), port('SITE') + 2);
+    assert.match(settings, /^KONZILO_SITE=lantern$/m);
+    assert.ok(readFileSync(join(site, 'compose.yaml'), 'utf8').includes(`path: ${realpathSync(core).replace(/\/$/, '')}/compose/compose.yaml`));
+    assert.match(run('git', ['-C', site, 'ls-files'], folder).stdout, /^\.env$/m);
+    assert.match(run('git', ['-C', site, 'ls-files'], folder).stdout, /^local-secrets\/account-password$/m);
+  });
+
   test('refuses to make a site over a folder that is there', () => {
     const again = run(join(core, 'bin/new-site'), ['lantern'], folder);
     assert.equal(again.status, 1);

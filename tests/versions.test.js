@@ -13,7 +13,7 @@ const core = fileURLToPath(new URL('../', import.meta.url));
 const versions = (...args) => spawnSync('sh', [join(core, 'scripts/versions'), ...args], { encoding: 'utf8' });
 
 test('prints every pin, one pin by its key, and refuses an unknown key', () => {
-  assert.match(versions().stdout, /^NODE=\d/m);
+  assert.match(versions().stdout, /^NODE_RELEASE=\d/m);
   assert.match(versions('ASTRO').stdout.trim(), /^\d+\.\d+\.\d+$/);
   assert.equal(versions('NO_SUCH_PIN').status, 1);
 });

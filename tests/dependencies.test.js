@@ -1,0 +1,43 @@
+// Every package the core imports is one it declares. In this repository's own
+// node_modules a package a test tool brings along resolves too, so a missing line
+// only shows when a real site installs the core as a copy.
+
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { builtinModules } from 'node:module';
+import { join } from 'node:path';
+import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
+
+const core = fileURLToPath(new URL('../', import.meta.url));
+const manifest = JSON.parse(readFileSync(join(core, 'package.json'), 'utf8'));
+
+const shipped = execFileSync('git', ['ls-files', 'src', 'bin'], { cwd: core, encoding: 'utf8' })
+  .split('\n')
+  .filter((path) => /\.(js|mjs|astro)$/.test(path));
+
+// A site has Astro by its own pin, and only the web server's image holds the editor,
+// built from this repository's own dependencies.
+const provided = new Set(['astro', '@sveltia/cms', ...builtinModules, ...builtinModules.map((name) => `node:${name}`)]);
+
+const packageOf = (specifier) => specifier.split('/').slice(0, specifier.startsWith('@') ? 2 : 1).join('/');
+
+test('every package the shipped code imports is declared', () => {
+  const declared = new Set([...Object.keys(manifest.dependencies ?? {}), ...Object.keys(manifest.peerDependencies ?? {})]);
+  const missing = new Map();
+  for (const path of shipped) {
+    const text = readFileSync(join(core, path), 'utf8');
+    for (const [, specifier] of text.matchAll(/(?:^|\n)\s*(?:import|export)\b[^'"`\n]*?from\s+['"]([^'"]+)['"]|(?:^|\n)\s*import\s+['"]([^'"]+)['"]/g)) {
+      if (!specifier || /^[./#]/.test(specifier) || specifier.startsWith('astro:') || specifier.startsWith('virtual:')) continue;
+      const name = packageOf(specifier);
+      if (!provided.has(name) && !provided.has(specifier) && !declared.has(name)) missing.set(name, path);
+    }
+  }
+  assert.deepEqual([...missing], []);
+});
+
+test('the editor is not among them, since only the web server\'s image holds it', () => {
+  assert.equal(manifest.dependencies['@sveltia/cms'], undefined);
+  assert.equal(manifest.devDependencies['@sveltia/cms'], execFileSync('sh', [join(core, 'scripts/versions'), 'SVELTIA'], { encoding: 'utf8' }).trim());
+});

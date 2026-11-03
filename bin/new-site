@@ -5,7 +5,7 @@
 #
 # Creates the folder <name> in the current directory as a git repository with
 # one commit: the site template (site-template/files/), with the core pinned
-# by its path in package.json. A site's demo content, which is fictional, comes
+# by its path in package.json and compose.yaml. A site's demo content, which is fictional, comes
 # from the core the first time `npm run dev` or `npm run build` runs and finds
 # no content/ folder.
 #
@@ -39,11 +39,16 @@ trap 'status=$?; [ "$status" -eq 0 ] || rm -rf "$target"; exit "$status"' EXIT
 # Every pin, checked as a whole before anything is written.
 astro=$(sh "$core/scripts/versions" ASTRO)
 
+# Three ports in a row, from the name, so that two sites on one machine seldom meet.
+base=$((20000 + $(printf '%s' "$name" | cksum | cut -d' ' -f1) % 1000 * 10))
+
 mkdir "$target"
 template="$core/site-template/files"
 (cd "$template" && find . -type f) | while IFS= read -r file; do
 	mkdir -p "$target/$(dirname "$file")"
-	sed -e "s|@NAME@|$name|g" -e "s|@ASTRO@|$astro|g" -e "s|@CORE@|file:$core|g" "$template/$file" >"$target/$file"
+	sed -e "s|@NAME@|$name|g" -e "s|@ASTRO@|$astro|g" -e "s|@CORE@|file:$core|g" -e "s|@CORE_PATH@|$core|g" \
+		-e "s|@PORT_SITE@|$((base + 1))|g" -e "s|@PORT_ADMIN@|$((base + 2))|g" -e "s|@PORT_GIT@|$((base + 3))|g" \
+		"$template/$file" >"$target/$file"
 done
 
 git -C "$target" init --quiet --initial-branch=main
@@ -53,4 +58,8 @@ git -C "$target" -c user.name="${GIT_AUTHOR_NAME:-$(git config user.name || echo
 	commit --quiet --message="Create the site $name with new-site"
 
 trap - EXIT
-echo "new-site: created $target; start it with: cd $name && npm install && npm run dev"
+echo "new-site: created $target"
+echo "  In containers, with Forgejo and the editor: cd $name && docker compose up --wait"
+echo "    The site: http://localhost:$((base + 1))"
+echo "    The editor: http://localhost:$((base + 2)), as anna; docker compose run --rm code gives the code"
+echo "  Just the templates, on this machine: cd $name && npm install && npm run dev"

@@ -7,10 +7,10 @@
 | Container | Holds | Runs | Network |
 |---|---|---|---|
 | `forgejo` | The vendor's rootless image at a pinned digest: accounts, repositories | Always, or started on demand later | Reached by the web server and the builder |
-| `visitors` | The service's code alone | When a request comes | Reached by the web server; reaches only the mail adapter |
-| `editors` | The service's code; a read credential for the source repository | While someone edits | Reached by the web server; reaches Forgejo |
-| `builder` | The intake, Astro, Git, sharp | One build, then gone | Reaches Forgejo through the proxy only, so a dependency's code cannot call out |
-| `preview` | Astro's dev server, the site's code, the preview's files | While someone edits, under a cap | Reached by the web server only |
+| `visitors` | The service's code alone | Up, and works when a request comes | Reached by the web server; reaches only the mail adapter |
+| `editors` | The service's code; a read credential for the source repository | Up, and works while someone edits | Reached by the web server; reaches Forgejo |
+| `builder` | The intake, Astro, Git, sharp | Up and asleep, with one build at a time, in Compose (ADR 0002); one build, then gone, where the hosting layer starts it | Reaches Forgejo through the proxy only, so a dependency's code cannot call out |
+| `preview` | Astro's dev server, the site's code, the preview's files | Up and asleep, with the dev server only while someone edits, under a cap | Reached by the web server only |
 | Web server | Caddy at a pinned digest, without its file capability: static pages | Always; one per server in hosting | The only one with public ports |
 | Typesense | The vendor's image: published text alone, with a key per site | Always; one per server in hosting | Its own network |
 

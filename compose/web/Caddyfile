@@ -1,0 +1,73 @@
+# One port per host, each its own origin, as ADR 0002 has it locally.
+
+{
+	admin off
+	auto_https off
+	persist_config off
+	skip_install_trust
+}
+
+# The public site: static pages, and nothing that holds a draft.
+:{$KONZILO_PORT_SITE} {
+	root * /srv/site
+	file_server
+	handle_errors {
+		rewrite * /404.html
+		file_server
+	}
+}
+
+# The editor (ADR 0029): static files, with a policy of its own and no cross-origin
+# opener policy, since its sign-in uses a popup. It holds a write token in the
+# browser, so it never shows anything an editor wrote as HTML.
+:{$KONZILO_PORT_ADMIN} {
+	header {
+		Content-Security-Policy "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: {$KONZILO_FORGEJO_ORIGIN}; media-src 'self' blob: {$KONZILO_FORGEJO_ORIGIN}; font-src 'self' data:; connect-src 'self' blob: data: {$KONZILO_FORGEJO_ORIGIN}; worker-src 'self' blob:; manifest-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+		Referrer-Policy "no-referrer"
+		X-Content-Type-Options "nosniff"
+	}
+	handle /config.json {
+		root * /srv/admin-config
+		header Cache-Control "no-store"
+		file_server
+	}
+	handle {
+		root * /srv/admin
+		try_files {path} /index.html
+		file_server
+	}
+}
+
+# Forgejo, closed at the proxy but for what signing in, saving and media need
+# (ADR 0007). No Forgejo setting turns tokens off, so this is the one place to do it,
+# and it stands from the first start, since a token made before it goes on working.
+:{$KONZILO_PORT_GIT} {
+	# First, and inside a handle: Caddy runs `handle` before a bare `respond`.
+	@refused path_regexp (?i)^/api/v1/(users/[^/]+/tokens|user/applications|user/keys|user/gpg_keys)
+	handle @refused {
+		respond 404
+	}
+
+	@open {
+		path /user/login /user/login/* /user/two_factor /user/two_factor/* /user/webauthn /user/webauthn/* /user/logout
+		path /user/forgot_password /user/recover_account
+		path /user/settings/security /user/settings/security/*
+		path /login/oauth/* /assets/* /avatars/* /api/v1/* /api/forgejo/* /api/healthz
+	}
+	handle @open {
+		reverse_proxy forgejo:3000 {
+			header_up -X-Real-IP
+		}
+	}
+
+	@repository path_regexp ^/{$KONZILO_REPOSITORY}(\.git/info/lfs|/media|/raw)/
+	handle @repository {
+		reverse_proxy forgejo:3000 {
+			header_up -X-Real-IP
+		}
+	}
+
+	handle {
+		respond 404
+	}
+}

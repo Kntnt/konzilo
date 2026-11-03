@@ -1,0 +1,9 @@
+# This site in containers, with a Forgejo of its own: `docker compose up --wait`.
+# The core says what runs, so that a fix reaches every site with the core's pin.
+
+include:
+  - path: @CORE_PATH@/compose/compose.yaml
+    project_directory: .
+    env_file:
+      - .env
+      - @CORE_PATH@/versions.env
