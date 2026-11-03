@@ -5,7 +5,7 @@ modified: 2026-01-05T08:00:00Z
 excerpt: "The open orchard welcomes the quiet lantern."
 categories: ["kitchens","workshops"]
 tags: ["islands","kitchens"]
-image: {"src":"../media/northern-islands-and-the-meadow-9fd4d48b22.webp","alt":"A distant landscape with a low sun over the land"}
+image: {"src":"../media/northern-islands-and-the-meadow-d1cb95f9d6.webp","alt":"A distant landscape with a low sun over the land"}
 seo: {"title":"Patient meadows and the harbour, in short","description":"The open garden remembers the distant kitchen. The open island follows the open river."}
 ---
 

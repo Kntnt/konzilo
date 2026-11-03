@@ -36,7 +36,8 @@ function postParts(contents) {
   return { fields, body: match[2], bodyLine: head === '' ? 3 : head.split('\n').length + 3 };
 }
 
-const titleOf = (fields) => (typeof fields.title === 'string' && fields.title.trim() !== '' ? fields.title.trim() : null);
+// A title of digits alone is a number to YAML, and still the post's title.
+const titleOf = ({ title }) => (typeof title === 'number' ? String(title) : typeof title === 'string' && title.trim() !== '' ? title.trim() : null);
 
 // What a JSON file of an Admin's holds: { value } or { refusal }.
 function jsonFile(file) {

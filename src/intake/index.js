@@ -68,10 +68,10 @@ export function intake({ files, site: described, now, ledger = null, changes = {
   return assemble(run);
 }
 
-function groupBy(list, keyOf2) {
+function groupBy(list, by) {
   const groups = new Map();
   for (const item of list) {
-    const key = keyOf2(item);
+    const key = by(item);
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(item);
   }
@@ -439,6 +439,7 @@ function holdAddresses(run) {
   const { site } = run;
   const before = run.refused.size;
   run.live = new Map();
+  run.roundWarnings = [];
   const holders = new Map();
   const claim = (key, entry) => {
     if (!holders.has(key)) holders.set(key, []);
@@ -476,7 +477,7 @@ function holdAddresses(run) {
     const sorted = [...claims].sort((a, b) => Number(Boolean(current(b))) - Number(Boolean(current(a))) || earlier(run, a.post, b.post));
     const [winner, ...losers] = sorted;
     for (const { post, kept } of losers) {
-      if (kept || post === winner.post) continue;
+      if (kept || post === winner.post || run.refused.has(post.key)) continue;
       refuse(run, post, { field: 'slug', reason: say('address-held', { address: key.startsWith('file:') ? key.slice(5) : post.place.address, holder: winner.post.title ?? winner.post.id }) });
     }
   }
@@ -484,8 +485,8 @@ function holdAddresses(run) {
   for (const post of candidates) {
     const { address } = post.place;
     if (!address) continue;
-    const site2 = siteHolder(address, site);
-    if (site2) refuse(run, post, { field: 'slug', reason: site2 });
+    const holder = siteHolder(address, site);
+    if (holder) refuse(run, post, { field: 'slug', reason: holder });
   }
   if (run.refused.size !== before) return true;
   for (const post of candidates) run.live.set(post.key, post.place);
@@ -511,13 +512,13 @@ function holdAddresses(run) {
     if (rule.post) {
       const post = run.posts.get(rule.post) ?? run.postsById.get(rule.post)?.[0];
       if (post && run.live.has(post.key) && post.type.address !== null) post.ruleOthers.push({ address: rule.from, answer: rule.status });
-      else run.warnings.push(named({ file: REDIRECTS_FILE, reason: say('rule-post-off', { source: rule.from }) }));
+      else run.roundWarnings.push(named({ file: REDIRECTS_FILE, reason: say('rule-post-off', { source: rule.from }) }));
     } else if (rule.term) {
       const page = run.termPages.get(`${run.termsById.get(rule.term)?.key}`);
       if (page) run.siteRules.push({ from: rule.from, to: page, status: rule.status });
-      else run.warnings.push(named({ file: REDIRECTS_FILE, reason: say('rule-post-off', { source: rule.from }) }));
+      else run.roundWarnings.push(named({ file: REDIRECTS_FILE, reason: say('rule-post-off', { source: rule.from }) }));
     } else {
-      const toPost = typeof rule.to === 'string' ? byAddress.get(keyOf2(rule.to)) : undefined;
+      const toPost = typeof rule.to === 'string' ? byAddress.get(targetKey(rule.to)) : undefined;
       if (toPost) toPost.ruleOthers.push({ address: rule.from, answer: rule.status });
       else run.siteRules.push(rule);
     }
@@ -544,13 +545,10 @@ function holdAddresses(run) {
   return false;
 }
 
-const keyOf2 = (to) => {
-  try {
-    const [path] = to.split('#');
-    return path.startsWith('/') ? keyOf(path) : null;
-  } catch {
-    return null;
-  }
+// The key of a rule's target, when it is a path on the site.
+const targetKey = (to) => {
+  const [path] = to.split('#');
+  return path.startsWith('/') ? keyOf(path) : null;
 };
 
 const pagedList = (post) => /^::post-list\{[^}]*\bpages="true"/m.test(post.body);
@@ -627,8 +625,6 @@ function oldAddressesOf(post, run) {
   }).sort();
 }
 
-const yamlDate = (moment) => moment;
-
 // A post's whole file, with its derived fields, or a body's problems as refusals.
 function writePost(post, run) {
   const path = post.place.file;
@@ -658,7 +654,7 @@ function writePost(post, run) {
   }
   const published = publishedHash(lines, body);
   const first = !previous?.published;
-  const modified = previous?.published === published ? previous.modified : first ? yamlDate(own ?? taken) : run.nowText;
+  const modified = previous?.published === published ? previous.modified : first ? own ?? taken : run.nowText;
   const finished = lines.map(([key, value]) => [key, value === 'PENDING' ? modified : value]);
   post.written = {
     path,
@@ -753,7 +749,7 @@ function notFoundFiles(run, files) {
   }
 }
 
-function termFiles(run, files, keep) {
+function termFiles(run, files) {
   const wanted = new Map();
   for (const post of run.source.posts) {
     const written = post.written;
@@ -775,7 +771,6 @@ function termFiles(run, files, keep) {
       ...(parent ? { parent: `${folder}${parent.slug}` } : {}),
     }));
   }
-  void keep;
 }
 
 // The settings of each language, and what a choice of a post and an image lead to.
@@ -878,6 +873,7 @@ function consentFile(run, files, settings, embeds) {
   files.set(file.path, file.contents);
   const registry = JSON.parse(file.contents);
   run.consentRecord = { revision: registry.revision, revised: registry.revised };
+  if (!settings.values.search?.publisher?.name) run.warnings.push(named({ file: 'settings.json', setting: 'search.publisher.name', reason: say('publisher-missing') }));
   const legal = settings.values.legalPages ?? {};
   if (asksConsent && !legal.privacyPolicy) run.warnings.push(named({ file: 'settings.json', setting: 'legalPages.privacyPolicy', reason: say('legal-missing', { page: 'privacy policy' }) }));
   if (asksConsent && !legal.cookiePolicy) run.warnings.push(named({ file: 'settings.json', setting: 'legalPages.cookiePolicy', reason: say('legal-missing', { page: 'cookie policy' }) }));
@@ -885,6 +881,7 @@ function consentFile(run, files, settings, embeds) {
 
 function assemble(run) {
   const { source, ledger } = run;
+  run.warnings.push(...run.roundWarnings);
   const files = new Map();
   const keep = new Set();
   const masters = new Map();
@@ -905,7 +902,7 @@ function assemble(run) {
     for (const [path, contents] of post.written.masters) masters.set(path, contents);
     for (const service of post.written.embeds ?? []) embeds.add(service);
   }
-  termFiles(run, files, keep);
+  termFiles(run, files);
   let settings = { refused: true, masters: new Map(), values: null };
   if (!run.settingsRefused) settings = settingsFiles(run, files);
   for (const [path, contents] of settings.masters) masters.set(path, contents);

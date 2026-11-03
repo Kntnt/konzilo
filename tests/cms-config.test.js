@@ -138,7 +138,7 @@ test('every file of the demo source fits the collections, by ID', () => {
   const categories = JSON.parse(/\ncategories: (\[.*\])\n/.exec(article)[1]);
   assert.equal(categories.length, 2);
   for (const id of categories) assert.ok(terms.has(id), id);
-  assert.match(article, /\nimage: \{"src":"\/media\/quiet-harbours-and-the-lantern-a59d3bf93d\.webp",/);
+  assert.match(article, /\nimage: \{"src":"\/media\/quiet-harbours-and-the-lantern-737b017c8a\.webp",/);
 });
 
 test('gives a child page its parent by ID, and gives the same files each time', () => {

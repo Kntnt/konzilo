@@ -123,13 +123,3 @@ const blank = (post, run) => ({
 });
 
 export const ledgerFile = (ledger) => `${JSON.stringify(ledger, null, 2)}\n`;
-
-// What feeds read of the ledger: the ID of each post's file, by the file's path.
-export function postIdsByPath(ledger) {
-  const ids = {};
-  if (!isObject(ledger?.posts)) return ids;
-  for (const [key, entry] of Object.entries(ledger.posts)) {
-    if (typeof entry?.path === 'string') ids[entry.path] = key.split('/').at(-1);
-  }
-  return ids;
-}

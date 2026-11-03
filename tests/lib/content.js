@@ -163,7 +163,7 @@ export function writeSite(folder, declared, posts, { menus = {}, settings = {}, 
     });
   } else files['settings.json'] = settingsFile(declared, { identity, settings, groups });
   files['redirects.json'] = `${JSON.stringify({ rules: redirects }, null, 2)}\n`;
-  files['.post-ids.json'] = `${JSON.stringify(Object.fromEntries(Object.entries(ids).sort()), null, 2)}\n`;
+  files['.post-ids.json'] = `${JSON.stringify({ posts: Object.fromEntries(Object.entries(ids).sort().map(([path, id]) => [String(id), { path }])) }, null, 2)}\n`;
   if (registry !== null) files['consent.json'] = `${JSON.stringify(registry, null, 2)}\n`;
   writeFiles(folder, files);
 }

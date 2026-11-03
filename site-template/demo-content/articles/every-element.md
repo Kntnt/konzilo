@@ -54,11 +54,11 @@ npm run dev
 
 https://www.youtube.com/watch?v=Kz3pQ8vXw1A
 
-![A landscape with a low sun](../media/golden-harbours-and-the-harbour-d11f7fbef0.webp)\
+![A landscape with a low sun](../media/every-element-898a545757.webp)\
 The land _at dusk_
 
-![A landscape in the morning](../media/hidden-meadows-and-the-bridge-9fd3e3631e.webp)
-![A landscape at noon](../media/northern-islands-and-the-meadow-9fd4d48b22.webp)
+![A landscape in the morning](../media/every-element-f3cd184b52.webp)
+![A landscape at noon](../media/every-element-d1cb95f9d6.webp)
 Three times of the day
 
 [^1]: A footnote's text.

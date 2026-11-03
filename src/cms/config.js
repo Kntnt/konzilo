@@ -46,6 +46,11 @@ const TEXTS = {
   labelHint: { en: "The post's title, if left empty.", sv: 'Inläggets titel om du lämnar den tom.' },
   post: { en: 'Post', sv: 'Inlägg' },
   url: { en: 'Address', sv: 'Adress' },
+  perType: { en: 'By type of post', sv: 'Per inläggstyp' },
+  otherAddresses: { en: 'Other addresses', sv: 'Andra adresser' },
+  otherAddress: { en: 'Other address', sv: 'Annan adress' },
+  answer: { en: 'Answer', sv: 'Svar' },
+  otherShow: { en: 'Show the post here too', sv: 'Visa inlägget här också' },
   urlHint: { en: 'Only for an entry that does not lead to a post.', sv: 'Bara för en post som inte leder till ett inlägg.' },
 };
 
@@ -169,7 +174,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site }) 
     const parts = [
       ...settingFields(group.settings),
       ...group.parts.map((one) => part(one.name, one.label, one.description, settingFields(one.settings))),
-      ...(group.types ?? []).map((one) => part(one.type, one.label, null, settingFields(one.settings))),
+      ...(group.types === null ? [] : [part('types', say('perType'), null, group.types.map((one) => part(one.type, one.label, null, settingFields(one.settings))))]),
       ...(group.each ?? []).map((one) => part(one.name, one.label, null, settingFields(one.settings))),
     ];
     return part(group.name, group.label, group.description, parts);
@@ -229,6 +234,28 @@ export function cmsConfig(description, { forgejo, repository, clientId, site }) 
     }
   };
 
+  // What else answers with a post: a redirect to it, or the post shown there too. Rules
+  // the site keeps are the Redirects page's (ADR 0036).
+  const otherAddressesField = () => ({
+    name: 'otherAddresses',
+    label: say('otherAddresses'),
+    label_singular: say('otherAddress'),
+    widget: 'list',
+    required: false,
+    collapsed: true,
+    ...within(SAME_IN_EACH),
+    fields: [
+      { name: 'address', label: say('url'), widget: 'string' },
+      {
+        name: 'answer',
+        label: say('answer'),
+        widget: 'select',
+        default: '301',
+        options: ['301', '302', '307', '308'].map((value) => ({ value, label: value })).concat({ value: 'show', label: say('otherShow') }),
+      },
+    ],
+  });
+
   const typeCollection = (type) => ({
     name: type.collection,
     label: type.plural,
@@ -256,6 +283,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site }) 
         ...within(SAME_IN_EACH),
       },
       ...type.fields.map(postField).filter(Boolean),
+      ...(type.address === null ? [] : [otherAddressesField()]),
       { name: 'body', label: say('body'), widget: 'markdown', required: false, ...within(TRANSLATED) },
     ],
   });

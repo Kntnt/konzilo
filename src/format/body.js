@@ -130,6 +130,7 @@ function inlineOf(children, allowed, scope, element, inLink = false) {
   const root = [];
   const stack = [{ tag: null, children: root }];
   const push = (node) => stack.at(-1).children.push(node);
+  const linked = () => inLink || stack.some(({ tag }) => tag === 'a');
   const check = (name, node) => {
     if (allowed.includes(name)) return true;
     refuse(scope, node, element, 'inline-element', { inline: inlineLabel(scope.rules, name), element: labelOf(scope.rules, element) });
@@ -156,7 +157,7 @@ function inlineOf(children, allowed, scope, element, inLink = false) {
         if (check('br', node)) push({ type: 'break' });
         break;
       case 'footnoteReference':
-        if (inLink) refuse(scope, node, element, 'footnote-place');
+        if (linked()) refuse(scope, node, element, 'footnote-place');
         else if (check('footnote', node)) {
           const mark = { type: 'footnote', n: scope.written ? Number(node.identifier) : node.identifier };
           scope.marks?.push({ mark, node, path: scope.path, element });
@@ -164,7 +165,7 @@ function inlineOf(children, allowed, scope, element, inLink = false) {
         }
         break;
       case 'link': {
-        if (inLink) {
+        if (linked()) {
           // GFM reads an address inside a raw link as a link of its own. In a source
           // that is the raw link's text; in a written body it is a misreading.
           if (scope.written) push({ type: 'unreadable' });
@@ -603,7 +604,6 @@ function listOf(node, scope) {
     const inner = { ...scope, path: `${scope.path}.${index + 1}`, top: false };
     if (!scope.written) {
       if (item.checked !== null && item.checked !== undefined) refuse(inner, item, element, 'list-task');
-      if (item.spread) refuse(inner, item, element, 'list-loose');
     }
     const [first, second, ...rest] = item.children;
     if (first?.type !== 'paragraph') {
@@ -616,6 +616,7 @@ function listOf(node, scope) {
       refuse(inner, item, element, 'list-item-blocks');
       return null;
     }
+    if (!scope.written && item.spread) refuse(inner, item, element, 'list-loose');
     const children = textOf(first.children, allowed, inner, element, first);
     if (children.length === 0 && !scope.written) {
       refuse(inner, item, element, 'list-item-empty');
@@ -652,7 +653,7 @@ function quoteOf(node, scope) {
     }
     children.push(...blockOf(child, inner));
   });
-  if (!scope.written && children.length === 0 && citation === null) {
+  if (!scope.written && node.children.length === 0) {
     refuse(scope, node, element, 'quote-empty');
     return [];
   }
@@ -678,15 +679,12 @@ function citationIn(paragraph, last, scope) {
   return textOf(children.slice(1, -1), scope.rules.elements.quote.citation, scope, 'quote', paragraph);
 }
 
-// A code block: at the top level, never empty, its lines without spaces at their
-// ends. A language reads the same on the site, so it goes with a warning.
+// A code block, which a quote cannot hold and a list's item neither: never empty, its
+// lines without spaces at their ends. A code block has no language, so one goes, with a
+// warning.
 function codeOf(node, scope) {
   const element = 'code';
   if (!taken(scope, node, element)) return [];
-  if (!scope.written && !scope.top) {
-    refuse(scope, node, element, 'code-place');
-    return [];
-  }
   const value = node.value.replace(/[ \t]+$/gm, '');
   if (!scope.written && value.trim() === '') {
     refuse(scope, node, element, 'code-empty');
@@ -700,10 +698,6 @@ function codeOf(node, scope) {
 function tableOf(node, scope) {
   const element = 'table';
   if (!taken(scope, node, element)) return [];
-  if (!scope.written && !scope.top) {
-    refuse(scope, node, element, 'table-place');
-    return [];
-  }
   const allowed = scope.rules.elements[element].inline;
   const columns = node.align.length;
   const cellOf = (cell, row, column) => ({
@@ -762,13 +756,7 @@ const CELL_MARKS = { strong: 'strong', em: 'em', del: 's', sup: 'sup', sub: 'sub
 // the format's rules. A table that needs none of its forms is written as a pipe table.
 function structuredOf(node, html, scope) {
   const element = 'table';
-  if (!scope.written) {
-    if (!taken(scope, node, element)) return [];
-    if (!scope.top) {
-      refuse(scope, node, element, 'table-place');
-      return [];
-    }
-  }
+  if (!scope.written && !taken(scope, node, element)) return [];
   const bad = (key, values) => {
     if (scope.written) return [{ type: 'unreadable' }];
     refuse(scope, node, element, key, values);
@@ -941,10 +929,6 @@ function directiveOf(node, scope) {
   }
   if (form !== directive.form) {
     refuse(scope, node, element, 'directive-form', { name: node.name, form: directive.form === 'leaf' ? `::${node.name}, on a line of its own` : `:::${node.name}, around its body` });
-    return [];
-  }
-  if (!scope.top) {
-    refuse(scope, node, element, 'directive-place', { element: labelOf(rules, element) });
     return [];
   }
   if (!taken(scope, node, element)) return [];
@@ -1150,15 +1134,15 @@ function escapedText(value, context) {
     const c = chars[i];
     const before = i > 0 ? chars[i - 1] : context.before;
     const after = i + 1 < chars.length ? chars[i + 1] : context.after;
-    const rest = chars.slice(i + 1).join('');
+    const rest = () => chars.slice(i + 1).join('');
     if (c === '\\' || c === '*' || c === '`') out += `\\${c}`;
     else if (c === '_') out += ALNUM.test(before ?? '') && ALNUM.test(after ?? '') ? c : `\\${c}`;
-    else if (c === '&') out += readsAsEntity(`${c}${rest}`, context) ? `\\${c}` : c;
-    else if (c === '<') out += readsAsTag(rest, atStart && i === 0) ? `\\${c}` : c;
-    else if (c === ':') out += beginsDirective(rest, before, atStart && i === 0, level) || (context.afterMark && i === 0) ? `\\${c}` : c;
+    else if (c === '&') out += readsAsEntity(`${c}${rest()}`, context) ? `\\${c}` : c;
+    else if (c === '<') out += readsAsTag(rest(), atStart && i === 0) ? `\\${c}` : c;
+    else if (c === ':') out += beginsDirective(rest(), before, atStart && i === 0, level) || (context.afterMark && i === 0) ? `\\${c}` : c;
     else if (c === '|' && (cell || level >= 2)) out += `\\${c}`;
     else if (level >= 2 && (c === '[' || c === ']' || c === '!' || c === '~')) out += `\\${c}`;
-    else if (atStart && i === 0 && startsLine(c, rest, level)) out += `\\${c}`;
+    else if (atStart && i === 0 && startsLine(c, rest(), level)) out += `\\${c}`;
     else if (atStart && /^\d$/.test(c) && i < 9 && /^[.)]$/.test(after ?? '') && chars.slice(0, i + 1).every((one) => /^\d$/.test(one)) && /^(?:[ \t]|$)/.test(chars.slice(i + 2).join(''))) {
       out += `${c}\\${after}`;
       i += 1;
@@ -1429,12 +1413,12 @@ function altText(alt, level, scope) {
   let out = '';
   for (let i = 0; i < chars.length; i += 1) {
     const c = chars[i];
-    const rest = chars.slice(i + 1).join('');
+    const rest = () => chars.slice(i + 1).join('');
     if ('\\*`[]'.includes(c)) out += `\\${c}`;
     else if (c === '_') out += ALNUM.test(chars[i - 1] ?? '') && ALNUM.test(chars[i + 1] ?? '') ? c : `\\${c}`;
-    else if (c === '&') out += readsAsEntity(`${c}${rest}`, { scope }) ? `\\${c}` : c;
-    else if (c === '<') out += readsAsTag(rest, false) ? `\\${c}` : c;
-    else if (c === ':') out += beginsDirective(rest, chars[i - 1], false, level) ? `\\${c}` : c;
+    else if (c === '&') out += readsAsEntity(`${c}${rest()}`, { scope }) ? `\\${c}` : c;
+    else if (c === '<') out += readsAsTag(rest(), false) ? `\\${c}` : c;
+    else if (c === ':') out += beginsDirective(rest(), chars[i - 1], false, level) ? `\\${c}` : c;
     else if (level >= 2 && (c === '!' || c === '~')) out += `\\${c}`;
     else out += c;
   }
@@ -1495,7 +1479,7 @@ function bodyText(blocks, levels, scope) {
     lines.push(line);
     line += part.split('\n').length + 1;
   }
-  return { parts, lines, text: parts.join('\n\n') };
+  return { lines, text: parts.join('\n\n') };
 }
 
 // A top-level node of the written body as the model's block, for comparing.
@@ -1527,7 +1511,7 @@ export function writeBody(model, hands) {
   const levels = blocks.map(() => 0);
   const failed = new Set();
   for (;;) {
-    const { parts, lines, text } = bodyText(blocks, levels, scope);
+    const { lines, text } = bodyText(blocks, levels, scope);
     const tree = hands.reader.tree(text);
     const groups = blocks.map(() => []);
     for (const node of tree.children ?? []) {
@@ -1539,7 +1523,7 @@ export function writeBody(model, hands) {
     const wrong = blocks.findIndex((_, index) => !failed.has(index) && JSON.stringify(readWritten(groups[index], text, scope)) !== expected[index]);
     if (wrong === -1) {
       const body = failed.size > 0 ? null : text;
-      return { body, problems: sorted(scope.problems), warnings: sorted(scope.warnings), embeds: embedsOf(blocks, hands), levels, parts };
+      return { body, problems: sorted(scope.problems), warnings: sorted(scope.warnings), embeds: embedsOf(blocks, hands) };
     }
     if (levels[wrong] === MOST) {
       failed.add(wrong);

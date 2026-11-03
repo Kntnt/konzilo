@@ -1,23 +1,27 @@
-// The demo content as source files, as an editor's saves would leave them, for a
-// local copy's Forgejo to start with: a post or a term under its collection's
-// folder, named by an ID, with references by ID (ADR 0026). The published demo
-// content is the fiction's one record, and this reads it, so that the two cannot
-// tell different stories. An ID comes from the file's place, so that seeding twice
-// gives the same files.
+// Published content as source files, as an editor's saves would leave them: a post or a
+// term under its collection's folder, named by an ID, with references by ID (ADR 0026), an
+// image by its place in the media folder, and only the settings that differ from a
+// default. The published demo content is the fiction's one record, and this reads it, so
+// that the two cannot tell different stories, and a local copy's Forgejo starts with it.
+// An ID comes from the file's place, so that seeding twice gives the same files.
 
 import { createHash } from 'node:crypto';
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { isObject } from './checks.js';
+import { publicAddress } from './format/addresses.js';
+import { isSiteTitle } from './settings-groups.js';
 
 // Twelve hexadecimal digits, the shape of Sveltia's {{uuid_short}}.
-const idOf = (collection, slug) => createHash('sha256').update(`${collection}/${slug}`).digest('hex').slice(0, 12);
+export const idOf = (collection, place) => createHash('sha256').update(`${collection}/${place}`).digest('hex').slice(0, 12);
 
 const walk = (folder) => readdirSync(folder).flatMap((name) => {
+  if (name.startsWith('.')) return [];
   const path = join(folder, name);
   return statSync(path).isDirectory() ? walk(path) : [path];
 });
 
-// The demo's frontmatter has one key per line, each value JSON or a date.
+// The frontmatter of a content file has one key per line, each value JSON or a date.
 function parsePost(text) {
   const [, head, body] = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(text);
   const fields = {};
@@ -32,7 +36,7 @@ function parsePost(text) {
   return { fields, body };
 }
 
-const scalar = (value) => (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value) ? value : JSON.stringify(value));
+const scalar = (value) => (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}(?:T|$)/.test(value) ? value : JSON.stringify(value));
 
 const writePost = (fields, body) => `---\n${Object.entries(fields).map(([key, value]) => `${key}: ${scalar(value)}`).join('\n')}\n---\n${body}`;
 
@@ -41,13 +45,44 @@ const toMedia = (image) => {
   return { ...image, src: `/media/${image.src.split('/').at(-1)}` };
 };
 
-/**
- * @param {object} description the form siteDescription() returns
- * @param {string} demo the folder of published demo content
- * @returns {{ path: string, content: string|Buffer }[]} every source file, sorted by path
- */
-export function demoSource(description, demo) {
+const mediaPath = (src) => `/media/${src.split('/').at(-1)}`;
+
+// A post's place on a site: { collection, tag, language, place, address, id, title }.
+function postsOf(description, published) {
+  const several = description.languages.length > 1;
+  const posts = [];
+  for (const type of Object.values(description.types)) {
+    for (const { path, content } of published) {
+      if (!path.startsWith(`${type.collection}/`) || !path.endsWith('.md')) continue;
+      const within = path.slice(type.collection.length + 1, -'.md'.length);
+      const tag = several ? within.split('/')[0] : null;
+      const language = several ? description.languages.find((one) => one.tag === tag) : description.languages[0] ?? null;
+      const place = several ? within.slice(tag.length + 1) : within;
+      const { fields, body } = parsePost(content);
+      posts.push({ type, tag, language, place, fields, body, id: idOf(type.collection, place), address: type.address === null ? null : publicAddress(type, place, language) });
+    }
+  }
+  return posts;
+}
+
+// Body links that lead to a post by its address, as references by its ID, and images by
+// their place in the media folder, as the editing tool stores them. Code is left alone by
+// the simple means of a link's form: a line of code that holds one is written the same.
+function bodyAsSource(body, ids) {
+  return body
+    .replace(/(!\[[^\]\n]*\]\()(?:\.\.\/)*media\/([^)\s]+)\)/g, (_, open, name) => `${open}/media/${name})`)
+    .replace(/(?<!!)(\]\()(\/[^)\s#]*)(#[^)\s]*)?\)/g, (whole, open, address, fragment = '') => (ids.has(address) ? `${open}konzilo:${ids.get(address)}${fragment})` : whole))
+    .replace(/(<a href=")(\/[^"#]*)(#[^"]*)?"/g, (whole, open, address, fragment = '') => (ids.has(address) ? `${open}konzilo:${ids.get(address)}${fragment}"` : whole));
+}
+
+// Published content as source files. `published`: each { path, content }, as the content
+// folder holds them.
+export function sourceFrom(description, published) {
   const files = [];
+  const several = description.languages.length > 1;
+  const posts = postsOf(description, published);
+  const ids = new Map(posts.filter((post) => post.address).map((post) => [post.address, post.id]));
+  const titled = new Map(posts.filter((post) => post.address).map((post) => [post.address, post]));
   const fieldsTaking = new Map();
   for (const type of Object.values(description.types)) {
     for (const field of type.fields) {
@@ -56,67 +91,151 @@ export function demoSource(description, demo) {
   }
 
   for (const taxonomy of Object.values(description.taxonomies)) {
-    const folder = join(demo, taxonomy.collection);
-    if (!existsSync(folder)) continue;
-    for (const path of walk(folder)) {
-      const slug = relative(folder, path).replace(/\.json$/, '');
-      const term = JSON.parse(readFileSync(path, 'utf8'));
+    for (const { path, content } of published) {
+      if (!path.startsWith(`${taxonomy.collection}/`) || !path.endsWith('.json')) continue;
+      const within = path.slice(taxonomy.collection.length + 1, -'.json'.length);
+      const tag = several ? within.split('/')[0] : null;
+      const slug = several ? within.slice(tag.length + 1) : within;
+      const term = JSON.parse(content);
       const { parent, ...rest } = term;
       const written = {
         ...rest,
         slug,
-        ...(parent ? { parent: idOf(taxonomy.collection, parent) } : {}),
+        ...(parent ? { parent: idOf(taxonomy.collection, parent.split('/').at(-1)) } : {}),
       };
-      files.push({ path: `${taxonomy.collection}/${idOf(taxonomy.collection, slug)}.json`, content: `${JSON.stringify(written, null, 2)}\n` });
+      files.push({ path: `${taxonomy.collection}/${tag ? `${tag}/` : ''}${idOf(taxonomy.collection, slug)}.json`, content: `${JSON.stringify(written, null, 2)}\n` });
     }
   }
 
-  for (const type of Object.values(description.types)) {
-    const folder = join(demo, type.collection);
-    if (!existsSync(folder)) continue;
-    for (const path of walk(folder)) {
-      const place = relative(folder, path).replace(/\.md$/, '');
-      const { fields, body } = parsePost(readFileSync(path, 'utf8'));
-      const segments = place.split('/');
-      const slug = segments.at(-1);
-      const { modified: _derived, ...kept } = fields;
-      const written = { title: kept.title, slug, status: 'published' };
-      if (segments.length > 1) written.parent = idOf(type.collection, segments.slice(0, -1).join('/'));
-      for (const [key, value] of Object.entries(kept)) {
-        if (key === 'title') continue;
-        if (fieldsTaking.has(key)) written[key] = value.map((term) => idOf(fieldsTaking.get(key), term));
-        else if (key === 'image') written.image = toMedia(value);
-        else written[key] = value;
-      }
-      const id = idOf(type.collection, place);
-      files.push({ path: `${type.collection}/${id}.md`, content: writePost(written, body) });
+  for (const post of posts) {
+    const { type, tag, place, fields, body, id } = post;
+    const segments = place.split('/');
+    const slug = segments.at(-1);
+    const { modified: _modified, oldAddresses: _old, ...kept } = fields;
+    const written = { title: kept.title, slug, status: 'published' };
+    if (segments.length > 1) written.parent = idOf(type.collection, segments.slice(0, -1).join('/'));
+    for (const [key, value] of Object.entries(kept)) {
+      if (key === 'title') continue;
+      if (fieldsTaking.has(key)) written[key] = value.map((term) => idOf(fieldsTaking.get(key), term.split('/').at(-1)));
+      else if (key === 'image') written.image = toMedia(value);
+      else if (key === 'seo' && value.socialImage) written.seo = { ...value, socialImage: mediaPath(value.socialImage) };
+      else written[key] = value;
     }
+    files.push({ path: `${type.collection}/${tag ? `${tag}/` : ''}${id}.md`, content: writePost(written, bodyAsSource(body, ids)) });
   }
 
-  const media = join(demo, 'media');
-  if (existsSync(media)) {
-    for (const path of walk(media)) files.push({ path: `media/${relative(media, path)}`, content: readFileSync(path) });
+  for (const { path, content } of published) {
+    if (path.startsWith('media/')) files.push({ path, content });
   }
 
-  // Values an Admin sets: an image points into the media folder.
-  const settingsFile = join(demo, 'settings.json');
-  if (existsSync(settingsFile)) {
-    const settings = JSON.parse(readFileSync(settingsFile, 'utf8'));
-    const written = { ...settings };
-    for (const key of ['logo', 'icon']) if (written[key]) written[key] = toMedia(written[key]);
-    files.push({ path: 'settings.json', content: `${JSON.stringify(written, null, 2)}\n` });
-  }
-  for (const name of ['redirects.json']) {
-    const path = join(demo, name);
-    if (existsSync(path)) files.push({ path: name, content: readFileSync(path, 'utf8') });
-  }
-  const menus = join(demo, 'menus');
-  if (existsSync(menus)) {
-    for (const path of walk(menus)) files.push({ path: `menus/${relative(menus, path)}`, content: readFileSync(path, 'utf8') });
-  }
+  // The page for addresses not found is a post an Admin chooses, of a type with an address.
+  const notFound = published.find(({ path }) => path === 'not-found.md');
+  const notFoundId = notFound ? notFoundPost(description, notFound, ids, files) : null;
 
+  // What an Admin sets: a choice of a post by its ID, an image by its place in the media
+  // folder, and only what differs from a default.
+  const settings = published.find(({ path }) => path === 'settings.json');
+  if (settings || notFoundId) {
+    const source = settingsAsSource(description, settings ? JSON.parse(settings.content) : {}, titled);
+    if (notFoundId) source.notFound = { page: notFoundId };
+    files.push({ path: 'settings.json', content: `${JSON.stringify(source, null, 2)}\n` });
+  }
+  const rules = published.find(({ path }) => path === 'redirects.json');
+  if (rules) files.push({ path: 'redirects.json', content: rules.content });
+  for (const { path, content } of published) {
+    if (!path.startsWith('menus/') || !path.endsWith('.json')) continue;
+    const menu = JSON.parse(content);
+    files.push({ path, content: `${JSON.stringify({ items: entriesAsSource(menu.items, ids, titled) }, null, 2)}\n` });
+  }
   files.sort((a, b) => (a.path < b.path ? -1 : 1));
   return files;
+}
+
+function notFoundPost(description, { content }, ids, files) {
+  const types = Object.values(description.types).filter((one) => one.address !== null);
+  const type = types.find((one) => one.name === 'page') ?? types[0];
+  const { fields, body } = parsePost(content);
+  const id = idOf(type.collection, 'not-found');
+  files.push({ path: `${type.collection}/${id}.md`, content: writePost({ title: fields.title, slug: 'not-found', status: 'published' }, bodyAsSource(body, ids)) });
+  return id;
+}
+
+// A menu's entries by their posts' IDs, with a label only where it differs from the
+// post's title.
+function entriesAsSource(items, ids, titled) {
+  return items.map(({ title, url, items: under }) => {
+    const id = ids.get(url);
+    const lead = id
+      ? { ...(titled.get(url).fields.title === title ? {} : { title }), post: id }
+      : { title, ...(url === undefined ? {} : { url }) };
+    return { ...lead, ...(under ? { items: entriesAsSource(under, ids, titled) } : {}) };
+  });
+}
+
+function differs(setting, value, title) {
+  if (setting.default === undefined) return true;
+  return JSON.stringify(isSiteTitle(setting.default) ? title : setting.default) !== JSON.stringify(value);
+}
+
+// A setting's value as source holds it, or undefined for what a default gives.
+function settingAsSource(setting, value, title, titled) {
+  if (value === undefined) return undefined;
+  if (setting.type === 'post') return ids(titled, value);
+  if (setting.type === 'image') return { ...value, src: mediaPath(value.src) };
+  return differs(setting, value, title) ? value : undefined;
+}
+
+const ids = (titled, value) => titled.get(value.url)?.id;
+
+// Settings as source holds them: what differs from a default, each part kept only when
+// anything in it does.
+function settingsAsSource(description, published, titled) {
+  const out = {};
+  const { title, logo, icon } = published;
+  if (title !== undefined) out.title = title;
+  if (logo) out.logo = toMedia(logo);
+  if (icon) out.icon = toMedia(icon);
+  const copy = (settings, values, into) => {
+    for (const setting of settings) {
+      const kept = settingAsSource(setting, values?.[setting.name], title, titled);
+      if (kept !== undefined) into[setting.name] = kept;
+    }
+  };
+  copy(description.settings, published, out);
+  for (const group of description.groups) {
+    const values = published[group.name];
+    if (!isObject(values)) continue;
+    const into = {};
+    copy(group.settings, values, into);
+    const part = (name, settings, source, target) => {
+      const inner = {};
+      copy(settings, source, inner);
+      if (Object.keys(inner).length > 0) target[name] = inner;
+    };
+    for (const one of group.parts) part(one.name, one.settings, values[one.name], into);
+    for (const one of group.each ?? []) part(one.name, one.settings, values[one.name], into);
+    if (group.types !== null) {
+      const types = {};
+      for (const one of group.types) part(one.type, one.settings, values.types?.[one.type], types);
+      if (Object.keys(types).length > 0) into.types = types;
+    }
+    if (Object.keys(into).length > 0) out[group.name] = into;
+  }
+  return out;
+}
+
+/**
+ * @param {object} description the form siteDescription() returns
+ * @param {string} demo the folder of published demo content
+ * @returns {{ path: string, content: string|Buffer }[]} every source file, sorted by path
+ */
+export function demoSource(description, demo) {
+  const published = [];
+  for (const path of walk(demo)) {
+    const inner = relative(demo, path);
+    published.push({ path: inner, content: inner.startsWith('media/') ? readFileSync(path) : readFileSync(path, 'utf8') });
+  }
+  return sourceFrom(description, published);
 }
 
 // Originals live in Git LFS (ADR 0026).

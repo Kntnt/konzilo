@@ -5,7 +5,7 @@
 
 import { isObject } from '../checks.js';
 import { PATTERN_LENGTH, PATTERNS } from '../format/patterns.js';
-import { fileRuleProblem, isSource, keyOf, onSite, patternProblem, REDIRECT_STATUSES, reservedBy, STATUSES, targetProblem } from '../format/redirects.js';
+import { isSource, keyOf, onSite, patternProblem, REDIRECT_STATUSES, reservedBy, STATUSES, targetProblem } from '../format/redirects.js';
 import { say } from './words.js';
 
 const MOST_PARAMETERS = 10;
@@ -98,5 +98,3 @@ function loopsAndChains(exact, problems, warnings) {
 export function ruleForFile({ from, to, status }) {
   return to === undefined ? { from, status } : { from, to, status };
 }
-
-export { fileRuleProblem };

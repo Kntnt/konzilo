@@ -22,6 +22,7 @@
   },
   "bin": {
     "konzilo-search": "./bin/konzilo-search.js",
+    "konzilo-intake": "./bin/konzilo-intake.js",
     "konzilo-demo-content": "./bin/konzilo-demo-content.js"
   },
   "files": [

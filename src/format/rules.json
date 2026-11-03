@@ -560,8 +560,7 @@
       "thematicBreak": "the site cannot publish a separator; take it out",
       "linkReference": "the site cannot publish a link that names its address elsewhere; write it as [text](address)",
       "imageReference": "the site cannot publish an image that names its address elsewhere; add the image again",
-      "definition": "the site cannot publish a link definition; write the address in the link itself",
-      "yaml": "the site cannot publish a second block of frontmatter; take it out"
+      "definition": "the site cannot publish a link definition; write the address in the link itself"
     },
     "heading-level": "the site cannot publish a heading at level {level}: the post's title is its level 1; use a level from {levels}",
     "heading-empty": "the site cannot publish a heading without text; write its text, or take it out",
@@ -577,10 +576,8 @@
     "quote-empty": "the site cannot publish a quote without text; write its text, or take it out",
     "quote-block": "a quote cannot hold {block}; move it out of the quote",
     "citation-place": "a citation is a quote's last paragraph, wrapped whole in <cite>; move it there, or take it out",
-    "code-place": "a code block stands at the top of the body, never in a quote or a list; move it out",
     "code-empty": "the site cannot publish an empty code block; write its code, or take it out",
     "code-language": "the site shows a code block without a language, so \"{language}\" is left out",
-    "table-place": "a table stands at the top of the body, never in a quote or a list; move it out",
     "table-row": "row {row} of the table has {cells} cells and its header {columns}; give every row the header's number of cells",
     "table-no-header": "the site cannot publish a table without a header row; give it one",
     "table-header-rows": "the site cannot publish a table with more than one header row; make the others plain rows",
@@ -604,7 +601,6 @@
     "embed-caption": "the site cannot show a caption with the embed {address}; take the caption out",
     "directive-unknown": "the site has no directive {name}; choose one it offers, or write the colons as \\:",
     "directive-form": "the site writes the directive {name} as {form}",
-    "directive-place": "{element} stands at the top of the body; move it out",
     "directive-label": "the site cannot publish the directive {name} with a label; take it out",
     "directive-attribute": "the directive {name} takes no setting \"{attribute}\"; take it out",
     "directive-required": "{label} needs its setting \"{attribute}\"; choose one",
@@ -708,6 +704,7 @@
     "rule-start": "the rule from {source} leads to the start page, which search engines may read as a page that is gone",
     "rule-post-off": "the rule from {source} leads to what has no page now, so it does not answer until that is published",
     "rule-shadowed": "the rule from {source} does not answer, since a post or a term's page is live at that address",
-    "legal-missing": "the site asks for consent, and has no {page} to link to; choose one among the legal pages"
+    "legal-missing": "the site asks for consent, and has no {page} to link to; choose one among the legal pages",
+    "publisher-missing": "the site has no publisher's name, so the footer shows none of its details; give it one, or a title for the site"
   }
 }

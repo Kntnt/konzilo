@@ -49,7 +49,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { htmlToHast } from 'satteri';
-import { POST_IDS_FILE } from '../format/write.js';
+import { POST_IDS_FILE, postIdsByPath } from '../format/write.js';
 import { contentFolder } from './collections.js';
 import { entryAddress, entryLanguage, entryName, pageLanguage, startAddress } from './languages.js';
 import { summary } from './summary.js';
@@ -209,7 +209,7 @@ export async function siteFeed({ site, pattern, slug = null, origin, languageTag
       title: entry.data.title,
       link,
       date,
-      guid: Number.isInteger(id) ? { text: `${origin}/?p=${id}`, permalink: false } : { text: link, permalink: true },
+      guid: typeof id === 'string' ? { text: `${origin}/?p=${id}`, permalink: false } : { text: link, permalink: true },
       categories: await categoriesOf(entry, type, getEntries),
       description: `${opening}${said ? `<p>${html(said)}</p>` : ''}`,
       content: item === WHOLE_TEXT ? `${opening}${feedSafe(await bodyOf(entry), link)}` : null,
@@ -345,7 +345,7 @@ function postIds() {
   const file = resolve(contentFolder(), POST_IDS_FILE);
   if (!existsSync(file)) return {};
   try {
-    return JSON.parse(readFileSync(file, 'utf8'));
+    return postIdsByPath(JSON.parse(readFileSync(file, 'utf8')));
   } catch {
     return {};
   }
