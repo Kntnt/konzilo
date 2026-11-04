@@ -114,6 +114,61 @@ describe('the live preview', () => {
       assert.equal(await refused.count(), 0);
     });
 
+    test('stays on the page when a link on it is followed, and says where it would have gone', async () => {
+      const frame = frameOf(page);
+      const here = () => frame.locator('html').evaluate(() => location.pathname);
+      const before = await here();
+      const link = frame.locator('main a[href^="/"], header a[href^="/"]').first();
+      const to = await link.getAttribute('href');
+      await link.click();
+      const note = paneOf(page).getByRole('status');
+      await note.waitFor({ timeout: ON_THE_PAGE });
+      assert.match(await note.textContent(), new RegExp(`this link goes to ${to}`));
+      assert.equal(await here(), before);
+      assert.equal(new URL(await paneOf(page).locator('iframe').getAttribute('src')).pathname, before);
+    });
+
+    test('goes on showing what is typed after that', async () => {
+      const title = page.getByRole('textbox', { name: 'Title', exact: true });
+      await title.fill(`${POST}, still here`);
+      await frameOf(page).getByRole('heading', { level: 1, name: `${POST}, still here` }).waitFor({ timeout: ON_THE_PAGE });
+    });
+
+    test('says where a link leads when a rule of the site redirects it, and follows nothing', async () => {
+      // A rule, saved as an Admin saves one, as the preview's next run reads it.
+      const token = await page.evaluate(() => JSON.parse(localStorage.getItem('sveltia-cms.user')).token);
+      const headers = { authorization: `token ${token}`, 'content-type': 'application/json' };
+      const file = `${site.origin.git}/api/v1/repos/${site.name}/source/contents/redirects.json`;
+      const { sha } = await (await fetch(file, { headers })).json();
+      const content = Buffer.from(JSON.stringify({ rules: [{ from: '/an-old-address/', to: '/a-new-address/', status: 302 }] })).toString('base64');
+      assert.equal((await fetch(file, { method: 'PUT', headers, body: JSON.stringify({ content, sha, message: 'A rule' }) })).status, 200);
+      const { request } = page.context();
+      const title = page.getByRole('textbox', { name: 'Title', exact: true });
+      for (let tried = 0; ; tried += 1) {
+        await title.fill(`${POST}, ${tried}`);
+        await page.waitForTimeout(3000);
+        if ((await request.get(`${site.origin.preview}/an-old-address/`, { maxRedirects: 0 })).status() === 302) break;
+        assert.ok(tried < 20, 'the preview never read the rule');
+      }
+
+      const frame = frameOf(page);
+      await frame.getByRole('heading', { level: 1 }).waitFor({ timeout: ON_THE_PAGE });
+      const before = await frame.locator('html').evaluate(() => location.pathname);
+      await frame.locator('body').evaluate((body) => {
+        const link = document.createElement('a');
+        link.id = 'to-a-rule';
+        link.href = '/an-old-address/';
+        link.textContent = 'To a rule';
+        link.style.cssText = 'position: fixed; top: 0; left: 0; z-index: 100000; background: white;';
+        body.append(link);
+      });
+      await frame.locator('#to-a-rule').click();
+      const note = paneOf(page).getByRole('status');
+      await note.getByText('That address redirects to /a-new-address/ (302).').waitFor({ timeout: ON_THE_PAGE });
+      assert.match(await note.textContent(), /this link goes to \/an-old-address\//);
+      assert.equal(await frame.locator('html').evaluate(() => location.pathname), before);
+    });
+
     test('has no sitemap, robots, feeds, llms.txt or Markdown alternates, whoever asks', async () => {
       const { request } = page.context();
       const address = new URL(await paneOf(page).locator('iframe').getAttribute('src')).pathname;
@@ -209,13 +264,18 @@ describe('the live preview', () => {
 
   for (const engine of Object.keys(ENGINES).filter((name) => name !== 'chromium')) {
     describe(`in ${engine}`, () => {
-      test('shows the page, with its cookie in a frame', async () => {
+      test('shows the page, with its cookie in a frame, and keeps to it', async () => {
         const session = await openEditor(engine, site);
         try {
           await signIn(session, site);
           const { page } = session;
           await openPost(page, 'Golden harbours and the harbour');
           await frameOf(page).getByRole('heading', { level: 1, name: 'Golden harbours and the harbour' }).waitFor({ timeout: ON_THE_PAGE * 2 });
+          const here = () => frameOf(page).locator('html').evaluate(() => location.pathname);
+          const before = await here();
+          await frameOf(page).locator('main a[href^="/"], header a[href^="/"]').first().click();
+          await paneOf(page).getByRole('status').waitFor({ timeout: ON_THE_PAGE });
+          assert.equal(await here(), before);
         } finally {
           await session.browser.close();
         }

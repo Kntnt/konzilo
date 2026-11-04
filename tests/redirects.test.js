@@ -182,6 +182,7 @@ describe('the static build', () => {
     assert.equal(existsSync(join(repository, 'dist', 'blog')), false);
     assert.equal(existsSync(join(repository, 'dist', 'nowhere')), false);
     assert.match(output('a-guide/index.html'), /<h1>A guide<\/h1>/);
+    assert.doesNotMatch(output('a-guide/index.html'), /konzilo-preview-stopped/, 'only a live preview keeps a page where it is');
     assert.match(output('contact/index.html'), /<h1>Contact us<\/h1>/);
   });
 
