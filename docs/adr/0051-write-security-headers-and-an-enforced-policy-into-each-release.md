@@ -25,3 +25,8 @@
 - **Headers in the web server's site file.** Only a release's build knows the hashes of its code.
 - **Astro's meta policy alone.**
 - **`'unsafe-inline'` for tags.**
+
+## What practice has shown
+
+- In Compose the web server has no admin endpoint, and no container may reach another's signals, so Caddy runs with `--watch`, and a release's rules lie beside its pages, imported by a glob, since a file named outright that is not there stops the server before the first build. It looks each second, so a new policy goes live up to a second or two after `current` has moved. It reloads only when the rules have changed, which a publish seldom does, and a reload closes idle connections.
+- Caddy's `header` reaches a redirect, a 404 and a 410 alike.

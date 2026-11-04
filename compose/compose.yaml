@@ -89,6 +89,8 @@ services:
         CADDY: ${CADDY}
         CADDY_DIGEST: ${CADDY_DIGEST}
     image: konzilo-web:local
+    # Takes a new release's headers and redirects by itself, since nothing else may reach it.
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile", "--watch"]
     depends_on:
       forgejo: { condition: service_healthy }
     restart: unless-stopped

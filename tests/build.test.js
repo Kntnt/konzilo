@@ -10,7 +10,7 @@ import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
-import { CHECK_BROKE, intakeCommand, NOT_BUILT, NOT_READ, siteBuild } from '../src/build/build.js';
+import { CHECK_BROKE, intakeCommand, NOT_BUILT, NOT_READ, NOT_RELEASED, siteBuild } from '../src/build/build.js';
 import { buildControl } from '../src/build/record.js';
 import { releases } from '../src/build/release.js';
 import { contentRepository, sourceRepository } from '../src/build/repositories.js';
@@ -127,7 +127,7 @@ describe('a build', () => {
     assert.equal(record.outcome, 'live');
     assert.equal(record.reason, null);
     assert.match(readlinkSync(join(site.root, 'public/current')), /^releases\/\d{8}T\d{6}Z-[0-9a-f]{12}$/);
-    assert.equal(readFileSync(join(site.root, 'public/current/index.html'), 'utf8'), 'built 1');
+    assert.equal(readFileSync(join(site.root, 'public/current/pages/index.html'), 'utf8'), 'built 1');
     assert.equal(statusOf(site, 'articles/aaaaaaaaaaaa.md').status, 'live');
     assert.equal(statusOf(site, 'articles/aaaaaaaaaaaa.md').address, '/first/');
     assert.ok(existsSync(join(site.siteFolder, 'content/articles/first.md')));
@@ -239,6 +239,21 @@ describe('a build', () => {
     assert.notEqual(readlinkSync(join(site.root, 'public/current')), release);
   });
 
+  test('keeps the release when what a build wrote for the web server cannot be taken', async () => {
+    const site = newSite({ 'articles/aaaaaaaaaaaa.md': post('first') });
+    await site.build()();
+    const release = readlinkSync(join(site.root, 'public/current'));
+    site.save({ 'articles/aaaaaaaaaaaa.md': post('first', {}, 'New words.') });
+    const built = join(site.root, 'dist-bad');
+    mkdirSync(built);
+    writeFileSync(join(built, '_headers'), '/*\n  Set-Cookie: nothing=good\n');
+    const record = await site.build({ astro: async () => built })();
+    assert.equal(record.reason, NOT_RELEASED);
+    assert.equal(readlinkSync(join(site.root, 'public/current')), release);
+    assert.match(site.seen.warned.at(-1), /Set-Cookie is no header a release may set/);
+    assert.equal(statusOf(site, 'articles/aaaaaaaaaaaa.md').status, 'failed');
+  });
+
   test('says what it can when the source cannot be read, and goes on', async () => {
     const site = newSite({ 'articles/aaaaaaaaaaaa.md': post('first') });
     const first = await site.build()();
@@ -344,10 +359,20 @@ describe('releases', () => {
       writeFileSync(join(built, 'index.html'), name);
       live.publish(built, name);
       assert.equal(live.current(), name);
-      assert.equal(readFileSync(join(root, 'current/index.html'), 'utf8'), name);
+      assert.equal(readFileSync(join(root, 'current/pages/index.html'), 'utf8'), name);
     }
     assert.deepEqual(readdirSync(root).sort(), ['current', 'releases']);
     assert.deepEqual(readdirSync(join(root, 'releases')).sort(), ['2', '3']);
+  });
+
+  test('holds its rules beside its pages, where no visitor reaches them, and none of what they came from', () => {
+    const root = join(folder, 'rules');
+    const built = join(folder, 'dist-rules');
+    mkdirSync(built);
+    for (const file of ['index.html', '_headers', '_redirects', '_markdown']) writeFileSync(join(built, file), 'x');
+    releases(root).publish(built, '1', 'the rules\n');
+    assert.equal(readFileSync(join(root, 'current/web-rules.caddy'), 'utf8'), 'the rules\n');
+    assert.deepEqual(readdirSync(join(root, 'current/pages')), ['index.html']);
   });
 
   test('clears a release a stop left half made', () => {

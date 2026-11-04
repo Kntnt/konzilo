@@ -517,12 +517,79 @@ describe('a site in Compose', () => {
       assert.match(await onTheSite('/off-and-on/', 'Plain words.'), /Plain words\./);
     });
 
-    test('leads an old address on when a post moves', async () => {
+    // What the public host answers at an address, without following it, once it answers this.
+    const answeredWith = async (address, status, { within = 15_000 } = {}) => {
+      const deadline = Date.now() + within;
+      for (;;) {
+        const answer = await get(`${site.origin.site}${address}`, { redirect: 'manual' });
+        if (answer.status === status || Date.now() > deadline) return answer;
+        await new Promise((go) => setTimeout(go, 250));
+      }
+    };
+
+    test('leads an old address on when a post moves, keeping the visitor\'s query', async () => {
       await saveFile(file('bbbbbbbbbbbb'), published('before-the-move'), 'anna');
       await onTheSite('/before-the-move/', 'Plain words.');
       await saveFile(file('bbbbbbbbbbbb'), published('after-the-move'), 'anna');
       await onTheSite('/after-the-move/', 'Plain words.');
-      assert.match(await (await get(`${site.origin.site}/before-the-move/`)).text(), /after-the-move/);
+      const moved = await answeredWith('/before-the-move/', 301);
+      assert.equal(moved.status, 301);
+      assert.equal(new URL(moved.headers.get('location'), site.origin.site).pathname, '/after-the-move/');
+      const withQuery = await answeredWith('/before-the-move?from=a-link', 301);
+      assert.equal(new URL(withQuery.headers.get('location'), site.origin.site).search, '?from=a-link');
+    });
+
+    test('answers an Admin\'s rules from the web server, before any file', async () => {
+      await saveFile('redirects.json', JSON.stringify({ rules: [
+        { from: '/a-rule/', to: '/after-the-move/', status: 302 },
+        { from: '/gone-for-good/', status: 410 },
+        { from: '/with-a-query/?one=1&two=2', to: 'https://www.example.com/there/', status: 301 },
+        { from: '^/numbered/(\\d+)$', to: '/landed/$1/', status: 308 },
+      ] }), 'anna');
+      const rule = await answeredWith('/a-rule/', 302, { within: 60_000 });
+      assert.equal(rule.status, 302);
+      assert.equal(new URL(rule.headers.get('location'), site.origin.site).pathname, '/after-the-move/');
+      assert.equal((await answeredWith('/a-rule', 302)).status, 302, 'also without its last slash');
+      const gone = await answeredWith('/gone-for-good/', 410);
+      assert.equal(gone.status, 410);
+      assert.match(await gone.text(), /<html/, 'with the site\'s own page');
+      for (const address of ['/with-a-query/?one=1&two=2', '/with-a-query/?two=2&one=1']) {
+        const asked = await answeredWith(address, 301);
+        assert.equal(asked.headers.get('location'), 'https://www.example.com/there/', address);
+      }
+      assert.equal((await answeredWith('/with-a-query/?one=1', 404, { within: 1000 })).status, 404, 'and not for another query');
+      const numbered = await answeredWith('/numbered/12', 308);
+      assert.equal(new URL(numbered.headers.get('location'), site.origin.site).pathname, '/landed/12/');
+      assert.equal((await answeredWith('/numbered/twelve', 404, { within: 1000 })).status, 404);
+    });
+
+    test('sends the release\'s headers on every answer, and nothing of what they came from', async () => {
+      for (const [address, status] of [['/', 200], ['/no-such-page/', 404], ['/a-rule/', 302]]) {
+        const answer = await answeredWith(address, status);
+        assert.equal(answer.status, status, address);
+        assert.match(answer.headers.get('content-security-policy') ?? '', /default-src 'self'/, address);
+        assert.equal(answer.headers.get('x-content-type-options'), 'nosniff', address);
+        assert.match(answer.headers.get('strict-transport-security') ?? '', /max-age=/, address);
+      }
+      for (const address of ['/_headers', '/_redirects', '/_markdown', '/web-rules.caddy', '/../web-rules.caddy']) assert.equal((await get(`${site.origin.site}${address}`)).status, 404, address);
+    });
+
+    test('breaks no policy of its own, in a real browser', async () => {
+      const session = await openEditor('chromium', site);
+      try {
+        const { page } = session;
+        const shown = (await api(`${repository()}/contents/articles`))[0];
+        const text = Buffer.from((await api(`${repository()}/contents/${shown.path}`)).content, 'base64').toString();
+        for (const address of ['/', addressOf(text)]) {
+          const answer = await page.goto(`${site.origin.site}${address}`, { waitUntil: 'networkidle' });
+          assert.equal(answer.status(), 200, address);
+          assert.ok(answer.headers()['content-security-policy'], address);
+          assert.deepEqual(session.seen.refused, [], address);
+          assert.deepEqual(session.seen.outside, [], address);
+        }
+      } finally {
+        await session.browser.close();
+      }
     });
 
     test('keeps a refused post\'s last version, publishes the rest, and says why', async () => {

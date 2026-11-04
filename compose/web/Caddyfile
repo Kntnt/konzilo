@@ -8,9 +8,12 @@
 }
 
 # The public site: static pages, and nothing that holds a draft. `current` moves to a new
-# release all at once (ADR 0031).
+# release all at once (ADR 0031), and the release's headers and redirects are read from what
+# the build wrote beside its pages, which this server looks for by itself: it runs with
+# `--watch`, and reloads only when they have changed. There are none before the first build.
 :{$KONZILO_PORT_SITE} {
-	root * /srv/site/current
+	root * /srv/site/current/pages
+	import /srv/site/current/web-rules*.caddy
 	file_server
 	handle_errors {
 		rewrite * /404.html

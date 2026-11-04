@@ -67,6 +67,15 @@ test('refuses making tokens and keys before anything else reaches Forgejo', () =
   assert.equal((host.match(/reverse_proxy/g) ?? []).length, (host.match(/header_up -X-Real-IP/g) ?? []).length);
 });
 
+test('reads a release\'s rules from beside its pages, where no visitor reaches them', () => {
+  const caddyfile = read('compose/web/Caddyfile');
+  const host = caddyfile.slice(caddyfile.indexOf(':{$KONZILO_PORT_SITE}'), caddyfile.indexOf(':{$KONZILO_PORT_ADMIN}'));
+  assert.match(host, /root \* \/srv\/site\/current\/pages/);
+  // A glob, since a file named outright that is not there stops the server before the first build.
+  assert.match(host, /import \/srv\/site\/current\/web-rules\*\.caddy/);
+  assert.match(compose, /"--watch"/);
+});
+
 test('keeps Forgejo\'s settings closed', () => {
   for (const [key, value] of [
     ['service__DISABLE_REGISTRATION', '"true"'],

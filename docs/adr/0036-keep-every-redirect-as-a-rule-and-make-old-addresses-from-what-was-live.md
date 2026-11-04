@@ -34,3 +34,9 @@
 ## What practice has shown
 
 Thousands of rules with parameter permutations would make a large configuration: online, a source of four parameters or more is one regular expression, which also matches a query that repeats a parameter in place of another, which no link sends. Caddy's `path_regexp` matches the decoded and cleaned path, which the dev server never sees, so patterns go through a `map` of the path as the browser sent it. Whether a list of thousands in one Sveltia file holds needs testing.
+
+In Compose (`src/build/web-server.js`), with Caddy 2.11:
+
+- `{http.request.orig_uri.path}` is decoded, though not cleaned, so an exact rule is looked up by its source with its percent signs read: `ö` and `%C3%B6` answer alike. A source where reading one would say another path, `%2F` say, goes by the whole address instead, as does a source with a query. A pattern sees the decoded path, so a pattern for a path outside ASCII is written as Caddy sees it, which the dev server does not.
+- `map` takes one row per input and errors on two, so a rule's own source goes before what another's last slash adds. It takes the first match in the order written, so patterns stand last.
+- `error` reads a lone placeholder as a message and answers 500, so `404` and `410` each have a matcher of their own.
