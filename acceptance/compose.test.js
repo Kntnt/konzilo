@@ -674,6 +674,18 @@ describe('a site in Compose', () => {
   });
 
   describe('over its life', () => {
+    test('keeps a team to the source at a start, also one made when a team had every repository', async () => {
+      const teams = await api(`/orgs/${site.name}/teams`);
+      const editors = teams.find(({ name }) => name === 'editors');
+      await asAccount('PATCH', `/teams/${editors.id}`, { name: 'editors', permission: 'write', includes_all_repositories: true, units_map: { 'repo.code': 'write' } }, null);
+      await asAccount('PUT', `/teams/${editors.id}/repos/${site.name}/content`, null, null);
+      assert.deepEqual((await api(`/teams/${editors.id}/repos`)).map(({ name }) => name).sort(), ['content', 'source'], 'as a site seeded then has it');
+      site.compose('down');
+      site.up();
+      assert.equal((await api(`/teams/${editors.id}`)).includes_all_repositories, false);
+      assert.deepEqual((await api(`/teams/${editors.id}/repos`)).map(({ name }) => name), ['source']);
+    });
+
     test('a second start changes nothing, and what was saved stays across a stop', async () => {
       const client = site.state('oauth-client');
       const [before] = await api(`${repository()}/commits?limit=1`);
