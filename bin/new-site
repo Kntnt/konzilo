@@ -39,7 +39,7 @@ trap 'status=$?; [ "$status" -eq 0 ] || rm -rf "$target"; exit "$status"' EXIT
 # Every pin, checked as a whole before anything is written.
 astro=$(sh "$core/scripts/versions" ASTRO)
 
-# Three ports in a row, from the name, so that two sites on one machine seldom meet.
+# Four ports in a row, from the name, so that two sites on one machine seldom meet.
 base=$((20000 + $(printf '%s' "$name" | cksum | cut -d' ' -f1) % 1000 * 10))
 
 mkdir "$target"
@@ -47,7 +47,7 @@ template="$core/site-template/files"
 (cd "$template" && find . -type f) | while IFS= read -r file; do
 	mkdir -p "$target/$(dirname "$file")"
 	sed -e "s|@NAME@|$name|g" -e "s|@ASTRO@|$astro|g" -e "s|@CORE@|file:$core|g" -e "s|@CORE_PATH@|$core|g" \
-		-e "s|@PORT_SITE@|$((base + 1))|g" -e "s|@PORT_ADMIN@|$((base + 2))|g" -e "s|@PORT_GIT@|$((base + 3))|g" \
+		-e "s|@PORT_SITE@|$((base + 1))|g" -e "s|@PORT_ADMIN@|$((base + 2))|g" -e "s|@PORT_GIT@|$((base + 3))|g" -e "s|@PORT_PREVIEW@|$((base + 4))|g" \
 		"$template/$file" >"$target/$file"
 done
 

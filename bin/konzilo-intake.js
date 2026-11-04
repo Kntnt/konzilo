@@ -19,11 +19,12 @@
 // nothing written; 2 for a wrong call.
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmdirSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative, resolve } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
 import { POST_IDS_FILE } from '../src/format/write.js';
+import { postFiles, walk, writeContent } from '../src/intake/content-folder.js';
 import { imagesFrom } from '../src/intake/images.js';
 import { deletion, intake } from '../src/intake/index.js';
 import { readSiteDescription, SITE_DESCRIPTION_FILE } from '../src/site-description.js';
@@ -46,12 +47,6 @@ if (Boolean(parsed.values.admins) === Boolean(parsed.values['no-roles'])) usage(
 const checkout = resolve(given);
 const siteFolder = resolve(parsed.values.site ?? '.');
 const content = resolve(parsed.values.content ?? process.env.KONZILO_CONTENT ?? 'content');
-
-const walk = (folder) => (existsSync(folder) ? readdirSync(folder, { withFileTypes: true }).flatMap((entry) => {
-  if (entry.name.startsWith('.')) return [];
-  const path = join(folder, entry.name);
-  return entry.isDirectory() ? walk(path) : entry.isFile() ? [path] : [];
-}) : []);
 
 // Who last changed each of the paths: Git's log, newest first, and the first time a
 // path is named is the last time it changed. Without renames, or moving a file away would
@@ -88,37 +83,13 @@ try {
 
   const result = intake({ files, site, now: new Date(), ledger, changes, images, adminHost });
 
-  // What the site owns: each post's and term's file in a collection's folder, and each
-  // master. A name with a leading dot and any other kind of file is left alone.
-  const owned = (collection, extension) => walk(join(content, collection)).map((path) => relative(content, path)).filter((path) => path.endsWith(extension));
-  const posts = Object.values(site.types).flatMap((type) => owned(type.collection, '.md'));
-  const terms = Object.values(site.taxonomies).flatMap((taxonomy) => owned(taxonomy.collection, '.json'));
-  const pictures = walk(media).map((path) => relative(content, path)).filter((path) => /\.(?:webp|svg)$/.test(path));
-  const notFound = [...(existsSync(join(content, 'not-found.md')) ? ['not-found.md'] : []), ...owned('not-found', '.md')];
-
-  const guard = deletion(posts, result, { confirmed: parsed.values.confirm ?? null });
+  const guard = deletion(postFiles(content, site), result, { confirmed: parsed.values.confirm ?? null });
   if (guard.stop) {
     console.log(JSON.stringify({ stopped: { reason: guard.reason, count: guard.count, total: guard.total, paths: guard.paths, code: guard.code }, refusals: result.refusals, warnings: result.warnings }, null, 2));
     process.exit(3);
   }
 
-  const stays = new Set([...result.files.map(({ path }) => path), ...result.keep]);
-  const removed = [...posts, ...terms, ...pictures, ...notFound].filter((path) => !stays.has(path)).sort();
-  const written = [];
-  for (const { path, contents } of result.files) {
-    const target = join(content, path);
-    const bytes = Buffer.from(contents);
-    // A master already there is left alone, and a file that has not changed is too, so
-    // that the content repository's history changes only where the content does.
-    if (existsSync(target) && (path.startsWith('media/') || readFileSync(target).equals(bytes))) continue;
-    mkdirSync(dirname(target), { recursive: true });
-    writeFileSync(target, bytes);
-    written.push(path);
-  }
-  for (const path of removed) {
-    rmSync(join(content, path));
-    for (let folder = dirname(join(content, path)); folder !== content && folder.startsWith(content) && readdirSync(folder).length === 0; folder = dirname(folder)) rmdirSync(folder);
-  }
+  const { written, removed } = writeContent(content, site, result);
   console.log(JSON.stringify({ refusals: result.refusals, warnings: result.warnings, written, removed, next: result.next }, null, 2));
 } catch (error) {
   console.error(`konzilo-intake: the check broke, and nothing was written: ${error.stack ?? error.message}`);

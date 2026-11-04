@@ -95,12 +95,15 @@ services:
       - 127.0.0.1:${KONZILO_PORT_SITE}:${KONZILO_PORT_SITE}
       - 127.0.0.1:${KONZILO_PORT_ADMIN}:${KONZILO_PORT_ADMIN}
       - 127.0.0.1:${KONZILO_PORT_GIT}:${KONZILO_PORT_GIT}
+      - 127.0.0.1:${KONZILO_PORT_PREVIEW}:${KONZILO_PORT_PREVIEW}
     environment:
       KONZILO_PORT_SITE: ${KONZILO_PORT_SITE}
       KONZILO_PORT_ADMIN: ${KONZILO_PORT_ADMIN}
       KONZILO_PORT_GIT: ${KONZILO_PORT_GIT}
+      KONZILO_PORT_PREVIEW: ${KONZILO_PORT_PREVIEW}
       KONZILO_REPOSITORY: ${KONZILO_SITE}/source
       KONZILO_FORGEJO_ORIGIN: http://localhost:${KONZILO_PORT_GIT}
+      KONZILO_PREVIEW_ORIGIN: http://localhost:${KONZILO_PORT_PREVIEW}
     volumes:
       - site-public:/srv/site:ro
       - admin-config:/srv/admin-config:ro
@@ -140,6 +143,7 @@ services:
     secrets: [instance-password, account-password]
     volumes:
       - state:/state
+      - preview-secret:/preview-secret
       - ${KONZILO_SITE_DIR:-.}/site-description.json:/site/site-description.json:ro
 
   # Builds the site and writes the editor's configuration, then stays up and sleeps:
@@ -168,6 +172,7 @@ services:
       KONZILO_ORIGIN: http://localhost:${KONZILO_PORT_SITE}
       KONZILO_SITE_ORIGIN: http://localhost:${KONZILO_PORT_SITE}
       KONZILO_FORGEJO_ORIGIN: http://localhost:${KONZILO_PORT_GIT}
+      KONZILO_PREVIEW_ORIGIN: http://localhost:${KONZILO_PORT_PREVIEW}
       KONZILO_REPOSITORY: ${KONZILO_SITE}/source
       ASTRO_TELEMETRY_DISABLED: "1"
     volumes:
@@ -175,6 +180,40 @@ services:
       - site-work:/work
       - site-public:/public
       - admin-config:/admin-config
+      - ${KONZILO_SITE_DIR:-.}:/site:ro
+      - ${KONZILO_CORE}:${KONZILO_CORE}:ro
+
+  # The live preview (ADR 0032): its gate stands from the first moment, and starts the dev
+  # server when an editor opens an entry. It shares the web server's network, so that the
+  # web server alone reaches it, and it reaches Forgejo as the seed does. It has a credential
+  # that can only read, and a copy of the site's code of its own.
+  preview:
+    <<: *hardened
+    build: *builder
+    image: konzilo-builder:local
+    init: true
+    depends_on:
+      seed: { condition: service_completed_successfully }
+    network_mode: service:web
+    restart: unless-stopped
+    stop_grace_period: 2s
+    mem_limit: 1536m
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/_konzilo/preview/health').then((a) => process.exit(a.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+    command: ["node", "/konzilo/bin/konzilo-preview.js"]
+    environment:
+      KONZILO_SITE: ${KONZILO_SITE}
+      KONZILO_REPOSITORY: ${KONZILO_SITE}/source
+      KONZILO_SITE_ORIGIN: http://localhost:${KONZILO_PORT_SITE}
+      KONZILO_ADMIN_ORIGIN: http://localhost:${KONZILO_PORT_ADMIN}
+      KONZILO_PREVIEW_ORIGIN: http://localhost:${KONZILO_PORT_PREVIEW}
+      ASTRO_TELEMETRY_DISABLED: "1"
+    volumes:
+      - preview-work:/work
+      - preview-secret:/secret:ro
       - ${KONZILO_SITE_DIR:-.}:/site:ro
       - ${KONZILO_CORE}:${KONZILO_CORE}:ro
 
@@ -205,3 +244,5 @@ volumes:
   site-work:
   site-public:
   admin-config:
+  preview-work:
+  preview-secret:

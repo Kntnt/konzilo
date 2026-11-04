@@ -5,7 +5,7 @@ A site repository includes `compose.yaml` from here, with its own ports in `.env
 - `web/`: Caddy with the editor's static files, the one container with ports. Its `Caddyfile` holds the allow-list that closes Forgejo ([ADR 0007](../docs/adr/0007-sign-in-through-the-customers-own-forgejo-with-two-factors-and-close-the-rest-at-the-proxy.md)).
 - `forgejo/`: what the vendor's image is given: the first account's script, and the template that answers the consent page.
 - `seed/`: fills a new Forgejo: accounts with a second factor, the organisation and its teams, the source repository and the OAuth client.
-- `builder/`: Node, Git and the core, for the seed and a site's build.
+- `builder/`: Node, Git and the core, for the seed, a site's build and the live preview.
 
 ## What runs on demand
 
@@ -24,3 +24,5 @@ Each volume's data is one of: *authoritative*, the one record of something; *der
 | `site-work` | Derived | The site's code and dependencies for building | Installed again at the next start |
 | `site-public` | Derived | The built site | Built again at the next start |
 | `admin-config` | Derived | The editor's generated configuration | Written again at the next start |
+| `preview-work` | Derived | The live preview's copy of the site's code, its dependencies, a checkout of the source and its content folder | Made again at the next start, and the drafts in it are the editors' to send again |
+| `preview-secret` | Secret | The live preview's credential, which can only read the source repository | The seed makes another at the next start |

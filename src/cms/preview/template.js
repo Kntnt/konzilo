@@ -1,0 +1,92 @@
+// The live preview in Sveltia's pane (ADR 0032): the page itself, from the preview's own
+// origin, in a frame scaled from a desktop's width to the pane, and above it why the draft
+// cannot be published, while the last good page stays. It is a React component, since that
+// is what Sveltia takes, with its styles on the elements, since the pane is a document of
+// Sveltia's own.
+
+import { say } from '../body/texts.js';
+import { previewClient } from './client.js';
+import { draftOf } from './draft.js';
+
+const WIDTH = 1280;
+// A page in the frame may run scripts and send forms, and do nothing to the editor around it.
+const SANDBOX = 'allow-same-origin allow-scripts allow-forms';
+
+const BAR = { margin: 0, padding: '8px 12px', font: '14px/1.4 system-ui, sans-serif' };
+const NOTE = { ...BAR, background: '#fff3cd', color: '#3d2f00' };
+const QUIET = { ...BAR, background: '#f0f0f0', color: '#1c1c1c' };
+
+// Sveltia's own: what a browser signed in with is kept as, there and only there.
+const USER = 'sveltia-cms.user';
+
+function signedInCredential() {
+  try {
+    const { token } = JSON.parse(globalThis.localStorage.getItem(USER)) ?? {};
+    return token ? `token ${token}` : null;
+  } catch {
+    return null;
+  }
+}
+
+const freshId = () => globalThis.crypto.randomUUID().replaceAll('-', '').slice(0, 12);
+
+export function previewTemplate({ origin, several, credential = signedInCredential }) {
+  return function KonziloPreview({ entry, document: paneDocument, window: paneWindow }) {
+    const React = globalThis.__SVELTIA_CMS_REACT__;
+    const { createElement: h } = React;
+    const [state, setState] = React.useState({ phase: 'starting', address: null, refusals: [] });
+    const [size, setSize] = React.useState({ width: WIDTH, height: 800 });
+    const holder = React.useRef(null);
+    const client = React.useRef(null);
+    const unsavedId = React.useRef(null);
+
+    client.current ??= previewClient({ origin, credential, changed: setState });
+    unsavedId.current ??= freshId();
+    React.useEffect(() => () => client.current.close(), []);
+
+    const data = entry.get('data');
+    const plainData = data?.toJS ? data.toJS() : data;
+    const written = JSON.stringify(plainData);
+    const collection = entry.get('collection');
+    const id = entry.get('slug') || unsavedId.current;
+    const tag = several ? paneDocument.documentElement.lang || null : null;
+    React.useEffect(() => {
+      client.current.update(() => draftOf({ collection, id, tag, data: plainData }));
+    }, [written, collection, id, tag]);
+
+    React.useEffect(() => {
+      paneDocument.body.style.margin = '0';
+      const watched = holder.current;
+      const measure = () => setSize({ width: watched.clientWidth, height: watched.clientHeight });
+      measure();
+      const observer = new paneWindow.ResizeObserver(measure);
+      observer.observe(watched);
+      return () => observer.disconnect();
+    }, []);
+
+    const scale = size.width > 0 ? size.width / WIDTH : 1;
+    const frame = state.address === null ? null : h('iframe', {
+      title: say('previewTitle'),
+      src: `${origin}${state.address}`,
+      sandbox: SANDBOX,
+      style: { display: 'block', border: 0, width: WIDTH, height: size.height / scale, transform: `scale(${scale})`, transformOrigin: '0 0' },
+    });
+    const notes = [];
+    if (state.phase === 'off') notes.push(h('p', { key: 'off', role: 'alert', style: NOTE }, say('previewOff')));
+    if (state.refusals.length > 0) {
+      notes.push(h('div', { key: 'refused', role: 'alert', style: NOTE }, say(frame === null ? 'previewRefusedNoPage' : 'previewRefused'), h('ul', { style: { margin: '4px 0 0', paddingInlineStart: 20 } }, state.refusals.map(({ field, reason }) => h('li', { key: `${field}:${reason}` }, field ? `${field}: ${reason}` : reason)))));
+    }
+    if (state.phase === 'starting') notes.push(h('p', { key: 'starting', role: 'status', style: QUIET }, say('previewStarting')));
+    if (state.phase === 'shown' && state.address === null && state.refusals.length === 0) notes.push(h('p', { key: 'none', role: 'status', style: QUIET }, say('previewNoPage')));
+
+    return h('div', { style: { display: 'flex', flexDirection: 'column', height: '100vh' } },
+      notes,
+      h('div', { ref: holder, style: { flex: '1 1 auto', overflow: 'hidden', minHeight: 0 } }, frame));
+  };
+}
+
+// A preview for each type with pages. Other collections keep Sveltia's own pane.
+export function registerPreview(CMS, config, { origin, collections }) {
+  const template = previewTemplate({ origin, several: Boolean(config.i18n) });
+  for (const name of collections) CMS.registerPreviewTemplate(name, template);
+}

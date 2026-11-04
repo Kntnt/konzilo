@@ -91,7 +91,7 @@ import { CONSENT_RECORDS, consentClient } from './consent.js';
 import { cookieDeclaration } from './cookie-declaration.js';
 import { datawrapperHeights, embedPanels } from './embeds.js';
 import { resolvedColors, tokensOf } from './theme-tokens.js';
-import { isPublicBuild, origin } from './public-site.js';
+import { isLivePreview, isPublicBuild, origin } from './public-site.js';
 import { pageTagManager, tagManagerClient } from './tag-manager.js';
 import { registry } from './directives.js';
 import { FORM_NOT_SENT, formClient, siteFormNotSentPage, siteFormTexts } from './forms.js';
@@ -531,7 +531,7 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
       'astro:server:setup': ({ server, logger }) => {
         // The counts of addresses not found, which see every answer's
         // status once it is sent.
-        server.middlewares.use(devNotFoundLog());
+        if (!isLivePreview()) server.middlewares.use(devNotFoundLog());
         // The security headers first, on every answer.
         server.middlewares.use(devHeaders(root));
         server.middlewares.use(searchProxy(root));

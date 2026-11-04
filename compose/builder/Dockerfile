@@ -15,6 +15,7 @@ COPY src src
 COPY site-template/demo-content site-template/demo-content
 COPY compose/seed compose/seed
 COPY compose/builder/build-site.sh compose/builder/build-site.sh
+COPY compose/builder/prepare-site.sh compose/builder/prepare-site.sh
 # A volume takes its first owner from the folder it is mounted on.
-RUN mkdir -p /state /work /public /admin-config && chown node:node /state /work /public /admin-config
+RUN mkdir -p /state /work /public /admin-config /preview-secret /secret && chown node:node /state /work /public /admin-config /preview-secret /secret
 USER node

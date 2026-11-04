@@ -1,0 +1,225 @@
+// The live preview in a site in Compose, as an editor and a stranger meet it: nothing without
+// a session, the page itself in the pane once signed in, a draft on the page within seconds
+// of a pause, a refusal above the last good page, and none of what the public site offers
+// the world (ADR 0032).
+
+import assert from 'node:assert/strict';
+import { after, before, describe, test } from 'node:test';
+
+import { ENGINES, openEditor, signIn } from './lib/editor.js';
+import { makeSite } from './lib/site.js';
+
+const POST = 'Northern islands and the meadow';
+const ON_THE_PAGE = 30_000;
+
+describe('the live preview', () => {
+  let site;
+
+  before(async () => {
+    site = await makeSite();
+    site.up('--build');
+  }, { timeout: 900_000 });
+
+  after(() => site?.remove());
+
+  const frameOf = (page) => page.frameLocator('iframe.preview').frameLocator('iframe');
+  const paneOf = (page) => page.frameLocator('iframe.preview');
+  const openPost = async (page, title = POST) => {
+    await page.getByText(title).first().click();
+    await page.locator('.konzilo-body-visual .ProseMirror').waitFor({ timeout: 30_000 });
+  };
+
+  describe('to someone without a session', () => {
+    test('stands, and shows nothing', async () => {
+      assert.equal((await fetch(`${site.origin.preview}/_konzilo/preview/health`)).status, 200);
+      for (const path of ['/', '/robots.txt', '/@fs/secret/read-token', '/site-description.json']) {
+        const answer = await fetch(`${site.origin.preview}${path}`);
+        assert.equal(answer.status, 403, path);
+        assert.equal(answer.headers.get('x-robots-tag'), 'noindex, nofollow');
+        assert.match(answer.headers.get('cache-control'), /private/);
+      }
+    });
+
+    test('gives no session to a credential that cannot write, or from another origin', async () => {
+      const session = (headers) => fetch(`${site.origin.preview}/_konzilo/preview/session`, { method: 'POST', headers });
+      assert.equal((await session({ origin: site.origin.admin, authorization: 'token nothing-of-the-kind' })).status, 403);
+      assert.equal((await session({ origin: site.origin.site, authorization: 'token nothing-of-the-kind' })).status, 403);
+      const reader = site.compose('exec', '-T', 'preview', 'cat', '/secret/read-token').trim();
+      assert.equal((await session({ origin: site.origin.admin, authorization: `token ${reader}` })).status, 403, 'its own credential can only read');
+    });
+
+    test('its credential can read the source, and nothing else', async () => {
+      const reader = site.compose('exec', '-T', 'preview', 'cat', '/secret/read-token').trim();
+      const api = (path, init) => fetch(`${site.origin.git}/api/v1${path}`, { ...init, headers: { authorization: `token ${reader}`, 'content-type': 'application/json' } });
+      assert.equal((await api(`/repos/${site.name}/source`)).status, 200);
+      const { permissions } = await (await api(`/repos/${site.name}/source`)).json();
+      assert.equal(permissions.push, false);
+      const writing = await api(`/repos/${site.name}/source/contents/pages/not-allowed.md`, { method: 'POST', body: JSON.stringify({ content: 'eA==', message: 'no' }) });
+      assert.ok(writing.status === 403 || writing.status === 404, String(writing.status));
+    });
+  });
+
+  describe('to an editor', () => {
+    let session;
+    let page;
+
+    before(async () => {
+      session = await openEditor('chromium', site);
+      ({ page } = session);
+      await signIn(session, site);
+      await openPost(page);
+    }, { timeout: 300_000 });
+
+    after(() => session?.browser.close());
+
+    test('shows the page itself, on an origin of its own, in the pane', async () => {
+      await frameOf(page).getByRole('heading', { level: 1, name: POST }).waitFor({ timeout: 240_000 });
+      const frame = paneOf(page).locator('iframe');
+      assert.ok((await frame.getAttribute('src')).startsWith(`${site.origin.preview}/`));
+      assert.doesNotMatch(await frame.getAttribute('sandbox'), /allow-top-navigation/);
+    });
+
+    test('scales the page from a desktop\'s width to the pane', async () => {
+      const { width, offered } = await paneOf(page).locator('iframe').evaluate((element) => ({ width: element.getBoundingClientRect().width, offered: element.offsetWidth }));
+      assert.equal(offered, 1280);
+      assert.ok(width < 1280 && width > 0, String(width));
+    });
+
+    test('shows what is typed, after a pause, and keeps the scroll position', async () => {
+      await frameOf(page).locator('html').evaluate(() => window.scrollTo(0, 200));
+      const scrolled = await frameOf(page).locator('html').evaluate(() => window.scrollY);
+      const title = page.getByRole('textbox', { name: 'Title', exact: true });
+      await title.fill(`${POST}, changed`);
+      await frameOf(page).getByRole('heading', { level: 1, name: `${POST}, changed` }).waitFor({ timeout: ON_THE_PAGE });
+      assert.equal(await frameOf(page).locator('html').evaluate(() => window.scrollY), scrolled);
+    });
+
+    test('shows a change in the body', async () => {
+      const paragraph = page.locator('.konzilo-body-visual .ProseMirror p').last();
+      await paragraph.click();
+      await page.keyboard.press('End');
+      await page.keyboard.type(' Words only this draft holds.', { delay: 50 });
+      await frameOf(page).getByText('Words only this draft holds.').waitFor({ timeout: ON_THE_PAGE });
+    });
+
+    test('says why it cannot publish a draft, above the last good page', async () => {
+      const title = page.getByRole('textbox', { name: 'Title', exact: true });
+      await title.fill('');
+      const refused = paneOf(page).getByRole('alert');
+      await refused.waitFor({ timeout: ON_THE_PAGE });
+      assert.match(await refused.textContent(), /title/);
+      assert.ok(await frameOf(page).getByRole('heading', { level: 1, name: `${POST}, changed` }).isVisible(), 'the last good page stands');
+      await title.fill(`${POST}, again`);
+      await frameOf(page).getByRole('heading', { level: 1, name: `${POST}, again` }).waitFor({ timeout: ON_THE_PAGE });
+      assert.equal(await refused.count(), 0);
+    });
+
+    test('has no sitemap, robots, feeds, llms.txt or Markdown alternates, whoever asks', async () => {
+      const { request } = page.context();
+      const address = new URL(await paneOf(page).locator('iframe').getAttribute('src')).pathname;
+      for (const path of ['/robots.txt', '/sitemap.xml', '/sitemap-1.xml', '/llms.txt', '/llms-full.txt', '/feed.xml', '/index.xml', `${address}index.md`]) {
+        const answer = await request.get(`${site.origin.preview}${path}`);
+        assert.ok(answer.status() >= 400, `${path}: ${answer.status()}`);
+      }
+      const shown = await request.get(`${site.origin.preview}${address}`);
+      assert.equal(shown.status(), 200);
+      assert.equal(shown.headers()['x-robots-tag'], 'noindex, nofollow');
+      assert.equal(shown.headers()['x-frame-options'], undefined);
+      assert.equal(shown.headers()['content-security-policy'], `frame-ancestors ${site.origin.admin}`);
+      assert.doesNotMatch(await shown.text(), /rel="alternate"[^>]*text\/markdown/);
+    });
+
+    test('keeps every secret out of a dev server\'s reach', async () => {
+      const { request } = page.context();
+      const secret = site.compose('exec', '-T', 'preview', 'cat', '/secret/read-token').trim();
+      const paths = [
+        '/@fs/secret/read-token',
+        '/@fs//secret/read-token',
+        '/@fs/secret/read-token?raw',
+        '/@fs/secret/read-token?import&raw',
+        '/@fs/site/local-secrets/account-password',
+        '/@fs/work/source/.git/config',
+        '/@fs/proc/self/environ',
+        '/@fs/run/secrets/instance-password',
+        '/local-secrets/account-password',
+        '/.env',
+        '/.git/config',
+        '/../secret/read-token',
+        '/..%2fsecret/read-token',
+      ];
+      for (const path of paths) {
+        const answer = await request.get(`${site.origin.preview}${path}`);
+        const text = await answer.text();
+        assert.ok(!text.includes(secret), `${path} shows the credential`);
+        assert.notEqual(answer.status() === 200 && /export default "/.test(text) && text.includes('read-token'), true, path);
+      }
+      const environment = site.compose('exec', '-T', 'preview', 'node', '-e', `
+        const { readdirSync, readFileSync } = require('node:fs');
+        for (const id of readdirSync('/proc').filter((name) => /^[0-9]+$/.test(name))) {
+          try {
+            if (id !== String(process.pid) && readFileSync(\`/proc/\${id}/cmdline\`, 'utf8').includes('.bin/astro')) console.log(readFileSync(\`/proc/\${id}/environ\`, 'utf8').replaceAll('\\0', '\\n'));
+          } catch {}
+        }`);
+      assert.doesNotMatch(environment, /TOKEN|PASSWORD|SECRET|KONZILO_ADMIN|KONZILO_REPOSITORY/);
+      assert.match(environment, /KONZILO_PREVIEW=1/);
+    });
+
+    test('leaves the page that has been saved, and what is published, as they are', async () => {
+      const answer = await fetch(`${site.origin.site}/`);
+      assert.equal(answer.status, 200);
+      assert.doesNotMatch(await answer.text(), /Words only this draft holds/);
+      const held = await fetch(`${site.origin.site}/pages/`);
+      assert.doesNotMatch(await held.text(), /Words only this draft holds/);
+    });
+  });
+
+  describe('a new post', () => {
+    let session;
+    let page;
+
+    before(async () => {
+      session = await openEditor('chromium', site);
+      ({ page } = session);
+      await signIn(session, site);
+    }, { timeout: 300_000 });
+
+    after(() => session?.browser.close());
+
+    const newEntry = async (collection) => {
+      await page.goto(`${site.origin.admin}/#/collections/${collection}/new`);
+      await page.locator('.konzilo-body-visual .ProseMirror').waitFor({ timeout: 30_000 });
+    };
+
+    test('has a page before it has been saved', async () => {
+      await newEntry('pages');
+      await page.getByRole('textbox', { name: 'Title', exact: true }).fill('A page nobody has saved');
+      await frameOf(page).getByRole('heading', { level: 1, name: 'A page nobody has saved' }).waitFor({ timeout: ON_THE_PAGE });
+    });
+
+    test('says what it lacks while it can have no page, and shows none', async () => {
+      await newEntry('articles');
+      await page.getByRole('textbox', { name: 'Title', exact: true }).fill('An article with no category');
+      const refused = paneOf(page).getByRole('alert');
+      await refused.waitFor({ timeout: ON_THE_PAGE });
+      assert.match(await refused.textContent(), /no page to show/);
+      assert.match(await refused.textContent(), /categories/);
+      assert.equal(await paneOf(page).locator('iframe').count(), 0);
+    });
+  });
+
+  for (const engine of Object.keys(ENGINES).filter((name) => name !== 'chromium')) {
+    describe(`in ${engine}`, () => {
+      test('shows the page, with its cookie in a frame', async () => {
+        const session = await openEditor(engine, site);
+        try {
+          await signIn(session, site);
+          const { page } = session;
+          await openPost(page, 'Golden harbours and the harbour');
+          await frameOf(page).getByRole('heading', { level: 1, name: 'Golden harbours and the harbour' }).waitFor({ timeout: ON_THE_PAGE * 2 });
+        } finally {
+          await session.browser.close();
+        }
+      });
+    });
+  }
+});

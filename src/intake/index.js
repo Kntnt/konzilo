@@ -32,13 +32,15 @@ const MARKUP = /<\/?[a-zA-Z!?][^<>]*>/;
 // source file's path, { by, admin }; a path it does not name is not held to a role.
 // `images(path)`: what an original below `media/` is, as images.js gives it. `adminHost`:
 // the host no link may lead to, or null. `reader`: the Markdown reader, the site's own
-// but in a test of what happens when it breaks.
+// but in a test of what happens when it breaks. `preview`: the paths of the source files
+// a live preview shows, which are checked and written whatever their status and date,
+// where every other draft stays nobody's business.
 //
 // Returns { files, refusals, warnings, keep, ledger, next }: `keep`, the paths of the
 // content files that stay though no file here writes them, a refused post's own and what
 // it names, and what a refused settings file names; `next`, the next scheduled moment,
 // or null.
-export function intake({ files, site: described, now, ledger = null, changes = {}, images = () => null, adminHost = null, reader = siteReader }) {
+export function intake({ files, site: described, now, ledger = null, changes = {}, images = () => null, adminHost = null, reader = siteReader, preview = [] }) {
   const site = siteDescription(described);
   const clock = typeof now === 'function' ? now() : now;
   const run = {
@@ -51,6 +53,7 @@ export function intake({ files, site: described, now, ledger = null, changes = {
     images,
     adminHost,
     reader,
+    preview: new Set(preview),
     refused: new Map(),
     warnings: [],
     refusals: [],
@@ -150,6 +153,15 @@ function stateOf(post, run) {
     post.on = true;
     post.notFound = run.chosen.notFound === post.id;
     refuse(run, post, { reason: say(post.gone ? 'admin-legal-gone' : 'admin-legal', { by: taking.by ?? 'this person' }) });
+    return;
+  }
+  if (run.preview.has(post.path)) {
+    post.on = true;
+    post.notFound = run.chosen.notFound === post.id;
+    if (run.several && post.language === null) {
+      refuse(run, post, { reason: say('language-folder', { folder: post.tag ?? 'the collection\'s own folder' }) });
+      post.keepsNothing = true;
+    }
     return;
   }
   if (status === 'draft' || status === null) return;

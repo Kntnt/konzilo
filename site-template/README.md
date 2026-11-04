@@ -23,7 +23,7 @@ docker compose run --rm code   # the account's current second-factor code
 docker compose down            # stops it, and keeps what is saved
 ```
 
-`.env` holds the three ports: the public site, the editor and Forgejo, each its own origin on `localhost`. Sign in to the editor as `anna`, with the password in `local-secrets/account-password` and a code from the command above. A save makes a commit in the site's Forgejo, and nothing yet rebuilds the public site from it. After a change to the core, add `--build`.
+`.env` holds the four ports: the public site, the editor, Forgejo and the live preview, each its own origin on `localhost`. Sign in to the editor as `anna`, with the password in `local-secrets/account-password` and a code from the command above. A save makes a commit in the site's Forgejo, and nothing yet rebuilds the public site from it. After a change to the core, add `--build`.
 
 `new-site` needs git, Node and npm, and Compose needs Docker. The site's name becomes its folder and later its hostnames, so it must be a hostname label: lowercase letters, digits and inner hyphens, at most 63 characters.
 

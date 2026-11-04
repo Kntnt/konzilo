@@ -6,7 +6,8 @@
 //   konzilo-cms <the site's folder> <the file to write>
 //
 // KONZILO_FORGEJO_ORIGIN, KONZILO_SITE_ORIGIN, KONZILO_REPOSITORY and
-// KONZILO_OAUTH_CLIENT say where. Refuses a description the checker refuses.
+// KONZILO_OAUTH_CLIENT say where, and KONZILO_PREVIEW_ORIGIN where its live preview
+// is, if it has one. Refuses a description the checker refuses.
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -34,6 +35,7 @@ const config = cmsConfig(readSiteDescription(join(resolve(site), SITE_DESCRIPTIO
   site: needed('KONZILO_SITE_ORIGIN'),
   repository: needed('KONZILO_REPOSITORY'),
   clientId: needed('KONZILO_OAUTH_CLIENT'),
+  preview: process.env.KONZILO_PREVIEW_ORIGIN || null,
 });
 
 mkdirSync(dirname(resolve(out)), { recursive: true });

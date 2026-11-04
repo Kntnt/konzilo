@@ -39,10 +39,18 @@ export function origin(environment = process.env) {
   return value;
 }
 
+// Whether this is a live preview's dev server, which is at the root of a host
+// of its own, as the public site is, and has none of what the public site offers
+// the world (ADR 0032).
+export function isLivePreview(environment = process.env) {
+  return environment.KONZILO_PREVIEW === '1';
+}
+
 // Whether a build below `base` is the public site's, which is built at the
-// root, and not a preview's, which is built below a base of its own.
-export function isPublicBuild(base) {
-  return base === '/';
+// root, and not a preview's, which is built below a base of its own or is a
+// live preview's.
+export function isPublicBuild(base, environment = process.env) {
+  return base === '/' && !isLivePreview(environment);
 }
 
 const made = new Map();
