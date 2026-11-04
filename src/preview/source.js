@@ -7,6 +7,7 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { promisify } from 'node:util';
 
+import { gitEnvironment } from '../forgejo.js';
 import { walk } from '../intake/content-folder.js';
 
 const run = promisify(execFile);
@@ -19,14 +20,7 @@ const FRESH = 10_000;
 // the checkout lies. `home`: Git's home. A Forgejo that does not answer costs a preview that
 // has a checkout nothing: it shows what it has, and asks again next time.
 export function gitSource({ remote, user, token, folder, home, now = Date.now, command = run, warn = console.error }) {
-  const environment = {
-    PATH: process.env.PATH,
-    HOME: home,
-    GIT_TERMINAL_PROMPT: '0',
-    GIT_CONFIG_COUNT: '1',
-    GIT_CONFIG_KEY_0: 'http.extraHeader',
-    GIT_CONFIG_VALUE_0: `Authorization: Basic ${Buffer.from(`${user}:${token}`).toString('base64')}`,
-  };
+  const environment = gitEnvironment({ user, token, home });
   const git = (...args) => command('git', args, { cwd: folder, env: environment, maxBuffer: 1024 * 1024 * 64 });
   let asked = -Infinity;
   let head = null;

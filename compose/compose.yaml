@@ -53,6 +53,8 @@ x-forgejo: &forgejo
     FORGEJO__metrics__ENABLED: "false"
     FORGEJO__packages__ENABLED: "false"
     FORGEJO__actions__ENABLED: "false"
+    # The one address a webhook may reach: the service, which starts a build.
+    FORGEJO__webhook__ALLOWED_HOST_LIST: editors
 
 services:
   # Makes the database and the instance's administrator before Forgejo first starts.
@@ -119,7 +121,8 @@ services:
       retries: 60
 
   # Fills Forgejo the first time: an organisation, a repository with the demo content
-  # as source files, an account and the editor's OAuth client.
+  # as source files, an account and the editor's OAuth client; and at every start makes
+  # sure of the machine accounts, the content repository and the webhook.
   seed:
     <<: *hardened
     build: &builder
@@ -144,13 +147,16 @@ services:
     volumes:
       - state:/state
       - preview-secret:/preview-secret
+      - builder-secret:/builder-secret
+      - editors-secret:/editors-secret
       - ${KONZILO_SITE_DIR:-.}/site-description.json:/site/site-description.json:ro
 
-  # Builds the site and writes the editor's configuration, then stays up and sleeps:
-  # what runs on demand starts itself, so that `up` is all a machine needs and no
-  # container gets Docker's socket (ADR 0002). If it stops with a fault, `up --wait`
-  # says so at once. One build at a start for now: saving through to a published page
-  # is a later step of the work.
+  # Publishes (ADR 0031): prepares the site's code once, writes the editor's configuration,
+  # and then sleeps and builds when asked, one build at a time. What runs on demand starts
+  # itself, so that `up` is all a machine needs and no container gets Docker's socket
+  # (ADR 0002). If its first build makes no site it stops, and `up --wait` says so at once.
+  # It shares the web server's network, so that it reaches Forgejo under the address an LFS
+  # answer names, and has no port of its own: it hears of a build through a file.
   builder:
     <<: *hardened
     build: *builder
@@ -158,6 +164,7 @@ services:
     init: true
     depends_on:
       seed: { condition: service_completed_successfully }
+    network_mode: service:web
     restart: "no"
     stop_grace_period: 1s
     mem_limit: 3g
@@ -167,21 +174,50 @@ services:
       interval: 2s
       timeout: 3s
       retries: 300
-    command: ["sh", "/konzilo/compose/builder/build-site.sh"]
+    command: ["node", "/konzilo/bin/konzilo-builder.js"]
     environment:
+      KONZILO_SITE: ${KONZILO_SITE}
       KONZILO_ORIGIN: http://localhost:${KONZILO_PORT_SITE}
       KONZILO_SITE_ORIGIN: http://localhost:${KONZILO_PORT_SITE}
+      KONZILO_ADMIN_ORIGIN: http://localhost:${KONZILO_PORT_ADMIN}
       KONZILO_FORGEJO_ORIGIN: http://localhost:${KONZILO_PORT_GIT}
       KONZILO_PREVIEW_ORIGIN: http://localhost:${KONZILO_PORT_PREVIEW}
       KONZILO_REPOSITORY: ${KONZILO_SITE}/source
       ASTRO_TELEMETRY_DISABLED: "1"
     volumes:
-      - state:/state:ro
+      - builder-secret:/secret:ro
+      - build-control:/control
       - site-work:/work
       - site-public:/public
       - admin-config:/admin-config
       - ${KONZILO_SITE_DIR:-.}:/site:ro
       - ${KONZILO_CORE}:${KONZILO_CORE}:ro
+
+  # The service, in its role for editors (ADR 0044): Forgejo's webhook and the clock each ask
+  # for a build, and the editor asks how publishing stands, through the web server. It has a
+  # credential that can only read the source repository.
+  editors:
+    <<: *hardened
+    build: *builder
+    image: konzilo-builder:local
+    init: true
+    depends_on:
+      seed: { condition: service_completed_successfully }
+    restart: unless-stopped
+    stop_grace_period: 1s
+    mem_limit: 128m
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4100/health').then((a) => process.exit(a.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+    command: ["node", "/konzilo/bin/konzilo-service.js"]
+    environment:
+      KONZILO_REPOSITORY: ${KONZILO_SITE}/source
+    volumes:
+      - editors-secret:/secret:ro
+      - build-control:/control
+      - ${KONZILO_SITE_DIR:-.}/site-description.json:/site/site-description.json:ro
 
   # The live preview (ADR 0032): its gate stands from the first moment, and starts the dev
   # server when an editor opens an entry. It shares the web server's network, so that the
@@ -246,3 +282,6 @@ volumes:
   admin-config:
   preview-work:
   preview-secret:
+  builder-secret:
+  editors-secret:
+  build-control:

@@ -36,10 +36,12 @@ const MARKUP = /<\/?[a-zA-Z!?][^<>]*>/;
 // a live preview shows, which are checked and written whatever their status and date,
 // where every other draft stays nobody's business.
 //
-// Returns { files, refusals, warnings, keep, ledger, next }: `keep`, the paths of the
+// Returns { files, refusals, warnings, keep, ledger, posts, next }: `keep`, the paths of the
 // content files that stay though no file here writes them, a refused post's own and what
-// it names, and what a refused settings file names; `next`, the next scheduled moment,
-// or null.
+// it names, and what a refused settings file names; `posts`, what became of each source
+// file of a post, `state` being `live`, `refused`, `waiting` for its moment `at`, or `off`,
+// with its `address`, and whether the site `shown` shows a version of it; `next`, the next
+// scheduled moment, or null.
 export function intake({ files, site: described, now, ledger = null, changes = {}, images = () => null, adminHost = null, reader = siteReader, preview = [] }) {
   const site = siteDescription(described);
   const clock = typeof now === 'function' ? now() : now;
@@ -341,6 +343,16 @@ function assemble(run) {
     warnings: run.warnings,
     keep: [...keep].sort(),
     ledger: updated,
+    posts: source.posts.filter((post) => !post.gone).map((post) => ({
+      file: post.path,
+      id: post.id,
+      type: post.type.name,
+      title: post.title ?? post.id,
+      state: run.refused.has(post.key) ? 'refused' : post.written ? 'live' : post.waiting ? 'waiting' : 'off',
+      at: post.waiting ?? null,
+      address: updated.posts[post.key]?.address ?? null,
+      shown: Boolean(updated.posts[post.key]?.path),
+    })),
     next,
   };
 }
