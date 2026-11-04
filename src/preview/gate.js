@@ -8,12 +8,15 @@ import { createHash, randomBytes } from 'node:crypto';
 import { request } from 'node:http';
 import { connect } from 'node:net';
 
-import { DRAFT_PATH, HEALTH_PATH, SESSION_PATH } from '../cms/preview/paths.js';
+import { DRAFT_PATH, HEALTH_PATH, SESSION_PATH, WHERE_PATH } from '../cms/preview/paths.js';
 
 const SESSION_LIFE = 60 * 60 * 1000;
 // A draft with its unsaved images, each at most what an original may be, in base64.
 const MOST_BYTES = 64 * 1024 * 1024;
 const CREDENTIAL = /^(?:token|Bearer) [\w.~+/=-]+$/;
+const REDIRECTS = new Set([301, 302, 303, 307, 308]);
+// As many steps of a redirect as are followed, about what a visitor's browser would take.
+const MOST_STEPS = 10;
 const DROPPED = new Set(['x-frame-options', 'content-security-policy', 'content-security-policy-report-only', 'reporting-endpoints', 'strict-transport-security', 'cache-control', 'x-robots-tag', 'set-cookie', 'connection', 'keep-alive', 'transfer-encoding']);
 
 const digest = (secret) => createHash('sha256').update(secret).digest('hex');
@@ -113,8 +116,18 @@ export function previewGate({ origin, adminOrigin, forgejo, repository, runner, 
     return { ...headers, host: `127.0.0.1:${dev.port}`, ...(others.length > 0 ? { cookie: others.join('; ') } : {}) };
   };
 
+  // A frame that follows a redirect has left the page its editor works on, and no script in a
+  // page can stop that. With nothing to show, a browser leaves the frame as it is, and nothing
+  // runs again that could try the same thing.
+  const keptFromFollowing = (incoming, from) => incoming.headers['sec-fetch-dest'] === 'iframe' && REDIRECTS.has(from.statusCode);
+
   const pass = (incoming, outgoing) => {
     const forward = request({ host: '127.0.0.1', port: dev.port, path: incoming.url, method: incoming.method, headers: forwarded(incoming) }, (from) => {
+      if (keptFromFollowing(incoming, from)) {
+        from.resume();
+        outgoing.writeHead(204, own);
+        return outgoing.end();
+      }
       const kept = Object.fromEntries(Object.entries(from.headers).filter(([name]) => !DROPPED.has(name)));
       if (kept.location?.startsWith(`http://127.0.0.1:${dev.port}`)) kept.location = kept.location.slice(`http://127.0.0.1:${dev.port}`.length) || '/';
       outgoing.writeHead(from.statusCode, { ...kept, ...own });
@@ -127,10 +140,65 @@ export function previewGate({ origin, adminOrigin, forgejo, repository, runner, 
     incoming.pipe(forward);
   };
 
+  const answerAt = (path) => new Promise((resolve, reject) => {
+    const asked = request({ host: '127.0.0.1', port: dev.port, path, method: 'GET', headers: { host: `127.0.0.1:${dev.port}`, accept: 'text/html' } }, (from) => {
+      from.resume();
+      resolve({ status: from.statusCode, location: from.headers.location ?? null });
+    });
+    asked.on('error', reject);
+    asked.end();
+  });
+
+  // What a visitor meets at a path of this site: { status, redirect, loop }, the status it ends
+  // at, null if it does not end here, and { status, to } where it is led on: the first step's
+  // status and the last step's target. A circle, or a chain as good as one, ends with `loop`.
+  const leadsFrom = async (path) => {
+    const inner = `http://127.0.0.1:${dev.port}`;
+    const passed = new Set([path]);
+    let at = path;
+    let redirect = null;
+    for (let step = 0; step < MOST_STEPS; step += 1) {
+      const { status, location } = await answerAt(at);
+      if (!REDIRECTS.has(status) || location === null) return { status, redirect, loop: false };
+      const next = new URL(location, inner);
+      const here = next.origin === inner || next.origin === origin;
+      const to = here ? `${next.pathname}${next.search}` : next.href;
+      redirect = { status: redirect?.status ?? status, to };
+      if (!here) return { status: null, redirect, loop: false };
+      if (passed.has(to)) break;
+      passed.add(to);
+      at = to;
+    }
+    return { status: null, redirect: null, loop: true };
+  };
+
+  const tellWhere = async (incoming, outgoing) => {
+    const asked = new URL(incoming.url, origin).searchParams.get('to') ?? '';
+    const path = /^\/(?![/\\])/.test(asked) ? new URL(asked, origin) : null;
+    if (path === null) return answer(outgoing, 400, { message: 'This asks about a path on this site.' }, forTheEditor);
+    try {
+      await dev.ensure();
+    } catch (error) {
+      warn(`The preview did not start: ${error.message}`);
+      return answer(outgoing, 503, { message: 'The preview did not start.' }, forTheEditor);
+    }
+    try {
+      return answer(outgoing, 200, await leadsFrom(`${path.pathname}${path.search}`), forTheEditor);
+    } catch {
+      return answer(outgoing, 502, { message: 'The preview is not answering.' }, forTheEditor);
+    }
+  };
+
   return {
     async request(incoming, outgoing) {
       const { pathname } = new URL(incoming.url, origin);
       if (pathname === HEALTH_PATH) return answer(outgoing, 200, { message: 'The gate stands.' });
+      if (pathname === WHERE_PATH) {
+        if (incoming.headers.origin !== adminOrigin) return answer(outgoing, 403, { message: 'Only the editor asks this.' });
+        if (incoming.method !== 'GET') return answer(outgoing, 405, { message: 'This takes GET alone.' }, { ...forTheEditor, Allow: 'GET' });
+        if (!hasSession(incoming)) return answer(outgoing, 401, { message: 'This preview\'s session has ended.' }, forTheEditor);
+        return tellWhere(incoming, outgoing);
+      }
       if (pathname === SESSION_PATH || pathname === DRAFT_PATH) {
         if (incoming.headers.origin !== adminOrigin) return answer(outgoing, 403, { message: 'Only the editor asks this.' });
         if (incoming.method === 'OPTIONS') {

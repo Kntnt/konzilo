@@ -79,6 +79,7 @@
 import { existsSync, mkdirSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { STOPPED_MESSAGE } from '../cms/preview/paths.js';
 import { searchPages } from '../format/addresses.js';
 import { declaredProblem, readPostList } from '../format/post-list.js';
 import { CONSENT_STORAGE } from '../format/consent.js';
@@ -91,6 +92,7 @@ import { CONSENT_RECORDS, consentClient } from './consent.js';
 import { cookieDeclaration } from './cookie-declaration.js';
 import { datawrapperHeights, embedPanels } from './embeds.js';
 import { resolvedColors, tokensOf } from './theme-tokens.js';
+import { previewGuard } from './preview-guard.js';
 import { isLivePreview, isPublicBuild, origin } from './public-site.js';
 import { pageTagManager, tagManagerClient } from './tag-manager.js';
 import { registry } from './directives.js';
@@ -486,6 +488,9 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
         if (config.image.service.entrypoint === ASTROS_IMAGE_SERVICE) {
           updateConfig({ image: { service: { entrypoint: IMAGE_SERVICE, config: config.image.service.config } } });
         }
+
+        // A page in the live preview's pane stays there, whatever it tries.
+        if (isLivePreview()) injectScript('head-inline', `(${previewGuard})(${JSON.stringify(STOPPED_MESSAGE)});`);
 
         // Every page loads the body styles.
         if (body !== null) injectScript('page-ssr', pageImports(body));

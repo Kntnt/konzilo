@@ -24,6 +24,11 @@ describe('the pane\'s client', () => {
     changed: (state) => states.push(state),
     send: async (url, init) => {
       calls.push({ url, init });
+      if (url.includes('/where')) {
+        const told = answers.where.shift() ?? json(200, { status: 200, redirect: null, loop: false });
+        if (told instanceof Error) throw told;
+        return told;
+      }
       const next = answers[url.endsWith('session') ? 'session' : 'draft'].shift();
       if (next instanceof Error) throw next;
       return next;
@@ -52,7 +57,7 @@ describe('the pane\'s client', () => {
     states = [];
     timers = [];
     credential = 'token abc';
-    answers = { session: [json(200, {}), json(200, {})], draft: [json(200, { address: '/a/', refusals: [] }), json(200, { address: '/a/', refusals: [] }), json(200, { address: '/a/', refusals: [] })] };
+    answers = { session: [json(200, {}), json(200, {})], draft: [json(200, { address: '/a/', refusals: [] }), json(200, { address: '/a/', refusals: [] }), json(200, { address: '/a/', refusals: [] })], where: [] };
   });
 
   test('starts by saying so', () => {
@@ -69,7 +74,7 @@ describe('the pane\'s client', () => {
     assert.equal(calls[1].url, `${ORIGIN}/_konzilo/preview/draft`);
     assert.equal(calls[1].init.credentials, 'include');
     assert.equal(calls[1].init.headers.authorization, undefined, 'a draft carries no token');
-    assert.deepEqual(states.at(-1), { phase: 'shown', address: '/a/', refusals: [] });
+    assert.deepEqual(states.at(-1), { phase: 'shown', address: '/a/', refusals: [], leads: null, stopped: null });
   });
 
   test('waits for a pause, and sends only the newest', async () => {
@@ -96,6 +101,7 @@ describe('the pane\'s client', () => {
       send: async (url, init) => {
         calls.push({ url, init });
         if (url.endsWith('session')) return json(200, {});
+        if (url.includes('/where')) return json(200, { status: 200, redirect: null, loop: false });
         await new Promise((resolve) => {
           release = resolve;
         });
@@ -133,7 +139,7 @@ describe('the pane\'s client', () => {
     answers.draft = [json(200, { address: null, refusals: [{ field: 'title', reason: 'a title' }] })];
     one.update(draft(''));
     await run();
-    assert.deepEqual(states.at(-1), { phase: 'shown', address: '/a/', refusals: [{ field: 'title', reason: 'a title' }] });
+    assert.deepEqual(states.at(-1), { phase: 'shown', address: '/a/', refusals: [{ field: 'title', reason: 'a title' }], leads: null, stopped: null });
   });
 
   test('opens a new session when one has ended, and sends the draft again', async () => {
@@ -180,6 +186,172 @@ describe('the pane\'s client', () => {
     one.close();
     await run();
     assert.deepEqual(states, []);
+  });
+
+  const lookups = () => calls.filter(({ url }) => url.includes('/where')).map(({ url }) => decodeURIComponent(url.split('?to=')[1]));
+
+  describe('when the page\'s own address leads elsewhere', () => {
+    test('looks where an address leads before it is shown, with its cookie', async () => {
+      const one = client();
+      one.update(draft('A'));
+      await run();
+      const asked = calls.find(({ url }) => url.includes('/where'));
+      assert.equal(asked.url, `${ORIGIN}/_konzilo/preview/where?to=%2Fa%2F`);
+      assert.equal(asked.init.credentials, 'include');
+      assert.equal(states.at(-1).address, '/a/');
+      assert.equal(states.at(-1).leads, null);
+    });
+
+    test('never asks the frame to go there, and says where it leads', async () => {
+      answers.where = [json(200, { status: 200, redirect: { status: 301, to: '/b/' }, loop: false })];
+      const one = client();
+      one.update(draft('A'));
+      await run();
+      assert.equal(states.at(-1).address, null);
+      assert.deepEqual(states.at(-1).leads, { address: '/a/', status: 301, to: '/b/', loop: false });
+    });
+
+    test('keeps the last good page, and asks once for each address, so nothing goes round', async () => {
+      answers.draft = [json(200, { address: '/a/', refusals: [] }), json(200, { address: '/moved/', refusals: [] }), json(200, { address: '/moved/', refusals: [] }), json(200, { address: '/moved/', refusals: [] })];
+      answers.where = [json(200, { status: 200, redirect: null, loop: false }), json(200, { status: null, redirect: null, loop: true })];
+      const one = client();
+      for (const title of ['A', 'B', 'C', 'D']) {
+        one.update(draft(title));
+        await run();
+      }
+      assert.equal(states.at(-1).address, '/a/');
+      assert.deepEqual(states.at(-1).leads, { address: '/moved/', status: null, to: null, loop: true });
+      assert.deepEqual(lookups(), ['/a/', '/moved/']);
+    });
+
+    test('shows the page again when its address stops leading elsewhere', async () => {
+      answers.draft = [json(200, { address: '/moved/', refusals: [] }), json(200, { address: '/b/', refusals: [] })];
+      answers.where = [json(200, { status: 200, redirect: { status: 301, to: '/b/' }, loop: false }), json(200, { status: 200, redirect: null, loop: false })];
+      const one = client();
+      one.update(draft('A'));
+      await run();
+      one.update(draft('B'));
+      await run();
+      assert.equal(states.at(-1).address, '/b/');
+      assert.equal(states.at(-1).leads, null);
+    });
+
+    test('shows the page when it cannot tell, since the gate keeps the frame from following anything', async () => {
+      answers.where = [new Error('away')];
+      const one = client();
+      one.update(draft('A'));
+      await run();
+      assert.equal(states.at(-1).address, '/a/');
+      assert.equal(states.at(-1).leads, null);
+      assert.equal(states.at(-1).phase, 'shown');
+    });
+  });
+
+  describe('when the page tries to leave', () => {
+    const fire = async (one) => {
+      await new Promise((resolve) => {
+        setImmediate(resolve);
+      });
+      return one;
+    };
+
+    test('says where a link goes, as an address on the site', async () => {
+      const one = client();
+      one.stopped({ to: `${ORIGIN}/x/?a=1#b`, how: 'link' });
+      assert.deepEqual(states.at(-1).stopped, { to: '/x/?a=1#b', how: 'link', where: null });
+      await fire(one);
+      assert.deepEqual(lookups(), ['/x/?a=1']);
+      assert.deepEqual(states.at(-1).stopped, { to: '/x/?a=1#b', how: 'link', where: { status: 200, redirect: null, loop: false } });
+    });
+
+    test('adds what it finds there', async () => {
+      answers.where = [json(200, { status: 200, redirect: { status: 302, to: '/y/' }, loop: false })];
+      const one = client();
+      one.stopped({ to: `${ORIGIN}/x/`, how: 'link' });
+      await fire(one);
+      assert.deepEqual(states.at(-1).stopped.where.redirect, { status: 302, to: '/y/' });
+    });
+
+    test('names an address on another site whole, and asks nothing of it', async () => {
+      const one = client();
+      one.stopped({ to: 'https://example.com/x/', how: 'link' });
+      await fire(one);
+      assert.deepEqual(states.at(-1).stopped, { to: 'https://example.com/x/', how: 'link', where: null });
+      assert.deepEqual(lookups(), []);
+    });
+
+    test('asks nothing of where a form is sent, which only takes what is sent', async () => {
+      const one = client();
+      one.stopped({ to: `${ORIGIN}/_konzilo/forms/a`, how: 'form' });
+      await fire(one);
+      assert.equal(states.at(-1).stopped.to, '/_konzilo/forms/a');
+      assert.deepEqual(lookups(), []);
+    });
+
+    test('a step in the browser\'s history has no address', async () => {
+      const one = client();
+      one.stopped({ to: '', how: 'history' });
+      await fire(one);
+      assert.deepEqual(states.at(-1).stopped, { to: '', how: 'history', where: null });
+      assert.deepEqual(lookups(), []);
+    });
+
+    test('goes away by itself, and only the newest counts', async () => {
+      const one = client();
+      one.stopped({ to: `${ORIGIN}/x/`, how: 'link' });
+      await fire(one);
+      one.stopped({ to: `${ORIGIN}/y/`, how: 'link' });
+      assert.equal(timers.filter(Boolean).length, 1, 'the first one\'s time is over');
+      await run();
+      assert.equal(states.at(-1).stopped, null);
+    });
+
+    test('a slow answer about an earlier link changes nothing', async () => {
+      let answerFirst;
+      const one = previewClient({
+        origin: ORIGIN,
+        credential: () => credential,
+        changed: (state) => states.push(state),
+        later: () => 0,
+        cancel: () => {},
+        send: (url) => (url.includes('%2Fx%2F')
+          ? new Promise((resolve) => {
+            answerFirst = resolve;
+          })
+          : Promise.resolve(json(200, { status: 404, redirect: null, loop: false }))),
+      });
+      one.stopped({ to: `${ORIGIN}/x/`, how: 'link' });
+      one.stopped({ to: `${ORIGIN}/y/`, how: 'link' });
+      await fire(one);
+      answerFirst(json(200, { status: 410, redirect: null, loop: false }));
+      await fire(one);
+      assert.equal(states.at(-1).stopped.to, '/y/');
+      assert.equal(states.at(-1).stopped.where.status, 404);
+    });
+
+    test('says what it knows when nobody can say more', async () => {
+      answers.where = [new Error('away')];
+      const one = client();
+      one.stopped({ to: `${ORIGIN}/x/`, how: 'link' });
+      await fire(one);
+      assert.deepEqual(states.at(-1).stopped, { to: '/x/', how: 'link', where: null });
+    });
+
+    test('takes nothing else from a page', async () => {
+      const one = client();
+      for (const told of [null, 'text', {}, { to: 5, how: 'link' }, { to: `${ORIGIN}/x/`, how: 'anything' }, { to: 'not an address', how: 'link' }, { to: `${ORIGIN}/${'x'.repeat(5000)}`, how: 'link' }]) one.stopped(told);
+      assert.deepEqual(states, []);
+      assert.deepEqual(calls, []);
+    });
+
+    test('says nothing once closed', async () => {
+      const one = client();
+      one.stopped({ to: `${ORIGIN}/x/`, how: 'link' });
+      const count = states.length;
+      one.close();
+      await fire(one);
+      assert.equal(states.length, count);
+    });
   });
 });
 

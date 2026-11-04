@@ -6,7 +6,7 @@ import { createServer, request as httpRequest } from 'node:http';
 import { after, before, beforeEach, describe, test } from 'node:test';
 
 import { isLivePreview, isPublicBuild } from '../src/astro/public-site.js';
-import { DRAFT_PATH, HEALTH_PATH, SESSION_PATH } from '../src/cms/preview/paths.js';
+import { DRAFT_PATH, HEALTH_PATH, SESSION_PATH, WHERE_PATH } from '../src/cms/preview/paths.js';
 import { previewGate } from '../src/preview/gate.js';
 
 const ADMIN = 'http://localhost:7002';
@@ -48,6 +48,23 @@ describe('the preview\'s gate', () => {
       if (incoming.url === '/redirects') {
         outgoing.writeHead(301, { Location: `http://${incoming.headers.host}/elsewhere/` });
         return outgoing.end();
+      }
+      const moved = {
+        '/chain/': [301, '/chain/second/'],
+        '/chain/second/': [302, '/elsewhere/'],
+        '/to-nothing/': [307, '/missing/'],
+        '/off-the-site/': [308, 'https://example.com/there/'],
+        '/round/': [301, '/and-round/'],
+        '/and-round/': [301, '/round/'],
+        '/with-a-query/?a=1': [301, '/elsewhere/?b=2'],
+      }[incoming.url];
+      if (moved || incoming.url.startsWith('/on/')) {
+        outgoing.writeHead(moved?.[0] ?? 301, { Location: moved?.[1] ?? `/on/${Number(incoming.url.slice(4)) + 1}` });
+        return outgoing.end();
+      }
+      if (incoming.url === '/missing/' || incoming.url === '/gone/') {
+        outgoing.writeHead(incoming.url === '/gone/' ? 410 : 404);
+        return outgoing.end('no such page');
       }
       outgoing.writeHead(200, {
         'Content-Type': 'text/html',
@@ -244,6 +261,114 @@ describe('the preview\'s gate', () => {
     const unreadable = await fetch(`${origin}${DRAFT_PATH}`, { method: 'POST', headers: { origin: ADMIN, cookie }, body: 'not json' });
     assert.equal(unreadable.status, 400);
     assert.deepEqual(taken, []);
+  });
+
+  describe('a frame, which keeps to the page its editor works on', () => {
+    const asked_as = (path, dest) => fetch(`${origin}${path}`, { redirect: 'manual', headers: { cookie, 'sec-fetch-dest': dest, 'sec-fetch-mode': 'navigate' } });
+
+    test('stays where it is, with nothing to follow, when an address redirects', async () => {
+      await signedIn();
+      const answer = await asked_as('/redirects', 'iframe');
+      assert.equal(answer.status, 204);
+      assert.equal(answer.headers.get('location'), null);
+      assert.equal(answer.headers.get('content-security-policy'), `frame-ancestors ${ADMIN}`);
+      assert.equal(await answer.text(), '');
+    });
+
+    test('is shown a page as before', async () => {
+      await signedIn();
+      const answer = await asked_as('/a-page/', 'iframe');
+      assert.equal(answer.status, 200);
+      assert.equal(await answer.text(), 'a page');
+    });
+
+    test('is the only one kept from a redirect: a tab and a page\'s own requests follow theirs', async () => {
+      await signedIn();
+      for (const dest of ['document', 'image', 'empty']) assert.equal((await asked_as('/redirects', dest)).status, 301, dest);
+      assert.equal((await fetch(`${origin}/redirects`, { redirect: 'manual', headers: { cookie } })).status, 301);
+    });
+  });
+
+  describe('where an address leads', () => {
+    const where = (to, { from = ADMIN, held = cookie, method = 'GET' } = {}) => fetch(`${origin}${WHERE_PATH}?to=${encodeURIComponent(to)}`, { method, headers: { origin: from, ...(held ? { cookie: held } : {}) } });
+    const found = async (to) => {
+      const answer = await where(to);
+      assert.equal(answer.status, 200, to);
+      assert.equal(answer.headers.get('access-control-allow-origin'), ADMIN);
+      assert.equal(answer.headers.get('access-control-allow-credentials'), 'true');
+      return answer.json();
+    };
+
+    test('is told only to the editor with a session', async () => {
+      await signedIn();
+      assert.equal((await where('/a-page/', { held: null })).status, 401);
+      assert.equal((await where('/a-page/', { held: 'a_preview=forged' })).status, 401);
+      assert.equal((await where('/a-page/', { from: 'http://elsewhere.example' })).status, 403);
+      assert.equal((await where('/a-page/', { method: 'POST' })).status, 405);
+    });
+
+    test('a page ends there', async () => {
+      await signedIn();
+      assert.deepEqual(await found('/a-page/'), { status: 200, redirect: null, loop: false });
+    });
+
+    test('an address with no page says so, with its status', async () => {
+      await signedIn();
+      assert.deepEqual(await found('/missing/'), { status: 404, redirect: null, loop: false });
+      assert.deepEqual(await found('/gone/'), { status: 410, redirect: null, loop: false });
+    });
+
+    test('a redirect names its target on this host, whatever the dev server called itself', async () => {
+      await signedIn();
+      assert.deepEqual(await found('/redirects'), { status: 200, redirect: { status: 301, to: '/elsewhere/' }, loop: false });
+    });
+
+    test('a chain ends at its last target, with the status of the first step', async () => {
+      await signedIn();
+      assert.deepEqual(await found('/chain/'), { status: 200, redirect: { status: 301, to: '/elsewhere/' }, loop: false });
+    });
+
+    test('keeps the query, there and on the way', async () => {
+      await signedIn();
+      assert.deepEqual(await found('/with-a-query/?a=1'), { status: 200, redirect: { status: 301, to: '/elsewhere/?b=2' }, loop: false });
+    });
+
+    test('a redirect to nothing says both', async () => {
+      await signedIn();
+      assert.deepEqual(await found('/to-nothing/'), { status: 404, redirect: { status: 307, to: '/missing/' }, loop: false });
+    });
+
+    test('a target on another site is named, and never asked', async () => {
+      await signedIn();
+      assert.deepEqual(await found('/off-the-site/'), { status: null, redirect: { status: 308, to: 'https://example.com/there/' }, loop: false });
+      assert.equal(asked.some(({ url }) => url.includes('there')), false);
+    });
+
+    test('a circle ends, and says it is one', async () => {
+      await signedIn();
+      assert.deepEqual(await found('/round/'), { status: null, redirect: null, loop: true });
+      assert.equal(asked.filter(({ url }) => url === '/round/').length, 1);
+    });
+
+    test('a chain with no end is given up on, as a browser would', async () => {
+      await signedIn();
+      assert.deepEqual(await found('/on/1'), { status: null, redirect: null, loop: true });
+      assert.ok(asked.length <= 10, String(asked.length));
+    });
+
+    test('is asked only of a path on this host', async () => {
+      await signedIn();
+      for (const to of ['', 'relative/', '//example.com/', 'https://example.com/', '/\\example.com/', 'javascript:alert(1)']) {
+        assert.equal((await where(to)).status, 400, to);
+      }
+      assert.equal(asked.length, 0);
+    });
+
+    test('says so when the dev server does not start', async () => {
+      await signedIn();
+      startFails = true;
+      assert.equal((await where('/a-page/')).status, 503);
+    });
   });
 
   test('answers a question first asked before sending', async () => {

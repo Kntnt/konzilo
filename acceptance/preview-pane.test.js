@@ -23,6 +23,8 @@ describe('the preview\'s pane, on a site in two languages', () => {
   let drafts;
   let sessions;
   let answer;
+  let wheres;
+  let whereAnswer;
 
   const newEntry = async (collection) => {
     await page.goto(`${new URL(page.url()).origin}/#/collections/${collection}/new`);
@@ -61,7 +63,11 @@ describe('the preview\'s pane, on a site in two languages', () => {
         drafts.push(asked.postDataJSON());
         return route.fulfill({ status: 200, headers, json: answer });
       }
-      return route.fulfill({ status: 200, contentType: 'text/html', body: '<h1>The page</h1>', headers: { 'content-security-policy': `frame-ancestors ${origin}` } });
+      if (asked.url().includes('/where?')) {
+        wheres.push(new URL(asked.url()).searchParams.get('to'));
+        return route.fulfill({ status: 200, headers, json: whereAnswer });
+      }
+      return route.fulfill({ status: 200, contentType: 'text/html', body: '<h1>The page</h1><button id="leave">Leave</button><script>document.getElementById("leave").onclick = () => parent.postMessage({ type: "konzilo-preview-stopped", to: `${location.origin}/x/`, how: "link" }, "*");</script>', headers: { 'content-security-policy': `frame-ancestors ${origin}` } });
     });
     await page.getByRole('button', { name: 'Work with Test Repository' }).click();
     await page.getByText('Articles', { exact: true }).first().waitFor();
@@ -78,6 +84,8 @@ describe('the preview\'s pane, on a site in two languages', () => {
     drafts = [];
     sessions = [];
     answer = { address: '/a-page/', refusals: [] };
+    wheres = [];
+    whereAnswer = { status: 200, redirect: null, loop: false };
   });
 
   test('asks for a session with the editor\'s token, and shows what it is told to', async () => {
@@ -128,6 +136,85 @@ describe('the preview\'s pane, on a site in two languages', () => {
     await page.getByRole('textbox', { name: 'Titel' }).first().fill('Två');
     await draftWith(({ fields }) => fields.title === 'Två');
     await pane().getByRole('alert').waitFor({ state: 'detached' });
+  });
+
+  describe('a page kept from leaving', () => {
+    const shownPage = () => pane().frameLocator('iframe');
+    const leave = async () => {
+      await newEntry('pages');
+      await page.getByRole('textbox', { name: 'Titel' }).first().fill('En sida');
+      await shownPage().getByRole('heading', { name: 'The page' }).waitFor();
+      await shownPage().locator('#leave').click();
+      const note = pane().getByRole('status');
+      await note.waitFor();
+      return note;
+    };
+    const says = async (note, words) => {
+      for (let waited = 0; waited < 5000 && !words.test(await note.textContent()); waited += 50) await page.waitForTimeout(50);
+      assert.match(await note.textContent(), words);
+    };
+
+    test('says where it would have gone, over the page, which does not move', async () => {
+      const box = () => pane().locator('iframe').evaluate((element) => {
+        const { width, height } = element.getBoundingClientRect();
+        return { width, height };
+      });
+      await newEntry('pages');
+      await page.getByRole('textbox', { name: 'Titel' }).first().fill('En sida');
+      await shownPage().getByRole('heading', { name: 'The page' }).waitFor();
+      const before = await box();
+      await shownPage().locator('#leave').click();
+      const note = pane().getByRole('status');
+      await note.waitFor();
+      assert.match(await note.textContent(), /On the public site, this link goes to \/x\/\./);
+      assert.deepEqual(await box(), before);
+      assert.equal(await note.evaluate((element) => getComputedStyle(element).pointerEvents), 'none', 'a note in the way keeps nothing from a click');
+    });
+
+    test('says where a redirect would have taken a visitor', async () => {
+      whereAnswer = { status: 200, redirect: { status: 301, to: '/y/' }, loop: false };
+      await says(await leave(), /goes to \/x\/\. That address redirects to \/y\/ \(301\)\./);
+      assert.equal(wheres.at(-1), '/x/');
+    });
+
+    test('says when there is nothing to arrive at', async () => {
+      whereAnswer = { status: 404, redirect: null, loop: false };
+      await says(await leave(), /There is no page there \(404\)\./);
+    });
+
+    test('says when a redirect goes round in a circle', async () => {
+      whereAnswer = { status: null, redirect: null, loop: true };
+      await says(await leave(), /round in a circle/);
+    });
+
+    test('hears only the page in its frame', async () => {
+      await newEntry('pages');
+      await page.getByRole('textbox', { name: 'Titel' }).first().fill('En sida');
+      await shownPage().getByRole('heading', { name: 'The page' }).waitFor();
+      await pane().locator('html').evaluate((element, target) => {
+        element.ownerDocument.defaultView.postMessage({ type: 'konzilo-preview-stopped', to: `${target}/forged/`, how: 'link' }, '*');
+      }, PREVIEW);
+      await page.waitForTimeout(300);
+      assert.equal(await pane().getByText('forged').count(), 0);
+    });
+  });
+
+  describe('a draft at an address that redirects', () => {
+    test('is never shown there, says where it leads, and asks once however long it is worked on', async () => {
+      answer = { address: '/moved/', refusals: [] };
+      whereAnswer = { status: 200, redirect: { status: 301, to: '/y/' }, loop: false };
+      await newEntry('pages');
+      await page.getByRole('textbox', { name: 'Titel' }).first().fill('Ett');
+      const note = pane().getByText('/moved/ redirects to /y/ (301)');
+      await note.waitFor();
+      for (const title of ['Två', 'Tre']) {
+        await page.getByRole('textbox', { name: 'Titel' }).first().fill(title);
+        await draftWith(({ fields }) => fields.title === title);
+      }
+      assert.deepEqual(wheres, ['/moved/']);
+      for (const frame of await pane().locator('iframe').all()) assert.doesNotMatch(await frame.getAttribute('src'), /moved/);
+      assert.equal(await note.count(), 1);
+    });
   });
 
   test('stays calm when the preview is away, and the entry can be written on', async () => {
