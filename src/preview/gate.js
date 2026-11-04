@@ -9,11 +9,11 @@ import { request } from 'node:http';
 import { connect } from 'node:net';
 
 import { DRAFT_PATH, HEALTH_PATH, SESSION_PATH, WHERE_PATH } from '../cms/preview/paths.js';
+import { CREDENTIAL, mayWrite } from '../forgejo.js';
 
 const SESSION_LIFE = 60 * 60 * 1000;
 // A draft with its unsaved images, each at most what an original may be, in base64.
 const MOST_BYTES = 64 * 1024 * 1024;
-const CREDENTIAL = /^(?:token|Bearer) [\w.~+/=-]+$/;
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
 // As many steps of a redirect as are followed, about what a visitor's browser would take.
 const MOST_STEPS = 10;
@@ -60,19 +60,12 @@ export function previewGate({ origin, adminOrigin, forgejo, repository, runner, 
     return until !== undefined && until > now();
   };
 
-  const mayWrite = async (credential) => {
-    const asked = await fetch(`${forgejo}/api/v1/repos/${repository}`, { headers: { authorization: credential } });
-    if (!asked.ok) return false;
-    const { permissions } = await asked.json();
-    return permissions?.push === true;
-  };
-
   const openSession = async (incoming, outgoing) => {
     const credential = incoming.headers.authorization ?? '';
     if (!CREDENTIAL.test(credential)) return answer(outgoing, 401, { message: 'A session needs a credential from Forgejo.' }, forTheEditor);
     let allowed;
     try {
-      allowed = await mayWrite(credential);
+      allowed = await mayWrite({ forgejo, repository, credential });
     } catch (error) {
       warn(`The preview could not ask Forgejo: ${error.message}`);
       return answer(outgoing, 502, { message: 'Forgejo does not answer.' }, forTheEditor);

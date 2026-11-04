@@ -7,9 +7,10 @@
 	skip_install_trust
 }
 
-# The public site: static pages, and nothing that holds a draft.
+# The public site: static pages, and nothing that holds a draft. `current` moves to a new
+# release all at once (ADR 0031).
 :{$KONZILO_PORT_SITE} {
-	root * /srv/site
+	root * /srv/site/current
 	file_server
 	handle_errors {
 		rewrite * /404.html
@@ -32,6 +33,12 @@
 		root * /srv/admin-config
 		header Cache-Control "no-store"
 		file_server
+	}
+	# How publishing stands, from the service, which asks Forgejo who is asking (ADR 0031).
+	handle /_konzilo/status {
+		reverse_proxy editors:4100 {
+			header_up -X-Real-IP
+		}
 	}
 	handle {
 		root * /srv/admin

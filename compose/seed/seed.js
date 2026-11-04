@@ -24,8 +24,17 @@ const {
   KONZILO_ADMIN_ORIGIN: adminOrigin,
 } = process.env;
 const REPOSITORY = 'source';
+const CONTENT = 'content';
+const SERVICE_HOOK = 'http://editors:4100/webhook';
+const TEAMS = { admins: 'write', editors: 'write' };
 const READER = 'preview-reader';
 const READ_TOKEN = '/preview-secret/read-token';
+const SERVICE_READER = 'service-reader';
+const SERVICE_TOKEN = '/editors-secret/read-token';
+const BUILDER = 'builder';
+const BUILDER_TOKEN = '/builder-secret/token';
+const BUILDER_CLIENT = '/builder-secret/oauth-client';
+const ROLES_TOKEN = '/builder-secret/roles-token';
 
 const secret = (name) => readFileSync(`/run/secrets/${name}`, 'utf8').trim();
 const known = (name) => (existsSync(join(STATE, name)) ? readFileSync(join(STATE, name), 'utf8').trim() : null);
@@ -145,24 +154,91 @@ async function pushDemoContent(token) {
   git('push', '--quiet', 'origin', 'main');
 }
 
-// The live preview's credential, in a volume of its own, so that the preview has nothing
-// else of what the seed knows: an account that can only read the source repository, whose
-// password nobody keeps, since this token is all it is for (ADR 0032).
-async function previewReader(call) {
-  if (existsSync(READ_TOKEN)) return;
+// A machine's account and credential, in a volume of its own, so that it holds nothing else of
+// what the seed knows. Its password nobody keeps, since this token is all it is for.
+async function machineAccount(call, { name, tokenFile, scopes, keyFile = `${name}-totp`, grant }) {
+  if (existsSync(tokenFile)) return;
   const password = randomBytes(24).toString('base64url');
-  must('making the preview\'s account', await call('POST', '/admin/users', {
-    username: READER,
-    email: `${READER}@localhost.invalid`,
+  must(`making the account ${name}`, await call('POST', '/admin/users', {
+    username: name,
+    email: `${name}@localhost.invalid`,
     password,
     must_change_password: false,
     send_notify: false,
     visibility: 'private',
   }), 201);
-  const key = await enrol(READER, password, 'reader-totp');
-  must('letting the preview read', await call('PUT', `/repos/${site}/${REPOSITORY}/collaborators/${READER}`, { permission: 'read' }), 204);
-  const { sha1 } = must('making the preview\'s token', await request(`/users/${READER}/tokens`, { name: 'preview', scopes: ['read:repository'] }, basic(READER, password), totp(key)), 201);
-  writeFileSync(READ_TOKEN, `${sha1}\n`, { mode: 0o600 });
+  const key = await enrol(name, password, keyFile);
+  await grant();
+  const { sha1 } = must(`making the token of ${name}`, await request(`/users/${name}/tokens`, { name, scopes }, basic(name, password), totp(key)), 201);
+  writeFileSync(tokenFile, `${sha1}\n`, { mode: 0o600 });
+}
+
+// A team that has this one repository and no other, so that the people in it never reach the
+// content repository, which only a build writes (ADR 0001).
+async function teamOfTheSource(call, name, permission) {
+  const teams = must('listing the teams', await call('GET', `/orgs/${site}/teams`), 200);
+  const found = teams.find((one) => one.name === name);
+  const team = found ?? must(`making the team ${name}`, await call('POST', `/orgs/${site}/teams`, {
+    name,
+    permission,
+    includes_all_repositories: false,
+    can_create_org_repo: false,
+    units: ['repo.code'],
+  }), 201);
+  if (found?.includes_all_repositories) {
+    must(`keeping the team ${name} to the source`, await call('PATCH', `/teams/${team.id}`, { name, includes_all_repositories: false, units: ['repo.code'] }), 200);
+  }
+  must(`giving the team ${name} the source`, await call('PUT', `/teams/${team.id}/repos/${site}/${REPOSITORY}`), 204);
+  must(`keeping the team ${name} from the content`, await call('DELETE', `/teams/${team.id}/repos/${site}/${CONTENT}`), 204, 404);
+  return team;
+}
+
+// What publishing stands on, which every start makes sure of, so that a site seeded before it
+// came gets it with its next start.
+async function publishing(call, instancePassword, instanceKey) {
+  for (const [name, permission] of Object.entries(TEAMS)) await teamOfTheSource(call, name, permission);
+  const made = await call('POST', `/orgs/${site}/repos`, { name: CONTENT, private: true, auto_init: false, default_branch: 'main' });
+  must('making the content repository', made, 201, 409);
+  await machineAccount(call, {
+    name: BUILDER,
+    tokenFile: BUILDER_TOKEN,
+    scopes: ['write:repository'],
+    grant: async () => {
+      must('letting the builder read the source', await call('PUT', `/repos/${site}/${REPOSITORY}/collaborators/${BUILDER}`, { permission: 'read' }), 204);
+      must('letting the builder write the content', await call('PUT', `/repos/${site}/${CONTENT}/collaborators/${BUILDER}`, { permission: 'write' }), 204);
+    },
+  });
+  // Who is an Admin, and what a private account pushed, Forgejo tells only those who run it: a
+  // token of the instance's account that can do nothing but read.
+  if (!existsSync(ROLES_TOKEN)) {
+    const { sha1 } = must('making the token that reads the roles', await request('/users/konzilo/tokens', { name: `roles-${randomBytes(4).toString('hex')}`, scopes: ['read:organization', 'read:repository'] }, basic('konzilo', instancePassword), totp(instanceKey)), 201);
+    writeFileSync(ROLES_TOKEN, `${sha1}\n`, { mode: 0o600 });
+  }
+  await machineAccount(call, {
+    name: READER,
+    tokenFile: READ_TOKEN,
+    keyFile: 'reader-totp',
+    scopes: ['read:repository'],
+    grant: async () => must('letting the preview read', await call('PUT', `/repos/${site}/${REPOSITORY}/collaborators/${READER}`, { permission: 'read' }), 204),
+  });
+  await machineAccount(call, {
+    name: SERVICE_READER,
+    tokenFile: SERVICE_TOKEN,
+    scopes: ['read:repository'],
+    grant: async () => must('letting the service read', await call('PUT', `/repos/${site}/${REPOSITORY}/collaborators/${SERVICE_READER}`, { permission: 'read' }), 204),
+  });
+  // Saying that something may have happened is all it does, so it holds no secret.
+  const hooks = must('listing the webhooks', await call('GET', `/repos/${site}/${REPOSITORY}/hooks`), 200);
+  if (!hooks.some(({ config }) => config?.url === SERVICE_HOOK)) {
+    must('making the webhook', await call('POST', `/repos/${site}/${REPOSITORY}/hooks`, {
+      type: 'forgejo',
+      active: true,
+      events: ['push'],
+      branch_filter: 'main',
+      config: { content_type: 'json', url: SERVICE_HOOK },
+    }), 201);
+  }
+  writeFileSync(BUILDER_CLIENT, `${known('oauth-client')}\n`, { mode: 0o600 });
 }
 
 async function main() {
@@ -172,7 +248,7 @@ async function main() {
   const token = await instanceToken(instancePassword, instanceKey);
   const call = api(token);
   if (known('seeded')) {
-    await previewReader(call);
+    await publishing(call, instancePassword, instanceKey);
     return;
   }
 
@@ -192,24 +268,15 @@ async function main() {
     repo_admin_change_team_access: false,
   }), 201, 422);
 
-  // Write access and never ownership, so that no customer reaches webhooks or
-  // settings (ADR 0008).
-  const teams = must('listing the teams', await call('GET', `/orgs/${site}/teams`), 200);
-  const team = async (name) => teams.find((one) => one.name === name) ?? must(`making the team ${name}`, await call('POST', `/orgs/${site}/teams`, {
-    name,
-    permission: 'write',
-    includes_all_repositories: true,
-    can_create_org_repo: false,
-    units: ['repo.code'],
-  }), 201);
-  const admins = await team('admins');
-  await team('editors');
-  must('adding the account to its team', await call('PUT', `/teams/${admins.id}/members/${account}`), 204);
-
   const made = await call('POST', `/orgs/${site}/repos`, { name: REPOSITORY, private: true, auto_init: false, default_branch: 'main' });
   must('making the repository', made, 201, 409);
   const branches = must('listing the branches', await call('GET', `/repos/${site}/${REPOSITORY}/branches`), 200);
   if (branches.length === 0) await pushDemoContent(token);
+
+  // Write access and never ownership, so that no customer reaches webhooks or
+  // settings (ADR 0008).
+  const { id: admins } = await teamOfTheSource(call, 'admins', TEAMS.admins);
+  must('adding the account to its team', await call('PUT', `/teams/${admins}/members/${account}`), 204);
 
   // One OAuth client per Forgejo, public, with PKCE only (ADR 0007).
   if (!known('oauth-client')) {
@@ -221,7 +288,7 @@ async function main() {
     remember('oauth-client', client.client_id);
   }
 
-  await previewReader(call);
+  await publishing(call, instancePassword, instanceKey);
   remember('seeded', new Date().toISOString());
 }
 

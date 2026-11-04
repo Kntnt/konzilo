@@ -10,7 +10,7 @@ import { after, before, describe, test } from 'node:test';
 
 import { intake } from '../src/intake/index.js';
 import { readSiteDescription } from '../src/site-description.js';
-import { namedImages, NOW } from '../tests/lib/intake.js';
+import { namedImages, NOW, sourcePost } from '../tests/lib/intake.js';
 import { ENGINES, openEditor, signIn } from './lib/editor.js';
 import { makeSite } from './lib/site.js';
 
@@ -77,6 +77,51 @@ describe('a site in Compose', () => {
       if (holds(text)) return text;
       if (Date.now() > deadline) return text;
       await page.waitForTimeout(500);
+    }
+  };
+
+  // What a visitor would meet at an address, as it comes to hold these words, or what it held
+  // when the time was up.
+  const onTheSite = async (address, words, { within = 60_000, wait = (ms) => new Promise((go) => setTimeout(go, ms)) } = {}) => {
+    const deadline = Date.now() + within;
+    for (;;) {
+      const answer = await get(`${site.origin.site}${address}`);
+      const text = await answer.text();
+      if (answer.status === 200 && text.includes(words)) return text;
+      if (Date.now() > deadline) return `${answer.status} ${text}`;
+      await wait(250);
+    }
+  };
+  const addressOf = (text) => `/${/^slug: "?([^"\n]+)"?$/m.exec(text)[1]}/`;
+
+  // The instance's credential, acting as this account does, which is as Forgejo sees a save.
+  const asAccount = async (method, path, body, login, { expect = [200, 201, 204] } = {}) => {
+    const answer = await get(`${site.origin.git}/api/v1${path}${login ? `?sudo=${login}` : ''}`, {
+      method,
+      headers: { authorization: `token ${token}`, ...(body ? { 'content-type': 'application/json' } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    assert.ok(expect.includes(answer.status), `${method} ${path}: ${answer.status}`);
+    const text = await answer.text();
+    return text ? JSON.parse(text) : null;
+  };
+  const saveFile = async (path, contents, login, identity = {}) => {
+    const held = await get(`${site.origin.git}/api/v1${repository()}/contents/${path}`, { headers: { authorization: `token ${token}` } });
+    const sha = held.status === 200 ? (await held.json()).sha : undefined;
+    return asAccount(sha ? 'PUT' : 'POST', `${repository()}/contents/${path}`, { content: Buffer.from(contents).toString('base64'), message: 'A save', ...(sha ? { sha } : {}), ...identity }, login);
+  };
+  const status = async () => {
+    const answer = await get(`${site.origin.admin}/_konzilo/status`, { headers: { authorization: `token ${token}` } });
+    assert.equal(answer.status, 200);
+    return answer.json();
+  };
+  const statusBecomes = async (file, wanted, { within = 60_000 } = {}) => {
+    const deadline = Date.now() + within;
+    for (;;) {
+      const { posts } = await status();
+      const post = posts.find((one) => one.file === file);
+      if (post?.status === wanted || Date.now() > deadline) return post;
+      await new Promise((go) => setTimeout(go, 500));
     }
   };
 
@@ -260,6 +305,20 @@ describe('a site in Compose', () => {
         assert.equal(commit.author?.login ?? commit.commit.author.name, 'anna');
       });
 
+      test('shows it to visitors within a minute, and says so', async () => {
+        const title = `A title saved in ${engine}`;
+        const saved = await fileNamed('articles', title);
+        assert.match(await onTheSite(addressOf(saved.text), title), new RegExp(title));
+        // A save goes back to the list, so the post is opened again.
+        const { page } = session;
+        await page.getByText(title).first().click();
+        await page.getByText('Live on the site.').waitFor({ timeout: 30_000 });
+        const link = page.getByRole('link', { name: 'Show the page' });
+        assert.equal(await link.getAttribute('href'), `${site.origin.site}${addressOf(saved.text)}`);
+        assert.doesNotMatch((await fileNamed('articles', title)).text, /publishing/, 'and nothing of it in the file');
+        await page.goBack();
+      });
+
       test('leaves a body alone when it is only opened and clicked in', async () => {
         const { page } = session;
         await page.getByText(`A title saved in ${engine}`).first().click();
@@ -422,17 +481,147 @@ describe('a site in Compose', () => {
     });
   });
 
+  describe('publishing', () => {
+    let category;
+    const file = (id) => `articles/${id}.md`;
+    const published = (slug, fields = {}, body = 'Plain words.') => sourcePost({ title: slug, slug, status: 'published', date: '2026-01-01T10:00:00Z', categories: [category], ...fields }, body);
+
+    before(async () => {
+      category = (await api(`${repository()}/contents/categories`))[0].name.replace(/\.json$/, '');
+    });
+
+    test('keeps what is published in a repository no team reaches', async () => {
+      const content = await api(`/repos/${site.name}/content`);
+      assert.equal(content.private, true);
+      assert.ok((await api(`/repos/${site.name}/content/commits?limit=1`)).length > 0);
+      const ledger = await api(`/repos/${site.name}/content/contents/.post-ids.json`);
+      assert.ok(ledger.size > 0);
+      for (const team of await api(`/orgs/${site.name}/teams`)) {
+        if (team.name === 'Owners') continue;
+        assert.deepEqual((await api(`/teams/${team.id}/repos`)).map(({ name }) => name), ['source'], team.name);
+      }
+    });
+
+    test('tells nobody how publishing stands who may not write', async () => {
+      assert.equal((await get(`${site.origin.admin}/_konzilo/status`)).status, 401);
+      assert.equal((await get(`${site.origin.admin}/_konzilo/status`, { headers: { authorization: 'token nothing-at-all' } })).status, 401);
+    });
+
+    test('takes a draft off the site, and puts it back', async () => {
+      await saveFile(file('aaaaaaaaaaaa'), published('off-and-on'), 'anna');
+      assert.match(await onTheSite('/off-and-on/', 'Plain words.'), /Plain words\./);
+      await saveFile(file('aaaaaaaaaaaa'), published('off-and-on', { status: 'draft' }), 'anna');
+      assert.equal((await statusBecomes(file('aaaaaaaaaaaa'), 'draft')).status, 'draft');
+      assert.equal((await get(`${site.origin.site}/off-and-on/`)).status, 404);
+      await saveFile(file('aaaaaaaaaaaa'), published('off-and-on'), 'anna');
+      assert.match(await onTheSite('/off-and-on/', 'Plain words.'), /Plain words\./);
+    });
+
+    test('leads an old address on when a post moves', async () => {
+      await saveFile(file('bbbbbbbbbbbb'), published('before-the-move'), 'anna');
+      await onTheSite('/before-the-move/', 'Plain words.');
+      await saveFile(file('bbbbbbbbbbbb'), published('after-the-move'), 'anna');
+      await onTheSite('/after-the-move/', 'Plain words.');
+      assert.match(await (await get(`${site.origin.site}/before-the-move/`)).text(), /after-the-move/);
+    });
+
+    test('keeps a refused post\'s last version, publishes the rest, and says why', async () => {
+      await saveFile(file('cccccccccccc'), published('keeps-its-page', {}, 'The last good words.'), 'anna');
+      await onTheSite('/keeps-its-page/', 'The last good words.');
+      await saveFile(file('cccccccccccc'), published('keeps-its-page', { categories: ['nosuchtermxxx'] }, 'Words that are refused.'), 'anna');
+      await saveFile(file('dddddddddddd'), published('saved-after-it', {}, 'Words beside it.'), 'anna');
+      await onTheSite('/saved-after-it/', 'Words beside it.');
+      const refused = await statusBecomes(file('cccccccccccc'), 'failed');
+      assert.equal(refused.status, 'failed');
+      assert.equal(refused.stillShown, true);
+      assert.ok(refused.refusals.length > 0);
+      const page = await (await get(`${site.origin.site}/keeps-its-page/`)).text();
+      assert.match(page, /The last good words\./);
+      assert.doesNotMatch(page, /Words that are refused/);
+      await saveFile(file('cccccccccccc'), published('keeps-its-page', {}, 'Fixed words.'), 'anna');
+      await onTheSite('/keeps-its-page/', 'Fixed words.');
+    });
+
+    test('goes by who pushed, whatever a commit says of its author', async () => {
+      const menu = 'menus/main.json';
+      const before = await api(`${repository()}/contents/${menu}`);
+      const held = Buffer.from(before.content, 'base64').toString();
+      const items = JSON.parse(held);
+      const withEntry = (name) => JSON.stringify({ ...items, items: [...(items.items ?? []), { title: name, url: 'https://example.com/' }] });
+      // An Editor, who writes as the Admin would have it.
+      await asAccount('POST', '/admin/users', { username: 'erik', email: 'erik@localhost.invalid', password: 'a-long-enough-password', must_change_password: false, send_notify: false, visibility: 'private' }, null);
+      const teams = await api(`/orgs/${site.name}/teams`);
+      await asAccount('PUT', `/teams/${teams.find(({ name }) => name === 'editors').id}/members/erik`, null, null);
+      const { commit } = await saveFile(menu, withEntry('Forged by an Editor'), 'erik', { author: { name: 'anna', email: 'anna@localhost.invalid' }, committer: { name: 'anna', email: 'anna@localhost.invalid' } });
+      assert.equal(commit.author.email, 'anna@localhost.invalid', 'the commit says it is the Admin\'s');
+      const deadline = Date.now() + 60_000;
+      let refusals = [];
+      while (refusals.length === 0 && Date.now() < deadline) {
+        ({ others: { refusals } } = await status());
+        if (refusals.length === 0) await new Promise((go) => setTimeout(go, 500));
+      }
+      assert.equal(refusals[0]?.file, menu);
+      assert.match(refusals[0].reason, /^erik is no Admin/);
+      assert.doesNotMatch(await (await get(`${site.origin.site}/`)).text(), /Forged by an Editor/);
+      await saveFile(menu, withEntry('Saved by an Admin'), 'anna');
+      assert.match(await onTheSite('/', 'Saved by an Admin'), /Saved by an Admin/);
+      // Recorded only after the release is current.
+      const until = Date.now() + 10_000;
+      while ((await status()).others.refusals.length > 0 && Date.now() < until) await new Promise((go) => setTimeout(go, 200));
+      assert.deepEqual((await status()).others.refusals, []);
+    });
+
+    test('shows every post on a page of its own, in the editor', async () => {
+      const session = await openEditor('chromium', site);
+      try {
+        await signIn(session, site);
+        const { page } = session;
+        await page.getByRole('radio', { name: 'Publishing' }).click();
+        const row = page.getByRole('row', { name: /keeps-its-page/ });
+        await row.getByText('Live on the site.').waitFor({ timeout: 30_000 });
+        assert.equal(await row.getByRole('link', { name: 'keeps-its-page' }).getAttribute('href'), '#/collections/articles/entries/cccccccccccc');
+        await page.getByRole('row', { name: /A new post/ }).getByText('A draft, which is not on the site.').waitFor();
+        assert.deepEqual(session.seen.refused, []);
+        assert.deepEqual(session.seen.outside, []);
+      } finally {
+        await session.browser.close();
+      }
+    });
+
+    test('brings out a scheduled post at its moment, with nothing saved after', async () => {
+      const moment = new Date(Math.ceil((Date.now() + 20_000) / 1000) * 1000).toISOString().replace('.000', '');
+      await saveFile(file('eeeeeeeeeeee'), published('comes-out-by-itself', { status: 'scheduled', date: moment }), 'anna');
+      const waiting = await statusBecomes(file('eeeeeeeeeeee'), 'scheduled');
+      assert.equal(new Date(waiting.at).getTime(), new Date(moment).getTime());
+      assert.equal((await get(`${site.origin.site}/comes-out-by-itself/`)).status, 404);
+      // The clock looks at the start of each minute, and the build takes some seconds.
+      assert.match(await onTheSite('/comes-out-by-itself/', 'Plain words.', { within: 110_000 }), /Plain words\./);
+      assert.equal(await (await statusBecomes(file('eeeeeeeeeeee'), 'live')).status, 'live');
+    }, { timeout: 180_000 });
+
+    test('finds a save by itself when the webhook never comes', async () => {
+      for (const { id } of await api(`${repository()}/hooks`)) await asAccount('DELETE', `${repository()}/hooks/${id}`, null, null);
+      await saveFile(file('ffffffffffff'), published('found-by-the-clock'), 'anna');
+      assert.match(await onTheSite('/found-by-the-clock/', 'Plain words.', { within: 90_000 }), /Plain words\./);
+    }, { timeout: 120_000 });
+  });
+
   describe('over its life', () => {
     test('a second start changes nothing, and what was saved stays across a stop', async () => {
       const client = site.state('oauth-client');
       const [before] = await api(`${repository()}/commits?limit=1`);
+      const release = () => site.compose('exec', '-T', 'builder', 'readlink', '/public/current').trim();
+      const was = release();
       site.up();
       assert.equal(site.state('oauth-client'), client);
       assert.equal((await api(`${repository()}/commits?limit=1`))[0].sha, before.sha);
+      assert.ok((await api(`${repository()}/hooks`)).length > 0, 'a start makes sure of the webhook');
       site.compose('down');
       site.up();
       assert.equal((await api(`${repository()}/commits?limit=1`))[0].sha, before.sha);
       assert.equal(site.state('oauth-client'), client);
+      assert.equal(release(), was, 'and builds nothing again');
+      assert.equal((await get(`${site.origin.site}/found-by-the-clock/`)).status, 200);
     });
   });
 });

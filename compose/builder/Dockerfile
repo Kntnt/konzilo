@@ -1,4 +1,5 @@
-# The builder: Node, Git, Git LFS and the core, for the seed and a site's build.
+# The builder: Node, Git, Git LFS and the core, for the seed, a site's build, the live
+# preview and the service.
 
 ARG NODE
 ARG NODE_DIGEST
@@ -14,8 +15,7 @@ COPY bin bin
 COPY src src
 COPY site-template/demo-content site-template/demo-content
 COPY compose/seed compose/seed
-COPY compose/builder/build-site.sh compose/builder/build-site.sh
 COPY compose/builder/prepare-site.sh compose/builder/prepare-site.sh
 # A volume takes its first owner from the folder it is mounted on.
-RUN mkdir -p /state /work /public /admin-config /preview-secret /secret && chown node:node /state /work /public /admin-config /preview-secret /secret
+RUN mkdir -p /state /work /public /admin-config /control /preview-secret /builder-secret /editors-secret /secret && chown node:node /state /work /public /admin-config /control /preview-secret /builder-secret /editors-secret /secret
 USER node

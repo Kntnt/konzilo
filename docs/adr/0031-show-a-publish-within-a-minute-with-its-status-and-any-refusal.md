@@ -39,3 +39,8 @@
 - A timer without one-second accuracy can make a scheduled post up to two minutes late.
 - A version saved while a build ran must not be shown failed by a build that never read it.
 - Pointing `current` back at an older release must record again.
+- In Compose a save showed on the public page 6 seconds later, with the demo's 14 posts on a Mac, and the first build after a start took about 30 seconds.
+- One builder, taking one request at a time, needs no lock: the steps run in that one loop. The hosting layer, which starts builds its own way, may need one.
+- The ledger holds the source file's hash, so a post saved otherwise commits a new ledger with nothing new to show. What names a site's content for "nothing is built again" is therefore the content repository's tree without the ledger, which the site reads only for a feed's `guid`, the same as long as a post's file is.
+- A site's code is named from what it was given and from the installed core, not from the folder it is built in, where a build leaves files of its own.
+- Sveltia goes back to the list after a save, so an editor who stays there sees the status when opening the post again or on the *Publishing* page. A custom page is a `radio` in Sveltia's page switcher, and its heading is Sveltia's.
