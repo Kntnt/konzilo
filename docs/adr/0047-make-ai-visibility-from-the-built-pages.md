@@ -29,3 +29,5 @@
 ## What practice has shown
 
 A reload closes Caddy's idle connections: a live suite met it twice in two runs, as a request that went out on a closed connection the moment the page showed. That is why the marks are files.
+
+In Compose the alternates are plain files so far: the web server does neither the `Link` headers nor the negotiation yet, and `_markdown` is not read (issue #4).
