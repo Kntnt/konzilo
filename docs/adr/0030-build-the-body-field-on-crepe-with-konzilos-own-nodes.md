@@ -6,7 +6,7 @@
 
 - **Built with `CrepeBuilder`,** with cursor, list item, link tooltip, placeholder, toolbar, table and block edit. Left out: the image block, LaTeX until math's stage, CodeMirror, top bar and AI. That gives about 740 KB of JavaScript, in the admin host alone. Registered through `CMS.registerFieldType` as `konzilo-body`, which stores the Markdown string, and loaded when an entry opens, so that Sveltia's first paint pays for neither it nor Sätteri.
 - **Konzilo's own nodes and marks** cover every element of ADR 0018:
-  - images with alt text and caption, picked through Sveltia's `pickFile`;
+  - images with alt text and caption, chosen from the image library (ADR 0055);
   - galleries, and embeds as a lone address;
   - `<sup>`, `<sub>`, a non-breaking space and footnotes;
   - a heading's anchor as a badge, a quote's attribution, and a link with *Open in new tab* and `rel`;
