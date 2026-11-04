@@ -8,6 +8,7 @@
 import { declaredNames, SCHEMA_TYPES, SEO_PARTS } from '../site-description.js';
 import { inLanguage } from '../texts.js';
 import { BODY_WIDGET } from './body/widget.js';
+import { PUBLISHING_WIDGET } from './publishing/widget.js';
 
 const TEXTS = {
   title: { en: 'Title', sv: 'Titel' },
@@ -15,6 +16,7 @@ const TEXTS = {
   slugHint: { en: 'The last part of the address. Made from the title if left empty.', sv: 'Sista delen av adressen. Skapas av titeln om du lämnar den tom.' },
   parent: { en: 'Parent', sv: 'Förälder' },
   status: { en: 'Status', sv: 'Status' },
+  publishing: { en: 'Publishing', sv: 'Publicering' },
   draft: { en: 'Draft', sv: 'Utkast' },
   scheduled: { en: 'Scheduled', sv: 'Schemalagd' },
   published: { en: 'Published', sv: 'Publicerad' },
@@ -310,6 +312,8 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
         options: ['draft', 'scheduled', 'published'].map((value) => ({ value, label: say(value) })),
         ...within(SAME_IN_EACH),
       },
+      // How it stands on the site, which is nothing the file holds (ADR 0031).
+      { name: 'publishing', label: say('publishing'), widget: PUBLISHING_WIDGET, required: false, ...within(SAME_IN_EACH) },
       ...type.fields.map(postField).filter(Boolean),
       ...(type.address === null ? [] : [otherAddressesField()]),
       { name: 'body', label: say('body'), widget: BODY_WIDGET, required: false, elements: type.elements, forms, ...within(TRANSLATED) },

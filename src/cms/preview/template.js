@@ -5,6 +5,7 @@
 // takes, with its styles on the elements, since the pane is a document of Sveltia's own.
 
 import { say } from '../body/texts.js';
+import { signedInCredential } from '../credential.js';
 import { previewClient } from './client.js';
 import { draftOf } from './draft.js';
 import { STOPPED_MESSAGE } from './paths.js';
@@ -19,18 +20,6 @@ const QUIET = { ...BAR, background: '#f0f0f0', color: '#1c1c1c' };
 // Over the page, so that nothing on it moves, and nothing on it is kept from a click.
 const PASSING = { position: 'absolute', left: 12, bottom: 12, maxWidth: 'calc(100% - 24px)', boxSizing: 'border-box', margin: 0, padding: '8px 12px', borderRadius: 6, background: 'rgba(28, 28, 28, 0.92)', color: '#fff', font: '13px/1.4 system-ui, sans-serif', overflowWrap: 'anywhere', pointerEvents: 'none', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)' };
 const STOPPED_WORDS = { link: 'previewStoppedLink', window: 'previewStoppedWindow', form: 'previewStoppedForm', script: 'previewStoppedScript', history: 'previewStoppedHistory' };
-
-// Sveltia's own: what a browser signed in with is kept as, there and only there.
-const USER = 'sveltia-cms.user';
-
-function signedInCredential() {
-  try {
-    const { token } = JSON.parse(globalThis.localStorage.getItem(USER)) ?? {};
-    return token ? `token ${token}` : null;
-  } catch {
-    return null;
-  }
-}
 
 const freshId = () => globalThis.crypto.randomUUID().replaceAll('-', '').slice(0, 12);
 

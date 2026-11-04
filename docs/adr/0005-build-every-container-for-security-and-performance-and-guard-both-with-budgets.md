@@ -9,7 +9,7 @@
 | `forgejo` | The vendor's rootless image at a pinned digest: accounts, repositories | Always, or started on demand later | Reached by the web server and the builder |
 | `visitors` | The service's code alone | Up, and works when a request comes | Reached by the web server; reaches only the mail adapter |
 | `editors` | The service's code; a read credential for the source repository | Up, and works while someone edits | Reached by the web server; reaches Forgejo |
-| `builder` | The intake, Astro, Git, sharp | Up and asleep, with one build at a time, in Compose (ADR 0002); one build, then gone, where the hosting layer starts it | Reaches Forgejo through the proxy only, so a dependency's code cannot call out |
+| `builder` | The intake, Astro, Git, sharp; a credential that reads the source and writes the content repository, and one that can only read who is who | Up and asleep, with one build at a time, in Compose (ADR 0002); one build, then gone, where the hosting layer starts it | Shares the web server's network and has no port; hears of a build through a file. Later: reaches Forgejo through the proxy only, so a dependency's code cannot call out |
 | `preview` | The gate, Astro's dev server, the site's code, the preview's files, a credential that can only read the source | Up and asleep, with the dev server only while someone edits, under a cap | Shares the web server's network, so that nothing else reaches it |
 | Web server | Caddy at a pinned digest, without its file capability: static pages | Always; one per server in hosting | The only one with public ports |
 | Typesense | The vendor's image: published text alone, with a key per site | Always; one per server in hosting | Its own network |

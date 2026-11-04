@@ -7,6 +7,7 @@ import CMS from '@sveltia/cms';
 
 import { registerBodyField } from './body/register.js';
 import { registerPreview } from './preview/template.js';
+import { registerPublishing } from './publishing/register.js';
 import './form.css';
 
 const answer = await fetch('./config.json', { cache: 'no-store' });
@@ -14,5 +15,6 @@ if (!answer.ok) throw new Error(`no configuration: ${answer.status}`);
 // What is Konzilo's own stays out of what Sveltia is given.
 const { konzilo, ...config } = await answer.json();
 registerBodyField(CMS, config);
+registerPublishing(CMS, config);
 if (konzilo?.preview) registerPreview(CMS, config, konzilo.preview);
 CMS.init({ config });

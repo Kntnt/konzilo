@@ -37,17 +37,17 @@ const secret = (name) => readFileSync(`/secret/${name}`, 'utf8').trim();
 const token = secret('token');
 const access = { user: ACCOUNT, token, home: HOME };
 
-// What names the site's code as it stands: its own files and the core it has installed, with
-// none of what is built from them or brought in with them.
-function codeOf(folder) {
+// What names the site's code as it stands: the files it was given, none of what a local copy
+// keeps beside them, and the core it has installed. Not the folder it builds in, where a build
+// leaves files of its own.
+function codeOf(site, core) {
   const hash = createHash('sha256');
-  const core = join(folder, 'node_modules/@kntnt/konzilo');
-  const own = readdirSync(folder).filter((name) => !['node_modules', 'dist', 'content'].includes(name) && !name.startsWith('.'));
+  const own = readdirSync(site).filter((name) => !['node_modules', 'dist', 'content', 'local-secrets'].includes(name) && !name.startsWith('.'));
   const files = [
-    ...own.flatMap((name) => (statSync(join(folder, name)).isDirectory() ? walk(join(folder, name)) : [join(folder, name)])),
+    ...own.flatMap((name) => (statSync(join(site, name)).isDirectory() ? walk(join(site, name)) : [join(site, name)])),
     ...walk(core).filter((path) => !relative(core, path).includes('node_modules')),
-  ].map((path) => relative(folder, path)).sort();
-  for (const path of files) hash.update(`${path}\0`).update(readFileSync(join(folder, path))).update('\0');
+  ].sort();
+  for (const path of files) hash.update(`${path}\0`).update(readFileSync(path)).update('\0');
   return hash.digest('hex');
 }
 
@@ -66,7 +66,7 @@ const content = contentRepository({ remote: `${FORGEJO}/${repository.split('/')[
 const build = siteBuild({
   site,
   origin,
-  code: codeOf(SITE_FOLDER),
+  code: codeOf('/site', `${SITE_FOLDER}/node_modules/@kntnt/konzilo`),
   source,
   content,
   roles: forgejoRoles({ forgejo: FORGEJO, repository, token: secret('roles-token'), instance: INSTANCE, folder: '/work/roles' }),
