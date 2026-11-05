@@ -8,7 +8,7 @@ import { say } from './texts.js';
 export function editImage({ alt, address = null, root = document.body }) {
   return new Promise((resolve) => {
     const { dialog, body } = dialogOf(say('imageEdit'));
-    dialog.classList.add('konzilo-dialog-narrow', 'konzilo-image-editing');
+    dialog.classList.add('konzilo-dialog-narrow');
 
     let done = false;
     const finish = (answer) => {
@@ -26,7 +26,7 @@ export function editImage({ alt, address = null, root = document.body }) {
       picture.src = address;
     }
 
-    const form = made('form', 'konzilo-image-editing-form', body);
+    const form = made('form', 'konzilo-dialog-form', body);
     form.noValidate = true;
     const field = textRow(form, say('imageAlt'), { required: true });
     field.value = alt;
@@ -59,7 +59,7 @@ export function editImage({ alt, address = null, root = document.body }) {
       question.replaceWith(form);
       remove.focus();
     };
-    const { part: question, keep } = asking({ words: say('imageRemoveAsk'), keepWords: say('imageKeep'), kept: backToForm, removed: () => finish({ remove: true }) });
+    const { part: question, keep } = asking({ words: say('imageRemoveAsk'), aside: say('imageRemoveAside'), keepWords: say('imageKeep'), kept: backToForm, removed: () => finish({ remove: true }) });
     remove.addEventListener('click', () => {
       form.replaceWith(question);
       keep.focus();

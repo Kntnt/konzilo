@@ -14,6 +14,8 @@ import { $command, $inputRule, $markSchema, $node, $nodeSchema, $prose, $view } 
 
 import rules from '../../format/rules.json' with { type: 'json' };
 import { made } from './dialog.js';
+import { embedOf } from '../../format/embeds.js';
+import { editEmbed } from './embed-edit.js';
 import { CAPTION_NODE, LINE_NODE } from './format.js';
 import { editGallery } from './gallery-edit.js';
 import { editImage } from './image-edit.js';
@@ -53,12 +55,12 @@ export const keptBlock = $nodeSchema('konzilo_kept', () => ({
   },
 }));
 
-// An image stands at the top of a body, never in a quote or a list, so that is all the schema
-// lets it do, by a group of its own beside the blocks.
+// An image or an embed stands at the top of a body, never in a quote or a list, so that is all the
+// schema lets it do, by a group of its own beside the blocks.
 const TOP_ONLY = 'konzilo_top';
 
-export const bodyDocument = (withImages) => $node('doc', () => ({
-  content: withImages ? `(block | ${TOP_ONLY})+` : 'block+',
+export const bodyDocument = (withTopOnly) => $node('doc', () => ({
+  content: withTopOnly ? `(block | ${TOP_ONLY})+` : 'block+',
   parseMarkdown: {
     match: ({ type }) => type === 'root',
     runner: (state, node, type) => state.injectRoot(node, type),
@@ -194,6 +196,43 @@ export const galleryNode = $nodeSchema(GALLERY, () => ({
   },
 }));
 
+const EMBED = 'konzilo_embed';
+
+// An address as a paragraph holds it: bare, or in angle brackets where a bare one might not read
+// back whole, since Markdown ends it before what a sentence could end with.
+const writtenAddress = (address) => (/^[^\s<>]*[\p{L}\p{N}/]$/u.test(address) ? address : `<${address}>`);
+
+// An embed in a body: its address, and how it is written, so that it stays as it was.
+export const embedNode = $nodeSchema(EMBED, () => ({
+  group: TOP_ONLY,
+  atom: true,
+  isolating: true,
+  selectable: true,
+  draggable: true,
+  attrs: { address: { validate: 'string' }, value: { validate: 'string' } },
+  parseDOM: [
+    {
+      tag: 'div[data-konzilo-embed]',
+      getAttrs: (dom) => ({ address: dom.dataset.address ?? '', value: dom.dataset.value ?? '' }),
+    },
+  ],
+  toDOM: ({ attrs: { address, value } }) => ['div', { 'data-konzilo-embed': '', 'data-address': address, 'data-value': value }],
+  parseMarkdown: {
+    match: ({ type }) => type === 'konziloEmbed',
+    runner: (state, node, type) => state.addNode(type, { address: node.address, value: node.value }),
+  },
+  toMarkdown: {
+    match: (node) => node.type.name === EMBED,
+    runner: (state, node) => state.addNode('html', undefined, node.attrs.value),
+  },
+}));
+
+// Whether text alone is an address the site embeds.
+export const isEmbeddable = (text) => /^https:\/\/\S+$/.test(text) && !embedOf(text, rules).reason;
+
+// Whether the selection is in an empty block at the top of a body, where an embed can take its place.
+export const atEmptyTopBlock = ({ selection: { empty, $from }, schema }) => empty && $from.depth === 1 && $from.parent.type === schema.nodes.paragraph && $from.parent.content.size === 0;
+
 // Whether the selection is in the caption of an image or a gallery.
 export const inImageCaption = ({ selection: { $from } }) => CAPTIONS.has($from.parent.type.name);
 
@@ -217,6 +256,13 @@ function putAtCursor(state, dispatch, node) {
 export const insertImage = $command('KonziloInsertImage', () => (chosen) => (state, dispatch) => {
   if (!chosen) return false;
   if (dispatch) putAtCursor(state, dispatch, imageOf(state, chosen));
+  return true;
+});
+
+// An embed in the body, of an address the dialog or a paste gave.
+export const insertEmbed = $command('KonziloInsertEmbed', () => (address) => (state, dispatch) => {
+  if (!address) return false;
+  if (dispatch) putAtCursor(state, dispatch, state.schema.nodes[EMBED].create({ address, value: writtenAddress(address) }));
   return true;
 });
 
@@ -389,6 +435,44 @@ function galleryControls(initial, view, getPos, images) {
     ignoreMutation: ({ target }) => !contentDOM.contains(target),
   };
 }
+
+// How an embed shows in the field: the service's name and the address, and the pen. Nothing is
+// asked of the service, in the field as on a page before a visitor consents.
+function embedControls(initial, view, getPos) {
+  let node = initial;
+  const dom = made('div', 'konzilo-embed-field');
+  dom.contentEditable = 'false';
+  const name = made('strong', 'konzilo-embed-service', dom);
+  const where = made('span', 'konzilo-embed-address', dom);
+  const show = () => {
+    name.textContent = embedOf(node.attrs.address, rules).name ?? '';
+    where.textContent = node.attrs.address;
+  };
+  const pen = penOn(dom, say('embedEdit'), async () => {
+    const answer = await editEmbed({ address: node.attrs.address });
+    if (view.isDestroyed) return;
+    const pos = getPos();
+    if (answer !== null && pos !== undefined) {
+      if (answer.remove) view.dispatch(view.state.tr.delete(pos, pos + node.nodeSize));
+      else if (answer.address !== node.attrs.address) view.dispatch(view.state.tr.setNodeMarkup(pos, undefined, { address: answer.address, value: writtenAddress(answer.address) }));
+    }
+    view.focus();
+  });
+  show();
+  return {
+    dom,
+    update(next) {
+      if (next.type !== node.type) return false;
+      node = next;
+      show();
+      return true;
+    },
+    stopEvent: ({ target }) => pen.contains(target),
+    ignoreMutation: () => true,
+  };
+}
+
+export const embedView = $view(embedNode.node, () => (node, view, getPos) => embedControls(node, view, getPos));
 
 export const galleryView = (images) => $view(galleryNode.node, () => (node, view, getPos) => galleryControls(node, view, getPos, images));
 

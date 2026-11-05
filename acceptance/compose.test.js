@@ -514,6 +514,25 @@ describe('a site in Compose', () => {
         assert.match(shown, new RegExp(`<figure class="konzilo-gallery">.*alt="${second.alt}".*alt="${first.alt}".*<figcaption>A gallery in ${engine}</figcaption>`, 's'));
       });
 
+      test('embeds an address from `/embed`, and a visitor is asked for consent', async () => {
+        const { page } = session;
+        const title = `A title saved in ${engine}`;
+        const video = 'https://www.youtube.com/watch?v=Kz3pQ8vXw1A';
+        await page.getByText(title).first().click();
+        const adding = await openChooser(page, 'embed', 'Embed content', 'Embed');
+        await adding.getByRole('textbox', { name: 'The address' }).fill(video);
+        await adding.getByRole('button', { name: 'Done' }).click();
+        await adding.waitFor({ state: 'detached' });
+        assert.match(await page.locator('.konzilo-embed-field').last().textContent(), /YouTube/);
+        await page.getByRole('button', { name: 'Save', exact: true }).click();
+
+        const saved = await fileNamed('articles', title);
+        const inTheFile = await waitForFile(page, saved.path, (text) => text.includes(`\n${video}\n`) || text.endsWith(`\n${video}`));
+        assert.ok(inTheFile.includes(video), inTheFile);
+        const shown = await onTheSite(addressOf(saved.text), 'data-embed="youtube"');
+        assert.match(shown, /<figure class="konzilo-embed" data-embed="youtube">/);
+      });
+
       test('shows a visitor its images over the page, and steps through a gallery, by every way there is', async () => {
         const { page } = session;
         const saved = await fileNamed('articles', `A title saved in ${engine}`);

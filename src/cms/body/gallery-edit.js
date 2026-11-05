@@ -153,7 +153,7 @@ export function editGallery({ images, choose = null, picture = null, root = docu
       question.replaceWith(form);
       removeAll.focus();
     };
-    const { part: question, keep } = asking({ words: say('galleryRemoveAsk'), keepWords: say('galleryKeep'), kept: backToForm, removed: () => finish({ remove: true }) });
+    const { part: question, keep } = asking({ words: say('galleryRemoveAsk'), aside: say('imageRemoveAside'), keepWords: say('galleryKeep'), kept: backToForm, removed: () => finish({ remove: true }) });
     removeAll.addEventListener('click', () => {
       form.replaceWith(question);
       keep.focus();

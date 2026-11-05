@@ -18,7 +18,7 @@ const linkIsAllowed = (href) => {
 };
 
 const CELLS = new Set(['table_cell', 'table_header']);
-const NOT_FROM_OUTSIDE = new Set(['konzilo_kept', 'konzilo_image', 'konzilo_gallery', 'konzilo_gallery_caption']);
+const NOT_FROM_OUTSIDE = new Set(['konzilo_kept', 'konzilo_embed', 'konzilo_image', 'konzilo_gallery', 'konzilo_gallery_caption']);
 
 const reduceNode = (node) => {
   if (node.isText) {

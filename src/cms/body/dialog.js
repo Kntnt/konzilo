@@ -36,10 +36,10 @@ export function dialogOf(title) {
 }
 
 // The question before something is taken out, with the safe answer to hand.
-export function asking({ words, keepWords, kept, removed }) {
+export function asking({ words, aside = null, keepWords, kept, removed }) {
   const part = made('div', 'konzilo-dialog-asking');
   made('p', '', part).textContent = words;
-  made('p', 'konzilo-dialog-aside', part).textContent = say('imageRemoveAside');
+  if (aside) made('p', 'konzilo-dialog-aside', part).textContent = aside;
   const answers = made('div', 'konzilo-dialog-actions', part);
   const keep = button('', keepWords, answers);
   keep.addEventListener('click', kept);
