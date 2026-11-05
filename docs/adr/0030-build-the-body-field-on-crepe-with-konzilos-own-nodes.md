@@ -60,3 +60,8 @@ Milkdown 7.23.0:
 - About a hundred more values of the kind a tool or a person leaves in a file each gave the intake's meaning or opened as Markdown, in Chromium, Firefox and WebKit, and on 328 bodies the early check never refused what the intake takes.
 - **Crossing Sveltia's breakpoint** remounts a control with a new `forID`. The control keeps the field for two seconds, found again by its entry, name and value, so it keeps its undo.
 - **The site's body styles are not in the field yet.** `bodyClass` is not an option of the integration, and Astro's pipeline writes the stylesheets into every page's hashed CSS, while the editor is built with the web image, before any site. It takes a build of `body.css` of its own, written beside the generated configuration. So the field has Crepe's frame theme for now.
+
+In Sveltia:
+
+- **Sveltia lifts whatever has focus above what stands beside it,** with `z-index` on `:focus` and `:focus-visible`. A block's handle stands beside the text, over its margin, so with the cursor in the text the handle showed and took no click, and its clicks placed the cursor or, three in a row, selected a block. The field's stylesheet takes that lift off the editor. A page of the field's own does not show this, so the test stands in Sveltia.
+- **Escape closes Sveltia's form from any field,** by its own preference, on by default. Its listener is on the window in the capture phase, ahead of the editor's, and it clicks the form's back button unless something covers it. So Escape with the block menu open closes the form too, while a dialog of the field's covers the button and takes the key alone. The draft is kept as a backup, which Sveltia offers to restore on the way back.
