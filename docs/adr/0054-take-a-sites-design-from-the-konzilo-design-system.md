@@ -1,6 +1,6 @@
 # ADR 0054: Take a site's design from the Konzilo Design System
 
-**Date:** 2026-11-01 · **Status:** Accepted, settled by Thomas on 2026-11-01. Settled by him on 2026-11-06, with the design system's session: the design file carries a format version, a site works without one, the file styles the public site and not Sveltia's interface, and the package reaches a site as a file in its repository.
+**Date:** 2026-11-01 · **Status:** Accepted, settled by Thomas on 2026-11-01. Settled by him on 2026-11-05, with the design system's session: the design file carries a format version, a site works without one, the file styles the public site and not Sveltia's interface, and the package reaches a site as a file in its repository.
 
 ## Decision
 

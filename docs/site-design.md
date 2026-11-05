@@ -16,6 +16,8 @@ A site's design comes from its own stylesheets and components, which the templat
 
 A site's own templates write the wrapper around a body, with whatever class its styles are scoped to, and render the body through `Body.astro`.
 
+A menu reaches a site's layout as a list of entries, each `{ title, url, items }`, `items` being the entries below it. A design with names of its own takes them through an adapter of its own: the core does not know a design's names.
+
 ## Custom properties the core reads
 
 Each has a default, and is for a design to set on the root.
