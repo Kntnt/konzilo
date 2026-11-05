@@ -186,7 +186,9 @@ async function teamOfTheSource(call, name, permission) {
     units: ['repo.code'],
   }), 201);
   if (found?.includes_all_repositories) {
-    must(`keeping the team ${name} to the source`, await call('PATCH', `/teams/${team.id}`, { name, includes_all_repositories: false, units: ['repo.code'] }), 200);
+    // Without what it may do, Forgejo answers 200 and changes nothing, so the answer is read.
+    const changed = must(`keeping the team ${name} to the source`, await call('PATCH', `/teams/${team.id}`, { name, permission, includes_all_repositories: false, units_map: { 'repo.code': permission } }), 200);
+    if (changed.includes_all_repositories !== false) throw new Error(`the team ${name} still has every repository`);
   }
   must(`giving the team ${name} the source`, await call('PUT', `/teams/${team.id}/repos/${site}/${REPOSITORY}`), 204);
   must(`keeping the team ${name} from the content`, await call('DELETE', `/teams/${team.id}/repos/${site}/${CONTENT}`), 204, 404);

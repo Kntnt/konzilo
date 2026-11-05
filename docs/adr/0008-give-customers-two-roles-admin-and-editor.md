@@ -30,6 +30,7 @@
 - An Admin's address on an Editor's commit, through `POST /contents` with `author` and `committer`, was taken as written, and the feed still named the Editor. A push's entry names its commits only up to a limit, and its comparison's address names what it went from and to, so all it brought can be read from Git.
 - The feed writes a push down a moment after it, so a build waits up to 15 seconds for a new commit. A commit that never shows is no Admin's.
 - The feed leaves out what a private account did for anyone who does not run the instance, and team members are told only to those in the team or running the instance, so the builder reads both with a token of the instance's account that can do nothing but read.
+- A team once given every repository keeps them when told otherwise, with Forgejo's answer a plain 200, unless the change also says what the team may do. So the seed reads the answer.
 
 ## Consequences
 
