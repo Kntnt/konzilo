@@ -107,6 +107,13 @@
   outline: 2px solid var(--crepe-color-primary);
 }
 
+/* Sveltia lifts whatever has focus above what stands beside it. A block's handle stands beside the
+   text, over its margin, so the text would take every click meant for the handle. */
+.milkdown .ProseMirror:focus,
+.milkdown .ProseMirror:focus-visible {
+  z-index: auto;
+}
+
 /* The editor's caret is drawn by Crepe, which makes the browser's transparent for all the editor
    holds, so a field in it has to ask for the browser's back. */
 .milkdown .ProseMirror input {

@@ -18,6 +18,7 @@ import { reader } from '../src/intake/reader.js';
 import { readSiteDescription, siteDescription } from '../src/site-description.js';
 import { contentFormat, exampleFile, markedExamples } from '../tests/lib/content-format.js';
 import { everyElement, pageFile, pagePath, pageSource, run, written } from '../tests/lib/intake.js';
+import { ENGINES } from './lib/editor.js';
 import { openFieldPage } from './lib/field-page.js';
 
 const fixturesRoot = fileURLToPath(new URL('../tests/fixtures/', import.meta.url));
@@ -1345,4 +1346,49 @@ describe('the body field in Sveltia, on a site in two languages', () => {
       await off.context.close();
     }
   });
+});
+
+// Sveltia lifts whatever has focus above what stands beside it, and a block's handle stands beside
+// its text, so this takes Sveltia's own styles, in every engine, with the cursor in the text.
+describe('a block\'s handle in Sveltia', () => {
+  for (const [name, engine] of Object.entries(ENGINES)) {
+    test(`takes a click with the cursor in the text, in ${name}`, async () => {
+      const config = cmsConfig(readSiteDescription(join(core, 'site-template/files/site-description.json')), { forgejo: 'http://localhost:1', repository: 'a/b', clientId: 'c', site: 'http://localhost:2' });
+      const site = await openFieldPage({ engine, config: { ...config, backend: { name: 'test-repo' } } });
+      try {
+        const { page } = await site.newPage({ viewport: { width: 1600, height: 900 } });
+        await page.getByRole('button', { name: 'Work with Test Repository' }).click();
+        await page.getByText('Pages', { exact: true }).first().click();
+        await page.getByRole('button', { name: 'Create New Entry' }).first().click();
+        const editor = page.locator('.konzilo-body-visual .ProseMirror');
+        await editor.waitFor();
+        await editor.click();
+        await page.keyboard.type('One', { delay: KEY_DELAY });
+        await page.keyboard.press('Enter');
+        await page.keyboard.type('Two', { delay: KEY_DELAY });
+        assert.equal(await editor.evaluate((element) => document.activeElement === element), true, 'with the cursor in the text');
+
+        await editor.locator('> p').first().hover();
+        const items = page.locator('.milkdown-block-handle[data-show="true"] .operation-item');
+        await items.first().waitFor();
+        // The handle slides to its block.
+        await page.waitForTimeout(300);
+        for (const item of await items.all()) {
+          assert.equal(await item.evaluate((element) => {
+            const { x, y, width, height } = element.getBoundingClientRect();
+            return element.contains(document.elementFromPoint(x + width / 2, y + height / 2));
+          }), true, 'nothing stands over it');
+        }
+
+        const { x, y, width, height } = await items.first().boundingBox();
+        await page.mouse.move(x + width / 2, y + height / 2, { steps: 4 });
+        await page.mouse.down();
+        await page.mouse.up();
+        await page.locator('.milkdown-slash-menu[data-show="true"]').waitFor({ timeout: 2000 });
+        assert.equal(await editor.locator('> p').count(), 3, 'with a new block to fill');
+      } finally {
+        await site.close();
+      }
+    });
+  }
 });
