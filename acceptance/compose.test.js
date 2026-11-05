@@ -107,6 +107,12 @@ describe('a site in Compose', () => {
   const picture = (of, headers = { authorization: `token ${token}` }) => get(`${site.origin.admin}/_konzilo/thumbnail?of=${encodeURIComponent(of)}`, { headers });
 
   // The chooser, from a new block after whatever the body holds.
+  // From wherever a save left the page, the post it names.
+  const openArticle = async (page, title) => {
+    await page.goto(`${site.origin.admin}/#/collections/articles`);
+    await page.getByText(title).first().click();
+  };
+
   const openChooser = async (page, row = 'image', title = 'Choose an image', name = 'Image') => {
     const editor = page.locator('.konzilo-body-visual .ProseMirror');
     await editor.waitFor({ timeout: 30_000 });
@@ -349,9 +355,8 @@ describe('a site in Compose', () => {
         const title = `A title saved in ${engine}`;
         const saved = await fileNamed('articles', title);
         assert.match(await onTheSite(addressOf(saved.text), title), new RegExp(title));
-        // A save goes back to the list, so the post is opened again.
         const { page } = session;
-        await page.getByText(title).first().click();
+        await openArticle(page, title);
         await page.getByText('Live on the site.').waitFor({ timeout: 30_000 });
         const link = page.getByRole('link', { name: 'Show the page' });
         assert.equal(await link.getAttribute('href'), `${site.origin.site}${addressOf(saved.text)}`);
@@ -411,7 +416,7 @@ describe('a site in Compose', () => {
         // before this one has uploaded an entry with a caption, which what is typed here would join.
         const entries = await libraryEntries();
         const entry = entries.find(({ alt, caption }) => !caption && entries.filter((other) => other.alt === alt).length === 1);
-        await page.getByText(title).first().click();
+        await openArticle(page, title);
         const chooser = await openChooser(page);
         const choice = chooser.getByRole('button', { name: entry.alt, exact: true });
         await choice.waitFor({ timeout: 30_000 });
@@ -447,7 +452,7 @@ describe('a site in Compose', () => {
         const { page } = session;
         const title = `A title saved in ${engine}`;
         const bytes = await sharp({ create: { width: 1400, height: 900, channels: 3, background: ENGINE_COLOURS[engine] } }).png().toBuffer();
-        await page.getByText(title).first().click();
+        await openArticle(page, title);
         const chooser = await openChooser(page);
         await chooser.getByRole('button', { name: 'Upload a new image' }).click();
         await chooser.locator('input[type=file]').setInputFiles({ name: `En ny bild i ${engine}.png`, mimeType: 'image/png', buffer: bytes });
@@ -487,7 +492,7 @@ describe('a site in Compose', () => {
         const title = `A title saved in ${engine}`;
         const entries = await libraryEntries();
         const [first, second] = entries.filter(({ alt, caption }) => !caption && entries.filter((other) => other.alt === alt).length === 1);
-        await page.getByText(title).first().click();
+        await openArticle(page, title);
         const chooser = await openChooser(page, 'gallery', 'Choose images', 'Gallery');
         await chooser.getByRole('button', { name: first.alt, exact: true }).click();
         await chooser.getByRole('button', { name: second.alt, exact: true }).click();
@@ -518,7 +523,7 @@ describe('a site in Compose', () => {
         const { page } = session;
         const title = `A title saved in ${engine}`;
         const video = 'https://www.youtube.com/watch?v=Kz3pQ8vXw1A';
-        await page.getByText(title).first().click();
+        await openArticle(page, title);
         const adding = await openChooser(page, 'embed', 'Embed content', 'Embed');
         await adding.getByRole('textbox', { name: 'The address' }).fill(video);
         await adding.getByRole('button', { name: 'Done' }).click();

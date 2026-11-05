@@ -2053,7 +2053,7 @@ describe('the body field in Sveltia, on a site in two languages', () => {
     assert.equal(await source.inputValue(), '# A title in the body\n\nEnglish text');
     await source.fill('## A heading\n\nEnglish text');
     await save().click();
-    await page.getByRole('button', { name: 'Create New Entry' }).first().waitFor();
+    await page.waitForFunction(() => /\/entries\//.test(window.location.hash));
     assert.deepEqual(seen.outside, []);
     assert.deepEqual(seen.refused, []);
   });
@@ -2070,7 +2070,7 @@ describe('the body field in Sveltia, on a site in two languages', () => {
       await off.page.getByRole('textbox', { name: 'Titel' }).first().fill('En titel');
       await off.page.getByRole('textbox', { name: 'Titel' }).last().fill('A title');
       await off.page.getByRole('button', { name: 'Save', exact: true }).click();
-      await off.page.getByRole('button', { name: 'Create New Entry' }).first().waitFor();
+      await off.page.waitForFunction(() => /\/entries\//.test(window.location.hash));
     } finally {
       await off.context.close();
     }
@@ -2086,6 +2086,36 @@ describe('the body field in Sveltia, on a site in two languages', () => {
       assert.equal(await off.page.getByRole('button', { name: 'Save', exact: true }).isDisabled(), false);
     } finally {
       await off.context.close();
+    }
+  });
+});
+
+describe('an entry in Sveltia', () => {
+  test('has its title, status and body first, and stays open at a save', async () => {
+    const config = cmsConfig(readSiteDescription(join(core, 'site-template/files/site-description.json')), { forgejo: 'http://localhost:1', repository: 'a/b', clientId: 'c', site: 'http://localhost:2' });
+    const site = await openFieldPage({ config: { ...config, backend: { name: 'test-repo' } } });
+    try {
+      const { page } = await site.newPage({ viewport: { width: 1600, height: 900 } });
+      await page.getByRole('button', { name: 'Work with Test Repository' }).click();
+      await page.getByText('Pages', { exact: true }).first().click();
+      await page.getByRole('button', { name: 'Create New Entry' }).first().click();
+      const editor = page.locator('.konzilo-body-visual .ProseMirror');
+      await editor.waitFor();
+      const title = page.getByRole('textbox', { name: 'Title', exact: true });
+      assert.ok((await title.boundingBox()).y < (await editor.boundingBox()).y, 'the title above the body');
+      assert.ok((await editor.boundingBox()).y < (await page.getByRole('textbox', { name: 'Slug', exact: true }).boundingBox()).y, 'the body above the slug');
+      assert.ok((await editor.boundingBox()).y < 900, 'and the body in sight as it opens');
+      await title.fill('Stays open');
+      await editor.click();
+      await page.keyboard.type('Some words', { delay: KEY_DELAY });
+      await page.waitForTimeout(400);
+      await page.getByRole('button', { name: 'Save', exact: true }).click();
+      await page.waitForFunction(() => /\/entries\//.test(window.location.hash));
+      await page.waitForTimeout(500);
+      assert.equal(await editor.textContent(), 'Some words', 'with the body still in hand');
+      assert.equal(await page.getByRole('button', { name: 'Create New Entry' }).count(), 0, 'and no list in its place');
+    } finally {
+      await site.close();
     }
   });
 });

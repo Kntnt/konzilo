@@ -1,8 +1,10 @@
 // The editor on the admin host: Sveltia, with the configuration this copy of the
 // site was given (ADR 0029). Importing it comes after the flag that stops it starting
-// by itself, which is why the flag has a module of its own.
+// by itself, and after the preferences it reads as it loads, which is why each has a
+// module of its own.
 
 import './manual-start.js';
+import './set-preferences.js';
 import CMS from '@sveltia/cms';
 
 import { registerBodyField } from './body/register.js';

@@ -12,6 +12,12 @@ const read = (path) => readFileSync(fileURLToPath(new URL(`../${path}`, import.m
 const compose = read('compose/compose.yaml');
 const versions = read('versions.env');
 
+test('names the images it builds by the site, so that sites on one machine keep their own', () => {
+  const built = [...compose.matchAll(/^\s+image: (konzilo-\S+)$/gm)].map(([, reference]) => reference);
+  assert.ok(built.length > 0);
+  for (const reference of built) assert.match(reference, /^konzilo-(web|builder):\$\{KONZILO_SITE\}$/, reference);
+});
+
 test('names every image by a digest from versions.env, and holds no version of its own', () => {
   for (const [, reference] of compose.matchAll(/^\s+image: (\S+)$/gm)) {
     if (reference.startsWith('konzilo-')) continue;

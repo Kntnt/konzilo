@@ -47,7 +47,9 @@ export function devServer({ root, port, environment, before = async () => {}, id
 
   const start = async () => {
     await before();
-    const started = spawn(process.execPath, [ASTRO, 'dev', '--host', '127.0.0.1', '--port', String(port)], { cwd: root, env: environment, stdio: ['ignore', 'ignore', 'inherit'] });
+    // A lock file in the volume names a process of an earlier container, whose number something
+    // else may have by now, and this is the one dev server here.
+    const started = spawn(process.execPath, [ASTRO, 'dev', '--host', '127.0.0.1', '--port', String(port), '--ignore-lock'], { cwd: root, env: environment, stdio: ['ignore', 'ignore', 'inherit'] });
     child = started;
     let ended = false;
     started.on('exit', () => {

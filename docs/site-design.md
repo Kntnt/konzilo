@@ -14,7 +14,9 @@ A site's design comes from its own stylesheets and components, which the templat
 | `directives` | A component for a directive, in the same way |
 | `searchPage`, `termPage` | A page of the design, in the same way |
 
-A site's own templates write the wrapper around a body, with whatever class its styles are scoped to, and render the body through `Body.astro`.
+A site's own templates write the wrapper around a body, with whatever class its styles are scoped to, and render the body through `Body.astro`. A layout places `ConsentBanner.astro`, or an embed shows only as its address, which the build warns of.
+
+A type's `elements` in `site-description.json` decides what its body may hold, and so what its block menu offers: a row that is missing is an element the type does not take.
 
 A menu reaches a site's layout as a list of entries, each `{ title, url, items }`, `items` being the entries below it. A design with names of its own takes them through an adapter of its own: the core does not know a design's names.
 

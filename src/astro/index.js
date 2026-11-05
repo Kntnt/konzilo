@@ -90,7 +90,7 @@ import { bodyStylesOf, pageImports } from './body-styles.js';
 import { contentFolder } from './collections.js';
 import { CONSENT_RECORDS, consentClient } from './consent.js';
 import { cookieDeclaration } from './cookie-declaration.js';
-import { datawrapperHeights, embedPanels } from './embeds.js';
+import { datawrapperHeights, embedPanels, pagesWithBareEmbeds } from './embeds.js';
 import { lightboxClient } from './lightbox.js';
 import { resolvedColors, tokensOf } from './theme-tokens.js';
 import { previewGuard } from './preview-guard.js';
@@ -563,6 +563,8 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
       },
       'astro:build:done': async ({ dir, pages: built, logger }) => {
         refuseReservedPages(dir);
+        const bare = pagesWithBareEmbeds(dir);
+        if (bare.length > 0) logger.warn(`${bare.length} page(s) with an embed, such as ${bare[0]}, have no ConsentBanner in their layout, so a visitor gets the embed's bare address: place Konzilo's ConsentBanner.astro in the layout`);
         // Each language's 404 page where the web server, the preview and
         // the dev server look for it.
         moveNotFoundPages(fileURLToPath(dir), languages);

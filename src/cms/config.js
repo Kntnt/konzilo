@@ -304,11 +304,9 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     slug: SLUG,
     ...within(TRANSLATED),
     fields: [
+      // What an editor is here for first, and in sight when the entry opens, as Sveltia mounts
+      // what lies further down only as it comes into view.
       { name: 'title', label: say('title'), widget: 'string', ...within(TRANSLATED) },
-      { name: 'slug', label: say('slug'), widget: 'string', required: false, hint: say('slugHint'), ...within(SAME_IN_EACH) },
-      ...(type.hierarchical
-        ? [{ name: 'parent', label: say('parent'), ...relation(type.collection, 'title'), required: false, ...within(SAME_IN_EACH) }]
-        : []),
       {
         name: 'status',
         label: say('status'),
@@ -319,9 +317,13 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
       },
       // How it stands on the site, which is nothing the file holds (ADR 0031).
       { name: 'publishing', label: say('publishing'), widget: PUBLISHING_WIDGET, required: false, ...within(SAME_IN_EACH) },
+      { name: 'body', label: say('body'), widget: BODY_WIDGET, required: false, elements: type.elements, forms, ...(description.images?.smallestWidth ? { smallestWidth: description.images.smallestWidth } : {}), ...within(TRANSLATED) },
+      { name: 'slug', label: say('slug'), widget: 'string', required: false, hint: say('slugHint'), ...within(SAME_IN_EACH) },
+      ...(type.hierarchical
+        ? [{ name: 'parent', label: say('parent'), ...relation(type.collection, 'title'), required: false, ...within(SAME_IN_EACH) }]
+        : []),
       ...type.fields.map(postField).filter(Boolean),
       ...(type.address === null ? [] : [otherAddressesField()]),
-      { name: 'body', label: say('body'), widget: BODY_WIDGET, required: false, elements: type.elements, forms, ...(description.images?.smallestWidth ? { smallestWidth: description.images.smallestWidth } : {}), ...within(TRANSLATED) },
     ],
   });
 

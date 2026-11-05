@@ -99,7 +99,7 @@ const legalPages = { menus: {}, settings: { legalPages: { cookiePolicy: '4', pri
 // writes them with `siteSettings`, and built by Astro below `base`, whose
 // output it keeps as `log`. A repository whose content or build fails is
 // removed.
-function build({ language = 'en_GB', posts = [videos, privacy, cookies, text], siteSettings = legalPages, consent, options, base = '/' } = {}) {
+function build({ language = 'en_GB', posts = [videos, privacy, cookies, text], siteSettings = legalPages, consent, options, base = '/', pageLayout = layout } = {}) {
   const repository = mkdtempSync(join(tmpdir(), 'konzilo-consent-client-'));
   let log;
   try {
@@ -112,7 +112,7 @@ function build({ language = 'en_GB', posts = [videos, privacy, cookies, text], s
     const files = {
       ...sources,
       'astro.config.mjs': astroConfig(integration, options),
-      'src/layouts/Site.astro': layout,
+      'src/layouts/Site.astro': pageLayout,
       'site-description.json': JSON.stringify({ language, types, ...(consent ? { consent } : {}) }),
     };
     // A build below a base of its own, as a preview is.
@@ -319,6 +319,18 @@ describe('a page of a site in sv_SE, whose Admin wrote the banner\'s title', () 
     click(visited, 'reject');
     assert.equal(endpoint.sent[0].record.language, 'sv-SE');
   });
+});
+
+test('warns at the build of a page with an embed where the layout has no banner to ask with', () => {
+  const without = build({ pageLayout: layout.replace('    <ConsentBanner />\n', '') });
+  const withBanner = build();
+  try {
+    assert.match(without.log, /page\(s\) with an embed, such as videos\/index\.html, have no ConsentBanner/);
+    assert.doesNotMatch(withBanner.log, /have no ConsentBanner/);
+  } finally {
+    rmSync(without.repository, { recursive: true, force: true });
+    rmSync(withBanner.repository, { recursive: true, force: true });
+  }
 });
 
 test('the footer\'s controls can stand apart, the policies in one place and the buttons in another', () => {
