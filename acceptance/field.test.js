@@ -615,7 +615,7 @@ describe('the body field, alone', () => {
     test('later elements stay as they are, as kept blocks, around an edit', async () => {
       const body = 'First\n\n![One](/media/a.webp)\n![Two](/media/b.webp)\n\nhttps://vimeo.com/76979871\n\n::form{name="contact"}\n\n<table>\n<caption>A caption</caption>\n<thead>\n<tr><th>A</th></tr>\n</thead>\n</table>\n\n:::unknown\nInside\n\nmore\n:::\n\nLast';
       assert.equal(await call('open', body), 'editor');
-      assert.equal(await page.locator('.konzilo-kept').count(), 4);
+      assert.equal(await page.locator('.konzilo-kept').count(), 3);
       await typeAtTheEnd(' zq');
       assert.equal(await call('value'), `${body} zq`);
     });
@@ -1597,6 +1597,263 @@ describe('the body field, alone', () => {
     });
   });
 
+  describe('an embed', () => {
+    const VIDEO = 'https://www.youtube.com/watch?v=Kz3pQ8vXw1A';
+    const OTHER = 'https://vimeo.com/76979871';
+    const editing = () => page.getByRole('dialog', { name: 'Edit the embed' });
+    const adding = () => page.getByRole('dialog', { name: 'Embed content' });
+    const address = (dialog) => dialog.getByRole('textbox', { name: 'The address' });
+    const startEditing = async () => {
+      await page.getByRole('button', { name: 'Edit the embed' }).click();
+      await editing().waitFor();
+    };
+    const done = async (dialog) => {
+      await dialog.getByRole('button', { name: 'Done' }).click();
+      await dialog.waitFor({ state: 'detached' });
+    };
+    const openMenu = async () => {
+      await call('focusEnd');
+      if (!(await call('atEmptyBlock'))) await page.keyboard.press('Enter');
+      await page.keyboard.type('/embed', { delay: KEY_DELAY });
+      await page.locator('.milkdown-slash-menu li.hover', { hasText: 'Embed' }).waitFor();
+      await page.keyboard.press('Enter');
+      await adding().waitFor();
+    };
+
+    test('opens as a panel naming its service, and changes nothing', async () => {
+      const body = `One\n\n${VIDEO}\n\nTwo`;
+      assert.equal(await call('open', body), 'editor', (await call('notes')).join(' '));
+      assert.deepEqual(await call('embeds'), [VIDEO]);
+      assert.equal(await page.locator('.konzilo-kept').count(), 0);
+      const panel = page.locator('.konzilo-embed-field');
+      assert.match(await panel.textContent(), /YouTube/);
+      assert.match(await panel.textContent(), /watch\?v=Kz3pQ8vXw1A/);
+      await call('poke');
+      assert.deepEqual(await call('changes'), []);
+      assert.equal(await call('value'), body);
+    });
+
+    test('in angle brackets, stays as it was written', async () => {
+      const body = `<${VIDEO}>`;
+      assert.equal(await call('open', body), 'editor');
+      assert.deepEqual(await call('embeds'), [VIDEO]);
+      await call('poke');
+      assert.equal(await call('value'), body);
+      await typeAfter('One');
+      assert.equal(await call('value'), `${body}\n\nOne`);
+    });
+
+    const typeAfter = async (text) => {
+      await call('focusEnd');
+      if (!(await call('atEmptyBlock'))) await page.keyboard.press('Enter');
+      await page.keyboard.type(text, { delay: KEY_DELAY });
+      await call('flush');
+    };
+
+    test('of no service the site takes, stays source, for the check to speak of', async () => {
+      for (const [body, why] of [['https://example.com/a', /cannot embed content from example.com/], ['https://www.youtube.com/playlist', /YouTube/]]) {
+        assert.equal(await call('open', body), 'editor', body);
+        assert.deepEqual(await call('embeds'), [], body);
+        assert.equal(await page.locator('.konzilo-kept').count(), 1, body);
+        assert.match((await call('check', body, FORMS)).reasons.join(), why, body);
+      }
+    });
+
+    test('a link to such an address stays the link it says it is', async () => {
+      const body = `[${VIDEO}](${VIDEO})`;
+      assert.equal(await call('open', body), 'editor');
+      assert.deepEqual(await call('embeds'), []);
+      assert.equal(await page.locator('.konzilo-kept').count(), 0);
+    });
+
+    test('where a type does not take embeds, stays source and is not on offer', async () => {
+      assert.equal(await call('open', `One\n\n${VIDEO}`, { elements: ['paragraph', 'image'] }), 'editor');
+      assert.deepEqual(await call('embeds'), []);
+      assert.equal(await page.locator('.konzilo-kept').count(), 1);
+      await call('focusEnd');
+      await page.keyboard.press('Enter');
+      await page.keyboard.type('/', { delay: KEY_DELAY });
+      await page.locator('.milkdown-slash-menu li').first().waitFor();
+      const offered = await page.locator('.milkdown-slash-menu li').allTextContents();
+      assert.ok(!offered.some((label) => label.includes('Embed')), offered.join());
+      await page.keyboard.press('Backspace');
+      await call('selectAll');
+      await call('paste', { text: VIDEO });
+      assert.deepEqual(await call('embeds'), [], 'and an address pasted is no embed there');
+    });
+
+    test('in the dialog, shows its address with a caret, and takes another service\'s', async () => {
+      await call('open', `One\n\n${VIDEO}\n\nTwo`);
+      await startEditing();
+      assert.equal(await address(editing()).inputValue(), VIDEO);
+      assert.equal(await address(editing()).evaluate((input) => document.activeElement === input), true);
+      assert.notEqual(await address(editing()).evaluate((input) => getComputedStyle(input).caretColor), 'rgba(0, 0, 0, 0)');
+      await address(editing()).fill(`  ${OTHER} `);
+      assert.deepEqual(await call('embeds'), [VIDEO], 'nothing changes before it is done');
+      await done(editing());
+      await call('flush');
+      assert.equal(await call('value'), `One\n\n${OTHER}\n\nTwo`);
+      assert.match(await page.locator('.konzilo-embed-field').textContent(), /Vimeo/);
+      assert.deepEqual((await call('check', await call('value'), FORMS)).reasons, []);
+    });
+
+    test('takes Enter in the dialog as done, and the change as one undo', async () => {
+      await call('open', VIDEO);
+      await startEditing();
+      await address(editing()).fill(OTHER);
+      await address(editing()).press('Enter');
+      await editing().waitFor({ state: 'detached' });
+      await call('flush');
+      assert.equal(await call('value'), OTHER);
+      await call('undoAll');
+      assert.equal(await call('value'), VIDEO);
+    });
+
+    test('changes nothing when the dialog is left, whichever way, or done unchanged', async () => {
+      const body = `<${VIDEO}>`;
+      await call('open', body);
+      for (const leave of [() => page.keyboard.press('Escape'), () => editing().getByRole('button', { name: 'Cancel' }).click()]) {
+        await startEditing();
+        await address(editing()).fill(OTHER);
+        await leave();
+        await editing().waitFor({ state: 'detached' });
+        await call('flush');
+        assert.equal(await call('value'), body);
+      }
+      await startEditing();
+      await done(editing());
+      await call('poke');
+      assert.deepEqual(await call('changes'), []);
+      assert.equal(await call('value'), body, 'in the form it had');
+    });
+
+    test('takes no address the site cannot embed, in the site\'s words', async () => {
+      await call('open', VIDEO);
+      await startEditing();
+      for (const [written, why] of [['https://example.com/a', /cannot embed content from example.com/], ['https://www.youtube.com/playlist', /YouTube/], ['', /Paste the address/], ['not an address', /cannot embed/]]) {
+        await address(editing()).fill(written);
+        await editing().getByRole('button', { name: 'Done' }).click();
+        await editing().getByRole('alert').waitFor();
+        assert.match(await editing().getByRole('alert').textContent(), why, written);
+        assert.equal(await address(editing()).getAttribute('aria-invalid'), 'true');
+      }
+      await address(editing()).fill(OTHER);
+      assert.equal(await address(editing()).getAttribute('aria-invalid'), null);
+      await editing().getByRole('button', { name: 'Cancel' }).click();
+      assert.deepEqual(await call('embeds'), [VIDEO]);
+    });
+
+    test('comes out only when asked twice, and back with undo', async () => {
+      const body = `One\n\n${VIDEO}\n\nTwo`;
+      await call('open', body);
+      await startEditing();
+      await address(editing()).fill(OTHER);
+      await editing().getByRole('button', { name: 'Remove the embed' }).click();
+      assert.match(await editing().textContent(), /Remove this embed from the text\?/);
+      const keep = editing().getByRole('button', { name: 'Keep the embed' });
+      assert.equal(await keep.evaluate((element) => document.activeElement === element), true);
+      await keep.click();
+      assert.equal(await address(editing()).inputValue(), OTHER, 'back with what was typed');
+      await editing().getByRole('button', { name: 'Remove the embed' }).click();
+      await page.keyboard.press('Escape');
+      await address(editing()).waitFor();
+      await editing().getByRole('button', { name: 'Remove the embed' }).click();
+      await editing().getByRole('button', { name: 'Remove', exact: true }).click();
+      await editing().waitFor({ state: 'detached' });
+      await call('flush');
+      assert.equal(await call('value'), 'One\n\nTwo');
+      await call('undoAll');
+      assert.equal(await call('value'), body);
+    });
+
+    test('from `/embed`, lands where the block was, with writing to go on after', async () => {
+      await call('open', 'One');
+      await openMenu();
+      assert.match(await adding().textContent(), /YouTube.*Vimeo/s, 'saying what it takes');
+      assert.equal(await adding().getByRole('button', { name: 'Remove the embed' }).count(), 0);
+      await address(adding()).fill(VIDEO);
+      await done(adding());
+      await page.keyboard.type('After', { delay: KEY_DELAY });
+      await call('flush');
+      assert.equal(await call('value'), `One\n\n${VIDEO}\n\nAfter`);
+      assert.deepEqual((await call('check', await call('value'), FORMS)).reasons, []);
+    });
+
+    test('from `/embed`, writes an address that would not read back whole in angle brackets', async () => {
+      const ending = 'https://www.linkedin.com/feed/update/urn:li:activity:7123456789012345678';
+      await call('open', '');
+      await openMenu();
+      await address(adding()).fill(ending);
+      await done(adding());
+      await call('flush');
+      const value = await call('value');
+      assert.equal(await call('open', value), 'editor', value);
+      assert.deepEqual(await call('embeds'), [ending], value);
+      assert.deepEqual((await call('check', value, FORMS)).reasons, [], value);
+    });
+
+    test('from `/embed`, left, puts nothing in', async () => {
+      await call('open', 'One');
+      await openMenu();
+      await page.keyboard.press('Escape');
+      await adding().waitFor({ state: 'detached' });
+      await call('flush');
+      assert.equal((await call('value')).trim(), 'One');
+      assert.deepEqual(await call('embeds'), []);
+    });
+
+    test('becomes one when its address is pasted on an empty line', async () => {
+      await call('open', 'One');
+      await call('focusEnd');
+      await page.keyboard.press('Enter');
+      await call('paste', { text: `  ${VIDEO}\n` });
+      assert.deepEqual(await call('embeds'), [VIDEO]);
+      await page.keyboard.type('After', { delay: KEY_DELAY });
+      await call('flush');
+      assert.equal(await call('value'), `One\n\n${VIDEO}\n\nAfter`);
+    });
+
+    test('does not when pasted in text, or when the site takes no such address', async () => {
+      await call('open', 'One');
+      await call('focusEnd');
+      await call('paste', { text: VIDEO });
+      assert.deepEqual(await call('embeds'), [], 'in text');
+      await call('open', 'One');
+      await call('focusEnd');
+      await page.keyboard.press('Enter');
+      await call('paste', { text: 'https://example.com/a' });
+      assert.deepEqual(await call('embeds'), [], 'of no service');
+      await call('open', '- One');
+      await call('selectText', 'One');
+      await page.keyboard.press('ArrowRight');
+      await page.keyboard.press('Enter');
+      await call('paste', { text: VIDEO });
+      assert.deepEqual(await call('embeds'), [], 'in a list');
+    });
+
+    test('from outside does not come along in a paste', async () => {
+      await call('open', 'One');
+      await call('focusEnd');
+      await call('paste', { html: `<div data-konzilo-embed data-address="${VIDEO}" data-value="${VIDEO}"></div>` });
+      assert.deepEqual(await call('embeds'), []);
+    });
+
+    test('moves whole with the block handle, whose plus comes after it', async () => {
+      await call('open', `${VIDEO}\n\nThe paragraph`);
+      await page.locator('.konzilo-embed-field').hover();
+      const handle = page.locator('.milkdown-block-handle[data-show="true"] .operation-item');
+      await handle.first().waitFor();
+      await page.waitForTimeout(300);
+      const { x, y, width, height } = await handle.first().boundingBox();
+      await page.mouse.move(x + width / 2, y + height / 2);
+      await page.mouse.down();
+      await page.mouse.up();
+      await page.locator('.milkdown-slash-menu[data-show="true"]').waitFor();
+      assert.deepEqual((await call('topBlocks')).slice(0, 2), ['konzilo_embed', 'paragraph']);
+      await page.keyboard.press('Backspace');
+    });
+  });
+
   test('has asked nothing outside, and broken no policy', () => {
     assert.deepEqual(seen.outside, []);
     assert.deepEqual(seen.refused, []);
@@ -1629,10 +1886,31 @@ describe('the body field, alone', () => {
     });
 
     for (const colorScheme of ['light', 'dark']) {
-      test(`reads clearly, chosen or not, on a machine set to ${colorScheme}`, async () => {
+      test(`as an embed's panel, reads clearly, chosen or not, on a machine set to ${colorScheme}`, async () => {
         await page.emulateMedia({ colorScheme });
         try {
           assert.equal(await call('open', 'One\n\nhttps://vimeo.com/123456789'), 'editor');
+          const panel = page.locator('.konzilo-embed-field');
+          for (const state of ['not chosen', 'chosen']) {
+            if (state === 'chosen') {
+              await panel.locator('.konzilo-embed-service').click();
+              assert.match(await panel.getAttribute('class'), /ProseMirror-selectednode/);
+              assert.notEqual(await panel.evaluate((element) => getComputedStyle(element).outlineStyle), 'none', 'it shows it is chosen');
+            }
+            for (const part of ['.konzilo-embed-service', '.konzilo-embed-address']) {
+              const contrast = await contrastOf(part);
+              assert.ok(contrast >= 4.5, `${part}, ${state}: contrast ${contrast.toFixed(2)}`);
+            }
+          }
+        } finally {
+          await page.emulateMedia({ colorScheme: 'light' });
+        }
+      });
+
+      test(`reads clearly, chosen or not, on a machine set to ${colorScheme}`, async () => {
+        await page.emulateMedia({ colorScheme });
+        try {
+          assert.equal(await call('open', 'One\n\n::form{name="contact"}'), 'editor');
           const kept = page.locator('.konzilo-kept');
           assert.equal(await kept.count(), 1);
           for (const state of ['not chosen', 'chosen']) {

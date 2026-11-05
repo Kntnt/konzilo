@@ -216,6 +216,13 @@ globalThis.fieldPage = {
     });
     return found;
   },
+  embeds() {
+    const found = [];
+    viewOf().state.doc.forEach((node) => {
+      if (node.type.name === 'konzilo_embed') found.push(node.attrs.address);
+    });
+    return found;
+  },
   galleries() {
     const found = [];
     viewOf().state.doc.forEach((node) => {

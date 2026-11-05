@@ -4,6 +4,7 @@
 // and the field opens as Markdown where it cannot keep that (see `open` in field.js).
 
 import { linkAddress, splitAutolinks } from '../../format/body.js';
+import { embedOf } from '../../format/embeds.js';
 import rules from '../../format/rules.json' with { type: 'json' };
 
 const NAME_START = /^:{2,3}[\p{L}\p{N}]/u;
@@ -105,6 +106,13 @@ function asGallery({ children }) {
   return { type: 'konziloGallery', children: [...images, { type: 'konziloGalleryCaption', children: own ?? [] }] };
 }
 
+// A lone address as the embed the editor holds, as it was written, or null where the site takes
+// no such address, which stays as it stands and has the check's word at Save.
+function asEmbed(node, source) {
+  const { url: address } = node.children[0];
+  return embedOf(address, rules).reason ? null : { type: 'konziloEmbed', address, value: sliceOf(node, source) };
+}
+
 // Why a top-level node is kept as source, or null: it is a later element, or one its type
 // does not take, and the field has no form of it yet.
 function keptAs(node, source, policy) {
@@ -132,8 +140,9 @@ function keepLaterElements(children, source, policy) {
       continue;
     }
     const image = kind === 'image' && policy.takes('image') ? asImage(node) ?? (policy.takes('gallery') ? asGallery(node) : null) : null;
-    if (image !== null) {
-      out.push(image);
+    const held = image ?? (kind === 'embed' && policy.takes('embed') ? asEmbed(node, source) : null);
+    if (held !== null) {
+      out.push(held);
       continue;
     }
     const [start] = offsets(node);

@@ -78,11 +78,15 @@ import {
 import { findParent } from '@milkdown/kit/prose';
 import { $remark } from '@milkdown/kit/utils';
 
+import { editEmbed } from './embed-edit.js';
 import { readFormat, writerOptions } from './format.js';
 import {
+  atEmptyTopBlock,
   bodyDocument,
   canMarkFootnote,
   citation,
+  embedNode,
+  embedView,
   fieldKeys,
   fieldMarks,
   footnotesInStep,
@@ -97,9 +101,11 @@ import {
   imageStaysAnImage,
   imageView,
   inImageCaption,
+  insertEmbed,
   insertFootnote,
   insertGallery,
   insertImage,
+  isEmbeddable,
   keptBlock,
   markOrder,
   noLevelOne,
@@ -120,6 +126,7 @@ const ICONS = {
   subscript: ICON('<path d="M5 4h2.5l3.5 5.2L14.5 4H17l-4.7 7L17 18h-2.5L11 12.8 7.5 18H5l4.7-7z"/><path d="M21 22h-4v-1l2.3-2.1c.5-.5.7-.8.7-1.1 0-.4-.3-.7-.8-.7-.5 0-.9.3-1.3.8l-.8-.8c.6-.7 1.4-1.1 2.2-1.1 1.2 0 2 .7 2 1.8 0 .7-.3 1.2-1 1.8L18.9 20.9H21z"/>'),
   footnote: ICON('<path d="M4 18h9v-2H4zm0-5h13v-2H4zm0-7v2h16V6z"/><path d="M19 12h2v8h-2z"/>'),
   citation: ICON('<path d="M4 6h16v2H4zm0 5h10v2H4zm9 5h7v2h-7z"/>'),
+  embed: ICON('<path d="M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zm0 2v10h16V7zm6 2 5 3-5 3z"/>'),
   gallery: ICON('<path d="M22 16V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2m-11-4 2.03 2.71L16 11l4 5H8zM2 6v14c0 1.1.9 2 2 2h14v-2H4V6z"/>'),
   image: ICON('<path d="M5 21q-.825 0-1.412-.587T3 19V5q0-.825.588-1.412T5 3h14q.825 0 1.413.588T21 5v14q0 .825-.587 1.413T19 21zm0-2h14V5H5zm1-2h12l-3.75-5-3 4L9 13zM5 19V5z"/>'),
 };
@@ -159,7 +166,7 @@ const menu = (takes, images) => {
       divider: null,
     },
     listGroup: takes('list') ? { label: say('listGroup'), bulletList: item('bulletList'), orderedList: item('orderedList'), taskList: null } : null,
-    advancedGroup: takes('code') || takes('table') || withImages
+    advancedGroup: takes('code') || takes('table') || withImages || takes('embed')
       ? { label: say('moreGroup'), image: null, math: null, codeBlock: takes('code') ? item('code') : null, table: takes('table') ? item('table') : null }
       : null,
     buildMenu(builder) {
@@ -171,6 +178,20 @@ const menu = (takes, images) => {
             const commands = ctx.get(commandsCtx);
             commands.call(clearTextInCurrentBlockCommand.key);
             commands.call(toggleCitation.key);
+          },
+        });
+      }
+      if (takes('embed')) {
+        builder.getGroup('advanced').addItem('embed', {
+          label: say('embed'),
+          icon: ICONS.embed,
+          onRun: (ctx) => {
+            const commands = ctx.get(commandsCtx);
+            commands.call(clearTextInCurrentBlockCommand.key);
+            void editEmbed().then((answer) => {
+              if (answer) commands.call(insertEmbed.key, answer.address);
+              ctx.get(editorViewCtx).focus();
+            }).catch((error) => console.warn(`The embed was not put in: ${error.message}`));
           },
         });
       }
@@ -282,6 +303,12 @@ export async function makeEditor({ root, value, elements, changed, images = null
         // here; pasted HTML has been through `transformPasted`.
         const { clipboardData } = event;
         if (!clipboardData || view.state.selection.$from.parent.type.spec.code) return false;
+        // An address the site embeds, alone on an empty line, is what an editor pastes for one.
+        const alone = clipboardData.getData('text/plain').trim();
+        if (takes('embed') && atEmptyTopBlock(view.state) && isEmbeddable(alone)) {
+          ctx.get(commandsCtx).call(insertEmbed.key, alone);
+          return true;
+        }
         const cell = inCell(view.state);
         const caption = inImageCaption(view.state);
         const put = (slice) => view.dispatch(view.state.tr.replaceSelection(slice).scrollIntoView());
@@ -307,7 +334,8 @@ export async function makeEditor({ root, value, elements, changed, images = null
     }));
   });
 
-  editor.use(bodyDocument(takes('image'))).use(markOrder.flat()).use(keptBlock).use(superscript).use(subscript).use(toggleSuperscript).use(toggleSubscript);
+  editor.use(bodyDocument(takes('image') || takes('embed'))).use(markOrder.flat()).use(keptBlock).use(superscript).use(subscript).use(toggleSuperscript).use(toggleSubscript);
+  if (takes('embed')) editor.use(embedNode).use(insertEmbed).use(embedView);
   if (takes('image')) editor.use(imageNode).use(insertImage).use(imageStaysAnImage).use(imageView(images?.picture ?? null));
   if (takes('image') && takes('gallery')) editor.use(galleryCaption).use(galleryNode).use(insertGallery).use(galleriesHoldTwo).use(galleryView(images)).use(galleryCaptionView);
   if (takes('heading')) editor.use(headingWithAnchor).use(headingInputRule);

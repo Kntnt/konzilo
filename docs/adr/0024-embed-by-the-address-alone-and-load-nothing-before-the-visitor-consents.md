@@ -9,6 +9,7 @@
 - **Forms are strict.** Parameters that change what plays are refused, not dropped; only a start time (`t`, as `start`) and the services' own share tracking (`si`, `sid`, `share=copy`, LinkedIn's `utm_*`) are taken. Screen9 and Speaker Deck take the address in their embed code; Acast takes episodes.
 - **The intake refuses** an address no service takes, naming its host and the services; an address of a known service in another form, saying which to use; and a caption.
 - **The reader renders a panel:** `<figure class="konzilo-embed" data-embed="<service>">` holding a sentence that the site's script has not run, a link to the address and, in a `<template>`, the player, an `<iframe>` titled with the service's name. The script makes the panel the consent placeholder (ADR 0049). Without JavaScript the panel keeps its sentence and link.
+- **In the body field an embed is a panel with the service's name, the address and a pen,** with nothing asked of the service. `/embed` opens a dialog for the address, the pen one to change it or remove the embed, which asks first, and an address of a service the site takes, pasted alone on an empty line, becomes an embed at once. The dialog turns away what the intake would, in the same words. An address the site does not take stays a kept block, for the check to speak of at Save.
 - **The build needs no network.** Nothing in the intake or the rendering asks a service anything.
 
 ## Why

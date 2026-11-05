@@ -207,6 +207,30 @@
   pointer-events: none;
 }
 
+/* An embed in the field: what it is and where from, and nothing from the service itself. */
+.milkdown .ProseMirror .konzilo-embed-field {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 16px 0;
+  padding: 12px 48px 12px 14px;
+  border-radius: 4px;
+  background: var(--crepe-color-surface-low);
+  color: var(--crepe-color-on-surface);
+  cursor: default;
+}
+
+.milkdown .ProseMirror .konzilo-embed-field.ProseMirror-selectednode {
+  outline: 2px solid var(--crepe-color-primary);
+}
+
+.konzilo-embed-address {
+  font-size: 13px;
+  color: var(--crepe-color-on-surface-variant);
+  overflow-wrap: anywhere;
+}
+
 /* A gallery in the field, its images side by side. */
 .milkdown .ProseMirror .konzilo-gallery-field {
   position: relative;
@@ -579,23 +603,27 @@
   border-radius: 4px;
 }
 
-.konzilo-image-editing-form {
+.konzilo-dialog-form {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-.konzilo-image-editing .konzilo-dialog-row {
+.konzilo-dialog-form p {
+  margin: 0;
+}
+
+.konzilo-dialog-narrow .konzilo-dialog-row {
   flex-direction: column;
   align-items: stretch;
   gap: 4px;
 }
 
-.konzilo-image-editing .konzilo-dialog-row span {
+.konzilo-dialog-narrow .konzilo-dialog-row span {
   width: auto;
 }
 
-.konzilo-image-editing input[aria-invalid='true'] {
+.konzilo-dialog-narrow input[aria-invalid='true'] {
   border-color: #8c1d18;
 }
 
