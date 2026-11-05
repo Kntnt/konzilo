@@ -406,9 +406,10 @@ describe('a site in Compose', () => {
       test('chooses an image from the library with its texts, changes them in the post alone, and a visitor sees it', async () => {
         const { page } = session;
         const title = `A title saved in ${engine}`;
-        // Two pictures can be described alike, and a person tells them apart by looking.
+        // Two pictures can be described alike, and a person tells them apart by looking. An engine
+        // before this one has uploaded an entry with a caption, which what is typed here would join.
         const entries = await libraryEntries();
-        const entry = entries.find(({ alt }) => entries.filter((other) => other.alt === alt).length === 1);
+        const entry = entries.find(({ alt, caption }) => !caption && entries.filter((other) => other.alt === alt).length === 1);
         await page.getByText(title).first().click();
         const chooser = await openChooser(page);
         const choice = chooser.getByRole('button', { name: entry.alt, exact: true });
@@ -416,19 +417,25 @@ describe('a site in Compose', () => {
         await page.waitForFunction(() => [...document.querySelectorAll('.konzilo-chooser-item img')].some((image) => image.complete && image.naturalWidth > 0), null, { timeout: 30_000 });
         await choice.click();
         const image = page.locator(`.konzilo-image[data-src="${entry.src}"]`).last();
-        const held = image.locator('.konzilo-image-alt input');
-        assert.equal(await held.inputValue(), entry.alt);
         await image.locator('.konzilo-image-picture[data-state="shown"]').waitFor({ timeout: 30_000 });
         assert.equal(await shows(image.locator('img')), true);
         const own = `${entry.alt}, as ${engine} has it`;
+        await image.getByRole('button', { name: 'Edit the image' }).click();
+        const editing = page.getByRole('dialog', { name: 'Edit the image' });
+        const held = editing.getByRole('textbox', { name: 'Alt text' });
+        assert.equal(await held.inputValue(), entry.alt);
+        assert.notEqual(await held.evaluate((input) => getComputedStyle(input).caretColor), 'rgba(0, 0, 0, 0)', 'with a caret to write at');
         await held.fill(own);
+        await editing.getByRole('button', { name: 'Done' }).click();
+        await editing.waitFor({ state: 'detached' });
         await image.locator('.konzilo-image-caption').click();
         await page.keyboard.type(`A caption in ${engine}`, { delay: 20 });
         await page.getByRole('button', { name: 'Save', exact: true }).click();
 
         const saved = await fileNamed('articles', title);
         const written = `![${own.replaceAll('_', '\\_')}](${entry.src})\\\nA caption in ${engine}`;
-        assert.ok((await waitForFile(page, saved.path, (text) => text.includes(written))).includes(written));
+        const inTheFile = await waitForFile(page, saved.path, (text) => text.includes(written));
+        assert.ok(inTheFile.includes(written), `${written}\nis not in\n${inTheFile}`);
         assert.deepEqual((await libraryEntries()).find(({ place }) => place === entry.place), entry, 'the library keeps its own texts');
         const shown = await onTheSite(addressOf(saved.text), `A caption in ${engine}`);
         const figure = new RegExp(`<figure>\\s*<img[^>]*alt="${own}"[^>]*>\\s*<figcaption>A caption in ${engine}</figcaption>\\s*</figure>`);
@@ -460,7 +467,7 @@ describe('a site in Compose', () => {
         assert.equal(commit.author?.login ?? commit.commit.author.name, 'anna');
 
         const image = page.locator(`.konzilo-image[data-src="${entry.src}"]`);
-        assert.equal(await image.locator('.konzilo-image-alt input').inputValue(), `Uploaded in ${engine}`);
+        assert.equal(await image.locator('.konzilo-image-picture img').getAttribute('alt'), `Uploaded in ${engine}`);
         await image.locator('.konzilo-image-picture[data-state="shown"]').waitFor({ timeout: 30_000 });
         await page.getByRole('button', { name: 'Save', exact: true }).click();
 
