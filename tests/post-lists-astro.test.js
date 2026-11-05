@@ -197,6 +197,13 @@ describe('Astro', () => {
     assert.equal(built.aside('alpha'), 'Echo /echo/, Delta /delta/');
   });
 
+  test('says what is wrong with a refused site description, and not that a presentation is undeclared', () => {
+    const failed = build({ 'site-description.json': JSON.stringify({ ...site, language: 'not a language' }) }, { presentations });
+    assert.notEqual(failed.status, 0);
+    assert.doesNotMatch(failed.output, /presentation/);
+    assert.match(failed.output, /language/);
+  });
+
   test('takes a presentation from a package, by the package\'s name', () => {
     const fromPackage = build({
       'node_modules/@acme/design/package.json': JSON.stringify({ name: '@acme/design', version: '1.0.0', type: 'module', exports: { './*.astro': './*.astro' }, peerDependencies: { astro: '*' } }),
