@@ -615,7 +615,7 @@ describe('the body field, alone', () => {
     test('later elements stay as they are, as kept blocks, around an edit', async () => {
       const body = 'First\n\n![One](/media/a.webp)\n![Two](/media/b.webp)\n\nhttps://vimeo.com/76979871\n\n::form{name="contact"}\n\n<table>\n<caption>A caption</caption>\n<thead>\n<tr><th>A</th></tr>\n</thead>\n</table>\n\n:::unknown\nInside\n\nmore\n:::\n\nLast';
       assert.equal(await call('open', body), 'editor');
-      assert.equal(await page.locator('.konzilo-kept').count(), 5);
+      assert.equal(await page.locator('.konzilo-kept').count(), 4);
       await typeAtTheEnd(' zq');
       assert.equal(await call('value'), `${body} zq`);
     });
@@ -662,7 +662,8 @@ describe('the body field, alone', () => {
       await call('focusEnd');
       if (!(await call('atEmptyBlock'))) await page.keyboard.press('Enter');
       await page.keyboard.type('/image', { delay: KEY_DELAY });
-      await page.locator('.milkdown-slash-menu li', { hasText: 'Image' }).waitFor();
+      // The menu narrows a moment after the keys, and Enter takes the row it marks.
+      await page.locator('.milkdown-slash-menu li.hover', { hasText: 'Image' }).waitFor();
       await page.keyboard.press('Enter');
       await chooser().waitFor();
     };
@@ -1045,7 +1046,7 @@ describe('the body field, alone', () => {
         await call('focusEnd');
         await page.keyboard.press('Enter');
         await page.keyboard.type('/image', { delay: KEY_DELAY });
-        await page.locator('.milkdown-slash-menu li', { hasText: 'Image' }).waitFor();
+        await page.locator('.milkdown-slash-menu li.hover', { hasText: 'Image' }).waitFor();
         await page.keyboard.press('Enter');
         await chooser().getByRole('button', { name: 'A lake' }).click();
         await call('flush');
@@ -1130,6 +1131,379 @@ describe('the body field, alone', () => {
         await chooser().getByRole('button', { name: 'A lake' }).click();
         assert.equal((await call('images'))[0].alt, 'A lake');
       });
+    });
+  });
+
+  describe('a gallery', () => {
+    const BARN = '![A red barn](/media/barn.webp)';
+    const LAKE = '![A lake](/media/lake.webp)';
+    const RYE = '![A field of rye](/media/rye.webp)';
+    const TWO = `${BARN}\n${LAKE}`;
+    const FULL = `${BARN}\n${LAKE}\\\nAt dawn\nA farm in summer`;
+    const LIBRARY = { entries: [{ src: '/media/lantern.webp', alt: 'A lantern at dusk', caption: 'The quay' }, { src: '/media/lake.webp', alt: 'A lake', caption: '' }, { src: '/media/rye.webp', alt: 'A field of rye', caption: '' }] };
+    const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEBgIApD5fRAAAAABJRU5ErkJggg==', 'base64');
+    const picking = () => page.getByRole('dialog', { name: 'Choose images' });
+    const editing = () => page.getByRole('dialog', { name: 'Edit the image' });
+    const card = (index) => page.locator('.konzilo-gallery-images .konzilo-image').nth(index);
+    const altsAre = async () => (await call('galleries'))[0].images.map(({ alt }) => alt);
+    const openMenu = async () => {
+      await call('focusEnd');
+      if (!(await call('atEmptyBlock'))) await page.keyboard.press('Enter');
+      await page.keyboard.type('/gallery', { delay: KEY_DELAY });
+      await page.locator('.milkdown-slash-menu li.hover', { hasText: 'Gallery' }).waitFor();
+      await page.keyboard.press('Enter');
+      await picking().waitFor();
+    };
+    const removeInDialog = async (index) => {
+      await card(index).getByRole('button', { name: 'Edit the image' }).click();
+      await editing().getByRole('button', { name: 'Remove the image' }).click();
+      await editing().getByRole('button', { name: 'Remove', exact: true }).click();
+      await editing().waitFor({ state: 'detached' });
+    };
+
+    test('opens as its images, their captions and its own, and changes nothing', async () => {
+      assert.equal(await call('open', FULL, { library: LIBRARY }), 'editor', (await call('notes')).join(' '));
+      assert.deepEqual(await call('galleries'), [{ images: [{ src: '/media/barn.webp', alt: 'A red barn', caption: '' }, { src: '/media/lake.webp', alt: 'A lake', caption: 'At dawn' }], caption: 'A farm in summer' }]);
+      assert.equal(await page.locator('.konzilo-kept').count(), 0);
+      await card(1).locator('.konzilo-image-picture[data-state="shown"] img').waitFor();
+      await call('poke');
+      assert.deepEqual(await call('changes'), []);
+      assert.equal(await call('value'), FULL);
+    });
+
+    test('keeps a line it cannot read as a gallery as source, for the check to speak of', async () => {
+      for (const body of [`${BARN}\n${LAKE} and more`, `${BARN}\nA line\n${LAKE}`, `${BARN}\n${LAKE}\nOne\nTwo`, `${BARN}\n![A](/media/a.webp "A title")`, `${BARN}\n${LAKE}\nWith [a link](/x/)`]) {
+        assert.equal(await call('open', body), 'editor', body);
+        assert.deepEqual(await call('galleries'), [], body);
+        assert.equal(await page.locator('.konzilo-kept').count(), 1, body);
+        assert.equal(await call('value'), body);
+      }
+    });
+
+    test('takes a change to each image\'s caption and its own, with what a caption may hold', async () => {
+      await call('open', TWO);
+      await call('focusCaption', 1);
+      await page.keyboard.type('At dawn', { delay: KEY_DELAY });
+      await call('focusGalleryCaption');
+      await page.keyboard.type('A farm in summer', { delay: KEY_DELAY });
+      await call('flush');
+      assert.equal(await call('value'), FULL);
+      assert.deepEqual((await call('check', await call('value'), FORMS)).reasons, []);
+      await call('selectText', 'summer');
+      await call('runMark', 'emphasis');
+      await call('flush');
+      assert.equal(await call('value'), `${BARN}\n${LAKE}\\\nAt dawn\nA farm in _summer_`);
+    });
+
+    test('moves on with Enter: from a caption to the next, and out of the gallery from its own', async () => {
+      await call('open', TWO);
+      await call('focusCaption', 0);
+      await page.keyboard.type('One', { delay: KEY_DELAY });
+      await page.keyboard.press('Enter');
+      await page.keyboard.type('Two', { delay: KEY_DELAY });
+      await page.keyboard.press('Enter');
+      await page.keyboard.type('Own', { delay: KEY_DELAY });
+      await page.keyboard.press('Enter');
+      await page.keyboard.type('After', { delay: KEY_DELAY });
+      await call('flush');
+      assert.equal(await call('value'), `${BARN}\\\nOne\n${LAKE}\\\nTwo\nOwn\n\nAfter`);
+    });
+
+    test('stays a gallery whatever is typed or pressed in a caption', async () => {
+      for (const focus of [() => call('focusCaption', 0), () => call('focusGalleryCaption')]) {
+        for (const typed of ['## ', '- ', '> ', '1. ', '``` ', '| a |']) {
+          await call('open', TWO);
+          await focus();
+          await page.keyboard.type(typed, { delay: KEY_DELAY });
+          assert.deepEqual((await call('topBlocks')).slice(0, 1), ['konzilo_gallery'], typed);
+        }
+        for (const key of ['Control+Alt+2', 'Control+Alt+0', 'Control+Alt+c', 'Meta+Alt+2', 'Meta+Alt+0', 'Meta+Alt+c', 'Shift+Enter']) {
+          await call('open', TWO);
+          await focus();
+          await page.keyboard.press(key);
+          assert.deepEqual((await call('topBlocks')).slice(0, 1), ['konzilo_gallery'], key);
+          assert.equal((await call('galleries'))[0].images.length, 2, key);
+        }
+      }
+      await call('open', `One\n\n${TWO}\n\nTwo`);
+      await call('selectAll');
+      for (const key of ['Control+Alt+2', 'Meta+Alt+2', 'Control+Alt+c', 'Meta+Alt+c']) await page.keyboard.press(key);
+      await call('flush');
+      assert.ok((await call('topBlocks')).includes('konzilo_gallery'));
+    });
+
+    test('writes what would read as something else so that it reads back the same', async () => {
+      for (const caption of ['# not a heading', '- not an item', '> not a quote', '2024. A year', '![not](an-image.webp)', 'www.example.com, https://example.com and a@example.com', '10:30', '2 * 3 _ 4 ` 5', '::x', '<b>x</b>', '[a](b)']) {
+        for (const [focus, read] of [[() => call('focusCaption', 1), (one) => one.images[1].caption], [() => call('focusGalleryCaption'), (one) => one.caption]]) {
+          await call('open', TWO);
+          await focus();
+          await page.keyboard.type(caption, { delay: 5 });
+          await call('flush');
+          const value = await call('value');
+          assert.deepEqual((await call('check', value, FORMS)).reasons, [], `${caption}: ${value}`);
+          assert.equal(await call('open', value), 'editor', `${caption}: ${value}`);
+          assert.equal(read((await call('galleries'))[0]), caption, value);
+        }
+      }
+    });
+
+    test('has a caption of spaces as no caption', async () => {
+      await call('open', TWO);
+      await call('focusCaption', 0);
+      await page.keyboard.type('   ', { delay: KEY_DELAY });
+      await call('focusGalleryCaption');
+      await page.keyboard.type('   ', { delay: KEY_DELAY });
+      await call('flush');
+      assert.equal(await call('written'), TWO);
+    });
+
+    test('edits an image\'s alt text by the same button as a lone image', async () => {
+      await call('open', TWO);
+      await card(1).getByRole('button', { name: 'Edit the image' }).click();
+      await editing().getByRole('textbox', { name: 'Alt text' }).fill('A lake at dawn');
+      await editing().getByRole('button', { name: 'Done' }).click();
+      await editing().waitFor({ state: 'detached' });
+      await call('flush');
+      assert.equal(await call('value'), `${BARN}\n![A lake at dawn](/media/lake.webp)`);
+    });
+
+    test('becomes the image left when one of two is removed, keeping a caption, and back with undo', async () => {
+      await call('open', FULL);
+      await removeInDialog(1);
+      await call('flush');
+      assert.deepEqual(await call('galleries'), []);
+      assert.equal(await call('value'), `${BARN}\\\nA farm in summer`, 'its own caption is the image\'s, which had none');
+      await call('undoAll');
+      assert.equal(await call('value'), FULL);
+
+      await removeInDialog(0);
+      await call('flush');
+      assert.equal(await call('value'), `${LAKE}\\\nAt dawn`, 'an image\'s own caption stands');
+      await call('undoAll');
+      assert.equal(await call('value'), FULL);
+
+      await call('open', `${BARN}\n${LAKE}\n${RYE}`);
+      await removeInDialog(1);
+      await call('flush');
+      assert.equal(await call('value'), `${BARN}\n${RYE}`, 'and of three it stays a gallery');
+    });
+
+    test('changes its order with a button on each image, none past its ends', async () => {
+      await call('open', `${BARN}\\\nOne\n${LAKE}\\\nTwo\n${RYE}\\\nThree`);
+      const earlier = (index) => card(index).getByRole('button', { name: 'Move earlier' });
+      const later = (index) => card(index).getByRole('button', { name: 'Move later' });
+      assert.equal(await earlier(0).isVisible(), false);
+      assert.equal(await later(0).isVisible(), true);
+      assert.equal(await later(2).isVisible(), false);
+      await later(0).click();
+      assert.deepEqual(await altsAre(), ['A lake', 'A red barn', 'A field of rye']);
+      await earlier(2).click();
+      assert.deepEqual(await altsAre(), ['A lake', 'A field of rye', 'A red barn']);
+      await call('flush');
+      assert.equal(await call('value'), `${LAKE}\\\nTwo\n${RYE}\\\nThree\n${BARN}\\\nOne`, 'with their captions');
+      assert.deepEqual((await call('check', await call('value'), FORMS)).reasons, []);
+      await call('undoAll');
+      assert.deepEqual(await altsAre(), ['A red barn', 'A lake', 'A field of rye']);
+    });
+
+    test('keeps the keyboard on the button when it moves an image', async () => {
+      await call('open', `${BARN}\n${LAKE}\n${RYE}`);
+      await card(0).getByRole('button', { name: 'Move later' }).focus();
+      await page.keyboard.press('Enter');
+      assert.deepEqual(await altsAre(), ['A lake', 'A red barn', 'A field of rye']);
+      await page.keyboard.press('Enter');
+      assert.deepEqual(await altsAre(), ['A lake', 'A field of rye', 'A red barn']);
+      assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Move earlier', 'at the end, on the way back');
+    });
+
+    test('changes its order by dragging a picture, to either side of another', async () => {
+      await call('open', `${BARN}\n${LAKE}\n${RYE}`);
+      const drag = async (from, to, side) => {
+        const start = await card(from).locator('.konzilo-image-picture').boundingBox();
+        const end = await card(to).locator('.konzilo-image-picture').boundingBox();
+        const x = side === 'before' ? end.x + 10 : end.x + end.width - 10;
+        await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(start.x + start.width / 2 + 8, start.y + start.height / 2 + 8, { steps: 3 });
+        await page.mouse.move(x, end.y + end.height / 2, { steps: 6 });
+        assert.equal(await page.locator('.konzilo-image[data-drop]').count(), 1, 'with a mark where it would land');
+        await page.mouse.up();
+      };
+      await drag(0, 2, 'after');
+      assert.deepEqual(await altsAre(), ['A lake', 'A field of rye', 'A red barn']);
+      await drag(2, 0, 'before');
+      assert.deepEqual(await altsAre(), ['A red barn', 'A lake', 'A field of rye']);
+      assert.equal(await page.locator('.konzilo-image[data-drop]').count(), 0);
+      await drag(0, 1, 'before');
+      assert.deepEqual(await altsAre(), ['A red barn', 'A lake', 'A field of rye'], 'and to where it stands is no move');
+      await call('flush');
+      assert.equal(await call('value'), `${BARN}\n${LAKE}\n${RYE}`);
+      // A drag's last events come a moment after, and a person is not gone that soon.
+      await page.waitForTimeout(100);
+    });
+
+    test('moves whole with the block handle, which stands for the gallery and not an image in it', async () => {
+      await call('open', `${TWO}\n\nThe paragraph`);
+      await card(1).locator('.konzilo-image-caption').hover();
+      const handle = page.locator('.milkdown-block-handle[data-show="true"] .operation-item');
+      await handle.first().waitFor();
+      await page.waitForTimeout(300);
+      assert.ok((await handle.first().boundingBox()).x < (await card(0).boundingBox()).x, 'beside the gallery, not over an image in it');
+      assert.equal(await card(1).getByRole('button', { name: 'Edit the image' }).evaluate((element) => {
+        const { x, y, width, height } = element.getBoundingClientRect();
+        return element.contains(document.elementFromPoint(x + width / 2, y + height / 2));
+      }), true);
+      const { x, y, width, height } = await handle.first().boundingBox();
+      await page.mouse.move(x + width / 2, y + height / 2);
+      await page.mouse.down();
+      await page.mouse.up();
+      await page.locator('.milkdown-slash-menu[data-show="true"]').waitFor();
+      assert.deepEqual((await call('topBlocks')).slice(0, 3), ['konzilo_gallery', 'paragraph', 'paragraph'], 'the plus puts a block after the gallery');
+      await page.keyboard.press('Backspace');
+    });
+
+    test('from `/gallery`, takes the images in the order they are picked', async () => {
+      await call('open', 'One', { library: LIBRARY });
+      await openMenu();
+      const items = picking().locator('.konzilo-chooser-item');
+      await items.first().waitFor();
+      const add = picking().locator('.konzilo-chooser-foot button');
+      assert.equal(await add.isDisabled(), true, 'nothing to add yet');
+      await picking().getByRole('button', { name: 'A lantern at dusk' }).click();
+      assert.equal(await add.textContent(), 'Add 1 image');
+      await picking().getByRole('button', { name: 'A field of rye' }).click();
+      await picking().getByRole('button', { name: 'A lake' }).click();
+      assert.equal(await add.textContent(), 'Add 3 images');
+      await picking().getByRole('button', { name: 'A field of rye' }).click();
+      assert.equal(await add.textContent(), 'Add 2 images', 'a second click takes one back');
+      await picking().getByRole('button', { name: 'A field of rye' }).click();
+      assert.equal(await picking().getByRole('button', { name: 'A field of rye' }).getAttribute('aria-pressed'), 'true');
+      assert.equal(await picking().getByRole('button', { name: 'A field of rye' }).locator('.konzilo-chooser-order').textContent(), '3');
+      await add.click();
+      await picking().waitFor({ state: 'detached' });
+      assert.deepEqual((await call('galleries'))[0].images, [
+        { src: '/media/lantern.webp', alt: 'A lantern at dusk', caption: 'The quay' },
+        { src: '/media/lake.webp', alt: 'A lake', caption: '' },
+        { src: '/media/rye.webp', alt: 'A field of rye', caption: '' },
+      ]);
+      await page.keyboard.type('Writing goes on', { delay: KEY_DELAY });
+      await call('flush');
+      assert.equal(await call('value'), 'One\n\n![A lantern at dusk](/media/lantern.webp)\\\nThe quay\n![A lake](/media/lake.webp)\n![A field of rye](/media/rye.webp)\n\nWriting goes on');
+    });
+
+    test('from `/gallery`, with one image picked, is that image, and with none is nothing', async () => {
+      await call('open', '', { library: LIBRARY });
+      await openMenu();
+      await picking().getByRole('button', { name: 'A lake' }).click();
+      await picking().locator('.konzilo-chooser-foot button').click();
+      await picking().waitFor({ state: 'detached' });
+      await call('flush');
+      assert.deepEqual(await call('galleries'), []);
+      assert.equal(await call('value'), LAKE);
+
+      await call('open', 'One', { library: LIBRARY });
+      await openMenu();
+      await page.keyboard.press('Escape');
+      await picking().waitFor({ state: 'detached' });
+      await call('flush');
+      assert.equal((await call('value')).trim(), 'One');
+    });
+
+    test('from `/gallery`, an upload joins what is picked, and the list stays open', async () => {
+      await call('open', '', { library: LIBRARY });
+      await openMenu();
+      await picking().getByRole('button', { name: 'A lake' }).click();
+      await picking().getByRole('button', { name: 'Upload a new image' }).click();
+      await picking().locator('input[type=file]').setInputFiles({ name: 'barn.png', mimeType: 'image/png', buffer: PNG });
+      await picking().getByRole('textbox', { name: 'Alt text' }).fill('A red barn');
+      await picking().getByRole('button', { name: 'Upload and use' }).click();
+      await picking().locator('.konzilo-chooser-item').first().waitFor();
+      assert.equal(await picking().locator('.konzilo-chooser-foot button').textContent(), 'Add 2 images');
+      assert.equal(await picking().getByRole('button', { name: 'A red barn' }).getAttribute('aria-pressed'), 'true');
+      await picking().locator('.konzilo-chooser-foot button').click();
+      await picking().waitFor({ state: 'detached' });
+      assert.deepEqual(await altsAre(), ['A lake', 'A red barn']);
+    });
+
+    test('takes more images, before its own caption, from a button of its own', async () => {
+      await call('open', FULL, { library: LIBRARY });
+      await page.getByRole('button', { name: 'Add images' }).click();
+      await picking().getByRole('button', { name: 'A field of rye' }).click();
+      await picking().locator('.konzilo-chooser-foot button').click();
+      await picking().waitFor({ state: 'detached' });
+      await call('flush');
+      assert.equal(await call('value'), `${BARN}\n${LAKE}\\\nAt dawn\n${RYE}\nA farm in summer`);
+      assert.deepEqual((await call('check', await call('value'), FORMS)).reasons, []);
+
+      await page.getByRole('button', { name: 'Add images' }).click();
+      await page.keyboard.press('Escape');
+      await picking().waitFor({ state: 'detached' });
+      await call('flush');
+      assert.equal(await call('value'), `${BARN}\n${LAKE}\\\nAt dawn\n${RYE}\nA farm in summer`, 'and none at a change of mind');
+    });
+
+    test('comes out whole only when asked twice, and back with undo', async () => {
+      const body = `One\n\n${FULL}\n\nTwo`;
+      await call('open', body);
+      const asking = page.getByRole('dialog', { name: 'Remove the gallery' });
+      await page.getByRole('button', { name: 'Remove the gallery' }).click();
+      assert.match(await asking.textContent(), /Remove this gallery from the text\?/);
+      assert.match(await asking.textContent(), /image library stays as it is/);
+      const keep = asking.getByRole('button', { name: 'Keep the gallery' });
+      assert.equal(await keep.evaluate((element) => document.activeElement === element), true, 'with the safe answer in hand');
+      await keep.click();
+      await asking.waitFor({ state: 'detached' });
+      assert.equal((await call('galleries')).length, 1);
+
+      await page.getByRole('button', { name: 'Remove the gallery' }).click();
+      await page.keyboard.press('Escape');
+      await asking.waitFor({ state: 'detached' });
+      assert.equal((await call('galleries')).length, 1);
+
+      await page.getByRole('button', { name: 'Remove the gallery' }).click();
+      await asking.getByRole('button', { name: 'Remove', exact: true }).click();
+      await asking.waitFor({ state: 'detached' });
+      await call('flush');
+      assert.equal(await call('value'), 'One\n\nTwo');
+      await call('undoAll');
+      assert.equal(await call('value'), body);
+    });
+
+    test('where a type does not take galleries, stays source and is not on offer', async () => {
+      assert.equal(await call('open', `One\n\n${TWO}`, { elements: ['paragraph', 'image'], library: LIBRARY }), 'editor');
+      assert.equal(await page.locator('.konzilo-kept').count(), 1);
+      await call('focusEnd');
+      await page.keyboard.press('Enter');
+      await page.keyboard.type('/', { delay: KEY_DELAY });
+      await page.locator('.milkdown-slash-menu li').first().waitFor();
+      const offered = await page.locator('.milkdown-slash-menu li').allTextContents();
+      assert.ok(offered.some((label) => label.includes('Image')), offered.join());
+      assert.ok(!offered.some((label) => label.includes('Gallery')), offered.join());
+    });
+
+    test('where a type takes galleries but not images, stays source', async () => {
+      assert.equal(await call('open', TWO, { elements: ['paragraph', 'gallery'], library: LIBRARY }), 'editor');
+      assert.equal(await page.locator('.konzilo-kept').count(), 1);
+    });
+
+    test('without a library, holds what it has and offers no more', async () => {
+      await call('open', TWO);
+      assert.equal((await call('galleries')).length, 1);
+      assert.equal(await page.getByRole('button', { name: 'Add images' }).count(), 0);
+      await call('focusEnd');
+      await page.keyboard.press('Enter');
+      await page.keyboard.type('/', { delay: KEY_DELAY });
+      await page.locator('.milkdown-slash-menu li').first().waitFor();
+      const offered = await page.locator('.milkdown-slash-menu li').allTextContents();
+      assert.ok(!offered.some((label) => label.includes('Gallery')), offered.join());
+    });
+
+    test('from outside does not come along in a paste', async () => {
+      await call('open', 'One');
+      await call('focusEnd');
+      await call('paste', { html: '<figure data-konzilo-gallery><figure data-konzilo-image data-src="https://elsewhere.example/a.png" data-alt="Forged"><figcaption>Forged</figcaption></figure><figure data-konzilo-image data-src="https://elsewhere.example/b.png" data-alt="Forged"><figcaption></figcaption></figure><figcaption data-konzilo-gallery-caption>Forged</figcaption></figure>' });
+      assert.deepEqual(await call('galleries'), []);
+      assert.deepEqual(await call('images'), []);
     });
   });
 
@@ -1386,6 +1760,36 @@ describe('a block\'s handle in Sveltia', () => {
         await page.mouse.up();
         await page.locator('.milkdown-slash-menu[data-show="true"]').waitFor({ timeout: 2000 });
         assert.equal(await editor.locator('> p').count(), 3, 'with a new block to fill');
+      } finally {
+        await site.close();
+      }
+    });
+  }
+});
+
+// A drag is the browser's own doing, and each has its own idea of it.
+describe('an image in a gallery', () => {
+  for (const [name, engine] of Object.entries(ENGINES)) {
+    test(`moves by dragging its picture, in ${name}`, async () => {
+      const site = await openFieldPage({ engine });
+      try {
+        const { page, seen } = await site.newPage();
+        const call = (method, ...args) => page.evaluate(([one, values]) => globalThis.fieldPage[one](...values), [method, args]);
+        await call('open', '![A](/media/a.webp)\\\nOne\n![B](/media/b.webp)\n![C](/media/c.webp)\nOwn');
+        const cards = page.locator('.konzilo-gallery-images .konzilo-image');
+        const from = await cards.nth(0).locator('.konzilo-image-picture').boundingBox();
+        const to = await cards.nth(2).locator('.konzilo-image-picture').boundingBox();
+        await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(from.x + from.width / 2 + 8, from.y + from.height / 2 + 8, { steps: 3 });
+        await page.mouse.move(to.x + to.width - 10, to.y + to.height / 2, { steps: 6 });
+        await page.locator('.konzilo-image[data-drop="after"]').waitFor();
+        await page.mouse.up();
+        await page.locator('.konzilo-image[data-drop]').waitFor({ state: 'detached' });
+        await call('flush');
+        assert.equal(await call('value'), '![B](/media/b.webp)\n![C](/media/c.webp)\n![A](/media/a.webp)\\\nOne\nOwn');
+        await page.waitForTimeout(100);
+        assert.deepEqual(seen.errors, []);
       } finally {
         await site.close();
       }

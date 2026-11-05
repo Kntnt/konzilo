@@ -107,7 +107,7 @@ describe('a site in Compose', () => {
   const picture = (of, headers = { authorization: `token ${token}` }) => get(`${site.origin.admin}/_konzilo/thumbnail?of=${encodeURIComponent(of)}`, { headers });
 
   // The chooser, from a new block after whatever the body holds.
-  const openChooser = async (page) => {
+  const openChooser = async (page, row = 'image', title = 'Choose an image', name = 'Image') => {
     const editor = page.locator('.konzilo-body-visual .ProseMirror');
     await editor.waitFor({ timeout: 30_000 });
     await editor.locator('> p').last().click();
@@ -122,10 +122,11 @@ describe('a site in Compose', () => {
     });
     await page.waitForTimeout(100);
     await page.keyboard.press('Enter');
-    await page.keyboard.type('/image', { delay: 30 });
-    await page.locator('.milkdown-slash-menu li', { hasText: 'Image' }).waitFor();
+    await page.keyboard.type(`/${row}`, { delay: 30 });
+    // The menu narrows a moment after the keys, and Enter takes the row it marks.
+    await page.locator('.milkdown-slash-menu li.hover', { hasText: name }).waitFor();
     await page.keyboard.press('Enter');
-    const chooser = page.getByRole('dialog', { name: 'Choose an image' });
+    const chooser = page.getByRole('dialog', { name: title });
     await chooser.waitFor();
     return chooser;
   };
@@ -481,6 +482,33 @@ describe('a site in Compose', () => {
         assert.match(served.headers.get('content-type'), /^image\//);
       });
 
+      test('makes a gallery from the library, puts it in order, and a visitor sees it', async () => {
+        const { page } = session;
+        const title = `A title saved in ${engine}`;
+        const entries = await libraryEntries();
+        const [first, second] = entries.filter(({ alt, caption }) => !caption && entries.filter((other) => other.alt === alt).length === 1);
+        await page.getByText(title).first().click();
+        const chooser = await openChooser(page, 'gallery', 'Choose images', 'Gallery');
+        await chooser.getByRole('button', { name: first.alt, exact: true }).click();
+        await chooser.getByRole('button', { name: second.alt, exact: true }).click();
+        await chooser.getByRole('button', { name: 'Add 2 images' }).click();
+        await chooser.waitFor({ state: 'detached' });
+
+        const gallery = page.locator('.konzilo-gallery-field').last();
+        await gallery.locator('.konzilo-image-picture[data-state="shown"]').first().waitFor({ timeout: 30_000 });
+        await gallery.locator('.konzilo-image').last().getByRole('button', { name: 'Move earlier' }).click();
+        await gallery.locator('.konzilo-gallery-caption').click();
+        await page.keyboard.type(`A gallery in ${engine}`, { delay: 20 });
+        await page.getByRole('button', { name: 'Save', exact: true }).click();
+
+        const saved = await fileNamed('articles', title);
+        const written = `![${second.alt}](${second.src})\n![${first.alt}](${first.src})\nA gallery in ${engine}`;
+        const inTheFile = await waitForFile(page, saved.path, (text) => text.includes(written));
+        assert.ok(inTheFile.includes(written), `${written}\nis not in\n${inTheFile}`);
+        const shown = await onTheSite(addressOf(saved.text), `A gallery in ${engine}`);
+        assert.match(shown, new RegExp(`<figure class="konzilo-gallery">.*alt="${second.alt}".*alt="${first.alt}".*<figcaption>A gallery in ${engine}</figcaption>`, 's'));
+      });
+
       test('asks nothing outside this copy of the site, and breaks no policy', () => {
         assert.deepEqual(session.seen.outside, []);
         assert.deepEqual(session.seen.refused, []);
@@ -530,7 +558,7 @@ describe('a site in Compose', () => {
         await page.locator('.konzilo-body-visual .ProseMirror').waitFor({ timeout: 30_000 });
         await page.locator('.konzilo-body-visual .ProseMirror').click();
         await page.keyboard.type('/image', { delay: 30 });
-        await page.locator('.milkdown-slash-menu li', { hasText: 'Image' }).waitFor();
+        await page.locator('.milkdown-slash-menu li.hover', { hasText: 'Image' }).waitFor();
         await page.keyboard.press('Enter');
         const chooser = page.getByRole('dialog', { name: 'Choose an image' });
         await chooser.getByRole('button', { name: 'Made in the form', exact: true }).waitFor({ timeout: 30_000 });

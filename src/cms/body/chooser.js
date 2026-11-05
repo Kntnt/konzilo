@@ -1,15 +1,29 @@
 // The chooser `/image` opens (ADR 0055): the library's entries as small pictures, and a way to
 // upload a new one, which joins the library and becomes the choice. It is a dialog of plain
-// elements over the whole page, and gives what was chosen, { src, alt, caption }, or null.
+// elements over the whole page, and gives what was chosen, { src, alt, caption }, or null. With
+// `several`, as for a gallery, each click picks or lets go, an upload is picked too, and it gives
+// what was picked, in that order, or null.
 
 import { uploadProblem } from './chooser-check.js';
 import { button, dialogOf, made, textRow } from './dialog.js';
 import { say } from './texts.js';
 
-export function chooseImage({ library, smallestWidth = null, root = document.body }) {
+const same = (one, other) => one.src === other.src && one.alt === other.alt && (one.caption ?? '') === (other.caption ?? '');
+
+export function chooseImage({ library, smallestWidth = null, several = false, root = document.body }) {
   return new Promise((resolve) => {
-    const { dialog, head, body } = dialogOf(say('imageChoose'));
+    const { dialog, head, body } = dialogOf(say(several ? 'imagesChoose' : 'imageChoose'));
     const close = button('', say('imageClose'), head);
+    const picked = [];
+    const add = several ? button('', '', made('div', 'konzilo-chooser-foot', dialog)) : null;
+    const showPicked = () => {
+      add.disabled = picked.length === 0;
+      add.textContent = picked.length === 1 ? say('imagesAddOne') : say(picked.length === 0 ? 'imagesAddNone' : 'imagesAdd', { count: picked.length });
+    };
+    if (several) {
+      add.addEventListener('click', () => finish(picked));
+      showPicked();
+    }
 
     let shownFile = null;
     const letGoOfFile = () => {
@@ -85,7 +99,14 @@ export function chooseImage({ library, smallestWidth = null, root = document.bod
             note.textContent = problem;
             return;
           }
-          finish(await library.add({ file, alt: alt.value, caption: caption.value }));
+          const entry = await library.add({ file, alt: alt.value, caption: caption.value });
+          if (!several) {
+            finish(entry);
+            return;
+          }
+          picked.push(entry);
+          showPicked();
+          returnTo();
         } catch (error) {
           console.warn(`The image was not uploaded: ${error.message}`);
           note.textContent = say('imageUploadFailed');
@@ -128,6 +149,8 @@ export function chooseImage({ library, smallestWidth = null, root = document.bod
         return;
       }
       if (done) return;
+      // What was uploaded a moment ago may not be in the list yet.
+      for (const entry of picked) if (!entries.some((one) => same(one, entry))) entries.push(entry);
       status.textContent = entries.length === 0 ? say('imageEmpty') : '';
 
       // A picture is asked for when it comes into view: a library can be long.
@@ -150,10 +173,30 @@ export function chooseImage({ library, smallestWidth = null, root = document.bod
         picture.dataset.src = entry.src;
         made('span', '', choose).textContent = entry.alt;
         choose.title = entry.caption ? `${entry.alt}\n${entry.caption}` : entry.alt;
-        choose.addEventListener('click', () => finish(entry));
+        const order = several ? made('span', 'konzilo-chooser-order', choose) : null;
+        order?.setAttribute('aria-hidden', 'true');
+        choose.addEventListener('click', () => {
+          if (!several) {
+            finish(entry);
+            return;
+          }
+          const at = picked.findIndex((one) => same(one, entry));
+          if (at === -1) picked.push(entry);
+          else picked.splice(at, 1);
+          showPicked();
+          markPicked();
+        });
         watcher.observe(picture);
-        return { item, words: `${entry.alt} ${entry.caption}`.toLowerCase() };
+        return { item, choose, order, entry, words: `${entry.alt} ${entry.caption}`.toLowerCase() };
       });
+      const markPicked = () => {
+        for (const { choose, order, entry } of items) {
+          const at = picked.findIndex((one) => same(one, entry));
+          choose.setAttribute('aria-pressed', String(at !== -1));
+          order.textContent = at === -1 ? '' : String(at + 1);
+        }
+      };
+      if (several) markPicked();
       search.addEventListener('input', () => {
         const sought = search.value.trim().toLowerCase();
         let left = 0;

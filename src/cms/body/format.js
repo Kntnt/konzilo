@@ -60,15 +60,49 @@ const inCaption = (node) => {
   return (node.type === 'strong' || node.type === 'emphasis') && node.children.every(inCaption);
 };
 
+const canHold = (image) => !image.title && !(image.alt ?? '').includes('\n');
+const imageOf = (image, caption = []) => ({ type: 'konziloImage', src: image.url, alt: image.alt ?? '', children: caption });
+
 // A paragraph as the image the editor holds, or null where it is no image the site can show as
-// one, a gallery among them, which stays as it stands and has the check's word at Save.
+// one, which stays as it stands and has the check's word at Save.
 function asImage({ children }) {
   const [image, lineBreak, ...caption] = children;
-  if (image.type !== 'image' || image.title || (image.alt ?? '').includes('\n')) return null;
-  const made = { type: 'konziloImage', src: image.url, alt: image.alt ?? '', children: caption };
-  if (children.length === 1) return made;
+  if (image.type !== 'image' || !canHold(image)) return null;
+  if (children.length === 1) return imageOf(image);
   if (lineBreak.type !== 'break' || lineBreak.data?.isInline || caption.length === 0 || !caption.every(inCaption)) return null;
-  return made;
+  return imageOf(image, caption);
+}
+
+// A paragraph's lines, as the intake finds them: a soft line break is an inline `break` here,
+// since Milkdown's own plugin has taken it out of the text.
+function linesOf(children) {
+  const lines = [{ after: null, nodes: [] }];
+  for (const node of children) {
+    if (node.type === 'break') lines.push({ after: node.data?.isInline ? 'soft' : 'hard', nodes: [] });
+    else lines.at(-1).nodes.push(node);
+  }
+  return lines;
+}
+
+// A paragraph as the gallery the editor holds, with the caption of each image and its own, or
+// null, as for an image. Each line is an image, its caption after a line break, or last the
+// gallery's own caption.
+function asGallery({ children }) {
+  const images = [];
+  let own = null;
+  for (const { after, nodes } of linesOf(children)) {
+    const image = nodes.length === 1 && nodes[0].type === 'image' ? nodes[0] : null;
+    if (nodes.length === 0 || own !== null || (image !== null && !canHold(image))) return null;
+    if (image === null && !nodes.every(inCaption)) return null;
+    if (after === 'hard') {
+      if (image !== null || images.length === 0 || images.at(-1).children.length > 0) return null;
+      images.at(-1).children = nodes;
+    } else if (image !== null) images.push(imageOf(image));
+    else if (images.length > 1) own = nodes;
+    else return null;
+  }
+  if (images.length < 2) return null;
+  return { type: 'konziloGallery', children: [...images, { type: 'konziloGalleryCaption', children: own ?? [] }] };
 }
 
 // Why a top-level node is kept as source, or null: it is a later element, or one its type
@@ -97,7 +131,7 @@ function keepLaterElements(children, source, policy) {
       out.push(node);
       continue;
     }
-    const image = kind === 'image' && policy.takes('image') ? asImage(node) : null;
+    const image = kind === 'image' && policy.takes('image') ? asImage(node) ?? (policy.takes('gallery') ? asGallery(node) : null) : null;
     if (image !== null) {
       out.push(image);
       continue;
@@ -240,6 +274,7 @@ const rawRun = (tag, type) => (node, _, state) => {
 };
 
 const CAPTION = 'konziloCaption';
+const LINE = 'konziloLine';
 
 // A caption takes no link, and Sätteri makes one of an address however it is escaped, so what
 // remark escapes there is split, as the intake splits it.
@@ -294,12 +329,18 @@ function trimSpaces(block) {
   trimEnd(children.at(-1));
   children.forEach((child, index) => {
     if (child.type === 'break' && index + 1 < children.length) trimStart(children[index + 1]);
+    if (child.type === CAPTION) {
+      trimStart(child);
+      trimEnd(child);
+    }
   });
   block.children = children.filter((child) => child.type !== 'text' || child.value !== '');
 }
 
-// The mdast type a caption is written under, for the image's node to open.
+// The mdast type a caption is written under, for the image's node to open, and the one a line
+// of a gallery ends with, a plain newline in its paragraph.
 export const CAPTION_NODE = CAPTION;
+export const LINE_NODE = LINE;
 
 const HOLD_TEXT = new Set(['paragraph', 'heading', 'tableCell']);
 
@@ -332,6 +373,7 @@ export const writerOptions = (options) => ({
     text,
     image,
     [CAPTION]: caption,
+    [LINE]: () => '\n',
     root(node, _, state, info) {
       tidy(node);
       return state.containerFlow(node, info);

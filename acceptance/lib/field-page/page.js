@@ -216,6 +216,24 @@ globalThis.fieldPage = {
     });
     return found;
   },
+  galleries() {
+    const found = [];
+    viewOf().state.doc.forEach((node) => {
+      if (node.type.name !== 'konzilo_gallery') return;
+      const images = [];
+      node.forEach((child) => {
+        if (child.type.name === 'konzilo_image') images.push({ src: child.attrs.src, alt: child.attrs.alt, caption: child.textContent });
+      });
+      found.push({ images, caption: node.lastChild.textContent });
+    });
+    return found;
+  },
+  focusGalleryCaption(index = 0) {
+    const view = viewOf();
+    const captions = textblocks(view).filter(({ node }) => node.type.name === 'konzilo_gallery_caption');
+    const { node, pos } = captions[index];
+    selectAt(view, TextSelection.create(view.state.doc, pos + 1 + node.content.size));
+  },
   topBlocks() {
     const found = [];
     viewOf().state.doc.forEach((node) => found.push(node.type.name));

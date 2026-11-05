@@ -11,6 +11,7 @@ import { placeholder } from '@milkdown/crepe/feature/placeholder';
 import { table as tableFeature } from '@milkdown/crepe/feature/table';
 import { toolbar } from '@milkdown/crepe/feature/toolbar';
 import { commandsCtx, editorViewCtx, editorViewOptionsCtx, parserCtx, remarkStringifyOptionsCtx, serializerCtx } from '@milkdown/kit/core';
+import { blockConfig } from '@milkdown/kit/plugin/block';
 import { uploadPlugin } from '@milkdown/kit/plugin/upload';
 import {
   blockquoteAttr,
@@ -74,6 +75,7 @@ import {
   tableSchema,
   wrapInTaskListInputRule,
 } from '@milkdown/kit/preset/gfm';
+import { findParent } from '@milkdown/kit/prose';
 import { $remark } from '@milkdown/kit/utils';
 
 import { readFormat, writerOptions } from './format.js';
@@ -84,6 +86,11 @@ import {
   fieldKeys,
   fieldMarks,
   footnotesInStep,
+  galleriesHoldTwo,
+  galleryCaption,
+  galleryCaptionView,
+  galleryNode,
+  galleryView,
   headingInputRule,
   headingWithAnchor,
   imageNode,
@@ -91,12 +98,13 @@ import {
   imageView,
   inImageCaption,
   insertFootnote,
+  insertGallery,
   insertImage,
+  keptBlock,
   markOrder,
   noLevelOne,
   onDocumentChange,
   quoteWithCitation,
-  keptBlock,
   subscript,
   superscript,
   toggleCitation,
@@ -112,6 +120,7 @@ const ICONS = {
   subscript: ICON('<path d="M5 4h2.5l3.5 5.2L14.5 4H17l-4.7 7L17 18h-2.5L11 12.8 7.5 18H5l4.7-7z"/><path d="M21 22h-4v-1l2.3-2.1c.5-.5.7-.8.7-1.1 0-.4-.3-.7-.8-.7-.5 0-.9.3-1.3.8l-.8-.8c.6-.7 1.4-1.1 2.2-1.1 1.2 0 2 .7 2 1.8 0 .7-.3 1.2-1 1.8L18.9 20.9H21z"/>'),
   footnote: ICON('<path d="M4 18h9v-2H4zm0-5h13v-2H4zm0-7v2h16V6z"/><path d="M19 12h2v8h-2z"/>'),
   citation: ICON('<path d="M4 6h16v2H4zm0 5h10v2H4zm9 5h7v2h-7z"/>'),
+  gallery: ICON('<path d="M22 16V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2m-11-4 2.03 2.71L16 11l4 5H8zM2 6v14c0 1.1.9 2 2 2h14v-2H4V6z"/>'),
   image: ICON('<path d="M5 21q-.825 0-1.412-.587T3 19V5q0-.825.588-1.412T5 3h14q.825 0 1.413.588T21 5v14q0 .825-.587 1.413T19 21zm0-2h14V5H5zm1-2h12l-3.75-5-3 4L9 13zM5 19V5z"/>'),
 };
 
@@ -132,6 +141,7 @@ const NEVER = [docSchema, hrAttr, hrSchema, insertHrCommand, insertHrInputRule, 
 const menu = (takes, images) => {
   const headings = takes('heading') ? {} : null;
   const withImages = takes('image') && images !== null;
+  const withGalleries = withImages && takes('gallery');
   const item = (key) => ({ label: say(key) });
   return {
     // Close to its block, so that the field's left margin need not be wider than it is.
@@ -178,6 +188,20 @@ const menu = (takes, images) => {
           },
         });
       }
+      if (withGalleries) {
+        builder.getGroup('advanced').addItem('gallery', {
+          label: say('gallery'),
+          icon: ICONS.gallery,
+          onRun: (ctx) => {
+            const commands = ctx.get(commandsCtx);
+            commands.call(clearTextInCurrentBlockCommand.key);
+            void images.chooseSeveral().then((chosen) => {
+              if (chosen) commands.call(insertGallery.key, chosen);
+              ctx.get(editorViewCtx).focus();
+            }).catch((error) => console.warn(`The gallery was not put in: ${error.message}`));
+          },
+        });
+      }
     },
   };
 };
@@ -221,7 +245,8 @@ const toolbarOptions = (takes) => ({
 
 // An editor on `root` holding `value`: { write(), view, destroy() }. `changed` is told of each
 // change to the document, which may be no real edit: a trailing paragraph is one too. `images`:
-// { choose(), picture(address) } as the field gives them, or null where there is no library.
+// { choose(), chooseSeveral(), picture(address) } as the field gives them, or null where there
+// is no library.
 export async function makeEditor({ root, value, elements, changed, images = null }) {
   const taken = new Set(elements);
   const takes = (element) => taken.has(element);
@@ -236,7 +261,7 @@ export async function makeEditor({ root, value, elements, changed, images = null
   editor.config((ctx) => {
     ctx.update(remarkStringifyOptionsCtx, writerOptions);
     ctx.set(remarkGFMPlugin.options.key, { tablePipeAlign: false });
-    ctx.set(hardbreakFilterNodes.key, ['table', 'code_block', 'heading', 'konzilo_citation', 'konzilo_image']);
+    ctx.set(hardbreakFilterNodes.key, ['table', 'code_block', 'heading', 'konzilo_citation', 'konzilo_image', 'konzilo_gallery_caption']);
     if (takes('heading')) {
       ctx.update(headingKeymap.key, (keys) => ({
         ...keys,
@@ -284,6 +309,7 @@ export async function makeEditor({ root, value, elements, changed, images = null
 
   editor.use(bodyDocument(takes('image'))).use(markOrder.flat()).use(keptBlock).use(superscript).use(subscript).use(toggleSuperscript).use(toggleSubscript);
   if (takes('image')) editor.use(imageNode).use(insertImage).use(imageStaysAnImage).use(imageView(images?.picture ?? null));
+  if (takes('image') && takes('gallery')) editor.use(galleryCaption).use(galleryNode).use(insertGallery).use(galleriesHoldTwo).use(galleryView(images)).use(galleryCaptionView);
   if (takes('heading')) editor.use(headingWithAnchor).use(headingInputRule);
   if (takes('quote')) editor.use(citation).use(quoteWithCitation).use(toggleCitation);
   if (takes('footnotes')) editor.use(insertFootnote).use(footnotesInStep);
@@ -299,6 +325,13 @@ export async function makeEditor({ root, value, elements, changed, images = null
     .addFeature(blockEdit, menu(takes, images));
   if (takes('list')) crepe.addFeature(listItem, {});
   if (takes('table')) crepe.addFeature(tableFeature, {});
+  // After the block feature, which sets its own: a gallery has one handle, and each image in it
+  // moves in the gallery's own way.
+  editor.config((ctx) => {
+    ctx.update(blockConfig.key, ({ filterNodes }) => ({
+      filterNodes: (pos, node) => filterNodes(pos, node) && !findParent(({ type }) => type.name === 'konzilo_gallery')(pos),
+    }));
+  });
 
   await crepe.create();
   return {
