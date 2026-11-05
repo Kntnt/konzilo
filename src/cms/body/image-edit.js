@@ -33,7 +33,7 @@ export function editImage({ alt, address = null, root = document.body }) {
     const note = made('p', 'konzilo-dialog-note', form);
     note.setAttribute('role', 'alert');
     const actions = made('div', 'konzilo-dialog-actions', form);
-    const remove = button('konzilo-image-editing-remove', say('imageRemove'), actions);
+    const remove = button('konzilo-dialog-remove', say('imageRemove'), actions);
     button('', say('imageCancel'), actions).addEventListener('click', () => finish(null));
     const accept = made('button', 'konzilo-dialog-accept', actions);
     accept.type = 'submit';
