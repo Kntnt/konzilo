@@ -324,7 +324,7 @@ function describedSiteAt(root) {
 // presentation must have a component, and each component a declared
 // presentation.
 function checkPresentations(described, components) {
-  const declared = Object.keys(described?.presentations ?? {});
+  const declared = Object.keys(described.presentations ?? {});
   for (const name of declared) {
     if (!Object.hasOwn(components, name)) throw new Error(`Konzilo: the site description declares the presentation ${name}, which the site's design does not register in konzilo({ presentations })`);
   }
@@ -437,7 +437,9 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
         described = describedSiteAt(fileURLToPath(config.root));
         language = described?.language ?? null;
         languages = described?.languages ?? [];
-        checkPresentations(described, presentations);
+        // Without a description it can read, there is nothing to hold them against, and what is
+        // wrong with it comes from where it is read.
+        if (described) checkPresentations(described, presentations);
         // The site's search page, at the address its description declares,
         // each language's after its prefix on a site in several.
         search = described ? searchPages(described) : [];
