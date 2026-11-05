@@ -61,6 +61,7 @@ const dev = devServer({
     KONZILO_PREVIEW: '1',
     KONZILO_ORIGIN: siteOrigin,
     ASTRO_TELEMETRY_DISABLED: '1',
+    ASTRO_DISABLE_UPDATE_CHECK: 'true',
   },
   // A dev server finds a content folder with something in it.
   before: async () => {

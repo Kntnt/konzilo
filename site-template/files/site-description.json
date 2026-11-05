@@ -25,7 +25,7 @@
       "collection": "pages",
       "hierarchical": true,
       "address": "/pages/{path}/",
-      "elements": ["paragraph", "heading", "list", "code", "table", "image", "post-list", "form"],
+      "elements": ["paragraph", "heading", "list", "code", "table", "image", "gallery", "post-list", "form"],
       "fields": {
         "seo": {}
       }

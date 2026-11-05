@@ -439,7 +439,7 @@ describe('a site in Compose', () => {
         assert.ok(inTheFile.includes(written), `${written}\nis not in\n${inTheFile}`);
         assert.deepEqual((await libraryEntries()).find(({ place }) => place === entry.place), entry, 'the library keeps its own texts');
         const shown = await onTheSite(addressOf(saved.text), `A caption in ${engine}`);
-        const figure = new RegExp(`<figure>\\s*<img[^>]*alt="${own}"[^>]*>\\s*<figcaption>A caption in ${engine}</figcaption>\\s*</figure>`);
+        const figure = new RegExp(`<figure>\\s*<button[^>]*>\\s*<img[^>]*alt="${own}"[^>]*>\\s*</button>\\s*<figcaption>A caption in ${engine}</figcaption>\\s*</figure>`);
         assert.match(shown, figure);
       });
 
@@ -507,6 +507,71 @@ describe('a site in Compose', () => {
         assert.ok(inTheFile.includes(written), `${written}\nis not in\n${inTheFile}`);
         const shown = await onTheSite(addressOf(saved.text), `A gallery in ${engine}`);
         assert.match(shown, new RegExp(`<figure class="konzilo-gallery">.*alt="${second.alt}".*alt="${first.alt}".*<figcaption>A gallery in ${engine}</figcaption>`, 's'));
+      });
+
+      test('shows a visitor its images over the page, and steps through a gallery, by every way there is', async () => {
+        const { page } = session;
+        const saved = await fileNamed('articles', `A title saved in ${engine}`);
+        const address = addressOf(saved.text);
+        await onTheSite(address, `A gallery in ${engine}`);
+        await page.goto(`${site.origin.site}${address}`);
+
+        const gallery = page.locator('figure.konzilo-gallery').last();
+        const large = page.locator('dialog.konzilo-lightbox[open]');
+        const previous = large.locator('.konzilo-lightbox-previous');
+        const next = large.locator('.konzilo-lightbox-next');
+        const atPlace = (place) => page.waitForFunction((wanted) => {
+          const strip = document.querySelector('dialog.konzilo-lightbox[open] ul');
+          return Math.abs(strip.scrollLeft / strip.clientWidth - wanted) < 0.02;
+        }, place);
+        const locked = () => page.evaluate(() => getComputedStyle(document.documentElement).overflowY === 'hidden');
+
+        await gallery.locator('button.konzilo-lightbox-open').nth(1).click();
+        await large.waitFor();
+        await atPlace(1);
+        assert.equal(await large.evaluate((dialog) => dialog.matches(':modal')), true);
+        assert.equal(await locked(), true, 'with the page behind it still');
+        assert.equal(await large.evaluate((dialog) => getComputedStyle(dialog, '::backdrop').backgroundColor), 'rgba(0, 0, 0, 0.9)');
+        assert.equal(await page.evaluate(() => document.activeElement?.tagName), 'UL', 'with the keys on the strip');
+
+        const picture = large.locator('li').nth(1).locator('img');
+        await page.waitForFunction(() => {
+          const image = document.querySelectorAll('dialog.konzilo-lightbox[open] li img')[1];
+          return image.complete && image.naturalWidth > 0;
+        });
+        const box = await picture.boundingBox();
+        const before = await previous.boundingBox();
+        assert.ok(box.height > 300, `as large as it can be: ${box.width} by ${box.height}`);
+        assert.ok(before.x + before.width <= box.x, 'with the arrow outside the picture');
+        assert.equal(await large.locator('li').nth(1).locator('.konzilo-lightbox-place').textContent(), '2 of 2');
+        assert.equal(await next.isVisible(), false, 'and none where there is no more');
+
+        await page.keyboard.press('ArrowLeft');
+        await atPlace(0);
+        assert.equal(await previous.isVisible(), false);
+        await page.keyboard.press('ArrowRight');
+        await atPlace(1);
+        await previous.click();
+        await atPlace(0);
+        await next.click();
+        await atPlace(1);
+
+        await page.keyboard.press('Escape');
+        await large.waitFor({ state: 'hidden' });
+        assert.equal(await locked(), false, 'and the page is free again');
+
+        await gallery.locator('button.konzilo-lightbox-open').nth(0).click();
+        await large.waitFor();
+        await atPlace(0);
+        await page.mouse.click(4, 4);
+        await large.waitFor({ state: 'hidden' });
+
+        const alone = page.locator(':not(.konzilo-gallery) > figure > button.konzilo-lightbox-open').first();
+        await alone.click();
+        await large.waitFor();
+        assert.equal(await large.locator('.konzilo-lightbox-step').count(), 0, 'a single image has no arrows');
+        await large.getByRole('button', { name: 'Close' }).click();
+        await large.waitFor({ state: 'hidden' });
       });
 
       test('asks nothing outside this copy of the site, and breaks no policy', () => {

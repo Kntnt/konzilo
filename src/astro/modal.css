@@ -1,0 +1,220 @@
+/* The one dialog all that is shown over a page stands in, and the lightbox, its first use
+   (ADR 0056). This is what makes it work: the strip that snaps is what lets the arrow keys step.
+   Its look a site's design can set, by custom properties, on the root:
+
+   --konzilo-lightbox-overlay  the overlay, which lets a little of the page through
+   --konzilo-lightbox-text     the words over it
+   --konzilo-lightbox-control  the background of its buttons
+
+   The selectors name the element, to stand above what a site says of a body's figures and lists. */
+
+html:has(dialog.konzilo-modal:modal) {
+  overflow: hidden;
+}
+
+button.konzilo-lightbox-open {
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+}
+
+.konzilo-gallery button.konzilo-lightbox-open {
+  width: 100%;
+}
+
+button.konzilo-lightbox-open:focus-visible {
+  outline: 3px solid currentcolor;
+  outline-offset: 2px;
+}
+
+dialog.konzilo-lightbox {
+  box-sizing: border-box;
+  width: 100vw;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--konzilo-lightbox-text, #fff);
+  overflow: hidden;
+}
+
+dialog.konzilo-lightbox[open] {
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr) 4rem;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+dialog.konzilo-lightbox::backdrop {
+  background: var(--konzilo-lightbox-overlay, rgb(0 0 0 / 90%));
+}
+
+dialog.konzilo-lightbox button.konzilo-modal-close,
+dialog.konzilo-lightbox button.konzilo-lightbox-step {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 3rem;
+  height: 3rem;
+  padding: 0;
+  border: 1px solid currentcolor;
+  border-radius: 50%;
+  background: var(--konzilo-lightbox-control, rgb(40 40 40));
+  color: inherit;
+  cursor: pointer;
+}
+
+dialog.konzilo-lightbox button:focus-visible {
+  outline: 3px solid currentcolor;
+  outline-offset: 2px;
+}
+
+dialog.konzilo-lightbox button.konzilo-lightbox-step:disabled {
+  visibility: hidden;
+}
+
+dialog.konzilo-lightbox button.konzilo-modal-close {
+  position: absolute;
+  z-index: 1;
+  top: 0.5rem;
+  right: 0.5rem;
+}
+
+dialog.konzilo-lightbox button.konzilo-lightbox-previous {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: center;
+  justify-self: center;
+}
+
+dialog.konzilo-lightbox button.konzilo-lightbox-next {
+  grid-column: 3;
+  grid-row: 1;
+  align-self: center;
+  justify-self: center;
+}
+
+/* Without a script, the keys and a finger still step, and these would not. */
+@media (scripting: none) {
+  dialog.konzilo-lightbox button.konzilo-lightbox-step {
+    visibility: hidden;
+  }
+}
+
+dialog.konzilo-lightbox ul.konzilo-lightbox-strip {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+dialog.konzilo-lightbox ul.konzilo-lightbox-strip:focus {
+  outline: none;
+}
+
+dialog.konzilo-lightbox ul.konzilo-lightbox-strip:focus-visible {
+  outline: 2px solid currentcolor;
+  outline-offset: -2px;
+}
+
+dialog.konzilo-lightbox ul.konzilo-lightbox-strip > li {
+  flex: 0 0 100%;
+  min-width: 0;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  scroll-snap-align: center;
+  scroll-snap-stop: always;
+}
+
+dialog.konzilo-lightbox li > figure {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 100%;
+  margin: 0;
+  padding-block: 0.5rem;
+}
+
+dialog.konzilo-lightbox li > figure img {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+dialog.konzilo-lightbox li > figure figcaption,
+dialog.konzilo-lightbox p.konzilo-lightbox-place {
+  flex: none;
+  margin: 0.5rem 0 0;
+  padding: 0 0.5rem;
+  color: inherit;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  text-align: center;
+}
+
+dialog.konzilo-lightbox p.konzilo-lightbox-place {
+  margin-block-start: 0.25rem;
+  opacity: 0.8;
+}
+
+/* On a narrow screen the room goes to the picture, and the arrows stand below it. */
+@media (max-width: 40rem) {
+  dialog.konzilo-lightbox[open] {
+    grid-template-columns: 4rem minmax(0, 1fr) 4rem;
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  dialog.konzilo-lightbox ul.konzilo-lightbox-strip {
+    grid-column: 1 / -1;
+  }
+
+  dialog.konzilo-lightbox button.konzilo-lightbox-previous,
+  dialog.konzilo-lightbox button.konzilo-lightbox-next {
+    grid-row: 2;
+    margin-block: 0.5rem;
+  }
+}
+
+/* A fade in, where nobody has asked to be spared movement. Browsers that cannot fade an element in
+   the top layer out simply close it. */
+@media (prefers-reduced-motion: no-preference) {
+  dialog.konzilo-lightbox {
+    opacity: 0;
+    transition: opacity 0.15s, display 0.15s allow-discrete, overlay 0.15s allow-discrete;
+  }
+
+  dialog.konzilo-lightbox[open] {
+    opacity: 1;
+  }
+
+  @starting-style {
+    dialog.konzilo-lightbox[open] {
+      opacity: 0;
+    }
+  }
+
+  dialog.konzilo-lightbox ul.konzilo-lightbox-strip {
+    scroll-behavior: smooth;
+  }
+}

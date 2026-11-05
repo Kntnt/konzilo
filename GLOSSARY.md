@@ -152,6 +152,8 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Gallery**: Two or more images in body text shown together, with an optional caption of its own. _Avoid_: slideshow, carousel.
 
+**Lightbox**: An image of a body shown over the page, as large as it can be, in the dialog a page shows things over itself in; a gallery steps through its images there. _Avoid_: popup, for this use.
+
 ## Languages
 
 **Site language**: The one language a site is written in, declared in its site description. _Avoid_: locale.

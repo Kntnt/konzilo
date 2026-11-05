@@ -16,8 +16,11 @@ export const CACHE_DIR = '.astro-cache';
 export const ORIGIN = 'https://www.example.com';
 
 // The environment Astro runs in: never reported anywhere, and building for
-// ORIGIN.
-export const astroEnvironment = { ...process.env, ASTRO_TELEMETRY_DISABLED: '1', KONZILO_ORIGIN: ORIGIN };
+// ORIGIN. A dev server looks for a new version as it starts, and writes that it
+// has in .astro/settings.json, and it counts on being told of that once. macOS
+// can tell it twice, and the second time it restarts, which at that moment leaves
+// a server that never answers.
+export const astroEnvironment = { ...process.env, ASTRO_TELEMETRY_DISABLED: '1', ASTRO_DISABLE_UPDATE_CHECK: 'true', KONZILO_ORIGIN: ORIGIN };
 
 // `integration`: the path of Konzilo's Astro integration in the core;
 // `options`: the integration's options, as the site's configuration gives
