@@ -207,6 +207,114 @@
   pointer-events: none;
 }
 
+/* A gallery in the field, its images side by side. */
+.milkdown .ProseMirror .konzilo-gallery-field {
+  margin: 16px 0;
+  padding: 0;
+}
+
+.konzilo-gallery-images {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.milkdown .ProseMirror .konzilo-gallery-images .konzilo-image {
+  position: relative;
+  margin: 0;
+}
+
+.konzilo-gallery-images .konzilo-image-picture {
+  cursor: grab;
+}
+
+.konzilo-gallery-images .konzilo-image-picture img {
+  max-height: 150px;
+}
+
+.konzilo-image-move {
+  display: none;
+}
+
+.konzilo-gallery-images .konzilo-image-move {
+  position: absolute;
+  bottom: 6px;
+  left: 6px;
+  display: flex;
+  gap: 4px;
+}
+
+.milkdown .ProseMirror .konzilo-image-move button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--crepe-color-outline);
+  border-radius: 4px;
+  background: var(--crepe-color-surface);
+  color: var(--crepe-color-on-surface);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.konzilo-gallery-images .konzilo-image:first-child .konzilo-image-earlier,
+.konzilo-gallery-images .konzilo-image:nth-last-child(2) .konzilo-image-later {
+  display: none;
+}
+
+/* Where a dragged image would land. */
+.konzilo-image[data-drop]::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--crepe-color-primary);
+  pointer-events: none;
+}
+
+.konzilo-image[data-drop='before']::after {
+  left: -8px;
+}
+
+.konzilo-image[data-drop='after']::after {
+  right: -8px;
+}
+
+.milkdown .ProseMirror .konzilo-gallery-caption {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--crepe-color-on-surface-variant);
+}
+
+.milkdown .ProseMirror .konzilo-gallery-caption.is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.konzilo-gallery-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.milkdown .ProseMirror .konzilo-gallery-tools button {
+  padding: 3px 10px;
+  border: 1px solid var(--crepe-color-outline);
+  border-radius: 4px;
+  background: var(--crepe-color-surface);
+  color: var(--crepe-color-on-surface);
+  font-size: 13px;
+  cursor: pointer;
+}
+
 .konzilo-kept-label {
   margin-bottom: 4px;
   font-size: 12px;
@@ -491,8 +599,42 @@
   color: #fff;
 }
 
-.konzilo-dialog[open].konzilo-image-editing {
+.konzilo-dialog[open].konzilo-dialog-narrow {
   width: min(520px, calc(100vw - 32px));
+}
+
+.konzilo-chooser-foot {
+  display: flex;
+  flex: none;
+  justify-content: flex-end;
+  padding: 10px 16px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.konzilo-dialog .konzilo-chooser-item {
+  position: relative;
+}
+
+.konzilo-dialog .konzilo-chooser-item[aria-pressed='true'] {
+  border-color: #1c1c1c;
+  outline: 2px solid #1c1c1c;
+}
+
+.konzilo-chooser-order {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  min-width: 22px;
+  border-radius: 11px;
+  background: #1c1c1c;
+  color: #fff;
+  font-size: 13px;
+  line-height: 22px;
+  text-align: center;
+}
+
+.konzilo-chooser-order:empty {
+  display: none;
 }
 
 .konzilo-image-editing-picture {
@@ -530,15 +672,15 @@
   color: #8c1d18;
 }
 
-.konzilo-image-editing-asking p {
+.konzilo-dialog-asking p {
   margin: 0 0 12px;
 }
 
-.konzilo-image-editing-aside {
+.konzilo-dialog-aside {
   color: #5c5c5c;
 }
 
-.konzilo-dialog .konzilo-image-editing-remove-now {
+.konzilo-dialog .konzilo-dialog-remove-now {
   border-color: #8c1d18;
   background: #8c1d18;
   color: #fff;

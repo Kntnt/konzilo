@@ -28,7 +28,7 @@ const element = (tag, className, parent) => {
 const sameBytes = (one, other) => one.replace(/\r\n?/g, '\n').trimEnd() === other.replace(/\r\n?/g, '\n').trimEnd();
 
 export function mountBodyField(host, { value: given, changed, elements, forms, adminHost, library = null, smallestWidth = null }) {
-  const images = library && { choose: () => chooseImage({ library, smallestWidth }), picture: library.picture };
+  const images = library && { choose: () => chooseImage({ library, smallestWidth }), chooseSeveral: () => chooseImage({ library, smallestWidth, several: true }), picture: library.picture };
   const frame = element('div', 'konzilo-body', host);
   const bar = element('div', 'konzilo-body-bar', frame);
   const notes = element('div', 'konzilo-body-notes', bar);

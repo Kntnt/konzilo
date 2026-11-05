@@ -2,13 +2,13 @@
 // asks first. It gives { alt } or { remove: true } when an answer is reached, and null when it was
 // left, with nothing changed. `address` is the picture to describe, when there is one to show.
 
-import { button, dialogOf, made, textRow } from './dialog.js';
+import { asking, button, dialogOf, made, textRow } from './dialog.js';
 import { say } from './texts.js';
 
 export function editImage({ alt, address = null, root = document.body }) {
   return new Promise((resolve) => {
     const { dialog, body } = dialogOf(say('imageEdit'));
-    dialog.classList.add('konzilo-image-editing');
+    dialog.classList.add('konzilo-dialog-narrow', 'konzilo-image-editing');
 
     let done = false;
     const finish = (answer) => {
@@ -55,25 +55,18 @@ export function editImage({ alt, address = null, root = document.body }) {
       field.focus();
     });
 
-    const asking = made('div', 'konzilo-image-editing-asking');
-    made('p', '', asking).textContent = say('imageRemoveAsk');
-    made('p', 'konzilo-image-editing-aside', asking).textContent = say('imageRemoveAside');
-    const answers = made('div', 'konzilo-dialog-actions', asking);
-    const keep = button('', say('imageKeep'), answers);
-    button('konzilo-image-editing-remove-now', say('imageRemoveNow'), answers).addEventListener('click', () => finish({ remove: true }));
-
     const backToForm = () => {
-      asking.replaceWith(form);
+      question.replaceWith(form);
       remove.focus();
     };
+    const { part: question, keep } = asking({ words: say('imageRemoveAsk'), keepWords: say('imageKeep'), kept: backToForm, removed: () => finish({ remove: true }) });
     remove.addEventListener('click', () => {
-      form.replaceWith(asking);
+      form.replaceWith(question);
       keep.focus();
     });
-    keep.addEventListener('click', backToForm);
     // Escape takes one step back, so what was typed before asking is not lost with the dialog.
     dialog.addEventListener('cancel', (event) => {
-      if (!asking.isConnected) return;
+      if (!question.isConnected) return;
       event.preventDefault();
       backToForm();
     });

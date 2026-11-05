@@ -118,7 +118,7 @@ describe('the live preview', () => {
       await page.waitForTimeout(100);
       await page.keyboard.press('Enter');
       await page.keyboard.type('/image', { delay: 30 });
-      await page.locator('.milkdown-slash-menu li', { hasText: 'Image' }).waitFor();
+      await page.locator('.milkdown-slash-menu li.hover', { hasText: 'Image' }).waitFor();
       await page.keyboard.press('Enter');
       const chooser = page.getByRole('dialog', { name: 'Choose an image' });
       await chooser.getByRole('button', { name: 'Upload a new image' }).click();
