@@ -8,7 +8,7 @@
 
 import { readFileSync } from 'node:fs';
 import { freeze, isObject, onlyKeys as checkedKeys, text } from './checks.js';
-import { MEDIA_FOLDER } from './format/masters.js';
+import { IMAGE_LIBRARY_FOLDER, MEDIA_FOLDER } from './format/masters.js';
 import rules from './format/rules.json' with { type: 'json' };
 import { coreSettingsGroups, groupsFor, settingsGroups } from './settings-groups.js';
 
@@ -600,6 +600,7 @@ const siteCollections = {
   menus: 'the site\'s menus',
   settings: 'the site settings',
   consent: 'the service registry',
+  [IMAGE_LIBRARY_FOLDER]: 'the image library',
 };
 
 // A menu: its name is the file of its entries and its entry in the

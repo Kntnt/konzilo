@@ -10,6 +10,7 @@ import { after, before, describe, test } from 'node:test';
 
 import { intake } from '../src/intake/index.js';
 import { readSiteDescription } from '../src/site-description.js';
+import { sharp } from '../tests/lib/images.js';
 import { namedImages, NOW, sourcePost } from '../tests/lib/intake.js';
 import { ENGINES, openEditor, signIn } from './lib/editor.js';
 import { makeSite } from './lib/site.js';
@@ -93,6 +94,42 @@ describe('a site in Compose', () => {
     }
   };
   const addressOf = (text) => `/${/^slug: "?([^"\n]+)"?$/m.exec(text)[1]}/`;
+
+  // What the repository holds of an entry of the image library, by the file it names.
+  const libraryEntries = async () => {
+    const entries = [];
+    for (const { path: place } of await api(`${repository()}/contents/image-library`)) {
+      const { content } = await api(`${repository()}/contents/${place}`);
+      entries.push({ place, ...JSON.parse(Buffer.from(content, 'base64').toString()) });
+    }
+    return entries;
+  };
+  const picture = (of, headers = { authorization: `token ${token}` }) => get(`${site.origin.admin}/_konzilo/thumbnail?of=${encodeURIComponent(of)}`, { headers });
+
+  // The chooser, from a new block after whatever the body holds.
+  const openChooser = async (page) => {
+    const editor = page.locator('.konzilo-body-visual .ProseMirror');
+    await editor.waitFor({ timeout: 30_000 });
+    await editor.locator('> p').last().click();
+    // A paragraph runs over several lines, where End goes to the end of one.
+    await editor.locator('> p').last().evaluate((paragraph) => {
+      const range = document.createRange();
+      range.selectNodeContents(paragraph);
+      range.collapse(false);
+      const selection = document.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+    });
+    await page.waitForTimeout(100);
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('/image', { delay: 30 });
+    await page.locator('.milkdown-slash-menu li', { hasText: 'Image' }).waitFor();
+    await page.keyboard.press('Enter');
+    const chooser = page.getByRole('dialog', { name: 'Choose an image' });
+    await chooser.waitFor();
+    return chooser;
+  };
+  const shows = (element) => element.evaluate((image) => image.complete && image.naturalWidth > 0);
 
   // The instance's credential, acting as this account does, which is as Forgejo sees a save.
   const asAccount = async (method, path, body, login, { expect = [200, 201, 204] } = {}) => {
@@ -260,6 +297,8 @@ describe('a site in Compose', () => {
 
   // Each engine edits a post of its own, so that the order they run in does not matter.
   const POST_OF = { chromium: 'Patient rivers and the meadow', firefox: 'Golden harbours and the harbour', webkit: 'Hidden meadows and the bridge' };
+  // And an image of its own, or the second to upload would bring the same file.
+  const ENGINE_COLOURS = { chromium: '#aa3322', firefox: '#22aa33', webkit: '#2233aa' };
 
   for (const engine of Object.keys(ENGINES)) {
     describe(engine, () => {
@@ -364,6 +403,77 @@ describe('a site in Compose', () => {
         assert.ok(taken.files.some(({ path, contents }) => path.endsWith('.md') && String(contents).includes(`**${word}**`)), 'and publishes the text');
       });
 
+      test('chooses an image from the library with its texts, changes them in the post alone, and a visitor sees it', async () => {
+        const { page } = session;
+        const title = `A title saved in ${engine}`;
+        // Two pictures can be described alike, and a person tells them apart by looking.
+        const entries = await libraryEntries();
+        const entry = entries.find(({ alt }) => entries.filter((other) => other.alt === alt).length === 1);
+        await page.getByText(title).first().click();
+        const chooser = await openChooser(page);
+        const choice = chooser.getByRole('button', { name: entry.alt, exact: true });
+        await choice.waitFor({ timeout: 30_000 });
+        await page.waitForFunction(() => [...document.querySelectorAll('.konzilo-chooser-item img')].some((image) => image.complete && image.naturalWidth > 0), null, { timeout: 30_000 });
+        await choice.click();
+        const image = page.locator(`.konzilo-image[data-src="${entry.src}"]`).last();
+        const held = image.locator('.konzilo-image-alt input');
+        assert.equal(await held.inputValue(), entry.alt);
+        await image.locator('.konzilo-image-picture[data-state="shown"]').waitFor({ timeout: 30_000 });
+        assert.equal(await shows(image.locator('img')), true);
+        const own = `${entry.alt}, as ${engine} has it`;
+        await held.fill(own);
+        await image.locator('.konzilo-image-caption').click();
+        await page.keyboard.type(`A caption in ${engine}`, { delay: 20 });
+        await page.getByRole('button', { name: 'Save', exact: true }).click();
+
+        const saved = await fileNamed('articles', title);
+        const written = `![${own.replaceAll('_', '\\_')}](${entry.src})\\\nA caption in ${engine}`;
+        assert.ok((await waitForFile(page, saved.path, (text) => text.includes(written))).includes(written));
+        assert.deepEqual((await libraryEntries()).find(({ place }) => place === entry.place), entry, 'the library keeps its own texts');
+        const shown = await onTheSite(addressOf(saved.text), `A caption in ${engine}`);
+        const figure = new RegExp(`<figure>\\s*<img[^>]*alt="${own}"[^>]*>\\s*<figcaption>A caption in ${engine}</figcaption>\\s*</figure>`);
+        assert.match(shown, figure);
+      });
+
+      test('uploads a new image, which joins the library, becomes the choice, and is published', async () => {
+        const { page } = session;
+        const title = `A title saved in ${engine}`;
+        const bytes = await sharp({ create: { width: 1400, height: 900, channels: 3, background: ENGINE_COLOURS[engine] } }).png().toBuffer();
+        await page.getByText(title).first().click();
+        const chooser = await openChooser(page);
+        await chooser.getByRole('button', { name: 'Upload a new image' }).click();
+        await chooser.locator('input[type=file]').setInputFiles({ name: `En ny bild i ${engine}.png`, mimeType: 'image/png', buffer: bytes });
+        await chooser.getByRole('textbox', { name: 'Alt text' }).fill(`Uploaded in ${engine}`);
+        await chooser.getByRole('textbox', { name: 'Caption' }).fill(`Its caption in ${engine}`);
+        await chooser.getByRole('button', { name: 'Upload and use' }).click();
+        await chooser.waitFor({ state: 'detached', timeout: 30_000 });
+
+        const entry = (await libraryEntries()).find(({ alt }) => alt === `Uploaded in ${engine}`);
+        assert.equal(entry.caption, `Its caption in ${engine}`);
+        assert.match(entry.src, new RegExp(`^/media/en-ny-bild-i-${engine}-[0-9a-f]{10}\\.png$`));
+        const inGit = await (await get(`${site.origin.git}/api/v1${repository()}/raw${entry.src}`, { headers: { authorization: `token ${token}` } })).text();
+        assert.match(inGit, /^version https:\/\/git-lfs/, 'Git holds a pointer');
+        const inLfs = await get(`${site.origin.git}/api/v1${repository()}/media${entry.src}`, { headers: { authorization: `token ${token}` } });
+        assert.deepEqual(Buffer.from(await inLfs.arrayBuffer()), bytes, 'and LFS the file');
+        const commit = await lastCommit(entry.place);
+        assert.equal((await lastCommit(entry.src.slice(1))).sha, commit.sha, 'both in one commit');
+        assert.equal(commit.author?.login ?? commit.commit.author.name, 'anna');
+
+        const image = page.locator(`.konzilo-image[data-src="${entry.src}"]`);
+        assert.equal(await image.locator('.konzilo-image-alt input').inputValue(), `Uploaded in ${engine}`);
+        await image.locator('.konzilo-image-picture[data-state="shown"]').waitFor({ timeout: 30_000 });
+        await page.getByRole('button', { name: 'Save', exact: true }).click();
+
+        const saved = await fileNamed('articles', title);
+        const written = `![Uploaded in ${engine}](${entry.src})\\\nIts caption in ${engine}`;
+        assert.ok((await waitForFile(page, saved.path, (text) => text.includes(written))).includes(written));
+        const shown = await onTheSite(addressOf(saved.text), `Its caption in ${engine}`);
+        const [, address] = new RegExp(`<img[^>]*src="([^"]+)"[^>]*alt="Uploaded in ${engine}"|<img[^>]*alt="Uploaded in ${engine}"[^>]*src="([^"]+)"`).exec(shown).filter(Boolean);
+        const served = await get(`${site.origin.site}${address}`);
+        assert.equal(served.status, 200, address);
+        assert.match(served.headers.get('content-type'), /^image\//);
+      });
+
       test('asks nothing outside this copy of the site, and breaks no policy', () => {
         assert.deepEqual(session.seen.outside, []);
         assert.deepEqual(session.seen.refused, []);
@@ -371,6 +481,108 @@ describe('a site in Compose', () => {
       });
     });
   }
+
+  describe('the image library', () => {
+    test('starts with the pictures the demo content shows', async () => {
+      const entries = await libraryEntries();
+      assert.ok(entries.length > 0);
+      for (const { place, src, alt } of entries) {
+        assert.match(place, /^image-library\/[0-9a-f]{12}\.json$/);
+        assert.match(src, /^\/media\//);
+        assert.ok(alt);
+      }
+    });
+
+    test('keeps its entries out of what is published', async () => {
+      const { tree } = await api(`/repos/${site.name}/content/git/trees/main?recursive=true`);
+      assert.ok(tree.length > 0);
+      assert.deepEqual(tree.filter(({ path }) => path.startsWith('image-library')), []);
+    });
+
+    test('takes a new entry in its own form too, and the chooser finds it; removing it leaves the original', async () => {
+      const session = await openEditor('chromium', site);
+      try {
+        await signIn(session, site);
+        const { page } = session;
+        await page.getByRole('treeitem', { name: /Image library/ }).click();
+        await page.goto(`${site.origin.admin}/#/collections/image-library/new`);
+        const bytes = await sharp({ create: { width: 1300, height: 800, channels: 3, background: '#208060' } }).jpeg().toBuffer();
+        await page.getByRole('textbox', { name: 'Alt text' }).fill('Made in the form');
+        const place = page.locator('.field[data-key-path="src"]');
+        await place.locator('input[type=file]').first().setInputFiles({ name: 'from-the-form.jpg', mimeType: 'image/jpeg', buffer: bytes });
+        await place.locator('img').waitFor();
+        await page.getByRole('button', { name: 'Save', exact: true }).click();
+        let entry;
+        for (const deadline = Date.now() + 30_000; !entry && Date.now() < deadline; await page.waitForTimeout(500)) entry = (await libraryEntries()).find(({ alt }) => alt === 'Made in the form');
+        assert.ok(entry, 'the entry reached the repository');
+        assert.equal(entry.caption, undefined);
+        assert.equal(entry.src, '/media/from-the-form.jpg');
+
+        // The chooser reads Forgejo for itself, so a post opened now has it.
+        await page.goto(`${site.origin.admin}/#/collections/articles/new`);
+        await page.locator('.konzilo-body-visual .ProseMirror').waitFor({ timeout: 30_000 });
+        await page.locator('.konzilo-body-visual .ProseMirror').click();
+        await page.keyboard.type('/image', { delay: 30 });
+        await page.locator('.milkdown-slash-menu li', { hasText: 'Image' }).waitFor();
+        await page.keyboard.press('Enter');
+        const chooser = page.getByRole('dialog', { name: 'Choose an image' });
+        await chooser.getByRole('button', { name: 'Made in the form', exact: true }).waitFor({ timeout: 30_000 });
+        await page.keyboard.press('Escape');
+
+        await page.goto(`${site.origin.admin}/#/collections/image-library/entries/${entry.place.split('/')[1].replace('.json', '')}`);
+        await page.getByRole('button', { name: 'Show Editor Options' }).click();
+        await page.getByRole('menuitem', { name: /Delete/ }).click();
+        await page.locator('[role=alertdialog] button, [role=dialog] button').filter({ hasText: 'Delete' }).click();
+        for (const deadline = Date.now() + 30_000; (await libraryEntries()).some(({ alt }) => alt === 'Made in the form') && Date.now() < deadline;) await page.waitForTimeout(500);
+        assert.equal((await libraryEntries()).some(({ alt }) => alt === 'Made in the form'), false, 'the entry went');
+        assert.equal((await picture('from-the-form.jpg')).status, 200, 'and the original stays, which a post may name');
+        assert.deepEqual(session.seen.refused, []);
+        assert.deepEqual(session.seen.outside, []);
+      } finally {
+        await session.browser.close();
+      }
+    });
+
+    describe('its small pictures', () => {
+      const original = (width, height, format, options = {}) => sharp({ create: { width, height, channels: 3, background: '#334455', ...options } })[format]().toBuffer();
+      const brought = async (name, bytes) => saveFile(`media/${name}`, bytes, 'anna');
+
+      test('go only to whoever may write', async () => {
+        const [{ src }] = await libraryEntries();
+        const name = src.split('/').at(-1);
+        assert.equal((await picture(name, {})).status, 401);
+        assert.equal((await picture(name, { authorization: 'token nothing-at-all' })).status, 401);
+        assert.equal((await get(`${site.origin.site}/_konzilo/thumbnail?of=${encodeURIComponent(name)}`, { headers: { authorization: `token ${token}` } })).status, 404, 'and only on the editor\'s host');
+      });
+
+      test('are small, whatever the original, within what the service may use', async () => {
+        const large = await original(6000, 4000, 'jpeg', { noise: { type: 'gaussian', mean: 128, sigma: 30 } });
+        assert.ok(large.length > 5_000_000, `${large.length} bytes`);
+        await brought('a-large-photo.jpg', large);
+        const answer = await picture('a-large-photo.jpg');
+        assert.equal(answer.status, 200);
+        const bytes = Buffer.from(await answer.arrayBuffer());
+        assert.equal(answer.headers.get('content-type'), 'image/webp');
+        assert.ok(bytes.length < large.length / 10, `${bytes.length} of ${large.length} bytes`);
+        const { width } = await sharp(bytes).metadata();
+        assert.equal(width, 640);
+      });
+
+      test('are made of the largest a file may open up to, within what the service may use', async () => {
+        await brought('opens-up-large.png', await original(9900, 9900, 'png'));
+        const answer = await picture('opens-up-large.png');
+        assert.equal(answer.status, 200);
+        assert.equal((await sharp(Buffer.from(await answer.arrayBuffer())).metadata()).width, 640);
+      });
+
+      test('are none of a file that opens up larger than that, and the service stays', async () => {
+        await brought('opens-up-huge.png', await original(12_000, 12_000, 'png'));
+        assert.equal((await picture('opens-up-huge.png')).status, 415);
+        const [{ src }] = await libraryEntries();
+        assert.equal((await picture(src.split('/').at(-1))).status, 200);
+      });
+    });
+  });
 
   describe('in Swedish', () => {
     test('speaks the browser\'s language, on files it holds itself', async () => {
@@ -578,8 +790,8 @@ describe('a site in Compose', () => {
       const session = await openEditor('chromium', site);
       try {
         const { page } = session;
-        const shown = (await api(`${repository()}/contents/articles`))[0];
-        const text = Buffer.from((await api(`${repository()}/contents/${shown.path}`)).content, 'base64').toString();
+        const articles = await Promise.all((await api(`${repository()}/contents/articles`)).map(async ({ path: place }) => Buffer.from((await api(`${repository()}/contents/${place}`)).content, 'base64').toString()));
+        const text = articles.find((article) => /^status: "?published"?$/m.test(article) && /^slug: /m.test(article));
         for (const address of ['/', addressOf(text)]) {
           const answer = await page.goto(`${site.origin.site}${address}`, { waitUntil: 'networkidle' });
           assert.equal(answer.status(), 200, address);

@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import { describe, test } from 'node:test';
-import { imagesFrom, originalFacts, svgMaster } from '../src/intake/images.js';
+import { imagesFrom, namedOriginals, originalFacts, svgMaster } from '../src/intake/images.js';
 import { svgProblem } from '../src/intake/svg.js';
 import rules from '../src/format/rules.json' with { type: 'json' };
 import { sharp } from './lib/images.js';
@@ -155,5 +155,29 @@ describe('an SVG', () => {
   test('is refused through the seam too, named by its first bytes', async () => {
     assert.match((await originalFacts(svg('<script>alert(1)</script>'))).reason, words('svg'));
     assert.match((await originalFacts(gzipSync(svg('<rect/>')))).reason, words('svg'));
+  });
+});
+
+describe('which originals are read', () => {
+  const originalsNamed = (...names) => names.map((name) => ({ path: `media/${name}`, contents: () => {
+    throw new Error(`${name} was read`);
+  } }));
+  const paths = (found) => found.map(({ path }) => path);
+
+  test('those a source file names, in whichever form it gives them', () => {
+    const files = [
+      { path: 'articles/a.md', contents: '---\nimage: {"src":"/media/featured.webp","alt":"A"}\n---\n\n![B](/media/in-body.webp)\n\n![C](<../media/with space.webp>)\n\n![D](/media/en%20bild.webp)\n\n![E](/media/par\\(1\\).webp)' },
+      { path: 'settings.json', contents: '{"logo":{"src":"/media/logo.svg"}}' },
+    ];
+    const names = ['featured.webp', 'in-body.webp', 'with space.webp', 'en bild.webp', 'par(1).webp', 'logo.svg'];
+    assert.deepEqual(paths(namedOriginals(originalsNamed(...names, 'unused.webp'), files)), names.map((name) => `media/${name}`));
+  });
+
+  test('not those only the image library names, which no post uses', () => {
+    const files = [
+      { path: 'image-library/a1.json', contents: '{"src":"/media/waiting.webp","alt":"A"}' },
+      { path: 'articles/a.md', contents: '---\n---\n\n![B](/media/used.webp)' },
+    ];
+    assert.deepEqual(paths(namedOriginals(originalsNamed('waiting.webp', 'used.webp'), files)), ['media/used.webp']);
   });
 });

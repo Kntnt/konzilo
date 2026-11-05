@@ -37,8 +37,10 @@
 		header Cache-Control "no-store"
 		file_server
 	}
-	# How publishing stands, from the service, which asks Forgejo who is asking (ADR 0031).
-	handle /_konzilo/status {
+	# How publishing stands (ADR 0031), and small pictures of images (ADR 0055), from the service,
+	# which asks Forgejo who is asking.
+	@service path /_konzilo/status /_konzilo/thumbnail
+	handle @service {
 		reverse_proxy editors:4100 {
 			header_up -X-Real-IP
 		}

@@ -207,7 +207,7 @@ services:
       seed: { condition: service_completed_successfully }
     restart: unless-stopped
     stop_grace_period: 1s
-    mem_limit: 128m
+    mem_limit: 256m
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4100/health').then((a) => process.exit(a.ok ? 0 : 1), () => process.exit(1))"]
       interval: 2s
@@ -219,6 +219,7 @@ services:
     volumes:
       - editors-secret:/secret:ro
       - build-control:/control
+      - thumbnails:/thumbnails
       - ${KONZILO_SITE_DIR:-.}/site-description.json:/site/site-description.json:ro
 
   # The live preview (ADR 0032): its gate stands from the first moment, and starts the dev
@@ -287,3 +288,4 @@ volumes:
   builder-secret:
   editors-secret:
   build-control:
+  thumbnails:

@@ -1,5 +1,5 @@
 // The editor itself: `CrepeBuilder` with the parts ADR 0030 names, and a type's elements
-// deciding its schema, toolbar and block menu. Left out for every type: the image block,
+// deciding its schema, toolbar and block menu. Left out for every type: Crepe's image block,
 // LaTeX, CodeMirror, the top bar and AI, a separator, a task list and an upload.
 
 import { CrepeBuilder } from '@milkdown/crepe/builder';
@@ -26,6 +26,7 @@ import {
   codeBlockSchema,
   createCodeBlockCommand,
   createCodeBlockInputRule,
+  docSchema,
   headingAttr,
   headingKeymap,
   headingSchema,
@@ -77,6 +78,7 @@ import { $remark } from '@milkdown/kit/utils';
 
 import { readFormat, writerOptions } from './format.js';
 import {
+  bodyDocument,
   canMarkFootnote,
   citation,
   fieldKeys,
@@ -84,7 +86,12 @@ import {
   footnotesInStep,
   headingInputRule,
   headingWithAnchor,
+  imageNode,
+  imageStaysAnImage,
+  imageView,
+  inImageCaption,
   insertFootnote,
+  insertImage,
   markOrder,
   noLevelOne,
   onDocumentChange,
@@ -96,7 +103,7 @@ import {
   toggleSubscript,
   toggleSuperscript,
 } from './nodes.js';
-import { inCell, oneLine, reducedText, reducePasted } from './paste.js';
+import { captionLine, inCell, oneLine, reducedText, reducePasted } from './paste.js';
 import { say } from './texts.js';
 
 const ICON = (body) => `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">${body}</svg>`;
@@ -105,6 +112,7 @@ const ICONS = {
   subscript: ICON('<path d="M5 4h2.5l3.5 5.2L14.5 4H17l-4.7 7L17 18h-2.5L11 12.8 7.5 18H5l4.7-7z"/><path d="M21 22h-4v-1l2.3-2.1c.5-.5.7-.8.7-1.1 0-.4-.3-.7-.8-.7-.5 0-.9.3-1.3.8l-.8-.8c.6-.7 1.4-1.1 2.2-1.1 1.2 0 2 .7 2 1.8 0 .7-.3 1.2-1 1.8L18.9 20.9H21z"/>'),
   footnote: ICON('<path d="M4 18h9v-2H4zm0-5h13v-2H4zm0-7v2h16V6z"/><path d="M19 12h2v8h-2z"/>'),
   citation: ICON('<path d="M4 6h16v2H4zm0 5h10v2H4zm9 5h7v2h-7z"/>'),
+  image: ICON('<path d="M5 21q-.825 0-1.412-.587T3 19V5q0-.825.588-1.412T5 3h14q.825 0 1.413.588T21 5v14q0 .825-.587 1.413T19 21zm0-2h14V5H5zm1-2h12l-3.75-5-3 4L9 13zM5 19V5z"/>'),
 };
 
 // What an element brings, which goes when a type does not take it.
@@ -119,10 +127,11 @@ const PARTS = {
 
 // What no type has: a separator, an image of Milkdown's, a task list, an upload, a preserved
 // empty line, an id on a heading, and a `# ` that makes a level 1 heading.
-const NEVER = [hrAttr, hrSchema, insertHrCommand, insertHrInputRule, imageAttr, imageSchema, insertImageCommand, updateImageCommand, wrapInTaskListInputRule, uploadPlugin, remarkPreserveEmptyLinePlugin, syncHeadingIdPlugin, wrapInHeadingInputRule];
+const NEVER = [docSchema, hrAttr, hrSchema, insertHrCommand, insertHrInputRule, imageAttr, imageSchema, insertImageCommand, updateImageCommand, wrapInTaskListInputRule, uploadPlugin, remarkPreserveEmptyLinePlugin, syncHeadingIdPlugin, wrapInHeadingInputRule];
 
-const menu = (takes) => {
+const menu = (takes, images) => {
   const headings = takes('heading') ? {} : null;
+  const withImages = takes('image') && images !== null;
   const item = (key) => ({ label: say(key) });
   return {
     // Close to its block, so that the field's left margin need not be wider than it is.
@@ -140,20 +149,35 @@ const menu = (takes) => {
       divider: null,
     },
     listGroup: takes('list') ? { label: say('listGroup'), bulletList: item('bulletList'), orderedList: item('orderedList'), taskList: null } : null,
-    advancedGroup: takes('code') || takes('table')
+    advancedGroup: takes('code') || takes('table') || withImages
       ? { label: say('moreGroup'), image: null, math: null, codeBlock: takes('code') ? item('code') : null, table: takes('table') ? item('table') : null }
       : null,
     buildMenu(builder) {
-      if (!takes('quote')) return;
-      builder.getGroup('text').addItem('citation', {
-        label: say('citation'),
-        icon: ICONS.citation,
-        onRun: (ctx) => {
-          const commands = ctx.get(commandsCtx);
-          commands.call(clearTextInCurrentBlockCommand.key);
-          commands.call(toggleCitation.key);
-        },
-      });
+      if (takes('quote')) {
+        builder.getGroup('text').addItem('citation', {
+          label: say('citation'),
+          icon: ICONS.citation,
+          onRun: (ctx) => {
+            const commands = ctx.get(commandsCtx);
+            commands.call(clearTextInCurrentBlockCommand.key);
+            commands.call(toggleCitation.key);
+          },
+        });
+      }
+      if (withImages) {
+        builder.getGroup('advanced').addItem('image', {
+          label: say('image'),
+          icon: ICONS.image,
+          onRun: (ctx) => {
+            const commands = ctx.get(commandsCtx);
+            commands.call(clearTextInCurrentBlockCommand.key);
+            void images.choose().then((chosen) => {
+              if (chosen) commands.call(insertImage.key, chosen);
+              ctx.get(editorViewCtx).focus();
+            }).catch((error) => console.warn(`The image was not put in: ${error.message}`));
+          },
+        });
+      }
     },
   };
 };
@@ -196,8 +220,9 @@ const toolbarOptions = (takes) => ({
 });
 
 // An editor on `root` holding `value`: { write(), view, destroy() }. `changed` is told of each
-// change to the document, which may be no real edit: a trailing paragraph is one too.
-export async function makeEditor({ root, value, elements, changed }) {
+// change to the document, which may be no real edit: a trailing paragraph is one too. `images`:
+// { choose(), picture(address) } as the field gives them, or null where there is no library.
+export async function makeEditor({ root, value, elements, changed, images = null }) {
   const taken = new Set(elements);
   const takes = (element) => taken.has(element);
   const policy = { takes, pasting: false };
@@ -211,7 +236,7 @@ export async function makeEditor({ root, value, elements, changed }) {
   editor.config((ctx) => {
     ctx.update(remarkStringifyOptionsCtx, writerOptions);
     ctx.set(remarkGFMPlugin.options.key, { tablePipeAlign: false });
-    ctx.set(hardbreakFilterNodes.key, ['table', 'code_block', 'heading', 'konzilo_citation']);
+    ctx.set(hardbreakFilterNodes.key, ['table', 'code_block', 'heading', 'konzilo_citation', 'konzilo_image']);
     if (takes('heading')) {
       ctx.update(headingKeymap.key, (keys) => ({
         ...keys,
@@ -233,10 +258,12 @@ export async function makeEditor({ root, value, elements, changed }) {
         const { clipboardData } = event;
         if (!clipboardData || view.state.selection.$from.parent.type.spec.code) return false;
         const cell = inCell(view.state);
+        const caption = inImageCaption(view.state);
         const put = (slice) => view.dispatch(view.state.tr.replaceSelection(slice).scrollIntoView());
+        const line = (slice) => (caption ? captionLine(slice, view.state) : oneLine(slice, view.state.schema));
         if (clipboardData.getData('text/html').length > 0 || clipboardData.getData('vscode-editor-data')) {
-          if (!cell) return false;
-          put(oneLine(given, view.state.schema));
+          if (!cell && !caption) return false;
+          put(line(given));
           return true;
         }
         const text = clipboardData.getData('text/plain');
@@ -249,13 +276,14 @@ export async function makeEditor({ root, value, elements, changed }) {
           policy.pasting = false;
         }
         const reduced = reducedText(doc);
-        put(cell ? oneLine(reduced, view.state.schema) : reduced);
+        put(cell || caption ? line(reduced) : reduced);
         return true;
       },
     }));
   });
 
-  editor.use(markOrder.flat()).use(keptBlock).use(superscript).use(subscript).use(toggleSuperscript).use(toggleSubscript);
+  editor.use(bodyDocument(takes('image'))).use(markOrder.flat()).use(keptBlock).use(superscript).use(subscript).use(toggleSuperscript).use(toggleSubscript);
+  if (takes('image')) editor.use(imageNode).use(insertImage).use(imageStaysAnImage).use(imageView(images?.picture ?? null));
   if (takes('heading')) editor.use(headingWithAnchor).use(headingInputRule);
   if (takes('quote')) editor.use(citation).use(quoteWithCitation).use(toggleCitation);
   if (takes('footnotes')) editor.use(insertFootnote).use(footnotesInStep);
@@ -268,7 +296,7 @@ export async function makeEditor({ root, value, elements, changed }) {
     .addFeature(linkTooltip, { inputPlaceholder: say('linkPlaceholder') })
     .addFeature(placeholder, { text: say('placeholder'), mode: 'block' })
     .addFeature(toolbar, toolbarOptions(takes))
-    .addFeature(blockEdit, menu(takes));
+    .addFeature(blockEdit, menu(takes, images));
   if (takes('list')) crepe.addFeature(listItem, {});
   if (takes('table')) crepe.addFeature(tableFeature, {});
 

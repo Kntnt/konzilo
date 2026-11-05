@@ -7,33 +7,15 @@
 import { createHash } from 'node:crypto';
 import sharp from 'sharp';
 import { optimize } from 'svgo';
+import { IMAGE_LIBRARY_FOLDER } from '../format/masters.js';
+import { kindOf, LONGEST_SIDE, MOST_BYTES } from '../format/originals.js';
 import { svgProblem, svgSize } from './svg.js';
 import { say } from './words.js';
 
-const MOST_BYTES = 30 * 1024 * 1024;
-const LONGEST_SIDE = 2520;
 const QUALITY = 90;
 
 // The ten hexadecimal digits a master's name holds of its original's SHA-256.
 export const hashDigits = (hash) => hash.slice(0, 10);
-
-const startsWith = (bytes, text, at = 0) => bytes.subarray(at, at + text.length).toString('latin1') === text;
-
-// What an original is, by its first bytes, whatever its name says.
-function kindOf(bytes) {
-  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'jpeg';
-  if (startsWith(bytes, '\x89PNG\r\n\x1a\n')) return 'png';
-  if (startsWith(bytes, 'RIFF') && startsWith(bytes, 'WEBP', 8)) return 'webp';
-  if (startsWith(bytes, 'GIF8')) return 'GIF';
-  if (startsWith(bytes, 'ftyp', 4) && /^(?:heic|heix|hevc|mif1|msf1|heif)/.test(bytes.subarray(8, 12).toString('latin1'))) return 'HEIC';
-  if (startsWith(bytes, 'II*\0') || startsWith(bytes, 'MM\0*')) return 'TIFF';
-  if (startsWith(bytes, 'BM')) return 'BMP';
-  if (startsWith(bytes, 'version https://git-lfs')) return 'pointer';
-  if (bytes[0] === 0x1f && bytes[1] === 0x8b) return 'svg';
-  const head = bytes.subarray(0, 1024).toString('utf8').replace(/^﻿/, '').trimStart();
-  if (/^<(?:\?xml|!--|!DOCTYPE|svg)/i.test(head)) return 'svg';
-  return 'unknown';
-}
 
 // The master of a still raster: a WebP at quality 90, its longest side at most 2520
 // pixels, scaled down only, upright, in sRGB by the original's own profile, and without
@@ -83,6 +65,22 @@ export async function originalFacts(bytes, existing = null) {
   if (kind === 'unknown') return { reason: say('image-kind', { kind: 'this file' }) };
   const hash = createHash('sha256').update(bytes).digest('hex');
   return kind === 'svg' ? svgFacts(bytes, hash, existing) : rasterFacts(bytes, hash, existing);
+}
+
+// The originals some source file names, of a whole media folder: only those are read, since the
+// image library (ADR 0055) holds many that no post uses, and a master of each at every build would
+// take as long as a site can wait. It looks for a name in the text, with no escapes, whatever
+// form the text gives it in, so a name found by chance costs a read and nothing else.
+export function namedOriginals(originals, files) {
+  const text = files
+    .filter(({ path }) => !path.startsWith(`${IMAGE_LIBRARY_FOLDER}/`))
+    .map(({ contents }) => (typeof contents === 'string' ? contents : Buffer.from(contents).toString('utf8')))
+    .join('\n')
+    .replaceAll('\\', '');
+  return originals.filter(({ path }) => {
+    const name = path.slice(path.indexOf('/') + 1);
+    return text.includes(name) || text.includes(encodeURI(name));
+  });
 }
 
 // The seam for a set of originals, each { path, contents }: a function of a path below

@@ -1,5 +1,6 @@
-// Konzilo's own nodes and marks in the field (ADR 0030): a block kept as source, a quote's
-// citation, a heading's anchor, `<sup>` and `<sub>`, a non-breaking space and footnotes.
+// Konzilo's own nodes and marks in the field (ADR 0030): a block kept as source, an image with
+// its texts, a quote's citation, a heading's anchor, `<sup>` and `<sub>`, a non-breaking space
+// and footnotes.
 
 import { commandsCtx } from '@milkdown/kit/core';
 import { blockquoteSchema, emphasisSchema, headingSchema, linkSchema, strongSchema } from '@milkdown/kit/preset/commonmark';
@@ -9,9 +10,10 @@ import { InputRule } from '@milkdown/kit/prose/inputrules';
 import { keymap } from '@milkdown/kit/prose/keymap';
 import { Plugin, PluginKey, TextSelection } from '@milkdown/kit/prose/state';
 import { Decoration, DecorationSet } from '@milkdown/kit/prose/view';
-import { $command, $inputRule, $markSchema, $nodeSchema, $prose } from '@milkdown/kit/utils';
+import { $command, $inputRule, $markSchema, $node, $nodeSchema, $prose, $view } from '@milkdown/kit/utils';
 
 import rules from '../../format/rules.json' with { type: 'json' };
+import { CAPTION_NODE } from './format.js';
 import { say } from './texts.js';
 
 const LABEL_OF = { image: 'keptImage', embed: 'keptEmbed', directive: 'keptDirective', html: 'keptHtml', other: 'keptOther' };
@@ -47,6 +49,192 @@ export const keptBlock = $nodeSchema('konzilo_kept', () => ({
     runner: (state, node) => state.addNode('html', undefined, node.attrs.value),
   },
 }));
+
+// An image stands at the top of a body, never in a quote or a list, so that is all the schema
+// lets it do, by a group of its own beside the blocks.
+const TOP_ONLY = 'konzilo_top';
+
+export const bodyDocument = (withImages) => $node('doc', () => ({
+  content: withImages ? `(block | ${TOP_ONLY})+` : 'block+',
+  parseMarkdown: {
+    match: ({ type }) => type === 'root',
+    runner: (state, node, type) => state.injectRoot(node, type),
+  },
+  toMarkdown: {
+    match: (node) => node.type.name === 'doc',
+    runner: (state, node) => {
+      state.openNode('root');
+      // The last empty paragraph is where the cursor can stand, and no content.
+      const last = node.lastChild;
+      state.next(last?.type.name === 'paragraph' && last.content.size === 0 ? node.content.cut(0, node.content.size - last.nodeSize) : node.content);
+    },
+  },
+}));
+
+const IMAGE = 'konzilo_image';
+
+// An image in a body: its address and alt text as attributes, and its caption as what it holds,
+// so that the schema itself keeps a caption to what the format lets it take: no link, line break
+// or footnote. It is written as the format has it, and the writer's `image` takes its alt text.
+export const imageNode = $nodeSchema(IMAGE, () => ({
+  group: TOP_ONLY,
+  content: '(text | html)*',
+  marks: 'strong emphasis inlineCode konzilo_superscript konzilo_subscript',
+  isolating: true,
+  defining: true,
+  draggable: true,
+  selectable: true,
+  attrs: { src: { validate: 'string' }, alt: { default: '', validate: 'string' } },
+  parseDOM: [
+    {
+      tag: 'figure[data-konzilo-image]',
+      contentElement: 'figcaption',
+      getAttrs: (dom) => ({ src: dom.dataset.src ?? '', alt: dom.dataset.alt ?? '' }),
+    },
+  ],
+  toDOM: ({ attrs: { src, alt } }) => ['figure', { 'data-konzilo-image': '', 'data-src': src, 'data-alt': alt }, ['figcaption', 0]],
+  parseMarkdown: {
+    match: ({ type }) => type === 'konziloImage',
+    runner: (state, node, type) => {
+      state.openNode(type, { src: node.src, alt: node.alt });
+      state.next(node.children);
+      state.closeNode();
+    },
+  },
+  toMarkdown: {
+    match: (node) => node.type.name === IMAGE,
+    runner: (state, node) => {
+      state.openNode('paragraph');
+      state.addNode('image', undefined, undefined, { url: node.attrs.src, alt: node.attrs.alt });
+      // A caption of spaces alone is no caption: a page would show nothing of it.
+      if (node.textContent.trim() !== '' || node.childCount > 1) {
+        state.addNode('break');
+        state.openNode(CAPTION_NODE);
+        state.next(node.content);
+        state.closeNode();
+      }
+      state.closeNode();
+    },
+  },
+}));
+
+// Whether the selection is in an image's caption.
+export const inImageCaption = ({ selection: { $from } }) => $from.parent.type.name === IMAGE;
+
+// An image in the body: `chosen`, what the chooser gave, in place of an empty block, or after
+// the block at the cursor, with the cursor after it, so that writing can go on.
+export const insertImage = $command('KonziloInsertImage', (ctx) => (chosen) => (state, dispatch) => {
+  if (!chosen) return false;
+  if (!dispatch) return true;
+  const { $from } = state.selection;
+  const at = $from.depth === 0 ? $from.pos : $from.before(1);
+  const block = state.doc.nodeAt(at);
+  const empty = block?.type === state.schema.nodes.paragraph && block.content.size === 0;
+  const caption = chosen.caption ? state.schema.text(chosen.caption) : null;
+  const image = imageNode.type(ctx).create({ src: chosen.src, alt: chosen.alt }, caption);
+  const place = empty ? at : at + (block?.nodeSize ?? 0);
+  const tr = empty ? state.tr.replaceWith(at, at + block.nodeSize, image) : state.tr.insert(place, image);
+  const after = place + image.nodeSize;
+  if (after >= tr.doc.content.size) tr.insert(after, state.schema.nodes.paragraph.create());
+  dispatch(tr.setSelection(TextSelection.near(tr.doc.resolve(after + 1))).scrollIntoView());
+  return true;
+});
+
+// Nothing turns an image into another kind of block, as the heading or code keys would, or a typed
+// "```" in its caption, or either with a selection that takes in more. Such a change replaces a
+// block around what it holds, which is also how an alt text changes, so it goes by what the block
+// would become.
+export const imageStaysAnImage = $prose(() => new Plugin({
+  key: new PluginKey('KONZILO_IMAGE_STAYS'),
+  filterTransaction: (tr) => !tr.steps.some((step, index) => step.gapFrom !== undefined && tr.docs[index].nodeAt(step.from)?.type.name === IMAGE && step.slice.content.firstChild?.type.name !== IMAGE),
+}));
+
+// How an image shows in the field: its picture, its caption in place below it, the text it holds
+// for those who cannot see it, and a way to take it out. What it shows of the picture is small,
+// and there is an image of it only as `picture` can find one.
+function imageControls(initial, view, getPos, picture) {
+  let node = initial;
+  const made = (tag, className, parent) => {
+    const element = document.createElement(tag);
+    element.className = className;
+    parent?.append(element);
+    return element;
+  };
+  const dom = made('figure', 'konzilo-image');
+  dom.dataset.src = node.attrs.src;
+  const shown = made('div', 'konzilo-image-picture', dom);
+  shown.contentEditable = 'false';
+  const img = made('img', '', shown);
+  img.alt = '';
+  img.draggable = false;
+  const remove = made('button', 'konzilo-image-remove', shown);
+  remove.type = 'button';
+  remove.textContent = say('imageRemove');
+  const caption = made('figcaption', 'konzilo-image-caption', dom);
+  caption.dataset.placeholder = say('imageCaptionHint');
+  const textRow = made('label', 'konzilo-image-alt', dom);
+  textRow.contentEditable = 'false';
+  made('span', '', textRow).textContent = say('imageAlt');
+  const input = made('input', '', textRow);
+  input.type = 'text';
+  input.spellcheck = true;
+
+  let asked = null;
+  const showPicture = (src) => {
+    if (src === asked) return;
+    asked = src;
+    shown.dataset.state = 'loading';
+    void Promise.resolve(picture?.(src)).catch(() => null).then((address) => {
+      if (src !== asked) return;
+      if (address) img.src = address;
+      else img.removeAttribute('src');
+      shown.dataset.state = address ? 'shown' : 'none';
+    });
+  };
+  const showTexts = () => {
+    if (input.value !== node.attrs.alt) input.value = node.attrs.alt;
+    input.setAttribute('aria-invalid', String(node.attrs.alt.trim() === ''));
+    caption.classList.toggle('is-empty', node.content.size === 0);
+  };
+
+  input.addEventListener('input', () => {
+    const pos = getPos();
+    if (pos === undefined) return;
+    view.dispatch(view.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, alt: input.value }));
+  });
+  input.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    const pos = getPos();
+    if (pos === undefined) return;
+    view.focus();
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, pos + 1 + node.content.size)));
+  });
+  remove.addEventListener('click', () => {
+    const pos = getPos();
+    if (pos === undefined) return;
+    view.dispatch(view.state.tr.delete(pos, pos + node.nodeSize));
+    view.focus();
+  });
+
+  showPicture(node.attrs.src);
+  showTexts();
+  return {
+    dom,
+    contentDOM: caption,
+    update(next) {
+      if (next.type !== node.type) return false;
+      node = next;
+      showPicture(node.attrs.src);
+      showTexts();
+      return true;
+    },
+    stopEvent: ({ target }) => shown.contains(target) || textRow.contains(target),
+    ignoreMutation: ({ target }) => !caption.contains(target),
+  };
+}
+
+export const imageView = (picture) => $view(imageNode.node, () => (node, view, getPos) => imageControls(node, view, getPos, picture));
 
 // A quote's attribution: its last block, in raw `<cite>`, without a line break. Its attribute
 // has no default, or Enter in a quote would take a citation for the next block.
@@ -120,7 +308,7 @@ export const headingWithAnchor = headingSchema.extendSchema((prev) => (ctx) => {
 export const headingInputRule = $inputRule((ctx) => new InputRule(/^(#{2,6})\s$/, (state, match, start, end) => {
   const $start = state.doc.resolve(start);
   const type = headingSchema.type(ctx);
-  if (!$start.node(-1).canReplaceWith($start.index(-1), $start.indexAfter(-1), type)) return null;
+  if ($start.parent.type.name === IMAGE || !$start.node(-1).canReplaceWith($start.index(-1), $start.indexAfter(-1), type)) return null;
   return state.tr.delete(start, end).setBlockType(start, start, type, { level: match[1].length });
 }));
 
@@ -174,7 +362,7 @@ export const toggleCitation = $command('KonziloToggleCitation', (ctx) => () => (
 
 // A pos's ancestors hold none of these where a mark may stand: never in a heading, a
 // link's text, a table, a citation or another footnote's text.
-const NO_MARK_IN = new Set(['heading', 'table', 'konzilo_citation', 'footnote_definition', 'code_block']);
+const NO_MARK_IN = new Set(['heading', 'table', 'konzilo_citation', 'footnote_definition', 'code_block', IMAGE]);
 
 export function canMarkFootnote({ selection: { $from } }) {
   for (let depth = $from.depth; depth > 0; depth -= 1) if (NO_MARK_IN.has($from.node(depth).type.name)) return false;
@@ -255,11 +443,11 @@ export const fieldKeys = $prose((ctx) => keymap({
   // A heading goes back to a paragraph, not to the level above, which would end at level 1. A
   // citation does too, or the browser would merge it upward and leave its italics as a mark.
   Backspace: (state, dispatch, view) => (atStartOf(state, 'heading') || atStartOf(state, 'konzilo_citation') ? setBlockType(state.schema.nodes.paragraph)(state, dispatch, view) : false),
-  // A citation is its quote's last block, so Enter leaves the quote.
+  // A citation is its quote's last block, and a caption is one line, so Enter leaves them.
   Enter: (state, dispatch) => {
     const { $from } = state.selection;
-    if ($from.parent.type.name !== 'konzilo_citation') return false;
-    const after = $from.after(-1);
+    if ($from.parent.type.name !== 'konzilo_citation' && $from.parent.type.name !== IMAGE) return false;
+    const after = $from.parent.type.name === IMAGE ? $from.after() : $from.after(-1);
     if (dispatch) {
       const tr = state.tr.insert(after, state.schema.nodes.paragraph.create());
       dispatch(tr.setSelection(TextSelection.create(tr.doc, after + 1)).scrollIntoView());

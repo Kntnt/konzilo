@@ -611,7 +611,7 @@ describe('the body field, alone', () => {
     });
 
     test('later elements stay as they are, as kept blocks, around an edit', async () => {
-      const body = 'First\n\n![An image](/media/a.webp)\n\nhttps://vimeo.com/76979871\n\n::form{name="contact"}\n\n<table>\n<caption>A caption</caption>\n<thead>\n<tr><th>A</th></tr>\n</thead>\n</table>\n\n:::unknown\nInside\n\nmore\n:::\n\nLast';
+      const body = 'First\n\n![One](/media/a.webp)\n![Two](/media/b.webp)\n\nhttps://vimeo.com/76979871\n\n::form{name="contact"}\n\n<table>\n<caption>A caption</caption>\n<thead>\n<tr><th>A</th></tr>\n</thead>\n</table>\n\n:::unknown\nInside\n\nmore\n:::\n\nLast';
       assert.equal(await call('open', body), 'editor');
       assert.equal(await page.locator('.konzilo-kept').count(), 5);
       await typeAtTheEnd(' zq');
@@ -631,6 +631,402 @@ describe('the body field, alone', () => {
       await call('open', body);
       assert.equal(await call('value'), body);
       assert.deepEqual(await call('changes'), []);
+    });
+  });
+
+  describe('an image', () => {
+    const BARN = '![A red barn](/media/barn.webp)';
+    const LIBRARY = { entries: [{ src: '/media/lantern.webp', alt: 'A lantern at dusk', caption: 'The quay' }, { src: '/media/no-picture.webp', alt: 'A lake', caption: '' }] };
+    const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEBgIApD5fRAAAAABJRU5ErkJggg==', 'base64');
+    const chooser = () => page.getByRole('dialog', { name: 'Choose an image' });
+    const altOf = (index = 0) => page.locator('.konzilo-image-alt input').nth(index);
+    const openMenu = async () => {
+      await call('focusEnd');
+      if (!(await call('atEmptyBlock'))) await page.keyboard.press('Enter');
+      await page.keyboard.type('/image', { delay: KEY_DELAY });
+      await page.locator('.milkdown-slash-menu li', { hasText: 'Image' }).waitFor();
+      await page.keyboard.press('Enter');
+      await chooser().waitFor();
+    };
+
+    test('opens as a picture with its texts, and changes nothing', async () => {
+      const body = `${BARN}\\\nThe barn _in 1920_`;
+      assert.equal(await call('open', body, { library: LIBRARY }), 'editor', (await call('notes')).join(' '));
+      assert.deepEqual(await call('images'), [{ src: '/media/barn.webp', alt: 'A red barn', caption: 'The barn in 1920' }]);
+      assert.equal(await page.locator('.konzilo-kept').count(), 0);
+      assert.equal(await altOf().inputValue(), 'A red barn');
+      assert.equal(await page.locator('.konzilo-image-caption em').textContent(), 'in 1920');
+      await page.locator('.konzilo-image-picture[data-state="shown"] img').waitFor();
+      await call('poke');
+      assert.deepEqual(await call('changes'), []);
+      assert.equal(await call('value'), body);
+    });
+
+    test('shows that it has no picture to show, and goes on', async () => {
+      assert.equal(await call('open', '![A lake](/media/no-picture.webp)', { library: LIBRARY }), 'editor');
+      await page.locator('.konzilo-image-picture[data-state="none"]').waitFor();
+      assert.equal(await call('open', BARN), 'editor', 'and with no library at all');
+      await page.locator('.konzilo-image-picture[data-state="none"]').waitFor();
+    });
+
+    test('takes a change to its alt text, and keeps the focus', async () => {
+      await call('open', BARN);
+      await altOf().click();
+      await page.keyboard.press('End');
+      await page.keyboard.type(' at dusk', { delay: KEY_DELAY });
+      await call('flush');
+      assert.equal(await call('value'), '![A red barn at dusk](/media/barn.webp)');
+      assert.equal(await altOf().evaluate((input) => document.activeElement === input), true);
+    });
+
+    test('takes a change to its caption, with what a caption may hold', async () => {
+      await call('open', BARN);
+      await call('focusCaption');
+      await page.keyboard.type('The barn', { delay: KEY_DELAY });
+      await call('flush');
+      assert.equal(await call('value'), `${BARN}\\\nThe barn`);
+      await call('selectText', 'barn');
+      for (const mark of ['strong', 'emphasis', 'inlineCode', 'konzilo_superscript', 'konzilo_subscript']) {
+        await call('runMark', mark);
+        await call('runMark', mark);
+      }
+      await call('runMark', 'emphasis');
+      await call('flush');
+      assert.equal(await call('value'), `${BARN}\\\nThe _barn_`);
+      assert.deepEqual((await call('check', await call('value'), FORMS)).reasons, []);
+    });
+
+    test('has one line of caption: Enter leaves it, and a line break is none of its', async () => {
+      await call('open', `${BARN}\\\nOne`);
+      await call('focusCaption');
+      await page.keyboard.press('Shift+Enter');
+      await page.keyboard.type('X', { delay: KEY_DELAY });
+      await page.keyboard.press('Enter');
+      await page.keyboard.type('After', { delay: KEY_DELAY });
+      await call('flush');
+      assert.equal(await call('value'), `${BARN}\\\nOneX\n\nAfter`);
+    });
+
+    test('stays an image whatever is typed or pressed in its caption', async () => {
+      for (const typed of ['## ', '- ', '> ', '1. ', '``` ', '| a |']) {
+        await call('open', BARN);
+        await call('focusCaption');
+        await page.keyboard.type(typed, { delay: KEY_DELAY });
+        assert.deepEqual((await call('topBlocks')).slice(0, 1), ['konzilo_image'], typed);
+      }
+      for (const key of ['Control+Alt+2', 'Control+Alt+0', 'Control+Alt+c', 'Meta+Alt+2', 'Meta+Alt+0', 'Meta+Alt+c']) {
+        await call('open', BARN);
+        await call('focusCaption');
+        await page.keyboard.press(key);
+        assert.deepEqual((await call('topBlocks')).slice(0, 1), ['konzilo_image'], key);
+      }
+    });
+
+    test('stays an image when a selection that takes it in is made a heading', async () => {
+      const body = `One\n\n${BARN}\\\nIts caption\n\nTwo`;
+      await call('open', body);
+      await call('selectAll');
+      for (const key of ['Control+Alt+2', 'Meta+Alt+2', 'Control+Alt+c', 'Meta+Alt+c']) await page.keyboard.press(key);
+      await call('flush');
+      assert.ok((await call('topBlocks')).includes('konzilo_image'));
+      assert.equal((await call('images'))[0].caption, 'Its caption');
+    });
+
+    test('opens no block menu in its caption', async () => {
+      await call('open', BARN, { library: LIBRARY });
+      await call('focusCaption');
+      await page.keyboard.type('/im', { delay: KEY_DELAY });
+      await page.waitForTimeout(100);
+      assert.equal(await page.locator('.milkdown-slash-menu[data-show="true"]').count(), 0);
+    });
+
+    test('writes what would read as something else so that it reads back the same', async () => {
+      for (const alt of ['A *starred* [boxed] barn_ish & `ticks` \\ <b>x</b> &copy; 1 ~ 2 ~~old~~', 'At 10:30 :smile: ::x', 'www.example.com or https://example.com', '![inner](x)']) {
+        await call('open', BARN);
+        await altOf().fill(alt);
+        await call('flush');
+        const value = await call('value');
+        const read = await call('check', value, FORMS);
+        assert.deepEqual(read.reasons, [], `${alt}: ${value}`);
+        await call('open', value);
+        assert.equal(await altOf().inputValue(), alt, value);
+      }
+      for (const caption of ['# not a heading', '- not an item', '> not a quote', '2024. A year', '![not](an-image.webp)', 'www.example.com, https://example.com and a@example.com', '10:30', '2 * 3 _ 4 ` 5', '::x', '<b>x</b>', '[a](b)']) {
+        await call('open', BARN);
+        await call('focusCaption');
+        await page.keyboard.type(caption, { delay: 5 });
+        await call('flush');
+        const value = await call('value');
+        const read = await call('check', value, FORMS);
+        assert.deepEqual(read.reasons, [], `${caption}: ${value}`);
+        assert.equal(await call('open', value), 'editor', `${caption}: ${value}`);
+        assert.deepEqual(await call('images'), [{ src: '/media/barn.webp', alt: 'A red barn', caption }], value);
+      }
+    });
+
+    test('has a caption of spaces as no caption', async () => {
+      await call('open', BARN);
+      await call('focusCaption');
+      await page.keyboard.type('   ', { delay: KEY_DELAY });
+      await call('flush');
+      assert.equal(await call('written'), BARN);
+    });
+
+    test('is refused at Save without alt text, by the field and the intake alike', async () => {
+      await call('open', BARN);
+      await altOf().fill('');
+      await call('flush');
+      const value = await call('value');
+      assert.equal(value, '![](/media/barn.webp)');
+      assert.equal(await altOf().getAttribute('aria-invalid'), 'true');
+      assert.match((await call('check', value, FORMS)).reasons.join(), /without alt text/);
+    });
+
+    test('keeps what is no image the field can hold as source, for the check to speak of', async () => {
+      for (const [body, why] of [['![A](/media/a.webp "A title")', /title/], ['![A](/media/a.webp)\\\nWith [a link](/x/)', /./], ['![A](/media/a.webp)\nOn the next line', /./], ['Text with ![A](/media/a.webp) in it', /alone/], ['![A](/media/a.webp)\\\nOne\\\nTwo', /./]]) {
+        assert.equal(await call('open', body), 'editor', body);
+        assert.equal(await page.locator('.konzilo-kept').count(), 1, body);
+        assert.deepEqual(await call('images'), [], body);
+        assert.equal(await call('value'), body);
+        assert.match((await call('check', body, FORMS)).reasons.join(), why, body);
+      }
+    });
+
+    test('where a type does not take images, stays source and is not on offer', async () => {
+      assert.equal(await call('open', `One\n\n${BARN}`, { elements: ['paragraph', 'code'], library: LIBRARY }), 'editor');
+      assert.equal(await page.locator('.konzilo-kept').count(), 1);
+      await call('focusEnd');
+      await page.keyboard.press('Enter');
+      await page.keyboard.type('/', { delay: KEY_DELAY });
+      await page.locator('.milkdown-slash-menu li').first().waitFor();
+      const offered = await page.locator('.milkdown-slash-menu li').allTextContents();
+      assert.ok(!offered.some((label) => label.includes('Image')), offered.join());
+    });
+
+    test('is not on offer without a library', async () => {
+      await call('open', 'One');
+      await call('focusEnd');
+      await page.keyboard.press('Enter');
+      await page.keyboard.type('/', { delay: KEY_DELAY });
+      await page.locator('.milkdown-slash-menu li').first().waitFor();
+      const offered = await page.locator('.milkdown-slash-menu li').allTextContents();
+      assert.ok(!offered.some((label) => label.includes('Image')), offered.join());
+    });
+
+    test('comes out at a click, and back with undo', async () => {
+      const body = `One\n\n${BARN}\n\nTwo`;
+      await call('open', body);
+      await page.getByRole('button', { name: 'Remove the image' }).click();
+      await call('flush');
+      assert.equal(await call('value'), 'One\n\nTwo');
+      await call('undoAll');
+      assert.equal(await call('value'), body);
+    });
+
+    test('moves with the block handle, whole', async () => {
+      await call('open', `${BARN}\\\nIts caption\n\nThe paragraph`);
+      await page.locator('.konzilo-image-picture').hover();
+      const handle = page.locator('.milkdown-block-handle[data-show="true"] .operation-item').last();
+      await handle.waitFor();
+      const from = await handle.boundingBox();
+      const to = await page.locator('.ProseMirror p', { hasText: 'The paragraph' }).boundingBox();
+      await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(to.x + 40, to.y + to.height / 2, { steps: 8 });
+      await page.mouse.move(to.x + 40, to.y + to.height, { steps: 4 });
+      await page.mouse.up();
+      await call('flush');
+      assert.equal(await call('value'), `The paragraph\n\n${BARN}\\\nIts caption`);
+      // A drag's last events come a moment after, and a person is not gone that soon.
+      await page.waitForTimeout(100);
+    });
+
+    test('from outside does not come along in a paste, and in its own field it does', async () => {
+      await call('open', 'One');
+      await call('focusEnd');
+      await call('paste', { html: '<figure data-konzilo-image data-src="https://elsewhere.example/a.png" data-alt="Forged"><figcaption>Forged</figcaption></figure>' });
+      assert.deepEqual(await call('images'), []);
+      await call('open', 'One');
+      await call('focusEnd');
+      await page.keyboard.press('Enter');
+      await call('paste', { html: '<div data-pm-slice="0 0 []"><figure data-konzilo-image data-src="/media/a.webp" data-alt="Mine"><figcaption>Its text</figcaption></figure></div>' });
+      assert.deepEqual(await call('images'), [{ src: '/media/a.webp', alt: 'Mine', caption: 'Its text' }]);
+    });
+
+    test('keeps its caption to one line of what it takes when something is pasted there', async () => {
+      await call('open', BARN);
+      await call('focusCaption');
+      await call('paste', { text: '# Head\n\nA [link](/x/) and **bold**\n\n- item' });
+      await call('flush');
+      assert.deepEqual(await call('topBlocks').then((blocks) => blocks.slice(0, 1)), ['konzilo_image']);
+      assert.equal(await page.locator('.konzilo-image-caption a').count(), 0);
+      assert.equal(await page.locator('.konzilo-image-caption strong').textContent(), 'bold');
+      assert.equal((await call('check', await call('value'), FORMS)).reasons.length, 0);
+      await call('open', BARN);
+      await call('focusCaption');
+      await call('paste', { html: '<p>Some <a href="https://example.com/">linked</a> <em>text</em></p><p>And more</p>' });
+      assert.equal(await page.locator('.konzilo-image-caption a').count(), 0);
+      assert.equal((await call('images'))[0].caption, 'Some linked text And more');
+    });
+
+    describe('from the library, with /image', () => {
+      test('lists it, and copies the choice\'s texts in, in place of what was typed', async () => {
+        const held = LIBRARY.entries.map((entry) => ({ ...entry }));
+        await call('open', 'One', { library: { entries: held } });
+        await openMenu();
+        const items = chooser().locator('.konzilo-chooser-item');
+        await items.first().waitFor();
+        assert.deepEqual(await items.allTextContents(), ['A lantern at dusk', 'A lake']);
+        await chooser().getByRole('button', { name: 'A lantern at dusk' }).click();
+        await chooser().waitFor({ state: 'detached' });
+        assert.deepEqual(await call('images'), [{ src: '/media/lantern.webp', alt: 'A lantern at dusk', caption: 'The quay' }]);
+        await page.keyboard.type('Then more', { delay: KEY_DELAY });
+        await call('flush');
+        assert.equal(await call('value'), 'One\n\n![A lantern at dusk](/media/lantern.webp)\\\nThe quay\n\nThen more');
+      });
+
+      test('leaves the choice\'s texts free to change in the post', async () => {
+        await call('open', '', { library: LIBRARY });
+        await openMenu();
+        await chooser().getByRole('button', { name: 'A lantern at dusk' }).click();
+        await altOf().fill('The lantern, closer');
+        await call('flush');
+        assert.equal(await call('value'), '![The lantern, closer](/media/lantern.webp)\\\nThe quay');
+      });
+
+      test('finds by alt text and caption, and says when nothing matches', async () => {
+        await call('open', '', { library: LIBRARY });
+        await openMenu();
+        const search = chooser().getByRole('searchbox');
+        const visible = () => chooser().locator('.konzilo-chooser-item:visible span').allTextContents();
+        await chooser().locator('.konzilo-chooser-item').first().waitFor();
+        await search.fill('QUAY');
+        assert.deepEqual(await visible(), ['A lantern at dusk']);
+        await search.fill('lake');
+        assert.deepEqual(await visible(), ['A lake']);
+        await search.fill('nothing like it');
+        assert.deepEqual(await visible(), []);
+        await chooser().getByText('No image in the library matches.').waitFor();
+        await page.keyboard.press('Escape');
+      });
+
+      test('at Escape, or Close, puts nothing in, and the field writes nothing', async () => {
+        await call('open', 'One', { library: LIBRARY });
+        await openMenu();
+        await page.keyboard.press('Escape');
+        await chooser().waitFor({ state: 'detached' });
+        await openMenu();
+        await chooser().getByRole('button', { name: 'Close' }).click();
+        await chooser().waitFor({ state: 'detached' });
+        await call('flush');
+        assert.deepEqual(await call('images'), []);
+        assert.equal(await call('value'), 'One');
+      });
+
+      test('says so when the library is empty, or cannot be read, and can try again', async () => {
+        await call('open', '', { library: { entries: [] } });
+        await openMenu();
+        await chooser().getByText('The library holds no images yet.').waitFor();
+        await page.keyboard.press('Escape');
+        await call('open', '', { library: { entries: LIBRARY.entries, throwing: { list: true } } });
+        await openMenu();
+        await chooser().getByText('The library could not be read just now.').waitFor();
+        await call('stopThrowing');
+        await chooser().getByRole('button', { name: 'Try again' }).click();
+        await chooser().getByRole('button', { name: 'A lake' }).waitFor();
+        await page.keyboard.press('Escape');
+      });
+
+      test('after a block with something in it, goes after that block', async () => {
+        await call('open', '> A quote', { library: LIBRARY });
+        await call('focusEnd');
+        await page.keyboard.press('Enter');
+        await page.keyboard.type('/image', { delay: KEY_DELAY });
+        await page.locator('.milkdown-slash-menu li', { hasText: 'Image' }).waitFor();
+        await page.keyboard.press('Enter');
+        await chooser().getByRole('button', { name: 'A lake' }).click();
+        await call('flush');
+        const value = await call('value');
+        assert.equal((await call('check', value, FORMS)).reasons.length, 0, value);
+        assert.ok(value.includes('![A lake](/media/no-picture.webp)'), value);
+        assert.deepEqual(await call('topBlocks').then((blocks) => blocks.includes('konzilo_image')), true);
+      });
+    });
+
+    describe('uploaded in the chooser', () => {
+      const upload = async (file = { name: 'A new one.png', mimeType: 'image/png', buffer: PNG }) => {
+        await chooser().getByRole('button', { name: 'Upload a new image' }).click();
+        await chooser().locator('input[type=file]').setInputFiles(file);
+      };
+
+      test('joins the library and becomes the choice, with the texts given', async () => {
+        await call('open', '', { library: LIBRARY });
+        await openMenu();
+        await upload();
+        await chooser().getByRole('textbox', { name: 'Alt text' }).fill(' A new one ');
+        await chooser().getByRole('textbox', { name: 'Caption' }).fill(' Its caption ');
+        await chooser().getByRole('button', { name: 'Upload and use' }).click();
+        await chooser().waitFor({ state: 'detached' });
+        assert.deepEqual(await call('added'), [{ name: 'A new one.png', size: PNG.length, alt: ' A new one ', caption: ' Its caption ' }]);
+        assert.deepEqual(await call('images'), [{ src: '/media/A new one.png', alt: 'A new one', caption: 'Its caption' }]);
+      });
+
+      test('needs a file and an alt text, and adds nothing until it has them', async () => {
+        await call('open', '', { library: LIBRARY });
+        await openMenu();
+        await chooser().getByRole('button', { name: 'Upload a new image' }).click();
+        await chooser().getByRole('button', { name: 'Upload and use' }).click();
+        await chooser().getByText('Choose a file first.').waitFor();
+        await chooser().locator('input[type=file]').setInputFiles({ name: 'a.png', mimeType: 'image/png', buffer: PNG });
+        await chooser().getByRole('button', { name: 'Upload and use' }).click();
+        await chooser().getByText('Describe the image for those who cannot see it.').waitFor();
+        assert.deepEqual(await call('added'), []);
+        await page.keyboard.press('Escape');
+      });
+
+      test('turns away what the site would, in the site\'s words, whatever the file is called', async () => {
+        const gif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
+        const cases = [
+          [{ name: 'moving.png', mimeType: 'image/png', buffer: gif }, /cannot use a GIF/],
+          [{ name: 'notes.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('just some words') }, /cannot use this file/],
+          [{ name: 'small.png', mimeType: 'image/png', buffer: PNG }, /1 pixels wide.*none narrower than 400/],
+        ];
+        await call('open', '', { library: LIBRARY, smallestWidth: 400 });
+        await openMenu();
+        await chooser().getByRole('button', { name: 'Upload a new image' }).click();
+        for (const [file, words] of cases) {
+          await chooser().locator('input[type=file]').setInputFiles(file);
+          await chooser().getByRole('textbox', { name: 'Alt text' }).fill('Something');
+          await chooser().getByRole('button', { name: 'Upload and use' }).click();
+          await chooser().getByRole('alert').filter({ hasText: words }).waitFor();
+        }
+        assert.deepEqual(await call('added'), []);
+        await page.keyboard.press('Escape');
+      });
+
+      test('keeps what was filled in when the upload fails, and can be tried again', async () => {
+        await call('open', '', { library: { entries: [], throwing: { add: true } } });
+        await openMenu();
+        await upload();
+        const alt = chooser().getByRole('textbox', { name: 'Alt text' });
+        await alt.fill('Kept');
+        await chooser().getByRole('button', { name: 'Upload and use' }).click();
+        await chooser().getByText('The image could not be uploaded just now.').waitFor();
+        assert.equal(await alt.inputValue(), 'Kept');
+        await call('stopThrowing');
+        await chooser().getByRole('button', { name: 'Upload and use' }).click();
+        await chooser().waitFor({ state: 'detached' });
+        assert.equal((await call('images'))[0].alt, 'Kept');
+      });
+
+      test('can go back to the library', async () => {
+        await call('open', '', { library: LIBRARY });
+        await openMenu();
+        await upload();
+        await chooser().getByRole('button', { name: 'Back to the library' }).click();
+        await chooser().getByRole('button', { name: 'A lake' }).click();
+        assert.equal((await call('images'))[0].alt, 'A lake');
+      });
     });
   });
 

@@ -1,7 +1,9 @@
 // The body field in Sveltia: its field type and its check before a save. This module loads
 // with the editor's first paint, so it holds neither Crepe, nor Sätteri, nor the rule data.
 
+import { signedInCredential } from '../credential.js';
 import { bodyControl } from './control.js';
+import { imageLibrary } from './library.js';
 import './open-fields.js';
 import { say } from './texts.js';
 import { BODY_WIDGET } from './widget.js';
@@ -22,7 +24,9 @@ export function registerBodyField(CMS, config) {
     if (field) bodies.set(collection.name, { elements: field.elements, forms: field.forms, adminHost });
   }
 
-  CMS.registerFieldType(BODY_WIDGET, bodyControl({ adminHost }));
+  const { api_root: api, repo: repository, branch } = config.backend;
+  const library = api ? imageLibrary({ api, repository, branch, credential: signedInCredential }) : null;
+  CMS.registerFieldType(BODY_WIDGET, bodyControl({ adminHost, library }));
   CMS.registerEventListener({
     name: 'preSave',
     handler: async ({ entry }) => {

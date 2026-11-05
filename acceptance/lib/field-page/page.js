@@ -13,6 +13,29 @@ const EVERY_ELEMENT = ['paragraph', 'heading', 'list', 'quote', 'code', 'table',
 
 let fields = [];
 
+// A library with nothing behind it, for what the field does with one. `throwing` says what it
+// fails at; `added` is what it was asked to add.
+const PICTURE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEBgIApD5fRAAAAABJRU5ErkJggg==';
+const libraryWith = ({ entries = [], throwing = {} }) => {
+  const added = [];
+  return {
+    added,
+    entries,
+    throwing,
+    async list() {
+      if (this.throwing.list) throw new Error('the list failed');
+      return this.entries;
+    },
+    async add({ file, alt, caption }) {
+      if (this.throwing.add) throw new Error('the upload failed');
+      added.push({ name: file.name, size: file.size, alt, caption });
+      const entry = { src: `/media/${file.name}`, alt: alt.trim(), caption: caption.trim() };
+      return entry;
+    },
+    picture: async (address) => (address.includes('no-picture') ? null : PICTURE),
+  };
+};
+
 // A list item puts back the selection it saw when it mounted, one frame later (Milkdown's
 // component does, which is issues 2501 and 2506), so a page with a list settles for a frame
 // before it is driven. A person cannot type that soon after opening.
@@ -23,7 +46,7 @@ const settled = () => new Promise((resolve) => {
 
 // `answering` keeps what the field writes, as an owner would hold it on its way back, until
 // the test lets the answers come.
-const mount = (value, { elements = EVERY_ELEMENT, forms = ['contact', 'newsletter'], answering = false } = {}) => {
+const mount = (value, { elements = EVERY_ELEMENT, forms = ['contact', 'newsletter'], answering = false, library = null, smallestWidth = null } = {}) => {
   const changes = [];
   const answers = [];
   const host = document.createElement('div');
@@ -32,8 +55,9 @@ const mount = (value, { elements = EVERY_ELEMENT, forms = ['contact', 'newslette
     changes.push(next);
     if (answering) answers.push(next);
   };
-  const field = mountBodyField(host, { value, changed, elements, forms, adminHost: null });
-  return { field, changes, host, answers };
+  const held = library && libraryWith(library);
+  const field = mountBodyField(host, { value, changed, elements, forms, adminHost: null, library: held, smallestWidth });
+  return { field, changes, host, answers, library: held };
 };
 
 const clear = () => {
@@ -179,6 +203,33 @@ globalThis.fieldPage = {
   async check(body, forms) {
     const { body: written, problems } = checkBody(body, handsFor(await loadReader(), { elements: EVERY_ELEMENT, forms }));
     return { written, reasons: problems.map(({ reason }) => reason) };
+  },
+  added: () => current().library.added,
+  stopThrowing() {
+    current().library.throwing = {};
+  },
+  // Each image as the document holds it.
+  images() {
+    const found = [];
+    viewOf().state.doc.descendants((node) => {
+      if (node.type.name === 'konzilo_image') found.push({ src: node.attrs.src, alt: node.attrs.alt, caption: node.textContent });
+    });
+    return found;
+  },
+  topBlocks() {
+    const found = [];
+    viewOf().state.doc.forEach((node) => found.push(node.type.name));
+    return found;
+  },
+  selectAll() {
+    const view = viewOf();
+    selectAt(view, TextSelection.create(view.state.doc, 1, view.state.doc.content.size - 1));
+  },
+  focusCaption(index = 0) {
+    const view = viewOf();
+    const captions = textblocks(view).filter(({ node }) => node.type.name === 'konzilo_image');
+    const { node, pos } = captions[index];
+    selectAt(view, TextSelection.create(view.state.doc, pos + 1 + node.content.size));
   },
   changes: () => current().changes,
   mode: () => current().field.mode,

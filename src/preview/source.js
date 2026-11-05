@@ -26,8 +26,9 @@ export function gitSource({ remote, user, token, folder, home, now = Date.now, c
   let head = null;
 
   return {
-    async refresh() {
-      if (now() - asked < FRESH) return;
+    // `within`: how old a checkout may be, for what cannot wait for the usual.
+    async refresh({ within = FRESH } = {}) {
+      if (now() - asked < within) return;
       if (!existsSync(join(folder, '.git'))) {
         mkdirSync(folder, { recursive: true });
         mkdirSync(home, { recursive: true });

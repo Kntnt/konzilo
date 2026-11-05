@@ -18,7 +18,7 @@ const loadField = () => import('./field.js');
 // value can only be told apart by their undo, which a person would not miss across a remount.
 const keyOf = (field, entry, value) => [entry?.get?.('collection'), entry?.get?.('slug'), field.get('name'), value ?? ''].join('|');
 
-export function bodyControl({ adminHost, load = loadField }) {
+export function bodyControl({ adminHost, library = null, load = loadField }) {
   return function KonziloBody(props) {
     const React = window.__SVELTIA_CMS_REACT__;
     const { value, onChange, field, entry, forID } = props;
@@ -48,6 +48,8 @@ export function bodyControl({ adminHost, load = loadField }) {
             elements: plain(field.get('elements')) ?? [],
             forms: plain(field.get('forms')) ?? [],
             adminHost,
+            library,
+            smallestWidth: plain(field.get('smallestWidth')) ?? null,
           });
           made.setChanged = (to) => {
             changedTo = to;

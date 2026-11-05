@@ -4,7 +4,7 @@
 
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { test } from 'node:test';
+import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { cmsConfig } from '../src/cms/config.js';
@@ -222,4 +222,39 @@ test('holds search and sharing per language on a site in several', () => {
     assert.equal(part.i18n, true);
     for (const one of part.fields) assert.equal(one.i18n, true);
   }
+});
+
+describe('the image library', () => {
+  const describedWith = (elements) => siteDescription({
+    language: 'en_GB',
+    images: { smallestWidth: 400, displayWidth: 1280 },
+    types: { page: { label: 'Page', plural: 'Pages', collection: 'pages', address: '/{slug}/', elements } },
+  });
+  const place = { forgejo: 'http://git', repository: 'a/b', clientId: 'c', site: 'http://site' };
+  const libraryOf = (elements) => cmsConfig(describedWith(elements), place).collections.find(({ name }) => name === 'image-library');
+
+  test('is a collection of its own, in a folder of its own, each entry an image with its texts', () => {
+    const library = libraryOf(['paragraph', 'image']);
+    assert.equal(library.folder, 'image-library');
+    assert.equal(library.format, 'json');
+    assert.equal(library.create, true);
+    assert.equal(library.i18n, undefined, 'in one language, since what a post holds of it is the post\'s');
+    assert.deepEqual(library.fields.map(({ name, widget, required }) => [name, widget, required]), [['src', 'image', true], ['alt', 'string', true], ['caption', 'string', false]]);
+  });
+
+  test('is there only where some type takes images', () => {
+    assert.equal(libraryOf(['paragraph']), undefined);
+  });
+
+  test('tells a body how narrow an upload may be', () => {
+    const [page] = cmsConfig(describedWith(['paragraph', 'image']), place).collections;
+    assert.equal(page.fields.find(({ name }) => name === 'body').smallestWidth, 400);
+  });
+
+  test('is no name a type may take', () => {
+    assert.throws(() => siteDescription({
+      language: 'en_GB',
+      types: { picture: { label: 'Picture', plural: 'Pictures', collection: 'image-library', address: '/{slug}/', elements: ['paragraph'] } },
+    }), /image-library is the collection of the image library/);
+  });
 });

@@ -205,6 +205,55 @@ describe('the runs', () => {
     assert.deepEqual(imageRuns[1], ['media/new.png']);
   });
 
+  test('looks again at once for an image a draft names and the checkout does not hold, as one just uploaded', async () => {
+    const asked = [];
+    let originals = [];
+    const preview = previewRunner({
+      site,
+      content,
+      now: () => new Date(moment),
+      images: async () => namedImages(),
+      source: {
+        refresh: async ({ within } = {}) => {
+          asked.push(within);
+          if (within !== undefined) originals = [{ path: 'media/new-one.webp', contents: () => Buffer.from('') }];
+        },
+        head: () => 'a-commit',
+        files: () => [],
+        originals: () => originals,
+      },
+    });
+    await preview.take({ path: 'pages/one.md', fields: { title: 'One', body: 'Words.' } });
+    assert.deepEqual(asked, [undefined], 'nothing named, nothing to look for');
+    asked.length = 0;
+    await preview.take({ path: 'pages/one.md', fields: { title: 'One', body: '![A](/media/new-one.webp)' } });
+    assert.equal(asked.length, 2);
+    assert.ok(asked[1] <= 1000);
+    asked.length = 0;
+    await preview.take({ path: 'pages/one.md', fields: { title: 'One', body: '![A](/media/new-one.webp)\\\nA caption' } });
+    assert.deepEqual(asked, [undefined], 'and once it is here, nothing more');
+  });
+
+  test('reads no original nothing names', async () => {
+    const preview = previewRunner({
+      site,
+      content,
+      now: () => new Date(moment),
+      images: async (originals) => {
+        imageRuns.push(originals.map(({ path }) => path));
+        return namedImages();
+      },
+      source: {
+        refresh: async () => {},
+        head: () => 'a-commit',
+        files: () => [{ path: 'image-library/a.json', contents: '{"src":"/media/waiting.webp","alt":"A"}' }],
+        originals: () => [{ path: 'media/waiting.webp', contents: () => Buffer.from('') }, { path: 'media/used.webp', contents: () => Buffer.from('') }],
+      },
+    });
+    await preview.take({ path: 'pages/one.md', fields: { title: 'One', body: '![A](/media/used.webp)' } });
+    assert.deepEqual(imageRuns, [['media/used.webp']]);
+  });
+
   test('checks what it is given before anything runs', () => {
     const preview = runner();
     assert.equal(preview.problem({ path: 'pages/one.md', fields: {} }), null);

@@ -13,6 +13,7 @@ The source repository holds one file per thing an editor edits, under `<collecti
 | `menus/<menu>.json`, `settings.json` | Entries and values, with post choices as IDs. |
 | `services.json`, `redirects.json` | What an Admin declares. Not `consent.json`, which the intake makes. |
 | `media/<name>` | Originals, in Git LFS. |
+| `image-library/<id>.json` | An entry of the image library (ADR 0055), which no content file reads. |
 
 - **The ID** comes from Sveltia's `{{uuid_short}}`, with the slug not editable, so it never changes and duplicating an entry makes a new one. `slug` and `parent` are ordinary fields.
 - **References use IDs.** A relation's stored value is the target's file name by default. An internal link in a body is `[text](konzilo:<id>)`, and the Crepe field shows the target's title. The intake writes references out as addresses and slugs.
