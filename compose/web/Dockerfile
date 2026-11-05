@@ -15,6 +15,7 @@ COPY src/cms src/cms
 COPY src/format src/format
 COPY src/texts.js src/
 COPY src/astro/reader-features.js src/astro/
+COPY src/intake/words.js src/intake/
 RUN node scripts/build-editor.js /editor
 
 FROM caddy:${CADDY}-alpine@sha256:${CADDY_DIGEST}

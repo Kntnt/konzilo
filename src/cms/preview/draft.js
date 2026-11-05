@@ -1,17 +1,13 @@
 // A form's values as the preview's service reads them: plain data, where it lies, and an
 // image not saved yet read from the browser, since its address means nothing elsewhere.
 
+import { base64 } from '../base64.js';
+
 const plain = (value) => (value?.toJS ? value.toJS() : value);
 
 const EXTENSIONS = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/svg+xml': 'svg', 'image/gif': 'gif' };
 
 const nameOf = (address, type) => `preview-${address.split('/').at(-1).replaceAll(/[^A-Za-z0-9-]/g, '')}.${EXTENSIONS[type] ?? 'bin'}`;
-
-function base64(bytes) {
-  const parts = [];
-  for (let at = 0; at < bytes.length; at += 32_768) parts.push(String.fromCharCode(...bytes.subarray(at, at + 32_768)));
-  return btoa(parts.join(''));
-}
 
 // The values with each unsaved image at the name it travels under, and those images.
 async function withImages(value, images, read) {

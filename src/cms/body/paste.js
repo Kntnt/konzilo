@@ -25,7 +25,7 @@ const reduceNode = (node) => {
     return marks.length === node.marks.length ? node : node.mark(marks);
   }
   if (node.type.name === 'html') return String(node.attrs.value).startsWith('<!--') ? node : null;
-  if (node.type.name === 'konzilo_kept') return null;
+  if (node.type.name === 'konzilo_kept' || node.type.name === 'konzilo_image') return null;
   let { attrs } = node;
   if (node.type.name === 'list_item' && attrs.checked !== null) attrs = { ...attrs, checked: null };
   // A numbered list starts at 1 or the site cannot publish it, and the editor has no way to say so.
@@ -69,4 +69,13 @@ export function oneLine(slice, schema) {
   };
   slice.content.forEach(add);
   return new Slice(Fragment.fromArray(inline), 0, 0);
+}
+
+// What a caption takes of a slice: one line of its text, with the formats a caption has.
+export function captionLine(slice, { schema, selection: { $from: { parent } } }) {
+  const text = [];
+  oneLine(slice, schema).content.forEach((node) => {
+    if (node.isText) text.push(node.mark(node.marks.filter(({ type }) => parent.type.allowsMarkType(type))));
+  });
+  return new Slice(Fragment.fromArray(text), 0, 0);
 }

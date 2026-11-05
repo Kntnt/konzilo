@@ -26,7 +26,7 @@ import { parseArgs } from 'node:util';
 
 import { POST_IDS_FILE } from '../src/format/write.js';
 import { postFiles, walk, writeContent } from '../src/intake/content-folder.js';
-import { imagesFrom } from '../src/intake/images.js';
+import { imagesFrom, namedOriginals } from '../src/intake/images.js';
 import { deletion, intake } from '../src/intake/index.js';
 import { readSiteDescription, SITE_DESCRIPTION_FILE } from '../src/site-description.js';
 
@@ -79,7 +79,7 @@ try {
   const media = join(content, 'media');
   const masters = new Map(walk(media).map((path) => [relative(media, path), () => readFileSync(path)]));
   const originals = paths.filter((path) => path.startsWith('media/')).map((path) => ({ path, contents: () => readFileSync(join(checkout, path)) }));
-  const images = await imagesFrom(originals, masters);
+  const images = await imagesFrom(namedOriginals(originals, files), masters);
   const ledgerFile = join(content, POST_IDS_FILE);
   const ledger = existsSync(ledgerFile) ? JSON.parse(readFileSync(ledgerFile, 'utf8')) : null;
   const changes = parsed.values.admins ? lastChanges(readJson(parsed.values.admins), readJson(parsed.values.pushers)) : {};

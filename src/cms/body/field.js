@@ -7,6 +7,7 @@
 // rewrite safe, so only a value the editor writes back to the byte opens in the editor.
 
 import { changeBetween, handsFor, loadReader } from './check.js';
+import { chooseImage } from './chooser.js';
 import { makeEditor } from './crepe.js';
 import './field.css';
 import { fieldClosed, fieldOpened } from './open-fields.js';
@@ -26,7 +27,8 @@ const element = (tag, className, parent) => {
 
 const sameBytes = (one, other) => one.replace(/\r\n?/g, '\n').trimEnd() === other.replace(/\r\n?/g, '\n').trimEnd();
 
-export function mountBodyField(host, { value: given, changed, elements, forms, adminHost }) {
+export function mountBodyField(host, { value: given, changed, elements, forms, adminHost, library = null, smallestWidth = null }) {
+  const images = library && { choose: () => chooseImage({ library, smallestWidth }), picture: library.picture };
   const frame = element('div', 'konzilo-body', host);
   const bar = element('div', 'konzilo-body-bar', frame);
   const notes = element('div', 'konzilo-body-notes', bar);
@@ -147,7 +149,7 @@ export function mountBodyField(host, { value: given, changed, elements, forms, a
       const reader = await loadReader();
       hands = reader ? handsFor(reader, { elements, forms, adminHost }) : null;
       showNote(offNote, reader ? null : say('checkOff'));
-      made = await makeEditor({ root: visual, value: opening, elements, changed: () => schedule() });
+      made = await makeEditor({ root: visual, value: opening, elements, changed: () => schedule(), images });
     } catch (error) {
       console.warn(`The body field could not read a value: ${error.message}`);
       if (mine === generation && !gone) {

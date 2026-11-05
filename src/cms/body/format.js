@@ -3,6 +3,7 @@
 // are the intake's (ADR 0027), so the writer's duty is the meaning, as Sätteri reads it,
 // and the field opens as Markdown where it cannot keep that (see `open` in field.js).
 
+import { linkAddress, splitAutolinks } from '../../format/body.js';
 import rules from '../../format/rules.json' with { type: 'json' };
 
 const NAME_START = /^:{2,3}[\p{L}\p{N}]/u;
@@ -48,6 +49,28 @@ function directiveStart(node, source) {
   return DIRECTIVES.has(name.slice(2)) || text.slice(name.length).startsWith('{') ? 'leaf' : null;
 }
 
+// What a caption may hold, as a reader's tree has it: raw pairs of what it takes are folded
+// later, and an empty comment is what keeps text from reading as a link.
+const CAPTION_TAGS = new Set(['<sup>', '</sup>', '<sub>', '</sub>', '<strong>', '</strong>', '<em>', '</em>']);
+const COMMENT = /^<!--[\s\S]*-->$/;
+
+const inCaption = (node) => {
+  if (node.type === 'text' || node.type === 'inlineCode') return true;
+  if (node.type === 'html') return CAPTION_TAGS.has(node.value) || COMMENT.test(node.value);
+  return (node.type === 'strong' || node.type === 'emphasis') && node.children.every(inCaption);
+};
+
+// A paragraph as the image the editor holds, or null where it is no image the site can show as
+// one, a gallery among them, which stays as it stands and has the check's word at Save.
+function asImage({ children }) {
+  const [image, lineBreak, ...caption] = children;
+  if (image.type !== 'image' || image.title || (image.alt ?? '').includes('\n')) return null;
+  const made = { type: 'konziloImage', src: image.url, alt: image.alt ?? '', children: caption };
+  if (children.length === 1) return made;
+  if (lineBreak.type !== 'break' || lineBreak.data?.isInline || caption.length === 0 || !caption.every(inCaption)) return null;
+  return made;
+}
+
 // Why a top-level node is kept as source, or null: it is a later element, or one its type
 // does not take, and the field has no form of it yet.
 function keptAs(node, source, policy) {
@@ -72,6 +95,11 @@ function keepLaterElements(children, source, policy) {
     const kind = keptAs(node, source, policy);
     if (kind === null) {
       out.push(node);
+      continue;
+    }
+    const image = kind === 'image' && policy.takes('image') ? asImage(node) : null;
+    if (image !== null) {
+      out.push(image);
       continue;
     }
     const [start] = offsets(node);
@@ -211,11 +239,31 @@ const rawRun = (tag, type) => (node, _, state) => {
   return `<${tag}>${written}</${tag}>`;
 };
 
+const CAPTION = 'konziloCaption';
+
+// A caption takes no link, and Sätteri makes one of an address however it is escaped, so what
+// remark escapes there is split, as the intake splits it.
+const noAddressIn = (written) => splitAutolinks(written.replace(/\bwww\\\./giu, 'www.').replace(/\b(https?|ftp)\\:/giu, '$1:').replaceAll('\\@', '@'));
+
 // Text as Markdown, with what remark does not know of Sätteri's: a colon that would begin a
 // directive, and one right after a footnote's mark, which would read as its text.
 function text(node, _, state, info) {
-  const written = state.safe(node.value, { ...info, encode: [] }).replace(/:(?=[\p{L}\p{N}])/gu, '\\:');
+  const safe = state.safe(node.value, { ...info, encode: [] });
+  const written = (state.stack.includes(CAPTION) ? noAddressIn(safe) : safe).replace(/:(?=[\p{L}\p{N}])/gu, '\\:');
   return info.before === ']' && written.startsWith(':') ? `\\${written}` : written;
+}
+
+// Alt text is read as inline text and shown flat, so whatever could be read as a format goes
+// escaped, and a colon as anywhere.
+const altWritten = (alt) => alt.trim().replace(/[\\*`[\]_&<~]|:(?=[\p{L}\p{N}])/gu, '\\$&');
+
+const image = (node) => `![${altWritten(node.alt)}](${linkAddress(node.url)})`;
+
+function caption(node, _, state, info) {
+  const exit = state.enter(CAPTION);
+  const written = state.containerPhrasing(node, info);
+  exit();
+  return written;
 }
 
 const isEmpty = (node) => node.type === 'paragraph' && (node.children ?? []).length === 0;
@@ -250,6 +298,9 @@ function trimSpaces(block) {
   block.children = children.filter((child) => child.type !== 'text' || child.value !== '');
 }
 
+// The mdast type a caption is written under, for the image's node to open.
+export const CAPTION_NODE = CAPTION;
+
 const HOLD_TEXT = new Set(['paragraph', 'heading', 'tableCell']);
 
 // The tree before it is written: an empty paragraph goes, a list is always tight.
@@ -279,6 +330,8 @@ export const writerOptions = (options) => ({
   handlers: {
     ...options.handlers,
     text,
+    image,
+    [CAPTION]: caption,
     root(node, _, state, info) {
       tidy(node);
       return state.containerFlow(node, info);

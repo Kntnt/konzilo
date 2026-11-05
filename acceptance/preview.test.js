@@ -6,6 +6,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
 
+import { sharp } from '../tests/lib/images.js';
 import { ENGINES, openEditor, signIn } from './lib/editor.js';
 import { makeSite } from './lib/site.js';
 
@@ -100,6 +101,37 @@ describe('the live preview', () => {
       await page.keyboard.press('End');
       await page.keyboard.type(' Words only this draft holds.', { delay: 50 });
       await frameOf(page).getByText('Words only this draft holds.').waitFor({ timeout: ON_THE_PAGE });
+    });
+
+    test('shows an image the moment it is uploaded, from the file now in the repository', async () => {
+      const editor = page.locator('.konzilo-body-visual .ProseMirror');
+      await editor.locator('> p').last().click();
+      // A paragraph runs over several lines, where End goes to the end of one.
+      await editor.locator('> p').last().evaluate((paragraph) => {
+        const range = document.createRange();
+        range.selectNodeContents(paragraph);
+        range.collapse(false);
+        const selection = document.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+      });
+      await page.waitForTimeout(100);
+      await page.keyboard.press('Enter');
+      await page.keyboard.type('/image', { delay: 30 });
+      await page.locator('.milkdown-slash-menu li', { hasText: 'Image' }).waitFor();
+      await page.keyboard.press('Enter');
+      const chooser = page.getByRole('dialog', { name: 'Choose an image' });
+      await chooser.getByRole('button', { name: 'Upload a new image' }).click();
+      const bytes = await sharp({ create: { width: 1400, height: 900, channels: 3, background: '#883366' } }).png().toBuffer();
+      await chooser.locator('input[type=file]').setInputFiles({ name: 'just-uploaded.png', mimeType: 'image/png', buffer: bytes });
+      await chooser.getByRole('textbox', { name: 'Alt text' }).fill('Uploaded this moment');
+      await chooser.getByRole('button', { name: 'Upload and use' }).click();
+      await chooser.waitFor({ state: 'detached', timeout: 30_000 });
+      const shown = frameOf(page).locator('figure img[alt="Uploaded this moment"]');
+      await shown.waitFor({ timeout: ON_THE_PAGE });
+      assert.equal(await shown.evaluate((image) => image.decode().then(() => image.naturalWidth > 0)), true);
+      assert.equal(await paneOf(page).getByRole('alert').count(), 0);
+      await page.locator('.konzilo-image').last().getByRole('button', { name: 'Remove the image' }).click();
     });
 
     test('says why it cannot publish a draft, above the last good page', async () => {

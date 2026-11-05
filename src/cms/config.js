@@ -5,6 +5,7 @@
 // ID. Empty optional fields are left out, since the intake's schemas refuse an
 // empty string.
 
+import { IMAGE_LIBRARY_FOLDER } from '../format/masters.js';
 import { declaredNames, SCHEMA_TYPES, SEO_PARTS } from '../site-description.js';
 import { inLanguage } from '../texts.js';
 import { BODY_WIDGET } from './body/widget.js';
@@ -49,6 +50,10 @@ const TEXTS = {
   siteTitle: { en: 'Site title', sv: 'Webbplatsens titel' },
   logo: { en: 'Logo', sv: 'Logotyp' },
   icon: { en: 'Site icon', sv: 'Webbplatsikon' },
+  imageLibrary: { en: 'Image library', sv: 'Bildbibliotek' },
+  libraryImage: { en: 'Image', sv: 'Bild' },
+  caption: { en: 'Caption', sv: 'Bildtext' },
+  libraryHint: { en: 'Copied into a post when the image is chosen there, where it can then be changed for that use.', sv: 'Kopieras in i ett inlägg när bilden väljs där, och kan sedan ändras för just den användningen.' },
   menus: { en: 'Menus', sv: 'Menyer' },
   entries: { en: 'Entries', sv: 'Poster' },
   entry: { en: 'Entry', sv: 'Post' },
@@ -316,7 +321,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
       { name: 'publishing', label: say('publishing'), widget: PUBLISHING_WIDGET, required: false, ...within(SAME_IN_EACH) },
       ...type.fields.map(postField).filter(Boolean),
       ...(type.address === null ? [] : [otherAddressesField()]),
-      { name: 'body', label: say('body'), widget: BODY_WIDGET, required: false, elements: type.elements, forms, ...within(TRANSLATED) },
+      { name: 'body', label: say('body'), widget: BODY_WIDGET, required: false, elements: type.elements, forms, ...(description.images?.smallestWidth ? { smallestWidth: description.images.smallestWidth } : {}), ...within(TRANSLATED) },
     ],
   });
 
@@ -339,6 +344,26 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
         ? [{ name: 'parent', label: say('parent'), ...relation(taxonomy.collection, 'name'), required: false, ...within(SAME_IN_EACH) }]
         : []),
       { name: 'description', label: say('description'), widget: 'text', required: false, ...within(TRANSLATED) },
+    ],
+  });
+
+  // What an editor chooses from in a body (ADR 0055): no type, no page, and in one language, since
+  // what a post holds of it is the post's own.
+  const imageLibraryCollection = () => ({
+    name: IMAGE_LIBRARY_FOLDER,
+    label: say('imageLibrary'),
+    label_singular: say('libraryImage'),
+    folder: IMAGE_LIBRARY_FOLDER,
+    format: 'json',
+    extension: 'json',
+    create: true,
+    identifier_field: 'alt',
+    summary: '{{alt}}',
+    slug: SLUG,
+    fields: [
+      { name: 'src', label: say('file'), widget: 'image', required: true },
+      { name: 'alt', label: say('alt'), widget: 'string', required: true, hint: say('libraryHint') },
+      { name: 'caption', label: say('caption'), widget: 'string', required: false },
     ],
   });
 
@@ -398,6 +423,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     collections: [
       ...Object.values(description.types).map(typeCollection),
       ...Object.values(description.taxonomies).map(taxonomyCollection),
+      ...(Object.values(description.types).some((type) => type.elements.includes('image')) ? [imageLibraryCollection()] : []),
       {
         name: 'settings',
         label: say('settings'),

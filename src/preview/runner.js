@@ -7,13 +7,25 @@ import { join, relative } from 'node:path';
 
 import { POST_IDS_FILE } from '../format/write.js';
 import { walk, writeContent } from '../intake/content-folder.js';
-import { imagesFrom } from '../intake/images.js';
+import { imagesFrom, namedOriginals } from '../intake/images.js';
 import { intake } from '../intake/index.js';
 import { siteDescription } from '../site-description.js';
 import { draftFile, keyOfPath, pathProblem, unsavedImage } from './draft.js';
 
 // How long a draft nobody has touched stays on the preview.
 const KEPT = 15 * 60 * 1000;
+// How old a checkout may be when a draft names an image it does not hold: uploading one to the
+// library commits it at once, and the draft that names it comes right after.
+const JUST_UPLOADED = 1000;
+const NAMED_IMAGE = /\/media\/([^\s)"'>?#\\]+)/g;
+
+const decoded = (name) => {
+  try {
+    return decodeURI(name);
+  } catch {
+    return name;
+  }
+};
 
 // `site`: the site description. `source`: where the source files come from, as source.js
 // gives it. `content`: the preview's content folder. `adminHost`: as the intake takes it.
@@ -24,8 +36,7 @@ export function previewRunner({ site: described, source, content, adminHost = nu
   let queue = Promise.resolve();
 
   const imagesFor = async (originals, head) => {
-    const unsaved = originals.filter(({ unsaved: is }) => is).map(({ path }) => path).sort().join('\n');
-    const key = `${head}\n${unsaved}`;
+    const key = `${head}\n${originals.map(({ path, unsaved: is }) => `${is ? '+' : ''}${path}`).sort().join('\n')}`;
     if (images.key === key) return images.of;
     const media = join(content, 'media');
     const masters = new Map(walk(media).map((path) => [relative(media, path), () => readFileSync(path)]));
@@ -33,8 +44,15 @@ export function previewRunner({ site: described, source, content, adminHost = nu
     return images.of;
   };
 
+  // Whether a draft names an original that has not reached this checkout.
+  const namesWhatIsNotHere = () => {
+    const here = new Set([...source.originals(), ...[...drafts.values()].flatMap(({ images: own }) => own)].map(({ path }) => path));
+    return [...drafts.values()].some(({ contents }) => [...contents.matchAll(NAMED_IMAGE)].some(([, name]) => !here.has(`media/${decoded(name)}`)));
+  };
+
   const once = async () => {
     await source.refresh();
+    if (namesWhatIsNotHere()) await source.refresh({ within: JUST_UPLOADED });
     const moment = now();
     for (const [path, { touched }] of drafts) if (moment - touched > KEPT) drafts.delete(path);
     const inDrafts = new Map([...drafts].map(([path, { contents }]) => [path, contents]));
@@ -44,7 +62,7 @@ export function previewRunner({ site: described, source, content, adminHost = nu
     const originals = [...source.originals().filter(({ path }) => !named.has(path)), ...unsaved];
     const ledgerFile = join(content, POST_IDS_FILE);
     const ledger = existsSync(ledgerFile) ? JSON.parse(readFileSync(ledgerFile, 'utf8')) : null;
-    const result = intake({ files, site, now: moment, ledger, images: await imagesFor(originals, source.head()), adminHost, preview: [...drafts.keys()] });
+    const result = intake({ files, site, now: moment, ledger, images: await imagesFor(namedOriginals(originals, files), source.head()), adminHost, preview: [...drafts.keys()] });
     writeContent(content, site, result);
     return result;
   };

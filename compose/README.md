@@ -28,6 +28,7 @@ Each volume's data is one of: *authoritative*, the one record of something; *der
 | `site-work` | Derived | The site's code and dependencies for building, checkouts of the source and content repositories, and what the build has learned of who pushed what | Made again at the next start |
 | `site-public` | Derived | The site's releases, and `current`, the one visitors get | Built again at the next start |
 | `build-control` | Derived | The build request, the record of the last build, and the build log | The next build records again; the log starts over |
+| `thumbnails` | Derived | Small pictures of the images an editor chooses among | Each is made again when it is next asked for |
 | `admin-config` | Derived | The editor's generated configuration | Written again at the next start |
 | `preview-work` | Derived | The live preview's copy of the site's code, its dependencies, a checkout of the source and its content folder | Made again at the next start, and the drafts in it are the editors' to send again |
 | `preview-secret` | Secret | The live preview's credential, which can only read the source repository | The seed makes another at the next start |

@@ -10,6 +10,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { isObject } from './checks.js';
 import { publicAddress } from './format/addresses.js';
+import { IMAGE_LIBRARY_FOLDER } from './format/masters.js';
 import { isSiteTitle } from './settings-groups.js';
 import { SEO_PARTS } from './site-description.js';
 
@@ -133,6 +134,17 @@ export function sourceFrom(description, published) {
 
   for (const { path, content } of published) {
     if (path.startsWith('media/')) files.push({ path, content });
+  }
+
+  // The image library starts with what the posts show, each picture once, with the words its first
+  // post has for it.
+  const inLibrary = new Set();
+  for (const { fields: { image } } of posts) {
+    const hash = /-([0-9a-f]{10})\.[a-z]+$/.exec(image?.src ?? '')?.[1];
+    if (!hash || inLibrary.has(hash)) continue;
+    inLibrary.add(hash);
+    const { src, alt } = toMedia(image);
+    files.push({ path: `${IMAGE_LIBRARY_FOLDER}/${idOf(IMAGE_LIBRARY_FOLDER, hash)}.json`, content: `${JSON.stringify({ src, alt }, null, 2)}\n` });
   }
 
   // The page for addresses not found is a post an Admin chooses, of a type with an address.

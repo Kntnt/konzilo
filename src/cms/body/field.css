@@ -107,6 +107,84 @@
   outline: 2px solid var(--crepe-color-primary);
 }
 
+/* An image as the field shows it, small, since the page itself is beside it in the preview. */
+.milkdown .ProseMirror .konzilo-image {
+  margin: 16px 0;
+  padding: 0;
+}
+
+.konzilo-image-picture {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  min-height: 96px;
+  border-radius: 4px;
+  background: var(--crepe-color-surface-low);
+}
+
+.konzilo-image-picture img {
+  display: block;
+  max-width: 100%;
+  max-height: 280px;
+  object-fit: contain;
+}
+
+.konzilo-image-picture:not([data-state='shown']) img {
+  display: none;
+}
+
+.milkdown .ProseMirror .konzilo-image-remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 2px 8px;
+  border: 1px solid var(--crepe-color-outline);
+  border-radius: 4px;
+  background: var(--crepe-color-surface);
+  color: var(--crepe-color-on-surface);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.milkdown .ProseMirror .konzilo-image-caption {
+  margin: 6px 0;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--crepe-color-on-surface-variant);
+}
+
+.milkdown .ProseMirror .konzilo-image-caption.is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.konzilo-image-alt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--crepe-color-on-surface-variant);
+}
+
+.konzilo-image-alt input {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 6px;
+  border: 1px solid var(--crepe-color-outline);
+  border-radius: 4px;
+  background: var(--crepe-color-surface);
+  color: var(--crepe-color-on-surface);
+  font: inherit;
+  font-size: 13px;
+}
+
+.konzilo-image-alt input[aria-invalid='true'] {
+  border-color: #b3261e;
+}
+
 .konzilo-kept-label {
   margin-bottom: 4px;
   font-size: 12px;
@@ -209,4 +287,171 @@
     background: #1c1c1c;
     color: #f0f0f0;
   }
+}
+
+/* The chooser `/image` opens, over the whole page, in Sveltia's light or dark alike. */
+.konzilo-chooser {
+  box-sizing: border-box;
+  width: min(760px, calc(100vw - 32px));
+  max-height: calc(100vh - 64px);
+  padding: 0;
+  border: 1px solid #a8a8a8;
+  border-radius: 8px;
+  background: #fff;
+  color: #1c1c1c;
+  font: 14px/1.4 system-ui, sans-serif;
+}
+
+.konzilo-chooser[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.konzilo-chooser::backdrop {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.konzilo-chooser-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.konzilo-chooser-head h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.konzilo-chooser-body {
+  padding: 12px 16px 16px;
+  overflow: auto;
+}
+
+.konzilo-chooser button {
+  padding: 5px 10px;
+  border: 1px solid #a8a8a8;
+  border-radius: 4px;
+  background: #f5f5f5;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.konzilo-chooser button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.konzilo-chooser input[type='text'],
+.konzilo-chooser input[type='search'] {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid #a8a8a8;
+  border-radius: 4px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+}
+
+.konzilo-chooser-tools {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.konzilo-chooser-status {
+  margin: 4px 0 8px;
+}
+
+.konzilo-chooser-status:empty {
+  display: none;
+}
+
+.konzilo-chooser-status button {
+  margin-left: 8px;
+}
+
+.konzilo-chooser-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.konzilo-chooser-grid li[hidden] {
+  display: none;
+}
+
+.konzilo-chooser .konzilo-chooser-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  padding: 4px;
+  background: #fff;
+  text-align: left;
+}
+
+.konzilo-chooser-item:hover,
+.konzilo-chooser-item:focus-visible {
+  border-color: #1c1c1c;
+}
+
+.konzilo-chooser-item img {
+  display: block;
+  width: 100%;
+  height: 110px;
+  border-radius: 2px;
+  background: #f0f0f0;
+  object-fit: cover;
+}
+
+.konzilo-chooser-item span {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.konzilo-chooser-upload {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.konzilo-chooser-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.konzilo-chooser-row span {
+  flex: none;
+  width: 180px;
+}
+
+.konzilo-chooser-preview {
+  max-width: 100%;
+  max-height: 200px;
+  border-radius: 4px;
+}
+
+.konzilo-chooser-note {
+  margin: 0;
+  color: #8c1d18;
+}
+
+.konzilo-chooser-note:empty {
+  display: none;
 }

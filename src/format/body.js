@@ -1154,7 +1154,7 @@ function escapedText(value, context) {
 
 // What GFM would make a link of itself, split by an empty comment. The reader takes a
 // scheme with a letter right before it for an address as well.
-function splitAutolinks(text) {
+export function splitAutolinks(text) {
   return text
     .replace(/(?<![\p{L}\p{N}])www\./giu, (found) => `${found.slice(0, 3)}${COMMENT}.`)
     .replace(/(https?|ftp):\/\//giu, (_, scheme) => `${scheme}${COMMENT}://`)
@@ -1272,7 +1272,7 @@ const attributeValue = (value, context) => {
   return context.cell ? text.replaceAll('|', '&#124;') : text;
 };
 
-function linkAddress(url, context) {
+export function linkAddress(url, context = {}) {
   let text = url.replaceAll('\\', '\\\\');
   if (context.cell) text = text.replaceAll('|', '\\|');
   if (/[ ()]/.test(url)) return `<${text.replaceAll('<', '\\<').replaceAll('>', '\\>')}>`;
