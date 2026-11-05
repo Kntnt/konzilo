@@ -295,7 +295,7 @@ export function bodyParts(html, names) {
     const close = endOf(html, tag);
     const entry = registry.get(name);
     if (tag.start > from) parts.push(html.slice(from, tag.start));
-    parts.push({ name, attributes: attributesOf(entry, tag.attributes), body: entry.body === 'none' ? null : html.slice(tag.end, close.start) });
+    parts.push({ name, attributes: attributesOf(entry, tag.attributes), body: entry.body === 'none' ? null : html.slice(tag.end, close.start), block: tag.attributes['data-konzilo-block'] ?? null });
     from = at = close.end;
   }
   if (from < html.length) parts.push(html.slice(from));

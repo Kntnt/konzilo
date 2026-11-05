@@ -47,10 +47,13 @@ const lightboxes = {
 ---
 {parts.map((part) => {
   if (typeof part === 'string') return <Fragment set:html={withLightboxes(part, lightboxes)} />;
+  // In the live preview a component keeps the mark of its block, around it, since its own
+  // markup is the site's (block-marks.js).
+  const marked = (rendered) => (part.block === null ? rendered : <div class="konzilo-preview-part" data-konzilo-block={part.block}>{rendered}</div>);
   if (part.list) {
     const { component: Presentation, posts, options, empty, pager } = part.list;
-    return <Presentation posts={posts} options={options} empty={empty} pager={pager} />;
+    return marked(<Presentation posts={posts} options={options} empty={empty} pager={pager} />);
   }
   const Component = components[part.name];
-  return part.body === null ? <Component {...part.attributes} /> : <Component {...part.attributes}><Astro.self html={part.body} post={post} shown={shown} page={page} /></Component>;
+  return marked(part.body === null ? <Component {...part.attributes} /> : <Component {...part.attributes}><Astro.self html={part.body} post={post} shown={shown} page={page} /></Component>);
 })}

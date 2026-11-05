@@ -150,6 +150,19 @@ describe('the live preview', () => {
       await editing.waitFor({ state: 'detached' });
     });
 
+    test('puts the cursor in the field where the page is clicked', async () => {
+      const sentence = frameOf(page).getByText('Words only this draft holds.');
+      await sentence.waitFor({ timeout: ON_THE_PAGE });
+      const box = await sentence.boundingBox();
+      // Just before "only", at about a sixth of the line in the scaled page.
+      await sentence.click({ position: { x: box.width * 0.22, y: box.height / 2 } });
+      await page.waitForFunction(() => document.activeElement?.classList.contains('ProseMirror'));
+      await page.keyboard.type('§', { delay: 30 });
+      const typed = await page.locator('.konzilo-body-visual .ProseMirror').textContent();
+      assert.match(typed, /Words ?§? ?only|Word§s|Words§|W§ords|Wo§rds|§only|o§nly/, typed);
+      await page.keyboard.press('Backspace');
+    });
+
     test('says why it cannot publish a draft, above the last good page', async () => {
       const title = page.getByRole('textbox', { name: 'Title', exact: true });
       await title.fill('');
@@ -324,6 +337,15 @@ describe('the live preview', () => {
           await frameOf(page).locator('main a[href^="/"], header a[href^="/"]').first().click();
           await paneOf(page).getByRole('status').waitFor({ timeout: ON_THE_PAGE });
           assert.equal(await here(), before);
+
+          // A click on the body's text puts the cursor in the field, in that block.
+          const paragraph = frameOf(page).locator('p[data-konzilo-block]').first();
+          const words = (await paragraph.textContent()).trim();
+          const box = await paragraph.boundingBox();
+          await paragraph.click({ position: { x: Math.min(box.width / 3, 120), y: Math.min(box.height / 2, 8) } });
+          await page.waitForFunction(() => document.activeElement?.classList.contains('ProseMirror'), null, { timeout: 10_000 });
+          const inBlock = await page.evaluate(() => window.getSelection().anchorNode?.parentElement?.closest('p, li, h2, h3, h4, h5, h6')?.textContent ?? '');
+          assert.equal(inBlock.trim().slice(0, 40), words.slice(0, 40));
         } finally {
           await session.browser.close();
         }

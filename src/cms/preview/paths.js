@@ -7,3 +7,7 @@ export const DRAFT_PATH = '/_konzilo/preview/draft';
 export const HEALTH_PATH = '/_konzilo/preview/health';
 export const WHERE_PATH = '/_konzilo/preview/where';
 export const STOPPED_MESSAGE = 'konzilo-preview-stopped';
+// What a page in the pane says when a block of its body is clicked, and what the pane tells the
+// body field of it.
+export const PLACE_MESSAGE = 'konzilo-preview-place';
+export const PLACE_EVENT = 'konzilo-preview-place';

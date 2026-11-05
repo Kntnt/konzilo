@@ -34,6 +34,14 @@ Each has a default, and is for a design to set on the root.
 
 A name in angle brackets is filled in by what it stands for. The core's scripts read the `data-konzilo-*` attributes, which a design leaves alone.
 
+### The live preview
+
+In the live preview alone, each block of a body has `data-konzilo-block`, its place among the body's blocks, and a click on it leads to the body field.
+
+| Class | On | State |
+|---|---|---|
+| `.konzilo-preview-part` | What holds a component's mark, with `display: contents` | |
+
 ### Images and galleries in a body
 
 | Class | On | State |

@@ -20,6 +20,11 @@ import { contentFormat, exampleFile, markedExamples } from '../tests/lib/content
 import { everyElement, pageFile, pagePath, pageSource, run, written } from '../tests/lib/intake.js';
 import { ENGINES } from './lib/editor.js';
 import { openFieldPage } from './lib/field-page.js';
+import { JSDOM } from 'jsdom';
+import { markdownToHtml } from 'satteri';
+import { blockMarks } from '../src/astro/block-marks.js';
+import { directiveReader } from '../src/astro/directives.js';
+import { markdownFeatures, markdownHastPlugins } from '../src/astro/reader.js';
 
 const fixturesRoot = fileURLToPath(new URL('../tests/fixtures/', import.meta.url));
 const core = fileURLToPath(new URL('../', import.meta.url));
@@ -88,6 +93,20 @@ function intake(body) {
   return result.refusals.length > 0 ? result.refusals.map((one) => one.message.replace(/, line \d+:/, ':')).join('\n') : written(result)['pages/hello-world.md'];
 }
 
+// Each block of a body as the live preview marks it, with the start of its text as the page's
+// script takes it (src/astro/preview-link.js).
+const NOT_WRITTEN = '[data-footnote-ref], [data-footnote-backref], .sr-only, .konzilo-embed, dialog';
+function previewMarks(body) {
+  const { html } = markdownToHtml(body, { features: markdownFeatures, mdastPlugins: [directiveReader(() => {})], hastPlugins: [...markdownHastPlugins, blockMarks] });
+  const { document, NodeFilter } = new JSDOM(`<body>${html}</body>`).window;
+  return [...document.querySelectorAll('[data-konzilo-block]')].map((element) => {
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    let text = '';
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) if (!node.parentElement.closest(NOT_WRITTEN)) text += node.data;
+    return { block: Number(element.dataset.konziloBlock), count: 0, text: text.replace(/\s+/g, '').slice(0, 200) };
+  });
+}
+
 describe('the body field, alone', () => {
   let site;
   let page;
@@ -120,6 +139,60 @@ describe('the body field, alone', () => {
   // Each test answers for the page errors it raises, not one test for all.
   afterEach(() => {
     assert.deepEqual(seen?.errors.splice(0) ?? [], []);
+  });
+
+  describe('a click in the preview', () => {
+    test('leads each block the preview marks to that block, in every fixture and example', async () => {
+      const missed = [];
+      for (const { name, body } of [...fixtures, ...examples, ...demoBodies]) {
+        if ((await call('open', body)) !== 'editor') continue;
+        for (const mark of previewMarks(body)) {
+          const index = await call('placeIndex', mark);
+          if (index !== mark.block) missed.push(`${name}: block ${mark.block} led to ${index}, ${mark.text.slice(0, 30)}`);
+        }
+      }
+      assert.deepEqual(missed, []);
+    });
+
+    test('puts the cursor at the character clicked, spaces aside', async () => {
+      await call('open', 'One two\n\nThree four five');
+      assert.equal(await call('goTo', { block: 1, count: 5, text: 'Threefourfive' }), true);
+      await page.keyboard.type('X', { delay: KEY_DELAY });
+      await call('flush');
+      assert.equal(await call('value'), 'One two\n\nThree Xfour five');
+    });
+
+    test('finds a block that has moved since the page was made, by its text', async () => {
+      await call('open', 'New\n\nOne two\n\nThree four five');
+      assert.equal(await call('goTo', { block: 1, count: 0, text: 'Threefourfive' }), true);
+      await page.keyboard.type('X', { delay: KEY_DELAY });
+      await call('flush');
+      assert.equal(await call('value'), 'New\n\nOne two\n\nXThree four five');
+    });
+
+    test('does nothing with a block it does not hold', async () => {
+      await call('open', 'One two');
+      assert.equal(await call('goTo', { block: 0, count: 0, text: 'Somethingelse' }), false);
+      assert.equal(await call('goTo', { block: 5, count: 0, text: 'Onetwo' }), true, 'but finds its text where it stands');
+    });
+
+    test('chooses an embed whole, and goes into a list, a table and a caption', async () => {
+      const body = 'One\n\nhttps://vimeo.com/76979871\n\n- First\n- Second item\n\n| A | B |\n| --- | --- |\n| Cell | Other |\n\n![A barn](/media/barn.webp)\\\nThe barn';
+      await call('open', body);
+      assert.equal(await call('goTo', { block: 1, count: 0, text: '' }), true);
+      assert.equal(await page.locator('.konzilo-embed-field.ProseMirror-selectednode').count(), 1);
+      for (const [place, typed, written] of [
+        [{ block: 2, count: 6, text: 'FirstSeconditem' }, 'Z', '- First\n- SZecond item'],
+        [{ block: 3, count: 5, text: 'ABCellOther' }, 'Z', '| CelZl | Other |'],
+        [{ block: 4, count: 3, text: 'Thebarn' }, 'Z', 'The Zbarn'],
+      ]) {
+        await call('open', body);
+        assert.equal(await call('goTo', place), true, JSON.stringify(place));
+        await page.keyboard.type(typed, { delay: KEY_DELAY });
+        await call('flush');
+        assert.ok((await call('value')).includes(written), `${written} in ${await call('value')}`);
+      }
+    });
   });
 
   describe('every fixture and example', () => {

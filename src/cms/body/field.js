@@ -6,6 +6,7 @@
 // field opens it as Markdown and says why. If the reader did not load, nothing can prove a
 // rewrite safe, so only a value the editor writes back to the byte opens in the editor.
 
+import { PLACE_EVENT } from '../preview/paths.js';
 import { changeBetween, handsFor, loadReader } from './check.js';
 import { chooseImage } from './chooser.js';
 import { makeEditor } from './crepe.js';
@@ -232,15 +233,24 @@ export function mountBodyField(host, { value: given, changed, elements, forms, a
       return editor?.view ?? null;
     },
     command: (name) => editor?.run(name),
+    goTo: (place) => mode === 'editor' && editor !== null && editor.goTo(place),
     frame,
     destroy() {
       flush();
       gone = true;
+      globalThis.removeEventListener(PLACE_EVENT, placed);
       fieldClosed(field);
       closeEditor();
       frame.remove();
     },
   };
+  // A click on the preview's page, for whichever field holds that block: on a site in several
+  // languages, the one whose text it is.
+  const placed = ({ detail }) => {
+    if (!frame.isConnected) return;
+    field.goTo(detail);
+  };
+  globalThis.addEventListener(PLACE_EVENT, placed);
   fieldOpened(field);
   field.ready = openEditor();
   return field;

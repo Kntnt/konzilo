@@ -8,6 +8,11 @@
 
    The selectors name the element, to stand above what a site says of a body's figures and lists. */
 
+/* In the live preview, what holds a component's mark, with no box of its own. */
+.konzilo-preview-part {
+  display: contents;
+}
+
 html:has(dialog.konzilo-modal:modal) {
   overflow: hidden;
 }
