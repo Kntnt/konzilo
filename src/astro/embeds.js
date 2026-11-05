@@ -15,6 +15,9 @@
 // Which addresses a service takes, and the player each one gives, is the
 // rule data's (format/rules.json, `embeds`), read with embedOf().
 
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { embedOf } from '../format/embeds.js';
 import rules from '../format/rules.json' with { type: 'json' };
 import { inLanguage } from '../texts.js';
@@ -122,6 +125,19 @@ function fileLanguage(fileURL, languages) {
 // focus to the player of the panel pressed. A panel of a service with no
 // such template keeps its link alone. It runs in the visitor's browser, so
 // it uses nothing from this module.
+// The pages of a built site with an embed and nothing to ask for consent with, whose visitors get
+// its bare address: the question stands in ConsentBanner.astro, which a site's layout places.
+export function pagesWithBareEmbeds(dir) {
+  const release = fileURLToPath(dir);
+  return readdirSync(release, { recursive: true })
+    .filter((path) => path.endsWith('.html'))
+    .filter((path) => {
+      const html = readFileSync(join(release, path), 'utf8');
+      return html.includes('class="konzilo-embed"') && !html.includes('data-konzilo-consent-placeholder');
+    })
+    .sort();
+}
+
 export function embedPanels() {
   const consent = window.konziloConsent;
   const asks = new Map([...document.querySelectorAll('[data-konzilo-consent] > template[data-konzilo-consent-placeholder]')]

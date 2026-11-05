@@ -79,7 +79,7 @@
 import { existsSync, mkdirSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { STOPPED_MESSAGE } from '../cms/preview/paths.js';
+import { PLACE_MESSAGE, STOPPED_MESSAGE } from '../cms/preview/paths.js';
 import { searchPages } from '../format/addresses.js';
 import { declaredProblem, readPostList } from '../format/post-list.js';
 import { CONSENT_STORAGE } from '../format/consent.js';
@@ -90,10 +90,12 @@ import { bodyStylesOf, pageImports } from './body-styles.js';
 import { contentFolder } from './collections.js';
 import { CONSENT_RECORDS, consentClient } from './consent.js';
 import { cookieDeclaration } from './cookie-declaration.js';
-import { datawrapperHeights, embedPanels } from './embeds.js';
+import { datawrapperHeights, embedPanels, pagesWithBareEmbeds } from './embeds.js';
 import { lightboxClient } from './lightbox.js';
 import { resolvedColors, tokensOf } from './theme-tokens.js';
+import { blockMarks } from './block-marks.js';
 import { previewGuard } from './preview-guard.js';
+import { previewLink } from './preview-link.js';
 import { isLivePreview, isPublicBuild, origin } from './public-site.js';
 import { pageTagManager, tagManagerClient } from './tag-manager.js';
 import { registry } from './directives.js';
@@ -471,6 +473,9 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
         // An embed's panel says in the site's language, its post's on a site
         // in several, that the site's script has not run, until it runs.
         processor.options.hastPlugins.push(...markdownHastPluginsIn(described?.language ?? null, languages));
+        // In the live preview, each block of a body says which it is, so that a click on it leads
+        // to the field.
+        if (isLivePreview()) processor.options.hastPlugins.push(blockMarks);
         // The core's texts the site gives its own of, in each language.
         const shown = siteTexts(languages, ownTexts, { emptyList, forms: ownFormTexts });
         for (const warning of shown.warnings) logger.warn(warning);
@@ -497,7 +502,7 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
         }
 
         // A page in the live preview's pane stays there, whatever it tries.
-        if (isLivePreview()) injectScript('head-inline', `(${previewGuard})(${JSON.stringify(STOPPED_MESSAGE)});`);
+        if (isLivePreview()) injectScript('head-inline', `(${previewGuard})(${JSON.stringify(STOPPED_MESSAGE)});\n(${previewLink})(${JSON.stringify(PLACE_MESSAGE)});`);
 
         // Every page loads the body styles.
         if (body !== null) injectScript('page-ssr', pageImports(body));
@@ -563,6 +568,8 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
       },
       'astro:build:done': async ({ dir, pages: built, logger }) => {
         refuseReservedPages(dir);
+        const bare = pagesWithBareEmbeds(dir);
+        if (bare.length > 0) logger.warn(`${bare.length} page(s) with an embed, such as ${bare[0]}, have no ConsentBanner in their layout, so a visitor gets the embed's bare address: place Konzilo's ConsentBanner.astro in the layout`);
         // Each language's 404 page where the web server, the preview and
         // the dev server look for it.
         moveNotFoundPages(fileURLToPath(dir), languages);

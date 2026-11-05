@@ -88,7 +88,7 @@ services:
         NODE_DIGEST: ${NODE_DIGEST}
         CADDY: ${CADDY}
         CADDY_DIGEST: ${CADDY_DIGEST}
-    image: konzilo-web:local
+    image: konzilo-web:${KONZILO_SITE}
     # Takes a new release's headers and redirects by itself, since nothing else may reach it.
     command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile", "--watch"]
     depends_on:
@@ -133,7 +133,7 @@ services:
       args:
         NODE: ${NODE_RELEASE}
         NODE_DIGEST: ${NODE_DIGEST}
-    image: konzilo-builder:local
+    image: konzilo-builder:${KONZILO_SITE}
     depends_on:
       web: { condition: service_started }
     network_mode: service:web
@@ -162,7 +162,7 @@ services:
   builder:
     <<: *hardened
     build: *builder
-    image: konzilo-builder:local
+    image: konzilo-builder:${KONZILO_SITE}
     init: true
     depends_on:
       seed: { condition: service_completed_successfully }
@@ -201,7 +201,7 @@ services:
   editors:
     <<: *hardened
     build: *builder
-    image: konzilo-builder:local
+    image: konzilo-builder:${KONZILO_SITE}
     init: true
     depends_on:
       seed: { condition: service_completed_successfully }
@@ -229,7 +229,7 @@ services:
   preview:
     <<: *hardened
     build: *builder
-    image: konzilo-builder:local
+    image: konzilo-builder:${KONZILO_SITE}
     init: true
     depends_on:
       seed: { condition: service_completed_successfully }
@@ -260,7 +260,7 @@ services:
   code:
     <<: *hardened
     build: *builder
-    image: konzilo-builder:local
+    image: konzilo-builder:${KONZILO_SITE}
     profiles: [tools]
     network_mode: none
     command: ["node", "/konzilo/bin/konzilo-code.js"]

@@ -6,6 +6,7 @@ import { undo } from '@milkdown/kit/prose/history';
 import { Selection, TextSelection } from '@milkdown/kit/prose/state';
 
 import { handsFor, loadReader } from '../../../src/cms/body/check.js';
+import { selectionAt } from '../../../src/cms/body/place.js';
 import { mountBodyField } from '../../../src/cms/body/field.js';
 import { checkBody } from '../../../src/format/body.js';
 
@@ -216,6 +217,12 @@ globalThis.fieldPage = {
     });
     return found;
   },
+  // The block a place from the preview leads to, or null.
+  placeIndex(place) {
+    const selection = selectionAt(viewOf().state.doc, place);
+    return selection ? selection.$from.index(0) : null;
+  },
+  goTo: (place) => current().field.goTo(place),
   embeds() {
     const found = [];
     viewOf().state.doc.forEach((node) => {

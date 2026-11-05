@@ -52,7 +52,7 @@ describe('the dev server', () => {
     const { server, children } = made();
     await server.ensure();
     const { args, options } = children[0].call;
-    assert.deepEqual(args, ['node_modules/.bin/astro', 'dev', '--host', '127.0.0.1', '--port', '4001']);
+    assert.deepEqual(args, ['node_modules/.bin/astro', 'dev', '--host', '127.0.0.1', '--port', '4001', '--ignore-lock']);
     assert.equal(options.cwd, '/site');
     assert.deepEqual(options.env, { PATH: '/bin', KONZILO_PREVIEW: '1' });
     server.stop();

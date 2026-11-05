@@ -118,6 +118,7 @@ import {
   toggleSuperscript,
 } from './nodes.js';
 import { captionLine, inCell, oneLine, reducedText, reducePasted } from './paste.js';
+import { selectionAt } from './place.js';
 import { say } from './texts.js';
 
 const ICON = (body) => `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">${body}</svg>`;
@@ -366,6 +367,16 @@ export async function makeEditor({ root, value, elements, changed, images = null
     write: () => editor.action((ctx) => ctx.get(serializerCtx)(ctx.get(editorViewCtx).state.doc)).replace(/\n+$/, ''),
     view: editor.action((ctx) => ctx.get(editorViewCtx)),
     run: (command) => editor.action((ctx) => ctx.get(commandsCtx).call(command)),
+    // The cursor where a click in the preview's page was (place.js): false where it is no block of
+    // this editor's.
+    goTo(place) {
+      const view = editor.action((ctx) => ctx.get(editorViewCtx));
+      const selection = selectionAt(view.state.doc, place);
+      if (!selection) return false;
+      view.focus();
+      view.dispatch(view.state.tr.setSelection(selection).scrollIntoView());
+      return true;
+    },
     destroy: () => crepe.destroy(),
   };
 }

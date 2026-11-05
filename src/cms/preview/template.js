@@ -8,7 +8,7 @@ import { say } from '../body/texts.js';
 import { signedInCredential } from '../credential.js';
 import { previewClient } from './client.js';
 import { draftOf } from './draft.js';
-import { STOPPED_MESSAGE } from './paths.js';
+import { PLACE_EVENT, PLACE_MESSAGE, STOPPED_MESSAGE } from './paths.js';
 
 const WIDTH = 1280;
 // A page in the frame may run scripts and send forms, and do nothing to the editor around it.
@@ -51,7 +51,12 @@ export function previewTemplate({ origin, several, credential = signedInCredenti
     // Only the page in this frame, from where it is served, has anything to say here.
     React.useEffect(() => {
       const heard = ({ origin: from, source, data }) => {
-        if (from === origin && source === shown.current?.contentWindow && data?.type === STOPPED_MESSAGE) client.current.stopped(data);
+        if (from !== origin || source !== shown.current?.contentWindow) return;
+        if (data?.type === STOPPED_MESSAGE) client.current.stopped(data);
+        // A click on a block of the body, for the body field to put the cursor there.
+        if (data?.type === PLACE_MESSAGE && Number.isInteger(data.block) && data.block >= 0 && Number.isInteger(data.count) && data.count >= 0 && typeof data.text === 'string') {
+          globalThis.dispatchEvent(new CustomEvent(PLACE_EVENT, { detail: { block: data.block, count: data.count, text: data.text.slice(0, 200) } }));
+        }
       };
       paneWindow.addEventListener('message', heard);
       return () => paneWindow.removeEventListener('message', heard);
