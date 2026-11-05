@@ -87,9 +87,13 @@ describe('the live preview', () => {
     });
 
     test('shows what is typed, after a pause, and keeps the scroll position', async () => {
+      const title = page.getByRole('textbox', { name: 'Title', exact: true });
+      // The draft the pane sends on opening reloads the page once, at a moment of its own. A first
+      // change shows when that has passed.
+      await title.fill(`${POST}, at first`);
+      await frameOf(page).getByRole('heading', { level: 1, name: `${POST}, at first` }).waitFor({ timeout: ON_THE_PAGE });
       await frameOf(page).locator('html').evaluate(() => window.scrollTo(0, 200));
       const scrolled = await frameOf(page).locator('html').evaluate(() => window.scrollY);
-      const title = page.getByRole('textbox', { name: 'Title', exact: true });
       await title.fill(`${POST}, changed`);
       await frameOf(page).getByRole('heading', { level: 1, name: `${POST}, changed` }).waitFor({ timeout: ON_THE_PAGE });
       assert.equal(await frameOf(page).locator('html').evaluate(() => window.scrollY), scrolled);
