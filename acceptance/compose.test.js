@@ -406,9 +406,10 @@ describe('a site in Compose', () => {
       test('chooses an image from the library with its texts, changes them in the post alone, and a visitor sees it', async () => {
         const { page } = session;
         const title = `A title saved in ${engine}`;
-        // Two pictures can be described alike, and a person tells them apart by looking.
+        // Two pictures can be described alike, and a person tells them apart by looking. An engine
+        // before this one has uploaded an entry with a caption, which what is typed here would join.
         const entries = await libraryEntries();
-        const entry = entries.find(({ alt }) => entries.filter((other) => other.alt === alt).length === 1);
+        const entry = entries.find(({ alt, caption }) => !caption && entries.filter((other) => other.alt === alt).length === 1);
         await page.getByText(title).first().click();
         const chooser = await openChooser(page);
         const choice = chooser.getByRole('button', { name: entry.alt, exact: true });
@@ -433,7 +434,8 @@ describe('a site in Compose', () => {
 
         const saved = await fileNamed('articles', title);
         const written = `![${own.replaceAll('_', '\\_')}](${entry.src})\\\nA caption in ${engine}`;
-        assert.ok((await waitForFile(page, saved.path, (text) => text.includes(written))).includes(written));
+        const inTheFile = await waitForFile(page, saved.path, (text) => text.includes(written));
+        assert.ok(inTheFile.includes(written), `${written}\nis not in\n${inTheFile}`);
         assert.deepEqual((await libraryEntries()).find(({ place }) => place === entry.place), entry, 'the library keeps its own texts');
         const shown = await onTheSite(addressOf(saved.text), `A caption in ${engine}`);
         const figure = new RegExp(`<figure>\\s*<img[^>]*alt="${own}"[^>]*>\\s*<figcaption>A caption in ${engine}</figcaption>\\s*</figure>`);
