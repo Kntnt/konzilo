@@ -218,6 +218,9 @@ function formsModule(described) {
   };
 }
 
+// A component as a site names it: a path from its root, or a package's by its name.
+const componentAt = (root, name) => (name.startsWith('.') ? resolve(root, name) : name);
+
 // The module Body.astro takes the site's components from: each component
 // the site gives a directive, by the directive's name.
 const COMPONENTS = 'virtual:konzilo/directives';
@@ -225,7 +228,7 @@ const COMPONENTS = 'virtual:konzilo/directives';
 function directiveComponents(root, directives) {
   const names = Object.keys(directives);
   const code = [
-    ...names.map((name, i) => `import C${i} from ${JSON.stringify(resolve(root, directives[name]))};`),
+    ...names.map((name, i) => `import C${i} from ${JSON.stringify(componentAt(root, directives[name]))};`),
     `export default { ${names.map((name, i) => `${JSON.stringify(name)}: C${i}`).join(', ')} };`,
   ].join('\n');
   return {
@@ -272,7 +275,7 @@ function postListModule(root, components, described) {
     locale: described?.language ? described.language.replace('_', '-') : undefined,
   };
   const code = [
-    ...names.map((name, i) => `import P${i} from ${JSON.stringify(resolve(root, components[name]))};`),
+    ...names.map((name, i) => `import P${i} from ${JSON.stringify(componentAt(root, components[name]))};`),
     `export const presentations = { ${names.map((name, i) => `${JSON.stringify(name)}: P${i}`).join(', ')} };`,
     `export const site = ${JSON.stringify(site)};`,
   ].join('\n');
@@ -345,7 +348,8 @@ function checkPresentations(described, components) {
 //
 // `directives`: the site's own component for a directive the rule data
 // registers, by the directive's name, as a path from the site's
-// root (`{ form: './src/components/Form.astro' }`). The site's templates
+// root (`{ form: './src/components/Form.astro' }`), or a package's by its
+// name, as every component of a site's may be. The site's templates
 // render a post's body as `<Body><Content /></Body>` (Body.astro), which
 // puts each in place of the directive's plain rendering.
 // `presentations`: the site's component for each presentation its site
@@ -441,7 +445,7 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
           if (typeof searchPage !== 'string') {
             throw new Error(`Konzilo: the site description declares a search page at ${described.search.address}, which the site's design does not give in konzilo({ searchPage })`);
           }
-          for (const address of search) injectRoute({ pattern: address.replace(/\/$/, ''), entrypoint: resolve(fileURLToPath(config.root), searchPage), prerender: true });
+          for (const address of search) injectRoute({ pattern: address.replace(/\/$/, ''), entrypoint: componentAt(fileURLToPath(config.root), searchPage), prerender: true });
         }
         // The 404 page of each language, on a site in several, from the
         // site's own, where it has one.
@@ -455,7 +459,7 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
           if (typeof termPage !== 'string') {
             throw new Error(`Konzilo: the site description gives the terms of ${taxonomy.name} pages at ${taxonomy.address}, which the site's design does not give in konzilo({ termPage })`);
           }
-          injectRoute({ pattern: termRoute(taxonomy.address), entrypoint: resolve(fileURLToPath(config.root), termPage), prerender: true });
+          injectRoute({ pattern: termRoute(taxonomy.address), entrypoint: componentAt(fileURLToPath(config.root), termPage), prerender: true });
         }
         const lists = described ? postListModel(described) : null;
         const leaveOut = lists ? declaredChecks(declaredNames(described)) : {};

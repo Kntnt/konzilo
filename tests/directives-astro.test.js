@@ -10,7 +10,7 @@
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, test } from 'node:test';
@@ -77,7 +77,11 @@ const body = [
 function build(files, directives = {}) {
   const repository = mkdtempSync(join(tmpdir(), 'konzilo-directives-'));
   repositories.push(repository);
-  symlinkSync(join(core.root, 'node_modules'), join(repository, 'node_modules'));
+  // The core's dependencies, each on its own, for a package of the site's to stand among them.
+  mkdirSync(join(repository, 'node_modules'));
+  for (const entry of readdirSync(join(core.root, 'node_modules'))) {
+    if (!entry.startsWith('.')) symlinkSync(join(core.root, 'node_modules', entry), join(repository, 'node_modules', entry));
+  }
   const write = (path, contents) => {
     mkdirSync(dirname(join(repository, path)), { recursive: true });
     writeFileSync(join(repository, path), contents);
@@ -102,6 +106,17 @@ describe('Astro', () => {
       '<aside class="site-note"><b>Mind the gap</b><p>Inside at 10:30</p><mark class="site-badge">In, undefined, false, info</mark></aside>',
       '<div data-directive="callout" data-tone="warning">Read <strong>this</strong></div>',
     ].join(''));
+  });
+
+  test('takes a component from a package, by the package\'s name', () => {
+    const built = build({
+      'node_modules/@acme/design/package.json': JSON.stringify({ name: '@acme/design', version: '1.0.0', type: 'module', exports: { './*.astro': './*.astro' }, peerDependencies: { astro: '*' } }),
+      'node_modules/@acme/design/Badge.astro': '---\nconst { label } = Astro.props;\n---\n<mark class="package-badge">{label}</mark>\n',
+      'package.json': JSON.stringify({ name: 'a-site', dependencies: { '@acme/design': '1.0.0' } }),
+      'content/articles/hello-world.md': post('::badge{label="New"}'),
+    }, { badge: '@acme/design/Badge.astro' });
+    assert.equal(built.status, 0, built.output);
+    assert.match(built.article('hello-world'), /<mark class="package-badge">New<\/mark>/);
   });
 
   test('renders every directive as its plain rendering when the site gives no component', () => {

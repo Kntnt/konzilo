@@ -68,6 +68,16 @@ const sources = {
     '<Site><h1>{entry.data.title}</h1><Content /></Site>',
     '',
   ].join('\n'),
+  'src/pages/split-footer.astro': [
+    '---',
+    "import ConsentControls from '@kntnt/konzilo/astro/ConsentControls.astro';",
+    '---',
+    '<html lang="en-GB"><head><title>A footer</title></head><body><main><p>Words</p></main><footer>',
+    '<div id="links"><ConsentControls buttons={false} /></div>',
+    '<div id="buttons"><ConsentControls links={false} /></div>',
+    '</footer></body></html>',
+    '',
+  ].join('\n'),
 };
 
 const videos = post({
@@ -309,6 +319,21 @@ describe('a page of a site in sv_SE, whose Admin wrote the banner\'s title', () 
     click(visited, 'reject');
     assert.equal(endpoint.sent[0].record.language, 'sv-SE');
   });
+});
+
+test('the footer\'s controls can stand apart, the policies in one place and the buttons in another', () => {
+  const site = build({});
+  try {
+    const page = site.page('split-footer');
+    const links = page.querySelector('#links');
+    const buttons = page.querySelector('#buttons');
+    assert.deepEqual([...links.querySelectorAll('.konzilo-consent-policies a')].map(({ textContent }) => textContent), ['Privacy policy', 'Cookie policy']);
+    assert.equal(links.querySelector('[data-konzilo-consent-action]'), null);
+    assert.deepEqual([...buttons.querySelectorAll('[data-konzilo-consent-action]')].map(({ dataset }) => dataset.konziloConsentAction), ['change', 'withdraw']);
+    assert.equal(buttons.querySelector('.konzilo-consent-policies'), null);
+  } finally {
+    rmSync(site.repository, { recursive: true, force: true });
+  }
 });
 
 // A visit to a built page under jsdom, at its address on the public host:

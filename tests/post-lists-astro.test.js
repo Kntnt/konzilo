@@ -11,7 +11,7 @@
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, test } from 'node:test';
@@ -147,7 +147,11 @@ const content = {
 function build(files, options) {
   const repository = mkdtempSync(join(tmpdir(), 'konzilo-post-lists-'));
   repositories.push(repository);
-  symlinkSync(join(core, 'node_modules'), join(repository, 'node_modules'));
+  // The core's dependencies, each on its own, for a package of the site's to stand among them.
+  mkdirSync(join(repository, 'node_modules'));
+  for (const entry of readdirSync(join(core, 'node_modules'))) {
+    if (!entry.startsWith('.')) symlinkSync(join(core, 'node_modules', entry), join(repository, 'node_modules', entry));
+  }
   const write = (path, contents) => {
     mkdirSync(dirname(join(repository, path)), { recursive: true });
     writeFileSync(join(repository, path), contents);
@@ -191,6 +195,16 @@ describe('Astro', () => {
   test("gives a site's template the posts a list's settings name, the related posts of an article among them", () => {
     assert.equal(built.status, 0, built.output);
     assert.equal(built.aside('alpha'), 'Echo /echo/, Delta /delta/');
+  });
+
+  test('takes a presentation from a package, by the package\'s name', () => {
+    const fromPackage = build({
+      'node_modules/@acme/design/package.json': JSON.stringify({ name: '@acme/design', version: '1.0.0', type: 'module', exports: { './*.astro': './*.astro' }, peerDependencies: { astro: '*' } }),
+      'node_modules/@acme/design/Cards.astro': components['src/components/Cards.astro'],
+      'package.json': JSON.stringify({ name: 'a-site', dependencies: { '@acme/design': '1.0.0' } }),
+    }, { presentations: { list: presentations.list, cards: '@acme/design/Cards.astro' }, emptyList: 'Nothing here yet.' });
+    assert.equal(fromPackage.status, 0, fromPackage.output);
+    assert.equal(fromPackage.main('pages/start'), built.main('pages/start'));
   });
 
   test('fails the build of a site description that declares a presentation the design does not register, naming it', () => {
