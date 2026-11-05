@@ -127,10 +127,18 @@ describe('the live preview', () => {
       await chooser.getByRole('textbox', { name: 'Alt text' }).fill('Uploaded this moment');
       await chooser.getByRole('button', { name: 'Upload and use' }).click();
       await chooser.waitFor({ state: 'detached', timeout: 30_000 });
-      const shown = frameOf(page).locator('figure img[alt="Uploaded this moment"]');
+      const shown = frameOf(page).locator('figure img[alt="Uploaded this moment"]').first();
       await shown.waitFor({ timeout: ON_THE_PAGE });
       assert.equal(await shown.evaluate((image) => image.decode().then(() => image.naturalWidth > 0)), true);
       assert.equal(await paneOf(page).getByRole('alert').count(), 0);
+
+      // Its lightbox opens in the pane, and Escape there closes that, not the form.
+      await shown.click();
+      const large = frameOf(page).locator('dialog.konzilo-lightbox[open]');
+      await large.waitFor();
+      await page.keyboard.press('Escape');
+      await large.waitFor({ state: 'hidden' });
+      assert.equal(await page.locator('.konzilo-body-visual').count(), 1);
       await page.locator('.konzilo-image').last().getByRole('button', { name: 'Edit the image' }).click();
       const editing = page.getByRole('dialog', { name: 'Edit the image' });
       await editing.getByRole('button', { name: 'Remove the image' }).click();

@@ -307,7 +307,7 @@ const RAW = new Set(['script', 'style', 'textarea', 'title']);
 
 // The next tag from `at`: { start, end, name, closing, void, attributes },
 // its attributes by name with their values decoded; null after the last.
-function nextTag(html, at) {
+export function nextTag(html, at) {
   for (let i = html.indexOf('<', at); i !== -1; i = html.indexOf('<', i + 1)) {
     if (html.startsWith('<!--', i)) {
       const end = html.indexOf('-->', i + 4);
@@ -354,7 +354,7 @@ function nextTag(html, at) {
 }
 
 // Where the element a start tag opens ends: { start, end } of its end tag.
-function endOf(html, open) {
+export function endOf(html, open) {
   let depth = 1;
   let at = open.end;
   for (;;) {

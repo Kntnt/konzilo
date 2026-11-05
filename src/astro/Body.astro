@@ -14,7 +14,8 @@
 // rendered here again, so that a directive in a container's body gets its
 // component too. The lists are evaluated in the body's order, before any is
 // rendered, so that each leaves out the posts the lists above it showed. A
-// body without such a directive comes out as Content renders it.
+// body without such a directive comes out as Content renders it, but for each image's lightbox
+// (lightbox.js), which is the page's and no part of the body's own HTML.
 //
 // `page`: the page of the post shown, from 1, as the site's route has it
 // from postPages() (post-lists.js): the one list with pages of its own shows
@@ -23,8 +24,11 @@
 //
 //   <Body post={entry} page={page}><Content /></Body>
 import components from 'virtual:konzilo/directives';
+import './modal.css';
 import { bodyParts } from './directives.js';
+import { withLightboxes } from './lightbox.js';
 import { postList, shownOnPage } from './post-lists.js';
+import { publicSite } from './public-site.js';
 
 const LIST = 'post-list';
 const { html = await Astro.slots.render('default'), post, shown = shownOnPage(), page = 1 } = Astro.props;
@@ -32,9 +36,17 @@ const parts = bodyParts(html, [...Object.keys(components), LIST]);
 for (const part of parts) {
   if (typeof part !== 'string' && part.name === LIST) part.list = await postList(part.attributes, { post, shown, page });
 }
+// A number for each dialog on the page, however many bodies it renders.
+const lightboxes = {
+  locale: publicSite(Astro.url).locale,
+  next: () => {
+    Astro.locals.konziloDialogs = (Astro.locals.konziloDialogs ?? 0) + 1;
+    return Astro.locals.konziloDialogs;
+  },
+};
 ---
 {parts.map((part) => {
-  if (typeof part === 'string') return <Fragment set:html={part} />;
+  if (typeof part === 'string') return <Fragment set:html={withLightboxes(part, lightboxes)} />;
   if (part.list) {
     const { component: Presentation, posts, options, empty, pager } = part.list;
     return <Presentation posts={posts} options={options} empty={empty} pager={pager} />;

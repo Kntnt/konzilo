@@ -91,6 +91,7 @@ import { contentFolder } from './collections.js';
 import { CONSENT_RECORDS, consentClient } from './consent.js';
 import { cookieDeclaration } from './cookie-declaration.js';
 import { datawrapperHeights, embedPanels } from './embeds.js';
+import { lightboxClient } from './lightbox.js';
 import { resolvedColors, tokensOf } from './theme-tokens.js';
 import { previewGuard } from './preview-guard.js';
 import { isLivePreview, isPublicBuild, origin } from './public-site.js';
@@ -484,7 +485,7 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
         // customer's domain alone, from the settings and the
         // registry the export left in the content folder.
         const tagManager = pageTagManager({ command, base: config.base, folder: resolve(fileURLToPath(config.root), contentFolder()), languages });
-        injectScript('page', `(${consentClient})(${JSON.stringify(client)});\n(${tagManagerClient})(${JSON.stringify(tagManager)});\n(${cookieDeclaration})();\n(${embedPanels})();\n(${datawrapperHeights})();\n(${formClient})();`);
+        injectScript('page', `(${consentClient})(${JSON.stringify(client)});\n(${tagManagerClient})(${JSON.stringify(tagManager)});\n(${cookieDeclaration})();\n(${embedPanels})();\n(${datawrapperHeights})();\n(${formClient})();\n(${lightboxClient})();`);
         if (config.image.service.entrypoint === ASTROS_IMAGE_SERVICE) {
           updateConfig({ image: { service: { entrypoint: IMAGE_SERVICE, config: config.image.service.config } } });
         }

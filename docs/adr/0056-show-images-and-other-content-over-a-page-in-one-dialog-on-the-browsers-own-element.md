@@ -6,10 +6,11 @@
 
 - **One shell.** All that is shown over a page stands in a `<dialog>` of the class `konzilo-modal`, opened as a modal, with a button to close it. What differs between uses is what it holds and a few custom properties: the overlay's colour, for one.
 - **Lightbox is its first use.** Every image in a post's body opens in one, with nothing for an editor to choose and nothing in the content format. A gallery steps through its images; a single image is a gallery of one, with no arrows to step with.
-- **The markup is written when a page is built, by `Body.astro`,** not into the body's HTML, which feeds and Markdown alternates read, and which holds plain elements (ADR 0030). An image's button and a dialog are in the page alone.
+- **The markup is written when a page is built, by `Body.astro`,** not into the body's HTML, which holds plain elements (ADR 0030), and which a feed reads. A Markdown alternate reads the page, and leaves a dialog out, as it does a template. Only what is added is new: every other byte of a body stays as it was.
+- **A gallery's own caption stays on the page,** and each image's own caption goes with it into the dialog, since the picture is to have the room.
 - **HTML and CSS do what they can.** A button opens and closes the dialog with `commandfor` and `command`, and the browser gives the overlay, the locked background, the kept focus, Escape and the focus's way back. The images stand in a strip that snaps, so the arrow keys step through it, a finger swipes it, and a picture is fetched when it is about to show, by `loading="lazy"`. A picture's place, "2 of 3", is written at the build.
-- **JavaScript does what they cannot,** in the integration's page script: opening at the image clicked, the arrow buttons, closing at a click on the bare overlay, and opening in a browser without `commandfor`. Without JavaScript, or in an older browser with none of that, an image stays where it is on the page, as it would without any of this.
-- **The shell's structure is the core's, its look the design's.** The stylesheet that makes the strip snap belongs with the markup, or the keys would not step. Colours and sizes are custom properties with defaults, for a site's design to set.
+- **JavaScript does what they cannot,** in the integration's page script: opening at the image clicked, the arrow buttons, which of them there is any use for, and closing at a click on the bare overlay. It takes the opening from the browser wherever it runs, so a browser too old to know `commandfor` goes the same way. Without JavaScript the dialog opens at a gallery's first image, with no arrow buttons, and the keys and a finger still step. In an older browser without JavaScript an image stays where it is on the page.
+- **The shell's structure is the core's, its look the design's.** The stylesheet that makes the strip snap belongs with the markup, or the keys would not step, so `Body.astro` brings it, to every page with a body. The overlay, the words over it and its buttons' background are custom properties with defaults, for a site's design to set on the root.
 - **The field's own dialogs are not this shell.** They are the editor's, in the editor's look, and share the browser's element and nothing else.
 
 ## Why
@@ -40,10 +41,15 @@
 Tried on a throwaway page in Playwright's Chromium 156, Firefox 157 and WebKit 27.2, without a line of script for any of this:
 
 - A button with `command="show-modal"` opens the dialog, with `html:has(dialog:modal)` locking the background and `::backdrop` at 90 % black.
-- An `autofocus` on the strip puts the focus there, and each press of an arrow key moves exactly one picture, in all three.
+- With the focus on the strip, each press of an arrow key moves exactly one picture, in all three. An `autofocus` puts it there, and Chromium complains of that attribute in a frame from elsewhere, as a preview is. A dialog gives the focus to the first thing that takes it, so the strip stands first in the markup and has none.
 - No large picture is asked for before the dialog opens, and two when it opens, the one shown and the next.
 - A custom command, `--next`, reaches a listener on the strip.
 - Escape closes it. The focus returns to the button in Chromium and Firefox. WebKit does not focus a button at a click, so there it returns to the page.
 - A dialog that fills the screen has no bare backdrop left to click, so `closedby="any"` closes nothing in the lightbox, and the script does that.
 
-Not yet tried: real Safari, a phone, a finger's swipe and a screen reader.
+On a real page, in the three engines against Compose: opening at the image clicked, the keys, the arrow buttons, Escape, a click on the bare overlay, a single image without arrows, and the same in a preview's pane, where Escape closes the dialog and leaves the form.
+
+- Astro bundles the stylesheet with the page's own, so it adds no inline style to the policy.
+- Playwright's screenshots inject a style, which WebKit's policy refuses and the others' do not, so a test on a page with a policy takes none.
+
+Not yet tried: real Safari, a real phone, a finger's swipe and a screen reader.

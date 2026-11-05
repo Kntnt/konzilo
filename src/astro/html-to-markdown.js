@@ -1,8 +1,8 @@
 // A built page's main content as Markdown, for its Markdown alternate.
 //
 // The page's main content is its one <main>, or the one element its design
-// marks with `data-konzilo-main`. Inside it, nav, script, style and template are
-// left out, and an embed's panel becomes the link to its address that it holds.
+// marks with `data-konzilo-main`. Inside it, dialog, nav, script, style and template
+// are left out, and an embed's panel becomes the link to its address that it holds.
 // The front matter comes as the build wrote it, then the page's title as a
 // heading, unless the body begins with it, then the body. Every relative link
 // and image is written from the page's canonical address.
@@ -12,7 +12,7 @@ import { htmlToHast } from 'satteri';
 // The mark of the element that holds a page's main content.
 export const MAIN_MARK = 'data-konzilo-main';
 
-const LEFT_OUT = new Set(['nav', 'script', 'style', 'template']);
+const LEFT_OUT = new Set(['dialog', 'nav', 'script', 'style', 'template']);
 const HEADINGS = { h1: 1, h2: 2, h3: 3, h4: 4, h5: 5, h6: 6 };
 const INLINE = new Set(['a', 'abbr', 'b', 'bdi', 'bdo', 'br', 'cite', 'code', 'data', 'del', 'dfn', 'em', 'i', 'img', 'ins', 'kbd', 'mark', 'q', 's', 'samp', 'small', 'span', 'strike', 'strong', 'sub', 'sup', 'time', 'u', 'var', 'wbr']);
 
