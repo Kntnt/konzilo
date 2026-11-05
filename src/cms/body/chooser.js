@@ -3,39 +3,13 @@
 // elements over the whole page, and gives what was chosen, { src, alt, caption }, or null.
 
 import { uploadProblem } from './chooser-check.js';
+import { button, dialogOf, made, textRow } from './dialog.js';
 import { say } from './texts.js';
-
-const made = (tag, className, parent) => {
-  const element = document.createElement(tag);
-  if (className) element.className = className;
-  parent?.append(element);
-  return element;
-};
-
-const button = (className, words, parent) => {
-  const element = made('button', className, parent);
-  element.type = 'button';
-  element.textContent = words;
-  return element;
-};
-
-function textRow(parent, words, { required = false } = {}) {
-  const row = made('label', 'konzilo-chooser-row', parent);
-  made('span', '', row).textContent = words;
-  const input = made('input', '', row);
-  input.type = 'text';
-  input.required = required;
-  return input;
-}
 
 export function chooseImage({ library, smallestWidth = null, root = document.body }) {
   return new Promise((resolve) => {
-    const dialog = made('dialog', 'konzilo-chooser');
-    dialog.setAttribute('aria-label', say('imageChoose'));
-    const head = made('div', 'konzilo-chooser-head', dialog);
-    made('h2', '', head).textContent = say('imageChoose');
-    const close = button('konzilo-chooser-close', say('imageClose'), head);
-    const body = made('div', 'konzilo-chooser-body', dialog);
+    const { dialog, head, body } = dialogOf(say('imageChoose'));
+    const close = button('', say('imageClose'), head);
 
     let shownFile = null;
     const letGoOfFile = () => {
@@ -65,7 +39,7 @@ export function chooseImage({ library, smallestWidth = null, root = document.bod
       form.noValidate = true;
       body.replaceChildren(form);
       button('konzilo-chooser-back', say('imageBack'), form).addEventListener('click', returnTo);
-      const fileRow = made('label', 'konzilo-chooser-row', form);
+      const fileRow = made('label', 'konzilo-dialog-row', form);
       made('span', '', fileRow).textContent = say('imageFile');
       const input = made('input', '', fileRow);
       input.type = 'file';
@@ -75,7 +49,7 @@ export function chooseImage({ library, smallestWidth = null, root = document.bod
       preview.hidden = true;
       const alt = textRow(form, say('imageAlt'), { required: true });
       const caption = textRow(form, say('imageCaption'));
-      const note = made('p', 'konzilo-chooser-note', form);
+      const note = made('p', 'konzilo-dialog-note', form);
       note.setAttribute('role', 'alert');
       const send = made('button', 'konzilo-chooser-send', form);
       send.type = 'submit';

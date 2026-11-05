@@ -131,7 +131,11 @@ describe('the live preview', () => {
       await shown.waitFor({ timeout: ON_THE_PAGE });
       assert.equal(await shown.evaluate((image) => image.decode().then(() => image.naturalWidth > 0)), true);
       assert.equal(await paneOf(page).getByRole('alert').count(), 0);
-      await page.locator('.konzilo-image').last().getByRole('button', { name: 'Remove the image' }).click();
+      await page.locator('.konzilo-image').last().getByRole('button', { name: 'Edit the image' }).click();
+      const editing = page.getByRole('dialog', { name: 'Edit the image' });
+      await editing.getByRole('button', { name: 'Remove the image' }).click();
+      await editing.getByRole('button', { name: 'Remove', exact: true }).click();
+      await editing.waitFor({ state: 'detached' });
     });
 
     test('says why it cannot publish a draft, above the last good page', async () => {

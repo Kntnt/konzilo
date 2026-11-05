@@ -314,6 +314,7 @@ describe('the body field, alone', () => {
       await call('open', '## The start');
       await page.locator('.konzilo-anchor-badge').click();
       const anchor = page.locator('.konzilo-anchor-input');
+      assert.notEqual(await anchor.evaluate((input) => getComputedStyle(input).caretColor), 'rgba(0, 0, 0, 0)', 'with a caret to write at');
       await anchor.fill('The Start');
       await anchor.press('Enter');
       assert.equal(await anchor.isVisible(), true, 'an anchor the format cannot hold is not taken');
@@ -639,7 +640,23 @@ describe('the body field, alone', () => {
     const LIBRARY = { entries: [{ src: '/media/lantern.webp', alt: 'A lantern at dusk', caption: 'The quay' }, { src: '/media/no-picture.webp', alt: 'A lake', caption: '' }] };
     const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEBgIApD5fRAAAAABJRU5ErkJggg==', 'base64');
     const chooser = () => page.getByRole('dialog', { name: 'Choose an image' });
-    const altOf = (index = 0) => page.locator('.konzilo-image-alt input').nth(index);
+    const editing = () => page.getByRole('dialog', { name: 'Edit the image' });
+    const altField = () => editing().getByRole('textbox', { name: 'Alt text' });
+    const startEditing = async (index = 0) => {
+      await page.getByRole('button', { name: 'Edit the image' }).nth(index).click();
+      await editing().waitFor();
+    };
+    const done = async () => {
+      await editing().getByRole('button', { name: 'Done' }).click();
+      await editing().waitFor({ state: 'detached' });
+    };
+    const setAlt = async (alt, index = 0) => {
+      await startEditing(index);
+      await altField().fill(alt);
+      await done();
+    };
+    const altIs = async (index = 0) => (await call('images'))[index].alt;
+    const TRANSPARENT = 'rgba(0, 0, 0, 0)';
     const openMenu = async () => {
       await call('focusEnd');
       if (!(await call('atEmptyBlock'))) await page.keyboard.press('Enter');
@@ -654,7 +671,8 @@ describe('the body field, alone', () => {
       assert.equal(await call('open', body, { library: LIBRARY }), 'editor', (await call('notes')).join(' '));
       assert.deepEqual(await call('images'), [{ src: '/media/barn.webp', alt: 'A red barn', caption: 'The barn in 1920' }]);
       assert.equal(await page.locator('.konzilo-kept').count(), 0);
-      assert.equal(await altOf().inputValue(), 'A red barn');
+      assert.equal(await page.locator('.konzilo-image input').count(), 0, 'no field stands in the flow');
+      assert.equal(await page.locator('.konzilo-image-picture img').getAttribute('alt'), 'A red barn');
       assert.equal(await page.locator('.konzilo-image-caption em').textContent(), 'in 1920');
       await page.locator('.konzilo-image-picture[data-state="shown"] img').waitFor();
       await call('poke');
@@ -665,18 +683,109 @@ describe('the body field, alone', () => {
     test('shows that it has no picture to show, and goes on', async () => {
       assert.equal(await call('open', '![A lake](/media/no-picture.webp)', { library: LIBRARY }), 'editor');
       await page.locator('.konzilo-image-picture[data-state="none"]').waitFor();
+      assert.equal(await page.locator('.konzilo-image-words').textContent(), 'A lake', 'and says what it would have shown');
       assert.equal(await call('open', BARN), 'editor', 'and with no library at all');
       await page.locator('.konzilo-image-picture[data-state="none"]').waitFor();
+      assert.equal(await page.locator('.konzilo-image-words').textContent(), 'A red barn');
     });
 
-    test('takes a change to its alt text, and keeps the focus', async () => {
-      await call('open', BARN);
-      await altOf().click();
+    test('has its alt text in a dialog from a button on the picture, with a caret to write at', async () => {
+      await call('open', BARN, { library: LIBRARY });
+      await page.locator('.konzilo-image-picture[data-state="shown"] img').waitFor();
+      await startEditing();
+      assert.equal(await editing().locator('img').evaluate((image) => image.decode().then(() => image.naturalWidth > 0)), true, 'with the picture to describe');
+      assert.equal(await altField().inputValue(), 'A red barn');
+      assert.equal(await altField().evaluate((input) => document.activeElement === input), true);
+      assert.notEqual(await altField().evaluate((input) => getComputedStyle(input).caretColor), TRANSPARENT);
       await page.keyboard.press('End');
       await page.keyboard.type(' at dusk', { delay: KEY_DELAY });
+      assert.equal(await altIs(), 'A red barn', 'nothing changes before it is done');
+      await done();
       await call('flush');
       assert.equal(await call('value'), '![A red barn at dusk](/media/barn.webp)');
-      assert.equal(await altOf().evaluate((input) => document.activeElement === input), true);
+      assert.equal(await page.locator('.konzilo-image-picture img').getAttribute('alt'), 'A red barn at dusk');
+    });
+
+    test('takes Enter in the dialog as done, and the whole change as one undo', async () => {
+      await call('open', BARN);
+      await startEditing();
+      await altField().fill('  A barn in the snow ');
+      await altField().press('Enter');
+      await editing().waitFor({ state: 'detached' });
+      await call('flush');
+      assert.equal(await call('value'), '![A barn in the snow](/media/barn.webp)', 'without the spaces at its edges');
+      await call('undoAll');
+      assert.equal(await call('value'), BARN);
+    });
+
+    test('changes nothing when the dialog is left, whichever way', async () => {
+      await call('open', BARN);
+      for (const leave of [() => page.keyboard.press('Escape'), () => editing().getByRole('button', { name: 'Cancel' }).click()]) {
+        await startEditing();
+        await altField().fill('Something else');
+        await leave();
+        await editing().waitFor({ state: 'detached' });
+        assert.equal(await altIs(), 'A red barn');
+      }
+      await startEditing();
+      await done();
+      await call('poke');
+      assert.deepEqual(await call('changes'), [], 'and done with nothing changed is no change');
+      assert.equal(await call('value'), BARN);
+    });
+
+    test('goes back to writing where the cursor was when the dialog closes', async () => {
+      await call('open', `Before\n\n${BARN}`);
+      await call('focusEnd');
+      await page.keyboard.type('Written', { delay: KEY_DELAY });
+      await setAlt('Another barn');
+      await page.keyboard.type(' on', { delay: KEY_DELAY });
+      await call('flush');
+      assert.equal(await call('value'), 'Before\n\n![Another barn](/media/barn.webp)\n\nWritten on');
+    });
+
+    test('in the dialog, takes no blank alt text', async () => {
+      await call('open', BARN);
+      await startEditing();
+      await altField().fill('   ');
+      await editing().getByRole('button', { name: 'Done' }).click();
+      await editing().getByRole('alert').waitFor();
+      assert.match(await editing().getByRole('alert').textContent(), /Describe the image/);
+      assert.equal(await altField().getAttribute('aria-invalid'), 'true');
+      assert.equal(await altField().evaluate((input) => document.activeElement === input), true);
+      await altField().fill('A barn');
+      await done();
+      assert.equal(await altIs(), 'A barn');
+    });
+
+    test('comes out only when asked twice, and back with undo', async () => {
+      const body = `One\n\n${BARN}\n\nTwo`;
+      await call('open', body);
+      await startEditing();
+      await altField().fill('Typed before thinking again');
+      await editing().getByRole('button', { name: 'Remove the image' }).click();
+      const keep = editing().getByRole('button', { name: 'Keep the image' });
+      await keep.waitFor();
+      assert.match(await editing().textContent(), /Remove this image from the text\?/);
+      assert.match(await editing().textContent(), /image library stays as it is/);
+      assert.equal(await keep.evaluate((element) => document.activeElement === element), true, 'with the safe answer in hand');
+      assert.equal((await call('images')).length, 1, 'still there');
+
+      await keep.click();
+      assert.equal(await altField().inputValue(), 'Typed before thinking again', 'back with what was typed');
+      await editing().getByRole('button', { name: 'Remove the image' }).click();
+      await page.keyboard.press('Escape');
+      await altField().waitFor();
+      assert.equal(await editing().isVisible(), true, 'Escape takes one step back');
+      assert.equal(await altField().inputValue(), 'Typed before thinking again');
+
+      await editing().getByRole('button', { name: 'Remove the image' }).click();
+      await editing().getByRole('button', { name: 'Remove', exact: true }).click();
+      await editing().waitFor({ state: 'detached' });
+      await call('flush');
+      assert.equal(await call('value'), 'One\n\nTwo');
+      await call('undoAll');
+      assert.equal(await call('value'), body);
     });
 
     test('takes a change to its caption, with what a caption may hold', async () => {
@@ -743,13 +852,13 @@ describe('the body field, alone', () => {
     test('writes what would read as something else so that it reads back the same', async () => {
       for (const alt of ['A *starred* [boxed] barn_ish & `ticks` \\ <b>x</b> &copy; 1 ~ 2 ~~old~~', 'At 10:30 :smile: ::x', 'www.example.com or https://example.com', '![inner](x)']) {
         await call('open', BARN);
-        await altOf().fill(alt);
+        await setAlt(alt);
         await call('flush');
         const value = await call('value');
         const read = await call('check', value, FORMS);
         assert.deepEqual(read.reasons, [], `${alt}: ${value}`);
         await call('open', value);
-        assert.equal(await altOf().inputValue(), alt, value);
+        assert.equal(await altIs(), alt, value);
       }
       for (const caption of ['# not a heading', '- not an item', '> not a quote', '2024. A year', '![not](an-image.webp)', 'www.example.com, https://example.com and a@example.com', '10:30', '2 * 3 _ 4 ` 5', '::x', '<b>x</b>', '[a](b)']) {
         await call('open', BARN);
@@ -772,14 +881,17 @@ describe('the body field, alone', () => {
       assert.equal(await call('written'), BARN);
     });
 
-    test('is refused at Save without alt text, by the field and the intake alike', async () => {
-      await call('open', BARN);
-      await altOf().fill('');
+    test('without alt text, says so on the picture, and is refused at Save by the field and the intake alike', async () => {
+      const bare = '![](/media/barn.webp)';
+      assert.equal(await call('open', bare), 'editor');
+      const missing = page.locator('.konzilo-image-words[data-missing]');
+      assert.equal(await missing.textContent(), 'No alt text yet');
+      assert.equal(await call('value'), bare);
+      assert.match((await call('check', bare, FORMS)).reasons.join(), /without alt text/);
+      await setAlt('A red barn');
+      assert.equal(await missing.count(), 0);
       await call('flush');
-      const value = await call('value');
-      assert.equal(value, '![](/media/barn.webp)');
-      assert.equal(await altOf().getAttribute('aria-invalid'), 'true');
-      assert.match((await call('check', value, FORMS)).reasons.join(), /without alt text/);
+      assert.equal(await call('value'), BARN);
     });
 
     test('keeps what is no image the field can hold as source, for the check to speak of', async () => {
@@ -811,16 +923,6 @@ describe('the body field, alone', () => {
       await page.locator('.milkdown-slash-menu li').first().waitFor();
       const offered = await page.locator('.milkdown-slash-menu li').allTextContents();
       assert.ok(!offered.some((label) => label.includes('Image')), offered.join());
-    });
-
-    test('comes out at a click, and back with undo', async () => {
-      const body = `One\n\n${BARN}\n\nTwo`;
-      await call('open', body);
-      await page.getByRole('button', { name: 'Remove the image' }).click();
-      await call('flush');
-      assert.equal(await call('value'), 'One\n\nTwo');
-      await call('undoAll');
-      assert.equal(await call('value'), body);
     });
 
     test('moves with the block handle, whole', async () => {
@@ -889,7 +991,7 @@ describe('the body field, alone', () => {
         await call('open', '', { library: LIBRARY });
         await openMenu();
         await chooser().getByRole('button', { name: 'A lantern at dusk' }).click();
-        await altOf().fill('The lantern, closer');
+        await setAlt('The lantern, closer');
         await call('flush');
         assert.equal(await call('value'), '![The lantern, closer](/media/lantern.webp)\\\nThe quay');
       });

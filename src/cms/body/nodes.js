@@ -14,6 +14,7 @@ import { $command, $inputRule, $markSchema, $node, $nodeSchema, $prose, $view } 
 
 import rules from '../../format/rules.json' with { type: 'json' };
 import { CAPTION_NODE } from './format.js';
+import { editImage } from './image-edit.js';
 import { say } from './texts.js';
 
 const LABEL_OF = { image: 'keptImage', embed: 'keptEmbed', directive: 'keptDirective', html: 'keptHtml', other: 'keptOther' };
@@ -149,9 +150,11 @@ export const imageStaysAnImage = $prose(() => new Plugin({
   filterTransaction: (tr) => !tr.steps.some((step, index) => step.gapFrom !== undefined && tr.docs[index].nodeAt(step.from)?.type.name === IMAGE && step.slice.content.firstChild?.type.name !== IMAGE),
 }));
 
-// How an image shows in the field: its picture, its caption in place below it, the text it holds
-// for those who cannot see it, and a way to take it out. What it shows of the picture is small,
-// and there is an image of it only as `picture` can find one.
+const PEN = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M14.06 9.02L14.98 9.94L5.92 19H5V18.08L14.06 9.02ZM17.66 3C17.41 3 17.15 3.1 16.96 3.29L15.13 5.12L18.88 8.87L20.71 7.04C21.1 6.65 21.1 6.02 20.71 5.63L18.37 3.29C18.17 3.09 17.92 3 17.66 3ZM14.06 6.19L3 17.25V21H6.75L17.81 9.94L14.06 6.19Z"/></svg>';
+
+// How an image shows in the field: its picture, small, as `picture` can find one, its caption in
+// place below it, and on the picture one button, to what else there is to do with it. What it
+// says for those who cannot see it shows only when the picture does not, or when it says nothing.
 function imageControls(initial, view, getPos, picture) {
   let node = initial;
   const made = (tag, className, parent) => {
@@ -167,18 +170,21 @@ function imageControls(initial, view, getPos, picture) {
   const img = made('img', '', shown);
   img.alt = '';
   img.draggable = false;
-  const remove = made('button', 'konzilo-image-remove', shown);
-  remove.type = 'button';
-  remove.textContent = say('imageRemove');
+  const words = made('span', 'konzilo-image-words', shown);
+  const pen = made('button', 'konzilo-image-edit', shown);
+  pen.type = 'button';
+  pen.title = say('imageEdit');
+  pen.setAttribute('aria-label', say('imageEdit'));
+  pen.innerHTML = PEN;
   const caption = made('figcaption', 'konzilo-image-caption', dom);
   caption.dataset.placeholder = say('imageCaptionHint');
-  const textRow = made('label', 'konzilo-image-alt', dom);
-  textRow.contentEditable = 'false';
-  made('span', '', textRow).textContent = say('imageAlt');
-  const input = made('input', '', textRow);
-  input.type = 'text';
-  input.spellcheck = true;
 
+  const showWords = () => {
+    const alt = node.attrs.alt.trim();
+    words.toggleAttribute('data-missing', alt === '');
+    words.textContent = alt === '' ? say('imageNoAltYet') : alt;
+    words.hidden = alt !== '' && shown.dataset.state !== 'none';
+  };
   let asked = null;
   const showPicture = (src) => {
     if (src === asked) return;
@@ -189,31 +195,25 @@ function imageControls(initial, view, getPos, picture) {
       if (address) img.src = address;
       else img.removeAttribute('src');
       shown.dataset.state = address ? 'shown' : 'none';
+      showWords();
     });
   };
   const showTexts = () => {
-    if (input.value !== node.attrs.alt) input.value = node.attrs.alt;
-    input.setAttribute('aria-invalid', String(node.attrs.alt.trim() === ''));
+    img.alt = node.attrs.alt;
+    img.title = node.attrs.alt;
+    showWords();
     caption.classList.toggle('is-empty', node.content.size === 0);
   };
 
-  input.addEventListener('input', () => {
+  pen.addEventListener('mousedown', (event) => event.preventDefault());
+  pen.addEventListener('click', async () => {
+    const answer = await editImage({ alt: node.attrs.alt, address: shown.dataset.state === 'shown' ? img.src : null });
+    if (view.isDestroyed) return;
     const pos = getPos();
-    if (pos === undefined) return;
-    view.dispatch(view.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, alt: input.value }));
-  });
-  input.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter') return;
-    event.preventDefault();
-    const pos = getPos();
-    if (pos === undefined) return;
-    view.focus();
-    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, pos + 1 + node.content.size)));
-  });
-  remove.addEventListener('click', () => {
-    const pos = getPos();
-    if (pos === undefined) return;
-    view.dispatch(view.state.tr.delete(pos, pos + node.nodeSize));
+    if (answer !== null && pos !== undefined) {
+      if (answer.remove) view.dispatch(view.state.tr.delete(pos, pos + node.nodeSize));
+      else if (answer.alt !== node.attrs.alt) view.dispatch(view.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, alt: answer.alt }));
+    }
     view.focus();
   });
 
@@ -229,7 +229,7 @@ function imageControls(initial, view, getPos, picture) {
       showTexts();
       return true;
     },
-    stopEvent: ({ target }) => shown.contains(target) || textRow.contains(target),
+    stopEvent: ({ target }) => shown.contains(target),
     ignoreMutation: ({ target }) => !caption.contains(target),
   };
 }
