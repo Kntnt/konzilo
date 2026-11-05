@@ -22,6 +22,13 @@ describe('the form in Sveltia', () => {
     await page.goto(`${new URL(page.url()).origin}/#/collections/${collection}/new`);
     await page.locator('.konzilo-body-visual .ProseMirror').waitFor();
   };
+  // A saved entry stays open, under an address of its own, and an editor leaves it for the list.
+  const save = async () => {
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.waitForFunction(() => /\/entries\//.test(window.location.hash));
+    await page.getByRole('button', { name: 'Cancel Editing' }).click();
+    await page.getByRole('button', { name: 'Create New Entry' }).first().waitFor();
+  };
 
   before(async () => {
     const declared = JSON.parse(readFileSync(`${core}site-template/files/site-description.json`, 'utf8'));
@@ -60,16 +67,14 @@ describe('the form in Sveltia', () => {
   test('a form left closed saves with nothing to fill in, and a filled part is open when it comes back', async () => {
     await newEntry('pages');
     await page.getByRole('textbox', { name: 'Title', exact: true }).fill('Left closed');
-    await page.getByRole('button', { name: 'Save', exact: true }).click();
-    await page.getByRole('button', { name: 'Create New Entry' }).first().waitFor();
+    await save();
 
     await newEntry('pages');
     await page.getByRole('textbox', { name: 'Title', exact: true }).fill('Filled in');
     await bar('Search and sharing').click();
     await bar('In search results').click();
     await page.getByRole('textbox', { name: 'Title tag' }).fill('A title tag');
-    await page.getByRole('button', { name: 'Save', exact: true }).click();
-    await page.getByRole('button', { name: 'Create New Entry' }).first().waitFor();
+    await save();
 
     await page.getByText('Filled in').first().click();
     await page.getByRole('textbox', { name: 'Title tag' }).waitFor();
