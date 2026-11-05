@@ -27,7 +27,7 @@ describe('a site in Compose', () => {
     try {
       return await fetch(url, init);
     } catch (error) {
-      if (error.cause?.code !== 'ECONNRESET') throw error;
+      if (!['ECONNRESET', 'UND_ERR_SOCKET'].includes(error.cause?.code)) throw error;
       return fetch(url, init);
     }
   };

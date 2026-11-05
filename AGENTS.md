@@ -25,3 +25,4 @@ Precedence over any conflicting skill, README, or other doc unless the user over
 - `site-template/README.md` — read when bringing up a site from a clean clone, or when a change alters what that takes
 - `docs/adr/README.md` — read before reversing or questioning a decision, or when recording a new one
 - `GLOSSARY.md` — read when naming anything in code, docs or tickets, or when a word may carry a Konzilo meaning
+- `docs/site-design.md` — read when changing a class, a state or a custom property the core's markup has; the same change updates it

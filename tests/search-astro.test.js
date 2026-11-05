@@ -95,8 +95,8 @@ function siteRepository(files) {
 // Astro's build of a site of `site` with the integration's `options`, below
 // `base` if given: { status, log, page(path), files }, each page as a jsdom
 // document and every file of the build by its path.
-function build(site, options, base) {
-  const repository = siteRepository({ 'site-description.json': JSON.stringify(site), 'astro.config.mjs': astroConfig(integration, options) });
+function build(site, options, base, more = {}) {
+  const repository = siteRepository({ ...more, 'site-description.json': JSON.stringify(site), 'astro.config.mjs': astroConfig(integration, options) });
   try {
     const args = [astro, 'build', ...(base ? ['--base', base] : [])];
     const built = spawnSync(process.execPath, args, { cwd: repository, encoding: 'utf8', env: astroEnvironment });
@@ -123,6 +123,17 @@ function build(site, options, base) {
 }
 
 const searchPage = { searchPage: './src/components/SearchPage.astro' };
+
+test('takes its search page from a package, by the package\'s name', () => {
+  const built = build(searching, { searchPage: '@acme/design/SearchPage.astro' }, undefined, {
+    'node_modules/@acme/design/package.json': JSON.stringify({ name: '@acme/design', version: '1.0.0', type: 'module', exports: { './*.astro': './*.astro' }, peerDependencies: { astro: '*' } }),
+    'node_modules/@acme/design/SearchPage.astro': sources['src/components/SearchPage.astro'].replace('../layouts/Layout.astro', './Layout.astro'),
+    'node_modules/@acme/design/Layout.astro': layout,
+    'package.json': JSON.stringify({ name: 'a-site', dependencies: { '@acme/design': '1.0.0' } }),
+  });
+  assert.equal(built.status, 0, built.log);
+  assert.equal(built.page('/search/').window.document.querySelector('h1').textContent, 'Search');
+});
 
 describe('a site with search, built', () => {
   let built;
