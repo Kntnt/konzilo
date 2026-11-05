@@ -13,8 +13,9 @@ import { Decoration, DecorationSet } from '@milkdown/kit/prose/view';
 import { $command, $inputRule, $markSchema, $node, $nodeSchema, $prose, $view } from '@milkdown/kit/utils';
 
 import rules from '../../format/rules.json' with { type: 'json' };
-import { askToRemove, button, made } from './dialog.js';
+import { made } from './dialog.js';
 import { CAPTION_NODE, LINE_NODE } from './format.js';
+import { editGallery } from './gallery-edit.js';
 import { editImage } from './image-edit.js';
 import { say } from './texts.js';
 
@@ -260,37 +261,25 @@ export const galleriesHoldTwo = $prose(() => new Plugin({
   },
 }));
 
-// The image at index `from` of the gallery at `galleryPos`, put before the one now at `to`. Gives
-// where it stands afterwards, or null when that is where it stands now.
-function moveImage(view, galleryPos, from, to) {
-  if (to === from || to === from + 1) return null;
-  const gallery = view.state.doc.nodeAt(galleryPos);
-  const before = (index) => {
-    let pos = galleryPos + 1;
-    for (let at = 0; at < index; at += 1) pos += gallery.child(at).nodeSize;
-    return pos;
-  };
-  const image = gallery.child(from);
-  const { tr } = view.state;
-  tr.delete(before(from), before(from) + image.nodeSize);
-  const place = tr.mapping.map(before(to));
-  view.dispatch(tr.insert(place, image));
-  return place;
-}
+const PEN_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M14.06 9.02L14.98 9.94L5.92 19H5V18.08L14.06 9.02ZM17.66 3C17.41 3 17.15 3.1 16.96 3.29L15.13 5.12L18.88 8.87L20.71 7.04C21.1 6.65 21.1 6.02 20.71 5.63L18.37 3.29C18.17 3.09 17.92 3 17.66 3ZM14.06 6.19L3 17.25V21H6.75L17.81 9.94L14.06 6.19Z"/></svg>';
 
-const PEN = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M14.06 9.02L14.98 9.94L5.92 19H5V18.08L14.06 9.02ZM17.66 3C17.41 3 17.15 3.1 16.96 3.29L15.13 5.12L18.88 8.87L20.71 7.04C21.1 6.65 21.1 6.02 20.71 5.63L18.37 3.29C18.17 3.09 17.92 3 17.66 3ZM14.06 6.19L3 17.25V21H6.75L17.81 9.94L14.06 6.19Z"/></svg>';
+const penOn = (parent, words, run) => {
+  const pen = made('button', 'konzilo-image-edit', parent);
+  pen.type = 'button';
+  pen.title = words;
+  pen.setAttribute('aria-label', words);
+  pen.innerHTML = PEN_ICON;
+  pen.addEventListener('mousedown', (event) => event.preventDefault());
+  pen.addEventListener('click', run);
+  return pen;
+};
 
 // How an image shows in the field: its picture, small, as `picture` can find one, its caption in
-// place below it, and on the picture one button, to what else there is to do with it. What it
-// says for those who cannot see it shows only when the picture does not, or when it says nothing.
-// In a gallery it can move: two buttons, which the stylesheet shows there and hides at the ends,
-// and the picture to drag, which the gallery's view takes care of.
+// place below it, and on the picture one button, to what else there is to do with it, which in a
+// gallery is the gallery's. What it says for those who cannot see it shows only when the picture
+// does not, or when it says nothing.
 function imageControls(initial, view, getPos, picture) {
   let node = initial;
-  const inGallery = () => {
-    const pos = getPos();
-    return pos !== undefined && view.state.doc.resolve(pos).parent.type.name === GALLERY;
-  };
   const dom = made('figure', 'konzilo-image');
   dom.dataset.src = node.attrs.src;
   const shown = made('div', 'konzilo-image-picture', dom);
@@ -299,35 +288,6 @@ function imageControls(initial, view, getPos, picture) {
   img.alt = '';
   img.draggable = false;
   const words = made('span', 'konzilo-image-words', shown);
-  const pen = made('button', 'konzilo-image-edit', shown);
-  pen.type = 'button';
-  pen.title = say('imageEdit');
-  pen.setAttribute('aria-label', say('imageEdit'));
-  pen.innerHTML = PEN;
-  const moves = made('div', 'konzilo-image-move', shown);
-  const move = (className, words, by) => {
-    const control = button(className, by > 0 ? '→' : '←', moves);
-    control.title = words;
-    control.setAttribute('aria-label', words);
-    control.addEventListener('mousedown', (event) => event.preventDefault());
-    control.addEventListener('click', () => {
-      const pos = getPos();
-      if (pos === undefined || !inGallery()) return;
-      const $pos = view.state.doc.resolve(pos);
-      const index = $pos.index();
-      const held = document.activeElement === control;
-      const place = moveImage(view, $pos.before(), index, by > 0 ? index + 2 : index - 1);
-      if (!held || place === null) return;
-      // The keyboard stays with the image, on the way back once it has reached an end.
-      const moved = view.nodeDOM(place);
-      const onward = moved?.querySelector(by > 0 ? '.konzilo-image-later' : '.konzilo-image-earlier');
-      onward?.focus();
-      if (document.activeElement !== onward) moved?.querySelector(by > 0 ? '.konzilo-image-earlier' : '.konzilo-image-later')?.focus();
-    });
-  };
-  move('konzilo-image-earlier', say('imageEarlier'), -1);
-  move('konzilo-image-later', say('imageLater'), 1);
-  shown.draggable = inGallery();
   const caption = made('figcaption', 'konzilo-image-caption', dom);
   caption.dataset.placeholder = say('imageCaptionHint');
 
@@ -357,17 +317,18 @@ function imageControls(initial, view, getPos, picture) {
     caption.classList.toggle('is-empty', node.content.size === 0);
   };
 
-  pen.addEventListener('mousedown', (event) => event.preventDefault());
-  pen.addEventListener('click', async () => {
-    const answer = await editImage({ alt: node.attrs.alt, address: shown.dataset.state === 'shown' ? img.src : null });
-    if (view.isDestroyed) return;
-    const pos = getPos();
-    if (answer !== null && pos !== undefined) {
-      if (answer.remove) view.dispatch(view.state.tr.delete(pos, pos + node.nodeSize));
-      else if (answer.alt !== node.attrs.alt) view.dispatch(view.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, alt: answer.alt }));
-    }
-    view.focus();
-  });
+  if (view.state.doc.resolve(getPos()).parent.type.name !== GALLERY) {
+    penOn(shown, say('imageEdit'), async () => {
+      const answer = await editImage({ alt: node.attrs.alt, address: shown.dataset.state === 'shown' ? img.src : null });
+      if (view.isDestroyed) return;
+      const pos = getPos();
+      if (answer !== null && pos !== undefined) {
+        if (answer.remove) view.dispatch(view.state.tr.delete(pos, pos + node.nodeSize));
+        else if (answer.alt !== node.attrs.alt) view.dispatch(view.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, alt: answer.alt }));
+      }
+      view.focus();
+    });
+  }
 
   showPicture(node.attrs.src);
   showTexts();
@@ -377,7 +338,6 @@ function imageControls(initial, view, getPos, picture) {
     update(next) {
       if (next.type !== node.type) return false;
       node = next;
-      shown.draggable = inGallery();
       showPicture(node.attrs.src);
       showTexts();
       return true;
@@ -389,95 +349,33 @@ function imageControls(initial, view, getPos, picture) {
 
 export const imageView = (picture) => $view(imageNode.node, () => (node, view, getPos) => imageControls(node, view, getPos, picture));
 
-const DRAGGED = 'application/x-konzilo-image';
-
-// How a gallery shows in the field: its images side by side, its caption below them, a way to add
-// more and a way to take it all out. Moving by dragging is its own, not ProseMirror's, which knows
-// nothing of side by side: a mark at the side of an image where the dragged one would land.
+// How a gallery shows in the field: its images side by side, each caption in place, its own caption
+// below them, and one pen, to all else there is to do with it.
 function galleryControls(initial, view, getPos, images) {
   let node = initial;
   const dom = made('figure', 'konzilo-gallery-field');
   const contentDOM = made('div', 'konzilo-gallery-images', dom);
-  const tools = made('div', 'konzilo-gallery-tools', dom);
-  tools.contentEditable = 'false';
-
-  const tool = (className, words, run) => {
-    const control = button(className, words, tools);
-    control.addEventListener('mousedown', (event) => event.preventDefault());
-    control.addEventListener('click', async () => {
-      await run();
-      if (!view.isDestroyed) view.focus();
+  const pen = penOn(dom, say('galleryEdit'), async () => {
+    const held = [];
+    node.forEach((child) => {
+      if (child.type.name === IMAGE) held.push({ kept: child, src: child.attrs.src, alt: child.attrs.alt });
     });
-  };
-  if (images) {
-    tool('konzilo-gallery-add', say('galleryAdd'), async () => {
-      const chosen = await images.chooseSeveral();
-      const pos = getPos();
-      if (view.isDestroyed || !chosen?.length || pos === undefined) return;
-      view.dispatch(view.state.tr.insert(pos + node.nodeSize - 1 - node.lastChild.nodeSize, chosen.map((one) => imageOf(view.state, one))));
-    });
-  }
-  tool('konzilo-gallery-remove', say('galleryRemove'), async () => {
-    const remove = await askToRemove({ title: say('galleryRemove'), words: say('galleryRemoveAsk'), keepWords: say('galleryKeep') });
+    const answer = await editGallery({ images: held, choose: images?.chooseSeveral ?? null, picture: images?.picture ?? null });
+    if (view.isDestroyed) return;
     const pos = getPos();
-    if (view.isDestroyed || !remove || pos === undefined) return;
-    view.dispatch(view.state.tr.delete(pos, pos + node.nodeSize));
+    if (answer !== null && pos !== undefined) {
+      const start = pos + 1;
+      const end = pos + node.nodeSize - 1 - node.lastChild.nodeSize;
+      if (answer.remove) view.dispatch(view.state.tr.delete(pos, pos + node.nodeSize));
+      else if (answer.images.length !== held.length || answer.images.some(({ kept, alt }, index) => kept !== held[index].kept || alt !== held[index].alt)) {
+        const rebuilt = answer.images.map((one) => (one.kept ? one.kept.type.create({ ...one.kept.attrs, alt: one.alt }, one.kept.content) : imageOf(view.state, one)));
+        view.dispatch(rebuilt.length > 0 ? view.state.tr.replaceWith(start, end, rebuilt) : view.state.tr.delete(start, end));
+      }
+    }
+    view.focus();
   });
-
-  let dragged = null;
-  const cards = () => [...contentDOM.children].filter((child) => child.classList.contains('konzilo-image'));
-  const clearMark = () => {
-    for (const marked of contentDOM.querySelectorAll('[data-drop]')) delete marked.dataset.drop;
-  };
-  // The image under the pointer, and which side of it, which a drop looks for itself, since the
-  // last look at it may have been some way back.
-  const landingOf = ({ target, clientX }) => {
-    const card = target.closest?.('.konzilo-image');
-    if (!card) return null;
-    const { left, width } = card.getBoundingClientRect();
-    return { card, after: clientX >= left + width / 2 };
-  };
-  contentDOM.addEventListener('dragstart', (event) => {
-    const shown = event.target.closest?.('.konzilo-image-picture');
-    if (!shown) return;
-    dragged = cards().indexOf(shown.parentElement);
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData(DRAGGED, String(dragged));
-  });
-  // WebKit takes no drop where this is not said on the way in, as well as on the way over.
-  contentDOM.addEventListener('dragenter', (event) => {
-    if (dragged === null) return;
-    event.preventDefault();
-    event.stopPropagation();
-    event.dataTransfer.dropEffect = 'move';
-  });
-  contentDOM.addEventListener('dragover', (event) => {
-    if (dragged === null) return;
-    event.preventDefault();
-    event.stopPropagation();
-    event.dataTransfer.dropEffect = 'move';
-    clearMark();
-    const landing = landingOf(event);
-    if (landing) landing.card.dataset.drop = landing.after ? 'after' : 'before';
-  });
-  contentDOM.addEventListener('dragleave', ({ relatedTarget }) => {
-    if (!contentDOM.contains(relatedTarget)) clearMark();
-  });
-  contentDOM.addEventListener('drop', (event) => {
-    if (dragged === null) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const landing = landingOf(event);
-    const from = dragged;
-    clearMark();
-    dragged = null;
-    const pos = getPos();
-    if (landing && pos !== undefined) moveImage(view, pos, from, cards().indexOf(landing.card) + (landing.after ? 1 : 0));
-  });
-  contentDOM.addEventListener('dragend', () => {
-    clearMark();
-    dragged = null;
-  });
+  pen.contentEditable = 'false';
+  pen.classList.add('konzilo-gallery-edit');
 
   return {
     dom,
@@ -487,7 +385,7 @@ function galleryControls(initial, view, getPos, images) {
       node = next;
       return true;
     },
-    stopEvent: ({ type, target }) => tools.contains(target) || (dragged !== null && type.startsWith('drag')),
+    stopEvent: ({ target }) => pen.contains(target),
     ignoreMutation: ({ target }) => !contentDOM.contains(target),
   };
 }

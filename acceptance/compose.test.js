@@ -496,7 +496,12 @@ describe('a site in Compose', () => {
 
         const gallery = page.locator('.konzilo-gallery-field').last();
         await gallery.locator('.konzilo-image-picture[data-state="shown"]').first().waitFor({ timeout: 30_000 });
-        await gallery.locator('.konzilo-image').last().getByRole('button', { name: 'Move earlier' }).click();
+        await gallery.getByRole('button', { name: 'Edit the gallery' }).click();
+        const editing = page.getByRole('dialog', { name: 'Edit the gallery' });
+        assert.notEqual(await editing.getByRole('textbox').first().evaluate((input) => getComputedStyle(input).caretColor), 'rgba(0, 0, 0, 0)', 'with a caret to write at');
+        await editing.locator('.konzilo-gallery-row').last().getByRole('button', { name: 'Move earlier' }).click();
+        await editing.getByRole('button', { name: 'Done' }).click();
+        await editing.waitFor({ state: 'detached' });
         await gallery.locator('.konzilo-gallery-caption').click();
         await page.keyboard.type(`A gallery in ${engine}`, { delay: 20 });
         await page.getByRole('button', { name: 'Save', exact: true }).click();

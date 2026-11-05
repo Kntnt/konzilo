@@ -46,25 +46,3 @@ export function asking({ words, keepWords, kept, removed }) {
   button('konzilo-dialog-remove-now', say('imageRemoveNow'), answers).addEventListener('click', removed);
   return { part, keep };
 }
-
-// That question alone: whether to take something out.
-export function askToRemove({ title, words, keepWords, root = document.body }) {
-  return new Promise((resolve) => {
-    const { dialog, body } = dialogOf(title);
-    dialog.classList.add('konzilo-dialog-narrow');
-    let done = false;
-    const finish = (answer) => {
-      if (done) return;
-      done = true;
-      if (dialog.open) dialog.close();
-      dialog.remove();
-      resolve(answer);
-    };
-    dialog.addEventListener('close', () => finish(false));
-    const { part, keep } = asking({ words, keepWords, kept: () => finish(false), removed: () => finish(true) });
-    body.append(part);
-    root.append(dialog);
-    dialog.showModal();
-    keep.focus();
-  });
-}

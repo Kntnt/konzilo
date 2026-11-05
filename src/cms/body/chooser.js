@@ -126,9 +126,12 @@ export function chooseImage({ library, smallestWidth = null, several = false, ro
       search.type = 'search';
       search.placeholder = say('imageSearch');
       search.setAttribute('aria-label', say('imageSearch'));
-      // A search box's own Escape only empties it, in some browsers, and the dialog stays.
+      // A search box's own Escape only empties it, in some browsers, and the dialog stays. Taken
+      // here, it must go no further, or it closes a dialog this one was opened from as well.
       search.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape') finish(null);
+        if (event.key !== 'Escape') return;
+        event.preventDefault();
+        finish(null);
       });
       button('konzilo-chooser-new', say('imageNew'), tools).addEventListener('click', () => showUpload(showList));
       const status = made('p', 'konzilo-chooser-status');
