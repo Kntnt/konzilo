@@ -15,7 +15,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { consentView } from '../src/astro/consent.js';
+import { consentView } from '../src/consent/markup.js';
 import { astroConfig, astroEnvironment, ORIGIN } from './lib/astro.js';
 import { paragraphs, post, siteSettingsArgs, writeContent } from './lib/content.js';
 
@@ -671,8 +671,8 @@ test('withdrawing removes what each optional service stores on the site itself, 
     ],
     texts: {},
   };
-  const { data } = consentView(registry, {}, { locale: 'en_GB', languageTag: 'en-GB' });
-  assert.deepEqual(JSON.parse(data).storage, { counter: [{ name: '_count*', kind: 'cookie' }, { name: 'count', kind: 'localStorage' }, { name: 'visit', kind: 'sessionStorage' }] });
+  const { data } = consentView({ registry, language: 'en-GB' });
+  assert.deepEqual(data.storage, { counter: [{ name: '_count*', kind: 'cookie' }, { name: 'count', kind: 'localStorage' }, { name: 'visit', kind: 'sessionStorage' }] });
 });
 
 // A stand-in for the site's public endpoint: every request a page sends
@@ -868,7 +868,7 @@ test('a preview, which no visitor sees, sends no record and keeps none', async (
 
 test('a placeholder\'s sentence names the provider and its country, says so when data may leave the EU and EEA, and links to no cookie policy where the site has none', () => {
   const provider = (name, country) => ({ name, country, privacyPolicy: 'https://example.com/privacy' });
-  const service = (id, name, owner, transfers) => ({ id, name, category: 'functional', provider: owner, purpose: 'A purpose.', storage: [], hosts: {}, transfers, necessity: null });
+  const service = (id, name, owner, transfers) => ({ id, name, category: 'functional', provider: owner, purpose: 'A purpose.', storage: [], hosts: { frames: [`${id}.example.com`] }, transfers, necessity: null });
   const registry = {
     revision: '0123456789abcdef',
     categories: [{ id: 'functional', name: 'Functional', description: 'D.', services: ['datawrapper', 'screen9', 'spotify'] }],
@@ -879,18 +879,18 @@ test('a placeholder\'s sentence names the provider and its country, says so when
     ],
     texts: { placeholder: { question: 'Play {service}?', button: 'Play {service}' } },
   };
-  const sentences = (locale, languageTag) => consentView(registry, {}, { locale, languageTag }).placeholders.map(({ service, storage }) => [service, storage]);
-  assert.deepEqual(sentences('en_GB', 'en-GB'), [
+  const sentences = (language) => consentView({ registry, language }).placeholders.map(({ service, storage }) => [service, storage]);
+  assert.deepEqual(sentences('en-GB'), [
     ['datawrapper', 'Datawrapper may store data in your browser.'],
     ['screen9', 'Screen9 may store data in your browser, and Quickchannel AB (Sweden) receives data about your visit.'],
     ['spotify', 'Spotify may store data in your browser, and Spotify AB (Sweden) receives data about your visit, which may be processed outside the EU and EEA.'],
   ]);
-  assert.deepEqual(sentences('sv_SE', 'sv-SE'), [
+  assert.deepEqual(sentences('sv-SE'), [
     ['datawrapper', 'Datawrapper kan lagra uppgifter i din webbläsare.'],
     ['screen9', 'Screen9 kan lagra uppgifter i din webbläsare, och Quickchannel AB (Sverige) tar emot uppgifter om ditt besök.'],
     ['spotify', 'Spotify kan lagra uppgifter i din webbläsare, och Spotify AB (Sverige) tar emot uppgifter om ditt besök, som kan behandlas utanför EU och EES.'],
   ]);
-  const view = consentView(registry, {}, { locale: 'en_GB', languageTag: 'en-GB' });
+  const view = consentView({ registry, language: 'en-GB' });
   assert.equal(view.declaration, null);
   assert.deepEqual(view.placeholders.map(({ question, button }) => [question, button]), [['Play Datawrapper?', 'Play Datawrapper'], ['Play Screen9?', 'Play Screen9'], ['Play Spotify?', 'Play Spotify']]);
 });

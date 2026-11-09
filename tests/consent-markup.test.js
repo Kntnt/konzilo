@@ -1,0 +1,178 @@
+// The consent's markup as pure functions (src/consent/markup.js), outside
+// Astro: a registry, the consent texts, the legal pages and the page's
+// language in, an escaped HTML string out, with the classes and data
+// attributes docs/site-design.md names. A page made of nothing but that
+// markup, with the client (src/consent/client.js) run on it under jsdom,
+// works as a Konzilo page does. And the folder imports nothing outside
+// itself, so a site Konzilo does not build can copy it.
+
+import assert from 'node:assert/strict';
+import { readdirSync, readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { join } from 'node:path';
+import { describe, test } from 'node:test';
+import { fileURLToPath } from 'node:url';
+import { consentClient, cookieDeclaration, embedPanels } from '../src/consent/client.js';
+import { consentControlsMarkup, consentMarkup, cookieDeclarationMarkup, escape } from '../src/consent/markup.js';
+
+const core = fileURLToPath(new URL('../', import.meta.url));
+const { JSDOM } = createRequire(join(core, 'package.json'))('jsdom');
+
+const none = { scripts: [], frames: [], connections: [], images: [], styles: [], fonts: [] };
+
+// A registry as another catalogue maps onto the format: a necessary
+// service of the site's own, a statistics service and an embed service.
+const registry = {
+  revision: '0123456789abcdef',
+  revised: '2026-11-01',
+  categories: [
+    { id: 'necessary', name: 'Necessary', description: 'Always on.', services: ['consent'] },
+    { id: 'statistics', name: 'Statistics', description: 'Counting visits.', services: ['counter'] },
+    { id: 'marketing', name: 'Marketing', description: 'Others\' purposes.', services: ['video'] },
+  ],
+  services: [
+    { id: 'consent', name: 'Consent', category: 'necessary', provider: null, purpose: 'Remembers your choice.', storage: [{ name: 'konzilo-consent', kind: 'localStorage', lifetime: 'P12M', party: 'first' }], hosts: none, transfers: [], necessity: 'It keeps your choice.' },
+    { id: 'counter', name: 'Counter <b>&</b> "Co"', category: 'statistics', provider: { name: 'Count AB', country: 'SE', privacyPolicy: 'https://count.example.com/privacy' }, purpose: 'Counts.', storage: [{ name: '_count', kind: 'cookie', lifetime: 'P13M', party: 'first' }], hosts: { ...none, scripts: ['count.example.com'] }, transfers: [], necessity: null },
+    { id: 'video', name: 'Video', category: 'marketing', provider: { name: 'Video Inc.', country: 'US', privacyPolicy: 'https://video.example.net/privacy' }, purpose: 'Plays videos.', storage: [], hosts: { ...none, frames: ['player.video.example.net'] }, transfers: [{ country: 'US', safeguards: ['scc'] }], necessity: null },
+  ],
+  departures: [],
+  texts: {
+    banner: { title: 'Your privacy', text: 'We ask first.', accept: 'Accept all', reject: 'Reject optional', customise: 'Customise' },
+    dialog: { title: 'Privacy settings', introduction: 'Choose.', accept: 'Accept all', reject: 'Reject optional', save: 'Save my choices', close: 'Close' },
+    footer: { change: 'Change privacy settings', withdraw: 'Withdraw consent' },
+    placeholder: { question: 'Allow {service} to play this content?', button: 'Allow and play' },
+  },
+};
+
+const legalPages = { privacyPolicy: { title: 'Privacy', href: 'https://www.example.com/privacy/' }, cookiePolicy: { title: 'Cookies', href: 'https://www.example.com/cookies/' } };
+const input = { registry, legalPages, language: 'en-GB' };
+
+const parse = (html) => new JSDOM(`<!doctype html><html><body>${html}</body></html>`).window.document;
+const text = (element) => element.textContent.replace(/\s+/g, ' ').trim();
+
+describe('the consent\'s markup functions', () => {
+  test('escape every text and attribute, a service\'s name among them', () => {
+    assert.equal(escape('<a href="x">\'&\'</a>'), '&lt;a href=&quot;x&quot;&gt;&#39;&amp;&#39;&lt;/a&gt;');
+    const html = consentMarkup(input);
+    assert.doesNotMatch(html, /<b>/);
+    assert.equal(parse(html).querySelector('#konzilo-consent-service-counter').textContent, 'Counter <b>&</b> "Co"');
+  });
+
+  test('give the banner, hidden, the dialog with a row per category and a switch per optional service, and the registry the client reads', () => {
+    const page = parse(consentMarkup(input));
+    const root = page.querySelector('.konzilo-consent');
+    assert.deepEqual(JSON.parse(root.dataset.konziloConsent), {
+      revision: '0123456789abcdef',
+      categories: { necessary: ['consent'], statistics: ['counter'], marketing: ['video'] },
+      storage: { counter: [{ name: '_count', kind: 'cookie' }] },
+      language: 'en-GB',
+    });
+    const banner = root.querySelector('.konzilo-consent-banner');
+    assert.equal(banner.hidden, true);
+    assert.deepEqual([...banner.querySelectorAll('a')].map((link) => [text(link), link.href]), [['Privacy', 'https://www.example.com/privacy/'], ['Cookies', 'https://www.example.com/cookies/']]);
+    assert.deepEqual([...banner.querySelectorAll('button')].map((button) => [button.className, button.dataset.konziloConsentAction, text(button)]), [
+      ['konzilo-consent-choice', 'accept', 'Accept all'],
+      ['konzilo-consent-choice', 'reject', 'Reject optional'],
+      ['konzilo-consent-secondary', 'customise', 'Customise'],
+    ]);
+    const dialog = root.querySelector('dialog.konzilo-consent-dialog');
+    assert.deepEqual([...dialog.querySelectorAll('input[data-konzilo-consent-category]')].map((input) => [input.dataset.konziloConsentCategory, input.checked, input.disabled]), [['necessary', true, true], ['statistics', false, false], ['marketing', false, false]]);
+    assert.deepEqual([...dialog.querySelectorAll('input[data-konzilo-consent-service]')].map((input) => [input.dataset.konziloConsentService, input.dataset.konziloConsentIn]), [['counter', 'statistics'], ['video', 'marketing']]);
+    assert.deepEqual([...dialog.querySelectorAll('.konzilo-consent-count')].map(text), ['1 service', '1 service', '1 service']);
+  });
+
+  test('give a placeholder\'s template to each optional service whose content shows in a frame, linking to the cookie policy', () => {
+    const page = parse(consentMarkup(input));
+    const templates = [...page.querySelectorAll('[data-konzilo-consent] > template[data-konzilo-consent-placeholder]')];
+    assert.deepEqual(templates.map((template) => template.dataset.konziloConsentPlaceholder), ['video']);
+    const content = templates[0].content;
+    assert.equal(text(content.querySelector('.konzilo-embed-question')), 'Allow Video to play this content?');
+    assert.equal(text(content.querySelector('.konzilo-embed-storage')), 'Video may store data in your browser, and Video Inc. (United States) receives data about your visit, which may be processed outside the EU and EEA. Cookies');
+    assert.equal(content.querySelector('.konzilo-embed-storage a').getAttribute('href'), 'https://www.example.com/cookies/');
+  });
+
+  test('take the page\'s own texts and categories\' words, and the core\'s words in its language', () => {
+    const texts = { ...registry.texts, banner: { ...registry.texts.banner, title: 'Din integritet' }, categories: { statistics: { name: 'Statistik', description: 'Räkning.' } } };
+    const page = parse(consentMarkup({ ...input, texts, language: 'sv-SE' }));
+    assert.equal(text(page.querySelector('.konzilo-consent-banner h2')), 'Din integritet');
+    assert.deepEqual([...page.querySelectorAll('.konzilo-consent-category-name')].map(text), ['Necessary', 'Statistik', 'Marketing']);
+    assert.equal(text(page.querySelector('.konzilo-consent-always')), 'Alltid på');
+    assert.equal(JSON.parse(page.querySelector('[data-konzilo-consent]').dataset.konziloConsent).language, 'sv-SE');
+  });
+
+  test('give a registry that asks no consent no banner, no dialog and no buttons, and still the registry', () => {
+    const necessary = { ...registry, categories: [registry.categories[0]], services: [registry.services[0]] };
+    const page = parse(consentMarkup({ ...input, registry: necessary }) + consentControlsMarkup({ ...input, registry: necessary }));
+    assert.equal(page.querySelector('.konzilo-consent-banner'), null);
+    assert.equal(page.querySelector('dialog'), null);
+    assert.equal(page.querySelectorAll('button').length, 0);
+    assert.deepEqual(JSON.parse(page.querySelector('[data-konzilo-consent]').dataset.konziloConsent).categories, { necessary: ['consent'] });
+  });
+
+  test('give the footer controls with the links, the buttons hidden, either left out, and nothing when both are', () => {
+    const page = parse(consentControlsMarkup(input));
+    assert.deepEqual([...page.querySelectorAll('.konzilo-consent-controls a')].map(text), ['Privacy', 'Cookies']);
+    assert.deepEqual([...page.querySelectorAll('.konzilo-consent-controls button')].map((button) => [button.dataset.konziloConsentAction, button.hidden]), [['change', true], ['withdraw', true]]);
+    assert.equal(parse(consentControlsMarkup(input, { links: false })).querySelector('a'), null);
+    assert.equal(parse(consentControlsMarkup(input, { buttons: false })).querySelector('button'), null);
+    assert.equal(consentControlsMarkup(input, { links: false, buttons: false }), '');
+    assert.equal(consentControlsMarkup({ ...input, legalPages: {} }, { buttons: false }), '');
+  });
+
+  test('give the cookie declaration at the level asked for, with the consent ID only where records are sent', () => {
+    const recorded = parse(cookieDeclarationMarkup(input, { records: '/_konzilo/consent' }));
+    assert.ok(recorded.querySelector('[data-konzilo-declaration-id]'));
+    const unrecorded = parse(cookieDeclarationMarkup(input, { level: 3 }));
+    assert.equal(unrecorded.querySelector('[data-konzilo-declaration-id]'), null);
+    assert.deepEqual([...unrecorded.querySelectorAll('.konzilo-declaration-choice dt')].map(text), ['Given', 'Allows']);
+    assert.deepEqual([...unrecorded.querySelectorAll('h3, h4, h5')].map((heading) => `${heading.tagName} ${text(heading)}`).slice(0, 4), ['H3 Your consent', 'H3 Services and what they store', 'H4 Necessary', 'H5 Consent']);
+    const consent = unrecorded.querySelector('#konzilo-declaration-service-consent dd a');
+    assert.equal(consent.getAttribute('href'), 'https://www.example.com/privacy/');
+  });
+});
+
+// A page made of nothing but the markup, the declaration's without
+// records, with the client run on it as a site that is not Konzilo's runs
+// it.
+function visit({ stored } = {}) {
+  const html = `<!doctype html><html lang="en-GB"><head><title>A page</title></head><body>${consentMarkup(input)}<main>${cookieDeclarationMarkup(input)}<figure class="konzilo-embed" data-embed="video"><a href="https://video.example.net/1">https://video.example.net/1</a><template><iframe src="https://player.video.example.net/1" title="Video"></iframe></template></figure></main><footer>${consentControlsMarkup(input)}</footer></body></html>`;
+  const { window } = new JSDOM(html, { url: 'https://www.example.com/cookies/', runScripts: 'outside-only' });
+  if (stored) window.localStorage.setItem('konzilo-consent', JSON.stringify(stored));
+  window.eval(`(${consentClient})({ records: null });\n(${cookieDeclaration})();\n(${embedPanels})();`);
+  return window;
+}
+
+describe('a page made of the markup functions alone, with the client', () => {
+  test('shows the banner and the footer\'s buttons, asks in the placeholder, and allows the necessary alone', () => {
+    const window = visit();
+    const { document } = window;
+    assert.equal(document.querySelector('.konzilo-consent-banner').hidden, false);
+    assert.deepEqual([...document.querySelectorAll('footer button')].map((button) => button.hidden), [false, false]);
+    assert.equal(text(document.querySelector('figure.konzilo-embed .konzilo-embed-question')), 'Allow Video to play this content?');
+    assert.deepEqual(['consent', 'counter', 'video'].map(window.konziloConsent.service), [true, false, false]);
+  });
+
+  test('a choice there shows in the declaration when it was made and what it allows, without a consent ID, and sends no record', () => {
+    const window = visit();
+    const { document } = window;
+    window.fetch = () => assert.fail('no record is sent');
+    document.querySelector('.konzilo-consent-banner [data-konzilo-consent-action="accept"]').click();
+    const choice = document.querySelector('.konzilo-declaration-choice');
+    assert.equal(choice.hidden, false);
+    assert.equal(choice.querySelector('[data-konzilo-declaration-id]'), null);
+    assert.equal(choice.querySelector('time').getAttribute('datetime'), JSON.parse(window.localStorage.getItem('konzilo-consent')).time);
+    assert.deepEqual([...choice.querySelectorAll('li')].filter((item) => !item.hidden).map(text), ['Necessary', 'Statistics', 'Marketing']);
+    assert.equal(document.querySelector('figure.konzilo-embed > iframe').getAttribute('src'), 'https://player.video.example.net/1');
+    assert.equal(JSON.parse(window.localStorage.getItem('konzilo-consent')).unsent, undefined);
+  });
+});
+
+test('the consent\'s folder imports nothing outside itself', () => {
+  const folder = join(core, 'src/consent');
+  for (const name of readdirSync(folder).filter((file) => file.endsWith('.js'))) {
+    const source = readFileSync(join(folder, name), 'utf8');
+    const imported = [...source.matchAll(/^\s*(?:import|export)\b[^;]*?\bfrom\s+'([^']+)'/gm)].map(([, path]) => path);
+    for (const path of imported) assert.ok(path.startsWith('./') || path.startsWith('node:'), `${name} imports ${path}`);
+    assert.doesNotMatch(source, /\bimport\(/, `${name} imports at run time`);
+  }
+});

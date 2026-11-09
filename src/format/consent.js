@@ -46,7 +46,7 @@ export const LIFETIME = /^(session|persistent|P[1-9][0-9]*[YMWD]|PT[1-9][0-9]*[H
 // The consent's own storage item: the name the client keeps the visitor's
 // choice under, in local storage, and the months a choice holds, a refusal
 // too. The registry declares it, and the
-// client's script (astro/consent.js) keeps the choice there.
+// client (src/consent/client.js) keeps the choice there.
 export const CONSENT_STORAGE = Object.freeze({ name: 'konzilo-consent', months: 12 });
 
 // The consent's own storage: the visitor's choice and its ID.

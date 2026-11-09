@@ -16,7 +16,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { declarationView, isCookiePolicy } from '../src/astro/cookie-declaration.js';
+import { isCookiePolicy } from '../src/astro/consent.js';
+import { declarationView } from '../src/consent/markup.js';
 import { astroConfig, astroEnvironment, ORIGIN } from './lib/astro.js';
 import { paragraphs, post, siteSettingsArgs, writeContent } from './lib/content.js';
 
@@ -436,21 +437,21 @@ test('a transfer names its country, or says that its provider names none, and ea
     departures: [{ departure: 'tagManagerBeforeConsent', reason: 'Its tags wait for consent themselves.' }],
     texts: { footer: { change: 'Change', withdraw: 'Withdraw' } },
   };
-  const transfers = (locale, languageTag) => declarationView(registry, {}, { locale, languageTag }).categories[0].services.map((one) => one.transfers);
-  assert.deepEqual(transfers('en_GB', 'en-GB'), [
+  const transfers = (language) => declarationView({ registry, language }).categories[0].services.map((one) => one.transfers);
+  assert.deepEqual(transfers('en-GB'), [
     ['A country its provider does not name, on an adequacy decision or standard contractual clauses'],
     ['United States, on no safeguard its provider documents'],
     ['India, on binding corporate rules', 'Switzerland, on an adequacy decision'],
   ]);
-  assert.deepEqual(transfers('sv_SE', 'sv-SE'), [
+  assert.deepEqual(transfers('sv-SE'), [
     ['Ett land som leverantören inte namnger, med stöd av ett beslut om adekvat skyddsnivå eller standardavtalsklausuler'],
     ['USA, utan någon skyddsåtgärd som leverantören redovisar'],
     ['Indien, med stöd av bindande företagsbestämmelser', 'Schweiz, med stöd av ett beslut om adekvat skyddsnivå'],
   ]);
-  const english = declarationView(registry, {}, { locale: 'en_GB', languageTag: 'en-GB' });
+  const english = declarationView({ registry, language: 'en-GB' });
   assert.deepEqual(english.departures, [{ text: 'The site\'s tag manager loads before you make a choice, and the tags it loads follow your choice.', reason: 'Its tags wait for consent themselves.' }]);
   assert.deepEqual(english.revised, { before: 'Last changed ', date: '5 January 2026', datetime: '2026-01-05', after: '.' });
-  assert.equal(declarationView(registry, {}, { locale: 'en_US', languageTag: 'en-US' }).revised.date, 'January 5, 2026');
+  assert.equal(declarationView({ registry, language: 'en-US' }).revised.date, 'January 5, 2026');
 });
 
 test('the declaration is on the page at the cookie policy\'s address, below the site\'s base, with or without its last slash, and on no page while none is chosen', () => {

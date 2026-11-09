@@ -11,7 +11,7 @@
 // build below a base of its own (the preview and a share's preview), and
 // Astro's dev server never load a container.
 //
-// When it loads: once the consent signal (consent.js) allows the tag
+// When it loads: once the consent signal (src/consent/client.js) allows the tag
 // manager's service, which is in statistics, in the same page view, at once
 // on a later page; with the departure `tagManagerBeforeConsent` declared in
 // the site description, with the page.

@@ -8,8 +8,8 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const core = fileURLToPath(new URL('../', import.meta.url));
-const astro = join(core, 'src/astro');
-const sources = readdirSync(astro, { withFileTypes: true }).filter((entry) => entry.isFile() && /\.(astro|js)$/.test(entry.name)).map(({ name }) => readFileSync(join(astro, name), 'utf8'));
+const folders = ['src/astro', 'src/consent'].map((folder) => join(core, folder));
+const sources = folders.flatMap((folder) => readdirSync(folder, { withFileTypes: true }).filter((entry) => entry.isFile() && /\.(astro|js)$/.test(entry.name)).map(({ name }) => readFileSync(join(folder, name), 'utf8')));
 
 // A class as the markup has it, with a name filled in at the time as `<>`.
 const classesIn = (source) => {

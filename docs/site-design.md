@@ -104,7 +104,7 @@ The core's stylesheet makes it work, and it stands inside a body's wrapper, so a
 
 ### Consent
 
-`ConsentBanner.astro` goes once on a page, and `ConsentControls.astro` in its footer. `links={false}` leaves the policy links out of the controls and `buttons={false}` the buttons, so that each can stand in its own place.
+`ConsentBanner.astro` goes once on a page, and `ConsentControls.astro` in its footer. `links={false}` leaves the policy links out of the controls and `buttons={false}` the buttons, so that each can stand in its own place. Each component, `CookieDeclaration.astro` too, is a thin wrapper around a pure function of `src/consent/markup.js`, `consentMarkup()`, `consentControlsMarkup()` and `cookieDeclarationMarkup()`, which give the same markup outside Astro.
 
 | Class | On | State |
 |---|---|---|
