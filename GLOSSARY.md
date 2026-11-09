@@ -262,6 +262,8 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Tag manager**: A service that loads tags set up outside Konzilo, named with its container. _Avoid_: tracking code.
 
+**Tracker**: Matomo's own script, which counts page views for the site's ID in Matomo, with no container. _Avoid_: tracking code, pixel.
+
 **Legal pages**: The privacy policy, the cookie policy and the accessibility statement: ordinary pages an Admin chooses. _Avoid_: imprint.
 
 **Cookie declaration**: The list of a site's services by category, which the site renders after the cookie policy's body. _Avoid_: cookie table.

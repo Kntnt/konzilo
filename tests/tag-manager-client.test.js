@@ -68,6 +68,7 @@ const types = { post: { label: 'Article', plural: 'Articles', collection: 'artic
 // `launched` as the build's KONZILO_LAUNCHED, or none for null.
 function build({ tagManager = MATOMO, consent, launched = '1', base = '/' } = {}) {
   const repository = mkdtempSync(join(tmpdir(), 'konzilo-tag-manager-'));
+  let log;
   try {
     mkdirSync(join(repository, 'node_modules/@kntnt'), { recursive: true });
     for (const entry of readdirSync(join(core, 'node_modules'))) {
@@ -94,11 +95,12 @@ function build({ tagManager = MATOMO, consent, launched = '1', base = '/' } = {}
     else environment.KONZILO_LAUNCHED = launched;
     const built = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: environment });
     assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
+    log = `${built.stdout}\n${built.stderr}`;
   } catch (error) {
     rmSync(repository, { recursive: true, force: true });
     throw error;
   }
-  return { repository, base, output: (path) => readFileSync(join(repository, 'dist', path), 'utf8') };
+  return { repository, base, log, output: (path) => readFileSync(join(repository, 'dist', path), 'utf8') };
 }
 
 // A visit to the built page under jsdom, its script file run once `stored`
@@ -112,7 +114,8 @@ function visit(site, { stored } = {}) {
   window.eval(site.output(own.getAttribute('src').slice(site.base.length)));
   const added = () => [...window.document.querySelectorAll('script[src]')].filter((script) => script !== own).map((script) => ({ src: script.src, async: script.async }));
   const layer = () => (window._mtm === undefined ? undefined : JSON.parse(JSON.stringify(window._mtm)).map(({ 'mtm.startTime': time, ...rest }) => (time === undefined ? rest : { ...rest, 'mtm.startTime': typeof time })));
-  return { window, added, layer, click: (action) => window.document.querySelector(`button[data-konzilo-consent-action="${action}"]`).click() };
+  const queue = () => (window._paq === undefined ? undefined : JSON.parse(JSON.stringify(window._paq)));
+  return { window, added, layer, queue, click: (action) => window.document.querySelector(`button[data-konzilo-consent-action="${action}"]`).click() };
 }
 
 // The consent event Konzilo pushes into the data layer.
@@ -247,4 +250,88 @@ describe('a launched release with no tag manager chosen', () => {
     assert.equal(page.layer(), undefined);
     assert.doesNotMatch(site.output('_headers'), /matomo/);
   });
+});
+
+// Matomo's own tracker as an Admin sets it, and its script.
+const TRACKER = { manager: 'Matomo', address: 'https://matomo.example.com/', site: 3, cookieDomain: 'example.com' };
+const MATOMO_JS = 'https://matomo.example.com/matomo.js';
+const COUNTED = [
+  ['setCookieDomain', '*.example.com'],
+  ['setDomains', ['*.example.com']],
+  ['setTrackerUrl', 'https://matomo.example.com/matomo.php'],
+  ['setSiteId', '3'],
+  ['trackPageView'],
+  ['enableLinkTracking'],
+];
+
+describe('a release built for the launched customer\'s domain, with Matomo\'s own tracker set', () => {
+  let site;
+
+  before(() => {
+    site = build({ tagManager: TRACKER });
+  });
+
+  after(() => rmSync(site.repository, { recursive: true, force: true }));
+
+  test('a fresh visitor\'s page loads no tracker, queues nothing for it, and loads no container', () => {
+    const page = visit(site);
+    assert.deepEqual(page.added(), []);
+    assert.equal(page.queue(), undefined);
+    assert.equal(page.layer(), undefined);
+  });
+
+  test('Accept all loads matomo.js from the instance without a reload, and counts the page view, with its cookies on the cookie domain', () => {
+    const page = visit(site);
+    page.click('accept');
+    assert.deepEqual(page.added(), [{ src: MATOMO_JS, async: true }]);
+    assert.deepEqual(page.queue(), COUNTED);
+    page.click('accept');
+    assert.equal(page.added().length, 1, 'the tracker loads once');
+  });
+
+  test('a new page after consent loads the tracker at once; one after Reject optional loads none', () => {
+    const first = visit(site);
+    first.click('accept');
+    const next = visit(site, { stored: JSON.parse(first.window.localStorage.getItem('konzilo-consent')) });
+    assert.deepEqual(next.added(), [{ src: MATOMO_JS, async: true }]);
+    assert.deepEqual(next.queue(), COUNTED);
+
+    const refused = visit(site);
+    refused.click('reject');
+    assert.deepEqual(refused.added(), []);
+    assert.equal(refused.queue(), undefined);
+  });
+
+  test('the registry holds Matomo as a statistics service, its cookies on the cookie domain, and the release\'s policy lets the instance\'s host give scripts, requests and images', () => {
+    const registry = JSON.parse(readFileSync(join(site.repository, 'content/consent.json'), 'utf8'));
+    const matomo = registry.services.find((service) => service.id === 'matomo');
+    assert.equal(matomo.category, 'statistics');
+    assert.match(matomo.purpose, /^Measures how visitors use the site, with the site's own Matomo\.$/);
+    assert.deepEqual(matomo.storage.find((item) => item.name === '_pk_id.*'), { name: '_pk_id.*', kind: 'cookie', lifetime: 'P13M', party: 'first', domain: 'example.com' });
+    assert.equal(matomo.storage.find((item) => item.name === 'MatomoAbTesting').domain, null);
+    const policy = /Content-Security-Policy: (.*)/.exec(site.output('_headers'))[1];
+    for (const directive of ['script-src', 'connect-src', 'img-src']) {
+      assert.match(policy, new RegExp(`${directive} [^;]*https://matomo\\.example\\.com`), directive);
+    }
+    assert.doesNotMatch(site.output('hello/index.html'), /<script(?![^>]*\bsrc=)[^>]*>/);
+  });
+});
+
+test('a tracker on a release for another origin, or below a base of its own, loads nothing, and a cookie domain the host is not below is left out, with a warning', () => {
+  const sites = [build({ tagManager: TRACKER, launched: null }), build({ tagManager: TRACKER, base: '/preview/' }), build({ tagManager: { ...TRACKER, cookieDomain: 'example.org' } })];
+  try {
+    const [elsewhere, preview, wrong] = sites;
+    for (const site of [elsewhere, preview]) {
+      const page = visit(site);
+      page.click('accept');
+      assert.deepEqual(page.added(), []);
+      assert.equal(page.queue(), undefined);
+    }
+    assert.match(wrong.log, /Matomo's cookie domain is example\.org, which the public host www\.example\.com is neither at nor below/);
+    const page = visit(wrong);
+    page.click('accept');
+    assert.deepEqual(page.queue(), COUNTED.slice(2));
+  } finally {
+    for (const site of sites) rmSync(site.repository, { recursive: true, force: true });
+  }
 });

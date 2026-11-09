@@ -7,6 +7,15 @@
       "sv": "Mäter hur besökare använder webbplatsen, med webbplatsens egen Matomo, och kör taggarna i dess tagghanterare."
     },
     "container": "{address}/js/container_{container}.js",
+    "tracker": {
+      "label": "Matomo",
+      "purpose": {
+        "en": "Measures how visitors use the site, with the site's own Matomo.",
+        "sv": "Mäter hur besökare använder webbplatsen, med webbplatsens egen Matomo."
+      },
+      "script": "{address}/matomo.js",
+      "endpoint": "{address}/matomo.php"
+    },
     "storage": [
       { "name": "_pk_id.*", "kind": "cookie", "lifetime": "P13M", "party": "first" },
       { "name": "_pk_ref.*", "kind": "cookie", "lifetime": "P6M", "party": "first" },
@@ -20,7 +29,9 @@
     "sources": {
       "storage": { "url": "https://matomo.org/faq/general/faq_146/", "checked": "2026-10-30" },
       "container": { "url": "https://github.com/matomo-org/tag-manager/blob/5.x-dev/Context/BaseContext.php", "checked": "2026-10-30" },
-      "id": { "url": "https://github.com/matomo-org/tag-manager/blob/5.x-dev/Model/Container/RandomContainerIdGenerator.php", "checked": "2026-10-30" }
+      "id": { "url": "https://github.com/matomo-org/tag-manager/blob/5.x-dev/Model/Container/RandomContainerIdGenerator.php", "checked": "2026-10-30" },
+      "tracker": { "url": "https://developer.matomo.org/api-reference/tracking-javascript", "checked": "2026-11-10" },
+      "consent": { "url": "https://developer.matomo.org/guides/tracking-consent", "checked": "2026-11-10" }
     }
   }
 }

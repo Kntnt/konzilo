@@ -12,10 +12,12 @@
 // This folder imports nothing outside itself.
 
 // Every part of the client on a page, in the order they read each other:
-// the consent client with `options` (consentClient()), the declaration, the
-// placeholders and Datawrapper's heights.
+// the consent client with `options` (consentClient()), Matomo's tracker
+// with `options.matomo` where it is given (matomoTracker()), the
+// declaration, the placeholders and Datawrapper's heights.
 export function startConsent(options = {}) {
   consentClient(options);
+  matomoTracker(options.matomo ?? null);
   cookieDeclaration();
   embedPanels();
   datawrapperHeights();
@@ -377,6 +379,45 @@ export function consentClient({ name = 'konzilo-consent', months = 12, domain = 
     for (const hidden of document.querySelectorAll('button[data-konzilo-consent-action][hidden]')) hidden.hidden = false;
   }
   if (banner && !choice && !onLegalPage) banner.hidden = false;
+}
+
+// Matomo's own tracker, a statistics service of the registry, after the
+// consent client's, whose signal it reads. It loads, from the instance's
+// own script file and with no inline code, once the signal allows its
+// service, in the same page view, at once on a later page, and counts the
+// page view. A withdrawal reloads the page, and a later page loads no
+// tracker.
+//
+// `config`: null, or { service, script, endpoint, site, cookieDomain }:
+// the id of its service in the registry, the address of the instance's
+// matomo.js and of its matomo.php, the site's ID in the instance, and the
+// domain the owner's sites below it are counted as one on, which it keeps
+// its cookies on and counts as its own, or null for the page's host.
+export function matomoTracker(config) {
+  if (!config || 'konziloMatomo' in window) return;
+  Object.defineProperty(window, 'konziloMatomo', { value: true });
+  const signal = window.konziloConsent;
+  const allowed = () => signal?.service(config.service) === true;
+  let loaded = false;
+  const load = () => {
+    if (loaded || !allowed()) return;
+    loaded = true;
+    const queue = (window._paq = window._paq || []);
+    if (config.cookieDomain) {
+      queue.push(['setCookieDomain', `*.${config.cookieDomain}`]);
+      queue.push(['setDomains', [`*.${config.cookieDomain}`]]);
+    }
+    queue.push(['setTrackerUrl', config.endpoint]);
+    queue.push(['setSiteId', String(config.site)]);
+    queue.push(['trackPageView']);
+    queue.push(['enableLinkTracking']);
+    const script = document.createElement('script');
+    script.async = true;
+    script.src = config.script;
+    document.head.append(script);
+  };
+  load();
+  document.addEventListener('konzilo:consent', load);
 }
 
 // The cookie declaration's script. On a page with the declaration it shows

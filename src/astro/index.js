@@ -88,7 +88,7 @@ import rules from '../format/rules.json' with { type: 'json' };
 import { declaredNames, languageTag, postListModel, readSiteDescription, SITE_DESCRIPTION_FILE } from '../site-description.js';
 import { bodyStylesOf, pageImports } from './body-styles.js';
 import { contentFolder } from './collections.js';
-import { consentClient, cookieDeclaration, datawrapperHeights, embedPanels } from '../consent/client.js';
+import { consentClient, cookieDeclaration, datawrapperHeights, embedPanels, matomoTracker } from '../consent/client.js';
 import { CONSENT_RECORDS, consentDomain } from './consent.js';
 import { pagesWithBareEmbeds } from './embeds.js';
 import { lightboxClient } from './lightbox.js';
@@ -97,7 +97,7 @@ import { blockMarks } from './block-marks.js';
 import { previewGuard } from './preview-guard.js';
 import { previewLink } from './preview-link.js';
 import { isLivePreview, isPublicBuild, origin } from './public-site.js';
-import { pageTagManager, tagManagerClient } from './tag-manager.js';
+import { pageTagManager, pageTracker, tagManagerClient } from './tag-manager.js';
 import { registry } from './directives.js';
 import { FORM_NOT_SENT, formClient, siteFormNotSentPage, siteFormTexts } from './forms.js';
 import { devDiscovery, devMarkdown, MARKDOWN_LIST, markdownList, writeMarkdownAlternates } from './markdown-alternates.js';
@@ -499,8 +499,11 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
         // The tag manager's container, on a release built for the launched
         // customer's domain alone, from the settings and the
         // registry the export left in the content folder.
-        const tagManager = pageTagManager({ command, base: config.base, folder: resolve(fileURLToPath(config.root), contentFolder()), languages });
-        injectScript('page', `(${consentClient})(${JSON.stringify(client)});\n(${tagManagerClient})(${JSON.stringify(tagManager)});\n(${cookieDeclaration})();\n(${embedPanels})();\n(${datawrapperHeights})();\n(${formClient})();\n(${lightboxClient})();`);
+        const folder = resolve(fileURLToPath(config.root), contentFolder());
+        const tagManager = pageTagManager({ command, base: config.base, folder, languages });
+        // Or Matomo's own tracker, by the same rules.
+        const tracker = pageTracker({ command, base: config.base, folder, languages, warn: (message) => logger.warn(message) });
+        injectScript('page', `(${consentClient})(${JSON.stringify(client)});\n(${tagManagerClient})(${JSON.stringify(tagManager)});\n(${matomoTracker})(${JSON.stringify(tracker)});\n(${cookieDeclaration})();\n(${embedPanels})();\n(${datawrapperHeights})();\n(${formClient})();\n(${lightboxClient})();`);
         if (config.image.service.entrypoint === ASTROS_IMAGE_SERVICE) {
           updateConfig({ image: { service: { entrypoint: IMAGE_SERVICE, config: config.image.service.config } } });
         }
