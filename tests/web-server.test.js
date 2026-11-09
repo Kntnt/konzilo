@@ -52,6 +52,17 @@ describe('a release\'s headers', () => {
     for (const value of ['a`b', 'a{b}', '{env.SECRET}', 'a\\b', 'café', 'a\tb']) refused(header(`X-Frame-Options: ${value}`), /read as its own/);
   });
 
+  test('give the consent scripts\' folder its public cache lifetime alone, after every page\'s', () => {
+    const headers = headersFile([['X-Content-Type-Options', 'nosniff']], [{ path: '/_konzilo/consent/*', headers: [['Cache-Control', 'public, max-age=300']] }]);
+    assert.equal(headers, '/*\n  X-Content-Type-Options: nosniff\n/_konzilo/consent/*\n  Cache-Control: public, max-age=300\n');
+    assert.equal(webRules({ headers }), 'header {\n\tX-Content-Type-Options `nosniff`\n}\n@konzilo-consent path /_konzilo/consent/*\nheader @konzilo-consent {\n\tCache-Control `public, max-age=300`\n}\n');
+    refused({ headers: '/*\n  X-Content-Type-Options: nosniff\n/_konzilo/forms/*\n  Cache-Control: public, max-age=300\n' }, /holds headers for \/_konzilo\/consent\/\* alone/);
+    refused({ headers: '/*\n  X-Content-Type-Options: nosniff\n/_konzilo/consent/*\n  Cache-Control: public, max-age=300\n/_konzilo/consent/*\n  Cache-Control: public, max-age=300\n' }, /alone, once/);
+    refused({ headers: '/*\n  X-Content-Type-Options: nosniff\n/_konzilo/consent/*\n  Set-Cookie: a=b\n' }, /Set-Cookie is no header a release may set for \/_konzilo\/consent\/\*/);
+    refused({ headers: '/*\n  X-Content-Type-Options: nosniff\n/_konzilo/consent/*\n  Cache-Control: no-store\n' }, /takes a public cache lifetime alone/);
+    refused({ headers: '/*\n  X-Content-Type-Options: nosniff\n/_konzilo/consent/*\n  X-Content-Type-Options: nosniff\n' }, /X-Content-Type-Options is no header a release may set for/);
+  });
+
   test('are refused past what a host takes', () => {
     refused(header(`Content-Security-Policy: ${'a'.repeat(65_537)}`), /longer than a host takes/);
   });

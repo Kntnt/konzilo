@@ -15,7 +15,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { consentView } from '../src/astro/consent.js';
+import { consentView } from '../src/consent/markup.js';
 import { astroConfig, astroEnvironment, ORIGIN } from './lib/astro.js';
 import { paragraphs, post, siteSettingsArgs, writeContent } from './lib/content.js';
 
@@ -99,7 +99,7 @@ const legalPages = { menus: {}, settings: { legalPages: { cookiePolicy: '4', pri
 // writes them with `siteSettings`, and built by Astro below `base`, whose
 // output it keeps as `log`. A repository whose content or build fails is
 // removed.
-function build({ language = 'en_GB', posts = [videos, privacy, cookies, text], siteSettings = legalPages, consent, options, base = '/', pageLayout = layout } = {}) {
+function build({ language = 'en_GB', posts = [videos, privacy, cookies, text], siteSettings = legalPages, consent, options, base = '/', pageLayout = layout, environment = astroEnvironment } = {}) {
   const repository = mkdtempSync(join(tmpdir(), 'konzilo-consent-client-'));
   let log;
   try {
@@ -124,7 +124,7 @@ function build({ language = 'en_GB', posts = [videos, privacy, cookies, text], s
     siteSettingsArgs(repository, siteSettings);
     const exported = writeContent(repository, posts);
     assert.equal(exported.status, 0, exported.stderr);
-    log = buildAstro(repository);
+    log = buildAstro(repository, environment);
   } catch (error) {
     rmSync(repository, { recursive: true, force: true });
     throw error;
@@ -135,8 +135,8 @@ function build({ language = 'en_GB', posts = [videos, privacy, cookies, text], s
 
 // Astro's build of a site repository, into dist/, with the repository's
 // own cache; gives what it printed.
-function buildAstro(repository) {
-  const built = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
+function buildAstro(repository, environment = astroEnvironment) {
+  const built = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: environment });
   assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
   return `${built.stdout}\n${built.stderr}`;
 }
@@ -213,9 +213,9 @@ describe('a page of a site whose registry asks for consent', () => {
     const [consent, vimeo, youtube] = services.map(({ facts }) => facts);
     assert.deepEqual(Object.keys(consent), ['Purpose', 'Why it is needed', 'Provider', 'Stores in your browser']);
     assert.equal(consent.Provider, 'This site');
-    assert.equal(consent['Stores in your browser'], 'konzilo-consent: local storage, 12 months');
+    assert.equal(consent['Stores in your browser'], 'konzilo-consent: local storage, 12 months, on www.example.com');
     assert.equal(vimeo.Provider, 'Vimeo.com, Inc., United States. Privacy policy');
-    assert.match(vimeo['Stores in your browser'], /__cf_bm: cookie, 30 minutes/);
+    assert.match(vimeo['Stores in your browser'], /__cf_bm: cookie, 30 minutes, on player\.vimeo\.com/);
     assert.equal(youtube['Stores in your browser'], 'Its provider names nothing it stores');
     assert.match(youtube.Purpose, /\S/);
     const policy = page.querySelectorAll('.konzilo-consent-service')[2].querySelector('dd a');
@@ -253,6 +253,23 @@ describe('a page of a site whose registry asks for consent', () => {
     const data = JSON.parse(page.querySelector('[data-konzilo-consent]').dataset.konziloConsent);
     assert.deepEqual(data, { revision: registry.revision, categories: { necessary: ['consent'], marketing: ['vimeo', 'youtube'] }, storage: {}, language: 'en-GB' });
   });
+});
+
+test('a public release holds the consent script for pages the site does not build, and its stylesheet, served with a short cache lifetime; a preview\'s holds neither', () => {
+  const site = build();
+  const preview = build({ base: '/preview/someone/' });
+  try {
+    const script = site.output('_konzilo/consent/en.js');
+    assert.match(script, /^\/\/ The consent of this site, for a page it does not build\./);
+    assert.match(script, /https:\/\/www\.example\.com\/privacy\//);
+    assert.match(site.output('_konzilo/consent/consent.css'), /\.konzilo-consent-banner/);
+    assert.match(site.output('_headers'), /\n\/_konzilo\/consent\/\*\n {2}Cache-Control: public, max-age=300\n$/);
+    assert.throws(() => preview.output('_konzilo/consent/en.js'), /ENOENT/);
+    assert.doesNotMatch(preview.output('_headers'), /_konzilo\/consent/);
+  } finally {
+    rmSync(site.repository, { recursive: true, force: true });
+    rmSync(preview.repository, { recursive: true, force: true });
+  }
 });
 
 describe('a page of a site whose registry asks no consent', () => {
@@ -297,7 +314,7 @@ describe('a page of a site in sv_SE, whose Admin wrote the banner\'s title', () 
     assert.deepEqual(texts(page.querySelectorAll('footer button')), ['Ändra integritetsinställningar', 'Återkalla samtycke']);
     const [consent, vimeo] = page.querySelectorAll('.konzilo-consent-service');
     assert.equal(consent.querySelector('.konzilo-consent-always').textContent, 'Alltid på');
-    assert.match(consent.querySelector('dl').textContent.replace(/\s+/g, ' '), /konzilo-consent: lokal lagring, 12 månader/);
+    assert.match(consent.querySelector('dl').textContent.replace(/\s+/g, ' '), /konzilo-consent: lokal lagring, 12 månader, på www\.example\.com/);
     assert.match(vimeo.querySelector('dl').textContent.replace(/\s+/g, ' '), /Vimeo\.com, Inc\., USA\./);
   });
 
@@ -352,7 +369,8 @@ test('the footer\'s controls can stand apart, the policies in one place and the 
 // the page's script file run on it, after `stored` is put into the
 // consent's own storage item and `data` has changed the registry the page
 // holds for the script. Gives the window, the consent signal, the details
-// of each event of it, and whether the page asked to be reloaded.
+// of each event of it, whether the page asked to be reloaded, and what it
+// set to run later, each { callback, delay }, which `later()` runs.
 function visit(site, slug, { stored, data, endpoint, query = '' } = {}) {
   const reloads = [];
   const virtualConsole = new VirtualConsole();
@@ -369,9 +387,12 @@ function visit(site, slug, { stored, data, endpoint, query = '' } = {}) {
   if (data) root.dataset.konziloConsent = JSON.stringify(data(JSON.parse(root.dataset.konziloConsent)));
   const events = [];
   window.document.addEventListener('konzilo:consent', (event) => events.push(event.detail));
+  const timers = [];
+  window.setTimeout = (callback, delay) => timers.push({ callback, delay });
   window.eval(site.output(window.document.querySelector('script[src]').getAttribute('src').slice(site.base.length)));
   const kept = () => JSON.parse(window.localStorage.getItem('konzilo-consent'));
-  return { window, document: window.document, signal: window.konziloConsent, events, reloads, kept };
+  const later = () => timers.splice(0).forEach(({ callback }) => callback());
+  return { window, document: window.document, signal: window.konziloConsent, events, reloads, kept, timers, later };
 }
 
 // A value made in the page's window, as one of this realm's.
@@ -416,6 +437,19 @@ describe('the consent client on a page of a site whose registry asks for consent
     assert.deepEqual(plain(page.events[0]), { choice: kept, how: 'banner' });
     assert.deepEqual(plain(page.signal.choice()), kept);
     assert.deepEqual(page.reloads, []);
+  });
+
+  test('on the privacy policy and the cookie policy the banner stays hidden before a choice, and the footer\'s buttons work there', () => {
+    for (const slug of ['privacy', 'cookies']) {
+      const page = visit(site, slug);
+      assert.equal(JSON.parse(page.document.querySelector('[data-konzilo-consent]').dataset.konziloConsent).legalPage, true, slug);
+      assert.equal(page.document.querySelector('.konzilo-consent-banner').hidden, true, slug);
+      assert.deepEqual([...page.document.querySelectorAll('footer button')].map((button) => button.hidden), [false, false], slug);
+      const dialog = Object.assign(page.document.querySelector('dialog'), { showModal() { this.open = true; } });
+      click(page, 'change');
+      assert.equal(dialog.open, true, slug);
+    }
+    assert.equal(JSON.parse(visit(site, 'text').document.querySelector('[data-konzilo-consent]').dataset.konziloConsent).legalPage, undefined);
   });
 
   test('a choice that holds keeps the banner hidden on the next page, and the signal gives it', () => {
@@ -537,7 +571,7 @@ describe('the consent client on a page of a site whose registry asks for consent
     assert.deepEqual(next.reloads, []);
   });
 
-  test('Withdraw consent rejects every optional service, keeps the consent ID, removes what each one stored that the page reaches, and reloads', () => {
+  test('Withdraw consent rejects every optional service, keeps the consent ID, removes what each one stored that the page reaches, says so in the banner\'s place, and reloads two seconds later', () => {
     // A registry whose YouTube stores items of its own on the site: a
     // cookie, local storage under a pattern, and session storage.
     const storage = { youtube: [{ name: 'yt_visitor', kind: 'cookie' }, { name: 'yt-player-*', kind: 'localStorage' }, { name: 'yt-session', kind: 'sessionStorage' }] };
@@ -560,7 +594,19 @@ describe('the consent client on a page of a site whose registry asks for consent
     const keys = Array.from({ length: page.window.localStorage.length }, (_, index) => page.window.localStorage.key(index)).sort();
     assert.deepEqual(keys, ['elsewhere', 'konzilo-consent']);
     assert.equal(page.window.sessionStorage.length, 0);
+    const notice = page.document.querySelector('.konzilo-consent-notice');
+    assert.equal(notice.hidden, false);
+    assert.equal(notice.getAttribute('role'), 'status');
+    assert.equal(notice.textContent, 'Your consents have been withdrawn. The page will reload.');
+    assert.equal(page.document.querySelector('.konzilo-consent-banner').hidden, true);
+    assert.deepEqual(page.reloads, []);
+    assert.deepEqual(page.timers.map(({ delay }) => delay), [2000]);
+    page.later();
     assert.equal(page.reloads.length, 1);
+
+    const next = visit(site, 'videos', { stored: page.kept() });
+    assert.equal(next.document.querySelector('.konzilo-consent-banner').hidden, true, 'the banner does not come back');
+    assert.equal(next.document.querySelector('.konzilo-consent-notice').hidden, true);
   });
 
   test('turning a service off in the dialog does for it what withdrawing does: it removes what that service stored that the page reaches, and reloads; a choice that withdraws nothing does neither', () => {
@@ -671,8 +717,8 @@ test('withdrawing removes what each optional service stores on the site itself, 
     ],
     texts: {},
   };
-  const { data } = consentView(registry, {}, { locale: 'en_GB', languageTag: 'en-GB' });
-  assert.deepEqual(JSON.parse(data).storage, { counter: [{ name: '_count*', kind: 'cookie' }, { name: 'count', kind: 'localStorage' }, { name: 'visit', kind: 'sessionStorage' }] });
+  const { data } = consentView({ registry, language: 'en-GB' });
+  assert.deepEqual(data.storage, { counter: [{ name: '_count*', kind: 'cookie' }, { name: 'count', kind: 'localStorage' }, { name: 'visit', kind: 'sessionStorage' }] });
 });
 
 // A stand-in for the site's public endpoint: every request a page sends
@@ -850,7 +896,29 @@ describe('the consent client\'s records', () => {
   });
 });
 
-test('a preview, which no visitor sees, sends no record and keeps none', async () => {
+test('a release built for the launched origin keeps the choice on the domain the site description gives, and no other build does', () => {
+  const launched = { ...astroEnvironment, KONZILO_LAUNCHED: '1' };
+  const script = (site) => site.output(site.page('videos').querySelector('script[src]').getAttribute('src').slice(1));
+  const sites = [
+    build({ consent: { domain: 'example.com' }, environment: launched }),
+    build({ consent: { domain: 'example.com' } }),
+    build({ consent: { domain: 'example.org' }, environment: launched }),
+  ];
+  try {
+    const [shared, prelaunch, elsewhere] = sites;
+    // The client's options as the bundled script holds them.
+    assert.match(script(shared), /months:12,domain:[`"]example\.com[`"],records:/);
+    assert.match(script(prelaunch), /months:12,domain:null,records:/);
+    assert.match(script(elsewhere), /months:12,domain:null,records:/);
+    assert.match(elsewhere.log, /keeps the consent choice on example\.org, which the public host www\.example\.com is neither at nor below/);
+    const registry = JSON.parse(readFileSync(join(shared.repository, 'content/consent.json'), 'utf8'));
+    assert.equal(registry.services.find((one) => one.id === 'consent').storage[0].domain, 'example.com');
+  } finally {
+    for (const site of sites) rmSync(site.repository, { recursive: true, force: true });
+  }
+});
+
+test('a preview, which no visitor sees, sends no record, keeps none, and makes no consent ID', async () => {
   const site = build({ base: '/preview/someone/' });
   try {
     const endpoint = standIn();
@@ -861,6 +929,8 @@ test('a preview, which no visitor sees, sends no record and keeps none', async (
     assert.equal(page.signal.service('youtube'), true);
     assert.deepEqual(endpoint.sent, []);
     assert.equal(page.kept().unsent, undefined);
+    assert.deepEqual(Object.keys(page.kept()).sort(), ['categories', 'revision', 'services', 'time'], 'and no consent ID, which nobody could look up');
+    assert.equal(page.signal.choice().id, undefined);
   } finally {
     rmSync(site.repository, { recursive: true, force: true });
   }
@@ -868,7 +938,7 @@ test('a preview, which no visitor sees, sends no record and keeps none', async (
 
 test('a placeholder\'s sentence names the provider and its country, says so when data may leave the EU and EEA, and links to no cookie policy where the site has none', () => {
   const provider = (name, country) => ({ name, country, privacyPolicy: 'https://example.com/privacy' });
-  const service = (id, name, owner, transfers) => ({ id, name, category: 'functional', provider: owner, purpose: 'A purpose.', storage: [], hosts: {}, transfers, necessity: null });
+  const service = (id, name, owner, transfers) => ({ id, name, category: 'functional', provider: owner, purpose: 'A purpose.', storage: [], hosts: { frames: [`${id}.example.com`] }, transfers, necessity: null });
   const registry = {
     revision: '0123456789abcdef',
     categories: [{ id: 'functional', name: 'Functional', description: 'D.', services: ['datawrapper', 'screen9', 'spotify'] }],
@@ -879,18 +949,18 @@ test('a placeholder\'s sentence names the provider and its country, says so when
     ],
     texts: { placeholder: { question: 'Play {service}?', button: 'Play {service}' } },
   };
-  const sentences = (locale, languageTag) => consentView(registry, {}, { locale, languageTag }).placeholders.map(({ service, storage }) => [service, storage]);
-  assert.deepEqual(sentences('en_GB', 'en-GB'), [
+  const sentences = (language) => consentView({ registry, language }).placeholders.map(({ service, storage }) => [service, storage]);
+  assert.deepEqual(sentences('en-GB'), [
     ['datawrapper', 'Datawrapper may store data in your browser.'],
     ['screen9', 'Screen9 may store data in your browser, and Quickchannel AB (Sweden) receives data about your visit.'],
     ['spotify', 'Spotify may store data in your browser, and Spotify AB (Sweden) receives data about your visit, which may be processed outside the EU and EEA.'],
   ]);
-  assert.deepEqual(sentences('sv_SE', 'sv-SE'), [
+  assert.deepEqual(sentences('sv-SE'), [
     ['datawrapper', 'Datawrapper kan lagra uppgifter i din webbläsare.'],
     ['screen9', 'Screen9 kan lagra uppgifter i din webbläsare, och Quickchannel AB (Sverige) tar emot uppgifter om ditt besök.'],
     ['spotify', 'Spotify kan lagra uppgifter i din webbläsare, och Spotify AB (Sverige) tar emot uppgifter om ditt besök, som kan behandlas utanför EU och EES.'],
   ]);
-  const view = consentView(registry, {}, { locale: 'en_GB', languageTag: 'en-GB' });
+  const view = consentView({ registry, language: 'en-GB' });
   assert.equal(view.declaration, null);
   assert.deepEqual(view.placeholders.map(({ question, button }) => [question, button]), [['Play Datawrapper?', 'Play Datawrapper'], ['Play Screen9?', 'Play Screen9'], ['Play Spotify?', 'Play Spotify']]);
 });

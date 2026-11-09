@@ -16,7 +16,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { declarationView, isCookiePolicy } from '../src/astro/cookie-declaration.js';
+import { isCookiePolicy } from '../src/astro/consent.js';
+import { declarationView } from '../src/consent/markup.js';
 import { astroConfig, astroEnvironment, ORIGIN } from './lib/astro.js';
 import { paragraphs, post, siteSettingsArgs, writeContent } from './lib/content.js';
 
@@ -216,12 +217,12 @@ describe('the cookie policy page of a site whose registry asks for consent', () 
     assert.equal(youtube.facts['Why it is needed'], undefined);
   });
 
-  test('shows what each service stores in a table with headers, its name, kind, lifetime and party, or says that its provider names nothing', () => {
+  test('shows what each service stores in a table with headers, its name, kind, lifetime, party and the domain it is on, or says that its provider names nothing', () => {
     const [consent, vimeo, counted, , youtube] = [...page.querySelectorAll('.konzilo-declaration-service')].map(serviceOf);
-    const headers = ['Name', 'Kind', 'Lifetime', 'Party'];
-    assert.deepEqual(consent.storage, { caption: 'What Consent stores in your browser', headers, rows: [['konzilo-consent', 'local storage', '12 months', 'First party']] });
-    assert.deepEqual(counted.storage, { caption: 'What Example Counter stores in your browser', headers, rows: [['_count', 'cookie', '13 months', 'First party'], ['_count_session', 'cookie', 'until you close the browser', 'First party']] });
-    assert.deepEqual(vimeo.storage.rows.find(([name]) => name === '__cf_bm'), ['__cf_bm', 'cookie', '30 minutes', 'Third party']);
+    const headers = ['Name', 'Kind', 'Lifetime', 'Party', 'Domain'];
+    assert.deepEqual(consent.storage, { caption: 'What Consent stores in your browser', headers, rows: [['konzilo-consent', 'local storage', '12 months', 'First party', 'www.example.com']] });
+    assert.deepEqual(counted.storage, { caption: 'What Example Counter stores in your browser', headers, rows: [['_count', 'cookie', '13 months', 'First party', 'www.example.com'], ['_count_session', 'cookie', 'until you close the browser', 'First party', 'www.example.com']] });
+    assert.deepEqual(vimeo.storage.rows.find(([name]) => name === '__cf_bm'), ['__cf_bm', 'cookie', '30 minutes', 'Third party', 'player.vimeo.com']);
     assert.equal(youtube.storage, 'Its provider names nothing it stores.');
     for (const header of page.querySelectorAll('.konzilo-declaration thead th')) assert.equal(header.getAttribute('scope'), 'col');
   });
@@ -279,9 +280,12 @@ function visit(site, slug, { stored } = {}) {
   });
   const { window } = new JSDOM(site.output(`${slug}/index.html`), { url: `${ORIGIN}/${slug}/`, runScripts: 'outside-only', virtualConsole });
   if (stored !== undefined) window.localStorage.setItem('konzilo-consent', JSON.stringify(stored));
+  const timers = [];
+  window.setTimeout = (callback) => timers.push(callback);
   window.eval(site.output(window.document.querySelector('script[src]').getAttribute('src').slice(1)));
   const kept = () => JSON.parse(window.localStorage.getItem('konzilo-consent'));
-  return { window, document: window.document, signal: window.konziloConsent, reloads, kept };
+  const later = () => timers.splice(0).forEach((callback) => callback());
+  return { window, document: window.document, signal: window.konziloConsent, reloads, kept, later };
 }
 
 // What the visitor's own part of the declaration shows: its sentence, or
@@ -351,6 +355,7 @@ describe('the visitor\'s own consent on the cookie policy page, with the site\'s
     visited.document.querySelector('.konzilo-declaration button[data-konzilo-consent-action="withdraw"]').click();
     assert.deepEqual(visited.kept().services, { consent: true, vimeo: true, counter: false, pixel: false, youtube: false });
     assert.equal(visited.kept().id, id);
+    visited.later();
     assert.equal(visited.reloads.length, 1);
     assert.deepEqual(ownConsent(visit(site, 'cookies', { stored: visited.kept() })).choice.allows, ['Necessary']);
   });
@@ -381,8 +386,8 @@ describe('the cookie policy page of a site in sv_SE', () => {
     });
     assert.deepEqual(counted.storage, {
       caption: 'Vad Example Counter lagrar i din webbläsare',
-      headers: ['Namn', 'Typ', 'Livslängd', 'Part'],
-      rows: [['_count', 'kaka', '13 månader', 'Förstapart'], ['_count_session', 'kaka', 'tills du stänger webbläsaren', 'Förstapart']],
+      headers: ['Namn', 'Typ', 'Livslängd', 'Part', 'Domän'],
+      rows: [['_count', 'kaka', '13 månader', 'Förstapart', 'www.example.com'], ['_count_session', 'kaka', 'tills du stänger webbläsaren', 'Förstapart', 'www.example.com']],
     });
     assert.equal(youtube.storage, 'Leverantören anger inget som den lagrar.');
     assert.equal(youtube.facts.Syfte, registry.services.find((service) => service.id === 'youtube').purpose);
@@ -436,21 +441,21 @@ test('a transfer names its country, or says that its provider names none, and ea
     departures: [{ departure: 'tagManagerBeforeConsent', reason: 'Its tags wait for consent themselves.' }],
     texts: { footer: { change: 'Change', withdraw: 'Withdraw' } },
   };
-  const transfers = (locale, languageTag) => declarationView(registry, {}, { locale, languageTag }).categories[0].services.map((one) => one.transfers);
-  assert.deepEqual(transfers('en_GB', 'en-GB'), [
+  const transfers = (language) => declarationView({ registry, language }).categories[0].services.map((one) => one.transfers);
+  assert.deepEqual(transfers('en-GB'), [
     ['A country its provider does not name, on an adequacy decision or standard contractual clauses'],
     ['United States, on no safeguard its provider documents'],
     ['India, on binding corporate rules', 'Switzerland, on an adequacy decision'],
   ]);
-  assert.deepEqual(transfers('sv_SE', 'sv-SE'), [
+  assert.deepEqual(transfers('sv-SE'), [
     ['Ett land som leverantören inte namnger, med stöd av ett beslut om adekvat skyddsnivå eller standardavtalsklausuler'],
     ['USA, utan någon skyddsåtgärd som leverantören redovisar'],
     ['Indien, med stöd av bindande företagsbestämmelser', 'Schweiz, med stöd av ett beslut om adekvat skyddsnivå'],
   ]);
-  const english = declarationView(registry, {}, { locale: 'en_GB', languageTag: 'en-GB' });
+  const english = declarationView({ registry, language: 'en-GB' });
   assert.deepEqual(english.departures, [{ text: 'The site\'s tag manager loads before you make a choice, and the tags it loads follow your choice.', reason: 'Its tags wait for consent themselves.' }]);
   assert.deepEqual(english.revised, { before: 'Last changed ', date: '5 January 2026', datetime: '2026-01-05', after: '.' });
-  assert.equal(declarationView(registry, {}, { locale: 'en_US', languageTag: 'en-US' }).revised.date, 'January 5, 2026');
+  assert.equal(declarationView({ registry, language: 'en-US' }).revised.date, 'January 5, 2026');
 });
 
 test('the declaration is on the page at the cookie policy\'s address, below the site\'s base, with or without its last slash, and on no page while none is chosen', () => {

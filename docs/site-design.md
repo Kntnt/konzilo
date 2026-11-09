@@ -104,12 +104,13 @@ The core's stylesheet makes it work, and it stands inside a body's wrapper, so a
 
 ### Consent
 
-`ConsentBanner.astro` goes once on a page, and `ConsentControls.astro` in its footer. `links={false}` leaves the policy links out of the controls and `buttons={false}` the buttons, so that each can stand in its own place.
+`ConsentBanner.astro` goes once on a page, and `ConsentControls.astro` in its footer. `links={false}` leaves the policy links out of the controls and `buttons={false}` the buttons, so that each can stand in its own place. The banner stays hidden on the privacy policy and the cookie policy, and the footer controls work there. Where an item stored on the page's own host is named, the element marked `data-konzilo-consent-host` holds the host, which the script writes from the page's address. Each component, `CookieDeclaration.astro` too, is a thin wrapper around a pure function of `src/consent/markup.js`, `consentMarkup()`, `consentControlsMarkup()` and `cookieDeclarationMarkup()`, which give the same markup outside Astro.
 
 | Class | On | State |
 |---|---|---|
 | `.konzilo-consent` | What holds the banner and the dialog | |
 | `.konzilo-consent-banner` | The banner | `[hidden]` |
+| `.konzilo-consent-notice` | The notice in the banner's place, `[role=status]`, that consent is withdrawn and the page reloads | `[hidden]` until then |
 | `.konzilo-consent-text` | Its text | |
 | `.konzilo-consent-title` | A title | |
 | `.konzilo-consent-buttons` | A row of buttons | |
@@ -132,6 +133,41 @@ The core's stylesheet makes it work, and it stands inside a body's wrapper, so a
 | `.konzilo-consent-facts` | The facts about it | |
 | `.konzilo-consent-policies` | The links to the policies | |
 | `.konzilo-consent-controls` | What `ConsentControls.astro` writes | |
+
+### The consent on a page Konzilo does not build
+
+A site's consent can stand on pages of another system below the same domain, so that one choice holds on both (ADR 0049).
+
+**A page that loads the site's consent script** counts on exactly this:
+
+- The script is at `/_konzilo/consent/<language>.js` on the site's own host, such as `https://www.example.com/_konzilo/consent/en.js`: the language's prefix on a site in several, else its language subtag. The page loads it with `<script src="…" defer>`. Its default stylesheet is beside it, `/_konzilo/consent/consent.css`, which the page may load or replace with its own on the classes above. Both are served with a cache lifetime of five minutes.
+- The page's own footer buttons, `<button type="button" data-konzilo-consent-action="change" hidden>` and `data-konzilo-consent-action="withdraw"`, which the script shows.
+- An element marked `data-konzilo-consent-declaration` where the cookie declaration goes. Its own content, such as a link to the site's cookie policy, stays where the script does not run, and the declaration takes its place where it does, without a consent ID, since such a page sends no records.
+- `<meta name="konzilo-consent" content="legal-page">` in the head of the privacy policy and the cookie policy, where the banner then stays hidden.
+- Each embed in the markup of ADR 0024, `<figure class="konzilo-embed" data-embed="<service>">` holding a link to the content and its player in a `<template>`, which the script makes a placeholder until the visitor allows the service, as on a page of the site.
+- The script adds the banner, the notice, the dialog and the placeholders' templates to the end of the body. It loads nothing else and runs no inline code. Where the site does not answer, the page shows no banner and loads nothing optional.
+
+**The consent signal**, on a page of the site and on such a page alike, is `window.konziloConsent`, there as soon as the deferred script has run, so that a later deferred script reads the stored choice at once: `category(id)` and `service(id)`, whether the visitor allows a category or a service by its id in the registry; `choice()`, the choice that holds, `{ time, revision, categories, services }` with `id` where records are sent, or null; and `allow(service)`, which allows one service more. The event `konzilo:consent` on `document` comes at every change, its `detail` `{ choice, how }`.
+
+**Matomo on such a page** is the page's own snippet, in a deferred script after the consent script, and asks for the registry's service of it, `matomo` where the site loads Matomo itself, else the id of the service declared for it:
+
+- Without the departure `statisticsWithoutStorageBeforeConsent`, it loads Matomo only once `konziloConsent.service('matomo')` is true: at once where it is, else at the first `konzilo:consent` that makes it so.
+- With it, it queues `requireCookieConsent` and `disableBrowserFeatureDetection` before its own snippet's calls; then `setCookieConsentGiven` and `enableBrowserFeatureDetection` where `konziloConsent.service('matomo')` is true, on every page view, and at each `konzilo:consent` that makes it so; and `forgetCookieConsentGiven` and `disableBrowserFeatureDetection` at one that makes it false. With `privacySignals` `stop` it loads nothing for a browser whose `navigator.globalPrivacyControl` is true or whose `navigator.doNotTrack` or `window.doNotTrack` is `1`.
+- Where the consent script did not run, `window.konziloConsent` is not there, and the snippet counts without storage, or loads nothing without the departure.
+
+**A site that renders the consent itself**, built by other means, copies `src/consent/` from a commit of the core; it imports nothing outside itself. Each markup function takes `{ registry, texts, legalPages, language, host }`: the registry in the format of `content-format.md` ("The service registry"), each stored item with its `domain`; the consent texts in the registry's shape, `{ banner, dialog, footer, notice, placeholder }`, with `categories` where the page's names differ; `{ privacyPolicy, cookiePolicy }`, each `{ title, href }` or null; the page's language tag; and its host, or null where the client names it from the page's address.
+
+| Module | Exports |
+|---|---|
+| `markup.js` | `consentMarkup(input, { legalPage })`, `consentControlsMarkup(input, { links, buttons })`, `cookieDeclarationMarkup(input, { level, records })`, each an HTML string; `consentView()`, `declarationView()` and `escape()` |
+| `client.js` | `startConsent({ name, months, domain, records, legalPage, statistics, matomo })`, each part on its own too: `consentClient()`, `matomoTracker()`, `cookieDeclaration()`, `embedPanels()`, `datawrapperHeights()`, `placeConsent()` |
+| `script.js` | `consentScript(input, { domain, records, statistics, matomo })`, the consent script's source as a string, which a build writes at `consentScriptPath(language)` |
+| `registry.js` | `registryRevision({ categories, services, departures })`, `consentScriptPath()`, `CONSENT_SCRIPTS`, `CONSENT_STYLESHEET`, `CONSENT_SCRIPT_LIFETIME`, `CONSENT_STORAGE` and the format's lists, in Node |
+| `words.js`, `consent.css` | The core's words, and the default stylesheet |
+
+The client's options: `domain`, the domain the choice is kept on in the cookie `konzilo-consent` for every site below it, or null for the origin's local storage; `records`, the endpoint for consent records, or null, where none is sent and no consent ID is made or shown; `legalPage`, true on the privacy policy or the cookie policy; `statistics`, `{ withoutStorage, privacySignals }`, the departure's; and `matomo`, `{ service, script, endpoint, site, cookieDomain }`, for Matomo's own tracker, or none. Sites that share the choice must show the same consent revision, which one registry serving them all gives.
+
+The default stylesheet reads these custom properties, each with a default: `--konzilo-consent-font`, `--konzilo-consent-text`, `--konzilo-consent-muted`, `--konzilo-consent-accent`, `--konzilo-consent-rule`, `--konzilo-consent-background`, `--konzilo-consent-on-accent`, `--konzilo-consent-focus`, `--konzilo-consent-space`, `--konzilo-consent-radius` and `--konzilo-consent-target`.
 
 ### The cookie declaration
 

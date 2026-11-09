@@ -1,5 +1,5 @@
 {
-  "revision": "618a1e31d4c02779",
+  "revision": "5c7a3ddb55019147",
   "revised": "2026-11-03",
   "categories": [
     {
@@ -32,7 +32,8 @@
           "name": "konzilo-consent",
           "kind": "localStorage",
           "lifetime": "P12M",
-          "party": "first"
+          "party": "first",
+          "domain": null
         }
       ],
       "hosts": {
@@ -61,25 +62,29 @@
           "name": "player_clearance",
           "kind": "cookie",
           "lifetime": "P7D",
-          "party": "third"
+          "party": "third",
+          "domain": "player.vimeo.com"
         },
         {
           "name": "cf_clearance",
           "kind": "cookie",
           "lifetime": "P1Y",
-          "party": "third"
+          "party": "third",
+          "domain": "player.vimeo.com"
         },
         {
           "name": "__cf_bm",
           "kind": "cookie",
           "lifetime": "PT30M",
-          "party": "third"
+          "party": "third",
+          "domain": "player.vimeo.com"
         },
         {
           "name": "_cfuvid",
           "kind": "cookie",
           "lifetime": "session",
-          "party": "third"
+          "party": "third",
+          "domain": "player.vimeo.com"
         }
       ],
       "hosts": {
@@ -156,6 +161,9 @@
     "footer": {
       "change": "Change privacy settings",
       "withdraw": "Withdraw consent"
+    },
+    "notice": {
+      "withdrawn": "Your consents have been withdrawn. The page will reload."
     },
     "placeholder": {
       "question": "Allow {service} to play this content?",

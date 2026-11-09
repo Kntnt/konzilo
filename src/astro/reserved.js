@@ -8,7 +8,9 @@
 // The core's own file below the prefix is the exception: the page that says a
 // form's message was not sent, which the web server serves only in place of its
 // own error when the endpoint does not answer a form, as the dev server does
-// here.
+// here. The consent scripts below /_konzilo/consent/ are the core's too, which
+// a build writes after this check and the dev server answers before the
+// endpoint (consent.js).
 
 import { readdirSync } from 'node:fs';
 import { request } from 'node:http';

@@ -250,7 +250,9 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Consent signal**: The page's word on what the visitor allows, per category and per service. _Avoid_: consent mode.
 
-**Consent choice**: What a visitor allowed, kept in the browser for 12 months; a refusal is a choice too. _Avoid_: consent cookie.
+**Consent script**: The script per language a site serves at `/_konzilo/consent/<language>.js`, which shows its consent on pages it does not build. _Avoid_: embed code, banner script.
+
+**Consent choice**: What a visitor allowed, kept in the browser for 12 months, for the site's own origin or for every site below a domain the site description names; a refusal is a choice too. _Avoid_: consent cookie.
 
 **Placeholder**: An embed's panel while the visitor has not allowed its service. _Avoid_: content blocker.
 
@@ -261,6 +263,8 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 **Departure**: A default of the consent rules a site sets aside on purpose, from a closed list, with its reason. _Avoid_: exception.
 
 **Tag manager**: A service that loads tags set up outside Konzilo, named with its container. _Avoid_: tracking code.
+
+**Tracker**: Matomo's own script, which counts page views for the site's ID in Matomo, with no container. _Avoid_: tracking code, pixel.
 
 **Legal pages**: The privacy policy, the cookie policy and the accessibility statement: ordinary pages an Admin chooses. _Avoid_: imprint.
 

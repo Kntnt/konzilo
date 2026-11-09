@@ -447,6 +447,16 @@
           "sv": "Återkalla samtycke"
         }
       },
+      "noticeWithdrawn": {
+        "label": "Notice: consent withdrawn",
+        "type": "string",
+        "control": "text",
+        "translated": true,
+        "default": {
+          "en": "Your consents have been withdrawn. The page will reload.",
+          "sv": "Dina samtycken har återkallats. Sidan laddas om."
+        }
+      },
       "placeholderQuestion": {
         "label": "Content waiting for consent: question",
         "type": "string",
@@ -527,6 +537,16 @@
           "sv": "Mätning av hur besökare använder webbplatsen, så att den kan bli bättre."
         }
       },
+      "statisticsWithoutStorageDescription": {
+        "label": "Statistics: description where visits are counted without storage before consent",
+        "type": "string",
+        "control": "textarea",
+        "translated": true,
+        "default": {
+          "en": "Measuring how visitors use the site, so that it can be made better. Each visit is counted from the first page, without storing or reading anything in your browser. With your consent, the statistics also store an ID in your browser, so that a visitor who comes back is counted once.",
+          "sv": "Mätning av hur besökare använder webbplatsen, så att den kan bli bättre. Varje besök räknas från första sidan, utan att något lagras i eller läses från din webbläsare. Med ditt samtycke lagrar statistiken också ett ID i din webbläsare, så att en besökare som kommer tillbaka räknas en gång."
+        }
+      },
       "marketingName": {
         "label": "Marketing: name",
         "type": "string",
@@ -551,7 +571,7 @@
   },
   "tagManager": {
     "label": "Tag manager",
-    "description": "The tag manager the public site loads, from the container set up in it, with its tags. It loads on the customer's domain alone, never at the pre-launch address, in a preview or locally, and only once the visitor consents to statistics, unless the site description departs from that. Its tags fire on the visitor's consent, which the site gives the tag manager on every page and at every change; a tag that loads another service needs that service declared on the Services screen. Matomo itself, and how long it keeps what it measures, are set up in Matomo.",
+    "description": "What the public site loads to measure visits: Matomo Tag Manager, from the container set up in it, with its tags, or Matomo's own tracker, by the site's ID in Matomo, with no container. Either loads on the customer's domain alone, never at the pre-launch address, in a preview or locally, and only once the visitor consents to statistics, unless the site description departs from that. A container's tags fire on the visitor's consent, which the site gives the tag manager on every page and at every change; a tag that loads another service needs that service declared on the Services screen. Matomo itself, and how long it keeps what it measures, are set up in Matomo.",
     "when": [
       "types.*.address"
     ],
@@ -562,9 +582,11 @@
         "control": "select",
         "options": [
           "None",
-          "Matomo Tag Manager"
+          "Matomo Tag Manager",
+          "Matomo"
         ],
-        "default": "None"
+        "default": "None",
+        "help": "Matomo Tag Manager loads a container and the tags set up in it. Matomo loads Matomo's own tracker, which counts each page view, with no container."
       },
       "address": {
         "label": "Matomo address",
@@ -584,7 +606,24 @@
           "pattern": "^[A-Za-z1-9][A-Za-z0-9]{7}$",
           "reason": "must be the container's ID as Matomo gives it, eight letters and digits, such as aBcD1234"
         },
-        "help": "The container's ID, eight letters and digits, as Matomo shows it under Tag Manager › Containers and in the code it offers to install: aBcD1234 in container_aBcD1234.js."
+        "help": "For Matomo Tag Manager: the container's ID, eight letters and digits, as Matomo shows it under Tag Manager › Containers and in the code it offers to install: aBcD1234 in container_aBcD1234.js."
+      },
+      "site": {
+        "label": "Site ID",
+        "type": "integer",
+        "control": "number",
+        "min": 1,
+        "help": "For Matomo: the site's ID in Matomo, a whole number, as Matomo shows it under Websites › Manage and in the tracking code it offers: 3 in setSiteId('3')."
+      },
+      "cookieDomain": {
+        "label": "Cookie domain",
+        "type": "string",
+        "control": "text",
+        "format": {
+          "pattern": "^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})$",
+          "reason": "must be a domain name in lowercase, such as example.com"
+        },
+        "help": "For Matomo, and only where the owner's sites below one domain are counted as one: that domain, such as example.com, which the site's own host is at or below. Matomo then keeps its cookies there, so a visitor who moves between the sites is one visitor. Leave it empty to keep them on the site's own host."
       }
     },
     "parts": {

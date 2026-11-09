@@ -333,6 +333,41 @@ describe('the service registry', () => {
     assert.deepEqual(result.ledger.consent, { revision: registry.revision, revised: '2026-11-03' });
   });
 
+  test('names the domain of each stored item: null, the host of the page, for one of the site\'s own, and the host a third party\'s service shows in or loads from', () => {
+    const service = { id: 'pixel', name: 'Pixel', category: 'marketing', provider: { name: 'P Inc', country: 'IE', privacyPolicy: 'https://p.example.com/privacy' }, purpose: 'Counts.', storage: [{ name: 'own', kind: 'cookie', lifetime: 'P1D', party: 'first' }, { name: 'theirs', kind: 'cookie', lifetime: 'P1D', party: 'third' }], hosts: { scripts: ['https://*.cdn.example.com'], images: ['https://pixel.example.com'] }, transfers: [] };
+    const result = run({ 'articles/aaaaaaaaaaaa.md': article({}, 'https://vimeo.com/76979871'), 'services.json': { services: [service] } }, site);
+    const registry = JSON.parse(written(result)['consent.json']);
+    const domains = Object.fromEntries(registry.services.map((one) => [one.id, one.storage.map(({ name, domain }) => [name, domain])]));
+    assert.deepEqual(domains.consent, [['konzilo-consent', null]]);
+    assert.deepEqual(domains.pixel, [['own', null], ['theirs', 'cdn.example.com']]);
+    assert.ok(domains.vimeo.every(([, domain]) => domain === 'player.vimeo.com'));
+  });
+
+  test('on a site that keeps the choice on a domain, declares the consent\'s cookie on it, and the local storage item the records wait in', () => {
+    const shared = { ...site, consent: { domain: 'example.com' } };
+    const registry = JSON.parse(written(run({}, shared))['consent.json']);
+    const consent = registry.services.find((one) => one.id === 'consent');
+    assert.deepEqual(consent.storage, [
+      { name: 'konzilo-consent', kind: 'cookie', lifetime: 'P12M', party: 'first', domain: 'example.com' },
+      { name: 'konzilo-consent', kind: 'localStorage', lifetime: 'P12M', party: 'first', domain: null },
+    ]);
+    assert.match(consent.purpose, /every other site below example\.com/);
+    assert.notEqual(registry.revision, JSON.parse(written(run({}, site))['consent.json']).revision);
+  });
+
+  test('a site that counts without storage before consent describes statistics as so, and is warned while it loads no tracker of Matomo\'s own', () => {
+    const counting = { ...site, consent: { departures: [{ departure: 'statisticsWithoutStorageBeforeConsent', reason: 'Every visit counts.', privacySignals: 'ignore' }] } };
+    const tracker = { tagManager: { manager: 'Matomo', address: 'https://matomo.example.com/', site: 3 } };
+    const result = run({ 'settings.json': tracker }, counting);
+    const departures = (one) => one.warnings.filter((warning) => warning.file === 'site-description.json').map(({ setting }) => setting);
+    assert.deepEqual(departures(result), []);
+    const registry = JSON.parse(written(result)['consent.json']);
+    assert.match(registry.categories.find((category) => category.id === 'statistics').description, /Each visit is counted from the first page, without storing or reading anything in your browser\./);
+    assert.deepEqual(registry.departures, [{ departure: 'statisticsWithoutStorageBeforeConsent', reason: 'Every visit counts.', privacySignals: 'ignore' }]);
+    const without = run({}, counting);
+    assert.deepEqual(departures(without), ['consent.departures.1']);
+  });
+
   test('keeps the day it last changed, while what a visitor consents to stays', () => {
     const first = run({}, site);
     const later = run({}, site, { ledger: first.ledger, now: new Date('2027-01-01T00:00:00Z') });

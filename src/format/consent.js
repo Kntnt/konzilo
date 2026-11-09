@@ -6,10 +6,10 @@
 // the embeds, the tag manager, the cookie declaration and the security policy
 // all read this one file.
 
-import { createHash } from 'node:crypto';
+import { CATEGORIES, CONSENT_STORAGE, HOST_KINDS, registryRevision } from '../consent/registry.js';
 import { inLanguage } from '../texts.js';
 
-import { tagManagerIds, tagManagerServices } from './tag-manager.js';
+import { tagManagerIds, tagManagerOf, tagManagerServices, trackerOf, WITHOUT_STORAGE } from './tag-manager.js';
 import rules from './rules.json' with { type: 'json' };
 import coreFacts from './services.json' with { type: 'json' };
 
@@ -21,46 +21,38 @@ export const CONSENT_FILE = 'consent.json';
 // which is every site.
 export const CONSENT_GROUP = 'consent';
 
-// The consent categories, in the order a visitor meets them. Necessary is
-// always on.
-export const CATEGORIES = Object.freeze(['necessary', 'functional', 'statistics', 'marketing']);
+// The registry's fixed lists and the consent's own storage item are the
+// shared module's (src/consent/registry.js), which a site Konzilo does not
+// build can copy.
+export { CATEGORIES, CONSENT_STORAGE, HOST_KINDS, LIFETIME, SAFEGUARDS, STORAGE_KINDS } from '../consent/registry.js';
 
-// What a service stores in the visitor's browser is one of these kinds.
-export const STORAGE_KINDS = Object.freeze(['cookie', 'localStorage', 'sessionStorage', 'other']);
-
-// The kinds of request a service's hosts are reached by, each the source
-// list of a directive of the security policy: script-src, frame-src,
-// connect-src, img-src, style-src and font-src.
-export const HOST_KINDS = Object.freeze(['scripts', 'frames', 'connections', 'images', 'styles', 'fonts']);
-
-// What a transfer of personal data outside the EU and EEA rests on: an
-// adequacy decision of the Commission (for the US, the provider's
-// certification under the EU–US Data Privacy Framework), standard
-// contractual clauses, or binding corporate rules.
-export const SAFEGUARDS = Object.freeze(['adequacy', 'scc', 'bcr']);
-
-// A lifetime: until the browser session ends, without an end, or an ISO
-// 8601 duration of one unit, such as P12M or PT30M.
-export const LIFETIME = /^(session|persistent|P[1-9][0-9]*[YMWD]|PT[1-9][0-9]*[HMS])$/;
-
-// The consent's own storage item: the name the client keeps the visitor's
-// choice under, in local storage, and the months a choice holds, a refusal
-// too. The registry declares it, and the
-// client's script (astro/consent.js) keeps the choice there.
-export const CONSENT_STORAGE = Object.freeze({ name: 'konzilo-consent', months: 12 });
-
-// The consent's own storage: the visitor's choice and its ID.
-function consentStorage() {
+// The consent's own storage: the visitor's choice and its ID, in the
+// consent's own local storage item; or, on a site that keeps the choice on
+// a domain for every site below it (`consent.domain`), in a cookie on that
+// domain, with the records that wait to be sent in the local storage item.
+function consentStorage({ site }) {
+  const { domain } = site.consent;
+  const lifetime = `P${CONSENT_STORAGE.months}M`;
   return [{
     id: 'consent',
     name: { en: 'Consent', sv: 'Samtycke' },
     category: 'necessary',
     provider: null,
-    purpose: {
-      en: 'Remembers which categories and services you allowed, and when, so that the site respects your choice.',
-      sv: 'Kommer ihåg vilka kategorier och tjänster du har tillåtit, och när, så att webbplatsen respekterar ditt val.',
-    },
-    storage: [{ name: CONSENT_STORAGE.name, kind: 'localStorage', lifetime: `P${CONSENT_STORAGE.months}M`, party: 'first' }],
+    purpose: domain
+      ? {
+          en: `Remembers which categories and services you allowed, and when, so that this site and every other site below ${domain} respect your choice.`,
+          sv: `Kommer ihåg vilka kategorier och tjänster du har tillåtit, och när, så att den här webbplatsen och varje annan webbplats under ${domain} respekterar ditt val.`,
+        }
+      : {
+          en: 'Remembers which categories and services you allowed, and when, so that the site respects your choice.',
+          sv: 'Kommer ihåg vilka kategorier och tjänster du har tillåtit, och när, så att webbplatsen respekterar ditt val.',
+        },
+    storage: domain
+      ? [
+          { name: CONSENT_STORAGE.name, kind: 'cookie', lifetime, party: 'first', domain },
+          { name: CONSENT_STORAGE.name, kind: 'localStorage', lifetime, party: 'first' },
+        ]
+      : [{ name: CONSENT_STORAGE.name, kind: 'localStorage', lifetime, party: 'first' }],
     necessity: {
       en: 'Without it the site could not keep to your choice, and would ask you on every page.',
       sv: 'Utan den kunde webbplatsen inte hålla sig till ditt val, och skulle fråga dig på varje sida.',
@@ -148,17 +140,22 @@ export function registryFile({ site, settings, embeds, facts = coreFacts, previo
     service.category = 'necessary';
     service.necessity = departure.reason;
   });
+  // Counting without storage is a mode of Matomo's own tracker alone.
+  const withoutStorage = site.consent.departures.findIndex((departure) => departure.departure === WITHOUT_STORAGE);
+  if (withoutStorage !== -1 && (tagManagerOf(settings) !== null || trackerOf(settings) === null)) {
+    warnings.push({ consent: `consent.departures.${withoutStorage + 1}`, reason: 'the departure counts without storage only with Matomo\'s own tracker, which the site settings do not choose, so nothing counts before consent' });
+  }
   services.sort((a, b) => CATEGORIES.indexOf(a.category) - CATEGORIES.indexOf(b.category) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const categories = CATEGORIES
     .map((id) => ({
       id,
       name: texts[`${id}Name`],
-      description: texts[`${id}Description`],
+      description: categoryDescription(id, texts, site.consent.departures),
       services: services.filter((service) => service.category === id).map((service) => service.id),
     }))
     .filter((category) => category.services.length > 0);
   const departures = site.consent.departures.map((departure) => ({ ...departure }));
-  const revision = revisionOf({ categories, services, departures });
+  const revision = registryRevision({ categories, services, departures });
   const kept = previous?.revision === revision && /^\d{4}-\d{2}-\d{2}$/.test(previous.revised ?? '');
   const revised = kept ? previous.revised : now.toISOString().slice(0, 10);
   const registry = { revision, revised, categories, services, departures, texts: textsOf(texts) };
@@ -175,23 +172,32 @@ function serviceOf(service, language) {
     category: service.category,
     provider: service.provider ? { ...service.provider } : null,
     purpose: inLanguage(service.purpose, language),
-    storage: (service.storage ?? []).map((item) => ({ ...item })),
+    storage: (service.storage ?? []).map((item) => ({ name: item.name, kind: item.kind, lifetime: item.lifetime, party: item.party, domain: domainOf(item, service) })),
     hosts: Object.fromEntries(HOST_KINDS.map((kind) => [kind, [...new Set(service.hosts?.[kind] ?? [])].sort()])),
     transfers: (service.transfers ?? []).map((transfer) => ({ country: transfer.country, safeguards: [...transfer.safeguards] })),
     necessity: service.category === 'necessary' ? inLanguage(service.necessity, language) : null,
   };
 }
 
-// The revision: a hash of what a visitor consents to, the categories with
-// their services, each service's facts and the departures, and not of the
-// wording, the consent texts and the categories' names and descriptions.
-function revisionOf({ categories, services, departures }) {
-  const consented = {
-    categories: categories.map((category) => ({ id: category.id, services: category.services })),
-    services,
-    departures,
-  };
-  return createHash('sha256').update(JSON.stringify(consented)).digest('hex').slice(0, 16);
+// A category's description from the consent texts: statistics' own where
+// the site counts visits without storage before consent, which says so.
+export function categoryDescription(id, texts, departures) {
+  if (id === 'statistics' && departures.some((departure) => departure.departure === WITHOUT_STORAGE)) return texts.statisticsWithoutStorageDescription;
+  return texts[`${id}Description`];
+}
+
+// The domain a stored item is on: the one its facts give, null for the
+// host of the page that stores it, which is a first-party item's unless
+// its facts name a domain shared with the sites below it, and for a
+// third-party item the host its service shows in, else loads from, which
+// is its provider's: the first of its frames, or of its scripts, requests,
+// images, styles or fonts, `*.` left out; null where it reaches none.
+function domainOf(item, service) {
+  if (item.domain !== undefined) return item.domain;
+  if (item.party === 'first') return null;
+  const kinds = ['frames', ...HOST_KINDS.filter((kind) => kind !== 'frames')];
+  const host = kinds.map((kind) => [...(service.hosts?.[kind] ?? [])].sort()[0]).find(Boolean);
+  return host ? host.replace(/^\*\./, '') : null;
 }
 
 // The consent texts by where a visitor meets them, from the group's settings
@@ -202,6 +208,7 @@ const places = {
   banner: ['title', 'text', 'accept', 'reject', 'customise'],
   dialog: ['title', 'introduction', 'accept', 'reject', 'save', 'close'],
   footer: ['change', 'withdraw'],
+  notice: ['withdrawn'],
   placeholder: ['question', 'button'],
 };
 

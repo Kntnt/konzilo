@@ -72,7 +72,7 @@ The site description, `site-description.json` in the site repository, declares t
 - **`taxonomies`**, each with its `collection`, the folder of its terms' files, and `hierarchical`, whether its terms have parents. A taxonomy's `address`, such as `/category/{slug}/`, or with `{path}/`, its parents' slugs and its own, in a hierarchical one, gives each term that has a file a page there, the site design's; it holds no file of its own, but a post at a term's page's address is refused, and links, menu entries and rules may lead to the page. A taxonomy without one has no pages.
 - **`presentations`**, the ways the site's design shows a post list, each with its options, which a post list in a body takes as attributes ([Post lists](#post-lists)).
 - **`menus`**, each a file of its own, and **`settings`**, the site's own settings, in the order `settings.json` holds them; on a site in several languages a text setting that declares `"translated": true` has a value in each language.
-- **`forms`**, which a form in a body names ([Forms](#forms)) and each of whose confirmation text `settings.json` holds, and **`consent`**, the site's departures from the consent rules, which `consent.json` holds.
+- **`forms`**, which a form in a body names ([Forms](#forms)) and each of whose confirmation text `settings.json` holds, and **`consent`**, the site's departures from the consent rules, which `consent.json` holds, and `domain`, the domain the consent choice is kept on for every site below it, which the consent's own storage in `consent.json` names.
 - **`images`**, the widths an image is checked against, which decide which images the site refuses, not how a file names them.
 
 What the description declares for the editors alone, such as a type's `label` and `plural` and a field's `label` and `control`, is not described here; nor are `security` and a form's fields, which decide no content file.
@@ -655,7 +655,7 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
 
 1. **The site's identity**, each only when it is set: `title`, the site's title; `logo`, `{ "src": "media/<name>", "alt": "…" }`, its alt text only when it has one; and `icon`, the site icon, `{ "src": "media/<name>" }`, square, from which every build makes the site's icons.
 2. **The site's own settings**, each by its name in the order the site description declares them, by its `type`: a `string` as a string, a `number` and an `integer` as a number, a `boolean` as `true` or `false`, always there, a `date` as a day, `"YYYY-MM-DD"`, quoted; a `post`, the choice of a post, as `{ "title": "…", "url": "…" }`, the post's title and current address, left out while the post has no page; and an `image`, the choice of an image, as `{ "src": "media/<name>", "alt": "…" }`, as the logo. A setting without a value is left out.
-3. **Konzilo's own settings groups** that apply to the site, each an object under its name: `search`, the search and sharing settings; `ai`, AI visibility; `consent`, the consent texts; `tagManager`, the tag manager the public site loads, `None` or `Matomo Tag Manager`, with the instance's `address`, the `container`'s ID and who runs the instance, `provider`, each only once given; `legalPages`, the legal pages, each a choice of a post; `forms`, each declared form's confirmation text, by the form's name; and `feeds`, what the site's feeds hold, `item`, `"The summary"` or `"The whole text"`, and `posts`, a whole number from 1. The 404 page an Admin chooses is no setting here: it is `not-found.md`. A group holds its settings, then its named parts, each an object under its name, then `types`, a part for each post type, by the type's name. A setting with a default is always there. [`src/format/settings-groups.json`](src/format/settings-groups.json) describes each group's settings.
+3. **Konzilo's own settings groups** that apply to the site, each an object under its name: `search`, the search and sharing settings; `ai`, AI visibility; `consent`, the consent texts; `tagManager`, what the public site loads to measure visits, `None`, `Matomo Tag Manager` or `Matomo`, Matomo's own tracker, with the instance's `address`, the `container`'s ID, the `site`'s ID in Matomo, the tracker's `cookieDomain` and who runs the instance, `provider`, each only once given; `legalPages`, the legal pages, each a choice of a post; `forms`, each declared form's confirmation text, by the form's name; and `feeds`, what the site's feeds hold, `item`, `"The summary"` or `"The whole text"`, and `posts`, a whole number from 1. The 404 page an Admin chooses is no setting here: it is `not-found.md`. A group holds its settings, then its named parts, each an object under its name, then `types`, a part for each post type, by the type's name. A setting with a default is always there. [`src/format/settings-groups.json`](src/format/settings-groups.json) describes each group's settings.
 
 ```json file=settings.json
 {
@@ -748,6 +748,7 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
     "dialogClose": "Close",
     "footerChange": "Change privacy settings",
     "footerWithdraw": "Withdraw consent",
+    "noticeWithdrawn": "Your consents have been withdrawn. The page will reload.",
     "placeholderQuestion": "Allow {service} to play this content?",
     "placeholderButton": "Allow and play",
     "necessaryName": "Necessary",
@@ -756,6 +757,7 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
     "functionalDescription": "Content and features from other services, such as videos and charts, whose providers do not use what they learn for their own advertising or profiling.",
     "statisticsName": "Statistics",
     "statisticsDescription": "Measuring how visitors use the site, so that it can be made better.",
+    "statisticsWithoutStorageDescription": "Measuring how visitors use the site, so that it can be made better. Each visit is counted from the first page, without storing or reading anything in your browser. With your consent, the statistics also store an ID in your browser, so that a visitor who comes back is counted once.",
     "marketingName": "Marketing",
     "marketingDescription": "Content and features from services whose providers may use what they learn about you for their own advertising or profiling."
   },
@@ -783,11 +785,11 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
 
 ### The service registry
 
-`consent.json` is the service registry: every service the site's pages may let a visitor's browser reach, which the site's consent banner asks about. It holds `revision`, 16 hexadecimal digits that change with what a visitor consents to, and `revised`, the day it last changed; `categories`, each with `id` (`necessary`, `functional`, `statistics` or `marketing`), `name`, `description` and the ids of its `services`; `services`, each with its `id`, `name`, `category`, `provider` (`null` for the site itself), `purpose`, `storage`, `hosts`, `transfers` and `necessity`; `departures`, the site's departures from the consent rules; and `texts`, the consent texts. Every build writes it, from the site settings, the embeds of the published posts and the services an Admin declares; nothing in it is a post's.
+`consent.json` is the service registry: every service the site's pages may let a visitor's browser reach, which the site's consent banner asks about. It holds `revision`, 16 hexadecimal digits that change with what a visitor consents to, and `revised`, the day it last changed; `categories`, each with `id` (`necessary`, `functional`, `statistics` or `marketing`), `name`, `description` and the ids of its `services`; `services`, each with its `id`, `name`, `category`, `provider` (`null` for the site itself), `purpose`, `storage`, `hosts`, `transfers` and `necessity`, each stored item with its `name`, `kind`, `lifetime`, `party` and `domain`, the domain it is on: `null` for the host of the page that stores it, a domain for one shared with the sites below it, or a third party's, the host its service shows in or loads from where its facts name none; `departures`, the site's departures from the consent rules; and `texts`, the consent texts. Every build writes it, from the site settings, the embeds of the published posts and the services an Admin declares; nothing in it is a post's.
 
 ```json file=consent.json
 {
-  "revision": "786376240bce7ea0",
+  "revision": "9db7b6a0279df359",
   "revised": "2026-10-30",
   "categories": [
     {
@@ -811,7 +813,8 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
           "name": "konzilo-consent",
           "kind": "localStorage",
           "lifetime": "P12M",
-          "party": "first"
+          "party": "first",
+          "domain": null
         }
       ],
       "hosts": {
@@ -846,6 +849,9 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
     "footer": {
       "change": "Change privacy settings",
       "withdraw": "Withdraw consent"
+    },
+    "notice": {
+      "withdrawn": "Your consents have been withdrawn. The page will reload."
     },
     "placeholder": {
       "question": "Allow {service} to play this content?",
@@ -1028,7 +1034,7 @@ An ID is text, the name of the post's source file, such as `96ba709ec918`, which
     "media/site-icon-f521d4c15b.svg"
   ],
   "consent": {
-    "revision": "786376240bce7ea0",
+    "revision": "9db7b6a0279df359",
     "revised": "2026-10-30"
   }
 }

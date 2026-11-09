@@ -1,7 +1,8 @@
 ---
-// The consent banner and the preferences dialog, rendered from
-// the service registry, content/consent.json, in the site's language. A
-// site's layout places it once on every page, first in the body:
+// The consent banner and the preferences dialog, rendered from the service
+// registry, content/consent.json, in the page's language, by the consent's
+// markup function (src/consent/markup.js, consentMarkup()). A site's layout
+// places it once on every page, first in the body:
 //
 //   import ConsentBanner from '@kntnt/konzilo/astro/ConsentBanner.astro';
 //   <body><ConsentBanner /> ...</body>
@@ -9,127 +10,29 @@
 // The banner is a compact box that blocks nothing, with Accept all and
 // Reject optional alike and Customise secondary; the dialog a native modal
 // <dialog> with a row per category, its services and what each stores.
-// Both start hidden, and the integration's script (consent.js) shows the
-// banner while no choice holds, so a visitor without JavaScript sees
-// neither. A registry that asks no consent shows no banner and no dialog;
-// the page still holds the registry for the consent signal. It also holds,
-// in a <template> each, the placeholder of every embed service that waits
-// for consent: the question, a sentence on what the service may store and
-// where its data goes, with a link to the cookie policy, and Allow and
-// play, which the integration's script (embeds.js) puts in each panel of
-// the service until the visitor allows it. The elements
-// carry classes of their own, `konzilo-consent-*`, which the site styles;
+// Both start hidden, and the integration's script (src/consent/client.js)
+// shows the banner while no choice holds, so a visitor without JavaScript
+// sees neither. On the privacy policy and the cookie policy the site
+// settings choose, the banner stays hidden; the footer controls work there. A registry that asks no consent shows no banner and no
+// dialog; the page still holds the registry for the consent signal. It also
+// holds, in a <template> each, the placeholder of every embed service that
+// waits for consent, which the integration's script puts in each panel of
+// the service until the visitor allows it. The elements carry classes of
+// their own, `konzilo-consent-*`, which the site styles (docs/site-design.md);
 // its styles keep an element with `hidden` hidden and leave the banner out
 // of print. The component has no style of its own: Astro cannot compile one
 // in a package outside the site's root, as a site that pins a checkout of
 // the core has it.
 import { getEntry } from 'astro:content';
-import { consentView } from './consent.js';
+import { consentMarkup } from '../consent/markup.js';
+import { consentInput, isLegalPage } from './consent.js';
 import { publicSite } from './public-site.js';
 import { siteSettings } from './site-settings.js';
 
 const registry = (await getEntry('consent', 'registry'))?.data;
 const settings = await siteSettings(Astro.url);
-const { locale, languageTag } = publicSite(Astro.url);
-const view = registry && consentView(registry, settings, { locale, languageTag, base: import.meta.env.BASE_URL });
+const { languageTag, origin } = publicSite(Astro.url);
+const base = import.meta.env.BASE_URL;
+const html = registry ? consentMarkup(consentInput(registry, settings, { languageTag, base, origin }), { legalPage: isLegalPage(Astro.url.pathname, settings, base) }) : '';
 ---
-{view && (
-  <div class="konzilo-consent" data-konzilo-consent={view.data}>
-    {view.asks && (
-      <section class="konzilo-consent-banner" aria-labelledby="konzilo-consent-banner-title" hidden>
-        <h2 class="konzilo-consent-title" id="konzilo-consent-banner-title">{view.texts.banner.title}</h2>
-        <p class="konzilo-consent-text">{view.texts.banner.text}</p>
-        {view.policies.length > 0 && (
-          <ul class="konzilo-consent-policies">{view.policies.map((page) => <li><a href={page.href}>{page.title}</a></li>)}</ul>
-        )}
-        <div class="konzilo-consent-buttons">
-          <button type="button" class="konzilo-consent-choice" data-konzilo-consent-action="accept">{view.texts.banner.accept}</button>
-          <button type="button" class="konzilo-consent-choice" data-konzilo-consent-action="reject">{view.texts.banner.reject}</button>
-          <button type="button" class="konzilo-consent-secondary" data-konzilo-consent-action="customise">{view.texts.banner.customise}</button>
-        </div>
-      </section>
-    )}
-    {view.asks && (
-      <dialog class="konzilo-consent-dialog" aria-labelledby="konzilo-consent-dialog-title">
-        <div class="konzilo-consent-head">
-          <h2 class="konzilo-consent-title" id="konzilo-consent-dialog-title">{view.texts.dialog.title}</h2>
-          <button type="button" class="konzilo-consent-close" data-konzilo-consent-action="close">{view.texts.dialog.close}</button>
-        </div>
-        <p class="konzilo-consent-introduction">{view.texts.dialog.introduction}</p>
-        {view.categories.map((category) => (
-          <section class="konzilo-consent-category" aria-labelledby={`konzilo-consent-category-${category.id}`}>
-            <div class="konzilo-consent-row">
-              <h3 class="konzilo-consent-category-name" id={`konzilo-consent-category-${category.id}`}>{category.name}</h3>
-              <span class="konzilo-consent-count">{category.count}</span>
-              <input
-                type="checkbox"
-                role="switch"
-                class="konzilo-consent-switch"
-                aria-labelledby={`konzilo-consent-category-${category.id}`}
-                data-konzilo-consent-category={category.id}
-                checked={category.necessary}
-                disabled={category.necessary}
-              />
-            </div>
-            <p class="konzilo-consent-description">{category.description}</p>
-            <details class="konzilo-consent-services">
-              <summary>{view.labels.details}</summary>
-              <ul>
-                {category.services.map((service) => (
-                  <li class="konzilo-consent-service">
-                    <div class="konzilo-consent-row">
-                      <h4 class="konzilo-consent-service-name" id={`konzilo-consent-service-${service.id}`}>{service.name}</h4>
-                      {service.necessary
-                        ? <span class="konzilo-consent-always">{view.labels.alwaysOn}</span>
-                        : (
-                          <input
-                            type="checkbox"
-                            role="switch"
-                            class="konzilo-consent-switch"
-                            aria-labelledby={`konzilo-consent-service-${service.id}`}
-                            data-konzilo-consent-service={service.id}
-                            data-konzilo-consent-in={category.id}
-                          />
-                        )}
-                    </div>
-                    <dl class="konzilo-consent-facts">
-                      <dt>{view.labels.purpose}</dt>
-                      <dd>{service.purpose}</dd>
-                      {service.necessity && <dt>{view.labels.necessity}</dt>}
-                      {service.necessity && <dd>{service.necessity}</dd>}
-                      <dt>{view.labels.provider}</dt>
-                      <dd>
-                        {service.provider
-                          ? <Fragment>{service.provider.name}, {service.provider.country}. <a href={service.provider.privacyPolicy}>{view.labels.privacyPolicy}</a></Fragment>
-                          : view.labels.site}
-                      </dd>
-                      <dt>{view.labels.stores}</dt>
-                      <dd>
-                        {service.storage.length > 0
-                          ? <ul>{service.storage.map((item) => <li><code>{item.name}</code>: {item.kind}, {item.lifetime}</li>)}</ul>
-                          : view.labels.nothing}
-                      </dd>
-                    </dl>
-                  </li>
-                ))}
-              </ul>
-            </details>
-          </section>
-        ))}
-        <div class="konzilo-consent-buttons">
-          <button type="button" class="konzilo-consent-choice" data-konzilo-consent-action="accept">{view.texts.dialog.accept}</button>
-          <button type="button" class="konzilo-consent-choice" data-konzilo-consent-action="reject">{view.texts.dialog.reject}</button>
-          <button type="button" class="konzilo-consent-secondary" data-konzilo-consent-action="save">{view.texts.dialog.save}</button>
-        </div>
-      </dialog>
-    )}
-    {view.placeholders.map((placeholder) => (
-      <template data-konzilo-consent-placeholder={placeholder.service}>
-        <p class="konzilo-embed-question">{placeholder.question}</p>
-        <p class="konzilo-embed-storage">{placeholder.storage}{view.declaration && <Fragment> <a href={view.declaration.href}>{view.declaration.title}</a></Fragment>}</p>
-        <button type="button" class="konzilo-embed-allow">{placeholder.button}</button>
-      </template>
-    ))}
-  </div>
-)}
-
+<Fragment set:html={html} />

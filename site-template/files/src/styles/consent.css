@@ -24,8 +24,10 @@
   display: none !important;
 }
 
-/* The banner: a compact box at the foot of the window that blocks nothing. */
-.konzilo-consent-banner {
+/* The banner: a compact box at the foot of the window that blocks nothing.
+   The notice that consent is withdrawn takes its place. */
+.konzilo-consent-banner,
+.konzilo-consent-notice {
   position: fixed;
   inset-inline: var(--consent-space);
   inset-block-end: var(--consent-space);
@@ -52,6 +54,10 @@
 .konzilo-consent-text,
 .konzilo-consent-introduction {
   margin: 0 0 0.75rem;
+}
+
+.konzilo-consent-notice .konzilo-consent-text {
+  margin: 0;
 }
 
 .konzilo-consent-policies {
@@ -283,7 +289,8 @@
 
 /* Motion only for a visitor who has not asked for less. */
 @media (prefers-reduced-motion: no-preference) {
-  .konzilo-consent-banner {
+  .konzilo-consent-banner,
+  .konzilo-consent-notice {
     animation: konzilo-consent-in 0.2s ease-out;
   }
 
@@ -303,6 +310,7 @@
    print. */
 @media print {
   .konzilo-consent-banner,
+  .konzilo-consent-notice,
   .konzilo-consent-dialog,
   .konzilo-consent-controls .konzilo-consent-buttons,
   .konzilo-declaration .konzilo-consent-buttons {
