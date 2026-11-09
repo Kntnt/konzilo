@@ -220,6 +220,17 @@ describe('a page made of the markup functions alone, with the client', () => {
     assert.deepEqual([...choice.querySelectorAll('li')].filter((item) => !item.hidden).map(text), ['Necessary', 'Statistics', 'Marketing']);
     assert.equal(document.querySelector('figure.konzilo-embed > iframe').getAttribute('src'), 'https://player.video.example.net/1');
     assert.equal(JSON.parse(window.localStorage.getItem('konzilo-consent')).unsent, undefined);
+    assert.equal(JSON.parse(window.localStorage.getItem('konzilo-consent')).id, undefined, 'no consent ID without records');
+  });
+
+  test('a choice with a consent ID, made where records are sent, holds there without the consent ID, and the next choice keeps none', () => {
+    const id = '0b5c8e2a-4d1f-4c3b-9a7e-6f2d1c0b9a8e';
+    const window = visit({ stored: { id, time: new Date(Date.now() - 60_000).toISOString(), revision: registry.revision, categories: { necessary: true, statistics: true, marketing: false }, services: { consent: true, counter: true, video: false } } });
+    assert.equal(window.document.querySelector('.konzilo-consent-banner').hidden, true);
+    assert.equal(window.konziloConsent.service('counter'), true);
+    assert.equal(window.konziloConsent.choice().id, undefined);
+    window.konziloConsent.allow('video');
+    assert.equal(JSON.parse(window.localStorage.getItem('konzilo-consent')).id, undefined);
   });
 });
 

@@ -879,7 +879,7 @@ describe('the consent client\'s records', () => {
   });
 });
 
-test('a preview, which no visitor sees, sends no record and keeps none', async () => {
+test('a preview, which no visitor sees, sends no record, keeps none, and makes no consent ID', async () => {
   const site = build({ base: '/preview/someone/' });
   try {
     const endpoint = standIn();
@@ -890,6 +890,8 @@ test('a preview, which no visitor sees, sends no record and keeps none', async (
     assert.equal(page.signal.service('youtube'), true);
     assert.deepEqual(endpoint.sent, []);
     assert.equal(page.kept().unsent, undefined);
+    assert.deepEqual(Object.keys(page.kept()).sort(), ['categories', 'revision', 'services', 'time'], 'and no consent ID, which nobody could look up');
+    assert.equal(page.signal.choice().id, undefined);
   } finally {
     rmSync(site.repository, { recursive: true, force: true });
   }

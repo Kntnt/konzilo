@@ -37,7 +37,9 @@ export function startConsent(options = {}) {
 //   `konzilo-consent` by default;
 // - `months`: how long a choice holds, a refusal too, 12 by default;
 // - `records`: the address the record of each choice is sent to, or null,
-//   the default, where none is sent, as on a page no visitor sees;
+//   the default, where none is sent, as on a page no visitor sees. Without
+//   it the client makes and keeps no consent ID, which nobody could look
+//   up: the choice holds its time, the revision and the states alone;
 // - `legalPage`: true on the privacy policy or the cookie policy, where the
 //   banner stays hidden, so that it covers nothing the visitor wants to
 //   read before choosing; the footer controls work there. The markup says
@@ -68,11 +70,12 @@ export function consentClient({ name = 'konzilo-consent', months = 12, records =
   const onLegalPage = legalPage === true || registry.legalPage === true || document.querySelector('meta[name="konzilo-consent"][content="legal-page"]') !== null;
   for (const element of document.querySelectorAll('[data-konzilo-consent-host]')) element.textContent = location.hostname;
 
-  // The choice kept in the browser, whether it holds or not, or null.
+  // The choice kept in the browser, whether it holds or not, or null: a
+  // consent ID where it has one, and a time.
   const kept = () => {
     try {
       const choice = JSON.parse(localStorage.getItem(name));
-      return choice && typeof choice.id === 'string' && typeof choice.time === 'string' ? choice : null;
+      return choice && typeof choice.time === 'string' && (choice.id === undefined || typeof choice.id === 'string') ? choice : null;
     } catch {
       return null;
     }
@@ -90,8 +93,15 @@ export function consentClient({ name = 'konzilo-consent', months = 12, records =
   const holds = (choice) => Boolean(choice) && choice.revision === registry.revision
     && typeof choice.services === 'object' && choice.services !== null && !expired(choice);
 
-  // The choice alone, without the records that wait beside it.
-  const own = ({ unsent, ...rest }) => rest;
+  // A consent ID only where records name it.
+  const identified = typeof records === 'string';
+  // The choice alone, without the records that wait beside it, and without
+  // a consent ID on a page that sends no records.
+  const own = ({ unsent, ...rest }) => {
+    if (identified) return rest;
+    const { id, ...anonymous } = rest;
+    return anonymous;
+  };
   const keep = (value) => {
     try {
       localStorage.setItem(name, JSON.stringify(value));
@@ -210,7 +220,7 @@ export function consentClient({ name = 'konzilo-consent', months = 12, records =
     // Each choice is later than the last, even two in one millisecond, so
     // that its time tells its record from any other of its consent ID.
     const time = new Date(Math.max(Date.now(), (Date.parse(last?.time) || 0) + 1)).toISOString();
-    choice = { id: last?.id ?? newId(), time, revision: registry.revision, categories, services };
+    choice = { ...(identified ? { id: last?.id ?? newId() } : {}), time, revision: registry.revision, categories, services };
     if (sending) {
       const record = { id: choice.id, chosen: time, revision: registry.revision, categories, services, how, control, path: location.pathname, language: registry.language };
       keep({ ...choice, unsent: [...unsent(last), record] });
