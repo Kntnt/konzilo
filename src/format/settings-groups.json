@@ -447,6 +447,16 @@
           "sv": "Återkalla samtycke"
         }
       },
+      "noticeWithdrawn": {
+        "label": "Notice: consent withdrawn",
+        "type": "string",
+        "control": "text",
+        "translated": true,
+        "default": {
+          "en": "Your consents have been withdrawn. The page will reload.",
+          "sv": "Dina samtycken har återkallats. Sidan laddas om."
+        }
+      },
       "placeholderQuestion": {
         "label": "Content waiting for consent: question",
         "type": "string",

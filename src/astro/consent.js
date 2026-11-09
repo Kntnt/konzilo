@@ -25,9 +25,10 @@ export const CONSENT_RECORDS = `${RESERVED_PREFIX}consent`;
 // the banner and the footer controls link to and whose consent texts, with
 // the categories' names and descriptions, the page shows; the registry's,
 // the main language's, where the settings have none. `site`:
-// { languageTag, base }, the page's language tag and the base its pages are
-// below.
-export function consentInput(registry, settings, { languageTag, base = '/' }) {
+// { languageTag, base, origin }, the page's language tag, the base its
+// pages are below and the origin of the public host the build is for,
+// whose host an item stored on it is named by.
+export function consentInput(registry, settings, { languageTag, base = '/', origin = null }) {
   const own = settings?.[CONSENT_GROUP];
   const texts = own
     ? { ...textsOf(own), categories: Object.fromEntries(CATEGORIES.map((id) => [id, { name: own[`${id}Name`], description: own[`${id}Description`] }])) }
@@ -41,6 +42,7 @@ export function consentInput(registry, settings, { languageTag, base = '/' }) {
       cookiePolicy: cookiePolicy ? linkTo(cookiePolicy, base) : null,
     },
     language: languageTag,
+    host: origin ? new URL(origin).hostname : null,
   };
 }
 
@@ -67,4 +69,11 @@ function isPage(pathname, page, base) {
 // choose, below the site's base.
 export function isCookiePolicy(pathname, settings, base = '/') {
   return isPage(pathname, settings?.legalPages?.cookiePolicy, base);
+}
+
+// Whether the page at `pathname` is the privacy policy or the cookie policy
+// the site settings choose, below the site's base: a legal page, where the
+// banner stays hidden.
+export function isLegalPage(pathname, settings, base = '/') {
+  return isPage(pathname, settings?.legalPages?.privacyPolicy, base) || isCookiePolicy(pathname, settings, base);
 }

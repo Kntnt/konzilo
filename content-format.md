@@ -748,6 +748,7 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
     "dialogClose": "Close",
     "footerChange": "Change privacy settings",
     "footerWithdraw": "Withdraw consent",
+    "noticeWithdrawn": "Your consents have been withdrawn. The page will reload.",
     "placeholderQuestion": "Allow {service} to play this content?",
     "placeholderButton": "Allow and play",
     "necessaryName": "Necessary",
@@ -783,11 +784,11 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
 
 ### The service registry
 
-`consent.json` is the service registry: every service the site's pages may let a visitor's browser reach, which the site's consent banner asks about. It holds `revision`, 16 hexadecimal digits that change with what a visitor consents to, and `revised`, the day it last changed; `categories`, each with `id` (`necessary`, `functional`, `statistics` or `marketing`), `name`, `description` and the ids of its `services`; `services`, each with its `id`, `name`, `category`, `provider` (`null` for the site itself), `purpose`, `storage`, `hosts`, `transfers` and `necessity`; `departures`, the site's departures from the consent rules; and `texts`, the consent texts. Every build writes it, from the site settings, the embeds of the published posts and the services an Admin declares; nothing in it is a post's.
+`consent.json` is the service registry: every service the site's pages may let a visitor's browser reach, which the site's consent banner asks about. It holds `revision`, 16 hexadecimal digits that change with what a visitor consents to, and `revised`, the day it last changed; `categories`, each with `id` (`necessary`, `functional`, `statistics` or `marketing`), `name`, `description` and the ids of its `services`; `services`, each with its `id`, `name`, `category`, `provider` (`null` for the site itself), `purpose`, `storage`, `hosts`, `transfers` and `necessity`, each stored item with its `name`, `kind`, `lifetime`, `party` and `domain`, the domain it is on: `null` for the host of the page that stores it, a domain for one shared with the sites below it, or a third party's, the host its service shows in or loads from where its facts name none; `departures`, the site's departures from the consent rules; and `texts`, the consent texts. Every build writes it, from the site settings, the embeds of the published posts and the services an Admin declares; nothing in it is a post's.
 
 ```json file=consent.json
 {
-  "revision": "786376240bce7ea0",
+  "revision": "9db7b6a0279df359",
   "revised": "2026-10-30",
   "categories": [
     {
@@ -811,7 +812,8 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
           "name": "konzilo-consent",
           "kind": "localStorage",
           "lifetime": "P12M",
-          "party": "first"
+          "party": "first",
+          "domain": null
         }
       ],
       "hosts": {
@@ -846,6 +848,9 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
     "footer": {
       "change": "Change privacy settings",
       "withdraw": "Withdraw consent"
+    },
+    "notice": {
+      "withdrawn": "Your consents have been withdrawn. The page will reload."
     },
     "placeholder": {
       "question": "Allow {service} to play this content?",
@@ -1028,7 +1033,7 @@ An ID is text, the name of the post's source file, such as `96ba709ec918`, which
     "media/site-icon-f521d4c15b.svg"
   ],
   "consent": {
-    "revision": "786376240bce7ea0",
+    "revision": "9db7b6a0279df359",
     "revised": "2026-10-30"
   }
 }

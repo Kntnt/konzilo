@@ -213,9 +213,9 @@ describe('a page of a site whose registry asks for consent', () => {
     const [consent, vimeo, youtube] = services.map(({ facts }) => facts);
     assert.deepEqual(Object.keys(consent), ['Purpose', 'Why it is needed', 'Provider', 'Stores in your browser']);
     assert.equal(consent.Provider, 'This site');
-    assert.equal(consent['Stores in your browser'], 'konzilo-consent: local storage, 12 months');
+    assert.equal(consent['Stores in your browser'], 'konzilo-consent: local storage, 12 months, on www.example.com');
     assert.equal(vimeo.Provider, 'Vimeo.com, Inc., United States. Privacy policy');
-    assert.match(vimeo['Stores in your browser'], /__cf_bm: cookie, 30 minutes/);
+    assert.match(vimeo['Stores in your browser'], /__cf_bm: cookie, 30 minutes, on player\.vimeo\.com/);
     assert.equal(youtube['Stores in your browser'], 'Its provider names nothing it stores');
     assert.match(youtube.Purpose, /\S/);
     const policy = page.querySelectorAll('.konzilo-consent-service')[2].querySelector('dd a');
@@ -297,7 +297,7 @@ describe('a page of a site in sv_SE, whose Admin wrote the banner\'s title', () 
     assert.deepEqual(texts(page.querySelectorAll('footer button')), ['Ändra integritetsinställningar', 'Återkalla samtycke']);
     const [consent, vimeo] = page.querySelectorAll('.konzilo-consent-service');
     assert.equal(consent.querySelector('.konzilo-consent-always').textContent, 'Alltid på');
-    assert.match(consent.querySelector('dl').textContent.replace(/\s+/g, ' '), /konzilo-consent: lokal lagring, 12 månader/);
+    assert.match(consent.querySelector('dl').textContent.replace(/\s+/g, ' '), /konzilo-consent: lokal lagring, 12 månader, på www\.example\.com/);
     assert.match(vimeo.querySelector('dl').textContent.replace(/\s+/g, ' '), /Vimeo\.com, Inc\., USA\./);
   });
 
@@ -352,7 +352,8 @@ test('the footer\'s controls can stand apart, the policies in one place and the 
 // the page's script file run on it, after `stored` is put into the
 // consent's own storage item and `data` has changed the registry the page
 // holds for the script. Gives the window, the consent signal, the details
-// of each event of it, and whether the page asked to be reloaded.
+// of each event of it, whether the page asked to be reloaded, and what it
+// set to run later, each { callback, delay }, which `later()` runs.
 function visit(site, slug, { stored, data, endpoint, query = '' } = {}) {
   const reloads = [];
   const virtualConsole = new VirtualConsole();
@@ -369,9 +370,12 @@ function visit(site, slug, { stored, data, endpoint, query = '' } = {}) {
   if (data) root.dataset.konziloConsent = JSON.stringify(data(JSON.parse(root.dataset.konziloConsent)));
   const events = [];
   window.document.addEventListener('konzilo:consent', (event) => events.push(event.detail));
+  const timers = [];
+  window.setTimeout = (callback, delay) => timers.push({ callback, delay });
   window.eval(site.output(window.document.querySelector('script[src]').getAttribute('src').slice(site.base.length)));
   const kept = () => JSON.parse(window.localStorage.getItem('konzilo-consent'));
-  return { window, document: window.document, signal: window.konziloConsent, events, reloads, kept };
+  const later = () => timers.splice(0).forEach(({ callback }) => callback());
+  return { window, document: window.document, signal: window.konziloConsent, events, reloads, kept, timers, later };
 }
 
 // A value made in the page's window, as one of this realm's.
@@ -416,6 +420,19 @@ describe('the consent client on a page of a site whose registry asks for consent
     assert.deepEqual(plain(page.events[0]), { choice: kept, how: 'banner' });
     assert.deepEqual(plain(page.signal.choice()), kept);
     assert.deepEqual(page.reloads, []);
+  });
+
+  test('on the privacy policy and the cookie policy the banner stays hidden before a choice, and the footer\'s buttons work there', () => {
+    for (const slug of ['privacy', 'cookies']) {
+      const page = visit(site, slug);
+      assert.equal(JSON.parse(page.document.querySelector('[data-konzilo-consent]').dataset.konziloConsent).legalPage, true, slug);
+      assert.equal(page.document.querySelector('.konzilo-consent-banner').hidden, true, slug);
+      assert.deepEqual([...page.document.querySelectorAll('footer button')].map((button) => button.hidden), [false, false], slug);
+      const dialog = Object.assign(page.document.querySelector('dialog'), { showModal() { this.open = true; } });
+      click(page, 'change');
+      assert.equal(dialog.open, true, slug);
+    }
+    assert.equal(JSON.parse(visit(site, 'text').document.querySelector('[data-konzilo-consent]').dataset.konziloConsent).legalPage, undefined);
   });
 
   test('a choice that holds keeps the banner hidden on the next page, and the signal gives it', () => {
@@ -537,7 +554,7 @@ describe('the consent client on a page of a site whose registry asks for consent
     assert.deepEqual(next.reloads, []);
   });
 
-  test('Withdraw consent rejects every optional service, keeps the consent ID, removes what each one stored that the page reaches, and reloads', () => {
+  test('Withdraw consent rejects every optional service, keeps the consent ID, removes what each one stored that the page reaches, says so in the banner\'s place, and reloads two seconds later', () => {
     // A registry whose YouTube stores items of its own on the site: a
     // cookie, local storage under a pattern, and session storage.
     const storage = { youtube: [{ name: 'yt_visitor', kind: 'cookie' }, { name: 'yt-player-*', kind: 'localStorage' }, { name: 'yt-session', kind: 'sessionStorage' }] };
@@ -560,7 +577,19 @@ describe('the consent client on a page of a site whose registry asks for consent
     const keys = Array.from({ length: page.window.localStorage.length }, (_, index) => page.window.localStorage.key(index)).sort();
     assert.deepEqual(keys, ['elsewhere', 'konzilo-consent']);
     assert.equal(page.window.sessionStorage.length, 0);
+    const notice = page.document.querySelector('.konzilo-consent-notice');
+    assert.equal(notice.hidden, false);
+    assert.equal(notice.getAttribute('role'), 'status');
+    assert.equal(notice.textContent, 'Your consents have been withdrawn. The page will reload.');
+    assert.equal(page.document.querySelector('.konzilo-consent-banner').hidden, true);
+    assert.deepEqual(page.reloads, []);
+    assert.deepEqual(page.timers.map(({ delay }) => delay), [2000]);
+    page.later();
     assert.equal(page.reloads.length, 1);
+
+    const next = visit(site, 'videos', { stored: page.kept() });
+    assert.equal(next.document.querySelector('.konzilo-consent-banner').hidden, true, 'the banner does not come back');
+    assert.equal(next.document.querySelector('.konzilo-consent-notice').hidden, true);
   });
 
   test('turning a service off in the dialog does for it what withdrawing does: it removes what that service stored that the page reaches, and reloads; a choice that withdraws nothing does neither', () => {

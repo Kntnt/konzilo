@@ -217,12 +217,12 @@ describe('the cookie policy page of a site whose registry asks for consent', () 
     assert.equal(youtube.facts['Why it is needed'], undefined);
   });
 
-  test('shows what each service stores in a table with headers, its name, kind, lifetime and party, or says that its provider names nothing', () => {
+  test('shows what each service stores in a table with headers, its name, kind, lifetime, party and the domain it is on, or says that its provider names nothing', () => {
     const [consent, vimeo, counted, , youtube] = [...page.querySelectorAll('.konzilo-declaration-service')].map(serviceOf);
-    const headers = ['Name', 'Kind', 'Lifetime', 'Party'];
-    assert.deepEqual(consent.storage, { caption: 'What Consent stores in your browser', headers, rows: [['konzilo-consent', 'local storage', '12 months', 'First party']] });
-    assert.deepEqual(counted.storage, { caption: 'What Example Counter stores in your browser', headers, rows: [['_count', 'cookie', '13 months', 'First party'], ['_count_session', 'cookie', 'until you close the browser', 'First party']] });
-    assert.deepEqual(vimeo.storage.rows.find(([name]) => name === '__cf_bm'), ['__cf_bm', 'cookie', '30 minutes', 'Third party']);
+    const headers = ['Name', 'Kind', 'Lifetime', 'Party', 'Domain'];
+    assert.deepEqual(consent.storage, { caption: 'What Consent stores in your browser', headers, rows: [['konzilo-consent', 'local storage', '12 months', 'First party', 'www.example.com']] });
+    assert.deepEqual(counted.storage, { caption: 'What Example Counter stores in your browser', headers, rows: [['_count', 'cookie', '13 months', 'First party', 'www.example.com'], ['_count_session', 'cookie', 'until you close the browser', 'First party', 'www.example.com']] });
+    assert.deepEqual(vimeo.storage.rows.find(([name]) => name === '__cf_bm'), ['__cf_bm', 'cookie', '30 minutes', 'Third party', 'player.vimeo.com']);
     assert.equal(youtube.storage, 'Its provider names nothing it stores.');
     for (const header of page.querySelectorAll('.konzilo-declaration thead th')) assert.equal(header.getAttribute('scope'), 'col');
   });
@@ -280,9 +280,12 @@ function visit(site, slug, { stored } = {}) {
   });
   const { window } = new JSDOM(site.output(`${slug}/index.html`), { url: `${ORIGIN}/${slug}/`, runScripts: 'outside-only', virtualConsole });
   if (stored !== undefined) window.localStorage.setItem('konzilo-consent', JSON.stringify(stored));
+  const timers = [];
+  window.setTimeout = (callback) => timers.push(callback);
   window.eval(site.output(window.document.querySelector('script[src]').getAttribute('src').slice(1)));
   const kept = () => JSON.parse(window.localStorage.getItem('konzilo-consent'));
-  return { window, document: window.document, signal: window.konziloConsent, reloads, kept };
+  const later = () => timers.splice(0).forEach((callback) => callback());
+  return { window, document: window.document, signal: window.konziloConsent, reloads, kept, later };
 }
 
 // What the visitor's own part of the declaration shows: its sentence, or
@@ -352,6 +355,7 @@ describe('the visitor\'s own consent on the cookie policy page, with the site\'s
     visited.document.querySelector('.konzilo-declaration button[data-konzilo-consent-action="withdraw"]').click();
     assert.deepEqual(visited.kept().services, { consent: true, vimeo: true, counter: false, pixel: false, youtube: false });
     assert.equal(visited.kept().id, id);
+    visited.later();
     assert.equal(visited.reloads.length, 1);
     assert.deepEqual(ownConsent(visit(site, 'cookies', { stored: visited.kept() })).choice.allows, ['Necessary']);
   });
@@ -382,8 +386,8 @@ describe('the cookie policy page of a site in sv_SE', () => {
     });
     assert.deepEqual(counted.storage, {
       caption: 'Vad Example Counter lagrar i din webbläsare',
-      headers: ['Namn', 'Typ', 'Livslängd', 'Part'],
-      rows: [['_count', 'kaka', '13 månader', 'Förstapart'], ['_count_session', 'kaka', 'tills du stänger webbläsaren', 'Förstapart']],
+      headers: ['Namn', 'Typ', 'Livslängd', 'Part', 'Domän'],
+      rows: [['_count', 'kaka', '13 månader', 'Förstapart', 'www.example.com'], ['_count_session', 'kaka', 'tills du stänger webbläsaren', 'Förstapart', 'www.example.com']],
     });
     assert.equal(youtube.storage, 'Leverantören anger inget som den lagrar.');
     assert.equal(youtube.facts.Syfte, registry.services.find((service) => service.id === 'youtube').purpose);

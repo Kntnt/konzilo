@@ -125,7 +125,7 @@ const registrySchema = z.strictObject({
     category: z.enum(CATEGORIES),
     provider: z.strictObject({ name: text, country, privacyPolicy: z.url({ protocol: /^https$/ }) }).nullable(),
     purpose: text,
-    storage: z.array(z.strictObject({ name: text, kind: z.enum(STORAGE_KINDS), lifetime: z.string().regex(LIFETIME), party: z.enum(['first', 'third']) })),
+    storage: z.array(z.strictObject({ name: text, kind: z.enum(STORAGE_KINDS), lifetime: z.string().regex(LIFETIME), party: z.enum(['first', 'third']), domain: text.nullable() })),
     hosts: z.strictObject(Object.fromEntries(HOST_KINDS.map((kind) => [kind, z.array(z.string())]))),
     transfers: z.array(z.strictObject({ country: country.nullable(), safeguards: z.array(z.enum(SAFEGUARDS)) })),
     necessity: text.nullable(),
@@ -135,6 +135,7 @@ const registrySchema = z.strictObject({
     banner: z.strictObject({ title: text, text, accept: text, reject: text, customise: text }),
     dialog: z.strictObject({ title: text, introduction: text, accept: text, reject: text, save: text, close: text }),
     footer: z.strictObject({ change: text, withdraw: text }),
+    notice: z.strictObject({ withdrawn: text }),
     placeholder: z.strictObject({ question: text, button: text }),
   }),
 });

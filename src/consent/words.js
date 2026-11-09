@@ -22,6 +22,13 @@ const WORDS = {
     session: 'until you close the browser',
     persistent: 'with no end',
     kinds: { cookie: 'cookie', localStorage: 'local storage', sessionStorage: 'session storage', other: 'other storage' },
+    // Where an item is stored: on the host of the page, on a domain the
+    // site shares with the sites below it, on a provider's domain, or on one
+    // its provider does not name.
+    on: 'on {domain}',
+    thisHost: 'this site',
+    shared: '{domain} and the sites below it',
+    unnamedDomain: 'its provider\'s domain',
     // A placeholder's sentence on what its service may store and where its
     // data goes: with no provider, with one, and with one whose data may
     // leave the EU and EEA.
@@ -54,7 +61,7 @@ const WORDS = {
       unnamed: 'A country its provider does not name',
       safeguards: { adequacy: 'an adequacy decision', scc: 'standard contractual clauses', bcr: 'binding corporate rules' },
       stores: 'What {service} stores in your browser',
-      columns: ['Name', 'Kind', 'Lifetime', 'Party'],
+      columns: ['Name', 'Kind', 'Lifetime', 'Party', 'Domain'],
       party: { first: 'First party', third: 'Third party' },
       nothing: 'Its provider names nothing it stores.',
       departures: 'Departures from the rules on consent',
@@ -79,6 +86,10 @@ const WORDS = {
     session: 'tills du stänger webbläsaren',
     persistent: 'utan slut',
     kinds: { cookie: 'kaka', localStorage: 'lokal lagring', sessionStorage: 'sessionslagring', other: 'annan lagring' },
+    on: 'på {domain}',
+    thisHost: 'den här webbplatsen',
+    shared: '{domain} och webbplatserna under den',
+    unnamedDomain: 'leverantörens domän',
     placeholder: [
       '{service} kan lagra uppgifter i din webbläsare.',
       '{service} kan lagra uppgifter i din webbläsare, och {provider} ({country}) tar emot uppgifter om ditt besök.',
@@ -108,7 +119,7 @@ const WORDS = {
       unnamed: 'Ett land som leverantören inte namnger',
       safeguards: { adequacy: 'ett beslut om adekvat skyddsnivå', scc: 'standardavtalsklausuler', bcr: 'bindande företagsbestämmelser' },
       stores: 'Vad {service} lagrar i din webbläsare',
-      columns: ['Namn', 'Typ', 'Livslängd', 'Part'],
+      columns: ['Namn', 'Typ', 'Livslängd', 'Part', 'Domän'],
       party: { first: 'Förstapart', third: 'Tredjepart' },
       nothing: 'Leverantören anger inget som den lagrar.',
       departures: 'Avsteg från reglerna om samtycke',

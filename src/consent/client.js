@@ -24,18 +24,25 @@ export function startConsent(options = {}) {
 // The consent client: it reads the registry the consent's markup holds in
 // `[data-konzilo-consent]` (its revision, its categories with their
 // services, the storage withdrawing removes and the language of the page's
-// texts), shows the banner while no choice holds, opens the dialog, keeps
-// each choice, and gives the consent signal, window.konziloConsent, and its
-// event, `konzilo:consent` on the document. A page without the markup
-// allows nothing beyond the necessary. A choice older than `months` is
-// removed as the page loads, so the next choice has a new consent ID.
+// texts), shows the banner while no choice holds, but on a legal page,
+// opens the dialog, keeps each choice, and gives the consent signal,
+// window.konziloConsent, and its event, `konzilo:consent` on the document.
+// A page without the markup allows nothing beyond the necessary. A choice
+// older than `months` is removed as the page loads, so the next choice has
+// a new consent ID. Each element marked `data-konzilo-consent-host` gets
+// the page's host, which an item stored on it is named by.
 //
 // `options`:
 // - `name`: the consent's own storage item, in local storage,
 //   `konzilo-consent` by default;
 // - `months`: how long a choice holds, a refusal too, 12 by default;
 // - `records`: the address the record of each choice is sent to, or null,
-//   the default, where none is sent, as on a page no visitor sees.
+//   the default, where none is sent, as on a page no visitor sees;
+// - `legalPage`: true on the privacy policy or the cookie policy, where the
+//   banner stays hidden, so that it covers nothing the visitor wants to
+//   read before choosing; the footer controls work there. The markup says
+//   so too (`legalPage` in its registry), and so does a page of its own
+//   with `<meta name="konzilo-consent" content="legal-page">` in its head.
 //
 // It sends the record of each choice in the background, and never waits
 // for it: the consent ID, the choice's time, the revision, every state, how
@@ -44,7 +51,7 @@ export function startConsent(options = {}) {
 // it, each record waits beside the choice, in the list `unsent`, and a later
 // page view sends each once more and then gives it up; the choice holds
 // regardless.
-export function consentClient({ name = 'konzilo-consent', months = 12, records = null } = {}) {
+export function consentClient({ name = 'konzilo-consent', months = 12, records = null, legalPage = false } = {}) {
   // The page has its signal already, from an earlier run of the script.
   if ('konziloConsent' in window) return;
   const root = document.querySelector('[data-konzilo-consent]');
@@ -56,7 +63,10 @@ export function consentClient({ name = 'konzilo-consent', months = 12, records =
   }
   const categoryOf = new Map(Object.entries(registry.categories).flatMap(([category, services]) => services.map((service) => [service, category])));
   const banner = root?.querySelector('.konzilo-consent-banner') ?? null;
+  const notice = root?.querySelector('.konzilo-consent-notice') ?? null;
   const dialog = root?.querySelector('dialog') ?? null;
+  const onLegalPage = legalPage === true || registry.legalPage === true || document.querySelector('meta[name="konzilo-consent"][content="legal-page"]') !== null;
+  for (const element of document.querySelectorAll('[data-konzilo-consent-host]')) element.textContent = location.hostname;
 
   // The choice kept in the browser, whether it holds or not, or null.
   const kept = () => {
@@ -189,6 +199,9 @@ export function consentClient({ name = 'konzilo-consent', months = 12, records =
   // Withdraw consent or to some of them in the dialog, removes what each
   // service withdrawn from stored that the page can reach, after the event,
   // and reloads the page, so that none of their code keeps running.
+  // Withdraw consent shows the notice in the banner's place first, and
+  // reloads two seconds later; the banner does not come back, since the
+  // choice of the necessary alone holds.
   const choose = (allowed, how, control) => {
     const before = [...categoryOf.keys()].filter(allowsService);
     const services = Object.fromEntries([...categoryOf].map(([service, category]) => [service, category === 'necessary' || allowed.has(service)]));
@@ -212,7 +225,12 @@ export function consentClient({ name = 'konzilo-consent', months = 12, records =
     for (const service of withdrawn) {
       for (const item of registry.storage[service] ?? []) remove(item);
     }
-    location.reload();
+    if (how !== 'withdrawal') {
+      location.reload();
+      return;
+    }
+    if (notice) notice.hidden = false;
+    setTimeout(() => location.reload(), 2000);
   };
   const withdraw = () => choose(new Set(), 'withdrawal', 'withdraw');
 
@@ -293,11 +311,12 @@ export function consentClient({ name = 'konzilo-consent', months = 12, records =
   });
 
   // Without JavaScript neither the banner nor the footer's buttons show;
-  // with it, the buttons, and the banner while no choice holds.
+  // with it, the buttons, and the banner while no choice holds, but on a
+  // legal page.
   if (dialog) {
     for (const hidden of document.querySelectorAll('button[data-konzilo-consent-action][hidden]')) hidden.hidden = false;
   }
-  if (banner && !choice) banner.hidden = false;
+  if (banner && !choice && !onLegalPage) banner.hidden = false;
 }
 
 // The cookie declaration's script. On a page with the declaration it shows

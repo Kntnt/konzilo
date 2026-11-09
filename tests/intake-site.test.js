@@ -333,6 +333,16 @@ describe('the service registry', () => {
     assert.deepEqual(result.ledger.consent, { revision: registry.revision, revised: '2026-11-03' });
   });
 
+  test('names the domain of each stored item: null, the host of the page, for one of the site\'s own, and the host a third party\'s service shows in or loads from', () => {
+    const service = { id: 'pixel', name: 'Pixel', category: 'marketing', provider: { name: 'P Inc', country: 'IE', privacyPolicy: 'https://p.example.com/privacy' }, purpose: 'Counts.', storage: [{ name: 'own', kind: 'cookie', lifetime: 'P1D', party: 'first' }, { name: 'theirs', kind: 'cookie', lifetime: 'P1D', party: 'third' }], hosts: { scripts: ['https://*.cdn.example.com'], images: ['https://pixel.example.com'] }, transfers: [] };
+    const result = run({ 'articles/aaaaaaaaaaaa.md': article({}, 'https://vimeo.com/76979871'), 'services.json': { services: [service] } }, site);
+    const registry = JSON.parse(written(result)['consent.json']);
+    const domains = Object.fromEntries(registry.services.map((one) => [one.id, one.storage.map(({ name, domain }) => [name, domain])]));
+    assert.deepEqual(domains.consent, [['konzilo-consent', null]]);
+    assert.deepEqual(domains.pixel, [['own', null], ['theirs', 'cdn.example.com']]);
+    assert.ok(domains.vimeo.every(([, domain]) => domain === 'player.vimeo.com'));
+  });
+
   test('keeps the day it last changed, while what a visitor consents to stays', () => {
     const first = run({}, site);
     const later = run({}, site, { ledger: first.ledger, now: new Date('2027-01-01T00:00:00Z') });

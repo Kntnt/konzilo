@@ -40,6 +40,7 @@ const registry = {
     banner: { title: 'Your privacy', text: 'We ask first.', accept: 'Accept all', reject: 'Reject optional', customise: 'Customise' },
     dialog: { title: 'Privacy settings', introduction: 'Choose.', accept: 'Accept all', reject: 'Reject optional', save: 'Save my choices', close: 'Close' },
     footer: { change: 'Change privacy settings', withdraw: 'Withdraw consent' },
+    notice: { withdrawn: 'Your consents have been withdrawn. The page will reload.' },
     placeholder: { question: 'Allow {service} to play this content?', button: 'Allow and play' },
   },
 };
@@ -141,6 +142,61 @@ function visit({ stored } = {}) {
   window.eval(`(${consentClient})({ records: null });\n(${cookieDeclaration})();\n(${embedPanels})();`);
   return window;
 }
+
+describe('where the markup names each stored item\'s domain', () => {
+  const stored = (storage) => ({ ...registry, services: registry.services.map((service) => (service.id === 'counter' ? { ...service, storage } : service)) });
+  const items = [
+    { name: 'own', kind: 'cookie', lifetime: 'P1D', party: 'first', domain: null },
+    { name: 'shared', kind: 'cookie', lifetime: 'P1D', party: 'first', domain: 'example.com' },
+    { name: 'theirs', kind: 'cookie', lifetime: 'P1D', party: 'third', domain: 'count.example.com' },
+    { name: 'unnamed', kind: 'cookie', lifetime: 'P1D', party: 'third', domain: null },
+  ];
+
+  test('the dialog and the declaration name the page\'s host, a shared domain with the sites below it, and the provider\'s', () => {
+    const given = { ...input, registry: stored(items), host: 'www.example.com' };
+    const dialog = parse(consentMarkup(given));
+    assert.deepEqual([...dialog.querySelector('#konzilo-consent-service-counter').closest('.konzilo-consent-service').querySelectorAll('.konzilo-consent-facts li')].map(text), [
+      'own: cookie, 1 day, on www.example.com',
+      'shared: cookie, 1 day, on example.com and the sites below it',
+      'theirs: cookie, 1 day, on count.example.com',
+      'unnamed: cookie, 1 day, on its provider\'s domain',
+    ]);
+    const declaration = parse(cookieDeclarationMarkup(given));
+    const rows = [...declaration.querySelectorAll('#konzilo-declaration-service-counter tbody tr')].map((row) => text(row.lastElementChild));
+    assert.deepEqual(rows, ['www.example.com', 'example.com and the sites below it', 'count.example.com', 'Its provider\'s domain']);
+  });
+
+  test('without a host, the page\'s own is named by the client from the page\'s address, and the words for this site until it runs', () => {
+    const html = cookieDeclarationMarkup({ ...input, registry: stored(items) });
+    assert.equal(text(parse(html).querySelector('[data-konzilo-consent-host]')), 'This site');
+    const { window } = new JSDOM(`<!doctype html><html><body>${consentMarkup({ ...input, registry: stored(items) })}${html}</body></html>`, { url: 'https://investors.example.com/cookies/', runScripts: 'outside-only' });
+    window.eval(`(${consentClient})({});`);
+    // The consent's own item and the counter's own, in the dialog and in the declaration.
+    assert.deepEqual([...window.document.querySelectorAll('[data-konzilo-consent-host]')].map(text), Array(4).fill('investors.example.com'));
+  });
+
+  test('a registry with no domain on an item names the page\'s host for one of its own, and its provider\'s domain in words for a third party\'s', () => {
+    const page = parse(cookieDeclarationMarkup({ ...input, registry: stored(items.map(({ domain, ...item }) => item)), host: 'www.example.com' }));
+    assert.deepEqual([...page.querySelectorAll('#konzilo-declaration-service-counter tbody tr')].map((row) => text(row.lastElementChild)), ['www.example.com', 'www.example.com', 'Its provider\'s domain', 'Its provider\'s domain']);
+  });
+});
+
+describe('on a legal page', () => {
+  test('the banner stays hidden, as the markup, the client\'s option or the page\'s own meta says, and the footer\'s buttons show', () => {
+    const page = (head, html, options = {}) => {
+      const { window } = new JSDOM(`<!doctype html><html><head>${head}</head><body>${html}${consentControlsMarkup(input)}</body></html>`, { url: 'https://www.example.com/privacy/', runScripts: 'outside-only' });
+      window.eval(`(${consentClient})(${JSON.stringify(options)});`);
+      return window.document;
+    };
+    const banner = (document) => document.querySelector('.konzilo-consent-banner').hidden;
+    assert.equal(banner(page('', consentMarkup(input))), false);
+    assert.equal(banner(page('', consentMarkup(input, { legalPage: true }))), true);
+    assert.equal(banner(page('', consentMarkup(input), { legalPage: true })), true);
+    const marked = page('<meta name="konzilo-consent" content="legal-page">', consentMarkup(input));
+    assert.equal(banner(marked), true);
+    assert.deepEqual([...marked.querySelectorAll('.konzilo-consent-controls button')].map((button) => button.hidden), [false, false]);
+  });
+});
 
 describe('a page made of the markup functions alone, with the client', () => {
   test('shows the banner and the footer\'s buttons, asks in the placeholder, and allows the necessary alone', () => {

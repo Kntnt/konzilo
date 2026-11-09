@@ -35,10 +35,10 @@ import { siteSettings } from './site-settings.js';
 const { level = 2 } = Astro.props;
 const registry = (await getEntry('consent', 'registry'))?.data;
 const settings = await siteSettings(Astro.url);
-const { languageTag } = publicSite(Astro.url);
+const { languageTag, origin } = publicSite(Astro.url);
 const base = import.meta.env.BASE_URL;
 const html = registry && isCookiePolicy(Astro.url.pathname, settings, base)
-  ? cookieDeclarationMarkup(consentInput(registry, settings, { languageTag, base }), { level, records: isPublicBuild(base) ? CONSENT_RECORDS : null })
+  ? cookieDeclarationMarkup(consentInput(registry, settings, { languageTag, base, origin }), { level, records: isPublicBuild(base) ? CONSENT_RECORDS : null })
   : '';
 ---
 <Fragment set:html={html} />

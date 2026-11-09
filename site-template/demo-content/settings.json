@@ -86,6 +86,7 @@
     "dialogClose": "Close",
     "footerChange": "Change privacy settings",
     "footerWithdraw": "Withdraw consent",
+    "noticeWithdrawn": "Your consents have been withdrawn. The page will reload.",
     "placeholderQuestion": "Allow {service} to play this content?",
     "placeholderButton": "Allow and play",
     "necessaryName": "Necessary",

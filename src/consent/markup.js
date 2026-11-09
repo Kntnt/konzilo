@@ -14,13 +14,16 @@
 //   (content-format.md, "The service registry"): `revision`, `revised`,
 //   `categories`, `services`, `departures` and `texts`.
 // - `texts`: the consent texts the page shows, in the registry's shape,
-//   `{ banner, dialog, footer, placeholder }`, with `categories`, the
+//   `{ banner, dialog, footer, notice, placeholder }`, with `categories`, the
 //   name and description of a category by its id, where the page's differ
 //   from the registry's; the registry's own `texts` by default.
 // - `legalPages`: `{ privacyPolicy, cookiePolicy }`, each `{ title, href }`
 //   or null, the address as the page links to it.
 // - `language`: the page's language tag, such as en-GB; the core's own
 //   words are Swedish for Swedish and English for any other.
+// - `host`: the host of the page, such as www.example.com, which an item
+//   stored on it is named by, or null where the markup serves pages on
+//   more than one host; the client then names it from the page's address.
 //
 // Every text is escaped, so a registry from anywhere is safe to render.
 //
@@ -37,6 +40,19 @@ export function escape(value) {
 
 // Whether a service is always on.
 const isNecessary = (service) => service.category === 'necessary';
+
+// Where a stored item is, `{ party, domain }`, as HTML: the page's own host
+// for a first-party item with no domain, which the client fills in from
+// the page's address (`data-konzilo-consent-host`), `host` or the words for
+// this site until it runs; a domain shared with the sites below it for a
+// first-party item with one; and the provider's domain, or the words for
+// it where none is named, for a third-party item.
+function domainMarkup({ party, domain }, words, host) {
+  if (domain === null) return party === 'first' ? `<span data-konzilo-consent-host>${escape(host ?? words.thisHost)}</span>` : escape(words.unnamedDomain);
+  return escape(party === 'first' ? fill(words.shared, { domain }) : domain);
+}
+
+const capital = (text) => `${text[0].toUpperCase()}${text.slice(1)}`;
 
 // The privacy policy and the cookie policy, each once, since the cookie
 // policy may be the privacy policy itself.
@@ -74,7 +90,7 @@ export function consentView({ registry, texts = registry.texts, legalPages = {},
     purpose: service.purpose,
     necessity: service.necessity,
     provider: service.provider && { name: service.provider.name, country: country(service.provider.country), privacyPolicy: service.provider.privacyPolicy },
-    storage: service.storage.map((item) => ({ name: item.name, kind: kind(item.kind), lifetime: lifetime(item.lifetime) })),
+    storage: service.storage.map((item) => ({ name: item.name, kind: kind(item.kind), lifetime: lifetime(item.lifetime), where: { party: item.party, domain: item.domain ?? null } })),
   });
   const optional = registry.services.filter((service) => !isNecessary(service));
   const [alone, provided, transferred] = words.placeholder;
@@ -127,15 +143,20 @@ const choice = (action, text) => `<button type="button" class="konzilo-consent-c
 const secondary = (action, text, hidden = false) => `<button type="button" class="konzilo-consent-secondary" data-konzilo-consent-action="${action}"${hidden ? ' hidden' : ''}>${escape(text)}</button>`;
 const policyList = (policies) => `<ul class="konzilo-consent-policies">${policies.map((page) => `<li><a href="${escape(page.href)}">${escape(page.title)}</a></li>`).join('')}</ul>`;
 
-// The consent's own part of a page, once on it: the banner and the
-// preferences dialog, both hidden until the client shows them, and the
+// The consent's own part of a page, once on it: the banner, the notice
+// shown in its place when the visitor withdraws consent, and the
+// preferences dialog, each hidden until the client shows it, and the
 // template of each placeholder, in what the client finds them by,
 // `[data-konzilo-consent]`, which holds the registry the client reads. A
-// registry that asks no consent gives no banner and no dialog, and still
-// the registry.
-export function consentMarkup(input) {
+// registry that asks no consent gives no banner, no notice and no dialog,
+// and still the registry. `legalPage: true` marks the page as a legal page,
+// the privacy policy or the cookie policy, where the client leaves the
+// banner hidden, so that it covers nothing the visitor reads there before
+// choosing.
+export function consentMarkup(input, { legalPage = false } = {}) {
   const view = consentView(input);
   const { texts, labels } = view;
+  const data = legalPage ? { ...view.data, legalPage: true } : view.data;
   const parts = [];
   if (view.asks) {
     parts.push([
@@ -150,6 +171,7 @@ export function consentMarkup(input) {
       '</div>',
       '</section>',
     ].join(''));
+    parts.push(`<div class="konzilo-consent-notice" role="status" hidden><p class="konzilo-consent-text">${escape(texts.notice.withdrawn)}</p></div>`);
     parts.push([
       '<dialog class="konzilo-consent-dialog" aria-labelledby="konzilo-consent-dialog-title">',
       '<div class="konzilo-consent-head">',
@@ -157,7 +179,7 @@ export function consentMarkup(input) {
       `<button type="button" class="konzilo-consent-close" data-konzilo-consent-action="close">${escape(texts.dialog.close)}</button>`,
       '</div>',
       `<p class="konzilo-consent-introduction">${escape(texts.dialog.introduction)}</p>`,
-      ...view.categories.map((category) => categoryMarkup(category, labels)),
+      ...view.categories.map((category) => categoryMarkup(category, labels, input.host ?? null)),
       '<div class="konzilo-consent-buttons">',
       choice('accept', texts.dialog.accept),
       choice('reject', texts.dialog.reject),
@@ -176,14 +198,15 @@ export function consentMarkup(input) {
       '</template>',
     ].join(''));
   }
-  return `<div class="konzilo-consent" data-konzilo-consent="${escape(JSON.stringify(view.data))}">${parts.join('')}</div>`;
+  return `<div class="konzilo-consent" data-konzilo-consent="${escape(JSON.stringify(data))}">${parts.join('')}</div>`;
 }
 
 // A category of the dialog: its row with its name, its count and its
 // switch, its description, and its services, each with its facts and its
 // own switch, or the words that it is always on.
-function categoryMarkup(category, labels) {
+function categoryMarkup(category, labels, host) {
   const id = `konzilo-consent-category-${category.id}`;
+  const [before, after] = labels.on.split('{domain}');
   const services = category.services.map((service) => {
     const name = `konzilo-consent-service-${service.id}`;
     const toggle = service.necessary
@@ -193,7 +216,7 @@ function categoryMarkup(category, labels) {
       ? `${escape(service.provider.name)}, ${escape(service.provider.country)}. <a href="${escape(service.provider.privacyPolicy)}">${escape(labels.privacyPolicy)}</a>`
       : escape(labels.site);
     const storage = service.storage.length > 0
-      ? `<ul>${service.storage.map((item) => `<li><code>${escape(item.name)}</code>: ${escape(item.kind)}, ${escape(item.lifetime)}</li>`).join('')}</ul>`
+      ? `<ul>${service.storage.map((item) => `<li><code>${escape(item.name)}</code>: ${escape(item.kind)}, ${escape(item.lifetime)}, ${escape(before)}${domainMarkup(item.where, labels, host)}${escape(after)}</li>`).join('')}</ul>`
       : escape(labels.nothing);
     return [
       '<li class="konzilo-consent-service">',
@@ -270,7 +293,7 @@ export function declarationView({ registry, texts = registry.texts, legalPages =
     hosts: [...new Set(Object.values(service.hosts).flat())].sort(),
     transfers: service.transfers.map(transfer),
     caption: fill(words.stores, { service: service.name }),
-    storage: service.storage.map((item) => ({ name: item.name, kind: kind(item.kind), lifetime: lifetime(item.lifetime), party: words.party[item.party] })),
+    storage: service.storage.map((item) => ({ name: item.name, kind: kind(item.kind), lifetime: lifetime(item.lifetime), party: words.party[item.party], where: { party: item.party, domain: item.domain ?? null } })),
   });
   const revised = new Date(registry.revised instanceof Date ? registry.revised : `${registry.revised}T00:00:00Z`);
   const [before, after] = words.revised.split('{date}');
@@ -307,6 +330,10 @@ export function declarationView({ registry, texts = registry.texts, legalPages =
 export function cookieDeclarationMarkup(input, { level = 2, records = null } = {}) {
   const view = declarationView(input);
   const { words } = view;
+  // A table's cell begins with a capital.
+  const domainWords = wordsFor(input.language ?? 'en');
+  const cellWords = { ...domainWords, thisHost: capital(domainWords.thisHost), unnamedDomain: capital(domainWords.unnamedDomain) };
+  const domain = (where) => domainMarkup(where, cellWords, input.host ?? null);
   const [top, category, service] = [0, 1, 2].map((below) => `h${Math.min(level + below, 6)}`);
   const heading = (tag, id, text) => `<${tag} id="${escape(id)}">${escape(text)}</${tag}>`;
   const own = view.asks
@@ -328,7 +355,7 @@ export function cookieDeclarationMarkup(input, { level = 2, records = null } = {
     `<section class="konzilo-declaration-category" aria-labelledby="konzilo-declaration-category-${escape(one.id)}">`,
     heading(category, `konzilo-declaration-category-${one.id}`, one.name),
     `<p>${escape(one.description)}</p>`,
-    ...one.services.map((item) => serviceMarkup(item, { tag: service, words })),
+    ...one.services.map((item) => serviceMarkup(item, { tag: service, words, domain })),
     '</section>',
   ].join(''));
   return [
@@ -356,8 +383,8 @@ export function cookieDeclarationMarkup(input, { level = 2, records = null } = {
 
 // A service of the declaration: its name, its provider, purpose, why it is
 // necessary where it is, the hosts it reaches and its transfers, and a
-// table of what it stores.
-function serviceMarkup(service, { tag, words }) {
+// table of what it stores, each item with the domain it is on.
+function serviceMarkup(service, { tag, words, domain }) {
   const id = `konzilo-declaration-service-${service.id}`;
   const provider = service.provider.country ? `${service.provider.name}, ${service.provider.country}.` : `${service.provider.name}.`;
   const policy = service.provider.privacyPolicy ? ` <a href="${escape(service.provider.privacyPolicy.href)}">${escape(service.provider.privacyPolicy.title)}</a>` : '';
@@ -367,7 +394,7 @@ function serviceMarkup(service, { tag, words }) {
         '<table>',
         `<caption>${escape(service.caption)}</caption>`,
         `<thead><tr>${words.columns.map((column) => `<th scope="col">${escape(column)}</th>`).join('')}</tr></thead>`,
-        `<tbody>${service.storage.map((item) => `<tr><td><code>${escape(item.name)}</code></td><td>${escape(item.kind)}</td><td>${escape(item.lifetime)}</td><td>${escape(item.party)}</td></tr>`).join('')}</tbody>`,
+        `<tbody>${service.storage.map((item) => `<tr><td><code>${escape(item.name)}</code></td><td>${escape(item.kind)}</td><td>${escape(item.lifetime)}</td><td>${escape(item.party)}</td><td>${domain(item.where)}</td></tr>`).join('')}</tbody>`,
         '</table>',
       ].join('')
     : `<p>${escape(words.nothing)}</p>`;

@@ -104,12 +104,13 @@ The core's stylesheet makes it work, and it stands inside a body's wrapper, so a
 
 ### Consent
 
-`ConsentBanner.astro` goes once on a page, and `ConsentControls.astro` in its footer. `links={false}` leaves the policy links out of the controls and `buttons={false}` the buttons, so that each can stand in its own place. Each component, `CookieDeclaration.astro` too, is a thin wrapper around a pure function of `src/consent/markup.js`, `consentMarkup()`, `consentControlsMarkup()` and `cookieDeclarationMarkup()`, which give the same markup outside Astro.
+`ConsentBanner.astro` goes once on a page, and `ConsentControls.astro` in its footer. `links={false}` leaves the policy links out of the controls and `buttons={false}` the buttons, so that each can stand in its own place. The banner stays hidden on the privacy policy and the cookie policy, and the footer controls work there. Where an item stored on the page's own host is named, the element marked `data-konzilo-consent-host` holds the host, which the script writes from the page's address. Each component, `CookieDeclaration.astro` too, is a thin wrapper around a pure function of `src/consent/markup.js`, `consentMarkup()`, `consentControlsMarkup()` and `cookieDeclarationMarkup()`, which give the same markup outside Astro.
 
 | Class | On | State |
 |---|---|---|
 | `.konzilo-consent` | What holds the banner and the dialog | |
 | `.konzilo-consent-banner` | The banner | `[hidden]` |
+| `.konzilo-consent-notice` | The notice in the banner's place, `[role=status]`, that consent is withdrawn and the page reloads | `[hidden]` until then |
 | `.konzilo-consent-text` | Its text | |
 | `.konzilo-consent-title` | A title | |
 | `.konzilo-consent-buttons` | A row of buttons | |

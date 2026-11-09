@@ -25,7 +25,7 @@ import { siteSettings } from './site-settings.js';
 const { links = true, buttons = true } = Astro.props;
 const registry = (await getEntry('consent', 'registry'))?.data;
 const settings = await siteSettings(Astro.url);
-const { languageTag } = publicSite(Astro.url);
-const html = registry ? consentControlsMarkup(consentInput(registry, settings, { languageTag, base: import.meta.env.BASE_URL }), { links, buttons }) : '';
+const { languageTag, origin } = publicSite(Astro.url);
+const html = registry ? consentControlsMarkup(consentInput(registry, settings, { languageTag, base: import.meta.env.BASE_URL, origin }), { links, buttons }) : '';
 ---
 <Fragment set:html={html} />

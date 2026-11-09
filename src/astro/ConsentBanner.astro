@@ -12,7 +12,8 @@
 // <dialog> with a row per category, its services and what each stores.
 // Both start hidden, and the integration's script (src/consent/client.js)
 // shows the banner while no choice holds, so a visitor without JavaScript
-// sees neither. A registry that asks no consent shows no banner and no
+// sees neither. On the privacy policy and the cookie policy the site
+// settings choose, the banner stays hidden; the footer controls work there. A registry that asks no consent shows no banner and no
 // dialog; the page still holds the registry for the consent signal. It also
 // holds, in a <template> each, the placeholder of every embed service that
 // waits for consent, which the integration's script puts in each panel of
@@ -24,13 +25,14 @@
 // the core has it.
 import { getEntry } from 'astro:content';
 import { consentMarkup } from '../consent/markup.js';
-import { consentInput } from './consent.js';
+import { consentInput, isLegalPage } from './consent.js';
 import { publicSite } from './public-site.js';
 import { siteSettings } from './site-settings.js';
 
 const registry = (await getEntry('consent', 'registry'))?.data;
 const settings = await siteSettings(Astro.url);
-const { languageTag } = publicSite(Astro.url);
-const html = registry ? consentMarkup(consentInput(registry, settings, { languageTag, base: import.meta.env.BASE_URL })) : '';
+const { languageTag, origin } = publicSite(Astro.url);
+const base = import.meta.env.BASE_URL;
+const html = registry ? consentMarkup(consentInput(registry, settings, { languageTag, base, origin }), { legalPage: isLegalPage(Astro.url.pathname, settings, base) }) : '';
 ---
 <Fragment set:html={html} />

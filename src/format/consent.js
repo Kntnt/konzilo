@@ -175,11 +175,25 @@ function serviceOf(service, language) {
     category: service.category,
     provider: service.provider ? { ...service.provider } : null,
     purpose: inLanguage(service.purpose, language),
-    storage: (service.storage ?? []).map((item) => ({ ...item })),
+    storage: (service.storage ?? []).map((item) => ({ name: item.name, kind: item.kind, lifetime: item.lifetime, party: item.party, domain: domainOf(item, service) })),
     hosts: Object.fromEntries(HOST_KINDS.map((kind) => [kind, [...new Set(service.hosts?.[kind] ?? [])].sort()])),
     transfers: (service.transfers ?? []).map((transfer) => ({ country: transfer.country, safeguards: [...transfer.safeguards] })),
     necessity: service.category === 'necessary' ? inLanguage(service.necessity, language) : null,
   };
+}
+
+// The domain a stored item is on: the one its facts give, null for the
+// host of the page that stores it, which is a first-party item's unless
+// its facts name a domain shared with the sites below it, and for a
+// third-party item the host its service shows in, else loads from, which
+// is its provider's: the first of its frames, or of its scripts, requests,
+// images, styles or fonts, `*.` left out; null where it reaches none.
+function domainOf(item, service) {
+  if (item.domain !== undefined) return item.domain;
+  if (item.party === 'first') return null;
+  const kinds = ['frames', ...HOST_KINDS.filter((kind) => kind !== 'frames')];
+  const host = kinds.map((kind) => [...(service.hosts?.[kind] ?? [])].sort()[0]).find(Boolean);
+  return host ? host.replace(/^\*\./, '') : null;
 }
 
 // The revision: a hash of what a visitor consents to, the categories with
@@ -202,6 +216,7 @@ const places = {
   banner: ['title', 'text', 'accept', 'reject', 'customise'],
   dialog: ['title', 'introduction', 'accept', 'reject', 'save', 'close'],
   footer: ['change', 'withdraw'],
+  notice: ['withdrawn'],
   placeholder: ['question', 'button'],
 };
 
