@@ -250,7 +250,7 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Consent signal**: The page's word on what the visitor allows, per category and per service. _Avoid_: consent mode.
 
-**Consent choice**: What a visitor allowed, kept in the browser for 12 months; a refusal is a choice too. _Avoid_: consent cookie.
+**Consent choice**: What a visitor allowed, kept in the browser for 12 months, for the site's own origin or for every site below a domain the site description names; a refusal is a choice too. _Avoid_: consent cookie.
 
 **Placeholder**: An embed's panel while the visitor has not allowed its service. _Avoid_: content blocker.
 

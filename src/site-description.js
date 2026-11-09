@@ -9,6 +9,7 @@
 import { readFileSync } from 'node:fs';
 import { freeze, isObject, onlyKeys as checkedKeys, text } from './checks.js';
 import { IMAGE_LIBRARY_FOLDER, MEDIA_FOLDER } from './format/masters.js';
+import { suffixTakenIn } from './format/public-suffixes.js';
 import rules from './format/rules.json' with { type: 'json' };
 import { coreSettingsGroups, groupsFor, settingsGroups } from './settings-groups.js';
 
@@ -131,7 +132,7 @@ const results = new WeakSet();
 //     images: { smallestWidth, displayWidth } or null,
 //     menus: { <menu>: { name, label } },
 //     settings: [ { name, label, type, control, options, required, translated } ],
-//     consent: { departures: [ { departure, service, reason } ] },
+//     consent: { departures: [ { departure, service, reason } ], domain },
 //     security: { includeSubDomains, frameAncestors: [ <origin> ] },
 //     forms: { <form>: { name, label, fields: [ { name, label, kind, required, maxLength, options, help } ] } },
 //     search: { address } or null,
@@ -172,8 +173,9 @@ const results = new WeakSet();
 // fields of the site's own, in the order declared, and a text may be
 // `translated`, true only when declared, with a value per language. `consent` holds the site's departures from
 // the consent rules, each one of DEPARTURES with its reason, a
-// necessaryService's naming its service, in the order declared; none for a
-// site that declares none. `security` holds the site's opt-ins to its security
+// necessaryService's naming its service, in the order declared, none for a
+// site that declares none; and the domain the consent choice is kept on,
+// for every site below it, or null, where each site keeps its own. `security` holds the site's opt-ins to its security
 // headers: HSTS for every subdomain of its host too, and the
 // origins, each `https://` and a host, that may frame its pages beside its
 // own; none for a site that declares none. `forms` are the forms the site
@@ -460,18 +462,19 @@ export const DEPARTURES = Object.freeze({
 
 // What the site declares of consent: its departures from the consent rules,
 // each with its reason, which the site repository keeps as the record of a
-// deliberate departure.
+// deliberate departure, and the domain the choice is kept on.
 function consentOf(consent, problems) {
-  if (consent === undefined) return { departures: [] };
+  if (consent === undefined) return { departures: [], domain: null };
   if (!isObject(consent)) {
     problems.push('consent: must be an object');
-    return { departures: [] };
+    return { departures: [], domain: null };
   }
-  onlyKeys(consent, ['departures'], 'consent', problems);
-  if (consent.departures === undefined) return { departures: [] };
+  onlyKeys(consent, ['departures', 'domain'], 'consent', problems);
+  const domain = consentDomainOf(consent.domain, problems);
+  if (consent.departures === undefined) return { departures: [], domain };
   if (!Array.isArray(consent.departures) || !consent.departures.every(isObject)) {
     problems.push('consent.departures: must list the departures, each an object');
-    return { departures: [] };
+    return { departures: [], domain };
   }
   const departures = [];
   const seen = new Map();
@@ -484,7 +487,29 @@ function consentOf(consent, problems) {
     else seen.set(key, path);
     departures.push(read);
   });
-  return { departures };
+  return { departures, domain };
+}
+
+// The domain the consent choice is kept on, in a cookie every site below it
+// reads: a host name in lowercase, the site's own host or a domain above it,
+// which the build checks, of at least two labels, and never a public suffix
+// or a shared domain of the Public Suffix List, or a name above one, since
+// a cookie there would reach anyone's sites; null where none is given.
+const DOMAIN_LABEL = '[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?';
+const CONSENT_DOMAIN = new RegExp(`^(?:${DOMAIN_LABEL}\\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})$`);
+
+function consentDomainOf(domain, problems) {
+  if (domain === undefined) return null;
+  if (typeof domain !== 'string' || !CONSENT_DOMAIN.test(domain) || domain.length > 253) {
+    problems.push(`consent.domain: ${JSON.stringify(domain)} must be a domain name in lowercase, such as example.com, its xn-- form for letters outside a to z`);
+    return null;
+  }
+  const shared = suffixTakenIn(domain);
+  if (shared) {
+    problems.push(`consent.domain: ${domain} ${shared.suffix === domain ? 'is' : `takes in ${shared.suffix}, which is`} a ${shared.section === 'icann' ? 'public suffix, under which anyone may register a domain' : 'shared domain, under which anyone may have a host'}; name the site's own domain, such as example.com`);
+    return null;
+  }
+  return domain;
 }
 
 function departureOf(declared, path, problems) {

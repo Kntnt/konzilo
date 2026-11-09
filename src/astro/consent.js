@@ -13,10 +13,27 @@
 
 import { CATEGORIES, CONSENT_GROUP, textsOf } from '../format/consent.js';
 import { RESERVED_PREFIX } from '../site-description.js';
+import { isPublicBuild, origin } from './public-site.js';
+import { LAUNCHED } from './tag-manager.js';
 
 // Where a page sends the record of each choice: the kind of request of the
 // site's public endpoint for consent records.
 export const CONSENT_RECORDS = `${RESERVED_PREFIX}consent`;
+
+// The domain the client keeps the choice on, for every site below it, on a
+// page of this build: the site description's `consent.domain` on a release
+// built for the launched origin alone (KONZILO_LAUNCHED=1), whose host is
+// at or below it; null on any other build, the pre-launch address, a
+// preview and a local run, which keep a choice of their own. `command` is
+// Astro's, `base` the build's, `domain` the description's. Returns
+// { domain, warning }, the warning where the release's host is not at or
+// below the domain.
+export function consentDomain({ command, base, domain, environment = process.env }) {
+  if (domain === null || command !== 'build' || !isPublicBuild(base, environment) || environment[LAUNCHED] !== '1') return { domain: null, warning: null };
+  const host = new URL(origin(environment)).hostname;
+  if (host === domain || host.endsWith(`.${domain}`)) return { domain, warning: null };
+  return { domain: null, warning: `the site description keeps the consent choice on ${domain}, which the public host ${host} is neither at nor below, so this release keeps it on its own host` };
+}
 
 // The input of the consent's markup functions for a page of the site.
 //

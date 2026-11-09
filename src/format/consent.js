@@ -44,23 +44,39 @@ export const SAFEGUARDS = Object.freeze(['adequacy', 'scc', 'bcr']);
 export const LIFETIME = /^(session|persistent|P[1-9][0-9]*[YMWD]|PT[1-9][0-9]*[HMS])$/;
 
 // The consent's own storage item: the name the client keeps the visitor's
-// choice under, in local storage, and the months a choice holds, a refusal
-// too. The registry declares it, and the
-// client (src/consent/client.js) keeps the choice there.
+// choice under, in local storage, or in a cookie of that name on the
+// consent's domain, and the months a choice holds, a refusal too. The
+// registry declares it, and the client (src/consent/client.js) keeps the
+// choice there.
 export const CONSENT_STORAGE = Object.freeze({ name: 'konzilo-consent', months: 12 });
 
-// The consent's own storage: the visitor's choice and its ID.
-function consentStorage() {
+// The consent's own storage: the visitor's choice and its ID, in the
+// consent's own local storage item; or, on a site that keeps the choice on
+// a domain for every site below it (`consent.domain`), in a cookie on that
+// domain, with the records that wait to be sent in the local storage item.
+function consentStorage({ site }) {
+  const { domain } = site.consent;
+  const lifetime = `P${CONSENT_STORAGE.months}M`;
   return [{
     id: 'consent',
     name: { en: 'Consent', sv: 'Samtycke' },
     category: 'necessary',
     provider: null,
-    purpose: {
-      en: 'Remembers which categories and services you allowed, and when, so that the site respects your choice.',
-      sv: 'Kommer ihåg vilka kategorier och tjänster du har tillåtit, och när, så att webbplatsen respekterar ditt val.',
-    },
-    storage: [{ name: CONSENT_STORAGE.name, kind: 'localStorage', lifetime: `P${CONSENT_STORAGE.months}M`, party: 'first' }],
+    purpose: domain
+      ? {
+          en: `Remembers which categories and services you allowed, and when, so that this site and every other site below ${domain} respect your choice.`,
+          sv: `Kommer ihåg vilka kategorier och tjänster du har tillåtit, och när, så att den här webbplatsen och varje annan webbplats under ${domain} respekterar ditt val.`,
+        }
+      : {
+          en: 'Remembers which categories and services you allowed, and when, so that the site respects your choice.',
+          sv: 'Kommer ihåg vilka kategorier och tjänster du har tillåtit, och när, så att webbplatsen respekterar ditt val.',
+        },
+    storage: domain
+      ? [
+          { name: CONSENT_STORAGE.name, kind: 'cookie', lifetime, party: 'first', domain },
+          { name: CONSENT_STORAGE.name, kind: 'localStorage', lifetime, party: 'first' },
+        ]
+      : [{ name: CONSENT_STORAGE.name, kind: 'localStorage', lifetime, party: 'first' }],
     necessity: {
       en: 'Without it the site could not keep to your choice, and would ask you on every page.',
       sv: 'Utan den kunde webbplatsen inte hålla sig till ditt val, och skulle fråga dig på varje sida.',

@@ -343,6 +343,18 @@ describe('the service registry', () => {
     assert.ok(domains.vimeo.every(([, domain]) => domain === 'player.vimeo.com'));
   });
 
+  test('on a site that keeps the choice on a domain, declares the consent\'s cookie on it, and the local storage item the records wait in', () => {
+    const shared = { ...site, consent: { domain: 'example.com' } };
+    const registry = JSON.parse(written(run({}, shared))['consent.json']);
+    const consent = registry.services.find((one) => one.id === 'consent');
+    assert.deepEqual(consent.storage, [
+      { name: 'konzilo-consent', kind: 'cookie', lifetime: 'P12M', party: 'first', domain: 'example.com' },
+      { name: 'konzilo-consent', kind: 'localStorage', lifetime: 'P12M', party: 'first', domain: null },
+    ]);
+    assert.match(consent.purpose, /every other site below example\.com/);
+    assert.notEqual(registry.revision, JSON.parse(written(run({}, site))['consent.json']).revision);
+  });
+
   test('keeps the day it last changed, while what a visitor consents to stays', () => {
     const first = run({}, site);
     const later = run({}, site, { ledger: first.ledger, now: new Date('2027-01-01T00:00:00Z') });

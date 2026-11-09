@@ -29,13 +29,24 @@ export function startConsent(options = {}) {
 // window.konziloConsent, and its event, `konzilo:consent` on the document.
 // A page without the markup allows nothing beyond the necessary. A choice
 // older than `months` is removed as the page loads, so the next choice has
-// a new consent ID. Each element marked `data-konzilo-consent-host` gets
-// the page's host, which an item stored on it is named by.
+// a new consent ID. Every page removes, as it loads, what each optional
+// service the choice does not allow stored that the page reaches, so that
+// what one site below a shared domain stored is gone at the next page view
+// on another after the visitor withdrew there. Each element marked
+// `data-konzilo-consent-host` gets the page's host, which an item stored
+// on it is named by.
 //
 // `options`:
 // - `name`: the consent's own storage item, in local storage,
 //   `konzilo-consent` by default;
 // - `months`: how long a choice holds, a refusal too, 12 by default;
+// - `domain`: a domain the page's host is at or below, such as example.com,
+//   to keep the choice in a cookie of the name `name` on it, which every
+//   site below the domain reads and writes, `Path=/`, `Secure` and
+//   `SameSite=Lax`, readable by script, for as long as the choice holds;
+//   the records that wait to be sent stay in the local storage item. Null,
+//   the default, keeps the choice in the local storage item, the page's
+//   origin's own. A choice kept the other way is not carried over;
 // - `records`: the address the record of each choice is sent to, or null,
 //   the default, where none is sent, as on a page no visitor sees. Without
 //   it the client makes and keeps no consent ID, which nobody could look
@@ -53,7 +64,7 @@ export function startConsent(options = {}) {
 // it, each record waits beside the choice, in the list `unsent`, and a later
 // page view sends each once more and then gives it up; the choice holds
 // regardless.
-export function consentClient({ name = 'konzilo-consent', months = 12, records = null, legalPage = false } = {}) {
+export function consentClient({ name = 'konzilo-consent', months = 12, domain = null, records = null, legalPage = false } = {}) {
   // The page has its signal already, from an earlier run of the script.
   if ('konziloConsent' in window) return;
   const root = document.querySelector('[data-konzilo-consent]');
@@ -70,24 +81,58 @@ export function consentClient({ name = 'konzilo-consent', months = 12, records =
   const onLegalPage = legalPage === true || registry.legalPage === true || document.querySelector('meta[name="konzilo-consent"][content="legal-page"]') !== null;
   for (const element of document.querySelectorAll('[data-konzilo-consent-host]')) element.textContent = location.hostname;
 
-  // The choice kept in the browser, whether it holds or not, or null: a
-  // consent ID where it has one, and a time.
-  const kept = () => {
+  // Where the choice is kept: in the local storage item, or in a cookie on
+  // the shared domain, with the records that wait in the local item.
+  const shared = typeof domain === 'string' && domain !== '';
+  // When a choice made at `time` stops holding: `months` later.
+  const until = (time) => {
+    const date = new Date(time);
+    date.setUTCMonth(date.getUTCMonth() + months);
+    return date;
+  };
+  const local = () => {
     try {
-      const choice = JSON.parse(localStorage.getItem(name));
-      return choice && typeof choice.time === 'string' && (choice.id === undefined || typeof choice.id === 'string') ? choice : null;
+      return JSON.parse(localStorage.getItem(name));
     } catch {
       return null;
     }
   };
+  const cookie = () => {
+    try {
+      const pair = document.cookie.split(';').map((part) => part.trim()).find((part) => part.startsWith(`${name}=`));
+      return pair ? JSON.parse(decodeURIComponent(pair.slice(name.length + 1))) : null;
+    } catch {
+      return null;
+    }
+  };
+  // A choice has a time, and a consent ID where it has one.
+  const valid = (value) => (value && typeof value.time === 'string' && (value.id === undefined || typeof value.id === 'string') ? value : null);
+  // The choice kept in the browser, whether it holds or not, with the
+  // records that wait beside it, or null.
+  const kept = () => {
+    if (!shared) return valid(local());
+    const found = valid(cookie());
+    const waiting = local()?.unsent;
+    return found && Array.isArray(waiting) ? { ...found, unsent: waiting } : found;
+  };
+  const toLocal = (value) => {
+    try {
+      if (value === null) localStorage.removeItem(name);
+      else localStorage.setItem(name, JSON.stringify(value));
+    } catch {
+      // Storage refused: the choice holds on this page alone.
+    }
+  };
+  const toCookie = (value) => {
+    const attributes = `; Domain=${domain}; Path=/; Secure; SameSite=Lax`;
+    document.cookie = value === null
+      ? `${name}=; Max-Age=0${attributes}`
+      : `${name}=${encodeURIComponent(JSON.stringify(value))}; Expires=${until(value.time).toUTCString()}${attributes}`;
+  };
 
   // Whether a kept choice is older than `months`, the consent's own
   // storage's lifetime.
-  const expired = (choice) => {
-    const until = new Date(choice.time);
-    until.setUTCMonth(until.getUTCMonth() + months);
-    return !(Date.now() < until.getTime());
-  };
+  const expired = (value) => !(Date.now() < until(value.time).getTime());
   // A kept choice holds for the registry's revision, `months` from when it
   // was made.
   const holds = (choice) => Boolean(choice) && choice.revision === registry.revision
@@ -103,21 +148,20 @@ export function consentClient({ name = 'konzilo-consent', months = 12, records =
     return anonymous;
   };
   const keep = (value) => {
-    try {
-      localStorage.setItem(name, JSON.stringify(value));
-    } catch {
-      // Storage refused: the choice holds on this page alone.
+    if (!shared) {
+      toLocal(value);
+      return;
     }
+    const { unsent: waiting, ...alone } = value;
+    toCookie(alone);
+    toLocal(Array.isArray(waiting) && waiting.length > 0 ? { unsent: waiting } : null);
   };
 
   // A choice older than its lifetime is gone, its consent ID with it: the
   // next choice has a new one.
   if (kept() && expired(kept())) {
-    try {
-      localStorage.removeItem(name);
-    } catch {
-      // Storage refused: nothing was kept.
-    }
+    if (shared) toCookie(null);
+    toLocal(null);
   }
 
   let choice = holds(kept()) ? own(kept()) : null;
@@ -199,6 +243,12 @@ export function consentClient({ name = 'konzilo-consent', months = 12, records =
       if (key !== null && matches.test(key)) area.removeItem(key);
     }
   };
+
+  // What each optional service the choice does not allow stored that the
+  // page reaches goes, on every page.
+  for (const service of Object.keys(registry.storage)) {
+    if (!allowsService(service)) for (const item of registry.storage[service]) remove(item);
+  }
 
   // The visitor allows exactly `allowed`, the ids of services, and the
   // necessary ones; a category is allowed when each of its services is.

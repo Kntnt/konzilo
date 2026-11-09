@@ -16,7 +16,7 @@ import { consentClient, cookieDeclaration, embedPanels } from '../src/consent/cl
 import { consentControlsMarkup, consentMarkup, cookieDeclarationMarkup, escape } from '../src/consent/markup.js';
 
 const core = fileURLToPath(new URL('../', import.meta.url));
-const { JSDOM } = createRequire(join(core, 'package.json'))('jsdom');
+const { CookieJar, JSDOM, VirtualConsole } = createRequire(join(core, 'package.json'))('jsdom');
 
 const none = { scripts: [], frames: [], connections: [], images: [], styles: [], fonts: [] };
 
@@ -231,6 +231,93 @@ describe('a page made of the markup functions alone, with the client', () => {
     assert.equal(window.konziloConsent.choice().id, undefined);
     window.konziloConsent.allow('video');
     assert.equal(JSON.parse(window.localStorage.getItem('konzilo-consent')).id, undefined);
+  });
+});
+
+describe('a choice kept on a domain for every site below it', () => {
+  // Two sites below example.com, in one browser, whose counter keeps a
+  // cookie of the site's own and the video a local storage item; each
+  // page sends records, as the public site's do.
+  const withStorage = { ...registry, services: registry.services.map((service) => (service.id === 'video' ? { ...service, storage: [{ name: 'video-volume', kind: 'localStorage', lifetime: 'persistent', party: 'first' }] } : service)) };
+  const shared = { ...input, registry: withStorage };
+  const browser = () => new CookieJar();
+  const open = (jar, url, { stored, records = '/_konzilo/consent' } = {}) => {
+    const html = `<!doctype html><html lang="en-GB"><head><title>A page</title></head><body>${consentMarkup(shared)}<footer>${consentControlsMarkup(shared)}</footer></body></html>`;
+    // jsdom does not navigate: a reload is an error it reports, and nothing more.
+    const virtualConsole = new VirtualConsole();
+    virtualConsole.on('jsdomError', (error) => {
+      if (!/navigation/.test(error.message)) throw error;
+    });
+    const { window } = new JSDOM(html, { url, cookieJar: jar, runScripts: 'outside-only', virtualConsole });
+    if (stored) window.localStorage.setItem('konzilo-consent', JSON.stringify(stored));
+    window.fetch = () => new Promise(() => {});
+    window.setTimeout = (callback) => callback();
+    window.eval(`(${consentClient})(${JSON.stringify({ domain: 'example.com', records })});`);
+    return window;
+  };
+  const cookieOf = (window) => {
+    const pair = window.document.cookie.split('; ').find((part) => part.startsWith('konzilo-consent='));
+    return pair ? JSON.parse(decodeURIComponent(pair.slice('konzilo-consent='.length))) : null;
+  };
+
+  test('a choice on one site is the choice on another below the domain, in a cookie on it, and the records wait in the origin\'s local storage', () => {
+    const jar = browser();
+    const first = open(jar, 'https://www.example.com/');
+    first.document.querySelector('.konzilo-consent-banner [data-konzilo-consent-action="reject"]').click();
+    const kept = cookieOf(first);
+    assert.deepEqual(Object.keys(kept).sort(), ['categories', 'id', 'revision', 'services', 'time']);
+    assert.deepEqual(kept.services, { consent: true, counter: false, video: false });
+    assert.equal(JSON.parse(first.localStorage.getItem('konzilo-consent')).unsent.length, 1, 'the record waits in local storage, not in the cookie');
+
+    const cookies = jar.getCookiesSync('https://investors.example.com/');
+    const consent = cookies.find((one) => one.key === 'konzilo-consent');
+    assert.deepEqual([consent.domain, consent.path, consent.secure, consent.sameSite, consent.httpOnly], ['example.com', '/', true, 'lax', false]);
+    const months = (consent.expires.getTime() - Date.parse(kept.time)) / (24 * 3600 * 1000);
+    assert.ok(months > 364 && months < 367, `kept ${months} days`);
+
+    const other = open(jar, 'https://investors.example.com/');
+    assert.equal(other.document.querySelector('.konzilo-consent-banner').hidden, true);
+    assert.deepEqual(JSON.parse(JSON.stringify(other.konziloConsent.choice())), kept);
+    other.konziloConsent.allow('video');
+    assert.equal(cookieOf(other).id, kept.id, 'one consent ID for both');
+    assert.equal(open(jar, 'https://www.example.com/').konziloConsent.service('video'), true);
+  });
+
+  test('a choice kept in local storage under the other rule is not carried over: the visitor is asked once more', () => {
+    const stored = { id: '0b5c8e2a-4d1f-4c3b-9a7e-6f2d1c0b9a8e', time: new Date().toISOString(), revision: registry.revision, categories: { necessary: true, statistics: true, marketing: true }, services: { consent: true, counter: true, video: true } };
+    const window = open(browser(), 'https://www.example.com/', { stored });
+    assert.equal(window.document.querySelector('.konzilo-consent-banner').hidden, false);
+    assert.equal(window.konziloConsent.choice(), null);
+  });
+
+  test('withdrawing on one site removes cookies on the shared domain, and the other site removes what it stored at its next page view', () => {
+    const jar = browser();
+    const first = open(jar, 'https://www.example.com/');
+    first.document.querySelector('.konzilo-consent-banner [data-konzilo-consent-action="accept"]').click();
+    first.document.cookie = '_count=1; Domain=example.com; Path=/';
+    const other = open(jar, 'https://investors.example.com/');
+    other.localStorage.setItem('video-volume', '5');
+    other.document.cookie = '_count=2; Path=/';
+
+    const again = open(jar, 'https://www.example.com/');
+    again.document.querySelector('footer [data-konzilo-consent-action="withdraw"]').click();
+    assert.equal(jar.getCookiesSync('https://www.example.com/').some((one) => one.key === '_count'), false, 'the shared domain\'s cookie is gone');
+    assert.deepEqual(cookieOf(again).services, { consent: true, counter: false, video: false });
+
+    const next = open(jar, 'https://investors.example.com/');
+    assert.equal(next.localStorage.getItem('video-volume'), null);
+    assert.equal(jar.getCookiesSync('https://investors.example.com/').some((one) => one.key === '_count'), false);
+    assert.equal(next.document.querySelector('.konzilo-consent-banner').hidden, true, 'the withdrawal holds there too');
+  });
+
+  test('every page removes, as it loads, what each service the choice does not allow stored, before a choice too', () => {
+    const jar = browser();
+    const first = open(jar, 'https://www.example.com/');
+    first.localStorage.setItem('video-volume', '5');
+    first.document.cookie = '_count=1; Path=/';
+    const next = open(jar, 'https://www.example.com/');
+    assert.equal(next.localStorage.getItem('video-volume'), null);
+    assert.equal(next.document.cookie, '');
   });
 });
 

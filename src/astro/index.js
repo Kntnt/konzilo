@@ -89,7 +89,7 @@ import { declaredNames, languageTag, postListModel, readSiteDescription, SITE_DE
 import { bodyStylesOf, pageImports } from './body-styles.js';
 import { contentFolder } from './collections.js';
 import { consentClient, cookieDeclaration, datawrapperHeights, embedPanels } from '../consent/client.js';
-import { CONSENT_RECORDS } from './consent.js';
+import { CONSENT_RECORDS, consentDomain } from './consent.js';
 import { pagesWithBareEmbeds } from './embeds.js';
 import { lightboxClient } from './lightbox.js';
 import { resolvedColors, tokensOf } from './theme-tokens.js';
@@ -490,8 +490,12 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
         // BASE_URL, so that its reader stays in the preview.
         if (!isPublicBuild(config.base)) processor.options.hastPlugins.push(belowBase(config.base));
         // Only the public site's pages send the record of a choice; a
-        // preview's, below a base of its own, are no visitor's.
-        const client = { ...CONSENT_STORAGE, records: isPublicBuild(config.base) ? CONSENT_RECORDS : null };
+        // preview's, below a base of its own, are no visitor's. A release
+        // for the launched origin keeps it on the description's domain,
+        // where it gives one.
+        const shared = consentDomain({ command, base: config.base, domain: described?.consent.domain ?? null });
+        if (shared.warning) logger.warn(shared.warning);
+        const client = { ...CONSENT_STORAGE, domain: shared.domain, records: isPublicBuild(config.base) ? CONSENT_RECORDS : null };
         // The tag manager's container, on a release built for the launched
         // customer's domain alone, from the settings and the
         // registry the export left in the content folder.

@@ -99,7 +99,7 @@ const legalPages = { menus: {}, settings: { legalPages: { cookiePolicy: '4', pri
 // writes them with `siteSettings`, and built by Astro below `base`, whose
 // output it keeps as `log`. A repository whose content or build fails is
 // removed.
-function build({ language = 'en_GB', posts = [videos, privacy, cookies, text], siteSettings = legalPages, consent, options, base = '/', pageLayout = layout } = {}) {
+function build({ language = 'en_GB', posts = [videos, privacy, cookies, text], siteSettings = legalPages, consent, options, base = '/', pageLayout = layout, environment = astroEnvironment } = {}) {
   const repository = mkdtempSync(join(tmpdir(), 'konzilo-consent-client-'));
   let log;
   try {
@@ -124,7 +124,7 @@ function build({ language = 'en_GB', posts = [videos, privacy, cookies, text], s
     siteSettingsArgs(repository, siteSettings);
     const exported = writeContent(repository, posts);
     assert.equal(exported.status, 0, exported.stderr);
-    log = buildAstro(repository);
+    log = buildAstro(repository, environment);
   } catch (error) {
     rmSync(repository, { recursive: true, force: true });
     throw error;
@@ -135,8 +135,8 @@ function build({ language = 'en_GB', posts = [videos, privacy, cookies, text], s
 
 // Astro's build of a site repository, into dist/, with the repository's
 // own cache; gives what it printed.
-function buildAstro(repository) {
-  const built = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
+function buildAstro(repository, environment = astroEnvironment) {
+  const built = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: environment });
   assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
   return `${built.stdout}\n${built.stderr}`;
 }
@@ -877,6 +877,28 @@ describe('the consent client\'s records', () => {
     click(page, 'accept');
     assert.equal(page.kept().unsent, undefined);
   });
+});
+
+test('a release built for the launched origin keeps the choice on the domain the site description gives, and no other build does', () => {
+  const launched = { ...astroEnvironment, KONZILO_LAUNCHED: '1' };
+  const script = (site) => site.output(site.page('videos').querySelector('script[src]').getAttribute('src').slice(1));
+  const sites = [
+    build({ consent: { domain: 'example.com' }, environment: launched }),
+    build({ consent: { domain: 'example.com' } }),
+    build({ consent: { domain: 'example.org' }, environment: launched }),
+  ];
+  try {
+    const [shared, prelaunch, elsewhere] = sites;
+    // The client's options as the bundled script holds them.
+    assert.match(script(shared), /months:12,domain:[`"]example\.com[`"],records:/);
+    assert.match(script(prelaunch), /months:12,domain:null,records:/);
+    assert.match(script(elsewhere), /months:12,domain:null,records:/);
+    assert.match(elsewhere.log, /keeps the consent choice on example\.org, which the public host www\.example\.com is neither at nor below/);
+    const registry = JSON.parse(readFileSync(join(shared.repository, 'content/consent.json'), 'utf8'));
+    assert.equal(registry.services.find((one) => one.id === 'consent').storage[0].domain, 'example.com');
+  } finally {
+    for (const site of sites) rmSync(site.repository, { recursive: true, force: true });
+  }
 });
 
 test('a preview, which no visitor sees, sends no record, keeps none, and makes no consent ID', async () => {
