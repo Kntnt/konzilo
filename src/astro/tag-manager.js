@@ -19,7 +19,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CONSENT_FILE } from '../format/consent.js';
-import { BEFORE_CONSENT, CONSENT_EVENT, CONSENT_KEY, tagManagerOf, trackerOf } from '../format/tag-manager.js';
+import { BEFORE_CONSENT, CONSENT_EVENT, CONSENT_KEY, tagManagerOf, trackerOf, WITHOUT_STORAGE } from '../format/tag-manager.js';
 import { isPublicBuild, origin } from './public-site.js';
 
 // The variable of the build's environment that says the build is for the
@@ -71,8 +71,10 @@ function launchedBuild({ command, base, environment, folder, languages }) {
 // takes, and `warn`, which is told of a cookie domain the build's host is
 // neither at nor below, which the tracker then leaves out. Returns the
 // client's options of matomoTracker() (src/consent/client.js): { service,
-// script, endpoint, site, cookieDomain }. None while the registry the build
-// reads holds no such service.
+// script, endpoint, site, cookieDomain, withoutStorage, privacySignals },
+// the last two from the departure statisticsWithoutStorageBeforeConsent,
+// or false and null without it. None while the registry the build reads
+// holds no such service.
 export function pageTracker({ command, base, environment = process.env, folder, languages = [], warn = () => {} }) {
   const built = launchedBuild({ command, base, environment, folder, languages });
   const chosen = built && trackerOf(built.settings);
@@ -83,7 +85,8 @@ export function pageTracker({ command, base, environment = process.env, folder, 
     warn(`Matomo's cookie domain is ${cookieDomain}, which the public host ${host} is neither at nor below, so Matomo keeps its cookies on the host`);
     cookieDomain = null;
   }
-  return { service: chosen.id, script: chosen.script, endpoint: chosen.endpoint, site: chosen.site, cookieDomain };
+  const departure = built.registry.departures?.find((one) => one.departure === WITHOUT_STORAGE);
+  return { service: chosen.id, script: chosen.script, endpoint: chosen.endpoint, site: chosen.site, cookieDomain, withoutStorage: Boolean(departure), privacySignals: departure?.privacySignals ?? null };
 }
 
 // The script of the tag manager, which the integration puts into every

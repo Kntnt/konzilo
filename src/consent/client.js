@@ -13,11 +13,13 @@
 
 // Every part of the client on a page, in the order they read each other:
 // the consent client with `options` (consentClient()), Matomo's tracker
-// with `options.matomo` where it is given (matomoTracker()), the
-// declaration, the placeholders and Datawrapper's heights.
+// with `options.matomo` where it is given, and the statistics departure,
+// `options.statistics`, { withoutStorage, privacySignals }, with it
+// (matomoTracker()), the declaration, the placeholders and Datawrapper's
+// heights.
 export function startConsent(options = {}) {
   consentClient(options);
-  matomoTracker(options.matomo ?? null);
+  matomoTracker(options.matomo ? { ...options.statistics, ...options.matomo } : null);
   cookieDeclaration();
   embedPanels();
   datawrapperHeights();
@@ -388,36 +390,70 @@ export function consentClient({ name = 'konzilo-consent', months = 12, domain = 
 // page view. A withdrawal reloads the page, and a later page loads no
 // tracker.
 //
-// `config`: null, or { service, script, endpoint, site, cookieDomain }:
-// the id of its service in the registry, the address of the instance's
-// matomo.js and of its matomo.php, the site's ID in the instance, and the
-// domain the owner's sites below it are counted as one on, which it keeps
-// its cookies on and counts as its own, or null for the page's host.
+// With `withoutStorage`, the departure statisticsWithoutStorageBeforeConsent,
+// it loads at once instead and counts without storage until the visitor
+// allows statistics: it stores nothing in the browser and reads nothing of
+// the device, Matomo's requireCookieConsent and
+// disableBrowserFeatureDetection. Once the signal allows its service it
+// calls setCookieConsentGiven and enableBrowserFeatureDetection, in the
+// same page view without a reload, and on every later page view while the
+// choice holds; a withdrawal calls forgetCookieConsentGiven and
+// disableBrowserFeatureDetection, before the page reloads. With
+// `privacySignals: 'stop'` a browser that sends Global Privacy Control or
+// Do Not Track is not counted at all; with 'ignore' it is counted the same
+// way.
+//
+// `config`: null, or { service, script, endpoint, site, cookieDomain,
+// withoutStorage, privacySignals }: the id of its service in the registry,
+// the address of the instance's matomo.js and of its matomo.php, the
+// site's ID in the instance, the domain the owner's sites below it are
+// counted as one on, which it keeps its cookies on and counts as its own,
+// or null for the page's host, and the departure's two.
 export function matomoTracker(config) {
   if (!config || 'konziloMatomo' in window) return;
   Object.defineProperty(window, 'konziloMatomo', { value: true });
   const signal = window.konziloConsent;
   const allowed = () => signal?.service(config.service) === true;
+  const withoutStorage = config.withoutStorage === true;
+  const signalled = navigator.globalPrivacyControl === true || navigator.doNotTrack === '1' || window.doNotTrack === '1';
+  if (withoutStorage && config.privacySignals === 'stop' && signalled) return;
   let loaded = false;
+  let storing = false;
+  // Matomo's queue, one call to a push, as Matomo's own snippet does.
+  const push = (...calls) => {
+    window._paq = window._paq || [];
+    for (const call of calls) window._paq.push(call);
+  };
+  const store = () => {
+    push(['setCookieConsentGiven'], ['enableBrowserFeatureDetection']);
+    storing = true;
+  };
+  const forget = () => {
+    push(['forgetCookieConsentGiven'], ['disableBrowserFeatureDetection']);
+    storing = false;
+  };
   const load = () => {
-    if (loaded || !allowed()) return;
+    if (loaded || !(withoutStorage || allowed())) return;
     loaded = true;
-    const queue = (window._paq = window._paq || []);
-    if (config.cookieDomain) {
-      queue.push(['setCookieDomain', `*.${config.cookieDomain}`]);
-      queue.push(['setDomains', [`*.${config.cookieDomain}`]]);
+    if (withoutStorage) {
+      push(['requireCookieConsent'], ['disableBrowserFeatureDetection']);
+      if (allowed()) store();
     }
-    queue.push(['setTrackerUrl', config.endpoint]);
-    queue.push(['setSiteId', String(config.site)]);
-    queue.push(['trackPageView']);
-    queue.push(['enableLinkTracking']);
+    if (config.cookieDomain) {
+      push(['setCookieDomain', `*.${config.cookieDomain}`], ['setDomains', [`*.${config.cookieDomain}`]]);
+    }
+    push(['setTrackerUrl', config.endpoint], ['setSiteId', String(config.site)], ['trackPageView'], ['enableLinkTracking']);
     const script = document.createElement('script');
     script.async = true;
     script.src = config.script;
     document.head.append(script);
   };
   load();
-  document.addEventListener('konzilo:consent', load);
+  document.addEventListener('konzilo:consent', () => {
+    if (!loaded) load();
+    else if (withoutStorage && allowed() && !storing) store();
+    else if (withoutStorage && !allowed() && storing) forget();
+  });
 }
 
 // The cookie declaration's script. On a page with the declaration it shows

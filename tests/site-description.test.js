@@ -36,3 +36,15 @@ test('takes the domain the consent choice is kept on, in lowercase, never a publ
     assert.throws(() => read(domain), (error) => problem.test(error.message), JSON.stringify(domain));
   }
 });
+
+test('takes the departure that counts without storage before consent with what Global Privacy Control and Do Not Track do, and no other departure with it', () => {
+  const types = { page: { label: 'Page', plural: 'Pages', collection: 'pages', address: '/{slug}/', elements: ['paragraph'] } };
+  const read = (departures) => siteDescription({ language: 'en_GB', types, consent: { departures } }).consent.departures;
+  const departure = (privacySignals) => ({ departure: 'statisticsWithoutStorageBeforeConsent', reason: 'Counted from the first page.', ...(privacySignals === undefined ? {} : { privacySignals }) });
+  assert.deepEqual(read([departure('stop')]), [{ departure: 'statisticsWithoutStorageBeforeConsent', reason: 'Counted from the first page.', privacySignals: 'stop' }]);
+  assert.equal(read([departure('ignore')])[0].privacySignals, 'ignore');
+  for (const given of [undefined, 'yes', true]) {
+    assert.throws(() => read([departure(given)]), /consent\.departures\.1\.privacySignals: must say whether Global Privacy Control or Do Not Track stops the counting altogether, "stop", or not, "ignore"/, JSON.stringify(given));
+  }
+  assert.throws(() => read([{ departure: 'tagManagerBeforeConsent', reason: 'Tags wait.', privacySignals: 'stop' }]), /consent\.departures\.1\.privacySignals: is no part of this departure/);
+});

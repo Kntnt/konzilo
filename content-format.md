@@ -757,6 +757,7 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
     "functionalDescription": "Content and features from other services, such as videos and charts, whose providers do not use what they learn for their own advertising or profiling.",
     "statisticsName": "Statistics",
     "statisticsDescription": "Measuring how visitors use the site, so that it can be made better.",
+    "statisticsWithoutStorageDescription": "Measuring how visitors use the site, so that it can be made better. Each visit is counted from the first page, without storing or reading anything in your browser. With your consent, the statistics also store an ID in your browser, so that a visitor who comes back is counted once.",
     "marketingName": "Marketing",
     "marketingDescription": "Content and features from services whose providers may use what they learn about you for their own advertising or profiling."
   },

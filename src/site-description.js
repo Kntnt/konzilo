@@ -458,7 +458,16 @@ export const DEPARTURES = Object.freeze({
   tagManagerBeforeConsent: { service: false },
   // A named service counts as necessary, which is always on.
   necessaryService: { service: true },
+  // The statistics service counts from the first page view, storing and
+  // reading nothing in the visitor's browser until the visitor allows
+  // statistics; `privacySignals` says whether a browser that sends Global
+  // Privacy Control or Do Not Track is not counted at all (`stop`) or
+  // counted the same way (`ignore`).
+  statisticsWithoutStorageBeforeConsent: { service: false, privacySignals: true },
 });
+
+// What a departure's `privacySignals` may say.
+export const PRIVACY_SIGNALS = Object.freeze(['stop', 'ignore']);
 
 // What the site declares of consent: its departures from the consent rules,
 // each with its reason, which the site repository keeps as the record of a
@@ -513,8 +522,8 @@ function consentDomainOf(domain, problems) {
 }
 
 function departureOf(declared, path, problems) {
-  onlyKeys(declared, ['departure', 'service', 'reason'], path, problems);
-  const { departure, service, reason } = declared;
+  onlyKeys(declared, ['departure', 'service', 'reason', 'privacySignals'], path, problems);
+  const { departure, service, reason, privacySignals } = declared;
   const kind = typeof departure === 'string' && Object.hasOwn(DEPARTURES, departure) ? DEPARTURES[departure] : null;
   if (!kind) {
     const allowed = Object.keys(DEPARTURES);
@@ -526,8 +535,14 @@ function departureOf(declared, path, problems) {
   } else if (kind && !kind.service && service !== undefined) {
     problems.push(`${path}.service: names no service in this departure`);
   }
+  if (kind?.privacySignals && !PRIVACY_SIGNALS.includes(privacySignals)) {
+    problems.push(`${path}.privacySignals: must say whether Global Privacy Control or Do Not Track stops the counting altogether, "stop", or not, "ignore"`);
+  } else if (kind && !kind.privacySignals && privacySignals !== undefined) {
+    problems.push(`${path}.privacySignals: is no part of this departure`);
+  }
   if (!kind) return null;
-  return kind.service ? { departure, service, reason } : { departure, reason };
+  if (kind.service) return { departure, service, reason };
+  return kind.privacySignals ? { departure, reason, privacySignals } : { departure, reason };
 }
 
 // A service's id in the service registry, as the rule data names an embed's

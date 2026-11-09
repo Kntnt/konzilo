@@ -308,7 +308,7 @@ export function declarationView({ registry, texts = registry.texts, legalPages =
       services: category.services.map((id) => describe(services.get(id))),
     })),
     departures: registry.departures.map((departure) => ({
-      text: fill(words.departure[departure.departure], { service: services.get(departure.service)?.name ?? departure.service }),
+      text: [fill(words.departure[departure.departure], { service: services.get(departure.service)?.name ?? departure.service }), words.privacySignals[departure.privacySignals]].filter(Boolean).join(' '),
       reason: departure.reason,
     })),
     footer: texts.footer,

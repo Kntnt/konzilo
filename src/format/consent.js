@@ -9,7 +9,7 @@
 import { createHash } from 'node:crypto';
 import { inLanguage } from '../texts.js';
 
-import { tagManagerIds, tagManagerServices } from './tag-manager.js';
+import { tagManagerIds, tagManagerOf, tagManagerServices, trackerOf, WITHOUT_STORAGE } from './tag-manager.js';
 import rules from './rules.json' with { type: 'json' };
 import coreFacts from './services.json' with { type: 'json' };
 
@@ -164,12 +164,17 @@ export function registryFile({ site, settings, embeds, facts = coreFacts, previo
     service.category = 'necessary';
     service.necessity = departure.reason;
   });
+  // Counting without storage is a mode of Matomo's own tracker alone.
+  const withoutStorage = site.consent.departures.findIndex((departure) => departure.departure === WITHOUT_STORAGE);
+  if (withoutStorage !== -1 && (tagManagerOf(settings) !== null || trackerOf(settings) === null)) {
+    warnings.push({ consent: `consent.departures.${withoutStorage + 1}`, reason: 'the departure counts without storage only with Matomo\'s own tracker, which the site settings do not choose, so nothing counts before consent' });
+  }
   services.sort((a, b) => CATEGORIES.indexOf(a.category) - CATEGORIES.indexOf(b.category) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const categories = CATEGORIES
     .map((id) => ({
       id,
       name: texts[`${id}Name`],
-      description: texts[`${id}Description`],
+      description: categoryDescription(id, texts, site.consent.departures),
       services: services.filter((service) => service.category === id).map((service) => service.id),
     }))
     .filter((category) => category.services.length > 0);
@@ -196,6 +201,13 @@ function serviceOf(service, language) {
     transfers: (service.transfers ?? []).map((transfer) => ({ country: transfer.country, safeguards: [...transfer.safeguards] })),
     necessity: service.category === 'necessary' ? inLanguage(service.necessity, language) : null,
   };
+}
+
+// A category's description from the consent texts: statistics' own where
+// the site counts visits without storage before consent, which says so.
+export function categoryDescription(id, texts, departures) {
+  if (id === 'statistics' && departures.some((departure) => departure.departure === WITHOUT_STORAGE)) return texts.statisticsWithoutStorageDescription;
+  return texts[`${id}Description`];
 }
 
 // The domain a stored item is on: the one its facts give, null for the

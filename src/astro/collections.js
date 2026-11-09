@@ -39,7 +39,7 @@ import { CATEGORIES, CONSENT_FILE, CONSENT_GROUP, HOST_KINDS, LIFETIME, SAFEGUAR
 import { NOT_FOUND, NOT_FOUND_FILE, NOT_FOUND_FOLDER } from '../format/not-found.js';
 import { isSource, OTHER_ANSWERS } from '../format/redirects.js';
 import { isSiteTitle, TYPES } from '../settings-groups.js';
-import { declaredNames, DEPARTURES, IMAGE, OLD_ADDRESSES, OTHER_ADDRESSES, POST, readSiteDescription, SCHEMA_TYPES, SITE_DESCRIPTION_FILE, siteDescription, TRANSLATION_KEY } from '../site-description.js';
+import { declaredNames, DEPARTURES, IMAGE, PRIVACY_SIGNALS, OLD_ADDRESSES, OTHER_ADDRESSES, POST, readSiteDescription, SCHEMA_TYPES, SITE_DESCRIPTION_FILE, siteDescription, TRANSLATION_KEY } from '../site-description.js';
 import { SETTINGS_ENTRY } from './languages.js';
 
 // The same function as `reference` from astro:content, which only Astro's own
@@ -130,7 +130,7 @@ const registrySchema = z.strictObject({
     transfers: z.array(z.strictObject({ country: country.nullable(), safeguards: z.array(z.enum(SAFEGUARDS)) })),
     necessity: text.nullable(),
   })),
-  departures: z.array(z.strictObject({ departure: z.enum(Object.keys(DEPARTURES)), service: z.string().optional(), reason: text })),
+  departures: z.array(z.strictObject({ departure: z.enum(Object.keys(DEPARTURES)), service: z.string().optional(), reason: text, privacySignals: z.enum(PRIVACY_SIGNALS).optional() })),
   texts: z.strictObject({
     banner: z.strictObject({ title: text, text, accept: text, reject: text, customise: text }),
     dialog: z.strictObject({ title: text, introduction: text, accept: text, reject: text, save: text, close: text }),

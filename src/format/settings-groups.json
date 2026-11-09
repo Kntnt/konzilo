@@ -537,6 +537,16 @@
           "sv": "Mätning av hur besökare använder webbplatsen, så att den kan bli bättre."
         }
       },
+      "statisticsWithoutStorageDescription": {
+        "label": "Statistics: description where visits are counted without storage before consent",
+        "type": "string",
+        "control": "textarea",
+        "translated": true,
+        "default": {
+          "en": "Measuring how visitors use the site, so that it can be made better. Each visit is counted from the first page, without storing or reading anything in your browser. With your consent, the statistics also store an ID in your browser, so that a visitor who comes back is counted once.",
+          "sv": "Mätning av hur besökare använder webbplatsen, så att den kan bli bättre. Varje besök räknas från första sidan, utan att något lagras i eller läses från din webbläsare. Med ditt samtycke lagrar statistiken också ett ID i din webbläsare, så att en besökare som kommer tillbaka räknas en gång."
+        }
+      },
       "marketingName": {
         "label": "Marketing: name",
         "type": "string",

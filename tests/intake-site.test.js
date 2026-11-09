@@ -355,6 +355,19 @@ describe('the service registry', () => {
     assert.notEqual(registry.revision, JSON.parse(written(run({}, site))['consent.json']).revision);
   });
 
+  test('a site that counts without storage before consent describes statistics as so, and is warned while it loads no tracker of Matomo\'s own', () => {
+    const counting = { ...site, consent: { departures: [{ departure: 'statisticsWithoutStorageBeforeConsent', reason: 'Every visit counts.', privacySignals: 'ignore' }] } };
+    const tracker = { tagManager: { manager: 'Matomo', address: 'https://matomo.example.com/', site: 3 } };
+    const result = run({ 'settings.json': tracker }, counting);
+    const departures = (one) => one.warnings.filter((warning) => warning.file === 'site-description.json').map(({ setting }) => setting);
+    assert.deepEqual(departures(result), []);
+    const registry = JSON.parse(written(result)['consent.json']);
+    assert.match(registry.categories.find((category) => category.id === 'statistics').description, /Each visit is counted from the first page, without storing or reading anything in your browser\./);
+    assert.deepEqual(registry.departures, [{ departure: 'statisticsWithoutStorageBeforeConsent', reason: 'Every visit counts.', privacySignals: 'ignore' }]);
+    const without = run({}, counting);
+    assert.deepEqual(departures(without), ['consent.departures.1']);
+  });
+
   test('keeps the day it last changed, while what a visitor consents to stays', () => {
     const first = run({}, site);
     const later = run({}, site, { ledger: first.ledger, now: new Date('2027-01-01T00:00:00Z') });

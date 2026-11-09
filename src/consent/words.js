@@ -68,6 +68,11 @@ const WORDS = {
       departure: {
         necessaryService: '{service} counts as necessary on this site, so it is always on, without your consent.',
         tagManagerBeforeConsent: 'The site\'s tag manager loads before you make a choice, and the tags it loads follow your choice.',
+        statisticsWithoutStorageBeforeConsent: 'The site\'s statistics count each visit from the first page you see, before you make a choice, without storing anything in your browser or reading anything from it, your device\'s properties included. They store in your browser only once you allow statistics.',
+      },
+      privacySignals: {
+        stop: 'A browser that sends Global Privacy Control or Do Not Track is not counted at all.',
+        ignore: 'A browser that sends Global Privacy Control or Do Not Track is counted too, without storage until you allow statistics.',
       },
       reason: 'The reason:',
     },
@@ -126,6 +131,11 @@ const WORDS = {
       departure: {
         necessaryService: '{service} räknas som nödvändig på den här webbplatsen och är därför alltid på, utan ditt samtycke.',
         tagManagerBeforeConsent: 'Webbplatsens tagghanterare laddas innan du har gjort ett val, och taggarna den laddar följer ditt val.',
+        statisticsWithoutStorageBeforeConsent: 'Webbplatsens statistik räknar varje besök från den första sidan du ser, innan du har gjort ett val, utan att lagra något i din webbläsare eller läsa något från den, inte heller din enhets egenskaper. Den lagrar i din webbläsare först när du tillåter statistik.',
+      },
+      privacySignals: {
+        stop: 'En webbläsare som skickar Global Privacy Control eller Do Not Track räknas inte alls.',
+        ignore: 'En webbläsare som skickar Global Privacy Control eller Do Not Track räknas också, utan lagring tills du tillåter statistik.',
       },
       reason: 'Skälet:',
     },

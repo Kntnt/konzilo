@@ -36,6 +36,11 @@ export const CONSENT_KEY = 'konziloConsent';
 // the consent from the data layer.
 export const BEFORE_CONSENT = 'tagManagerBeforeConsent';
 
+// The departure that has the tracker count from the first page view,
+// storing and reading nothing in the visitor's browser until the visitor
+// allows statistics.
+export const WITHOUT_STORAGE = 'statisticsWithoutStorageBeforeConsent';
+
 // The countries of the EU and the EEA by their two-letter codes, Greece's
 // as ISO 3166-1 has it (GR): an instance run in any other is a transfer of
 // what visitors' browsers send it out of them.

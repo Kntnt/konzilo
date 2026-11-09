@@ -11,7 +11,7 @@
 // the site's own origin, and the page holds no inline code, so it works
 // under a policy that allows no inline script.
 
-import { CATEGORIES, CONSENT_GROUP, textsOf } from '../format/consent.js';
+import { CATEGORIES, categoryDescription, CONSENT_GROUP, textsOf } from '../format/consent.js';
 import { RESERVED_PREFIX } from '../site-description.js';
 import { isPublicBuild, origin } from './public-site.js';
 import { LAUNCHED } from './tag-manager.js';
@@ -48,7 +48,7 @@ export function consentDomain({ command, base, domain, environment = process.env
 export function consentInput(registry, settings, { languageTag, base = '/', origin = null }) {
   const own = settings?.[CONSENT_GROUP];
   const texts = own
-    ? { ...textsOf(own), categories: Object.fromEntries(CATEGORIES.map((id) => [id, { name: own[`${id}Name`], description: own[`${id}Description`] }])) }
+    ? { ...textsOf(own), categories: Object.fromEntries(CATEGORIES.map((id) => [id, { name: own[`${id}Name`], description: categoryDescription(id, own, registry.departures) }])) }
     : registry.texts;
   const { privacyPolicy, cookiePolicy } = settings?.legalPages ?? {};
   return {

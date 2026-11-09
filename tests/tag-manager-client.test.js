@@ -107,9 +107,13 @@ function build({ tagManager = MATOMO, consent, launched = '1', base = '/' } = {}
 // is put into the consent's own storage item: the window, the scripts the
 // page added to itself, by address, and what Matomo's data layer holds, as
 // plain values.
-function visit(site, { stored } = {}) {
+function visit(site, { stored, signals = false } = {}) {
   const { window } = new JSDOM(site.output('hello/index.html'), { url: `${ORIGIN}${site.base}hello/`, runScripts: 'outside-only' });
   if (stored !== undefined) window.localStorage.setItem('konzilo-consent', JSON.stringify(stored));
+  // A browser that sends Global Privacy Control.
+  if (signals) Object.defineProperty(window.navigator, 'globalPrivacyControl', { value: true });
+  // The reload after a withdrawal is jsdom's to refuse; it waits here.
+  window.setTimeout = () => 0;
   const own = window.document.querySelector('script[src]');
   window.eval(site.output(own.getAttribute('src').slice(site.base.length)));
   const added = () => [...window.document.querySelectorAll('script[src]')].filter((script) => script !== own).map((script) => ({ src: script.src, async: script.async }));
@@ -333,5 +337,74 @@ test('a tracker on a release for another origin, or below a base of its own, loa
     assert.deepEqual(page.queue(), COUNTED.slice(2));
   } finally {
     for (const site of sites) rmSync(site.repository, { recursive: true, force: true });
+  }
+});
+
+// What the tracker queues to count without storage, before what it counts.
+const WITHOUT_STORAGE = [['requireCookieConsent'], ['disableBrowserFeatureDetection']];
+const STORING = [['setCookieConsentGiven'], ['enableBrowserFeatureDetection']];
+const departure = (privacySignals) => ({ departures: [{ departure: 'statisticsWithoutStorageBeforeConsent', reason: 'We count every visit, and store nothing before consent.', privacySignals }] });
+
+describe('a release whose tracker counts without storage before consent', () => {
+  let site;
+
+  before(() => {
+    site = build({ tagManager: TRACKER, consent: departure('stop') });
+  });
+
+  after(() => rmSync(site.repository, { recursive: true, force: true }));
+
+  test('a fresh visitor\'s page loads the tracker at once, counting with nothing stored and no device property read', () => {
+    const page = visit(site);
+    assert.deepEqual(page.added(), [{ src: MATOMO_JS, async: true }]);
+    assert.deepEqual(page.queue(), [...WITHOUT_STORAGE, ...COUNTED]);
+  });
+
+  test('Accept all lets it store and read in the same page view, without a reload or a second load; a later page does so from the start', () => {
+    const page = visit(site);
+    page.click('accept');
+    assert.deepEqual(page.queue(), [...WITHOUT_STORAGE, ...COUNTED, ...STORING]);
+    assert.equal(page.added().length, 1);
+    const next = visit(site, { stored: JSON.parse(page.window.localStorage.getItem('konzilo-consent')) });
+    assert.deepEqual(next.queue(), [...WITHOUT_STORAGE, ...STORING, ...COUNTED]);
+  });
+
+  test('Withdraw consent forgets the consent and reads no more before the page reloads; a refusal stores nothing', () => {
+    const page = visit(site);
+    page.click('accept');
+    // The footer's button, which this layout leaves out.
+    page.window.document.body.insertAdjacentHTML('beforeend', '<button type="button" data-konzilo-consent-action="withdraw">Withdraw consent</button>');
+    page.click('withdraw');
+    assert.deepEqual(page.queue().slice(-2), [['forgetCookieConsentGiven'], ['disableBrowserFeatureDetection']]);
+    const refused = visit(site);
+    refused.click('reject');
+    assert.deepEqual(refused.queue(), [...WITHOUT_STORAGE, ...COUNTED]);
+  });
+
+  test('with privacySignals "stop", a browser that sends Global Privacy Control is not counted at all, even after Accept all', () => {
+    const page = visit(site, { signals: true });
+    page.click('accept');
+    assert.deepEqual(page.added(), []);
+    assert.equal(page.queue(), undefined);
+  });
+
+  test('the statistics category and the cookie declaration say what is counted without storage', () => {
+    const page = new JSDOM(site.output('hello/index.html')).window.document;
+    const statistics = page.querySelector('#konzilo-consent-category-statistics').closest('.konzilo-consent-category');
+    assert.match(statistics.querySelector('.konzilo-consent-description').textContent, /Each visit is counted from the first page, without storing or reading anything in your browser\./);
+    const registry = JSON.parse(readFileSync(join(site.repository, 'content/consent.json'), 'utf8'));
+    assert.deepEqual(registry.departures, [{ departure: 'statisticsWithoutStorageBeforeConsent', reason: 'We count every visit, and store nothing before consent.', privacySignals: 'stop' }]);
+  });
+});
+
+test('with privacySignals "ignore", a browser that sends Global Privacy Control is counted without storage too', () => {
+  const site = build({ tagManager: TRACKER, consent: departure('ignore') });
+  try {
+    const page = visit(site, { signals: true });
+    assert.deepEqual(page.queue(), [...WITHOUT_STORAGE, ...COUNTED]);
+    page.click('accept');
+    assert.deepEqual(page.queue().slice(-2), STORING);
+  } finally {
+    rmSync(site.repository, { recursive: true, force: true });
   }
 });

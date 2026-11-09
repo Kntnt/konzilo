@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { consentClient, cookieDeclaration, embedPanels } from '../src/consent/client.js';
-import { consentControlsMarkup, consentMarkup, cookieDeclarationMarkup, escape } from '../src/consent/markup.js';
+import { consentControlsMarkup, consentMarkup, cookieDeclarationMarkup, declarationView, escape } from '../src/consent/markup.js';
 
 const core = fileURLToPath(new URL('../', import.meta.url));
 const { CookieJar, JSDOM, VirtualConsole } = createRequire(join(core, 'package.json'))('jsdom');
@@ -179,6 +179,13 @@ describe('where the markup names each stored item\'s domain', () => {
     const page = parse(cookieDeclarationMarkup({ ...input, registry: stored(items.map(({ domain, ...item }) => item)), host: 'www.example.com' }));
     assert.deepEqual([...page.querySelectorAll('#konzilo-declaration-service-counter tbody tr')].map((row) => text(row.lastElementChild)), ['www.example.com', 'www.example.com', 'Its provider\'s domain', 'Its provider\'s domain']);
   });
+});
+
+test('the declaration says in plain words that the statistics count without storage before consent, and what Global Privacy Control and Do Not Track do', () => {
+  const counting = (privacySignals, language = 'en-GB') => declarationView({ ...input, registry: { ...registry, departures: [{ departure: 'statisticsWithoutStorageBeforeConsent', reason: 'Every visit counts.', privacySignals }] }, language }).departures;
+  assert.deepEqual(counting('stop'), [{ text: 'The site\'s statistics count each visit from the first page you see, before you make a choice, without storing anything in your browser or reading anything from it, your device\'s properties included. They store in your browser only once you allow statistics. A browser that sends Global Privacy Control or Do Not Track is not counted at all.', reason: 'Every visit counts.' }]);
+  assert.match(counting('ignore')[0].text, /A browser that sends Global Privacy Control or Do Not Track is counted too, without storage until you allow statistics\.$/);
+  assert.match(counting('stop', 'sv-SE')[0].text, /^Webbplatsens statistik räknar varje besök .* räknas inte alls\.$/);
 });
 
 describe('on a legal page', () => {
