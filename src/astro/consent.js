@@ -11,7 +11,12 @@
 // the site's own origin, and the page holds no inline code, so it works
 // under a policy that allows no inline script.
 
-import { CATEGORIES, categoryDescription, CONSENT_GROUP, textsOf } from '../format/consent.js';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { CONSENT_SCRIPT_LIFETIME, CONSENT_SCRIPTS, CONSENT_STYLESHEET, consentScriptPath } from '../consent/registry.js';
+import { consentScript } from '../consent/script.js';
+import { CATEGORIES, categoryDescription, CONSENT_FILE, CONSENT_GROUP, textsOf } from '../format/consent.js';
 import { RESERVED_PREFIX } from '../site-description.js';
 import { isPublicBuild, origin } from './public-site.js';
 import { LAUNCHED } from './tag-manager.js';
@@ -93,4 +98,68 @@ export function isCookiePolicy(pathname, settings, base = '/') {
 // banner stays hidden.
 export function isLegalPage(pathname, settings, base = '/') {
   return isPage(pathname, settings?.legalPages?.privacyPolicy, base) || isCookiePolicy(pathname, settings, base);
+}
+
+// The consent's default stylesheet, served beside the scripts.
+const STYLESHEET = fileURLToPath(new URL('../consent/consent.css', import.meta.url));
+
+// The consent scripts of the site for pages it does not build, one per
+// language, and their default stylesheet, by their addresses on the site
+// (src/consent/script.js): /_konzilo/consent/<language>.js, the language's
+// prefix on a site in several, else its language subtag, and
+// /_konzilo/consent/consent.css; none while the content folder holds no
+// registry. `folder` is the content folder the build reads, `languages`
+// the site's, `origin` the public host's, which the legal pages are linked
+// on, and `domain` the shared domain the choice is kept on, or null. The
+// pages are another system's, so they send no records: the site's endpoint
+// takes a record only from its own pages.
+export function consentScriptFiles({ folder, languages = [], origin: host, domain = null }) {
+  const read = (path) => {
+    const file = join(folder, path);
+    return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : null;
+  };
+  const registry = read(CONSENT_FILE);
+  if (registry === null) return new Map();
+  const several = languages.length > 1;
+  const absolute = (page) => page && { ...page, href: new URL(page.href, host).href };
+  const files = new Map();
+  for (const language of languages.length > 0 ? languages : [{ tag: 'en', prefix: null }]) {
+    const name = several ? language.prefix : language.tag.split('-')[0].toLowerCase();
+    const input = consentInput(registry, read(several ? `settings/${language.tag}.json` : 'settings.json'), { languageTag: language.tag });
+    const legalPages = { privacyPolicy: absolute(input.legalPages.privacyPolicy), cookiePolicy: absolute(input.legalPages.cookiePolicy) };
+    files.set(consentScriptPath(name), consentScript({ ...input, legalPages, host: null }, { domain }));
+  }
+  files.set(`${CONSENT_SCRIPTS}${CONSENT_STYLESHEET}`, readFileSync(STYLESHEET, 'utf8'));
+  return files;
+}
+
+// Write the consent scripts and their stylesheet into the release at
+// `dir`, as consentScriptFiles() gives them; returns their addresses.
+export function writeConsentScripts(dir, given) {
+  const files = consentScriptFiles(given);
+  for (const [address, contents] of files) {
+    const file = join(fileURLToPath(dir), address);
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, contents);
+  }
+  return [...files.keys()];
+}
+
+// The headers the consent scripts and their stylesheet are served with, as
+// a section of the release's `_headers` (security-headers.js): a short
+// lifetime in every cache, so that a new consent revision reaches a page
+// that is itself cached for days within minutes.
+export const CONSENT_SCRIPT_HEADERS = Object.freeze({ path: `${CONSENT_SCRIPTS}*`, headers: [['Cache-Control', `public, max-age=${CONSENT_SCRIPT_LIFETIME}`]] });
+
+// Astro's dev server: each consent script and the stylesheet, made from the
+// content folder at each request, as the public host serves them.
+export function devConsentScripts(given) {
+  return (incoming, outgoing, next) => {
+    const address = new URL(incoming.url, 'http://dev').pathname;
+    if (!address.startsWith(CONSENT_SCRIPTS) || incoming.method !== 'GET') return next();
+    const contents = consentScriptFiles(given()).get(address);
+    if (contents === undefined) return next();
+    outgoing.writeHead(200, { 'Content-Type': `${address.endsWith('.css') ? 'text/css' : 'text/javascript'}; charset=utf-8`, [CONSENT_SCRIPT_HEADERS.headers[0][0]]: CONSENT_SCRIPT_HEADERS.headers[0][1] });
+    outgoing.end(contents);
+  };
 }

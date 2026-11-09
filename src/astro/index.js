@@ -89,7 +89,7 @@ import { declaredNames, languageTag, postListModel, readSiteDescription, SITE_DE
 import { bodyStylesOf, pageImports } from './body-styles.js';
 import { contentFolder } from './collections.js';
 import { consentClient, cookieDeclaration, datawrapperHeights, embedPanels, matomoTracker } from '../consent/client.js';
-import { CONSENT_RECORDS, consentDomain } from './consent.js';
+import { CONSENT_RECORDS, CONSENT_SCRIPT_HEADERS, consentDomain, devConsentScripts, writeConsentScripts } from './consent.js';
 import { pagesWithBareEmbeds } from './embeds.js';
 import { lightboxClient } from './lightbox.js';
 import { resolvedColors, tokensOf } from './theme-tokens.js';
@@ -413,6 +413,8 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
   let body = null;
   let language = null;
   let languages = [];
+  // The shared domain the consent choice is kept on, on this build, or null.
+  let consentShared = null;
   // The site's feeds, the public site's alone, and the addresses of the
   // types' feeds, which no page of the site's own may have.
   let feeds = [];
@@ -495,6 +497,7 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
         // where it gives one.
         const shared = consentDomain({ command, base: config.base, domain: described?.consent.domain ?? null });
         if (shared.warning) logger.warn(shared.warning);
+        consentShared = shared.domain;
         const client = { ...CONSENT_STORAGE, domain: shared.domain, records: isPublicBuild(config.base) ? CONSENT_RECORDS : null };
         // The tag manager's container, on a release built for the launched
         // customer's domain alone, from the settings and the
@@ -559,6 +562,9 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
         // The security headers first, on every answer.
         server.middlewares.use(devHeaders(root));
         server.middlewares.use(searchProxy(root));
+        // The consent scripts for pages the site does not build, which the
+        // public host serves as files below the endpoint's prefix.
+        if (isPublicBuild(base)) server.middlewares.use(devConsentScripts(() => ({ folder: resolve(root, contentFolder()), languages, origin: origin(), domain: null })));
         server.middlewares.use(endpointProxy(undefined, { notSent: formNotSent }));
         // Each page's Markdown alternate, made from the page as the dev
         // server renders it, at its own address; a preview has none.
@@ -607,6 +613,10 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
         // error while the endpoint does not answer.
         mkdirSync(new URL('./', new URL(FORM_NOT_SENT, dir)), { recursive: true });
         writeFileSync(new URL(FORM_NOT_SENT, dir), formNotSent());
+        // The public site's consent scripts for pages it does not build, one
+        // per language, with their stylesheet.
+        const consentScripts = isPublicBuild(base) ? writeConsentScripts(dir, { folder: resolve(root, contentFolder()), languages, origin: origin(), domain: consentShared }) : [];
+        if (consentScripts.length > 0) logger.info(`wrote the consent scripts ${consentScripts.join(', ')}`);
         // The headers last, once the release holds every page, the
         // redirects' among them.
         const { code, problems } = releaseCode(fileURLToPath(dir));
@@ -629,7 +639,7 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
           if (value.length <= HEADER_LIMIT) continue;
           throw new Error(`Konzilo: the release's ${name} is ${value.length} characters, more than the ${HEADER_LIMIT} characters the server takes: its pages hold ${code.scripts.length} distinct inline scripts, ${code.styles.length} distinct inline styles and ${code.attributes.length} distinct style attribute values, each a hash in the Content Security Policy; the site's design must hold fewer, such as by classes in its stylesheets`);
         }
-        writeFileSync(new URL(HEADERS_FILE, dir), headersFile(headers));
+        writeFileSync(new URL(HEADERS_FILE, dir), headersFile(headers, consentScripts.length > 0 ? [CONSENT_SCRIPT_HEADERS] : []));
       },
     },
   };

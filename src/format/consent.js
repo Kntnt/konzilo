@@ -6,7 +6,7 @@
 // the embeds, the tag manager, the cookie declaration and the security policy
 // all read this one file.
 
-import { createHash } from 'node:crypto';
+import { CATEGORIES, CONSENT_STORAGE, HOST_KINDS, registryRevision } from '../consent/registry.js';
 import { inLanguage } from '../texts.js';
 
 import { tagManagerIds, tagManagerOf, tagManagerServices, trackerOf, WITHOUT_STORAGE } from './tag-manager.js';
@@ -21,34 +21,10 @@ export const CONSENT_FILE = 'consent.json';
 // which is every site.
 export const CONSENT_GROUP = 'consent';
 
-// The consent categories, in the order a visitor meets them. Necessary is
-// always on.
-export const CATEGORIES = Object.freeze(['necessary', 'functional', 'statistics', 'marketing']);
-
-// What a service stores in the visitor's browser is one of these kinds.
-export const STORAGE_KINDS = Object.freeze(['cookie', 'localStorage', 'sessionStorage', 'other']);
-
-// The kinds of request a service's hosts are reached by, each the source
-// list of a directive of the security policy: script-src, frame-src,
-// connect-src, img-src, style-src and font-src.
-export const HOST_KINDS = Object.freeze(['scripts', 'frames', 'connections', 'images', 'styles', 'fonts']);
-
-// What a transfer of personal data outside the EU and EEA rests on: an
-// adequacy decision of the Commission (for the US, the provider's
-// certification under the EU–US Data Privacy Framework), standard
-// contractual clauses, or binding corporate rules.
-export const SAFEGUARDS = Object.freeze(['adequacy', 'scc', 'bcr']);
-
-// A lifetime: until the browser session ends, without an end, or an ISO
-// 8601 duration of one unit, such as P12M or PT30M.
-export const LIFETIME = /^(session|persistent|P[1-9][0-9]*[YMWD]|PT[1-9][0-9]*[HMS])$/;
-
-// The consent's own storage item: the name the client keeps the visitor's
-// choice under, in local storage, or in a cookie of that name on the
-// consent's domain, and the months a choice holds, a refusal too. The
-// registry declares it, and the client (src/consent/client.js) keeps the
-// choice there.
-export const CONSENT_STORAGE = Object.freeze({ name: 'konzilo-consent', months: 12 });
+// The registry's fixed lists and the consent's own storage item are the
+// shared module's (src/consent/registry.js), which a site Konzilo does not
+// build can copy.
+export { CATEGORIES, CONSENT_STORAGE, HOST_KINDS, LIFETIME, SAFEGUARDS, STORAGE_KINDS } from '../consent/registry.js';
 
 // The consent's own storage: the visitor's choice and its ID, in the
 // consent's own local storage item; or, on a site that keeps the choice on
@@ -179,7 +155,7 @@ export function registryFile({ site, settings, embeds, facts = coreFacts, previo
     }))
     .filter((category) => category.services.length > 0);
   const departures = site.consent.departures.map((departure) => ({ ...departure }));
-  const revision = revisionOf({ categories, services, departures });
+  const revision = registryRevision({ categories, services, departures });
   const kept = previous?.revision === revision && /^\d{4}-\d{2}-\d{2}$/.test(previous.revised ?? '');
   const revised = kept ? previous.revised : now.toISOString().slice(0, 10);
   const registry = { revision, revised, categories, services, departures, texts: textsOf(texts) };
@@ -222,18 +198,6 @@ function domainOf(item, service) {
   const kinds = ['frames', ...HOST_KINDS.filter((kind) => kind !== 'frames')];
   const host = kinds.map((kind) => [...(service.hosts?.[kind] ?? [])].sort()[0]).find(Boolean);
   return host ? host.replace(/^\*\./, '') : null;
-}
-
-// The revision: a hash of what a visitor consents to, the categories with
-// their services, each service's facts and the departures, and not of the
-// wording, the consent texts and the categories' names and descriptions.
-function revisionOf({ categories, services, departures }) {
-  const consented = {
-    categories: categories.map((category) => ({ id: category.id, services: category.services })),
-    services,
-    departures,
-  };
-  return createHash('sha256').update(JSON.stringify(consented)).digest('hex').slice(0, 16);
 }
 
 // The consent texts by where a visitor meets them, from the group's settings

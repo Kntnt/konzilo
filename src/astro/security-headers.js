@@ -78,9 +78,12 @@ function permissionsPolicy(players) {
 }
 
 // The headers as `_headers` holds them, the form static hosts read: `/*`,
-// every page, then one indented `Name: value` per header.
-export function headersFile(headers) {
-  return ['/*', ...headers.map(([name, value]) => `  ${name}: ${value}`), ''].join('\n');
+// every page, then one indented `Name: value` per header; then each of
+// `sections`, { path, headers }, the headers of the files below a path of
+// its own, such as the consent scripts' Cache-Control.
+export function headersFile(headers, sections = []) {
+  const section = (path, given) => [path, ...given.map(([name, value]) => `  ${name}: ${value}`)];
+  return [...section('/*', headers), ...sections.flatMap(({ path, headers: own }) => section(path, own)), ''].join('\n');
 }
 
 // Astro's dev server: the headers of the site in `root`, the site

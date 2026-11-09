@@ -3,8 +3,16 @@
 // rules for Caddy, or refused whole. What is written holds nothing a Caddyfile would read as its
 // own: every value lies in backticks, and neither a backtick nor a placeholder gets through.
 
+import { CONSENT_SCRIPTS } from '../consent/registry.js';
+
 // The names a release may set, and nothing the web server reads as its own.
 const HEADER_NAMES = new Set(['Strict-Transport-Security', 'X-Content-Type-Options', 'Referrer-Policy', 'Content-Security-Policy', 'Reporting-Endpoints', 'X-Frame-Options', 'Permissions-Policy', 'Cross-Origin-Opener-Policy']);
+
+// The one folder whose files have a header of their own, the consent
+// scripts', and the one header they may have: a cache lifetime, public and
+// short.
+const CONSENT_SECTION = `${CONSENT_SCRIPTS}*`;
+const CONSENT_CACHE = /^public, max-age=[0-9]{1,5}$/;
 const LONGEST_HEADER = 65_536;
 const REDIRECTS = new Set(['301', '302', '303', '307', '308']);
 const NOTHING_THERE = new Set(['404', '410']);
@@ -28,22 +36,34 @@ const refuse = (file, line, why) => {
 const quoted = (value) => `\`${value}\``;
 const escapedForPattern = (text) => text.replace(/[.*+?^$()|[\]\\{}]/g, '\\$&');
 
-// `_headers` as `header` holds it: `/*`, then one indented `Name: value` per header.
+// `_headers` as `header` holds it: `/*`, then one indented `Name: value` per header; and then,
+// or not, the consent scripts' folder, with their Cache-Control alone. Returns { every, consent },
+// the rules of each.
 function headerRules(text) {
-  const [first, ...lines] = text.split('\n').filter((line) => line !== '');
-  if (first === undefined) return [];
-  if (first !== '/*') refuse('_headers', 1, 'it holds headers for every page, and nothing else');
-  const seen = new Set();
-  return lines.map((line, at) => {
+  const lines = text.split('\n').filter((line) => line !== '');
+  if (lines.length === 0) return { every: [], consent: [] };
+  if (lines[0] !== '/*') refuse('_headers', 1, 'it holds headers for every page, and nothing else');
+  const rules = { every: [], consent: [] };
+  let section = null;
+  let seen = new Set();
+  lines.forEach((line, at) => {
+    if (!line.startsWith(' ')) {
+      if (at > 0 && (line !== CONSENT_SECTION || section !== 'every')) refuse('_headers', at + 1, `besides every page it holds headers for ${CONSENT_SECTION} alone, once, after them`);
+      section = at === 0 ? 'every' : 'consent';
+      seen = new Set();
+      return;
+    }
     const [, name, value] = /^ {2}([A-Za-z-]+): (.*)$/.exec(line) ?? [];
-    if (name === undefined) refuse('_headers', at + 2, 'a line is an indented name and value');
-    if (!HEADER_NAMES.has(name)) refuse('_headers', at + 2, `${name} is no header a release may set`);
-    if (seen.has(name)) refuse('_headers', at + 2, `${name} comes twice`);
-    if (!PLAIN.test(value) || HIS_OWN.test(value)) refuse('_headers', at + 2, `the value of ${name} holds what the web server would read as its own`);
-    if (value.length > LONGEST_HEADER) refuse('_headers', at + 2, `${name} is longer than a host takes`);
+    if (name === undefined) refuse('_headers', at + 1, 'a line is an indented name and value');
+    if (section === 'every' ? !HEADER_NAMES.has(name) : name !== 'Cache-Control') refuse('_headers', at + 1, `${name} is no header a release may set${section === 'every' ? '' : ` for ${CONSENT_SECTION}`}`);
+    if (seen.has(name)) refuse('_headers', at + 1, `${name} comes twice`);
+    if (!PLAIN.test(value) || HIS_OWN.test(value)) refuse('_headers', at + 1, `the value of ${name} holds what the web server would read as its own`);
+    if (value.length > LONGEST_HEADER) refuse('_headers', at + 1, `${name} is longer than a host takes`);
+    if (section === 'consent' && !CONSENT_CACHE.test(value)) refuse('_headers', at + 1, `${CONSENT_SECTION} takes a public cache lifetime alone, such as public, max-age=300`);
     seen.add(name);
-    return `\t${name} ${quoted(value)}`;
+    rules[section].push(`\t${name} ${quoted(value)}`);
   });
+  return rules;
 }
 
 // Each order the parameters of a source can come in, up to a number of them worth listing.
@@ -144,7 +164,8 @@ export function webRules({ headers = '', redirects = '' }) {
   const header = headerRules(headers);
   const { path, address } = redirectRows(redirects);
   return [
-    ...(header.length > 0 ? ['header {', ...header, '}'] : []),
+    ...(header.every.length > 0 ? ['header {', ...header.every, '}'] : []),
+    ...(header.consent.length > 0 ? [`@konzilo-consent path ${CONSENT_SECTION}`, 'header @konzilo-consent {', ...header.consent, '}'] : []),
     ...(address.length > 0 ? [...mapOf('{http.request.orig_uri}', ['konzilo.asked', 'konzilo.asked_status', 'konzilo.asked_keeps'], address), ...answering('asked', 'konzilo.asked', 'konzilo.asked_status', 'konzilo.asked_keeps')] : []),
     ...(path.length > 0 ? [...mapOf('{http.request.orig_uri.path}', ['konzilo.to', 'konzilo.status', 'konzilo.keeps'], path), ...answering('path', 'konzilo.to', 'konzilo.status', 'konzilo.keeps')] : []),
     '',

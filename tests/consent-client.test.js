@@ -255,6 +255,23 @@ describe('a page of a site whose registry asks for consent', () => {
   });
 });
 
+test('a public release holds the consent script for pages the site does not build, and its stylesheet, served with a short cache lifetime; a preview\'s holds neither', () => {
+  const site = build();
+  const preview = build({ base: '/preview/someone/' });
+  try {
+    const script = site.output('_konzilo/consent/en.js');
+    assert.match(script, /^\/\/ The consent of this site, for a page it does not build\./);
+    assert.match(script, /https:\/\/www\.example\.com\/privacy\//);
+    assert.match(site.output('_konzilo/consent/consent.css'), /\.konzilo-consent-banner/);
+    assert.match(site.output('_headers'), /\n\/_konzilo\/consent\/\*\n {2}Cache-Control: public, max-age=300\n$/);
+    assert.throws(() => preview.output('_konzilo/consent/en.js'), /ENOENT/);
+    assert.doesNotMatch(preview.output('_headers'), /_konzilo\/consent/);
+  } finally {
+    rmSync(site.repository, { recursive: true, force: true });
+    rmSync(preview.repository, { recursive: true, force: true });
+  }
+});
+
 describe('a page of a site whose registry asks no consent', () => {
   let site;
   let page;

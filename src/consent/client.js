@@ -25,6 +25,22 @@ export function startConsent(options = {}) {
   datawrapperHeights();
 }
 
+// The consent's markup on a page that does not render it itself, as the
+// consent script (script.js) gives it: `consent`, the banner, the notice,
+// the dialog and the placeholders' templates (consentMarkup()), at the end
+// of the body, unless the page holds them already; and `declaration`, the
+// cookie declaration (cookieDeclarationMarkup()), in place of what each
+// element marked `data-konzilo-consent-declaration` holds, which stays
+// where the script does not run.
+export function placeConsent(consent, declaration) {
+  if (!document.querySelector('[data-konzilo-consent]')) document.body.insertAdjacentHTML('beforeend', consent);
+  for (const place of document.querySelectorAll('[data-konzilo-consent-declaration]')) {
+    const parsed = document.createElement('template');
+    parsed.innerHTML = declaration;
+    place.replaceChildren(parsed.content);
+  }
+}
+
 // The consent client: it reads the registry the consent's markup holds in
 // `[data-konzilo-consent]` (its revision, its categories with their
 // services, the storage withdrawing removes and the language of the page's
