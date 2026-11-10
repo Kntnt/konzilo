@@ -373,7 +373,8 @@ function requiredBy(read, before, path, problems) {
 // A number may have a least value (`min`), which its default and every
 // value kept must reach. A yes-or-no setting may require another
 // (`requires`, checked by settingsOf()), any setting may have a help text
-// the page shows with its control (`help`), and any but one of a part per post
+// the page shows with its control (`help`, from the catalogues, as its label
+// and its options' labels are, below `named`), and any but one of a part per post
 // type may stay out of the published files (`published: false`). A text a visitor reads
 // is `translated`, as a site's own setting may be
 // (translatedOf()): on a site in several languages it has a value in each,
