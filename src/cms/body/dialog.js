@@ -43,6 +43,6 @@ export function asking({ words, aside = null, keepWords, kept, removed }) {
   const answers = made('div', 'konzilo-dialog-actions', part);
   const keep = button('', keepWords, answers);
   keep.addEventListener('click', kept);
-  button('konzilo-dialog-remove-now', say('imageRemoveNow'), answers).addEventListener('click', removed);
+  button('konzilo-dialog-remove-now', say('body.removeNow'), answers).addEventListener('click', removed);
   return { part, keep };
 }

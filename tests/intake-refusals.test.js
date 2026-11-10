@@ -182,6 +182,7 @@ const cases = {
   'seo-text': [() => onePost({ search: { title: { a: 1 } } }), { field: 'search.title' }],
   'seo-schema': [() => onePost({ structured: { schema: 'Blog' } }), { field: 'structured.schema' }],
   'seo-image-alt': [() => onePost({ sharing: { image: { src: '/media/a.png' } } }), { field: 'sharing.image' }],
+  'seo-canonical': [() => onePost({ search: { canonical: '/the-original/' } }), { field: 'search.canonical' }],
   'terms-most': [() => onePost({ categories: ['aaaaaaaaaaaa', 'bbbbbbbbbbbb', 'cccccccccccc'] }), { field: 'categories' }],
   'other-shape': [() => onePost({ otherAddresses: 'none' }), { field: 'otherAddresses' }],
   'other-address': [() => onePost({ otherAddresses: [{ address: 'not a path' }] }), { field: 'otherAddresses' }],
@@ -400,6 +401,16 @@ test('a non-Admin may change a post, and an Admin what is an Admin\'s', () => {
     'articles/aaaaaaaaaaaa.md': article(),
   }, { changes: { 'settings.json': admin, 'menus/main.json': admin, 'pages/cccccccccccc.md': admin, 'articles/aaaaaaaaaaaa.md': { by: 'editor@example.com', admin: false } } });
   assert.deepEqual(refusals, []);
+});
+
+test('a canonical address is a whole http:// or https:// address, and anything else is refused, naming the field', () => {
+  for (const given of ['the-original/', '/the-original/', '//elsewhere.example.org/the-original/', 'ftp://elsewhere.example.org/the-original/', 'mailto:keeper@example.org', 'https://', 'https://elsewhere.example.org/the original/', 'https://keeper@elsewhere.example.org/']) {
+    const { refusals } = onePost({ search: { canonical: given } });
+    assert.deepEqual(refusals.map(({ field, reason }) => [field, reason]), [['search.canonical', `the canonical address ${JSON.stringify(given)} is not a whole web address; write one starting with https:// or http://, or leave it out`]], given);
+  }
+  for (const given of ['https://elsewhere.example.org/the-original/', 'http://elsewhere.example.org', 'https://elsewhere.example.org:8443/a/b?c=d#e']) {
+    assert.deepEqual(onePost({ search: { canonical: given } }).refusals, [], given);
+  }
 });
 
 test('search and sharing fields in one map, as the content file holds them, are refused, not dropped', () => {

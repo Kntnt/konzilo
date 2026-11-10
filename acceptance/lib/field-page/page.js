@@ -8,6 +8,7 @@ import { Selection, TextSelection } from '@milkdown/kit/prose/state';
 import { handsFor, loadReader } from '../../../src/cms/body/check.js';
 import { blockAt } from '../../../src/cms/body/place.js';
 import { mountBodyField } from '../../../src/cms/body/field.js';
+import { useInterfaceLanguage } from '../../../src/cms/body/texts.js';
 import { PLACE_EVENT } from '../../../src/cms/preview/paths.js';
 import { checkBody } from '../../../src/format/body.js';
 
@@ -47,8 +48,10 @@ const settled = () => new Promise((resolve) => {
 });
 
 // `answering` keeps what the field writes, as an owner would hold it on its way back, until
-// the test lets the answers come.
-const mount = (value, { elements = EVERY_ELEMENT, forms = ['contact', 'newsletter'], answering = false, library = null, smallestWidth = null } = {}) => {
+// the test lets the answers come. `language` is the interface language, which the editor
+// names from its configuration.
+const mount = (value, { elements = EVERY_ELEMENT, forms = ['contact', 'newsletter'], answering = false, library = null, smallestWidth = null, language = 'en' } = {}) => {
+  useInterfaceLanguage(language);
   const changes = [];
   const answers = [];
   const host = document.createElement('div');

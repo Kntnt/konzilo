@@ -7,7 +7,8 @@
 //   <head><meta charset="utf-8" /> ... <Head entry={entry} /></head>
 //
 // It writes the page's search and sharing tags: the title tag,
-// the meta description, the canonical address on the public host, the
+// the meta description, the canonical address, the one a post names or the
+// page's own on the public host, the
 // robots rule a post asks for, and noindex on the site's search page, Open Graph and X's card with a sharing image of 1200 × 630, the
 // alternates other parts of the core add, and the page's structured data,
 // one JSON-LD graph in a script of its own (search-and-sharing.js and
@@ -30,9 +31,10 @@
 // (site-settings.js, public-site.js), and the head links the page in each
 // language it is in with `hreflang`, `x-default` naming the main
 // language's: a post's translations the build has, but one kept from search
-// engines, and each language's start page, the same the sitemap gives the
-// page as its alternates (alternates() in site-languages.js). A post kept
-// from search engines links none.
+// engines or canonical to another address, and each language's start page,
+// the same the sitemap gives the page as its alternates (alternates() in
+// site-languages.js). A post kept from search engines, or canonical to
+// another address, links none.
 //
 // It links the icons made from the site icon (site-icons.js): the
 // ICO with its sizes, the SVG with its type where the icon is an SVG, the

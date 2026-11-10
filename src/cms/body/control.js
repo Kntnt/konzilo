@@ -58,7 +58,7 @@ export function bodyControl({ adminHost, library = null, load = loadField }) {
         }, (error) => {
           // A build replaced while the page was open, or a dropped connection.
           console.warn(`The body field did not load: ${error.message}`);
-          if (host.current !== null) host.current.textContent = say('fieldOff');
+          if (host.current !== null) host.current.textContent = say('body.off');
         });
       }
       return () => {
