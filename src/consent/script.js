@@ -19,11 +19,20 @@
 // - on the privacy policy and the cookie policy, `<meta
 //   name="konzilo-consent" content="legal-page">` in its head, where the
 //   banner then stays hidden;
+// - optionally, its own privacy policy and cookie policy, `<link
+//   rel="privacy-policy" href="…">` and `<link rel="cookie-policy"
+//   href="…">` in its head, each with an optional `title`, which the
+//   banner, the placeholders and the declaration then link to in place of
+//   the site's own (client.js, placeConsent());
+// - optionally, where the site counts visits without storage before
+//   consent, a link that objects to it, `<a href="#konzilo-consent-objection"
+//   data-konzilo-consent-action="objection" hidden>`, such as in its privacy
+//   policy, which the script shows and words;
 // - each embed in the markup of ADR 0024, `<figure class="konzilo-embed"
 //   data-embed="<service>">` with the player in a <template>, which the
 //   script makes a placeholder until the visitor allows the service.
 //
-// The script adds the banner, the notice, the dialog and the placeholders'
+// The script adds the banner, the notice, the dialogs and the placeholders'
 // templates to the end of the body, fills the declaration, and gives the
 // consent signal, window.konziloConsent, as soon as it has run, so that a
 // later deferred script on the page reads the stored choice at once, and

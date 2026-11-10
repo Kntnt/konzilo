@@ -14,18 +14,26 @@
 // `links={false}` leaves the links out, for a footer that links the legal
 // pages itself, and `buttons={false}` the buttons, so that each can stand in a
 // place of its own. The buttons show only with JavaScript, and only where the
-// registry asks for consent. The elements carry classes of their own,
-// `konzilo-consent-*`, which the site styles, as ConsentBanner.astro says.
+// registry asks for consent. `objection` adds the link that objects to
+// counting without storage, or takes the objection back, where the site
+// counts so, for a template such as the privacy policy's to place where it
+// explains the right to object:
+//
+//   <ConsentControls links={false} buttons={false} objection />
+//
+// It too shows only with JavaScript. The elements carry classes of their
+// own, `konzilo-consent-*`, which the site styles, as ConsentBanner.astro
+// says.
 import { getEntry } from 'astro:content';
 import { consentControlsMarkup } from '../consent/markup.js';
 import { consentInput } from './consent.js';
 import { publicSite } from './public-site.js';
 import { siteSettings } from './site-settings.js';
 
-const { links = true, buttons = true } = Astro.props;
+const { links = true, buttons = true, objection = false } = Astro.props;
 const registry = (await getEntry('consent', 'registry'))?.data;
 const settings = await siteSettings(Astro.url);
 const { languageTag, origin } = publicSite(Astro.url);
-const html = registry ? consentControlsMarkup(consentInput(registry, settings, { languageTag, base: import.meta.env.BASE_URL, origin }), { links, buttons }) : '';
+const html = registry ? consentControlsMarkup(consentInput(registry, settings, { languageTag, base: import.meta.env.BASE_URL, origin }), { links, buttons, objection }) : '';
 ---
 <Fragment set:html={html} />

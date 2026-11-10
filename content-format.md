@@ -655,7 +655,7 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
 
 1. **The site's identity**, each only when it is set: `title`, the site's title; `logo`, `{ "src": "media/<name>", "alt": "…" }`, its alt text only when it has one; and `icon`, the site icon, `{ "src": "media/<name>" }`, square, from which every build makes the site's icons.
 2. **The site's own settings**, each by its name in the order the site description declares them, by its `type`: a `string` as a string, a `number` and an `integer` as a number, a `boolean` as `true` or `false`, always there, a `date` as a day, `"YYYY-MM-DD"`, quoted; a `post`, the choice of a post, as `{ "title": "…", "url": "…" }`, the post's title and current address, left out while the post has no page; and an `image`, the choice of an image, as `{ "src": "media/<name>", "alt": "…" }`, as the logo. A setting without a value is left out.
-3. **Konzilo's own settings groups** that apply to the site, each an object under its name: `search`, the search and sharing settings; `ai`, AI visibility; `consent`, the consent texts; `tagManager`, what the public site loads to measure visits, `None`, `Matomo Tag Manager` or `Matomo`, Matomo's own tracker, with the instance's `address`, the `container`'s ID, the `site`'s ID in Matomo, the tracker's `cookieDomain` and who runs the instance, `provider`, each only once given; `legalPages`, the legal pages, each a choice of a post; `forms`, each declared form's confirmation text, by the form's name; and `feeds`, what the site's feeds hold, `item`, `"The summary"` or `"The whole text"`, and `posts`, a whole number from 1. The 404 page an Admin chooses is no setting here: it is `not-found.md`. A group holds its settings, then its named parts, each an object under its name, then `types`, a part for each post type, by the type's name. A setting with a default is always there. [`src/format/settings-groups.json`](src/format/settings-groups.json) describes each group's settings.
+3. **Konzilo's own settings groups** that apply to the site, each an object under its name: `search`, the search and sharing settings; `ai`, AI visibility; `consent`, the consent texts; `tagManager`, what the public site loads to measure visits, `None`, `Matomo Tag Manager` or `Matomo`, Matomo's own tracker, with the instance's `address`, the `container`'s ID, the `site`'s ID in Matomo, the tracker's `cookieDomain` and `timeZone`, the site's time zone in Matomo by its IANA name, and who runs the instance, `provider`, each only once given; `legalPages`, the legal pages, each a choice of a post; `forms`, each declared form's confirmation text, by the form's name; and `feeds`, what the site's feeds hold, `item`, `"The summary"` or `"The whole text"`, and `posts`, a whole number from 1. The 404 page an Admin chooses is no setting here: it is `not-found.md`. A group holds its settings, then its named parts, each an object under its name, then `types`, a part for each post type, by the type's name. A setting with a default is always there. [`src/format/settings-groups.json`](src/format/settings-groups.json) describes each group's settings.
 
 ```json file=settings.json
 {
@@ -751,6 +751,13 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
     "noticeWithdrawn": "Your consents have been withdrawn. The page will reload.",
     "placeholderQuestion": "Allow {service} to play this content?",
     "placeholderButton": "Allow and play",
+    "objectionText": "The counting without storage rests on the site's legitimate interest, and you may object to it at any time.",
+    "objectionObject": "Don't count my visits",
+    "objectionResume": "Count my visits again",
+    "objectionAppeal": "Do you really want us to stop counting your visits? We can't see who you are, and we don't follow you from one visit to the next. The figures help us understand what is valuable on the site and what we need to do better.",
+    "objectionAppealAllowed": "Do you really want us to stop counting your visits? You have allowed statistics, so for now we recognise your browser from one visit to the next. If you object, we turn that off and stop counting your visits altogether. The figures help us understand what is valuable on the site and what we need to do better.",
+    "objectionConfirm": "Don't count my visits",
+    "objectionCancel": "Cancel",
     "necessaryName": "Necessary",
     "necessaryDescription": "What the site needs to work and to remember your choice. Always on.",
     "functionalName": "Functional",
@@ -785,7 +792,7 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
 
 ### The service registry
 
-`consent.json` is the service registry: every service the site's pages may let a visitor's browser reach, which the site's consent banner asks about. It holds `revision`, 16 hexadecimal digits that change with what a visitor consents to, and `revised`, the day it last changed; `categories`, each with `id` (`necessary`, `functional`, `statistics` or `marketing`), `name`, `description` and the ids of its `services`; `services`, each with its `id`, `name`, `category`, `provider` (`null` for the site itself), `purpose`, `storage`, `hosts`, `transfers` and `necessity`, each stored item with its `name`, `kind`, `lifetime`, `party` and `domain`, the domain it is on: `null` for the host of the page that stores it, a domain for one shared with the sites below it, or a third party's, the host its service shows in or loads from where its facts name none; `departures`, the site's departures from the consent rules; and `texts`, the consent texts. Every build writes it, from the site settings, the embeds of the published posts and the services an Admin declares; nothing in it is a post's.
+`consent.json` is the service registry: every service the site's pages may let a visitor's browser reach, which the site's consent banner asks about. It holds `revision`, 16 hexadecimal digits that change with what a visitor consents to, and `revised`, the day it last changed; `categories`, each with `id` (`necessary`, `functional`, `statistics` or `marketing`), `name`, `description` and the ids of its `services`; `services`, each with its `id`, `name`, `category`, `provider` (`null` for the site itself), `purpose`, `storage`, `hosts`, `transfers` and `necessity`, each stored item with its `name`, `kind`, `lifetime`, `party` and `domain`, the domain it is on: `null` for the host of the page that stores it, a domain for one shared with the sites below it, or a third party's, the host its service shows in or loads from where its facts name none; `departures`, the site's departures from the consent rules; and `texts`, the consent texts, by where a visitor meets them, `objection` the texts of the right to object to counting without storage, which a registry an older core wrote may lack. Every build writes it, from the site settings, the embeds of the published posts and the services an Admin declares; nothing in it is a post's.
 
 ```json file=consent.json
 {
@@ -856,6 +863,15 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
     "placeholder": {
       "question": "Allow {service} to play this content?",
       "button": "Allow and play"
+    },
+    "objection": {
+      "text": "The counting without storage rests on the site's legitimate interest, and you may object to it at any time.",
+      "object": "Don't count my visits",
+      "resume": "Count my visits again",
+      "appeal": "Do you really want us to stop counting your visits? We can't see who you are, and we don't follow you from one visit to the next. The figures help us understand what is valuable on the site and what we need to do better.",
+      "appealAllowed": "Do you really want us to stop counting your visits? You have allowed statistics, so for now we recognise your browser from one visit to the next. If you object, we turn that off and stop counting your visits altogether. The figures help us understand what is valuable on the site and what we need to do better.",
+      "confirm": "Don't count my visits",
+      "cancel": "Cancel"
     }
   }
 }

@@ -315,7 +315,7 @@
   },
   "consent": {
     "label": "Consent texts",
-    "description": "What the privacy banner, the privacy settings and the content waiting for consent say to visitors. A text left empty is the default in the site's language; {service} stands for a service's name.",
+    "description": "What the privacy banner, the privacy settings, the content waiting for consent and the right to object to counting without storage say to visitors. A text left empty is the default in the site's language; {service} stands for a service's name.",
     "settings": {
       "bannerTitle": {
         "label": "Banner: title",
@@ -477,6 +477,76 @@
           "sv": "Tillåt och spela upp"
         }
       },
+      "objectionText": {
+        "label": "Right to object: explanation",
+        "type": "string",
+        "control": "textarea",
+        "translated": true,
+        "default": {
+          "en": "The counting without storage rests on the site's legitimate interest, and you may object to it at any time.",
+          "sv": "Räkningen utan lagring bygger på webbplatsens berättigade intresse, och du kan när som helst invända mot den."
+        }
+      },
+      "objectionObject": {
+        "label": "Right to object: link that objects",
+        "type": "string",
+        "control": "text",
+        "translated": true,
+        "default": {
+          "en": "Don't count my visits",
+          "sv": "Räkna inte mina besök"
+        }
+      },
+      "objectionResume": {
+        "label": "Right to object: link that takes the objection back",
+        "type": "string",
+        "control": "text",
+        "translated": true,
+        "default": {
+          "en": "Count my visits again",
+          "sv": "Räkna mina besök igen"
+        }
+      },
+      "objectionAppeal": {
+        "label": "Right to object: confirmation where statistics are not allowed",
+        "type": "string",
+        "control": "textarea",
+        "translated": true,
+        "default": {
+          "en": "Do you really want us to stop counting your visits? We can't see who you are, and we don't follow you from one visit to the next. The figures help us understand what is valuable on the site and what we need to do better.",
+          "sv": "Vill du verkligen att vi slutar räkna dina besök? Vi ser inte vem du är och följer dig inte mellan besök. Siffrorna hjälper oss att förstå vad som är värdefullt på webbplatsen och vad vi behöver göra bättre."
+        }
+      },
+      "objectionAppealAllowed": {
+        "label": "Right to object: confirmation where statistics are allowed",
+        "type": "string",
+        "control": "textarea",
+        "translated": true,
+        "default": {
+          "en": "Do you really want us to stop counting your visits? You have allowed statistics, so for now we recognise your browser from one visit to the next. If you object, we turn that off and stop counting your visits altogether. The figures help us understand what is valuable on the site and what we need to do better.",
+          "sv": "Vill du verkligen att vi slutar räkna dina besök? Du har tillåtit statistik, så i dag känner vi igen din webbläsare mellan besök. Invänder du stänger vi av det och slutar räkna dina besök helt. Siffrorna hjälper oss att förstå vad som är värdefullt på webbplatsen och vad vi behöver göra bättre."
+        }
+      },
+      "objectionConfirm": {
+        "label": "Right to object: confirm button",
+        "type": "string",
+        "control": "text",
+        "translated": true,
+        "default": {
+          "en": "Don't count my visits",
+          "sv": "Räkna inte mina besök"
+        }
+      },
+      "objectionCancel": {
+        "label": "Right to object: cancel button",
+        "type": "string",
+        "control": "text",
+        "translated": true,
+        "default": {
+          "en": "Cancel",
+          "sv": "Avbryt"
+        }
+      },
       "necessaryName": {
         "label": "Necessary: name",
         "type": "string",
@@ -624,6 +694,16 @@
           "reason": "must be a domain name in lowercase, such as example.com"
         },
         "help": "For Matomo, and only where the owner's sites below one domain are counted as one: that domain, such as example.com, which the site's own host is at or below. Matomo then keeps its cookies there, so a visitor who moves between the sites is one visitor. Leave it empty to keep them on the site's own host."
+      },
+      "timeZone": {
+        "label": "Time zone",
+        "type": "string",
+        "control": "text",
+        "format": {
+          "pattern": "^(?:UTC|[A-Za-z]+(?:/[A-Za-z0-9_+-]+){1,2})$",
+          "reason": "must be a time zone by its IANA name, such as Europe/Paris, or UTC"
+        },
+        "help": "For Matomo, where the site counts visits without storage before consent: the time zone the site has in Matomo, under Websites › Manage, by its name, such as Europe/Paris. Until a visitor allows statistics, the time of day of each visit is sent in it, since the visitor's own would read the time zone of their device. Leave it empty for UTC."
       }
     },
     "parts": {

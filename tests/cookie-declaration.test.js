@@ -192,21 +192,21 @@ describe('the cookie policy page of a site whose registry asks for consent', () 
 
   test('shows each service with its provider and its country, a link to its privacy policy that names it, its purpose, the hosts it reaches and its transfers', () => {
     const [consent, vimeo, counted, , youtube] = [...page.querySelectorAll('.konzilo-declaration-service')].map(serviceOf);
-    assert.deepEqual(Object.keys(counted.facts), ['Provider', 'Purpose', 'Hosts it reaches', 'Transfers outside the EU and EEA']);
+    assert.deepEqual(Object.keys(counted.facts), ['Provider', 'Purpose', 'Addresses your browser contacts', 'Transfers outside the EU and EEA']);
     assert.deepEqual(counted.facts, {
-      Provider: 'Example Counting Inc., United States. Privacy policy of Example Counting Inc.',
+      Provider: 'Example Counting Inc., United States. Example Counting Inc.\'s privacy policy',
       Purpose: 'Counts the visits to each page.',
-      'Hosts it reaches': ['cdn.counting.example.net', 'collect.counting.example.net'],
-      'Transfers outside the EU and EEA': ['United States, on an adequacy decision or standard contractual clauses'],
+      'Addresses your browser contacts': ['cdn.counting.example.net', 'collect.counting.example.net'],
+      'Transfers outside the EU and EEA': ['United States, on the basis of an adequacy decision or standard contractual clauses'],
     });
     const link = [...page.querySelectorAll('.konzilo-declaration-service')][2].querySelector('dd a');
     assert.equal(link.getAttribute('href'), 'https://counting.example.net/privacy');
-    assert.equal(youtube.facts.Provider, 'Google Ireland Limited, Ireland. Privacy policy of Google Ireland Limited');
-    assert.deepEqual(youtube.facts['Hosts it reaches'], ['www.youtube-nocookie.com']);
+    assert.equal(youtube.facts.Provider, 'Google Ireland Limited, Ireland. Google Ireland Limited\'s privacy policy');
+    assert.deepEqual(youtube.facts['Addresses your browser contacts'], ['www.youtube-nocookie.com']);
     assert.equal(consent.facts.Provider, 'This site. Privacy policy');
-    assert.equal(consent.facts['Hosts it reaches'], 'None beyond this site');
+    assert.equal(consent.facts['Addresses your browser contacts'], 'None but this site\'s own');
     assert.equal(consent.facts['Transfers outside the EU and EEA'], 'None');
-    assert.deepEqual(vimeo.facts['Transfers outside the EU and EEA'], ['United States, on an adequacy decision or standard contractual clauses']);
+    assert.deepEqual(vimeo.facts['Transfers outside the EU and EEA'], ['United States, on the basis of an adequacy decision or standard contractual clauses']);
   });
 
   test('shows for a necessary service why it is necessary, a departure\'s reason among them, and for no other', () => {
@@ -219,42 +219,42 @@ describe('the cookie policy page of a site whose registry asks for consent', () 
 
   test('shows what each service stores in a table with headers, its name, kind, lifetime, party and the domain it is on, or says that its provider names nothing', () => {
     const [consent, vimeo, counted, , youtube] = [...page.querySelectorAll('.konzilo-declaration-service')].map(serviceOf);
-    const headers = ['Name', 'Kind', 'Lifetime', 'Party', 'Domain'];
-    assert.deepEqual(consent.storage, { caption: 'What Consent stores in your browser', headers, rows: [['konzilo-consent', 'local storage', '12 months', 'First party', 'www.example.com']] });
-    assert.deepEqual(counted.storage, { caption: 'What Example Counter stores in your browser', headers, rows: [['_count', 'cookie', '13 months', 'First party', 'www.example.com'], ['_count_session', 'cookie', 'until you close the browser', 'First party', 'www.example.com']] });
-    assert.deepEqual(vimeo.storage.rows.find(([name]) => name === '__cf_bm'), ['__cf_bm', 'cookie', '30 minutes', 'Third party', 'player.vimeo.com']);
-    assert.equal(youtube.storage, 'Its provider names nothing it stores.');
+    const headers = ['Name', 'Type', 'How long', 'Set by', 'Domain'];
+    assert.deepEqual(consent.storage, { caption: 'What Consent stores in your browser', headers, rows: [['konzilo-consent', 'local storage', '12 months', 'This site', 'www.example.com']] });
+    assert.deepEqual(counted.storage, { caption: 'What Example Counter stores in your browser', headers, rows: [['_count', 'cookie', '13 months', 'This site', 'www.example.com'], ['_count_session', 'cookie', 'until you close the browser', 'This site', 'www.example.com']] });
+    assert.deepEqual(vimeo.storage.rows.find(([name]) => name === '__cf_bm'), ['__cf_bm', 'cookie', '30 minutes', 'Its provider', 'player.vimeo.com']);
+    assert.equal(youtube.storage, 'Its provider lists nothing that it stores.');
     for (const header of page.querySelectorAll('.konzilo-declaration thead th')) assert.equal(header.getAttribute('scope'), 'col');
   });
 
   test('shows each departure in plain words with its reason, and the day the registry last changed', () => {
     const departures = page.querySelector('.konzilo-declaration-departures');
-    assert.equal(text(page.getElementById(departures.getAttribute('aria-labelledby'))), 'Departures from the rules on consent');
+    assert.equal(text(page.getElementById(departures.getAttribute('aria-labelledby'))), 'What this site does without your consent');
     assert.deepEqual([...departures.querySelectorAll('li')].map(text), ['Vimeo counts as necessary on this site, so it is always on, without your consent. The reason: Our courses are Vimeo videos.']);
     const revised = page.querySelector('.konzilo-declaration-revised > time');
     assert.equal(revised.getAttribute('datetime'), site.registry().revised);
     const [year, month, day] = site.registry().revised.split('-').map(Number);
     const date = new Date(Date.UTC(year, month - 1, day)).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
-    assert.equal(text(revised.parentElement), `Last changed ${date}.`);
+    assert.equal(text(revised.parentElement), `The list was last changed on ${date}.`);
   });
 
   test('its headings follow the page\'s own: its parts at the second level, a category at the third and a service at the fourth', () => {
     const outline = [...page.querySelectorAll('main h1, main h2, main h3, main h4')].map((heading) => `${heading.tagName} ${text(heading)}`);
     assert.deepEqual(outline, [
       'H1 Cookie policy',
-      'H2 Your consent',
+      'H2 Your choice',
       'H2 Services and what they store',
       'H3 Necessary', 'H4 Consent', 'H4 Vimeo',
       'H3 Statistics', 'H4 Example Counter',
       'H3 Marketing', 'H4 Example Pixel', 'H4 YouTube',
-      'H2 Departures from the rules on consent',
+      'H2 What this site does without your consent',
     ]);
   });
 
   test('without the site\'s script, the visitor\'s own part says that it needs it, and shows no consent and no button', () => {
     const own = page.querySelector('.konzilo-declaration-consent');
     const shown = [...own.querySelectorAll(':scope > *, :scope > div > *')].filter((element) => !element.closest('[hidden]') && element.tagName !== 'DIV').map((element) => `${element.tagName} ${text(element)}`);
-    assert.deepEqual(shown, ['H2 Your consent', 'P Your own choice shows here only when your browser runs the site\'s script.']);
+    assert.deepEqual(shown, ['H2 Your choice', 'P Your choice is shown here when JavaScript is turned on in your browser.']);
     assert.deepEqual([...own.querySelectorAll('button')].map((button) => [text(button), button.type, button.dataset.konziloConsentAction, button.hidden]), [
       ['Change privacy settings', 'button', 'change', true],
       ['Withdraw consent', 'button', 'withdraw', true],
@@ -319,7 +319,7 @@ describe('the visitor\'s own consent on the cookie policy page, with the site\'s
 
   test('before a choice says that there is none, beside the buttons that change and withdraw it', () => {
     assert.deepEqual(ownConsent(visit(site, 'cookies')), {
-      sentences: ['You have made no choice that holds on this site.'],
+      sentences: ['You have not made a choice yet, or your last one no longer applies.'],
       choice: null,
       buttons: ['Change privacy settings', 'Withdraw consent'],
     });
@@ -375,34 +375,51 @@ describe('the cookie policy page of a site in sv_SE', () => {
   test('shows the registry\'s texts in Swedish, and every word of the core\'s own in Swedish too', () => {
     const registry = site.registry();
     const outline = [...page.querySelectorAll('.konzilo-declaration h2, .konzilo-declaration h3')].map(text);
-    assert.deepEqual(outline, ['Ditt samtycke', 'Tjänster och vad de lagrar', ...registry.categories.map((category) => category.name), 'Avsteg från reglerna om samtycke']);
+    assert.deepEqual(outline, ['Ditt val', 'Tjänster och vad de lagrar', ...registry.categories.map((category) => category.name), 'Det här gör webbplatsen utan ditt samtycke']);
     assert.equal(registry.categories[0].name, 'Nödvändiga');
     const [, , counted, , youtube] = [...page.querySelectorAll('.konzilo-declaration-service')].map(serviceOf);
     assert.deepEqual(counted.facts, {
       Leverantör: 'Example Counting Inc., USA. Integritetspolicy för Example Counting Inc.',
       Syfte: 'Counts the visits to each page.',
-      'Värdar den når': ['cdn.counting.example.net', 'collect.counting.example.net'],
+      'Adresser som din webbläsare kontaktar': ['cdn.counting.example.net', 'collect.counting.example.net'],
       'Överföringar utanför EU och EES': ['USA, med stöd av ett beslut om adekvat skyddsnivå eller standardavtalsklausuler'],
     });
     assert.deepEqual(counted.storage, {
       caption: 'Vad Example Counter lagrar i din webbläsare',
-      headers: ['Namn', 'Typ', 'Livslängd', 'Part', 'Domän'],
-      rows: [['_count', 'kaka', '13 månader', 'Förstapart', 'www.example.com'], ['_count_session', 'kaka', 'tills du stänger webbläsaren', 'Förstapart', 'www.example.com']],
+      headers: ['Namn', 'Typ', 'Hur länge', 'Sätts av', 'Domän'],
+      rows: [['_count', 'kaka', '13 månader', 'Den här webbplatsen', 'www.example.com'], ['_count_session', 'kaka', 'tills du stänger webbläsaren', 'Den här webbplatsen', 'www.example.com']],
     });
     assert.equal(youtube.storage, 'Leverantören anger inget som den lagrar.');
     assert.equal(youtube.facts.Syfte, registry.services.find((service) => service.id === 'youtube').purpose);
     assert.deepEqual([...page.querySelectorAll('.konzilo-declaration-departures li')].map(text), ['Vimeo räknas som nödvändig på den här webbplatsen och är därför alltid på, utan ditt samtycke. Skälet: Our courses are Vimeo videos.']);
-    assert.match(text(page.querySelector('.konzilo-declaration-revised')), /^Senast ändrad \d{1,2} [a-zåäö]+ \d{4}\.$/);
-    assert.equal(text(page.querySelector('.konzilo-declaration-no-script')), 'Ditt eget val visas här bara när din webbläsare kör webbplatsens skript.');
+    assert.match(text(page.querySelector('.konzilo-declaration-revised')), /^Listan ändrades senast den \d{1,2} [a-zåäö]+ \d{4}\.$/);
+    assert.equal(text(page.querySelector('.konzilo-declaration-no-script')), 'Ditt val visas här när JavaScript är påslaget i din webbläsare.');
     assert.deepEqual([...page.querySelectorAll('.konzilo-declaration button')].map(text), ['Ändra integritetsinställningar', 'Återkalla samtycke']);
   });
 
   test('with the site\'s script, says in Swedish that no choice holds, and after Accept all names the categories it allows in Swedish', () => {
     const visited = visit(site, 'cookies');
-    assert.deepEqual(ownConsent(visited).sentences, ['Du har inget val som gäller på den här webbplatsen.']);
+    assert.deepEqual(ownConsent(visited).sentences, ['Du har inte gjort något val ännu, eller så gäller ditt förra val inte längre.']);
     visited.document.querySelector('.konzilo-consent-banner button[data-konzilo-consent-action="accept"]').click();
     assert.deepEqual(ownConsent(visited).choice.allows, site.registry().categories.map((category) => category.name));
   });
+});
+
+test('a site in American English shows the declaration\'s dates in British English, as the core\'s words are, the day it last changed and the visitor\'s choice alike', () => {
+  const site = build({ language: 'en_US' });
+  try {
+    const page = site.page('cookies');
+    assert.equal(page.documentElement.lang, 'en-US');
+    const revised = page.querySelector('.konzilo-declaration-revised > time');
+    const day = new Date(`${revised.getAttribute('datetime')}T00:00:00Z`);
+    assert.equal(text(revised), new Intl.DateTimeFormat('en-GB', { dateStyle: 'long', timeZone: 'UTC' }).format(day));
+    const visited = visit(site, 'cookies');
+    visited.document.querySelector('.konzilo-consent-banner button[data-konzilo-consent-action="reject"]').click();
+    const given = visited.document.querySelector('.konzilo-declaration-choice time');
+    assert.equal(text(given), new Intl.DateTimeFormat('en-GB', { dateStyle: 'long', timeStyle: 'short' }).format(new Date(given.dateTime)));
+  } finally {
+    rmSync(site.repository, { recursive: true, force: true });
+  }
 });
 
 describe('the cookie policy page of a site whose registry asks no consent', () => {
@@ -418,7 +435,7 @@ describe('the cookie policy page of a site whose registry asks no consent', () =
 
   test('says so in the visitor\'s own part, with no button, and declares the necessary services, the consent\'s own linking to the site\'s privacy policy', () => {
     const own = page.querySelector('.konzilo-declaration-consent');
-    assert.deepEqual([...own.children].map(text), ['Your consent', 'This site asks for no consent, since every service it uses counts as necessary.']);
+    assert.deepEqual([...own.children].map(text), ['Your choice', 'This site asks for no consent, since every service it uses counts as necessary.']);
     assert.equal(page.querySelectorAll('.konzilo-declaration button').length, 0);
     assert.deepEqual([...page.querySelectorAll('.konzilo-declaration-category h3')].map(text), ['Necessary']);
     const link = page.querySelector('.konzilo-declaration-service dd a');
@@ -443,9 +460,9 @@ test('a transfer names its country, or says that its provider names none, and ea
   };
   const transfers = (language) => declarationView({ registry, language }).categories[0].services.map((one) => one.transfers);
   assert.deepEqual(transfers('en-GB'), [
-    ['A country its provider does not name, on an adequacy decision or standard contractual clauses'],
-    ['United States, on no safeguard its provider documents'],
-    ['India, on binding corporate rules', 'Switzerland, on an adequacy decision'],
+    ['A country its provider does not name, on the basis of an adequacy decision or standard contractual clauses'],
+    ['United States, with no safeguard its provider documents'],
+    ['India, on the basis of binding corporate rules', 'Switzerland, on the basis of an adequacy decision'],
   ]);
   assert.deepEqual(transfers('sv-SE'), [
     ['Ett land som leverantören inte namnger, med stöd av ett beslut om adekvat skyddsnivå eller standardavtalsklausuler'],
@@ -454,8 +471,21 @@ test('a transfer names its country, or says that its provider names none, and ea
   ]);
   const english = declarationView({ registry, language: 'en-GB' });
   assert.deepEqual(english.departures, [{ text: 'The site\'s tag manager loads before you make a choice, and the tags it loads follow your choice.', reason: 'Its tags wait for consent themselves.' }]);
-  assert.deepEqual(english.revised, { before: 'Last changed ', date: '5 January 2026', datetime: '2026-01-05', after: '.' });
-  assert.equal(declarationView({ registry, language: 'en-US' }).revised.date, 'January 5, 2026');
+  assert.deepEqual(english.revised, { before: 'The list was last changed on ', date: '5 January 2026', datetime: '2026-01-05', after: '.' });
+});
+
+test('the declaration formats in one locale per language of its words, en-GB and sv-SE unless the caller gives its own, whatever the page\'s own tag', () => {
+  const registry = { revision: '0123456789abcdef', revised: '2026-01-05', categories: [], services: [], departures: [], texts: { footer: { change: 'Change', withdraw: 'Withdraw' } } };
+  const shown = (given) => {
+    const view = declarationView({ registry, ...given });
+    return [view.locale, view.revised.date];
+  };
+  assert.deepEqual(shown({ language: 'en' }), ['en-GB', '5 January 2026']);
+  assert.deepEqual(shown({ language: 'en-US' }), ['en-GB', '5 January 2026']);
+  assert.deepEqual(shown({ language: 'de-DE' }), ['en-GB', '5 January 2026'], 'the core\'s words are English there');
+  assert.deepEqual(shown({ language: 'sv' }), ['sv-SE', '5 januari 2026']);
+  assert.deepEqual(shown({ language: 'en', locales: { en: 'en-US' } }), ['en-US', 'January 5, 2026']);
+  assert.deepEqual(shown({ language: 'sv-FI', locales: { en: 'en-US' } }), ['sv-SE', '5 januari 2026']);
 });
 
 test('the declaration is on the page at the cookie policy\'s address, below the site\'s base, with or without its last slash, and on no page while none is chosen', () => {

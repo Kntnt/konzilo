@@ -70,11 +70,12 @@ function contentFolder(languages) {
 // declaration's place, with a link that stays without the script; an embed
 // in the markup of ADR 0024; and the script, run as a deferred script runs,
 // once the page is parsed, then a later deferred script of the page's own.
-async function otherPage(script, { head = '', jar = new CookieJar(), url = 'https://investors.example.com/about/' } = {}) {
+async function otherPage(script, { head = '', body = '', jar = new CookieJar(), url = 'https://investors.example.com/about/' } = {}) {
   const html = `<!doctype html><html lang="en-GB"><head><title>About</title>${head}</head><body>
     <main><h1>About</h1>
       <figure class="konzilo-embed" data-embed="video"><a href="https://video.example.net/1">https://video.example.net/1</a><template><iframe src="https://player.video.example.net/1" title="Video"></iframe></template></figure>
       <div data-konzilo-consent-declaration><p><a href="https://www.example.com/cookies/">Our cookie policy</a></p></div>
+      ${body}
     </main>
     <footer><button type="button" data-konzilo-consent-action="change" hidden>Privacy settings</button><button type="button" data-konzilo-consent-action="withdraw" hidden>Withdraw consent</button></footer>
   </body></html>`;
@@ -91,6 +92,11 @@ async function otherPage(script, { head = '', jar = new CookieJar(), url = 'http
   // A deferred script runs once the page is parsed.
   if (window.document.readyState === 'loading') await new Promise((resolve) => window.document.addEventListener('DOMContentLoaded', resolve));
   window.eval(script);
+  // jsdom has no modal dialog: a dialog the script added opens and closes
+  // here as its `open` alone.
+  for (const dialog of window.document.querySelectorAll('dialog')) {
+    Object.assign(dialog, { showModal() { this.open = true; }, close() { this.open = false; this.dispatchEvent(new window.Event('close')); } });
+  }
   // A later deferred script of the page reads the stored choice at once.
   const later = window.eval('window.konziloConsent ? window.konziloConsent.choice() : "no signal"');
   return { window, document: window.document, sent, later };
@@ -199,6 +205,67 @@ test('a site that is not Konzilo\'s makes the same script from its own registry 
   assert.equal(page.document.querySelector('.konzilo-consent-banner').hidden, false);
   assert.equal(page.document.querySelector('[data-konzilo-consent-declaration] .konzilo-declaration-revised time').getAttribute('datetime'), '2026-11-01');
   assert.equal(JSON.parse(page.document.querySelector('[data-konzilo-consent]').dataset.konziloConsent).revision, registry.revision);
+});
+
+test('a page that names its own privacy policy and cookie policy has the consent link to them, by its titles where it gives them; one that names neither keeps the site\'s', async () => {
+  const script = consentScript({ registry, legalPages: { privacyPolicy: { title: 'Privacy', href: 'https://www.example.com/privacy/' }, cookiePolicy: { title: 'Cookies', href: 'https://www.example.com/cookies/' } }, language: 'en-GB', host: null }, { domain: 'example.com' });
+  const head = '<link rel="privacy-policy" href="/legal/privacy/" title="How we handle your data"><link rel="Cookie-Policy" href="https://investors.example.com/legal/cookies/">';
+  const own = (await otherPage(script, { head })).document;
+  assert.deepEqual([...own.querySelectorAll('.konzilo-consent-banner a')].map((link) => [text(link), link.href]), [
+    ['How we handle your data', 'https://investors.example.com/legal/privacy/'],
+    ['Cookies', 'https://investors.example.com/legal/cookies/'],
+  ]);
+  const placeholder = own.querySelector('template[data-konzilo-consent-placeholder="video"]').content.querySelector('.konzilo-embed-storage a');
+  assert.equal(placeholder.href, 'https://investors.example.com/legal/cookies/');
+  assert.equal(own.querySelector('figure.konzilo-embed .konzilo-embed-storage a').href, 'https://investors.example.com/legal/cookies/');
+  const consent = own.querySelector('[data-konzilo-consent-declaration] #konzilo-declaration-service-consent dd a');
+  assert.deepEqual([text(consent), consent.href], ['How we handle your data', 'https://investors.example.com/legal/privacy/']);
+  const provider = own.querySelector('[data-konzilo-consent-declaration] #konzilo-declaration-service-video dd a');
+  assert.equal(provider.href, 'https://video.example.net/privacy', 'a provider\'s own policy stays');
+
+  const site = (await otherPage(script)).document;
+  assert.deepEqual([...site.querySelectorAll('.konzilo-consent-banner a')].map((link) => [text(link), link.href]), [['Privacy', 'https://www.example.com/privacy/'], ['Cookies', 'https://www.example.com/cookies/']]);
+});
+
+test('where the site counts visits without storage before consent, a page of its own may place the link that objects; the objection is kept in the shared cookie for 12 months, and holds on every site below the domain', async () => {
+  const counter = { id: 'counter', name: 'Counter', category: 'statistics', provider: null, purpose: 'Counts visits.', storage: [{ name: '_count', kind: 'cookie', lifetime: 'P13M', party: 'first', domain: null }], hosts: { ...none, scripts: ['count.example.com'] }, transfers: [], necessity: null };
+  const counting = {
+    ...registry,
+    categories: [registry.categories[0], { id: 'statistics', name: 'Statistics', description: 'Counting visits.', services: ['counter'] }, registry.categories[1]],
+    services: [registry.services[0], counter, registry.services[1]],
+    departures: [{ departure: 'statisticsWithoutStorageBeforeConsent', reason: 'We count every visit.', privacySignals: 'ignore' }],
+  };
+  const script = consentScript({ registry: counting, legalPages: {}, language: 'en-GB', host: null }, { domain: 'example.com' });
+  const body = '<section><h2>Your right to object</h2><p><a href="#konzilo-consent-objection" data-konzilo-consent-action="objection" hidden>Object</a></p></section>';
+  const jar = new CookieJar();
+  const page = await otherPage(script, { body, jar, head: '<meta name="konzilo-consent" content="legal-page">' });
+  const link = page.document.querySelector('section a[data-konzilo-consent-action="objection"]');
+  assert.deepEqual([link.hidden, text(link)], [false, 'Don\'t count my visits']);
+  link.click();
+  const confirmation = page.document.querySelector('dialog#konzilo-consent-objection');
+  assert.equal(confirmation.open, true);
+  page.document.querySelector('#konzilo-consent-objection [data-konzilo-consent-action="object"]').click();
+  assert.equal(confirmation.open, false);
+  assert.equal(text(link), 'Count my visits again');
+  const cookie = jar.getCookiesSync('https://www.example.com/').find((one) => one.key === 'konzilo-consent');
+  assert.equal(cookie.domain, 'example.com');
+  const kept = JSON.parse(decodeURIComponent(cookie.value));
+  assert.deepEqual(Object.keys(kept), ['objection']);
+  const days = (cookie.expires.getTime() - Date.parse(kept.objection)) / (24 * 3600 * 1000);
+  assert.ok(days > 364 && days < 367, `kept ${days} days`);
+  assert.deepEqual(page.sent, [], 'an objection sends no record');
+
+  const other = await otherPage(script, { jar, url: 'https://www.example.com/news/' });
+  assert.equal(other.window.konziloConsent.objected(), true);
+  assert.equal(text(other.document.querySelector('.konzilo-consent-objection-link')), 'Count my visits again', 'in the dialog\'s statistics too');
+  assert.equal(other.document.querySelector('.konzilo-consent-banner').hidden, false, 'the banner still asks for a choice');
+  other.document.querySelector('.konzilo-consent-banner [data-konzilo-consent-action="accept"]').click();
+  assert.equal(JSON.parse(decodeURIComponent(jar.getCookiesSync('https://www.example.com/').find((one) => one.key === 'konzilo-consent').value)).objection, undefined, 'allowing statistics ends it');
+
+  // A site that does not count so offers none: the page's link stays hidden.
+  const uncounted = await otherPage(consentScript({ registry, legalPages: {}, language: 'en-GB', host: null }, { domain: 'example.com' }), { body });
+  assert.equal(uncounted.document.querySelector('section a[data-konzilo-consent-action="objection"]').hidden, true);
+  assert.equal(uncounted.document.querySelector('#konzilo-consent-objection'), null);
 });
 
 test('a content folder with no registry has no consent script', () => {

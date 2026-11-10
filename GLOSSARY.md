@@ -268,6 +268,10 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Departure**: A default of the consent rules a site sets aside on purpose, from a closed list, with its reason. _Avoid_: exception.
 
+**Server-log principle**: What the statistics count before consent: only what a web server's log would hold of each request, with nothing stored in the visitor's browser and nothing read from the device beyond what the browser sends anyway. _Avoid_: cookieless tracking, anonymous statistics.
+
+**Objection**: A visitor's word that the statistics are not to count their visits, which a site that counts without storage offers, kept beside the consent choice for 12 months; it is no consent, and allowing statistics ends it. _Avoid_: opt-out.
+
 **Tag manager**: A service that loads tags set up outside Konzilo, named with its container. _Avoid_: tracking code.
 
 **Tracker**: Matomo's own script, which counts page views for the site's ID in Matomo, with no container. _Avoid_: tracking code, pixel.

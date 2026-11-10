@@ -118,8 +118,10 @@
   outline-offset: 2px;
 }
 
-/* The preferences dialog. */
-.konzilo-consent-dialog {
+/* The preferences dialog, and the one that asks the visitor to confirm an
+   objection. */
+.konzilo-consent-dialog,
+.konzilo-consent-confirmation {
   box-sizing: border-box;
   inline-size: min(40rem, calc(100% - 2 * var(--consent-space)));
   max-block-size: calc(100% - 2 * var(--consent-space));
@@ -131,7 +133,8 @@
   border-radius: var(--consent-radius);
 }
 
-.konzilo-consent-dialog::backdrop {
+.konzilo-consent-dialog::backdrop,
+.konzilo-consent-confirmation::backdrop {
   background: rgb(0 0 0 / 0.5);
 }
 
@@ -216,6 +219,23 @@
   align-items: center;
   min-block-size: var(--consent-target);
   color: var(--body-link);
+}
+
+/* The right to object, below the statistics' services, and its link
+   wherever it stands: a link, not a button, at least a target high. */
+.konzilo-consent-objection {
+  margin: 0.5rem 0 0;
+}
+
+.konzilo-consent-objection-link {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--consent-target);
+  color: var(--body-link);
+}
+
+.konzilo-consent-confirmation {
+  inline-size: min(28rem, calc(100% - 2 * var(--consent-space)));
 }
 
 @media (max-width: 30rem) {
@@ -312,6 +332,8 @@
   .konzilo-consent-banner,
   .konzilo-consent-notice,
   .konzilo-consent-dialog,
+  .konzilo-consent-confirmation,
+  .konzilo-consent-objection-link,
   .konzilo-consent-controls .konzilo-consent-buttons,
   .konzilo-declaration .konzilo-consent-buttons {
     display: none !important;

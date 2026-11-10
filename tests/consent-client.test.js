@@ -216,7 +216,7 @@ describe('a page of a site whose registry asks for consent', () => {
     assert.equal(consent['Stores in your browser'], 'konzilo-consent: local storage, 12 months, on www.example.com');
     assert.equal(vimeo.Provider, 'Vimeo.com, Inc., United States. Privacy policy');
     assert.match(vimeo['Stores in your browser'], /__cf_bm: cookie, 30 minutes, on player\.vimeo\.com/);
-    assert.equal(youtube['Stores in your browser'], 'Its provider names nothing it stores');
+    assert.equal(youtube['Stores in your browser'], 'Its provider lists nothing that it stores');
     assert.match(youtube.Purpose, /\S/);
     const policy = page.querySelectorAll('.konzilo-consent-service')[2].querySelector('dd a');
     assert.match(policy.getAttribute('href'), /^https:\/\/policies\.google\.com\//);
@@ -434,7 +434,7 @@ describe('the consent client on a page of a site whose registry asks for consent
     assert.deepEqual(kept.categories, { necessary: true, marketing: true });
     assert.deepEqual(kept.services, { consent: true, vimeo: true, youtube: true });
     assert.equal(page.events.length, 1);
-    assert.deepEqual(plain(page.events[0]), { choice: kept, how: 'banner' });
+    assert.deepEqual(plain(page.events[0]), { choice: kept, how: 'banner', objected: false });
     assert.deepEqual(plain(page.signal.choice()), kept);
     assert.deepEqual(page.reloads, []);
   });

@@ -89,10 +89,11 @@ export function tagManagerOf(values) {
 
 // The tracker the settings choose, a tag manager's own, once they give all
 // it needs, or null: { id, label, script, endpoint, site, cookieDomain,
-// host, provider }, `script` and `endpoint` the addresses of its script and
-// of where it sends what it counts, `site` the site's ID in the instance,
-// and `cookieDomain` the domain it keeps its cookies on, or null for the
-// site's own host. `values` are the values of settings.json.
+// timeZone, host, provider }, `script` and `endpoint` the addresses of its
+// script and of where it sends what it counts, `site` the site's ID in the
+// instance, `cookieDomain` the domain it keeps its cookies on, or null for
+// the site's own host, and `timeZone` the site's time zone in the instance,
+// by its IANA name, or null. `values` are the values of settings.json.
 export function trackerOf(values) {
   const settings = values?.[TAG_MANAGER_GROUP];
   const id = Object.keys(tagManagers).find((key) => tagManagers[key].tracker?.label === settings?.manager);
@@ -106,6 +107,7 @@ export function trackerOf(values) {
     endpoint: tracker.endpoint.replace('{address}', base),
     site: settings.site,
     cookieDomain: typeof settings.cookieDomain === 'string' && settings.cookieDomain !== '' ? settings.cookieDomain : null,
+    timeZone: typeof settings.timeZone === 'string' && settings.timeZone !== '' ? settings.timeZone : null,
     host,
     provider,
   };

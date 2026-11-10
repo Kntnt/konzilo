@@ -26,7 +26,7 @@ import { paragraphs, post, identity, siteSettingsArgs, writeContent } from './li
 const core = fileURLToPath(new URL('../', import.meta.url));
 const astro = join(core, 'node_modules/astro/bin/astro.mjs');
 const integration = join(core, 'src/astro/index.js');
-const { JSDOM } = createRequire(join(core, 'package.json'))('jsdom');
+const { JSDOM, VirtualConsole } = createRequire(join(core, 'package.json'))('jsdom');
 
 // Matomo Tag Manager as an Admin sets it, and the container's address.
 const MATOMO = { manager: 'Matomo Tag Manager', address: 'https://matomo.example.com/', container: 'aBcD1234' };
@@ -105,21 +105,39 @@ function build({ tagManager = MATOMO, consent, launched = '1', base = '/' } = {}
 
 // A visit to the built page under jsdom, its script file run once `stored`
 // is put into the consent's own storage item: the window, the scripts the
-// page added to itself, by address, and what Matomo's data layer holds, as
-// plain values.
+// page added to itself, by address, what Matomo's data layer and Matomo's
+// queue hold, as plain values, what the consent's own storage item holds,
+// the reloads the page asked for, and the events of the consent signal.
+// jsdom has no modal dialog: a dialog opens and closes here as its `open`
+// alone.
 function visit(site, { stored, signals = false } = {}) {
-  const { window } = new JSDOM(site.output('hello/index.html'), { url: `${ORIGIN}${site.base}hello/`, runScripts: 'outside-only' });
+  const reloads = [];
+  const virtualConsole = new VirtualConsole();
+  virtualConsole.on('jsdomError', (error) => {
+    if (/navigation/.test(error.message)) reloads.push(error.message);
+    else throw error;
+  });
+  const { window } = new JSDOM(site.output('hello/index.html'), { url: `${ORIGIN}${site.base}hello/`, runScripts: 'outside-only', virtualConsole });
   if (stored !== undefined) window.localStorage.setItem('konzilo-consent', JSON.stringify(stored));
   // A browser that sends Global Privacy Control.
   if (signals) Object.defineProperty(window.navigator, 'globalPrivacyControl', { value: true });
   // The reload after a withdrawal is jsdom's to refuse; it waits here.
   window.setTimeout = () => 0;
+  for (const dialog of window.document.querySelectorAll('dialog')) {
+    Object.assign(dialog, {
+      showModal() { this.open = true; },
+      close() { this.open = false; this.dispatchEvent(new window.Event('close')); },
+    });
+  }
+  const events = [];
+  window.document.addEventListener('konzilo:consent', (event) => events.push(JSON.parse(JSON.stringify(event.detail))));
   const own = window.document.querySelector('script[src]');
   window.eval(site.output(own.getAttribute('src').slice(site.base.length)));
   const added = () => [...window.document.querySelectorAll('script[src]')].filter((script) => script !== own).map((script) => ({ src: script.src, async: script.async }));
   const layer = () => (window._mtm === undefined ? undefined : JSON.parse(JSON.stringify(window._mtm)).map(({ 'mtm.startTime': time, ...rest }) => (time === undefined ? rest : { ...rest, 'mtm.startTime': typeof time })));
   const queue = () => (window._paq === undefined ? undefined : JSON.parse(JSON.stringify(window._paq)));
-  return { window, added, layer, queue, click: (action) => window.document.querySelector(`button[data-konzilo-consent-action="${action}"]`).click() };
+  const kept = () => JSON.parse(window.localStorage.getItem('konzilo-consent'));
+  return { window, document: window.document, added, layer, queue, kept, reloads, events, click: (action) => window.document.querySelector(`button[data-konzilo-consent-action="${action}"]`).click() };
 }
 
 // The consent event Konzilo pushes into the data layer.
@@ -340,33 +358,68 @@ test('a tracker on a release for another origin, or below a base of its own, loa
   }
 });
 
-// What the tracker queues to count without storage, before what it counts.
-const WITHOUT_STORAGE = [['requireCookieConsent'], ['disableBrowserFeatureDetection']];
+// What the tracker queues to count as a web server's log would, before
+// what it counts: nothing stored, no device property and no load time read,
+// and each request's time of day put in the site's time zone; what lets it
+// store and read once the visitor allows statistics; and what it queues on
+// a page where the visitor allows them from the start.
+const LOG_LIKE = [['requireCookieConsent'], ['setCustomRequestProcessing', null], ['disableBrowserFeatureDetection'], ['disablePerformanceTracking']];
 const STORING = [['setCookieConsentGiven'], ['enableBrowserFeatureDetection']];
+const ALLOWED = [['requireCookieConsent'], ['setCustomRequestProcessing', null], ...STORING];
 const departure = (privacySignals) => ({ departures: [{ departure: 'statisticsWithoutStorageBeforeConsent', reason: 'We count every visit, and store nothing before consent.', privacySignals }] });
+
+// A request as Matomo's tracker makes it, with the time of day it read from
+// the device's clock in the device's own time zone, and what the function
+// the page gave setCustomRequestProcessing makes of it, at 08:14:05 UTC.
+const REQUEST = 'action_name=Hello&idsite=3&rec=1&r=123456&h=1&m=2&s=3&url=https%3A%2F%2Fwww.example.com%2Fhello%2F&send_image=0';
+const processed = (page, request = REQUEST) => {
+  const [, process] = page.window._paq.find(([name]) => name === 'setCustomRequestProcessing');
+  const RealDate = page.window.Date;
+  page.window.Date = class extends RealDate {
+    constructor(...given) {
+      super(...(given.length > 0 ? given : [Date.UTC(2026, 10, 10, 8, 14, 5)]));
+    }
+  };
+  try {
+    return process(request);
+  } finally {
+    page.window.Date = RealDate;
+  }
+};
+const at = (h, m, s) => REQUEST.replace('h=1&m=2&s=3', `h=${h}&m=${m}&s=${s}`);
+
+const text = (element) => element.textContent.replace(/\s+/g, ' ').trim();
+
+// Its link that objects, or takes the objection back.
+const objectionLink = (page) => page.document.querySelector('a[data-konzilo-consent-action="objection"]');
 
 describe('a release whose tracker counts without storage before consent', () => {
   let site;
 
   before(() => {
-    site = build({ tagManager: TRACKER, consent: departure('stop') });
+    // The site's time zone in Matomo: 14 hours ahead of UTC, all year.
+    site = build({ tagManager: { ...TRACKER, timeZone: 'Pacific/Kiritimati' }, consent: departure('stop') });
   });
 
   after(() => rmSync(site.repository, { recursive: true, force: true }));
 
-  test('a fresh visitor\'s page loads the tracker at once, counting with nothing stored and no device property read', () => {
+  test('a fresh visitor\'s page loads the tracker at once, counting as a server\'s log would: nothing stored, no device property or load time read, and the time of day in the site\'s time zone', () => {
     const page = visit(site);
     assert.deepEqual(page.added(), [{ src: MATOMO_JS, async: true }]);
-    assert.deepEqual(page.queue(), [...WITHOUT_STORAGE, ...COUNTED]);
+    assert.deepEqual(page.queue(), [...LOG_LIKE, ...COUNTED]);
+    assert.equal(processed(page), at(22, 14, 5));
+    assert.doesNotMatch(site.log, /time zone/);
   });
 
-  test('Accept all lets it store and read in the same page view, without a reload or a second load; a later page does so from the start', () => {
+  test('Accept all lets it store and read in the same page view, without a reload or a second load, and the time of day is the visitor\'s own from then on; a later page does so from the start, load times too', () => {
     const page = visit(site);
     page.click('accept');
-    assert.deepEqual(page.queue(), [...WITHOUT_STORAGE, ...COUNTED, ...STORING]);
+    assert.deepEqual(page.queue(), [...LOG_LIKE, ...COUNTED, ...STORING]);
     assert.equal(page.added().length, 1);
-    const next = visit(site, { stored: JSON.parse(page.window.localStorage.getItem('konzilo-consent')) });
-    assert.deepEqual(next.queue(), [...WITHOUT_STORAGE, ...STORING, ...COUNTED]);
+    assert.equal(processed(page), REQUEST);
+    const next = visit(site, { stored: page.kept() });
+    assert.deepEqual(next.queue(), [...ALLOWED, ...COUNTED]);
+    assert.equal(processed(next), REQUEST);
   });
 
   test('Withdraw consent forgets the consent and reads no more before the page reloads; a refusal stores nothing', () => {
@@ -378,7 +431,8 @@ describe('a release whose tracker counts without storage before consent', () => 
     assert.deepEqual(page.queue().slice(-2), [['forgetCookieConsentGiven'], ['disableBrowserFeatureDetection']]);
     const refused = visit(site);
     refused.click('reject');
-    assert.deepEqual(refused.queue(), [...WITHOUT_STORAGE, ...COUNTED]);
+    assert.deepEqual(refused.queue(), [...LOG_LIKE, ...COUNTED]);
+    assert.equal(processed(refused), at(22, 14, 5));
   });
 
   test('with privacySignals "stop", a browser that sends Global Privacy Control is not counted at all, even after Accept all', () => {
@@ -395,13 +449,147 @@ describe('a release whose tracker counts without storage before consent', () => 
     const registry = JSON.parse(readFileSync(join(site.repository, 'content/consent.json'), 'utf8'));
     assert.deepEqual(registry.departures, [{ departure: 'statisticsWithoutStorageBeforeConsent', reason: 'We count every visit, and store nothing before consent.', privacySignals: 'stop' }]);
   });
+
+  test('the statistics category\'s services end in the right to object, a short explanation and a link, which opens a confirmation with a plain appeal and two buttons alike', () => {
+    const built = new JSDOM(site.output('hello/index.html')).window.document;
+    const statistics = built.querySelector('#konzilo-consent-category-statistics').closest('.konzilo-consent-category');
+    const objection = statistics.querySelector('details.konzilo-consent-services > .konzilo-consent-objection');
+    assert.equal(text(objection), 'The counting without storage rests on the site\'s legitimate interest, and you may object to it at any time. Don\'t count my visits');
+    const link = objection.querySelector('a');
+    assert.deepEqual([link.tagName, link.className, link.getAttribute('href'), link.hidden], ['A', 'konzilo-consent-objection-link', '#konzilo-consent-objection', true]);
+    assert.equal(built.querySelectorAll('.konzilo-consent-objection').length, 1, 'in statistics alone');
+    const confirmation = built.querySelector('dialog#konzilo-consent-objection');
+    assert.equal(confirmation.className, 'konzilo-consent-confirmation');
+    assert.equal(text(built.getElementById(confirmation.getAttribute('aria-labelledby'))), 'Don\'t count my visits');
+    assert.equal(text(built.getElementById(confirmation.getAttribute('aria-describedby'))), 'Do you really want us to stop counting your visits? We can\'t see who you are, and we don\'t follow you from one visit to the next. The figures help us understand what is valuable on the site and what we need to do better.');
+    assert.deepEqual([...confirmation.querySelectorAll('button')].map((button) => [button.className, button.dataset.konziloConsentAction, text(button)]), [
+      ['konzilo-consent-choice', 'object', 'Don\'t count my visits'],
+      ['konzilo-consent-choice', 'cancel', 'Cancel'],
+    ]);
+    assert.doesNotMatch(site.output('hello/index.html'), /anonym/i);
+
+    const page = visit(site);
+    assert.deepEqual([objectionLink(page).hidden, text(objectionLink(page))], [false, 'Don\'t count my visits']);
+    objectionLink(page).click();
+    assert.equal(page.document.querySelector('#konzilo-consent-objection').open, true);
+    const shown = [...page.document.querySelectorAll('#konzilo-consent-objection p')].filter((paragraph) => !paragraph.hidden);
+    assert.deepEqual(shown.map((paragraph) => paragraph.id), ['konzilo-consent-objection-appeal'], 'the appeal to a visitor counted without storage');
+    page.click('cancel');
+    assert.equal(page.document.querySelector('#konzilo-consent-objection').open, false);
+    assert.equal(page.kept(), null, 'cancel keeps nothing');
+    assert.equal(page.window.konziloConsent.objected(), false);
+  });
+
+  test('confirming the objection sends nothing more in the page view and sets no cookie; it is kept, no choice, and the next page loads no tracker, its link saying Count my visits again', () => {
+    const page = visit(site);
+    objectionLink(page).click();
+    page.click('object');
+    assert.equal(page.document.querySelector('#konzilo-consent-objection').open, false);
+    assert.deepEqual(page.queue().slice(-1), [['requireConsent']], 'Matomo holds back every later request');
+    assert.equal(page.document.cookie, '', 'and no cookie says so');
+    assert.deepEqual(Object.keys(page.kept()), ['objection']);
+    assert.ok(Math.abs(Date.parse(page.kept().objection) - Date.now()) < 60_000);
+    assert.equal(page.window.konziloConsent.objected(), true);
+    assert.equal(page.window.konziloConsent.choice(), null, 'an objection is no choice');
+    assert.deepEqual(page.events, [{ choice: null, how: 'objection', objected: true }]);
+    assert.equal(text(objectionLink(page)), 'Count my visits again');
+    assert.equal(page.document.querySelector('.konzilo-consent-banner').hidden, false, 'the banner still asks');
+
+    const next = visit(site, { stored: page.kept() });
+    assert.deepEqual(next.added(), []);
+    assert.equal(next.queue(), undefined);
+    assert.equal(text(objectionLink(next)), 'Count my visits again');
+    next.click('reject');
+    assert.equal(next.kept().objection, page.kept().objection, 'a refusal keeps it');
+    assert.equal(visit(site, { stored: next.kept() }).queue(), undefined);
+  });
+
+  test('Count my visits again takes the objection back at once, and the next page counts without storage again', () => {
+    const page = visit(site, { stored: { objection: new Date().toISOString() } });
+    objectionLink(page).click();
+    assert.equal(page.document.querySelector('#konzilo-consent-objection').open, false, 'no confirmation is asked');
+    assert.equal(page.kept(), null);
+    assert.equal(page.window.konziloConsent.objected(), false);
+    assert.deepEqual(page.events, [{ choice: null, how: 'objection', objected: false }]);
+    assert.equal(text(objectionLink(page)), 'Don\'t count my visits');
+    assert.deepEqual(page.added(), [], 'it counts from the next page view');
+    assert.deepEqual(visit(site, { stored: page.kept() }).queue(), [...LOG_LIKE, ...COUNTED]);
+  });
+
+  test('allowing statistics ends the objection, and the tracker stores in the same page view: loaded at once, or sending again', () => {
+    const objected = visit(site, { stored: { objection: new Date().toISOString() } });
+    objected.click('accept');
+    assert.equal(objected.kept().objection, undefined);
+    assert.equal(objected.window.konziloConsent.objected(), false);
+    assert.deepEqual(objected.added(), [{ src: MATOMO_JS, async: true }]);
+    assert.deepEqual(objected.queue(), [...ALLOWED, ...COUNTED]);
+
+    const page = visit(site);
+    objectionLink(page).click();
+    page.click('object');
+    page.click('accept');
+    assert.deepEqual(page.queue().slice(-4), [['requireConsent'], ['setConsentGiven'], ...STORING]);
+    assert.equal(page.kept().objection, undefined);
+  });
+
+  test('objecting after consent to statistics withdraws it as a choice, after an appeal that says the browser is recognised now: Matomo forgets its cookie consent and holds back every request, and the page reloads', () => {
+    const page = visit(site);
+    page.click('accept');
+    objectionLink(page).click();
+    const confirmation = page.document.querySelector('#konzilo-consent-objection');
+    const shown = [...confirmation.querySelectorAll('p')].filter((paragraph) => !paragraph.hidden);
+    assert.deepEqual(shown.map(text), ['Do you really want us to stop counting your visits? You have allowed statistics, so for now we recognise your browser from one visit to the next. If you object, we turn that off and stop counting your visits altogether. The figures help us understand what is valuable on the site and what we need to do better.']);
+    assert.equal(confirmation.getAttribute('aria-describedby'), shown[0].id);
+    page.click('object');
+    assert.deepEqual(page.queue().slice(-3), [['forgetCookieConsentGiven'], ['disableBrowserFeatureDetection'], ['requireConsent']]);
+    assert.equal(page.kept().services.matomo, false);
+    assert.equal(typeof page.kept().objection, 'string');
+    assert.deepEqual(page.events.at(-1).how, 'objection');
+    assert.equal(page.reloads.length, 1);
+    const next = visit(site, { stored: page.kept() });
+    assert.equal(next.queue(), undefined);
+    assert.equal(next.document.querySelector('.konzilo-consent-banner').hidden, true, 'the choice holds');
+  });
+
+  test('Withdraw consent ends the objection too: the next page counts without storage as for a first visit, and the banner stays away', () => {
+    const page = visit(site);
+    page.click('reject');
+    objectionLink(page).click();
+    page.click('object');
+    page.window.document.body.insertAdjacentHTML('beforeend', '<button type="button" data-konzilo-consent-action="withdraw">Withdraw consent</button>');
+    page.click('withdraw');
+    assert.equal(page.kept().objection, undefined);
+    assert.equal(page.kept().services.matomo, false);
+    const next = visit(site, { stored: page.kept() });
+    assert.deepEqual(next.queue(), [...LOG_LIKE, ...COUNTED]);
+    assert.equal(next.document.querySelector('.konzilo-consent-banner').hidden, true);
+  });
+
+  test('an objection holds 12 months from when it was made, whatever the choice beside it', () => {
+    const months = (count) => {
+      const date = new Date();
+      date.setUTCMonth(date.getUTCMonth() - count);
+      return date.toISOString();
+    };
+    const old = visit(site, { stored: { objection: months(13) } });
+    assert.equal(old.kept(), null);
+    assert.deepEqual(old.queue(), [...LOG_LIKE, ...COUNTED]);
+    const refusal = { time: months(13), revision: JSON.parse(readFileSync(join(site.repository, 'content/consent.json'), 'utf8')).revision, categories: { necessary: true, statistics: false }, services: { consent: true, matomo: false } };
+    const objection = months(1);
+    const outlived = visit(site, { stored: { ...refusal, objection } });
+    assert.deepEqual(outlived.kept(), { objection });
+    assert.equal(outlived.queue(), undefined);
+    assert.equal(outlived.document.querySelector('.konzilo-consent-banner').hidden, false, 'the choice is gone, the objection stays');
+  });
 });
 
-test('with privacySignals "ignore", a browser that sends Global Privacy Control is counted without storage too', () => {
+test('with privacySignals "ignore", a browser that sends Global Privacy Control is counted without storage too; without a time zone the time of day is in UTC, with a warning', () => {
   const site = build({ tagManager: TRACKER, consent: departure('ignore') });
   try {
+    assert.match(site.log, /the site counts visits before consent without a time zone for Matomo, so such a visit has its time of day in UTC/);
     const page = visit(site, { signals: true });
-    assert.deepEqual(page.queue(), [...WITHOUT_STORAGE, ...COUNTED]);
+    assert.deepEqual(page.queue(), [...LOG_LIKE, ...COUNTED]);
+    assert.equal(processed(page), at(8, 14, 5));
     page.click('accept');
     assert.deepEqual(page.queue().slice(-2), STORING);
   } finally {
