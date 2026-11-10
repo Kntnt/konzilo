@@ -12,6 +12,7 @@ import { registerBodyField } from './body/register.js';
 import { registerPreview } from './preview/template.js';
 import { registerImageField } from './image/register.js';
 import { registerParts } from './parts/register.js';
+import { registerStructureField } from './structure/register.js';
 import { registerPublishing } from './publishing/register.js';
 import './form.css';
 // The preview's window hides its pane by these; template.js, which shows it, is read by tests too.
@@ -30,5 +31,6 @@ registerBodyField(CMS, config);
 registerPublishing(CMS, config);
 registerParts(CMS, config);
 registerImageField(CMS, config);
+registerStructureField(CMS, config);
 if (konzilo?.preview) registerPreview(CMS, config, konzilo.preview);
 CMS.init({ config });

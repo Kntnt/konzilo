@@ -1,0 +1,79 @@
+/* The structure field: a tree of rows, and under the selected row its small form, in Sveltia's
+   colours, so that it follows light and dark mode. */
+.konzilo-tree { font: 14px/1.4 var(--sui-font-family-default, system-ui, sans-serif); color: var(--sui-primary-foreground-color); position: relative; }
+.konzilo-tree * { box-sizing: border-box; }
+.konzilo-tree-top { position: sticky; top: 0; z-index: 3; background: var(--sui-primary-background-color); padding: 6px 0 8px; border-bottom: 1px solid var(--sui-secondary-border-color); }
+.konzilo-tree-tools { display: flex; gap: 8px; align-items: center; }
+.konzilo-tree-search { flex: 1; min-width: 0; height: 32px; padding: 0 10px; border: 1px solid var(--sui-control-border-color); border-radius: 6px; font: inherit; background: var(--sui-control-background-color); color: var(--sui-control-foreground-color); }
+.konzilo-tree-modes { display: inline-flex; border: 1px solid var(--sui-control-border-color); border-radius: 6px; overflow: hidden; }
+.konzilo-tree-modes button { border: 0; background: var(--sui-control-background-color); color: var(--sui-control-foreground-color); font: inherit; padding: 5px 10px; cursor: pointer; }
+.konzilo-tree-modes button[aria-pressed="true"] { background: #1565c0; color: #fff; }
+.konzilo-tree-crumbs { display: flex; flex-wrap: wrap; gap: 2px 4px; margin: 8px 0 0; font-size: 12px; color: var(--sui-secondary-foreground-color); min-height: 18px; }
+.konzilo-tree-crumbs button { border: 0; background: none; padding: 0; font: inherit; color: #1565c0; cursor: pointer; text-align: left; }
+.konzilo-tree-crumbs button:hover { text-decoration: underline; }
+.konzilo-tree-crumbs span[aria-current] { color: var(--sui-primary-foreground-color); font-weight: 600; }
+.konzilo-tree-hint { margin: 8px 0 0; font-size: 12px; color: var(--sui-secondary-foreground-color); }
+.konzilo-tree-hits { list-style: none; margin: 6px 0 0; padding: 0; border: 1px solid var(--sui-secondary-border-color); border-radius: 6px; max-height: 240px; overflow: auto; background: var(--sui-secondary-background-color); }
+.konzilo-tree-hits button { display: block; width: 100%; border: 0; background: none; text-align: left; padding: 6px 10px; font: inherit; cursor: pointer; color: var(--sui-primary-foreground-color); }
+.konzilo-tree-hits button:hover { background: var(--sui-hover-background-color); }
+.konzilo-tree-hits small { display: block; color: var(--sui-secondary-foreground-color); font-size: 11px; }
+/* Cards within cards, as the bands of the page: a card is what can hold something, its type a
+   small heading above what it is about, and its depth makes it a little lighter, or darker.
+   Text, headings and items are rows in their card, with their type to the right. */
+.konzilo-tree-tree, .konzilo-tree-kids { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.konzilo-tree-tree li { min-width: 0; }
+.konzilo-tree-tree { margin-top: 10px; }
+.konzilo-tree-box {
+  --tint: min(calc(var(--depth, 0) * 3.5% + 3%), 20%);
+  background: color-mix(in srgb, var(--sui-primary-foreground-color) var(--tint), var(--sui-primary-background-color));
+  border: 1px solid color-mix(in srgb, var(--sui-primary-foreground-color) calc(var(--tint) + 9%), var(--sui-primary-background-color));
+  border-radius: 8px;
+  min-width: 0;
+}
+.konzilo-tree-box[data-name="rad"], .konzilo-tree-box[data-name="kolumn"] { border-style: dashed; }
+.konzilo-tree-box > .konzilo-tree-kids { gap: 4px; padding: 0 6px 6px; }
+.konzilo-tree-box[data-selected="true"] { border-color: #1565c0; box-shadow: 0 0 0 1px #1565c0; }
+.konzilo-tree-row { display: flex; align-items: center; gap: 4px; min-width: 0; border-radius: 7px; }
+.konzilo-tree-row:hover { background: var(--sui-hover-background-color); }
+.konzilo-tree-box > .konzilo-tree-row { padding: 5px 6px 5px 4px; }
+.konzilo-tree-leaf > .konzilo-tree-row { min-height: 30px; padding: 0 6px 0 10px; border-radius: 5px; }
+.konzilo-tree-leaf[data-selected="true"] > .konzilo-tree-row { background: var(--sui-selected-background-color); box-shadow: inset 0 0 0 1px #1565c0; }
+.konzilo-tree-caret { flex: none; width: 22px; height: 26px; border: 0; background: none; cursor: pointer; color: var(--sui-secondary-foreground-color); font-size: 22px; line-height: 1; padding: 0 0 3px; transition: transform 0.12s; }
+.konzilo-tree-caret[aria-expanded="true"] { transform: rotate(90deg); }
+.konzilo-tree-caret:hover { color: var(--sui-primary-foreground-color); }
+.konzilo-tree-caret[disabled] { visibility: hidden; }
+.konzilo-tree-name { flex: 1; min-width: 0; display: flex; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; text-align: left; padding: 2px; }
+.konzilo-tree-box > .konzilo-tree-row .konzilo-tree-name { flex-direction: column; align-items: flex-start; gap: 1px; }
+.konzilo-tree-leaf > .konzilo-tree-row .konzilo-tree-name { align-items: baseline; gap: 10px; }
+.konzilo-tree-type { flex: none; font-size: 10.5px; line-height: 1.3; color: var(--sui-secondary-foreground-color); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+.konzilo-tree-leaf .konzilo-tree-type { order: 2; margin-left: auto; font-weight: 600; opacity: 0.8; }
+.konzilo-tree-text { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.konzilo-tree-box > .konzilo-tree-row .konzilo-tree-text { font-weight: 500; }
+.konzilo-tree-tree > .konzilo-tree-box > .konzilo-tree-row .konzilo-tree-text { font-size: 15px; font-weight: 600; }
+.konzilo-tree-leaf[data-kind="heading"] .konzilo-tree-text { font-weight: 600; }
+.konzilo-tree-leaf[data-kind="item"] .konzilo-tree-text::before { content: '•'; margin-right: 7px; color: var(--sui-secondary-foreground-color); }
+.konzilo-tree-leaf[data-kind="image"] .konzilo-tree-text, .konzilo-tree-leaf[data-kind="gallery"] .konzilo-tree-text, .konzilo-tree-leaf[data-kind="embed"] .konzilo-tree-text { font-style: italic; color: var(--sui-secondary-foreground-color); }
+.konzilo-tree-actions { flex: none; display: none; gap: 1px; }
+.konzilo-tree-row:hover .konzilo-tree-actions, .konzilo-tree-row[data-selected="true"] .konzilo-tree-actions { display: inline-flex; }
+.konzilo-tree-actions button { width: 22px; height: 22px; border: 0; border-radius: 4px; background: none; cursor: pointer; color: var(--sui-primary-foreground-color); font-size: 13px; padding: 0; }
+.konzilo-tree-actions button:hover { background: var(--sui-active-background-color); }
+.konzilo-tree-box > .konzilo-tree-form { margin: 0 6px 8px; }
+.konzilo-tree-box > .konzilo-tree-add { margin: 2px 6px 8px; }
+.konzilo-tree-form { margin: 2px 0 8px 10px; padding: 10px; background: var(--sui-secondary-background-color); border: 1px solid var(--sui-secondary-border-color); border-radius: 6px; display: grid; gap: 8px; }
+.konzilo-tree-form label { display: grid; gap: 3px; font-size: 12px; color: var(--sui-secondary-foreground-color); font-weight: 600; }
+.konzilo-tree-form label.konzilo-tree-check { display: flex; align-items: center; gap: 6px; font-weight: 400; }
+.konzilo-tree-form textarea, .konzilo-tree-form select { width: 100%; font: 14px/1.4 var(--sui-font-family-default, system-ui, sans-serif); color: var(--sui-control-foreground-color); font-weight: 400; background: var(--sui-control-background-color); border: 1px solid var(--sui-control-border-color); border-radius: 5px; padding: 6px 8px; }
+.konzilo-tree-form textarea { resize: vertical; min-height: 34px; display: block; }
+.konzilo-tree-form textarea:focus, .konzilo-tree-form select:focus, .konzilo-tree-search:focus { outline: 2px solid var(--sui-focus-ring-color, #4d9fff); outline-offset: -1px; }
+.konzilo-tree-form img { max-width: 160px; max-height: 110px; border-radius: 4px; display: block; background: var(--sui-tertiary-background-color); }
+.konzilo-tree-form > button { justify-self: start; border: 1px solid var(--sui-control-border-color); border-radius: 5px; padding: 4px 10px; background: var(--sui-control-background-color); color: var(--sui-control-foreground-color); font: inherit; font-size: 13px; cursor: pointer; }
+.konzilo-tree-note { margin: 0; font-size: 12px; color: var(--sui-secondary-foreground-color); font-weight: 400; }
+.konzilo-tree-add { display: flex; gap: 6px; margin: 10px 0 2px; }
+.konzilo-tree-add select { font: 13px var(--sui-font-family-default, system-ui, sans-serif); padding: 4px 6px; border: 1px dashed var(--sui-control-border-color); border-radius: 5px; background: var(--sui-control-background-color); color: var(--sui-control-foreground-color); cursor: pointer; max-width: 100%; }
+.konzilo-tree-source { width: 100%; min-height: 620px; margin-top: 8px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--sui-control-foreground-color); background: var(--sui-control-background-color); border: 1px solid var(--sui-control-border-color); border-radius: 6px; padding: 10px; white-space: pre; overflow: auto; tab-size: 2; }
+.konzilo-tree-problem { margin: 8px 0 0; padding: 8px 10px; border-radius: 6px; background: var(--sui-warning-background-color); color: var(--sui-warning-foreground-color); font-size: 13px; }
+.konzilo-tree-body .konzilo-body { border: 1px solid var(--sui-control-border-color); border-radius: 5px; }
+.konzilo-tree-form .konzilo-body-source[hidden] { display: none; }
+.konzilo-tree-body .konzilo-body-visual { min-height: 0; }
+.konzilo-tree-body .ProseMirror { padding: 8px 12px !important; min-height: 44px !important; font-size: 15px !important; }
+.konzilo-tree-body .milkdown { min-height: 0 !important; }

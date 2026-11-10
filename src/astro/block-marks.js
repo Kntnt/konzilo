@@ -12,6 +12,7 @@ export const BLOCK_PROPERTY = 'dataKonziloBlock';
 
 const isElement = (node, tagName) => node?.type === 'element' && (tagName === undefined || node.tagName === tagName);
 const isBlank = (node) => node.type === 'text' && node.value.trim() === '';
+const BLOCKS = new Set(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'blockquote', 'pre', 'table', 'figure', 'div', 'hr', 'dl', 'details', 'section', 'aside', 'nav', 'form', 'iframe']);
 
 // The blocks within `node`, marked by their paths below `path`.
 function markWithin(node, path, ctx) {
@@ -24,6 +25,8 @@ function markWithin(node, path, ctx) {
     return;
   }
   if (!isElement(node) || node.properties?.dataDirective === undefined) return;
+  // A leaf's label is text, not blocks.
+  if (node.children.some((child) => (child.type === 'text' && child.value.trim() !== '') || (isElement(child) && !BLOCKS.has(child.tagName)))) return;
   let index = 0;
   for (const child of node.children) {
     if (isBlank(child)) continue;

@@ -10,6 +10,7 @@ import { declaredNames, SCHEMA_TYPES } from '../site-description.js';
 import settingsGroups from '../format/settings-groups.json' with { type: 'json' };
 import { SHARING_SAFE, SHARING_SIZE } from '../format/article-parts.js';
 import { IMAGE_WIDGET } from './image/widget.js';
+import { STRUCTURE_WIDGET } from './structure/widget.js';
 import { SCHEMA_WIDGET, SLUG_WIDGET, TEXT_WIDGET } from './parts/widgets.js';
 import { inLanguage } from '../texts.js';
 import { BODY_WIDGET } from './body/widget.js';
@@ -379,7 +380,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
       },
       // How it stands on the site, which is nothing the file holds (ADR 0031).
       { name: 'publishing', label: say('publishing'), widget: PUBLISHING_WIDGET, required: false, ...within(SAME_IN_EACH) },
-      { name: 'body', label: say('body'), widget: BODY_WIDGET, required: false, elements: type.elements, forms, ...(description.images?.smallestWidth ? { smallestWidth: description.images.smallestWidth } : {}), ...within(TRANSLATED) },
+      { name: 'body', label: say('body'), widget: type.editor === 'structure' ? STRUCTURE_WIDGET : BODY_WIDGET, required: false, elements: type.elements, forms, ...(description.images?.smallestWidth ? { smallestWidth: description.images.smallestWidth } : {}), ...within(TRANSLATED) },
       // Shown, and changed on purpose; a new post's follows its name in breadcrumbs.
       { name: 'slug', label: say('slug'), widget: SLUG_WIDGET, address: typeof type.address === 'string' ? type.address : null, required: false, ...within(SAME_IN_EACH) },
       ...(type.hierarchical

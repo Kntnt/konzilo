@@ -43,7 +43,9 @@ const element = (tag, className, parent) => {
 
 const sameBytes = (one, other) => one.replace(/\r\n?/g, '\n').trimEnd() === other.replace(/\r\n?/g, '\n').trimEnd();
 
-export function mountBodyField(host, { value: given, changed, elements, forms, adminHost, library = null, smallestWidth = null }) {
+// `withPreview: false` for a field within another, the structure field's, which answers the
+// preview's clicks and tells it of its own.
+export function mountBodyField(host, { value: given, changed, elements, forms, adminHost, library = null, smallestWidth = null, withPreview = true }) {
   const images = library && { choose: () => chooseImage({ library, smallestWidth }), chooseSeveral: () => chooseImage({ library, smallestWidth, several: true }), picture: library.picture };
   const frame = element('div', 'konzilo-body', host);
   const bar = element('div', 'konzilo-body-bar', frame);
@@ -271,14 +273,16 @@ export function mountBodyField(host, { value: given, changed, elements, forms, a
     const block = (node?.nodeType === Node.ELEMENT_NODE ? node : node?.parentElement)?.closest('li, p, h2, h3, h4, h5, h6, blockquote, pre, table, [data-type], .konzilo-kept') ?? null;
     if (block && frame.contains(block)) ring(frame, block);
   };
-  globalThis.addEventListener(PLACE_EVENT, placed);
   // A click in the field, or the arrows moving to another block, shows that block in the preview.
   const told = (event) => {
     const view = editor?.view;
     if (mode === 'editor' && view?.dom.contains(event.target)) tellPreview(view, event);
   };
-  visual.addEventListener('click', told);
-  visual.addEventListener('keyup', told);
+  if (withPreview) {
+    globalThis.addEventListener(PLACE_EVENT, placed);
+    visual.addEventListener('click', told);
+    visual.addEventListener('keyup', told);
+  }
   fieldOpened(field);
   field.ready = openEditor();
   return field;

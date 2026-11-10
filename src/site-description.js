@@ -118,6 +118,10 @@ export const SEO_PARTS = Object.freeze({
 // group of Konzilo's, takes one of them.
 export const IDENTITY = Object.freeze(['title', 'logo', 'icon']);
 
+// How an editor writes a type's bodies: as text, in the body field, or as a tree of their
+// levels, in the structure field, for bodies built of components.
+export const EDITORS = Object.freeze(['text', 'structure']);
+
 // The elements a type's posts may hold in their bodies, by the names in the rule data
 // with the site's components (`known`).
 function elementsOf(elements, path, known, problems) {
@@ -145,7 +149,7 @@ const results = new WeakSet();
 //
 //   { language: <locale> or null,
 //     languages: [ { locale, tag, prefix, main } ],
-//     types: { <post type>: { name, label, plural, collection, address, feed, hierarchical, search, elements, fields } },
+//     types: { <post type>: { name, label, plural, collection, address, feed, hierarchical, search, elements, fields, editor } },
 //     taxonomies: { <taxonomy>: { name, label, plural, collection, hierarchical, address, feed } },
 //     images: { smallestWidth, displayWidth } or null,
 //     menus: { <menu>: { name, label } },
@@ -819,7 +823,8 @@ function typeOf(name, type, path, site, problems) {
     problems.push(`${path}: must be an object`);
     return null;
   }
-  onlyKeys(type, ['label', 'plural', 'collection', 'address', 'feed', 'hierarchical', 'search', 'elements', 'fields'], path, problems);
+  onlyKeys(type, ['label', 'plural', 'collection', 'address', 'feed', 'hierarchical', 'search', 'elements', 'fields', 'editor'], path, problems);
+  if (type.editor !== undefined && !EDITORS.includes(type.editor)) problems.push(`${path}.editor: must be ${EDITORS.join(' or ')}, how an editor writes the body`);
   const hierarchical = flag(type.hierarchical, `${path}.hierarchical`, problems);
   const address = addressOf(name, type.address, hierarchical, `${path}.address`, site.addresses, problems);
   const result = {
@@ -832,6 +837,7 @@ function typeOf(name, type, path, site, problems) {
     hierarchical,
     search: takesPart(type.search, address, site.addresses.searched, `${path}.search`, problems),
     elements: elementsOf(type.elements, `${path}.elements`, site.rules, problems),
+    editor: EDITORS.includes(type.editor) ? type.editor : 'text',
     fields: [],
   };
   const taken = new Set();
