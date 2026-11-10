@@ -358,7 +358,7 @@ describe('a site in Compose', () => {
         const { page } = session;
         await openArticle(page, title);
         await page.getByText('Live on the site.').waitFor({ timeout: 30_000 });
-        const link = page.getByRole('link', { name: 'Show the page' });
+        const link = page.getByRole('link', { name: 'Show the page', exact: true });
         assert.equal(await link.getAttribute('href'), `${site.origin.site}${addressOf(saved.text)}`);
         assert.doesNotMatch((await fileNamed('articles', title)).text, /publishing/, 'and nothing of it in the file');
         await page.goBack();
@@ -645,7 +645,7 @@ describe('a site in Compose', () => {
         for (const deadline = Date.now() + 30_000; !entry && Date.now() < deadline; await page.waitForTimeout(500)) entry = (await libraryEntries()).find(({ alt }) => alt === 'Made in the form');
         assert.ok(entry, 'the entry reached the repository');
         assert.equal(entry.caption, undefined);
-        assert.equal(entry.src, '/media/from-the-form.jpg');
+        assert.match(entry.src, /^\/media\/from-the-form-[0-9a-f]{10}\.jpg$/, 'named as the library names an upload');
 
         // The chooser reads Forgejo for itself, so a post opened now has it.
         await page.goto(`${site.origin.admin}/#/collections/articles/new`);
@@ -664,7 +664,7 @@ describe('a site in Compose', () => {
         await page.locator('[role=alertdialog] button, [role=dialog] button').filter({ hasText: 'Delete' }).click();
         for (const deadline = Date.now() + 30_000; (await libraryEntries()).some(({ alt }) => alt === 'Made in the form') && Date.now() < deadline;) await page.waitForTimeout(500);
         assert.equal((await libraryEntries()).some(({ alt }) => alt === 'Made in the form'), false, 'the entry went');
-        assert.equal((await picture('from-the-form.jpg')).status, 200, 'and the original stays, which a post may name');
+        assert.equal((await picture(entry.src.slice('/media/'.length))).status, 404, 'and its original with it, which no other entry names');
         assert.deepEqual(session.seen.refused, []);
         assert.deepEqual(session.seen.outside, []);
       } finally {
@@ -764,7 +764,7 @@ describe('a site in Compose', () => {
   });
 
   describe('search and sharing', () => {
-    test('are saved in the parts an editor sees, and the intake publishes them flat', async () => {
+    test('are saved in the groups an editor sees, and the intake publishes them as one map', async () => {
       const session = await openEditor('chromium', site);
       try {
         await signIn(session, site);
@@ -778,14 +778,13 @@ describe('a site in Compose', () => {
           if (await bar.getAttribute('aria-expanded') === 'false') await bar.click();
           await bar.evaluate((element) => element.scrollIntoView({ block: 'start' }));
         };
-        await open('Search and sharing');
-        await open('In search results');
+        await open('Search');
         await page.getByRole('textbox', { name: 'Title tag' }).fill('A title tag in parts');
         await page.getByRole('button', { name: 'Save', exact: true }).click();
 
         const { path } = await fileNamed('articles', 'Northern islands and the meadow');
         const text = await waitForFile(page, path, (held) => held.includes('A title tag in parts'));
-        assert.match(text, /^seo:\n {2}search:\n {4}title: A title tag in parts$/m);
+        assert.match(text, /^search:\n {2}title: A title tag in parts$/m);
         const taken = await throughIntake();
         assert.deepEqual(taken.refusals.map((refusal) => refusal.message), []);
         assert.ok(taken.files.some(({ contents }) => String(contents).includes('seo: {"title":"A title tag in parts"')), 'and publishes the title tag');

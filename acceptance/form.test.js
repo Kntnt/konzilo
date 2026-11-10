@@ -49,19 +49,16 @@ describe('the form in Sveltia', () => {
     assert.equal(await page.getByRole('button', { name: /Add.*Article/ }).count(), 0);
   });
 
-  test('search and sharing is a closed bar, with no box to tick, that opens to closed parts', async () => {
+  test('search, sharing and structured data are closed bars, with no box to tick', async () => {
     await newEntry('pages');
-    assert.equal(await page.getByRole('checkbox', { name: /Search and sharing/ }).count(), 0);
-    assert.equal(await page.locator('section[data-accordion][data-key-path="seo"] > header').isVisible(), false, 'its label is in the bar');
+    assert.equal(await page.getByRole('checkbox', { name: /^Search$/ }).count(), 0);
+    assert.equal(await page.locator('section[data-accordion][data-key-path="search"] > header').isVisible(), false, 'its label is in the bar');
     assert.equal(await page.getByRole('textbox', { name: 'Title tag' }).count(), 0);
-    assert.equal(await bar('In search results').count(), 0);
-    await bar('Search and sharing').click();
-    assert.equal(await page.getByRole('textbox', { name: 'Title tag' }).count(), 0);
-    await bar('In search results').click();
+    await bar('Search').click();
     await page.getByRole('textbox', { name: 'Title tag' }).waitFor();
-    assert.equal(await page.getByRole('textbox', { name: 'Sharing title' }).count(), 0);
-    await bar('Advanced').click();
-    await page.locator('.field[data-key-path="seo.advanced.schema"]').waitFor();
+    assert.equal(await page.locator('.field[data-key-path="sharing.title"]').count(), 0);
+    await bar('Structured data').click();
+    await page.locator('.field[data-key-path="structured.schema"]').waitFor();
   });
 
   test('a form left closed saves with nothing to fill in, and a filled part is open when it comes back', async () => {
@@ -71,15 +68,14 @@ describe('the form in Sveltia', () => {
 
     await newEntry('pages');
     await page.getByRole('textbox', { name: 'Title', exact: true }).fill('Filled in');
-    await bar('Search and sharing').click();
-    await bar('In search results').click();
+    await bar('Search').click();
     await page.getByRole('textbox', { name: 'Title tag' }).fill('A title tag');
     await save();
 
     await page.getByText('Filled in').first().click();
     await page.getByRole('textbox', { name: 'Title tag' }).waitFor();
     assert.equal(await page.getByRole('textbox', { name: 'Title tag' }).inputValue(), 'A title tag');
-    assert.equal(await page.getByRole('textbox', { name: 'Sharing title' }).count(), 0, 'a part with nothing in it stays closed');
+    assert.equal(await page.locator('.field[data-key-path="sharing.title"]').count(), 0, 'a group with nothing in it stays closed');
   });
 
   test('settings are closed bars too, whose long hints wait until they are open', async () => {
