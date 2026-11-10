@@ -20,7 +20,7 @@ const site = Object.freeze({
   images: { smallestWidth: 400, displayWidth: 1280 },
   search: { address: '/search/' },
   types: {
-    article: {
+    story: {
       label: 'Article',
       plural: 'Articles',
       collection: 'articles',
@@ -45,7 +45,7 @@ const site = Object.freeze({
       elements: ['paragraph'],
       fields: { excerpt: { required: true }, image: { required: true }, tags: { taxonomy: 'tag', required: true } },
     },
-    page: { label: 'Page', plural: 'Pages', collection: 'pages', hierarchical: true, address: '/pages/{path}/', elements: ['paragraph', 'post-list'], fields: { seo: {} } },
+    page: { label: 'Page', plural: 'Pages', collection: 'pages', hierarchical: true, address: '/pages/{path}/', elements: ['paragraph', 'post-list'] },
     guide: { label: 'Guide', plural: 'Guides', collection: 'guides', hierarchical: true, address: '/guides/{path}/', elements: ['paragraph'] },
     note: { label: 'Note', plural: 'Notes', collection: 'notes', elements: ['paragraph'] },
   },
@@ -140,29 +140,29 @@ const cases = {
   'directive-label': [() => inArticle('::form[a label]{name="contact"}'), inBlock('form')],
   'directive-attribute': [() => inArticle('::form{name="contact" colour="red"}'), inBlock('form')],
   'directive-required': [() => inArticle('::form'), inBlock('form')],
-  'directive-value': [() => inArticle('::post-list{type="article" presentation="list" pages="perhaps"}'), inBlock('post-list')],
-  'list-direction': [() => inArticle('::post-list{type="article" presentation="list" direction="sideways"}'), inBlock('post-list')],
-  'list-offset': [() => inArticle('::post-list{type="article" presentation="list" offset="-1"}'), inBlock('post-list')],
-  'list-number': [() => inArticle('::post-list{type="article" presentation="list" number="101"}'), inBlock('post-list')],
+  'directive-value': [() => inArticle('::post-list{type="story" presentation="list" pages="perhaps"}'), inBlock('post-list')],
+  'list-direction': [() => inArticle('::post-list{type="story" presentation="list" direction="sideways"}'), inBlock('post-list')],
+  'list-offset': [() => inArticle('::post-list{type="story" presentation="list" offset="-1"}'), inBlock('post-list')],
+  'list-number': [() => inArticle('::post-list{type="story" presentation="list" number="101"}'), inBlock('post-list')],
   'form-name': [() => inArticle('::form{name="order"}'), inBlock('form')],
-  'list-paged-twice': [() => inArticle('::post-list{type="article" pages="true" presentation="list"}\n\n::post-list{type="article" pages="true" presentation="list"}'), inBlock('post-list')],
+  'list-paged-twice': [() => inArticle('::post-list{type="story" pages="true" presentation="list"}\n\n::post-list{type="story" pages="true" presentation="list"}'), inBlock('post-list')],
   'list-type': [() => inArticle('::post-list{type="nothing" presentation="list"}'), inBlock('post-list')],
-  'list-presentation': [() => inArticle('::post-list{type="article" presentation="slides"}'), inBlock('post-list')],
-  'list-option': [() => inArticle('::post-list{type="article" presentation="list" colour="red"}'), inBlock('post-list')],
-  'list-option-value': [() => inArticle('::post-list{type="article" presentation="list" date="perhaps"}'), inBlock('post-list')],
-  'list-option-choice': [() => inArticle('::post-list{type="article" presentation="cards" size="huge" heading="H"}'), inBlock('post-list')],
-  'list-option-required': [() => inArticle('::post-list{type="article" presentation="cards"}'), inBlock('post-list')],
-  'list-terms': [() => inArticle('::post-list{type="article" presentation="list" include="nonsense"}'), inBlock('post-list')],
-  'list-taxonomy': [() => inArticle('::post-list{type="article" presentation="list" include="colour:red"}'), inBlock('post-list')],
-  'list-taxonomy-twice': [() => withFiles({ 'articles/aaaaaaaaaaaa.md': article({}, '::post-list{type="article" presentation="list" include="category:tttttttttttt category:tttttttttttt"}'), 'categories/tttttttttttt.json': { name: 'News', slug: 'news' } }), inBlock('post-list')],
-  'list-where': [() => inArticle('::post-list{type="article" presentation="list" where="nonsense"}'), inBlock('post-list')],
-  'list-where-field': [() => inArticle('::post-list{type="article" presentation="list" where="colour=red"}'), inBlock('post-list')],
-  'list-where-operator': [() => inArticle('::post-list{type="article" presentation="list" where="tone<calm"}'), inBlock('post-list')],
-  'list-where-value': [() => inArticle('::post-list{type="article" presentation="list" where="readingTime=many"}'), inBlock('post-list')],
-  'list-where-choice': [() => inArticle('::post-list{type="article" presentation="list" where="tone=quiet"}'), inBlock('post-list')],
+  'list-presentation': [() => inArticle('::post-list{type="story" presentation="slides"}'), inBlock('post-list')],
+  'list-option': [() => inArticle('::post-list{type="story" presentation="list" colour="red"}'), inBlock('post-list')],
+  'list-option-value': [() => inArticle('::post-list{type="story" presentation="list" date="perhaps"}'), inBlock('post-list')],
+  'list-option-choice': [() => inArticle('::post-list{type="story" presentation="cards" size="huge" heading="H"}'), inBlock('post-list')],
+  'list-option-required': [() => inArticle('::post-list{type="story" presentation="cards"}'), inBlock('post-list')],
+  'list-terms': [() => inArticle('::post-list{type="story" presentation="list" include="nonsense"}'), inBlock('post-list')],
+  'list-taxonomy': [() => inArticle('::post-list{type="story" presentation="list" include="colour:red"}'), inBlock('post-list')],
+  'list-taxonomy-twice': [() => withFiles({ 'articles/aaaaaaaaaaaa.md': article({}, '::post-list{type="story" presentation="list" include="category:tttttttttttt category:tttttttttttt"}'), 'categories/tttttttttttt.json': { name: 'News', slug: 'news' } }), inBlock('post-list')],
+  'list-where': [() => inArticle('::post-list{type="story" presentation="list" where="nonsense"}'), inBlock('post-list')],
+  'list-where-field': [() => inArticle('::post-list{type="story" presentation="list" where="colour=red"}'), inBlock('post-list')],
+  'list-where-operator': [() => inArticle('::post-list{type="story" presentation="list" where="tone<calm"}'), inBlock('post-list')],
+  'list-where-value': [() => inArticle('::post-list{type="story" presentation="list" where="readingTime=many"}'), inBlock('post-list')],
+  'list-where-choice': [() => inArticle('::post-list{type="story" presentation="list" where="tone=quiet"}'), inBlock('post-list')],
   'list-related': [() => inArticle('::post-list{type="note" order="related" presentation="list"}'), inBlock('post-list')],
-  'list-related-direction': [() => inArticle('::post-list{type="article" order="related" direction="ascending" presentation="list"}'), inBlock('post-list')],
-  'list-order': [() => inArticle('::post-list{type="article" order="colour" presentation="list"}'), inBlock('post-list')],
+  'list-related-direction': [() => inArticle('::post-list{type="story" order="related" direction="ascending" presentation="list"}'), inBlock('post-list')],
+  'list-order': [() => inArticle('::post-list{type="story" order="colour" presentation="list"}'), inBlock('post-list')],
   'link-target': [() => inArticle('<a href="/x/" target="_self">A link</a> here'), inBlock('paragraph')],
   'link-rel': [() => inArticle('<a href="/x/" rel="me">A link</a> here'), inBlock('paragraph')],
   'embed-host': [() => inArticle('https://example.com/video'), inBlock('embed')],
@@ -192,7 +192,7 @@ const cases = {
   'language-folder': [() => run({
     'articles/sv-SE/aaaaaaaaaaaa.md': article({}, 'Text.'),
     'articles/de-DE/bbbbbbbbbbbb.md': article({ slug: 'annat' }, 'Text.'),
-  }, { languages: ['sv_SE', 'en_GB'], types: { article: { label: 'A', plural: 'As', collection: 'articles', address: '/{slug}/', elements: ['paragraph'] } } }), { post: true }],
+  }, { languages: ['sv_SE', 'en_GB'], types: { story: { label: 'A', plural: 'As', collection: 'articles', address: '/{slug}/', elements: ['paragraph'] } } }), { post: true }],
   'admin-file': [() => withFiles({ 'menus/main.json': { items: [] } }, { changes: { 'menus/main.json': { by: 'editor@example.com', admin: false } } }), { file: 'menus/main.json' }],
   'admin-legal-gone': [() => {
     const legal = { 'settings.json': { ...settled, legalPages: { privacyPolicy: 'cccccccccccc' } } };
@@ -254,7 +254,7 @@ const cases = {
   'term-main': [() => run({
     'articles/sv-SE/aaaaaaaaaaaa.md': article({ categories: ['tttttttttttt'] }),
     'categories/en-GB/tttttttttttt.json': { name: 'News' },
-  }, { languages: ['sv_SE', 'en_GB'], taxonomies: { category: { label: 'C', plural: 'Cs', collection: 'categories' } }, types: { article: { label: 'A', plural: 'As', collection: 'articles', address: '/{slug}/', elements: ['paragraph'], fields: { categories: { taxonomy: 'category' } } } } }), { field: 'categories' }],
+  }, { languages: ['sv_SE', 'en_GB'], taxonomies: { category: { label: 'C', plural: 'Cs', collection: 'categories' } }, types: { story: { label: 'A', plural: 'As', collection: 'articles', address: '/{slug}/', elements: ['paragraph'], fields: { categories: { taxonomy: 'category' } } } } }), { field: 'categories' }],
   'term-name': [() => withFiles({ 'articles/aaaaaaaaaaaa.md': article({ categories: ['tttttttttttt'] }), 'categories/tttttttttttt.json': { slug: 'news' } }), { field: 'categories' }],
   'term-markup': [() => withFiles({ 'articles/aaaaaaaaaaaa.md': article({ categories: ['tttttttttttt'] }), 'categories/tttttttttttt.json': { name: 'A <b>term</b>' } }), { field: 'categories' }],
   'term-slug': [() => withFiles({ 'articles/aaaaaaaaaaaa.md': article({ categories: ['tttttttttttt'] }), 'categories/tttttttttttt.json': { name: 'News', slug: 'Bad Slug' } }), { field: 'categories' }],
@@ -262,20 +262,20 @@ const cases = {
     'articles/sv-SE/aaaaaaaaaaaa.md': article({ categories: ['tttttttttttt'] }),
     'categories/sv-SE/tttttttttttt.json': { name: 'Nyheter' },
     'categories/de-DE/tttttttttttt.json': { name: 'Neues' },
-  }, { languages: ['sv_SE', 'en_GB'], taxonomies: { category: { label: 'C', plural: 'Cs', collection: 'categories' } }, types: { article: { label: 'A', plural: 'As', collection: 'articles', address: '/{slug}/', elements: ['paragraph'], fields: { categories: { taxonomy: 'category' } } } } }), { field: 'categories' }],
+  }, { languages: ['sv_SE', 'en_GB'], taxonomies: { category: { label: 'C', plural: 'Cs', collection: 'categories' } }, types: { story: { label: 'A', plural: 'As', collection: 'articles', address: '/{slug}/', elements: ['paragraph'], fields: { categories: { taxonomy: 'category' } } } } }), { field: 'categories' }],
   'term-differs': [() => run({
     'articles/sv-SE/aaaaaaaaaaaa.md': article({ categories: ['tttttttttttt'] }),
     'categories/sv-SE/tttttttttttt.json': { name: 'Nyheter', description: 'Det nya' },
     'categories/en-GB/tttttttttttt.json': { name: 'News', description: 'What is new' },
-  }, { languages: ['sv_SE', 'en_GB'], taxonomies: { category: { label: 'C', plural: 'Cs', collection: 'categories' } }, types: { article: { label: 'A', plural: 'As', collection: 'articles', address: '/{slug}/', elements: ['paragraph'], fields: { categories: { taxonomy: 'category' } } } } }), { field: 'categories' }],
+  }, { languages: ['sv_SE', 'en_GB'], taxonomies: { category: { label: 'C', plural: 'Cs', collection: 'categories' } }, types: { story: { label: 'A', plural: 'As', collection: 'articles', address: '/{slug}/', elements: ['paragraph'], fields: { categories: { taxonomy: 'category' } } } } }), { field: 'categories' }],
   'term-parent': [() => withFiles({ 'articles/aaaaaaaaaaaa.md': article({ categories: ['tttttttttttt'] }), 'categories/tttttttttttt.json': { name: 'News', parent: 'gone00000000' } }), { field: 'categories' }],
   'term-loop': [() => withFiles({ 'articles/aaaaaaaaaaaa.md': article({ categories: ['tttttttttttt'] }), 'categories/tttttttttttt.json': { name: 'News', parent: 'tttttttttttt' } }), { field: 'categories' }],
   'term-gone': [() => onePost({ categories: ['gone00000000'] }), { field: 'categories' }],
   'term-translation': [() => run({
     'articles/en-GB/aaaaaaaaaaaa.md': article({ categories: ['tttttttttttt'] }),
     'categories/sv-SE/tttttttttttt.json': { name: 'Nyheter' },
-  }, { languages: ['sv_SE', 'en_GB'], taxonomies: { category: { label: 'C', plural: 'Cs', collection: 'categories' } }, types: { article: { label: 'A', plural: 'As', collection: 'articles', address: '/{slug}/', elements: ['paragraph'], fields: { categories: { taxonomy: 'category' } } } } }), { file: true }, 'warning'],
-  'list-term-gone': [() => inArticle('::post-list{type="article" include="category:gone00000000" presentation="list"}'), inBlock('post-list'), 'warning'],
+  }, { languages: ['sv_SE', 'en_GB'], taxonomies: { category: { label: 'C', plural: 'Cs', collection: 'categories' } }, types: { story: { label: 'A', plural: 'As', collection: 'articles', address: '/{slug}/', elements: ['paragraph'], fields: { categories: { taxonomy: 'category' } } } } }), { file: true }, 'warning'],
+  'list-term-gone': [() => inArticle('::post-list{type="story" include="category:gone00000000" presentation="list"}'), inBlock('post-list'), 'warning'],
   'reference-no-address': [() => withFiles({ 'articles/aaaaaaaaaaaa.md': article({}, 'A [note](konzilo:nnnnnnnnnnnn).'), 'notes/nnnnnnnnnnnn.md': sourcePost({ title: 'N', slug: 'n', status: 'published' }) }), inBlock('paragraph')],
   'reference-term': [() => withFiles({ 'articles/aaaaaaaaaaaa.md': article({}, 'A [tag](konzilo:tttttttttttt).'), 'tags/tttttttttttt.json': { name: 'A tag' } }), inBlock('paragraph')],
   'link-gone': [() => inArticle('A [lost link](konzilo:gone00000000).'), inBlock('paragraph'), 'warning'],
@@ -284,7 +284,7 @@ const cases = {
     'articles/sv-SE/aaaaaaaaaaaa.md': article({ slug: 'en' }, 'En [länk](konzilo:en-GB/bbbbbbbbbbbb).'),
     'articles/sv-SE/bbbbbbbbbbbb.md': article({ slug: 'mal' }),
     'articles/en-GB/bbbbbbbbbbbb.md': article({ slug: 'target' }),
-  }, { languages: ['sv_SE', 'en_GB'], types: { article: { label: 'A', plural: 'As', collection: 'articles', address: '/{slug}/', elements: ['paragraph'] } } }), inBlock('paragraph'), 'warning'],
+  }, { languages: ['sv_SE', 'en_GB'], types: { story: { label: 'A', plural: 'As', collection: 'articles', address: '/{slug}/', elements: ['paragraph'] } } }), inBlock('paragraph'), 'warning'],
   'parent-missing': [() => withFiles(Object.fromEntries([pagePost('cccccccccccc', { parent: 'gone00000000' })])), { field: 'parent' }],
   'parent-type': [() => withFiles(Object.fromEntries([pagePost('cccccccccccc', { parent: 'gggggggggggg' }), ['guides/gggggggggggg.md', sourcePost({ title: 'G', slug: 'g', status: 'published' })]])), { field: 'parent' }],
   'parent-loop': [() => withFiles(Object.fromEntries([pagePost('cccccccccccc', { parent: 'dddddddddddd' }), pagePost('dddddddddddd', { parent: 'cccccccccccc' })])), { field: 'parent' }],
@@ -294,7 +294,7 @@ const cases = {
   'address-feed': [() => onePost({ slug: 'feed' }), { field: 'slug' }],
   'address-search': [() => onePost({ slug: 'search' }), { field: 'slug' }],
   'address-list': [() => withFiles(Object.fromEntries([
-    pagePost('cccccccccccc', { slug: 'news' }, '::post-list{type="article" pages="true" presentation="list"}'),
+    pagePost('cccccccccccc', { slug: 'news' }, '::post-list{type="story" pages="true" presentation="list"}'),
     pagePost('dddddddddddd', { slug: 'page' }),
     pagePost('eeeeeeeeeeee', { slug: 'two', parent: 'dddddddddddd', title: 'Two' }),
     pagePost('ffffffffffff', { slug: 'page', parent: 'cccccccccccc', title: 'Below' }),
@@ -307,7 +307,7 @@ const cases = {
     'topics/tttttttttttt.json': { name: 'Clash', slug: 'clash' },
   }, {
     types: {
-      page: { label: 'P', plural: 'Ps', collection: 'pages', hierarchical: true, address: '/{path}/', elements: ['paragraph'] },
+      post: { label: 'P', plural: 'Ps', collection: 'pages', hierarchical: true, address: '/{path}/', elements: ['paragraph'] },
       story: { label: 'S', plural: 'Ss', collection: 'stories', address: '/stories/{slug}/', elements: ['paragraph'], fields: { topics: { taxonomy: 'topic' } } },
     },
     taxonomies: { topic: { label: 'T', plural: 'Ts', collection: 'topics', address: '/topics/{slug}/' } },
@@ -315,7 +315,7 @@ const cases = {
   'set-twice': [() => run({
     'articles/sv-SE/aaaaaaaaaaaa.md': article({ slug: 'ett', translationKey: '3a1dace55ce438b2' }),
     'articles/sv-SE/bbbbbbbbbbbb.md': article({ slug: 'tva', translationKey: '3a1dace55ce438b2' }),
-  }, { languages: ['sv_SE', 'en_GB'], types: { article: { label: 'A', plural: 'As', collection: 'articles', address: '/{slug}/', elements: ['paragraph'] } } }), { field: 'translationKey' }],
+  }, { languages: ['sv_SE', 'en_GB'], types: { story: { label: 'A', plural: 'As', collection: 'articles', address: '/{slug}/', elements: ['paragraph'] } } }), { field: 'translationKey' }],
   'not-found-none': [() => withFiles({ 'settings.json': { ...settled, notFound: { page: 'gone00000000' } } }), { setting: 'notFound.page' }, 'warning'],
   'setting-pattern': [() => withFiles({ 'settings.json': { ...settled, ai: { excludedPaths: '([' } } }), { setting: 'ai.excludedPaths' }],
   'setting-shape': [() => withFiles({ 'settings.json': { seats: { a: 1 } } }), { setting: 'seats' }],
@@ -324,7 +324,7 @@ const cases = {
   'setting-translation': [() => run({
     'settings.json': { contactPage: 'cccccccccccc' },
     'pages/sv-SE/cccccccccccc.md': sourcePost({ title: 'Kontakt', slug: 'kontakt', status: 'published' }),
-  }, { languages: ['sv_SE', 'en_GB'], settings: { contactPage: { label: 'C', type: 'post', control: 'post' } }, types: { page: { label: 'P', plural: 'Ps', collection: 'pages', address: '/{slug}/', elements: ['paragraph'] } } }), { setting: 'contactPage' }, 'warning'],
+  }, { languages: ['sv_SE', 'en_GB'], settings: { contactPage: { label: 'C', type: 'post', control: 'post' } }, types: { post: { label: 'P', plural: 'Ps', collection: 'pages', address: '/{slug}/', elements: ['paragraph'] } } }), { setting: 'contactPage' }, 'warning'],
   'menu-shape': [() => withFiles({ 'menus/main.json': { items: ['not an entry'] } }), { entry: '1' }],
   'menu-no-page': [() => withFiles({ 'menus/main.json': { items: [{ post: 'gone00000000' }] } }), { entry: '1' }, 'warning'],
   'menu-url': [() => withFiles({ 'menus/main.json': { items: [{ title: 'Bad', url: 'javascript:alert(1)' }] } }), { entry: '1' }],
@@ -406,8 +406,8 @@ test('names a site\'s own label given by language in the language a refusal is s
   const most = refusals.find((one) => one.name === 'refusal.terms-most');
   assert.deepEqual(most.values, { most: 2, plural: { label: { en: 'Categories', sv: 'Kategorier' } } });
   assert.equal(reasonIn('sv', most), 'ett inlägg tar högst 2 av sina kategorier; välj färre');
-  assert.equal(messageIn('sv', most), 'Inlägget "An article" (article, aaaaaaaaaaaa), fältet categories: ett inlägg tar högst 2 av sina kategorier; välj färre');
-  assert.equal(messageIn('en', most), 'The article "An article" (aaaaaaaaaaaa), the field categories: a post takes at most 2 of its categories; choose fewer');
+  assert.equal(messageIn('sv', most), 'Inlägget "An article" (story, aaaaaaaaaaaa), fältet categories: ett inlägg tar högst 2 av sina kategorier; välj färre');
+  assert.equal(messageIn('en', most), 'The story "An article" (aaaaaaaaaaaa), the field categories: a post takes at most 2 of its categories; choose fewer');
   const note = refusals.find((one) => one.name === 'refusal.reference-no-address');
   assert.match(reasonIn('sv', note), /och anteckningar har ingen egen sida/);
 });
@@ -423,7 +423,7 @@ test('a refusal in the body names its block in each interface language', () => {
   assert.equal(heading.name, 'refusal.heading-level');
   assert.equal(heading.reason, 'the site cannot publish a heading at level 1: the post\'s title is its level 1; use a level from 2 to 6');
   assert.equal(reasonIn('sv', heading), 'webbplatsen kan inte publicera en rubrik på nivå 1: inläggets titel är dess nivå 1; använd en nivå från 2 till 6');
-  assert.equal(messageIn('sv', heading), `Inlägget "An article" (article, aaaaaaaaaaaa), block 1 (heading), rad ${heading.line}: ${reasonIn('sv', heading)}`);
+  assert.equal(messageIn('sv', heading), `Inlägget "An article" (story, aaaaaaaaaaaa), block 1 (heading), rad ${heading.line}: ${reasonIn('sv', heading)}`);
 });
 
 // What the rule data holds in its elements: a directive's refusals, and a link's.
@@ -439,7 +439,7 @@ test('a link\'s target and rel are refused in their own words', () => {
 
 test('a form the site no longer offers, and a second list with pages', () => {
   assert.deepEqual(body('::form{name="order"}'), ['the site declares no form "order"; it declares contact']);
-  assert.deepEqual(body('::post-list{type="article" pages="true" presentation="list"}\n\n::post-list{type="article" pages="true" presentation="list"}'), ['the site cannot publish a second list with pages of its own; turn off Pages in one of them']);
+  assert.deepEqual(body('::post-list{type="story" pages="true" presentation="list"}\n\n::post-list{type="story" pages="true" presentation="list"}'), ['the site cannot publish a second list with pages of its own; turn off Pages in one of them']);
 });
 
 test('an embed the rule data does not take is refused in its words', () => {
@@ -456,8 +456,8 @@ test('names every problem in a post, in the order of its blocks', () => {
     ['4.1', 'quote', 15],
   ]);
   for (const refusal of refusals) {
-    assert.deepEqual(refusal.post, { id: 'aaaaaaaaaaaa', type: 'article', title: 'An article' });
-    assert.match(refusal.message, /^The article "An article" \(aaaaaaaaaaaa\), block /);
+    assert.deepEqual(refusal.post, { id: 'aaaaaaaaaaaa', type: 'story', title: 'An article' });
+    assert.match(refusal.message, /^The story "An article" \(aaaaaaaaaaaa\), block /);
   }
 });
 

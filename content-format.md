@@ -68,7 +68,7 @@ Each kind of file has its path. The placeholders are a collection's folder, `<co
 The site description, `site-description.json` in the site repository, declares the site's content model. As far as it decides the content files:
 
 - **`language`**, a locale such as `en_GB`, or **`languages`**, several, the main one first, which put each post into a language's folder ([Several languages](#several-languages)).
-- **`types`**, the post types, each by a name of the site's own. Each has its `collection`, the folder of its files; its `address`, where visitors reach a post, a path from the site's root ending in `{slug}/`, or in `{path}/` for a hierarchical type, and none for a type whose posts have no page of their own; `hierarchical`, whether its posts have parents; `blocks`, the body elements its posts may hold, by their names in the rule data ([The body](#the-body)); and `fields`, what its frontmatter holds after the title, in that order ([A post's file](#a-posts-file)). A type's `feed`, and a taxonomy's, the address of an RSS feed the site builds, holds no file, but a post at a feed's address is refused.
+- **`types`**, the post types: the core's built-in `canvas`, `page` and `article`, each by its name ([The built-in types](#the-built-in-types)), and any of the site's own, each by a name of the site's own. Each has its `collection`, the folder of its files; its `address`, where visitors reach a post, a path from the site's root ending in `{slug}/`, or in `{path}/` for a hierarchical type, and none for a type whose posts have no page of their own; `hierarchical`, whether its posts have parents; `elements`, the body elements its posts may hold, by their names in the rule data ([The body](#the-body)); and `fields`, what its frontmatter holds after the title, in that order ([A post's file](#a-posts-file)). A type's `feed`, and a taxonomy's, the address of an RSS feed the site builds, holds no file, but a post at a feed's address is refused.
 - **`taxonomies`**, each with its `collection`, the folder of its terms' files, and `hierarchical`, whether its terms have parents. A taxonomy's `address`, such as `/category/{slug}/`, or with `{path}/`, its parents' slugs and its own, in a hierarchical one, gives each term that has a file a page there, the site design's; it holds no file of its own, but a post at a term's page's address is refused, and links, menu entries and rules may lead to the page. A taxonomy without one has no pages.
 - **`presentations`**, the ways the site's design shows a post list, each with its options, which a post list in a body takes as attributes ([Post lists](#post-lists)).
 - **`menus`**, each a file of its own, and **`settings`**, the site's own settings, in the order `settings.json` holds them; on a site in several languages a text setting that declares `"translated": true` has a value in each language.
@@ -78,6 +78,20 @@ The site description, `site-description.json` in the site repository, declares t
 
 What the description declares for the editors alone, such as `interfaceLanguage`, a type's `label` and `plural`, and a field's `label` and `control`, is not described here; nor are `security` and a form's fields, which decide no content file.
 
+### The built-in types
+
+Three post types are the core's own, and a site uses one by naming it among its `types`: `canvas`, a blank page; `page`, a canvas with the site's header and footer; and `article`, a page with the parts of an article. A site gives a built-in type what it gives a type of its own, but its fields: its `collection`, `address`, `feed`, `elements`, its body's `editor` and `search`, `hierarchical` for a page and a canvas alone, and a `label` and `plural` only where it wants its own in place of the core's. Its fields are the core's, in this order:
+
+| Type | Its fields |
+|---|---|
+| `canvas` | `seo` |
+| `page` | `breadcrumb`, `seo` |
+| `article` | `date`, `modified`, `image`, `breadcrumb`, `eyebrow`, `headline`, `subheadline`, `standfirst`, `authors`, `category`, `topics`, `teaser`, `seo` |
+
+An article's main headline, `headline`, is required, and every other part optional. A site may give a built-in type fields of its own, under `fields`, which its posts' files hold after the core's and before `seo`. A field named as one of the type's own is refused, whether declared again or left out with `false` or `null`, and so is one named as another field of the core's, such as `excerpt` on an article.
+
+Naming `article` brings three built-in taxonomies, each held by the article's field of the same name: `authors`, whose terms are the article's authors, each with its name and its biography, the term's `description`; `category`, hierarchical, of which an article takes one or none, as with `"most": 1`; and `topics`. Their collections are `authors`, `categories` and `topics`. A site may give each, under `taxonomies` by its name, an `address`, a `feed`, and a `label` and `plural` of its own, and nothing of its shape. On a site without an article, a taxonomy by one of these names is the site's own.
+
 The site description every example in this document is of:
 
 ```json site-description
@@ -86,42 +100,28 @@ The site description every example in this document is of:
   "images": { "smallestWidth": 400, "displayWidth": 1280 },
   "types": {
     "article": {
-      "label": "Article",
-      "plural": "Articles",
       "collection": "articles",
       "address": "/{slug}/",
       "elements": ["paragraph", "heading", "list", "quote", "code", "table", "footnotes", "embed", "image", "gallery", "post-list", "form"],
       "fields": {
-        "date": {},
-        "modified": {},
-        "excerpt": {},
-        "categories": { "taxonomy": "category", "required": true },
-        "tags": { "taxonomy": "tag" },
-        "image": {},
-        "subtitle": { "label": "Subtitle", "type": "string", "control": "text" },
         "readingTime": { "label": "Reading time", "type": "integer", "control": "number" },
         "rating": { "label": "Rating", "type": "number", "control": "number" },
         "featured": { "label": "Featured", "type": "boolean", "control": "toggle" },
         "eventDay": { "label": "Event day", "type": "date", "control": "date" },
-        "size": { "label": "Size", "type": "string", "control": "select", "options": ["small", "large"] },
-        "seo": {}
+        "size": { "label": "Size", "type": "string", "control": "select", "options": ["small", "large"] }
       }
     },
     "page": {
-      "label": "Page",
-      "plural": "Pages",
       "collection": "pages",
       "hierarchical": true,
       "address": "/pages/{path}/",
-      "elements": ["paragraph", "heading", "list", "quote", "code", "table", "footnotes", "embed", "image", "gallery", "post-list", "form"],
-      "fields": {
-        "seo": {}
-      }
+      "elements": ["paragraph", "heading", "list", "quote", "code", "table", "footnotes", "embed", "image", "gallery", "post-list", "form"]
+    },
+    "canvas": {
+      "collection": "canvases",
+      "address": "/landing/{slug}/",
+      "elements": ["paragraph", "heading", "list", "image", "gallery", "post-list", "form"]
     }
-  },
-  "taxonomies": {
-    "category": { "label": "Category", "plural": "Categories", "collection": "categories", "hierarchical": true },
-    "tag": { "label": "Tag", "plural": "Tags", "collection": "tags" }
   },
   "presentations": {
     "list": {
@@ -177,8 +177,10 @@ A post is one Markdown file with YAML frontmatter. Its path names it: its type's
 title: "Opening hours"
 date: 2026-10-20T08:00:00Z
 modified: 2026-10-21T09:30:00Z
-categories: ["news"]
-tags: []
+headline: "Open every day"
+authors: []
+category: ["news"]
+topics: []
 featured: false
 oldAddresses: ["/hours/"]
 otherAddresses: [{"address":"/open/","answer":301}]
@@ -191,7 +193,7 @@ Closed on **midsummer's eve**.
 
 ### The frontmatter
 
-The keys come in this order, each on one line: `title`; then each field the type declares, in the order declared; then `translationKey`, `oldAddresses` and `otherAddresses`, each only when the post has one. A field without a value is left out, unless the table says otherwise. Every value is written so that YAML reads it as meant: a text, a list and an object as JSON, which YAML reads alike, on one line; a number and `true` or `false` as YAML's own; a moment and a day unquoted, so that YAML reads them as dates.
+The keys come in this order, each on one line: `title`; then each field the type declares, in the order declared, or, in a built-in type, the core's fields in their order with the site's own before `seo` ([The built-in types](#the-built-in-types)); then `translationKey`, `oldAddresses` and `otherAddresses`, each only when the post has one. A field without a value is left out, unless the table says otherwise. Every value is written so that YAML reads it as meant: a text, a list and an object as JSON, which YAML reads alike, on one line; a number and `true` or `false` as YAML's own; a moment and a day unquoted, so that YAML reads them as dates.
 
 | Key | Declared as | Written as |
 |---|---|---|
@@ -204,7 +206,7 @@ The keys come in this order, each on one line: `title`; then each field the type
 | `eyebrow`, `headline` and `subheadline` | `"headline": { "required": true }` | An article's headline in its three parts: the eyebrow above it, the main headline, and the subheadline under it, each a JSON string without spaces at its ends. Plain text. Only the main headline may be required. |
 | `standfirst` | `"standfirst": {}` | An article's standfirst, between its headline and its body, a JSON string without spaces at its ends. Plain text. |
 | `teaser` | `"teaser": {}` | What shows the post elsewhere, in a list or a search result, as one JSON object, each part only when the post sets it: `image`, as the featured image is written; `headline`; and `text`. Plain text. No key when the post sets none. |
-| the terms of a taxonomy | `"categories": { "taxonomy": "category" }` | The slugs of the post's terms, sorted, as a JSON list: `["harbours","lanterns"]`, `[]` for none; each names a term's file ([A term](#a-term)). A required field, `"required": true`, is never empty, and one with `"most": 1`, or another whole number, holds at most that many. |
+| the terms of a taxonomy | `"regions": { "taxonomy": "region" }` | The slugs of the post's terms, sorted, as a JSON list: `["harbours","lanterns"]`, `[]` for none; each names a term's file ([A term](#a-term)). A required field, `"required": true`, is never empty, and one with `"most": 1`, or another whole number, holds at most that many. An article's `authors`, `category` and `topics` are such fields, of the built-in taxonomies of their names, `category` with at most one. |
 | `seo` | `"seo": {}` | The search and sharing fields the post sets, as one JSON object, in this order, each only when set: `title`, the title tag; `description`, the meta description; `canonical`, the post's canonical address where it names one, a whole `http://` or `https://` address as a browser sends it, such as the original's where the text was published elsewhere first; `socialTitle` and `socialDescription`, for a shared link; `socialImage`, a master as the featured image's `src`, with `socialImageAlt`, its alt text; `schema`, a structured data type, one of `Article`, `BlogPosting`, `NewsArticle`, `WebPage`, `AboutPage`, `ContactPage` and `CollectionPage`; and `noindex` and `nofollow`, `true` when set. No key when the post sets none. |
 | a field of the site's own | `{ "type": … }` | By its `type`, below. |
 | `translationKey` | Not declared. | On a site in several languages: 16 lowercase hexadecimal digits that a post shares with its translations ([Several languages](#several-languages)). |
@@ -228,11 +230,16 @@ An article that sets every field. Its body renders as the HTML after it.
 title: "Harbour lights & lanterns"
 date: 2026-10-20T08:00:00Z
 modified: 2026-10-21T09:30:00Z
-excerpt: "Why the harbour keeps its lanterns lit."
-categories: ["local"]
-tags: ["harbours","lanterns"]
 image: {"src":"../media/harbour-lights-e978159ef2.webp","alt":"A lantern on the quay at dusk"}
-subtitle: "A night on the quay"
+breadcrumb: "Harbour lights"
+eyebrow: "The quay"
+headline: "Why the harbour keeps its lanterns lit"
+subheadline: "A night with the keepers"
+standfirst: "The lanterns have burned every night for two hundred years."
+authors: ["ada-lind","ben-holm"]
+category: ["local"]
+topics: ["harbours","lanterns"]
+teaser: {"image":{"src":"../media/harbour-lights-5c0ffee5a1.webp","alt":"Two keepers by a lantern"},"headline":"The keepers of the lanterns","text":"Two hundred years of light."}
 readingTime: 7
 rating: 4.5
 featured: true
@@ -250,7 +257,7 @@ The lantern keeps the harbour.
 <p>The lantern keeps the harbour.</p>
 ```
 
-A page has no date of its own here: its type declares only `seo`. A page below another sits in its parent's folder:
+A page has no date: the built-in page's fields are its name in breadcrumbs and `seo`. A page below another sits in its parent's folder:
 
 ```markdown file=pages/about-us.md
 ---
@@ -546,6 +553,7 @@ A site with three components of its own:
 ```json site-description=components
 {
   "language": "en_GB",
+  "images": { "smallestWidth": 400, "displayWidth": 1280 },
   "components": {
     "section": {
       "label": "Section",
@@ -560,12 +568,9 @@ A site with three components of its own:
   },
   "types": {
     "page": {
-      "label": "Page",
-      "plural": "Pages",
       "collection": "pages",
       "address": "/{slug}/",
-      "elements": ["paragraph", "heading", "list", "section", "eyebrow", "list-directive"],
-      "fields": {}
+      "elements": ["paragraph", "heading", "list", "section", "eyebrow", "list-directive"]
     }
   }
 }
@@ -703,15 +708,30 @@ A term of a taxonomy is `<collection>/<slug>.json` in the taxonomy's collection:
 }
 ```
 
-```json file=tags/harbours.json
+```json file=topics/harbours.json
 {
   "name": "Harbours"
 }
 ```
 
-```json file=tags/lanterns.json
+```json file=topics/lanterns.json
 {
   "name": "Lanterns"
+}
+```
+
+An author is a term of the built-in taxonomy `authors`, its description its biography:
+
+```json file=authors/ada-lind.json
+{
+  "name": "Ada Lind",
+  "description": "Keeps the harbour's history."
+}
+```
+
+```json file=authors/ben-holm.json
+{
+  "name": "Ben Holm"
 }
 ```
 
@@ -807,6 +827,13 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
         "socialTitle": "{{ post.title }}",
         "socialDescription": "{{ post.auto_description }}",
         "schema": "WebPage"
+      },
+      "canvas": {
+        "title": "{{ post.title }} {{ sep }} {{ site.title }}",
+        "description": "{{ post.auto_description }}",
+        "socialTitle": "{{ post.title }}",
+        "socialDescription": "{{ post.auto_description }}",
+        "schema": "WebPage"
       }
     }
   },
@@ -816,6 +843,9 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
         "current": false
       },
       "page": {
+        "current": false
+      },
+      "canvas": {
         "current": false
       }
     }
@@ -841,6 +871,11 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
         "markdown": true,
         "llms": true,
         "llmsFull": true
+      },
+      "canvas": {
+        "markdown": true,
+        "llms": true,
+        "llmsFull": false
       }
     }
   },
@@ -1085,8 +1120,8 @@ An ID is text, the name of the post's source file, such as `96ba709ec918`, which
         "/opening-hours/"
       ],
       "title": "Opening hours",
-      "source": "a42f47a641570e9e43d57b63e870d26a8efd071fbb3514740dfb17b5bfe2145a",
-      "published": "d6738b89c8e28a40e81e785621123118b8f80e4b76217fd05451778259de5bb0",
+      "source": "173d671093aad56b1824c16bd0853ca2dec63501925cb656f71cc60be0827fb2",
+      "published": "2b619238aa50652d9913f43c651243fc3f926723de44bcaca9fcb0cb4cb4e370",
       "taken": "2026-10-20T08:00:00Z",
       "modified": "2026-10-21T09:30:00Z",
       "names": {
@@ -1123,20 +1158,23 @@ An ID is text, the name of the post's source file, such as `96ba709ec918`, which
         "/harbour-lights/"
       ],
       "title": "Harbour lights & lanterns",
-      "source": "24509a046e939b1f49db8dafe1fba48b276e0e290d21068280cb0ace5cace672",
-      "published": "d231912b13020756583f55539fd31d904788a8eea83dc987471426abbda5ce00",
+      "source": "cb70efe093083dbe15f13217708e00ce1f9425a650c3f2b85af1a237dd745dea",
+      "published": "a4c35c2a737a570f5e0c886df72e366b4edaf23bf04a231caa1d963474983ddd",
       "taken": "2026-10-20T08:00:00Z",
       "modified": "2026-10-21T09:30:00Z",
       "names": {
         "media": [
+          "harbour-lights-5c0ffee5a1.webp",
           "harbour-lights-a7b543496f.webp",
           "harbour-lights-e978159ef2.webp"
         ],
         "terms": [
+          "authors/ada-lind.json",
+          "authors/ben-holm.json",
           "categories/local.json",
           "categories/news.json",
-          "tags/harbours.json",
-          "tags/lanterns.json"
+          "topics/harbours.json",
+          "topics/lanterns.json"
         ]
       }
     }
@@ -1206,29 +1244,19 @@ The examples of this section are of a site in Swedish and English, Swedish the m
 ```json site-description=languages
 {
   "languages": ["sv_SE", "en_GB"],
+  "images": { "smallestWidth": 400, "displayWidth": 1280 },
   "types": {
     "article": {
-      "label": "Article",
-      "plural": "Articles",
       "collection": "articles",
       "address": "/{slug}/",
-      "elements": ["paragraph"],
-      "fields": {
-        "date": {},
-        "categories": { "taxonomy": "category" }
-      }
+      "elements": ["paragraph"]
     },
     "page": {
-      "label": "Page",
-      "plural": "Pages",
       "collection": "pages",
       "hierarchical": true,
       "address": { "sv_SE": "/sidor/{path}/", "en_GB": "/pages/{path}/" },
       "elements": ["paragraph"]
     }
-  },
-  "taxonomies": {
-    "category": { "label": "Category", "plural": "Categories", "collection": "categories", "hierarchical": true }
   },
   "menus": {
     "main": { "label": "Main menu" }
@@ -1245,7 +1273,11 @@ A Swedish article and its English translation:
 ---
 title: "Om lyktorna"
 date: 2026-10-20T08:00:00Z
-categories: ["sv-SE/nyheter"]
+modified: 2026-10-20T08:00:00Z
+headline: "Om lyktorna"
+authors: []
+category: ["sv-SE/nyheter"]
+topics: []
 translationKey: "3a1dace55ce438b2"
 oldAddresses: ["/om-lyktorna/"]
 ---
@@ -1257,7 +1289,11 @@ Lyktan vaktar hamnen.
 ---
 title: "About the lanterns"
 date: 2026-10-20T08:00:00Z
-categories: ["en-GB/nyheter"]
+modified: 2026-10-20T08:00:00Z
+headline: "About the lanterns"
+authors: []
+category: ["en-GB/nyheter"]
+topics: []
 translationKey: "3a1dace55ce438b2"
 ---
 

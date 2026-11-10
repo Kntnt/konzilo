@@ -20,6 +20,8 @@ A type's `elements` in `site-description.json` decides what its body may hold, a
 
 A component a site declares (`content-format.md`, *A site's own components*) is drawn by the component the site gives for its directive through `directives`, with its attributes as props, typed, those not given at their defaults, and its body, if it has one, rendered as its default slot. Without one, it is the core's plain rendering: a `div` with `data-directive="<name>"` and `data-<attribute>` for each attribute with a value, its name in kebab case, holding its body. The design system draws the hero, the section, the aside, the list and its five forms, and the text roles so (ADR 0068).
 
+A layout is told which of the core's built-in types a post is, `canvas`, `page` or `article`, by `builtInType(entry)` from `@kntnt/konzilo/astro/helpers`, null for a type of the site's own or a page that shows no post. A canvas is a blank page, which a layout draws without the site's header and footer. An article's fields are the same on every site (`content-format.md`, *The built-in types*), so a design can draw its parts by their names.
+
 A menu reaches a site's layout as a list of entries, each `{ title, url, items }`, `items` being the entries below it. A design with names of its own takes them through an adapter of its own: the core does not know a design's names.
 
 ## Custom properties the core reads

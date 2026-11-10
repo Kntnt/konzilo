@@ -4,7 +4,7 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 ## People and roles
 
-**Editor**: A person at a customer who writes or publishes content, whatever their role. _Avoid_: author, user; "editor" alone for the Editor role or the body field.
+**Editor**: A person at a customer who writes or publishes content, whatever their role. _Avoid_: author (an article's author is a term), user; "editor" alone for the Editor role or the body field.
 
 **Customer**: An organisation that has a site on Konzilo. _Avoid_: client, tenant.
 
@@ -43,6 +43,20 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 **Site description**: The one file in a site repository, `site-description.json`, that declares the content model. _Avoid_: schema, config.
 
 **Content model**: A site's post types, taxonomies, fields, allowed elements, menus and settings.
+
+**Built-in type**: One of the core's own post types, `canvas`, `page` and `article`, which a site uses by naming it, and whose fields are the core's; a site may add its own. _Avoid_: core type, default type.
+
+**Canvas**: The built-in type of a blank page, without the site's header and footer, built of components alone. _Avoid_: landing page (for the type), blank template.
+
+**Page**: The built-in type of a page with the site's header and footer, and its name in breadcrumbs and search and sharing fields. _Avoid_: static page.
+
+**Article**: The built-in type whose fields are the article parts, the same on every site, with its authors, its category and its topics. _Avoid_: post (for the type), blog post, story.
+
+**Author**: A person credited with an article: a term of the built-in taxonomy `authors`, with a name and a biography. Not the editor who saves it. _Avoid_: byline (for the person), writer.
+
+**Category**: The term of the built-in hierarchical taxonomy `category` an article is filed under, one or none. _Avoid_: section, department.
+
+**Topic**: A term of the built-in taxonomy `topics`, what an article is about, as many as fit. _Avoid_: tag, keyword.
 
 **Field**: A value a post type declares beside its title and body: one of the core's own, the search and sharing fields, a post's terms, or one of the site's own. _Avoid_: custom field, property.
 
@@ -240,7 +254,7 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Search and sharing fields**: The values with which an editor departs, for one post, from its type's templates. _Avoid_: SEO box.
 
-**Summary**: A post's excerpt, or the start of its body text. _Avoid_: teaser.
+**Summary**: What a post says of itself in a sentence: its excerpt, else its teaser's text, else its standfirst, else the start of its body text. _Avoid_: teaser.
 
 **Breadcrumbs**: The levels a page sits at: the start page, each published page whose address begins the page's address, and the page itself. _Avoid_: trail.
 

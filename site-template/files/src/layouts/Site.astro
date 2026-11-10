@@ -38,6 +38,9 @@
 // search page, on a site whose description declares search, and nothing on
 // any other.
 //
+// A canvas, the core's blank page, which Konzilo's builtInType() names, has
+// neither header nor footer: its body is the whole page.
+//
 // Konzilo's consent banner, with its preferences dialog, comes first in the
 // body, and its footer controls last in the footer, after the legal pages,
 // which they leave the links to. src/styles/consent.css styles
@@ -51,7 +54,7 @@ import ConsentControls from '@kntnt/konzilo/astro/ConsentControls.astro';
 import SearchBox from '@kntnt/konzilo/astro/SearchBox.astro';
 import { pageLanguage, startPage } from '@kntnt/konzilo/astro/languages';
 import { siteMenu, siteSettings } from '@kntnt/konzilo/astro/site-settings';
-import { legalPages as chosenLegalPages, oneLine, postalAddress as postalAddressOf } from '@kntnt/konzilo/astro/helpers';
+import { builtInType, legalPages as chosenLegalPages, oneLine, postalAddress as postalAddressOf } from '@kntnt/konzilo/astro/helpers';
 import { Image } from 'astro:assets';
 import LanguageSwitcher from '../components/LanguageSwitcher.astro';
 import MenuEntries from '../components/MenuEntries.astro';
@@ -60,6 +63,7 @@ import '../styles/consent.css';
 
 const { entry, title, page } = Astro.props;
 const { languageTag } = publicSite(Astro.url);
+const framed = builtInType(entry) !== 'canvas';
 const settings = (await siteSettings(Astro.url)) ?? {};
 const main = (await siteMenu('main', Astro.url)) ?? [];
 const siteTitle = settings.title ?? '';
@@ -77,28 +81,32 @@ const legalPages = chosenLegalPages(settings).map((page) => ({ ...page, items: [
   </head>
   <body>
     <ConsentBanner />
-    <header>
-      {(settings.logo || siteTitle) && <a class="site-name" href={startPage(pageLanguage(Astro.url))}>{settings.logo ? <Image class="site-logo" src={settings.logo.src} alt={settings.logo.alt ?? siteTitle} /> : siteTitle}</a>}
-      {main.length > 0 && <nav aria-label="Main menu"><MenuEntries items={main} /></nav>}
-      <LanguageSwitcher entry={entry} />
-      <SearchBox />
-    </header>
+    {framed && (
+      <header>
+        {(settings.logo || siteTitle) && <a class="site-name" href={startPage(pageLanguage(Astro.url))}>{settings.logo ? <Image class="site-logo" src={settings.logo.src} alt={settings.logo.alt ?? siteTitle} /> : siteTitle}</a>}
+        {main.length > 0 && <nav aria-label="Main menu"><MenuEntries items={main} /></nav>}
+        <LanguageSwitcher entry={entry} />
+        <SearchBox />
+      </header>
+    )}
     <slot />
-    <footer>
-      {settings.footerText && <p class="footer-text">{settings.footerText}</p>}
-      {publisher.name && (
-        <address class="publisher">
-          <p>{publisher.name}</p>
-          {publisher.organisationNumber && <p>Organisation number {publisher.organisationNumber}</p>}
-          {postalAddress && <p>{postalAddress}</p>}
-          {publisher.email && <p><a href={`mailto:${publisher.email}`}>{publisher.email}</a></p>}
-          {publisher.vatNumber && <p>VAT number {publisher.vatNumber}</p>}
-          {publisher.tradeRegister && <p>Trade register {publisher.tradeRegister}</p>}
-          {supervisoryAuthority && <p>Supervisory authority {supervisoryAuthority}</p>}
-        </address>
-      )}
-      {legalPages.length > 0 && <nav aria-label="Legal pages"><MenuEntries items={legalPages} /></nav>}
-      <ConsentControls links={false} />
-    </footer>
+    {framed && (
+      <footer>
+        {settings.footerText && <p class="footer-text">{settings.footerText}</p>}
+        {publisher.name && (
+          <address class="publisher">
+            <p>{publisher.name}</p>
+            {publisher.organisationNumber && <p>Organisation number {publisher.organisationNumber}</p>}
+            {postalAddress && <p>{postalAddress}</p>}
+            {publisher.email && <p><a href={`mailto:${publisher.email}`}>{publisher.email}</a></p>}
+            {publisher.vatNumber && <p>VAT number {publisher.vatNumber}</p>}
+            {publisher.tradeRegister && <p>Trade register {publisher.tradeRegister}</p>}
+            {supervisoryAuthority && <p>Supervisory authority {supervisoryAuthority}</p>}
+          </address>
+        )}
+        {legalPages.length > 0 && <nav aria-label="Legal pages"><MenuEntries items={legalPages} /></nav>}
+        <ConsentControls links={false} />
+      </footer>
+    )}
   </body>
 </html>

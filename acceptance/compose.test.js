@@ -113,6 +113,19 @@ describe('a site in Compose', () => {
     await page.getByText(title).first().click();
   };
 
+  // Sveltia puts a long form's fields on the page only as a person scrolls near them, so this
+  // turns the wheel over the form until the field at `key` is there, and brings it into view.
+  const bringNear = async (page, key) => {
+    const field = page.locator(`section.field[data-key-path="${key}"]`);
+    const box = await page.locator('section.field[data-key-path="slug"]').boundingBox();
+    await page.mouse.move(box.x + box.width / 2, Math.min(Math.max(box.y + 5, 10), page.viewportSize().height - 10));
+    for (let tries = 0; await field.count() === 0 && tries < 40; tries += 1) {
+      await page.mouse.wheel(0, 600);
+      await page.waitForTimeout(250);
+    }
+    await field.scrollIntoViewIfNeeded();
+  };
+
   const openChooser = async (page, row = 'image', title = 'Choose an image', name = 'Image') => {
     const editor = page.locator('.konzilo-body-visual .ProseMirror');
     await editor.waitFor({ timeout: 30_000 });
@@ -333,9 +346,11 @@ describe('a site in Compose', () => {
         const { page } = session;
         const before = await fileNamed('articles', POST_OF[engine]);
         await page.getByText(POST_OF[engine]).first().click();
-        const field = page.getByRole('textbox', { name: 'Title' });
+        // An article's working name, and its main headline, which its page shows.
+        const field = page.getByRole('textbox', { name: 'Working name' });
         await field.waitFor();
         await field.fill(title);
+        await page.getByRole('textbox', { name: 'Main headline' }).fill(title);
         await page.getByRole('button', { name: 'Save', exact: true }).click();
 
         // "Saved" on screen is no proof, so ask Forgejo.
@@ -373,7 +388,7 @@ describe('a site in Compose', () => {
         assert.equal(await page.locator('.konzilo-body-note:visible').count(), 0, 'the early check is on');
         await page.getByRole('button', { name: 'Save', exact: true }).waitFor();
         await editor.click();
-        await page.getByRole('textbox', { name: 'Title' }).click();
+        await page.getByRole('textbox', { name: 'Working name' }).click();
         await page.waitForTimeout(300);
         assert.equal(await page.getByRole('button', { name: 'Save', exact: true }).isDisabled(), true, 'nothing to save');
       });
@@ -775,8 +790,10 @@ describe('a site in Compose', () => {
         await page.getByText('Northern islands and the meadow').first().click();
         await page.locator('.konzilo-body-visual .ProseMirror').waitFor({ timeout: 30_000 });
         // What holds something is open already, and a click would close it. A long form
-        // renders what is below the window as it comes near, so each bar goes to the top.
+        // renders what is below the window as it comes near, so each group is brought near,
+        // and each bar goes to the top.
         const open = async (name) => {
+          await bringNear(page, name.toLowerCase());
           const bar = page.locator('button[aria-expanded]', { hasText: name }).first();
           if (await bar.getAttribute('aria-expanded') === 'false') await bar.click();
           await bar.evaluate((element) => element.scrollIntoView({ block: 'start' }));
@@ -804,8 +821,11 @@ describe('a site in Compose', () => {
         await signIn(session, site);
         const { page } = session;
         await page.getByRole('button', { name: 'Create New Entry' }).click();
-        await page.getByRole('textbox', { name: 'Title' }).fill('A new post');
-        await page.getByRole('checkbox', { name: 'Kitchens' }).first().click();
+        await page.getByRole('textbox', { name: 'Working name' }).fill('A new post');
+        await page.getByRole('textbox', { name: 'Main headline' }).fill('A new post');
+        // An article's one category, in a field Sveltia renders as it comes near.
+        await bringNear(page, 'category');
+        await page.getByRole('radio', { name: 'Kitchens' }).first().click();
         await page.getByRole('button', { name: 'Save', exact: true }).click();
         const deadline = Date.now() + 30_000;
         let saved = null;
@@ -816,7 +836,7 @@ describe('a site in Compose', () => {
         assert.ok(saved, 'the post reached the repository');
         assert.match(saved.path, /^articles\/[0-9a-f]{12}\.md$/);
         assert.match(saved.text, /^status: draft$/m);
-        assert.match(saved.text, /^categories:\n\s+- [0-9a-f]{12}$/m);
+        assert.match(saved.text, /^category: "?[0-9a-f]{12}"?$/m);
         assert.doesNotMatch(saved.text, /^seo:/m, 'closed parts leave nothing in the file');
       } finally {
         await session.browser.close();
@@ -827,7 +847,7 @@ describe('a site in Compose', () => {
   describe('publishing', () => {
     let category;
     const file = (id) => `articles/${id}.md`;
-    const published = (slug, fields = {}, body = 'Plain words.') => sourcePost({ title: slug, slug, status: 'published', date: '2026-01-01T10:00:00Z', categories: [category], ...fields }, body);
+    const published = (slug, fields = {}, body = 'Plain words.') => sourcePost({ title: slug, slug, status: 'published', date: '2026-01-01T10:00:00Z', headline: slug, category: [category], ...fields }, body);
 
     before(async () => {
       category = (await api(`${repository()}/contents/categories`))[0].name.replace(/\.json$/, '');
@@ -938,7 +958,7 @@ describe('a site in Compose', () => {
     test('keeps a refused post\'s last version, publishes the rest, and says why', async () => {
       await saveFile(file('cccccccccccc'), published('keeps-its-page', {}, 'The last good words.'), 'anna');
       await onTheSite('/keeps-its-page/', 'The last good words.');
-      await saveFile(file('cccccccccccc'), published('keeps-its-page', { categories: ['nosuchtermxxx'] }, 'Words that are refused.'), 'anna');
+      await saveFile(file('cccccccccccc'), published('keeps-its-page', { category: ['nosuchtermxxx'] }, 'Words that are refused.'), 'anna');
       await saveFile(file('dddddddddddd'), published('saved-after-it', {}, 'Words beside it.'), 'anna');
       await onTheSite('/saved-after-it/', 'Words beside it.');
       const refused = await statusBecomes(file('cccccccccccc'), 'failed');

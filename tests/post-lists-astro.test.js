@@ -30,6 +30,7 @@ after(() => {
 
 const site = {
   language: 'en_GB',
+  images: { smallestWidth: 400, displayWidth: 1280 },
   types: {
     post: {
       label: 'Article', plural: 'Articles', collection: 'articles', address: '/{slug}/', elements: ['paragraph', 'post-list'],

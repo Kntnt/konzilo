@@ -10,10 +10,10 @@
 // - its title tag: the post's own, else its type's template rendered, else
 //   its title; its meta description: the post's own, else the template
 //   rendered; its sharing title and description: the post's own, else the
-//   templates rendered, else the title tag and the description. A post whose
-//   type has a teaser falls back to what its teaser shows before the
-//   templates, cut as a search result and a shared link show it
-//   (article-parts.js);
+//   templates rendered, else the title tag and the description. An article,
+//   and a post whose type of the site's own has a teaser, falls back to what
+//   its teaser shows before the templates, cut as a search result and a
+//   shared link show it (article-parts.js, built-in-types.js);
 // - its canonical address, as its canonical link and Open Graph's address:
 //   the one the post names, such as the original's where it was published
 //   elsewhere first, else the post's public address on the public host,
@@ -57,6 +57,7 @@
 import { labelIn } from '../catalogues.js';
 import { listPageAddress, searchPages } from '../format/addresses.js';
 import { searchDescriptionOf, searchTitleOf, SHARING_SIZE, socialDescriptionOf, socialTitleOf } from '../format/article-parts.js';
+import { followsParts } from '../format/built-in-types.js';
 import { renderTemplate } from '../metadata-templates.js';
 import { isSiteTitle } from '../settings-groups.js';
 import { feedAlternates } from './feeds.js';
@@ -222,8 +223,9 @@ async function postPage({ entry, type, path, number, search, site }, known, getE
   const templates = search.types?.[type.name] ?? {};
   const seo = entry.data.seo ?? {};
   const field = (kind) => entry.data[type.fields.find((found) => found.kind === kind)?.name];
-  // What the teaser shows, where the type has one, before the templates.
-  const teaser = type.fields.some((found) => found.kind === 'teaser');
+  // What the teaser shows, in an article and in a type of the site's own that has a
+  // teaser, before the templates.
+  const teaser = followsParts(type);
   const shown = (rule) => (teaser ? rule(entry.data) : '');
   const titleTag = seo.title || shown((data) => searchTitleOf(data, known.settings?.title ?? '')) || render(templates.title) || entry.data.title;
   const metaDescription = seo.description || shown(searchDescriptionOf) || render(templates.description);

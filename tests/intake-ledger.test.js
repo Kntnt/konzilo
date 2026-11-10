@@ -12,8 +12,9 @@ import { NOW, run, sourcePost, written } from './lib/intake.js';
 
 const site = {
   language: 'en_GB',
+  images: { smallestWidth: 400, displayWidth: 1280 },
   types: {
-    article: { label: 'Article', plural: 'Articles', collection: 'articles', address: '/{slug}/', elements: ['paragraph'], fields: { date: {}, modified: {} } },
+    story: { label: 'Article', plural: 'Articles', collection: 'articles', address: '/{slug}/', elements: ['paragraph'], fields: { date: {}, modified: {} } },
     page: { label: 'Page', plural: 'Pages', collection: 'pages', hierarchical: true, address: '/pages/{path}/', elements: ['paragraph'] },
   },
 };
@@ -126,7 +127,7 @@ describe('a refused post', () => {
       language: 'en_GB',
       images: { smallestWidth: 1, displayWidth: 1 },
       taxonomies: { tag: { label: 'Tag', plural: 'Tags', collection: 'tags' } },
-      types: { article: { label: 'A', plural: 'As', collection: 'articles', address: '/{slug}/', elements: ['paragraph'], fields: { tags: { taxonomy: 'tag' }, image: {} } } },
+      types: { story: { label: 'A', plural: 'As', collection: 'articles', address: '/{slug}/', elements: ['paragraph'], fields: { tags: { taxonomy: 'tag' }, image: {} } } },
     };
     const fields = { tags: ['tagtagtagtag'], image: { src: '/media/barn-faf546aae9.jpg', alt: 'A barn' } };
     const first = run({ [THE_POST]: post(fields), 'tags/tagtagtagtag.json': { name: 'A tag', slug: 'a-tag' } }, named);

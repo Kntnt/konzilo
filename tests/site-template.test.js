@@ -7,8 +7,9 @@
 // its footer shows the publisher's details after the footer text, or none of
 // them without a publisher's name. Its 404 page, 404.html, shows
 // the page an Admin chose in the site's frame, or the core's plain text in
-// the site's language. An article shows its categories,
-// each after its parents, and its tags. On a site in several
+// the site's language. An article shows its headline, its category after its
+// parents, and its topics, and a canvas has neither header nor footer. On a
+// site in several
 // languages its frame shows the menu, the settings and the title of the
 // page's language.
 
@@ -28,7 +29,7 @@ const core = fileURLToPath(new URL('../', import.meta.url));
 const astro = join(core, 'node_modules/astro/bin/astro.mjs');
 
 // The demo model's posts, as a build hands them out: an article
-// in a category below another, with two tags, and a page.
+// in a category below another, with two topics, and a page.
 const posts = [
   post({
     ID: 1,
@@ -38,7 +39,7 @@ const posts = [
     body: paragraphs('The lantern keeps the harbour.'),
     terms: {
       category: [term('local', 'Local news', { taxonomy: 'category', parent: 'news' })],
-      tag: [term('lanterns', 'Lanterns', { taxonomy: 'tag' }), term('harbours', 'Harbours', { taxonomy: 'tag' })],
+      topics: [term('lanterns', 'Lanterns', { taxonomy: 'topics' }), term('harbours', 'Harbours', { taxonomy: 'topics' })],
     },
     term_parents: { category: [term('news', 'News', { taxonomy: 'category', description: 'What happened.' })] },
   }),
@@ -106,7 +107,8 @@ describe('the site template, built by Astro', () => {
     const link = /<a [^>]*href="\/"[^>]*>(.*?)<\/a>/s.exec(header(page('index.html')))?.[1];
     assert.match(link, new RegExp(`^<img src="/_astro/logo-${shortHash(drawing({ width: 240, height: 60 }))}\\.[^"]+\\.svg" alt="A lantern by the harbour"[^>]* width="240" height="60"[^>]*>$`));
     assert.equal(title(page('index.html')), 'Lantern &amp; Co');
-    assert.equal(title(page('harbour-lights/index.html')), 'Harbour lights – Lantern &amp; Co');
+    // An article's title tag is what its teaser shows, its main headline, with the site's name.
+    assert.equal(title(page('harbour-lights/index.html')), 'Harbour lights | Lantern &amp; Co');
     assert.equal(title(page('pages/about/index.html')), 'About – Lantern &amp; Co');
   });
 
@@ -155,13 +157,28 @@ describe('the site template, built by Astro', () => {
     assert.match(page('index.html'), /<main[^>]*>\s*<ul class="post-list"/);
   });
 
-  test('shows an article\'s categories, each after its parents, and its tags, outside its body text\'s own lists', () => {
+  test('shows an article\'s headline, its category after its parents, and its topics, outside its body text\'s own lists', () => {
     const page = build(repository, { title: 'Lantern', logo: null, icon: null })('harbour-lights/index.html');
     const list = (name) => [...page.matchAll(new RegExp(`<ul class="${name}"[^>]*>(.*?)</ul>`, 'gs'))]
       .flatMap(([, items]) => [...items.matchAll(/<li[^>]*>(.*?)<\/li>/gs)].map(([, item]) => item));
     assert.deepEqual(list('categories'), ['News › Local news']);
-    assert.deepEqual(list('tags'), ['Harbours', 'Lanterns']);
+    assert.deepEqual(list('topics'), ['Harbours', 'Lanterns']);
     assert.match(page, /<div class="terms"[^>]*>\s*<ul class="categories"/);
+    assert.match(page, /<h1[^>]*>Harbour lights<\/h1>/);
+  });
+
+  test('draws a canvas without the header and the footer, which an article and a page have', () => {
+    const landing = post({ ID: 3, type: 'canvas', slug: 'spring', title: 'Spring', modified: '2026-10-02 09:00:00', body: paragraphs('A landing page alone.') });
+    const page = build(repository, { title: 'Lantern', logo: null, icon: null }, { given: [...posts, landing] });
+    const shown = page('landing/spring/index.html');
+    assert.match(shown, /A landing page alone\./);
+    assert.equal(header(shown), undefined);
+    assert.equal(footer(shown), undefined);
+    assert.match(shown, /<title>Spring – Lantern<\/title>/, 'with Konzilo\'s head still');
+    for (const path of ['harbour-lights/index.html', 'pages/about/index.html']) {
+      assert.ok(header(page(path)), path);
+      assert.ok(footer(page(path)), path);
+    }
   });
 
   test('puts Konzilo\'s search and sharing tags in each page\'s head, the post\'s for a post\'s page and the start page\'s for the start page', () => {
@@ -329,9 +346,9 @@ describe('the site template, built by Astro', () => {
 
   // Term pages: with the categories at /category/{slug}/, News
   // has its page, with its description, Harbour lights from its child Local
-  // news, and eleven stories of its own, newest first, ten a page; the tags
+  // news, and eleven stories of its own, newest first, ten a page; the topics
   // still have none.
-  test('builds a page for each category once the categories declare an address, its posts newest first with pages, and none for a tag', () => {
+  test('builds a page for each category once the categories declare an address, its posts newest first with pages, and none for a topic', () => {
     const description = join(repository, 'site-description.json');
     const declared = readFileSync(description, 'utf8');
     const modified = '2026-10-02 09:00:00';
@@ -356,7 +373,7 @@ describe('the site template, built by Astro', () => {
       assert.deepEqual(titles('category/news/page/2/index.html'), ['Story 2', 'Story 1']);
       assert.deepEqual(titles('category/local/index.html'), ['Harbour lights']);
       assert.equal(title(page('category/news/index.html')), 'News – Lantern');
-      assert.equal(page('tag/lanterns/index.html'), null);
+      assert.equal(page('topic/lanterns/index.html'), null);
       assert.match(page('sitemap.xml'), /<loc>https:\/\/www\.example\.com\/category\/news\/<\/loc>/);
     } finally {
       writeFileSync(description, declared);
@@ -552,7 +569,7 @@ describe('the site template in Swedish and English, built by Astro', () => {
     for (const [path, shown] of [
       ['sv/index.html', { link: '<a href="/sv/verkstaden/">Verkstaden</a>', footer: 'Öppet varje dag.', title: 'Lyktan' }],
       ['en/index.html', { link: '<a href="/en/workshop/">The workshop</a>', footer: 'Open every day.', title: 'The Lantern' }],
-      ['en/harbour-lights/index.html', { link: '<a href="/en/workshop/">The workshop</a>', footer: 'Open every day.', title: 'Harbour lights – The Lantern' }],
+      ['en/harbour-lights/index.html', { link: '<a href="/en/workshop/">The workshop</a>', footer: 'Open every day.', title: 'Harbour lights | The Lantern' }],
       ['404.html', { link: '<a href="/sv/verkstaden/">Verkstaden</a>', footer: 'Öppet varje dag.', title: 'Sidan finns inte – Lyktan' }],
     ]) {
       assert.ok(header(page(path)).includes(shown.link), `${path}: ${header(page(path))}`);
