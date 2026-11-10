@@ -10,6 +10,7 @@
 
 import { freeze, isObject, onlyKeys as checkedKeys, text } from './checks.js';
 import { ownValue } from './format/frontmatter.js';
+import { british } from './refusals.js';
 import declaration from './format/settings-groups.json' with { type: 'json' };
 import { templateProblems, variablesOf } from './metadata-templates.js';
 import { fieldName, IDENTITY, IMAGE, ownField, POST, translatedOf } from './site-description.js';
@@ -408,24 +409,24 @@ function settingOf(name, setting, path, problems, where) {
     const variables = variablesOf(where === 'types' ? ANY_TYPE : null);
     const defaults = typeof read.default === 'string' ? { '': read.default } : isSiteTitle(read.default) ? {} : read.default;
     for (const [language, text] of Object.entries(defaults)) {
-      for (const problem of templateProblems(text, variables)) problems.push(`${path}.default${language ? `.${language}` : ''}: ${problem}`);
+      for (const problem of templateProblems(text, variables)) problems.push(`${path}.default${language ? `.${language}` : ''}: ${british(problem)}`);
     }
   }
   return read;
 }
 
-// The form a text must have, `{ pattern, reason }`: a regular expression
-// of the whole value, from ^ to $, read with the u flag, and
-// what the refusal of a value without that form says after the setting's
-// name, such as `must be the container's ID as Matomo gives it`. The value
-// is matched with its ends trimmed; an empty value has no form to check.
+// The form a text must have, `{ pattern, refusal }`: a regular expression
+// of the whole value, from ^ to $, read with the u flag, and the name in the
+// catalogues of the refusal of a value without that form, which names the
+// setting, such as `refusal.format-matomo-container`. The value is matched
+// with its ends trimmed; an empty value has no form to check.
 function formatOf(format, path, problems) {
   if (!isObject(format)) {
-    problems.push(`${path}: must be { "pattern": …, "reason": … }`);
+    problems.push(`${path}: must be { "pattern": …, "refusal": … }`);
     return null;
   }
-  onlyKeys(format, ['pattern', 'reason'], path, problems);
-  const { pattern, reason } = format;
+  onlyKeys(format, ['pattern', 'refusal'], path, problems);
+  const { pattern, refusal } = format;
   let compiled = null;
   if (typeof pattern !== 'string' || !pattern.startsWith('^') || !pattern.endsWith('$') || pattern.includes('\x01')) {
     problems.push(`${path}.pattern: must be a regular expression of the whole value, from ^ to $`);
@@ -436,8 +437,8 @@ function formatOf(format, path, problems) {
       problems.push(`${path}.pattern: is not a regular expression: ${error.message}`);
     }
   }
-  text(reason, `${path}.reason`, problems);
-  return compiled && typeof reason === 'string' && reason.trim() !== '' ? Object.freeze({ pattern, reason }) : null;
+  if (typeof refusal !== 'string' || !/^refusal\.[a-z][a-z0-9-]*$/.test(refusal)) problems.push(`${path}.refusal: must name a refusal in the catalogues, refusal.…`);
+  return compiled && typeof refusal === 'string' ? Object.freeze({ pattern, refusal }) : null;
 }
 
 // A post type that declares no field, whose variables every type knows.
@@ -523,7 +524,7 @@ function defaultOf(given, read, path, problems) {
   }
   const published = ownValue(stored, read);
   if (published.reason) {
-    problems.push(`${path}: ${published.reason}`);
+    problems.push(`${path}: ${british(published.reason)}`);
     return undefined;
   }
   if (published.value === undefined) {
@@ -533,7 +534,7 @@ function defaultOf(given, read, path, problems) {
   const value = published.value instanceof Date ? published.yaml : published.value;
   const least = leastProblem(value, read);
   if (least !== null) {
-    problems.push(`${path}: ${least}`);
+    problems.push(`${path}: ${british(least)}`);
     return undefined;
   }
   if (value === given) return value;
@@ -545,7 +546,7 @@ function defaultOf(given, read, path, problems) {
 // when it is not, or the setting takes any.
 export function leastProblem(value, { type, min }) {
   if (min === undefined || typeof value !== 'number' || value >= min) return null;
-  return `the site cannot publish ${value} here, which takes ${type === 'integer' ? 'a whole number' : 'a number'} from ${min}`;
+  return { name: 'refusal.value-least', values: { value, kind: { name: type === 'integer' ? 'about.kind-integer' : 'about.kind-number' }, min } };
 }
 
 // A default as text, read as a kept value is; undefined when it is not of its setting's

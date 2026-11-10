@@ -56,11 +56,11 @@ function readRule(rule, { exact, patterns, seen }) {
   seen.add(key);
   const redirect = REDIRECT_STATUSES.includes(status);
   if (rule.post || rule.term) {
-    if (!redirect) return say('refusal.rule-target', { source: from, reason: `a ${status} answers without a target` });
+    if (!redirect) return say('refusal.rule-target', { source: from, reason: say('about.no-target', { status }) });
     exact.push({ from, status, post: rule.post ? String(rule.post) : undefined, term: rule.term ? String(rule.term) : undefined });
     return null;
   }
-  const problem = redirect ? targetProblem(rule.to) : rule.to === undefined ? null : `a ${status} answers without a target`;
+  const problem = redirect ? targetProblem(rule.to) : rule.to === undefined ? null : say('about.no-target', { status });
   if (problem) return say('refusal.rule-target', { source: from, reason: problem });
   exact.push({ from, status, ...(redirect ? { to: rule.to } : {}) });
   return null;

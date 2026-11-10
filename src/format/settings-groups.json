@@ -672,7 +672,7 @@
         "control": "text",
         "format": {
           "pattern": "^https://(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+(?:[A-Za-z]{2,63}|xn--[A-Za-z0-9-]{1,59})(?:/[A-Za-z0-9._~%!$&'()*+,;=:@/-]*)?$",
-          "reason": "must be the https:// address of the Matomo instance, its host with a path or none, such as https://matomo.example.com/, with no port, query or fragment"
+          "refusal": "refusal.format-matomo-address"
         },
         "help": "The address of the Matomo instance, as the address bar shows it without index.php: https:// and its host, with a path where Matomo is below one, such as https://matomo.example.com/ or https://www.example.com/matomo/."
       },
@@ -682,7 +682,7 @@
         "control": "text",
         "format": {
           "pattern": "^[A-Za-z1-9][A-Za-z0-9]{7}$",
-          "reason": "must be the container's ID as Matomo gives it, eight letters and digits, such as aBcD1234"
+          "refusal": "refusal.format-matomo-container"
         },
         "help": "For Matomo Tag Manager: the container's ID, eight letters and digits, as Matomo shows it under Tag Manager › Containers and in the code it offers to install: aBcD1234 in container_aBcD1234.js."
       },
@@ -699,7 +699,7 @@
         "control": "text",
         "format": {
           "pattern": "^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})$",
-          "reason": "must be a domain name in lowercase, such as example.com"
+          "refusal": "refusal.format-domain"
         },
         "help": "For Matomo, and only where the owner's sites below one domain are counted as one: that domain, such as example.com, which the site's own host is at or below. Matomo then keeps its cookies there, so a visitor who moves between the sites is one visitor. Leave it empty to keep them on the site's own host."
       },
@@ -709,7 +709,7 @@
         "control": "text",
         "format": {
           "pattern": "^(?:UTC|[A-Za-z]+(?:/[A-Za-z0-9_+-]+){1,2})$",
-          "reason": "must be a time zone by its IANA name, such as Europe/Paris, or UTC"
+          "refusal": "refusal.format-time-zone"
         },
         "help": "For Matomo, where the site counts visits without storage before consent: the time zone the site has in Matomo, under Websites › Manage, by its name, such as Europe/Paris. Until a visitor allows statistics, the time of day of each visit is sent in it, since the visitor's own would read the time zone of their device. Leave it empty for UTC."
       }
@@ -730,7 +730,7 @@
             "control": "text",
             "format": {
               "pattern": "^[A-Z]{2}$",
-              "reason": "must be the country's two-letter code in capitals, such as SE"
+              "refusal": "refusal.format-country"
             },
             "help": "The country it is established in, by its two-letter code, such as SE for Sweden."
           },
@@ -740,7 +740,7 @@
             "control": "text",
             "format": {
               "pattern": "^https://(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+(?:[A-Za-z]{2,63}|xn--[A-Za-z0-9-]{1,59})(?:[/?#][^\\s<>\"{}|\\\\^`]*)?$",
-              "reason": "must be the https:// address of its privacy policy, such as https://www.example.com/privacy/"
+              "refusal": "refusal.format-privacy-policy"
             }
           }
         }

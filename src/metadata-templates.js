@@ -60,10 +60,11 @@ export function renderTemplate(template, values, separator = '') {
 }
 
 // Why a template cannot be published with the variables a part knows, one
-// reason for each variable it does not know.
+// reason for each variable it does not know, by its name in the core's
+// catalogues (refusals.js).
 export function templateProblems(template, variables) {
   const known = new Set(variables.map(({ variable }) => variable));
   return variablesIn(template)
     .filter((variable) => !known.has(variable))
-    .map((variable) => `the site does not know the variable {{ ${variable} }}; use one the Site settings page lists`);
+    .map((variable) => ({ name: 'refusal.template-variable', values: { variable } }));
 }

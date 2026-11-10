@@ -81,7 +81,7 @@ function fieldValue(field, value, { images, terms }) {
 
 function ownField(field, value) {
   const stored = text(value);
-  if (stored === null) return { reason: `the site cannot publish this as ${field.name}` };
+  if (stored === null) return { reason: say('refusal.field-value', { field: field.name }) };
   const read = ownValue(stored, field);
   if (read.reason) return { reason: read.reason };
   if (read.value === undefined) return field.required ? { reason: say('refusal.field-required', { field: field.name }) } : {};

@@ -134,7 +134,7 @@ export function registryFile({ site, settings, embeds, facts = coreFacts, previo
     if (departure.departure !== 'necessaryService') return;
     const service = services.find((found) => found.id === departure.service);
     if (!service) {
-      warnings.push({ consent: `consent.departures.${index + 1}`, reason: `the departure names the service ${departure.service}, which no page of the site lets a visitor reach` });
+      warnings.push({ consent: `consent.departures.${index + 1}`, reason: { name: 'warning.departure-service', values: { service: departure.service } } });
       return;
     }
     service.category = 'necessary';
@@ -143,7 +143,7 @@ export function registryFile({ site, settings, embeds, facts = coreFacts, previo
   // Counting without storage is a mode of Matomo's own tracker alone.
   const withoutStorage = site.consent.departures.findIndex((departure) => departure.departure === WITHOUT_STORAGE);
   if (withoutStorage !== -1 && (tagManagerOf(settings) !== null || trackerOf(settings) === null)) {
-    warnings.push({ consent: `consent.departures.${withoutStorage + 1}`, reason: 'the departure counts without storage only with Matomo\'s own tracker, which the site settings do not choose, so nothing counts before consent' });
+    warnings.push({ consent: `consent.departures.${withoutStorage + 1}`, reason: { name: 'warning.departure-tracker', values: {} } });
   }
   services.sort((a, b) => CATEGORIES.indexOf(a.category) - CATEGORIES.indexOf(b.category) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const categories = CATEGORIES

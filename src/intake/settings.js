@@ -19,7 +19,7 @@ const stemOf = (path) => path.replace(/[A-Z]/g, (capital) => `-${capital.toLower
 
 // What a value of a text setting must also hold to.
 function textProblem(setting, value, variables) {
-  if (setting.format && !new RegExp(setting.format.pattern, 'u').test(value.trim())) return `${setting.name} ${setting.format.reason}`;
+  if (setting.format && !new RegExp(setting.format.pattern, 'u').test(value.trim())) return say(setting.format.refusal, { setting: setting.name });
   if (setting.patterns) {
     for (const line of value.split(/\r\n|\r|\n/).map((one) => one.trim()).filter(Boolean)) {
       try {
