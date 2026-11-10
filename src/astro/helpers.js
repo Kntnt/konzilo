@@ -133,13 +133,15 @@ export function builtInType(entry, { site = describedSite() } = {}) {
 
 // An article's authors, for its byline, in the order its editor gave them, the first
 // author first (authors.js): each { name, url, slug, entry }, its name, its page's address
-// where the authors taxonomy declares one, else null, its slug, and its term's entry, which
-// holds its biography as `data.description`. None for a post of a type of the site's own.
-// `entry`: an entry of a type's collection, as Astro hands a template one. `site`: the site
-// description as checked, the site's own by default; `getEntries`: Astro's own from
-// astro:content, by default.
+// below the site's base, which a preview's build moves, where the authors taxonomy
+// declares one, else null, its slug, and its term's entry, which holds its biography as
+// `data.description`. None for a post of a type of the site's own. `entry`: an entry of a
+// type's collection, as Astro hands a template one. `site`: the site description as
+// checked, the site's own by default; `getEntries`: Astro's own from astro:content, by
+// default.
 export async function authorsOf(entry, { site = describedSite(), getEntries } = {}) {
   const type = Object.values(site.types).find((declared) => declared?.collection === entry?.collection);
   const read = getEntries ?? (await import('astro:content')).getEntries;
-  return articleAuthors(entry, type, site, read);
+  const base = (import.meta.env?.BASE_URL ?? '/').replace(/\/$/, '');
+  return (await articleAuthors(entry, type, site, read)).map(({ name, path, slug, entry: term }) => ({ name, url: path === null ? null : `${base}${path}`, slug, entry: term }));
 }

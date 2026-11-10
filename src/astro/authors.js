@@ -2,7 +2,7 @@
 // built-in taxonomy of that name, in the order its editor gave them, which the intake
 // keeps, for its structured data and for a template's byline.
 //
-// Each author is { entry, name, slug, url }: its term's entry, as Astro's getEntries()
+// Each author is { entry, name, slug, path }: its term's entry, as Astro's getEntries()
 // gives one; its name; its slug, which every language shares, below a language's folder
 // on a site in several languages; and its page's address, a path from the site's root,
 // where the authors taxonomy declares an address and the author has a page (term-pages.js),
@@ -21,7 +21,7 @@ export async function articleAuthors(entry, type, site, getEntries) {
     entry: term,
     name: term.data.name,
     slug: term.id.split('/').at(-1),
-    url: pageOf(term, taxonomy),
+    path: pageOf(term, taxonomy),
   }));
 }
 
