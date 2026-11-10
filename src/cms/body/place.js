@@ -1,12 +1,9 @@
-// Where a click in the preview's page puts the cursor in the field: `block`, the body's block by
-// its place, `path`, its place within it, `2.1` for a list's second item, `count`, how many
-// characters of its text, spaces aside, come before the click, and `text`, the start of that
-// text, spaces aside. The page may be a moment behind what is typed, so
-// the block is taken where its text begins as the page's does, the one nearest its place when it
-// has moved. A block with no text of its own, an embed or a kept block, goes by its place alone.
-// Gives a selection, or null where the block is not to be found.
-
-import { NodeSelection, TextSelection } from '@milkdown/kit/prose/state';
+// Which block of the field a click in the preview's page was on: `block`, the body's block by its
+// place, `path`, its place within it, `2.1` for a list's second item, and `text`, the start of its
+// text, spaces aside. The page may be a moment behind what is typed, so the block is taken where
+// its text begins as the page's does, the one nearest its place when it has moved. A block with no
+// text of its own, an embed or a kept block, goes by its place alone. Gives the block's node and
+// where it starts, or null where the block is not to be found.
 
 const solid = (words) => words.replace(/\s+/g, '');
 const ENOUGH = 40;
@@ -24,7 +21,7 @@ function below(node, pos, steps) {
   return at;
 }
 
-export function selectionAt(doc, { block, path, count, text }) {
+export function blockAt(doc, { block, path, text }) {
   const steps = String(path ?? block).split('.').slice(1).map(Number);
   const start = solid(text).slice(0, ENOUGH);
   const fits = (top) => {
@@ -40,25 +37,5 @@ export function selectionAt(doc, { block, path, count, text }) {
   if (index === -1) return null;
   let top = 0;
   for (let at = 0; at < index; at += 1) top += doc.child(at).nodeSize;
-  const { node, pos } = below(doc.child(index), top, steps);
-  if (node.isAtom || node.textContent.trim() === '') return NodeSelection.isSelectable(node) ? NodeSelection.create(doc, pos) : TextSelection.near(doc.resolve(pos));
-  let seen = 0;
-  let found = null;
-  let last = null;
-  node.descendants((child, offset) => {
-    if (found !== null) return false;
-    if (!child.isText) return true;
-    const from = pos + 1 + offset;
-    for (let at = 0; at < child.text.length; at += 1) {
-      if (/\s/.test(child.text[at])) continue;
-      if (seen === count) {
-        found = from + at;
-        return false;
-      }
-      seen += 1;
-    }
-    last = from + child.text.length;
-    return false;
-  });
-  return TextSelection.create(doc, found ?? last);
+  return below(doc.child(index), top, steps);
 }
