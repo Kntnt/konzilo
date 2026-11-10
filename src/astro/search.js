@@ -14,42 +14,30 @@
 import { readFileSync } from 'node:fs';
 import { request } from 'node:http';
 import { join, resolve } from 'node:path';
+import { SOURCE_LANGUAGE, textsOf } from '../catalogues.js';
 import { scopedSearchKey, SEARCH_ROUTE, searchParameters } from '../search.js';
 import { languageTag, readSiteDescription, SITE_DESCRIPTION_FILE } from '../site-description.js';
-import { inLanguage } from '../texts.js';
 import { pageLanguage } from './languages.js';
 
 export { SEARCH_ROUTE } from '../search.js';
 
-// What a visitor reads of search, in the core's languages (texts.js): the
-// search page's title and heading, `title`, which a site's search page
-// shows (pageTexts() of `@kntnt/konzilo/astro/languages`), and the rest. A
-// site gives texts of its own to the components (Search.astro,
-// SearchBox.astro) as `texts`, by these names. In `results`, `result` and
-// `page`, {count}, {query}, {page} and {pages} are what they say.
-export const SEARCH_TEXTS = Object.freeze({
-  title: { en: 'Search', sv: 'Sök' },
-  label: { en: 'Search', sv: 'Sök' },
-  submit: { en: 'Search', sv: 'Sök' },
-  result: { en: '1 result for “{query}”', sv: '1 träff för ”{query}”' },
-  results: { en: '{count} results for “{query}”', sv: '{count} träffar för ”{query}”' },
-  page: { en: ', page {page} of {pages}', sv: ', sida {page} av {pages}' },
-  pages: { en: 'Pages of results', sv: 'Sidor med träffar' },
-  previous: { en: 'Previous', sv: 'Föregående' },
-  next: { en: 'Next', sv: 'Nästa' },
-  nothingFound: { en: 'Nothing matched your search.', sv: 'Inget matchade din sökning.' },
-  notAnswering: { en: 'Search does not answer right now. Try again in a while.', sv: 'Sökningen svarar inte just nu. Försök igen om en stund.' },
-  needsJavaScript: { en: 'Search needs JavaScript, which your browser does not run.', sv: 'Sökningen behöver JavaScript, som din webbläsare inte kör.' },
-  notInPreview: { en: 'Search is not in the preview.', sv: 'Sökningen finns inte i förhandsvisningen.' },
-});
+// What a visitor reads of search, in the catalogues (ADR 0066) under `site.search.`: the
+// search page's title and heading, `title`, which a site's search page shows (pageTexts() of
+// `@kntnt/konzilo/astro/languages`), and the rest. A site gives texts of its own to the
+// components (Search.astro, SearchBox.astro) as `texts`, by these names. In `results`,
+// `result` and `page`, {count}, {query}, {page} and {pages} are what they say.
+const SEARCH_TEXTS = 'site.search.';
+
+// The names of search's texts, which a site may give its own of.
+export const SEARCH_TEXT_NAMES = Object.freeze(Object.keys(textsOf(SOURCE_LANGUAGE, SEARCH_TEXTS)));
 
 // The texts in the language of a site in `locale` (null for none), with
 // those the site gives over them.
 export function searchTexts(locale, given = {}) {
   for (const name of Object.keys(given)) {
-    if (!Object.hasOwn(SEARCH_TEXTS, name)) throw new Error(`Konzilo: search has no text called ${name}; its texts are ${Object.keys(SEARCH_TEXTS).join(', ')}`);
+    if (!SEARCH_TEXT_NAMES.includes(name)) throw new Error(`Konzilo: search has no text called ${name}; its texts are ${SEARCH_TEXT_NAMES.join(', ')}`);
   }
-  return Object.fromEntries(Object.entries(SEARCH_TEXTS).map(([name, text]) => [name, given[name] ?? inLanguage(text, locale)]));
+  return Object.fromEntries(Object.entries(textsOf(locale, SEARCH_TEXTS)).map(([name, text]) => [name, given[name] ?? text]));
 }
 
 const described = new Map();

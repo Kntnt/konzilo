@@ -25,24 +25,21 @@
 import { getCollection } from 'astro:content';
 import { presentations, site } from 'virtual:konzilo/post-lists';
 import { textsIn } from 'virtual:konzilo/texts';
+import { textsOf } from '../catalogues.js';
 import { listPageAddress } from '../format/addresses.js';
 import { readPostList, SECOND_PAGED_LIST } from '../format/post-list.js';
 import rules from '../format/rules.json' with { type: 'json' };
 import { evaluate, pageCount } from '../post-lists.js';
-import { textLanguage } from '../texts.js';
 import { describedSite, entryAddress, entryLanguage, entryName, siteLanguages } from './languages.js';
 import { postListsIn } from './reader.js';
 import { termRoute, termsBelow, termsWithPages } from './term-pages.js';
 
 const { attributes } = rules.elements['post-list'].directive;
 
-// The pager's texts, in the site's language: the label of its `nav`, a
-// page's link's name, `{n}` its number, and the links to the page before
-// and after.
-export const PAGER_TEXTS = Object.freeze({
-  en: Object.freeze({ label: 'Pages', page: 'Page {n}', previous: 'Previous page', next: 'Next page' }),
-  sv: Object.freeze({ label: 'Sidor', page: 'Sida {n}', previous: 'Föregående sida', next: 'Nästa sida' }),
-});
+// The pager's texts, in the catalogues (ADR 0066) under `site.pager.`: the
+// label of its `nav`, a page's link's name, `{n}` its number, and the links to
+// the page before and after.
+const PAGER_TEXTS = 'site.pager.';
 
 // The posts each list on a page has shown, by type: one for a page, which
 // each list of its body adds to.
@@ -161,7 +158,7 @@ async function pagesOf(entry) {
 // language (PAGER_TEXTS), or in `locale`, the post's language's locale, on a
 // site in several.
 export function pagerOf(address, current, count, locale = site.locale?.replace('-', '_') ?? null) {
-  const texts = PAGER_TEXTS[textLanguage(locale)];
+  const texts = textsOf(locale, PAGER_TEXTS);
   const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   const url = (n) => `${base}${listPageAddress(address, n)}`;
   const shown = Array.from({ length: count }, (_, i) => i + 1)

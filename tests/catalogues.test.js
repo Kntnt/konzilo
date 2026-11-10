@@ -8,7 +8,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { CATALOGUES, catalogueFor, INTERFACE_LANGUAGES, labelIn, SOURCE_LANGUAGE, text } from '../src/catalogues.js';
+import { CATALOGUES, catalogueFor, INTERFACE_LANGUAGES, labelIn, SOURCE_LANGUAGE, text, textsOf } from '../src/catalogues.js';
 
 const folder = fileURLToPath(new URL('../src/catalogues/', import.meta.url));
 const files = readdirSync(folder).filter((name) => name.endsWith('.json')).sort();
@@ -66,6 +66,13 @@ test('gives a text in a language, with its placeholders filled, and British Engl
   const values = Object.fromEntries(placeholders(source[filled]).map((one) => [one, `<${one}>`]));
   assert.equal(text('en', filled, values), source[filled].replace(/\{(\w+)\}/g, (_, one) => `<${one}>`));
   assert.throws(() => text('en', 'no.such.text'), /no\.such\.text/);
+});
+
+test('gives the texts of an area in a language or a locale, by their names after it, their placeholders left for the caller', () => {
+  assert.deepEqual(textsOf('sv', 'site.pager.'), { label: 'Sidor', page: 'Sida {n}', previous: 'Föregående sida', next: 'Nästa sida' });
+  assert.deepEqual(textsOf('sv_SE', 'site.pager.'), textsOf('sv', 'site.pager.'));
+  assert.deepEqual(textsOf('de_DE', 'site.pager.'), { label: 'Pages', page: 'Page {n}', previous: 'Previous page', next: 'Next page' });
+  assert.deepEqual(textsOf('en', 'no.such.'), {});
 });
 
 test('takes the catalogue of a language or a locale, British English\'s where there is none', () => {

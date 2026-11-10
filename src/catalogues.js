@@ -45,6 +45,16 @@ export function text(language, name, values = {}) {
   return found.replace(/\{(\w+)\}/g, (_, placeholder) => String(values[placeholder] ?? ''));
 }
 
+// The texts of an area, such as `site.search.`, in a language, a locale or a language tag,
+// each by its name after the area, as the catalogue writes it: the caller fills its
+// placeholders. Its language's catalogue's (catalogueFor()), else British English's.
+export function textsOf(language, area) {
+  const catalogue = CATALOGUES[catalogueFor(language)];
+  return Object.fromEntries(Object.keys(CATALOGUES[SOURCE_LANGUAGE])
+    .filter((name) => name.startsWith(area))
+    .map((name) => [name.slice(area.length), catalogue[name] ?? CATALOGUES[SOURCE_LANGUAGE][name]]));
+}
+
 // A site's own label, as its site description gives it, in a language, a locale or a
 // language tag: one text for every language, or texts by interface language, British
 // English among them, of which the language's, else British English.

@@ -2,7 +2,7 @@
 // address alone, which its structured data holds as a BreadcrumbList
 // (structured-data.js) and Breadcrumbs.astro shows on screen:
 //
-// 1. the start page, named in the site's language (BREADCRUMB_TEXTS);
+// 1. the start page, named in the page's language (breadcrumbTexts());
 // 2. each shorter address the page's address starts with, `/a/` and
 //    `/a/b/` for `/a/b/c/`, at which a post of the build answers, of any
 //    type, named by its name in breadcrumbs (`breadcrumb`), else its
@@ -23,26 +23,24 @@
 // tests read it too: it finds a post by its entry through the `getEntry` it
 // is given, Astro's from astro:content in a build (breadcrumbs.js).
 
-import { inLanguage } from '../texts.js';
+import { SOURCE_LANGUAGE, textsOf } from '../catalogues.js';
 import { entryAddress as addressIn, pageLanguage, startAddress, typeAddress } from './languages.js';
 import { taxonomyWithPages } from './term-pages.js';
 
-// What a visitor reads of breadcrumbs, in the core's languages (texts.js):
-// the start page's name and the label of the navigation that holds them. A
-// site gives texts of its own, by these names, to Breadcrumbs.astro as
-// `texts` and to Head.astro as `breadcrumbTexts`.
-export const BREADCRUMB_TEXTS = Object.freeze({
-  home: { en: 'Home', sv: 'Startsida' },
-  label: { en: 'Breadcrumbs', sv: 'Brödsmulor' },
-});
+// What a visitor reads of breadcrumbs, in the catalogues (ADR 0066) under
+// `site.breadcrumbs.`: the start page's name, `home`, and the label of the
+// navigation that holds them, `label`. A site gives texts of its own, by these
+// names, to Breadcrumbs.astro as `texts` and to Head.astro as `breadcrumbTexts`.
+const BREADCRUMB_TEXTS = 'site.breadcrumbs.';
+const NAMES = Object.keys(textsOf(SOURCE_LANGUAGE, BREADCRUMB_TEXTS));
 
 // The texts in the language of a site in `locale` (null for none), with
 // those the site gives over them.
 export function breadcrumbTexts(locale, given = {}) {
   for (const name of Object.keys(given)) {
-    if (!Object.hasOwn(BREADCRUMB_TEXTS, name)) throw new Error(`Konzilo: breadcrumbs have no text called ${name}; their texts are ${Object.keys(BREADCRUMB_TEXTS).join(' and ')}`);
+    if (!NAMES.includes(name)) throw new Error(`Konzilo: breadcrumbs have no text called ${name}; their texts are ${NAMES.join(' and ')}`);
   }
-  return Object.fromEntries(Object.entries(BREADCRUMB_TEXTS).map(([name, text]) => [name, given[name] ?? inLanguage(text, locale)]));
+  return Object.fromEntries(Object.entries(textsOf(locale, BREADCRUMB_TEXTS)).map(([name, text]) => [name, given[name] ?? text]));
 }
 
 // The levels of a page, from the start page to the page itself, each
