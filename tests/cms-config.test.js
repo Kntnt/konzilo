@@ -179,6 +179,47 @@ describe('the interface language', () => {
     });
   });
 
+  test('shows every settings text of the catalogues in the settings groups, and in Swedish nothing beside them but the site\'s own', () => {
+    const given = declared();
+    given.forms = { contact: { label: 'Contact', fields: [{ name: 'email', label: 'Email', kind: 'email', required: true }] } };
+    const site = siteDescription(given);
+    const catalogue = (language) => JSON.parse(readFileSync(file(`src/catalogues/${language}.json`), 'utf8'));
+    // A form's recipients and the days its submissions are kept stay out of the published files,
+    // and so out of the form.
+    const unshown = ['settings.forms.recipients.label', 'settings.forms.retention.label'];
+    const groupsIn = (language) => {
+      const fields = cmsConfig(site, { ...place, language }).collections.find((one) => one.name === 'settings').files[0].fields;
+      return fields.filter((one) => site.groups.some((group) => group.name === one.name));
+    };
+    const shown = (fields, texts = new Set()) => {
+      for (const one of fields) {
+        texts.add(one.label);
+        if (one.hint) texts.add(one.hint);
+        for (const option of one.options ?? []) texts.add(option.label);
+        if (one.fields) shown(one.fields, texts);
+      }
+      return texts;
+    };
+    for (const language of ['en', 'sv']) {
+      const texts = shown(groupsIn(language));
+      const settings = Object.entries(catalogue(language)).filter(([name]) => name.startsWith('settings.') && !unshown.includes(name));
+      assert.deepEqual(settings.filter(([, one]) => !texts.has(one)), [], `${language}: settings texts the form does not show`);
+    }
+    const swedish = new Set(Object.values(catalogue('sv')));
+    const own = new Set([...Object.values(site.types).map((type) => type.plural), ...Object.values(site.forms).map((form) => form.label)]);
+    assert.deepEqual([...shown(groupsIn('sv'))].filter((one) => !swedish.has(one) && !own.has(one)), [], 'texts in neither the Swedish catalogue nor the site description');
+  });
+
+  test('labels a select\'s options in the interface language and keeps their values, and keeps each default visitors read in the content\'s language', () => {
+    for (const [language, labels] of [['sv', ['Sammanfattningen', 'Hela texten']], ['en', ['The summary', 'The whole text']]]) {
+      const groups = cmsConfig(description, { ...place, language }).collections.find((one) => one.name === 'settings').files[0].fields;
+      const item = field(field(groups, 'feeds').fields, 'item');
+      assert.deepEqual(item.options, [{ value: 'The summary', label: labels[0] }, { value: 'The whole text', label: labels[1] }], language);
+      assert.equal(item.default, 'The summary', language);
+      assert.equal(field(field(groups, 'consent').fields, 'bannerTitle').default, 'Your privacy', language);
+    }
+  });
+
   test('is written by konzilo-cms beside the site\'s own: one configuration in each language the interface comes in', () => {
     const folder = mkdtempSync(join(tmpdir(), 'konzilo-cms-'));
     const site = join(folder, 'site');
