@@ -171,8 +171,8 @@ export function registerParts(CMS, config) {
           }
         },
       }),
-      h('button', { type: 'button', className: 'konzilo-part-button', onClick: press }, say(editing ? 'slugSave' : 'slugChange')),
-      page ? h('a', { className: 'konzilo-part-button', href: page, target: '_blank', rel: 'noopener' }, say('slugShow')) : null);
+      h('button', { type: 'button', className: 'konzilo-part-button', onClick: press }, say(editing ? 'parts.slugSave' : 'parts.slugChange')),
+      page ? h('a', { className: 'konzilo-part-button', href: page, target: '_blank', rel: 'noopener' }, say('parts.slugShow')) : null);
   });
 
   // The structured data type: the type's own shows as chosen while the post has none, and
@@ -195,7 +195,7 @@ export function registerParts(CMS, config) {
     }, [type]);
     return h('select', { id: forID, className: 'konzilo-part-input konzilo-part-select', value: value && value !== preset ? value : '', onChange: (event) => onChange(event.target.value) },
       options.map((one) => (one === preset
-        ? h('option', { key: one, value: '' }, say('schemaPreset', { type: one, plural: typeLabel.toLocaleLowerCase() }))
+        ? h('option', { key: one, value: '' }, say('parts.schemaPreset', { type: one, plural: typeLabel.toLocaleLowerCase() }))
         : h('option', { key: one, value: one }, one))));
   });
 
@@ -203,7 +203,7 @@ export function registerParts(CMS, config) {
   // reason are the early check's, since nothing failed.
   let refusal = null;
   const earlier = globalThis.__KONZILO_REFUSAL_WORDS__;
-  globalThis.__KONZILO_REFUSAL_WORDS__ = (shown) => (refusal !== null && shown === refusal ? say('refused') : earlier?.(shown));
+  globalThis.__KONZILO_REFUSAL_WORDS__ = (shown) => (refusal !== null && shown === refusal ? say('body.refused') : earlier?.(shown));
   CMS.registerEventListener({
     name: 'preSave',
     handler: ({ entry }) => {
@@ -211,7 +211,7 @@ export function registerParts(CMS, config) {
       if (data?.get?.('status') !== 'scheduled') return;
       const moment = Date.parse(data.get('date') ?? '');
       if (Number.isFinite(moment) && moment > Date.now()) return;
-      refusal = say('scheduledAhead');
+      refusal = say('parts.scheduledAhead');
       throw new Error(refusal);
     },
   });

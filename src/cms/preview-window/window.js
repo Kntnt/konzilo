@@ -120,9 +120,9 @@ const show = ({ origin, address, notes, passing = null, sandbox, frameTitle, tit
 };
 
 // No entry to show: the window stays, with a sentence on why it is empty.
-const idle = (text = say('previewWindowIdle')) => {
+const idle = (text = say('preview.windowIdle')) => {
   if (!isOpen()) return;
-  show({ address: null, notes: [{ role: 'status', look: QUIET, text }], title: say('previewWindowName') });
+  show({ address: null, notes: [{ role: 'status', look: QUIET, text }], title: say('preview.windowName') });
   drawing = false;
 };
 
@@ -135,7 +135,7 @@ const open = () => {
   if (!opened) return false;
   popup = opened;
   setUp();
-  idle(say('previewStarting'));
+  idle(say('preview.starting'));
   setTimeout(() => {
     if (!drawing) idle();
   }, STARTING_FOR);
@@ -163,7 +163,7 @@ globalThis.addEventListener?.('konzilo-view', () => {
 });
 
 // When the editor loads again, or closes, the window stays where it is, and can be taken up again.
-globalThis.addEventListener?.('pagehide', () => idle(say('previewWindowGone')));
+globalThis.addEventListener?.('pagehide', () => idle(say('preview.windowGone')));
 
 export const previewWindow = {
   wanted,

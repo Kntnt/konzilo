@@ -1,7 +1,7 @@
 // How publishing stands, as the service says (ADR 0031): reading it, keeping it up to date while
 // someone looks, and what a status means in words. It holds no React.
 
-import { say } from '../body/texts.js';
+import { languageTag, say } from '../body/texts.js';
 
 const STATUS_PATH = '/_konzilo/status';
 // While something is on its way it is worth asking often, and otherwise a change comes from
@@ -71,23 +71,23 @@ export function watchedStatus(options) {
   };
 }
 
-const where = ({ stillShown }) => say(stillShown ? 'publishStillShown' : 'publishNotShown');
+const where = ({ stillShown }) => say(stillShown ? 'publishing.stillShown' : 'publishing.notShown');
 const reasonsOf = (list = []) => list.map(({ message, reason }) => reason ?? message);
 
 // What a status says: its `tone`, `good`, `busy`, `bad` or `quiet`, its `words`, and any `details`.
-export function statusWords(status, moment = (at) => new Date(at).toLocaleString(globalThis.navigator?.language)) {
+export function statusWords(status, moment = (at) => new Date(at).toLocaleString(languageTag())) {
   switch (status.status) {
     case 'live': {
       const warnings = reasonsOf(status.warnings);
-      return { tone: 'good', words: say(warnings.length > 0 ? 'publishLiveWarned' : 'publishLive'), details: warnings };
+      return { tone: 'good', words: say(warnings.length > 0 ? 'publishing.liveWarned' : 'publishing.live'), details: warnings };
     }
     case 'failed':
-      return { tone: 'bad', words: `${say('publishFailed')} ${where(status)}`, details: status.refusals ? reasonsOf(status.refusals) : [status.reason] };
+      return { tone: 'bad', words: `${say('publishing.failed')} ${where(status)}`, details: status.refusals ? reasonsOf(status.refusals) : [status.reason] };
     case 'scheduled':
-      return { tone: 'quiet', words: say('publishScheduled', { at: moment(status.at) }), details: [] };
+      return { tone: 'quiet', words: say('publishing.scheduled', { at: moment(status.at) }), details: [] };
     case 'draft':
-      return { tone: 'quiet', words: say(status.stillShown ? 'publishDraftShown' : 'publishDraft'), details: [] };
+      return { tone: 'quiet', words: say(status.stillShown ? 'publishing.draftShown' : 'publishing.draft'), details: [] };
     default:
-      return { tone: 'busy', words: say(status.stillShown ? 'publishBeingShown' : 'publishBeing'), details: [] };
+      return { tone: 'busy', words: say(status.stillShown ? 'publishing.beingShown' : 'publishing.being'), details: [] };
   }
 }

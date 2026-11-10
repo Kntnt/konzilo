@@ -52,15 +52,15 @@ export function mountImageField(host, { value, changed, addFile, library, exists
     const zone = made('span', 'konzilo-pick-safe', frame);
     zone.style.width = `${(safe.width / crop.width) * 100}%`;
     zone.style.height = `${(safe.height / crop.height) * 100}%`;
-    zone.title = say('imageSafe', safe);
+    zone.title = say('image.safe', safe);
   }
   const empty = made('span', 'konzilo-pick-empty', frame);
   const side = made('div', 'konzilo-pick-side', root);
   const name = made('p', 'konzilo-pick-name', side);
   const buttons = made('div', 'konzilo-pick-buttons', side);
   const choose = upload ? null : button('konzilo-pick-choose', '', buttons);
-  const remove = upload ? null : button('konzilo-pick-remove', say('imageRemove'), buttons);
-  const pick = upload ? button('konzilo-pick-choose', say('imagePickFile'), buttons) : null;
+  const remove = upload ? null : button('konzilo-pick-remove', say('image.remove'), buttons);
+  const pick = upload ? button('konzilo-pick-choose', say('image.pickFile'), buttons) : null;
   const input = upload ? made('input', '', side) : null;
   if (input) {
     input.type = 'file';
@@ -72,7 +72,7 @@ export function mountImageField(host, { value, changed, addFile, library, exists
   const altRow = hasAlt ? made('label', 'konzilo-pick-alt', root) : null;
   const altInput = altRow ? made('input', '', altRow) : null;
   if (altRow) {
-    altRow.prepend(Object.assign(document.createElement('span'), { textContent: say('imageAlt') }));
+    altRow.prepend(Object.assign(document.createElement('span'), { textContent: say('image.alt') }));
     altInput.type = 'text';
   }
 
@@ -92,22 +92,22 @@ export function mountImageField(host, { value, changed, addFile, library, exists
     const shown = src !== '';
     const unsaved = src.startsWith('blob:');
     const standing = !shown && fallback && standIn !== '';
-    name.textContent = shown ? uploadedNames.get(src) ?? fileNameOf(src) : standing ? say('imageMain') : '';
+    name.textContent = shown ? uploadedNames.get(src) ?? fileNameOf(src) : standing ? say('image.main') : '';
     name.hidden = !shown && !standing;
     frame.classList.toggle('konzilo-pick-standin', standing);
-    if (choose) choose.textContent = say(shown ? 'imageChange' : 'imageChoose');
+    if (choose) choose.textContent = say(shown ? 'image.change' : 'image.choose');
     if (remove) remove.hidden = !shown;
     // A saved entry's file is the entry. Before it is saved, another may be chosen.
     if (pick) {
       pick.hidden = shown && !unsaved;
-      pick.textContent = say(unsaved ? 'imagePickOther' : 'imagePickFile');
+      pick.textContent = say(unsaved ? 'image.pickOther' : 'image.pickFile');
     }
     if (altRow) altRow.hidden = !shown;
     if (altInput && altInput.value !== altText) altInput.value = altText;
     const now = ++shownFor;
     picture.hidden = true;
     empty.hidden = false;
-    empty.textContent = say(shown || standing ? 'imageLoading' : upload ? 'imageNoFile' : 'imageNone');
+    empty.textContent = say(shown || standing ? 'image.loading' : upload ? 'image.noFile' : 'image.none');
     if (!shown && !standing) return;
     const showingSrc = shown ? src : standIn;
     const showing = (address) => {
@@ -117,7 +117,7 @@ export function mountImageField(host, { value, changed, addFile, library, exists
         picture.hidden = false;
         empty.hidden = true;
       } else {
-        empty.textContent = say('imageCannotShow');
+        empty.textContent = say('image.cannotShow');
       }
     };
     if (showingSrc.startsWith('blob:')) showing(showingSrc);
@@ -163,7 +163,7 @@ export function mountImageField(host, { value, changed, addFile, library, exists
       const bytes = new Uint8Array(await file.arrayBuffer());
       const extension = EXTENSIONS[kindOf(bytes)];
       if (!extension) {
-        note.textContent = say('imageNotImage');
+        note.textContent = say('image.notImage');
         return;
       }
       // The name the library's upload gives: the same file twice is one original.
@@ -174,7 +174,7 @@ export function mountImageField(host, { value, changed, addFile, library, exists
       emit();
     } catch (error) {
       console.warn(`The file was not added: ${error.message}`);
-      note.textContent = say('imageNotAdded');
+      note.textContent = say('image.notAdded');
     } finally {
       pick.disabled = false;
     }

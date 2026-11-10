@@ -682,16 +682,23 @@ describe('the body field, alone', () => {
       assert.deepEqual(await call('changes'), []);
     });
 
-    test('says so in a Swedish browser', async () => {
-      const swedish = await site.newPage({ language: 'sv-SE' });
-      try {
-        const body = 'The<del> struck</del> space';
-        assert.equal(await swedish.page.evaluate((value) => globalThis.fieldPage.open(value), body), 'markdown');
-        assert.match((await swedish.page.evaluate(() => globalThis.fieldPage.notes())).join(), /skulle ändra ett stycke \(block 1\)/);
-        await swedish.page.getByRole('button', { name: 'Visa redigeraren' }).waitFor();
-      } finally {
-        await swedish.context.close();
-      }
+    test('says so in the interface language, in Swedish in an English browser, and in English in a Swedish one', async () => {
+      const body = 'The<del> struck</del> space';
+      const opened = async (browser, language) => {
+        const { page: one, context } = await site.newPage({ language: browser });
+        try {
+          assert.equal(await one.evaluate(([value, options]) => globalThis.fieldPage.open(value, options), [body, { language }]), 'markdown');
+          return { notes: (await one.evaluate(() => globalThis.fieldPage.notes())).join(), toggle: await one.locator('.konzilo-body-toggle').textContent() };
+        } finally {
+          await context.close();
+        }
+      };
+      const swedish = await opened('en-GB', 'sv');
+      assert.match(swedish.notes, /skulle ändra ett stycke \(block 1\)/);
+      assert.equal(swedish.toggle, 'Visa redigeraren');
+      const english = await opened('sv-SE', 'en');
+      assert.match(english.notes, /would change a paragraph \(block 1\)/);
+      assert.equal(english.toggle, 'Show the editor');
     });
 
     test('later elements stay as they are, as kept blocks, around an edit', async () => {
