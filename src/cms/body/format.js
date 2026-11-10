@@ -115,6 +115,8 @@ function asEmbed(node, source) {
   return embedOf(address, rules).reason ? null : { type: 'konziloEmbed', address, value: sliceOf(node, source) };
 }
 
+const holdsImage = (node) => node.type === 'image' || (node.children ?? []).some(holdsImage);
+
 // Why a top-level node is kept as source, or null: it is a later element, or one its type
 // does not take, and the field has no form of it yet.
 function keptAs(node, source, policy) {
@@ -122,6 +124,8 @@ function keptAs(node, source, policy) {
   if (node.type === 'thematicBreak') return 'other';
   if (node.type === 'html') return 'html';
   if (node.type === 'definition') return 'other';
+  // A list of pictures, such as logos, which the editor has no form of in a list's item.
+  if (node.type === 'list' && holdsImage(node)) return 'list';
   if (node.type !== 'paragraph') return ELEMENT_OF[node.type] && !policy.takes(ELEMENT_OF[node.type]) ? 'other' : null;
   if (isLoneHtml(node)) return 'html';
   if (node.children?.some((child) => child.type === 'image')) return 'image';
