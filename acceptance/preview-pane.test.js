@@ -138,12 +138,13 @@ describe('the preview\'s pane, on a site in two languages', () => {
 
   test('says why a draft cannot be published, and what becomes of the page', async () => {
     await newEntry('pages');
-    answer = { address: '/a-page/', refusals: [{ field: 'title', reason: 'give it a title' }] };
+    // By its name, which the pane shows in the interface language, with the field it names.
+    answer = { address: '/a-page/', refusals: [{ field: 'title', name: 'refusal.title-empty', values: {}, reason: 'give it a title' }] };
     await page.getByRole('textbox', { name: 'Title' }).first().fill('Ett');
     const alert = pane().getByRole('alert');
     await alert.waitFor();
     assert.match(await alert.textContent(), /last good one/);
-    assert.match(await alert.textContent(), /title: give it a title/);
+    assert.match(await alert.textContent(), /the field title: the site cannot publish a post without a title; give it one/);
     answer = { address: '/a-page/', refusals: [] };
     await page.getByRole('textbox', { name: 'Title' }).first().fill('Två');
     await draftWith(({ fields }) => fields.title === 'Två');
