@@ -62,11 +62,11 @@ export function previewTemplate({ origin, several, credential = signedInCredenti
       const heard = ({ origin: from, source, data }) => {
         if (from !== origin || source !== framed()?.contentWindow) return;
         if (data?.type === STOPPED_MESSAGE) client.current.stopped(data);
-        // A click on a block of the body, for the field that holds it to put the cursor there:
-        // `block`, its place among the body's blocks, and `path`, its place within them.
-        if (data?.type === PLACE_MESSAGE && Number.isInteger(data.block) && data.block >= 0 && Number.isInteger(data.count) && data.count >= 0 && typeof data.text === 'string') {
+        // A click on a block of the body, for the field that holds it to frame it: `block`, its
+        // place among the body's blocks, and `path`, its place within them.
+        if (data?.type === PLACE_MESSAGE && Number.isInteger(data.block) && data.block >= 0 && typeof data.text === 'string') {
           const path = typeof data.path === 'string' && /^\d+(?:\.\d+)*$/.test(data.path) ? data.path : String(data.block);
-          globalThis.dispatchEvent(new CustomEvent(PLACE_EVENT, { detail: { block: data.block, path, count: data.count, text: data.text.slice(0, 200) } }));
+          globalThis.dispatchEvent(new CustomEvent(PLACE_EVENT, { detail: { block: data.block, path, text: data.text.slice(0, 200) } }));
         }
       };
       paneWindow.addEventListener('message', heard);

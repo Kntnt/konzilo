@@ -6,8 +6,9 @@ import { undo } from '@milkdown/kit/prose/history';
 import { Selection, TextSelection } from '@milkdown/kit/prose/state';
 
 import { handsFor, loadReader } from '../../../src/cms/body/check.js';
-import { selectionAt } from '../../../src/cms/body/place.js';
+import { blockAt } from '../../../src/cms/body/place.js';
 import { mountBodyField } from '../../../src/cms/body/field.js';
+import { PLACE_EVENT } from '../../../src/cms/preview/paths.js';
 import { checkBody } from '../../../src/format/body.js';
 
 const EVERY_ELEMENT = ['paragraph', 'heading', 'list', 'quote', 'code', 'table', 'footnotes', 'embed', 'image', 'gallery', 'post-list', 'form'];
@@ -219,10 +220,29 @@ globalThis.fieldPage = {
   },
   // The block a place from the preview leads to, or null.
   placeIndex(place) {
-    const selection = selectionAt(viewOf().state.doc, place);
-    return selection ? selection.$from.index(0) : null;
+    const found = blockAt(viewOf().state.doc, place);
+    return found ? viewOf().state.doc.resolve(found.pos).index(0) : null;
   },
-  goTo: (place) => current().field.goTo(place),
+  // A click on the preview's page, as the pane tells it, and what the field then frames: the text
+  // of the block within the frame, and whether the frame is in sight, or null where it frames none.
+  place(detail) {
+    for (const ring of document.querySelectorAll('.konzilo-body-ring')) ring.remove();
+    globalThis.dispatchEvent(new CustomEvent(PLACE_EVENT, { detail }));
+    const ring = current().field.frame.querySelector('.konzilo-body-ring');
+    if (!ring) return null;
+    const around = ring.getBoundingClientRect();
+    const within = ({ left, top, right, bottom }) => left >= around.left && top >= around.top && right <= around.right && bottom <= around.bottom;
+    const area = ({ width, height }) => width * height;
+    const framed = [...viewOf().dom.querySelectorAll('*')].filter((one) => within(one.getBoundingClientRect())).sort((one, other) => area(other.getBoundingClientRect()) - area(one.getBoundingClientRect()))[0];
+    return { text: framed?.textContent ?? null, inSight: around.top >= 0 && around.bottom <= globalThis.innerHeight };
+  },
+  // Where the cursor is, and whether the field has the focus.
+  selection: () => ({ from: viewOf().state.selection.from, to: viewOf().state.selection.to }),
+  focused: () => current().field.frame.contains(document.activeElement),
+  // Focus elsewhere, as a click in the preview's frame takes it.
+  blur() {
+    document.activeElement?.blur();
+  },
   embeds() {
     const found = [];
     viewOf().state.doc.forEach((node) => {

@@ -157,44 +157,50 @@ describe('the body field, alone', () => {
       assert.deepEqual(missed, []);
     });
 
-    test('puts the cursor at the character clicked, spaces aside', async () => {
+    test('frames the block, and leaves the cursor and the focus where they were', async () => {
       await call('open', 'One two\n\nThree four five');
-      assert.equal(await call('goTo', { block: 1, count: 5, text: 'Threefourfive' }), true);
+      await call('focusParagraphEnd', 0);
+      const before = await call('selection');
+      await call('blur');
+      assert.deepEqual(await call('place', { block: 1, path: '1', text: 'Threefourfive' }), { text: 'Three four five', inSight: true });
+      assert.deepEqual(await call('selection'), before);
+      assert.equal(await call('focused'), false);
       await page.keyboard.type('X', { delay: KEY_DELAY });
       await call('flush');
-      assert.equal(await call('value'), 'One two\n\nThree Xfour five');
+      assert.equal(await call('value'), 'One two\n\nThree four five', 'a key goes nowhere into the text');
+    });
+
+    test('scrolls the field to a block out of sight', async () => {
+      const body = Array.from({ length: 60 }, (_, at) => `Paragraph ${at}`).join('\n\n');
+      await call('open', body);
+      await page.evaluate(() => window.scrollTo(0, 0));
+      assert.deepEqual(await call('place', { block: 55, path: '55', text: 'Paragraph55' }), { text: 'Paragraph 55', inSight: true });
     });
 
     test('finds a block that has moved since the page was made, by its text', async () => {
       await call('open', 'New\n\nOne two\n\nThree four five');
-      assert.equal(await call('goTo', { block: 1, count: 0, text: 'Threefourfive' }), true);
-      await page.keyboard.type('X', { delay: KEY_DELAY });
-      await call('flush');
-      assert.equal(await call('value'), 'New\n\nOne two\n\nXThree four five');
+      assert.equal((await call('place', { block: 1, path: '1', text: 'Threefourfive' }))?.text, 'Three four five');
     });
 
     test('does nothing with a block it does not hold', async () => {
       await call('open', 'One two');
-      assert.equal(await call('goTo', { block: 0, count: 0, text: 'Somethingelse' }), false);
-      assert.equal(await call('goTo', { block: 5, count: 0, text: 'Onetwo' }), true, 'but finds its text where it stands');
+      assert.equal(await call('place', { block: 0, path: '0', text: 'Somethingelse' }), null);
+      assert.equal((await call('place', { block: 5, path: '5', text: 'Onetwo' }))?.text, 'One two', 'but finds its text where it stands');
     });
 
-    test('chooses an embed whole, and goes into a list, a table and a caption', async () => {
+    test('frames an embed, a list\'s item, a table and an image with its caption', async () => {
       const body = 'One\n\nhttps://vimeo.com/76979871\n\n- First\n- Second item\n\n| A | B |\n| --- | --- |\n| Cell | Other |\n\n![A barn](/media/barn.webp)\\\nThe barn';
       await call('open', body);
-      assert.equal(await call('goTo', { block: 1, count: 0, text: '' }), true);
-      assert.equal(await page.locator('.konzilo-embed-field.ProseMirror-selectednode').count(), 1);
-      for (const [place, typed, written] of [
-        [{ block: 2, count: 6, text: 'FirstSeconditem' }, 'Z', '- First\n- SZecond item'],
-        [{ block: 3, count: 5, text: 'ABCellOther' }, 'Z', '| CelZl | Other |'],
-        [{ block: 4, count: 3, text: 'Thebarn' }, 'Z', 'The Zbarn'],
+      for (const [place, framed] of [
+        [{ block: 1, path: '1', text: '' }, /vimeo\.com\/76979871/],
+        [{ block: 2, path: '2.1', text: 'Seconditem' }, /^\W*Second item\W*$/],
+        [{ block: 3, path: '3', text: 'ABCellOther' }, /A.*B.*Cell.*Other/],
+        [{ block: 4, path: '4', text: 'Thebarn' }, /The barn/],
       ]) {
-        await call('open', body);
-        assert.equal(await call('goTo', place), true, JSON.stringify(place));
-        await page.keyboard.type(typed, { delay: KEY_DELAY });
-        await call('flush');
-        assert.ok((await call('value')).includes(written), `${written} in ${await call('value')}`);
+        const shown = await call('place', place);
+        assert.match(shown?.text ?? '', framed, JSON.stringify(place));
       }
+      assert.equal(await call('focused'), false);
     });
   });
 

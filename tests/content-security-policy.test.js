@@ -4,10 +4,11 @@
 // scripts, inline styles and distinct `style` attribute values, collected
 // over every page as built, the players' origins of the embed services the
 // pages use, and the hosts of the service registry's services, each kind of
-// request in its own directive. It never offers 'unsafe-inline',
-// 'unsafe-eval', `*`, a scheme alone or a nonce, and a page with code no
-// hash can allow, an inline event handler or a `javascript:` address, fails
-// the build, naming the page and the element.
+// request in its own directive. Images may also come as `data:`, unless the
+// site description says not. It never offers 'unsafe-inline',
+// 'unsafe-eval', `*`, a scheme alone but `data:` for images, or a nonce, and
+// a page with code no hash can allow, an inline event handler or a
+// `javascript:` address, fails the build, naming the page and the element.
 //
 // The policy is data (contentSecurityPolicy()), so each part is checked
 // here by itself too; Astro's dev server sends the framing part alone
@@ -148,7 +149,7 @@ describe('a built site with an inline script, an inline style, an aligned table,
 
   after(() => rmSync(site.repository, { recursive: true, force: true }));
 
-  test('gets a policy of exactly their hashes, YouTube\'s player origin and the service\'s script host', () => {
+  test('gets a policy of exactly their hashes, YouTube\'s player origin, the service\'s script host and data: images', () => {
     // The player's own size, as the panel's <template> holds it, and each
     // column's alignment, as the reader writes it.
     const attributes = ['text-align: left', 'text-align: center', 'text-align: right', 'display: block; width: 100%; aspect-ratio: 16 / 9; border: 0'];
@@ -157,7 +158,7 @@ describe('a built site with an inline script, an inline style, an aligned table,
       ['script-src', ["'self'", hash(SCRIPT), 'https://pixel.example.net']],
       ['style-src', ["'self'", hash(STYLE)]],
       ['style-src-attr', ["'unsafe-hashes'", ...sorted(attributes.map(hash))]],
-      ['img-src', ["'self'"]],
+      ['img-src', ["'self'", 'data:']],
       ['font-src', ["'self'"]],
       ['connect-src', ["'self'"]],
       ['media-src', ["'self'"]],
@@ -171,11 +172,11 @@ describe('a built site with an inline script, an inline style, an aligned table,
     ]);
   });
 
-  test('offers none of \'unsafe-inline\', \'unsafe-eval\', a wildcard, a scheme alone or a nonce', () => {
+  test('offers none of \'unsafe-inline\', \'unsafe-eval\', a wildcard or a nonce, and no scheme alone but data: for images', () => {
     for (const [directive, sources] of policy) {
       for (const source of sources) {
         assert.ok(!["'unsafe-inline'", "'unsafe-eval'", '*'].includes(source), `${directive} ${source}`);
-        assert.doesNotMatch(source, /^[a-z][a-z0-9+.-]*:$/i, `${directive} ${source}: a scheme alone`);
+        if (directive !== 'img-src' || source !== 'data:') assert.doesNotMatch(source, /^[a-z][a-z0-9+.-]*:$/i, `${directive} ${source}: a scheme alone`);
         assert.doesNotMatch(source, /^'nonce-/, `${directive} ${source}`);
       }
     }
@@ -300,7 +301,7 @@ describe('the policy', () => {
       'script-src': ["'self'", 'https://stats.example.com', 'https://widget.chat.example.org'],
       'style-src': ["'self'", 'https://css.chat.example.org'],
       'style-src-attr': ["'none'"],
-      'img-src': ["'self'", 'https://img.chat.example.org'],
+      'img-src': ["'self'", 'data:', 'https://img.chat.example.org'],
       'font-src': ["'self'", 'https://fonts.chat.example.org'],
       'connect-src': ["'self'", 'https://api.chat.example.org', 'https://stats.example.com'],
       'media-src': ["'self'"],
@@ -313,9 +314,10 @@ describe('the policy', () => {
     assert.equal(policyText(policy), Object.entries(policy).map(([name, sources]) => [name, ...sources].join(' ')).join('; '));
   });
 
-  test('without a registry or a service gives every kind of request the site alone, and the framing origins the site lists', () => {
+  test('without a registry or a service gives every kind of request the site alone, images data: too, and the framing origins the site lists', () => {
     const policy = contentSecurityPolicy({ code: empty, registry: null, description: { types, security: { frameAncestors: ['https://intranet.example.com'] } } });
-    for (const directive of ['script-src', 'style-src', 'img-src', 'font-src', 'connect-src', 'media-src', 'frame-src']) assert.deepEqual(policy[directive], ["'self'"], directive);
+    for (const directive of ['script-src', 'style-src', 'font-src', 'connect-src', 'media-src', 'frame-src']) assert.deepEqual(policy[directive], ["'self'"], directive);
+    assert.deepEqual(policy['img-src'], ["'self'", 'data:']);
     assert.deepEqual(policy['frame-ancestors'], ["'self'", 'https://intranet.example.com']);
     assert.deepEqual(contentSecurityPolicy({ code: empty, registry: registry(), description: { types } })['script-src'], ["'self'"]);
   });

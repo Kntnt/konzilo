@@ -18,6 +18,8 @@ A site's own templates write the wrapper around a body, with whatever class its 
 
 A type's `elements` in `site-description.json` decides what its body may hold, and so what its block menu offers: a row that is missing is an element the type does not take.
 
+A component a site declares (`content-format.md`, *A site's own components*) is drawn by the component the site gives for its directive through `directives`, with its attributes as props, typed, those not given at their defaults, and its body, if it has one, rendered as its default slot. Without one, it is the core's plain rendering: a `div` with `data-directive="<name>"` and `data-<attribute>` for each attribute with a value, its name in kebab case, holding its body. The design system draws the hero, the section, the aside, the list and its five forms, and the text roles so (ADR 0068).
+
 A menu reaches a site's layout as a list of entries, each `{ title, url, items }`, `items` being the entries below it. A design with names of its own takes them through an adapter of its own: the core does not know a design's names.
 
 ## Custom properties the core reads
@@ -38,7 +40,7 @@ A name in angle brackets is filled in by what it stands for. The core's scripts 
 
 In the live preview alone, each block of a body has `data-konzilo-block`, its place among the body's blocks, and a click on it leads to the body field. A block within a directive's body, and a list's item, has its path below it, as `2.1`: a design that renders a component of its own keeps the marks on the blocks it is given, and a level of its own with no element, such as a tab, is found by the first block below it.
 
-When a field asks the page to show a block, the page opens the `<details>` the block stands in, scrolls to it and marks it, and sends the event `konzilo-preview-show` from it, bubbling, so that a design's own tab, panel or answer can open to show it: its script listens on the document and opens what holds `event.target`. A click the page makes itself, to open such a tab, is no editor's, and leads nowhere.
+When a field asks the page to show a block, the page opens the `<details>` the block stands in, scrolls to it and marks it, and sends the event `konzilo-preview-show` from it, bubbling, so that a design's own tab, panel or answer can open to show it: its script listens on the document and opens what holds `event.target`. A design that draws each tab and each answer as a `<details>`, of an exclusive group where one opens at a time, needs no script for this. A click the page makes itself, to open such a tab, is no editor's, and leads nowhere.
 
 | Class | On | State |
 |---|---|---|
