@@ -3,12 +3,12 @@
 // configuration Konzilo generates names. Sveltia keeps its preferences in the browser,
 // `auto` until a person chooses a language, and then takes the browser's language.
 // Konzilo takes `auto` as no choice, the site's language, and sets the site's as
-// Sveltia's preference, before Sveltia reads it as it loads, where the browser's
-// language would not give it, with a mark of its own beside it, so that what it set is
-// told apart from a choice. Where the browser's language would give it, Sveltia is left
-// to take it by itself: a language set, as Sveltia starts, has it open a store of its
-// own in the repository's database, which in WebKit can leave its own image previews
-// unreadable.
+// Sveltia's preference where the browser's language would not give it, with a mark of
+// its own beside it, so that what it set is told apart from a choice.
+//
+// Sveltia reads its preferences as it loads, which is before the configuration has said
+// what the site's language is: startLanguage() sets it as the last load found it, and a
+// load that finds it new to the browser, or changed, loads again (followSite()).
 
 import { catalogueFor, interfaceLanguageTag } from '../catalogues.js';
 
@@ -35,13 +35,33 @@ export function chosenLanguage(storage = globalThis.localStorage) {
   return catalogueFor(locale);
 }
 
+// Sveltia's preference, before Sveltia loads, in the site's language as the last load
+// found it, for an editor who has chosen none: after Automatic too.
+export function startLanguage(storage = globalThis.localStorage) {
+  const known = storage.getItem(SET);
+  if (known === null || chosenLanguage(storage) !== null) return;
+  try {
+    storage.setItem(PREFERENCES, JSON.stringify({ ...held(storage), locale: known }));
+  } catch {
+    // Sveltia then takes the browser's language, and followSite() keeps the editor from loading again.
+  }
+}
+
 // Sveltia set to the site's interface language, `language`, for an editor who has chosen
 // none, keeping its other preferences; or left to take the browser's, the first of
-// `browser`, the browser's languages, where that is the site's.
+// `browser`, the browser's languages, where that is the site's. Whether Sveltia has
+// loaded in another language, so that the editor must load again: never where the
+// browser keeps nothing, which would load it again and again.
 export function followSite(language, storage = globalThis.localStorage, browser = globalThis.navigator?.languages ?? []) {
+  const before = held(storage).locale ?? AUTOMATIC;
   const locale = subtagOf(browser[0]) === language ? AUTOMATIC : interfaceLanguageTag(language);
-  storage.setItem(PREFERENCES, JSON.stringify({ ...held(storage), locale }));
-  storage.setItem(SET, locale);
+  try {
+    storage.setItem(PREFERENCES, JSON.stringify({ ...held(storage), locale }));
+    storage.setItem(SET, locale);
+  } catch {
+    return false;
+  }
+  return before !== locale && held(storage).locale === locale;
 }
 
 // What the editor was loaded with: the editor's choice, `chosen`, and Sveltia's

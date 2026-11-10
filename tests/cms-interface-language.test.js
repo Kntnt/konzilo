@@ -1,11 +1,12 @@
 // The interface language in the editor's browser: the editor's own choice, made through
 // Sveltia's language preference, else the site's, which Konzilo sets as Sveltia's
 // preference where the browser's language would not give it, so that Sveltia's own
-// interface follows it too.
+// interface follows it too: before Sveltia loads, as the last load found it, and once
+// more, by loading again, where a load finds it new or changed.
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { chosenLanguage, followSite, languageChanged, loadedWith } from '../src/cms/interface-language.js';
+import { chosenLanguage, followSite, languageChanged, loadedWith, startLanguage } from '../src/cms/interface-language.js';
 
 const storage = (items = {}) => ({
   items,
@@ -83,4 +84,31 @@ test('Sveltia left to take the browser\'s language loads nothing again until a p
   assert.equal(languageChanged(site, held), false);
   choose(held, 'sv');
   assert.equal(languageChanged(site, held), true);
+});
+
+test('says whether Sveltia, started in another language, must start again in the site\'s', () => {
+  const held = storage();
+  assert.equal(followSite('en', held, ['en-GB']), false, 'Sveltia takes the browser\'s by itself');
+  assert.equal(followSite('sv', held, ['en-GB']), true, 'the site\'s is new');
+  assert.equal(followSite('sv', held, ['en-GB']), false, 'and then known');
+  assert.equal(followSite('en', held, ['en-GB']), true, 'the site\'s has changed');
+  const refusing = { getItem: () => null, setItem: () => { throw new Error('no storage'); } };
+  assert.equal(followSite('sv', refusing, ['en-GB']), false, 'a browser that keeps nothing is never loaded again for it');
+  const forgetting = { getItem: () => null, setItem: () => {} };
+  assert.equal(followSite('sv', forgetting, ['en-GB']), false);
+});
+
+test('before Sveltia loads, sets its preference to the site\'s language as the last load found it, unless the editor has chosen one', () => {
+  const fresh = storage();
+  startLanguage(fresh);
+  assert.deepEqual(fresh.items, {}, 'nothing is known in a browser new to the site');
+  const held = storage();
+  followSite('sv', held, ['en-GB']);
+  choose(held, 'auto');
+  startLanguage(held);
+  assert.equal(preferences(held).locale, 'sv', 'Automatic is the site\'s');
+  assert.equal(followSite('sv', held, ['en-GB']), false);
+  choose(held, 'en-US');
+  startLanguage(held);
+  assert.equal(preferences(held).locale, 'en-US', 'the editor\'s choice stays');
 });
