@@ -123,10 +123,16 @@ export function translationsAmong(entry, entries, languages) {
 
 // Whether search engines are told of an entry's page: unless the entry of a
 // type (the site description's, as checked) asks in its search and sharing
-// fields to be kept from them, `noindex`.
-export function indexed(entry, type) {
+// fields to be kept from them, `noindex`, or names a canonical address other
+// than its page's own, its address in `languages` on the public host
+// `origin`: its page is then a copy of the page at that address.
+export function indexed(entry, type, languages, origin) {
   const seo = type.fields.find((field) => field.kind === 'seo');
-  return !(seo && entry.data?.[seo.name]?.noindex === true);
+  const own = seo ? entry.data?.[seo.name] : undefined;
+  if (own?.noindex === true) return false;
+  if (!own?.canonical) return true;
+  const address = entryAddress(type, entry.id, languages);
+  return Boolean(origin) && address !== null && own.canonical === new URL(address, origin).href;
 }
 
 // The pages in each language that search engines are told an entry's page
@@ -135,13 +141,13 @@ export function indexed(entry, type) {
 // translation set among `entries`, the entries of its collection the build
 // has, of its type `type`, as translationsAmong() gives them, the entry
 // itself among them, each { language, entry, address }, but a member
-// without an address and one kept from search engines. None on a site in
-// one language, or for an entry kept from them itself; an entry without a
-// translation has itself alone.
-export function alternatesAmong(entry, entries, type, languages) {
-  if (languages.length <= 1 || !indexed(entry, type)) return [];
+// without an address and one kept from search engines (indexed(), on the
+// public host `origin`). None on a site in one language, or for an entry
+// kept from them itself; an entry without a translation has itself alone.
+export function alternatesAmong(entry, entries, type, languages, origin) {
+  if (languages.length <= 1 || !indexed(entry, type, languages, origin)) return [];
   return translationsAmong(entry, entries, languages)
-    .filter((member) => indexed(member, type))
+    .filter((member) => indexed(member, type, languages, origin))
     .map((member) => ({ language: entryLanguage(member.id, languages), entry: member, address: entryAddress(type, member.id, languages) }))
     .filter(({ address }) => address !== null);
 }

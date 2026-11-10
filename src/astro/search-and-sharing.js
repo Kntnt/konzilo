@@ -14,10 +14,12 @@
 //   type has a teaser falls back to what its teaser shows before the
 //   templates, cut as a search result and a shared link show it
 //   (article-parts.js);
-// - its canonical address, the post's public address on the public host,
-//   under its language's prefix on a site in several languages,
-//   or, on a later page of its list with pages of its own, that
-//   page's, `<address>page/<n>/`;
+// - its canonical address, as its canonical link and Open Graph's address:
+//   the one the post names, such as the original's where it was published
+//   elsewhere first, else the post's public address on the public host,
+//   under its language's prefix on a site in several languages;
+//   on a later page of its list with pages of its own, that page's,
+//   `<address>page/<n>/`, which the original has not got;
 // - on a site in several languages, `hreflang` links to the page in each
 //   language it is in, itself included, and `x-default` to the main
 //   language's, where it is in that one, but a translation marked noindex,
@@ -27,7 +29,7 @@
 //   post asks for it, or on a later page of its list, which is noindex;
 // - Open Graph's type, `article` for the Article types, with the post's
 //   date and last change, `website` for any other, and its title,
-//   description, address, the site's title and its language;
+//   description, the site's title and its language;
 // - the sharing image, the post's own, else its featured image, else the
 //   default sharing image, else the site's logo, else none, made 1200 × 630,
 //   cropped to fill, as a JPEG, with its alt text, for Open Graph and X;
@@ -124,6 +126,7 @@ export async function headTags({ entry = null, title, description, path, page: n
   const image = chosen && await sharingImage(chosen, origin, getImage);
   const logo = settings?.logo ? await logoImage(settings.logo, origin, getImage) : null;
   const url = new URL(page.path, origin).href;
+  const canonical = page.canonical ?? url;
   const meta = (key, name, content) => (content ? [{ tag: 'meta', attributes: { [key]: name, content } }] : []);
   const og = (name, content) => meta('property', name, content);
   const twitter = (name, content) => meta('name', name, content);
@@ -146,14 +149,14 @@ export async function headTags({ entry = null, title, description, path, page: n
   return [
     { tag: 'title', text: page.title },
     ...meta('name', 'description', page.description),
-    { tag: 'link', attributes: { rel: 'canonical', href: url } },
+    { tag: 'link', attributes: { rel: 'canonical', href: canonical } },
     ...inLanguages.map((one) => hreflang(one.tag, one.path)),
     ...(main ? [hreflang('x-default', main.path)] : []),
     ...meta('name', 'robots', page.robots),
     ...og('og:type', page.article ? 'article' : 'website'),
     ...og('og:title', page.socialTitle),
     ...og('og:description', page.socialDescription),
-    ...og('og:url', url),
+    ...og('og:url', canonical),
     ...og('og:site_name', siteTitle),
     ...og('og:locale', locale),
     ...(image ? [...og('og:image', image.src), ...og('og:image:width', String(image.width)), ...og('og:image:height', String(image.height)), ...og('og:image:alt', image.alt)] : []),
@@ -205,9 +208,9 @@ async function termPage({ entry, taxonomy, number, search, siteTitle }, known, g
 }
 
 // What a post's page says: the post's own values, else its type's templates
-// rendered, at its public address, with its own image or its featured image.
-// Its later page `number` of a list with pages is at its own address,
-// `noindex`.
+// rendered, at its public address, with its own image or its featured image,
+// canonical to the address it names, if any. Its later page `number` of a
+// list with pages is at its own address, canonical to itself, `noindex`.
 async function postPage({ entry, type, path, number, search, site }, known, getEntries) {
   const terms = {};
   for (const field of type.fields.filter((found) => found.kind === 'terms' && found.taxonomy)) {
@@ -233,6 +236,7 @@ async function postPage({ entry, type, path, number, search, site }, known, getE
     socialTitle: seo.socialTitle || shown(socialTitleOf) || render(templates.socialTitle) || titleTag,
     socialDescription: seo.socialDescription || shown(socialDescriptionOf) || render(templates.socialDescription) || metaDescription,
     path: address === null ? path : listPageAddress(address, number),
+    canonical: !later && seo.canonical ? seo.canonical : null,
     robots: [(seo.noindex || later) && 'noindex', seo.nofollow && 'nofollow'].filter(Boolean).join(', '),
     schema,
     article: ARTICLES.has(schema),
