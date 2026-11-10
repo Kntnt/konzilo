@@ -123,6 +123,57 @@ describe('the form in Sveltia', () => {
   });
 });
 
+// The editor's own check at Save, which stops a scheduled post whose moment is not ahead, so
+// that a slip of the year publishes nothing early. The intake publishes such a post at once,
+// with a warning, which is for a file saved some other way (ADR 0069).
+describe('a scheduled post at Save in Sveltia', () => {
+  let site;
+  let page;
+  let seen;
+
+  before(async () => {
+    const declared = JSON.parse(readFileSync(`${core}site-template/files/site-description.json`, 'utf8'));
+    const config = cmsConfig(siteDescription(declared), { forgejo: 'http://localhost:1', repository: 'a/b', clientId: 'c', site: 'http://localhost:2' });
+    site = await openFieldPage({ config: { ...config, backend: { name: 'test-repo' } } });
+    ({ page, seen } = await site.newPage({ viewport: { width: 1400, height: 1200 } }));
+    await page.getByRole('button', { name: 'Work with Test Repository' }).click();
+    await page.getByText('Articles', { exact: true }).first().waitFor();
+  }, { timeout: 120_000 });
+
+  after(() => site?.close());
+
+  test('is refused with a moment in the past, saying why, and saves with one ahead', async () => {
+    await page.goto(`${new URL(page.url()).origin}/#/collections/articles/new`);
+    await page.locator('.konzilo-body-visual .ProseMirror').waitFor();
+    // An article needs its main headline, and nothing else but its moment can stop it here.
+    await page.getByRole('textbox', { name: 'Working name', exact: true }).fill('Out on time');
+    await page.getByRole('textbox', { name: 'Main headline', exact: true }).fill('Out on time');
+    await page.getByRole('radio', { name: 'Scheduled' }).click();
+    const date = page.locator('.field[data-key-path="date"] input[type="datetime-local"]');
+    await date.scrollIntoViewIfNeeded();
+    await date.fill('2020-01-01T09:00');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    const dialog = page.getByRole('alertdialog');
+    await dialog.getByText('The site cannot publish this, so nothing has been saved').waitFor();
+    await dialog.getByText('A scheduled post is published at its moment, which needs to lie ahead. Change the date and time, or choose another status.').waitFor();
+    assert.equal(await dialog.getByText('Please try again later').count(), 0);
+    await dialog.getByRole('button', { name: 'OK' }).click();
+    assert.match(await page.evaluate(() => window.location.hash), /\/new$/, 'nothing is saved');
+    assert.equal(await date.inputValue(), '2020-01-01T09:00', 'and the form is as it was');
+
+    await date.fill('2999-01-01T09:00');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.waitForFunction(() => /\/entries\//.test(window.location.hash));
+  });
+
+  test('has asked nothing outside, and broken no policy', () => {
+    assert.deepEqual(seen.outside, []);
+    assert.deepEqual(seen.refused, []);
+    // Sveltia logs the refusal it showed, and nothing else.
+    assert.deepEqual(seen.errors.map((one) => one.split('\n')[0]), ['Error: A scheduled post is published at its moment, which needs to lie ahead. Change the date and time, or choose another status.']);
+  });
+});
+
 describe('the interface language in Sveltia', () => {
   let site;
   let page;
@@ -263,6 +314,54 @@ describe('the interface language in Sveltia', () => {
         await own.page.getByText(editor.file).waitFor();
         assert.deepEqual(own.seen.outside, []);
         assert.deepEqual(own.seen.refused, []);
+      } finally {
+        await own.context.close();
+      }
+    }
+  });
+
+  // A scheduled post the intake published at once, since its moment had passed when it was
+  // first read: live, with the warning, its moment in the interface language's own form and
+  // in the browser's time zone.
+  test('warns in the publish status, in the interface language, of a scheduled post published at once', async () => {
+    const post = { id: 'bbbbbbbbbbbb', type: 'article', title: 'Imported long ago' };
+    const answer = {
+      posts: [{ file: 'articles/bbbbbbbbbbbb.md', version: 'v1', status: 'live', ...post, address: '/imported-long-ago/', warnings: [named({ post, file: 'articles/bbbbbbbbbbbb.md', field: 'date', reason: say('warning.scheduled-passed', { moment: { moment: '2026-01-01T12:00:00Z' } }) })] }],
+      others: { refusals: [], warnings: [] },
+      reason: null,
+      at: '2026-11-10T12:00:00Z',
+    };
+    const editors = [
+      {
+        locale: null, start: 'Arbeta med test-repo', words: 'Publicerad på webbplatsen, men se över det här:',
+        warning: /^fältet date: inlägget är schemalagt till 1 januari 2026 kl\. \d\d:00 \S+, en tidpunkt som redan hade passerat när webbplatsen först läste det, så det publiceras direkt, med den tidpunkten som datum$/,
+      },
+      {
+        locale: 'en-GB', start: 'Work with Test Repository', words: 'Live on the site, with something to look at:',
+        warning: /^the field date: the post is scheduled for 1 January 2026 at \d\d:00 \S+, which had already passed when the site first read it, so it is published at once, with that moment as its date$/,
+      },
+    ];
+    for (const editor of editors) {
+      const own = await site.newPage({ language: 'en-US', viewport: { width: 1400, height: 1200 } });
+      try {
+        await own.context.route('**/_konzilo/status', (route) => route.fulfill({ json: answer }));
+        await own.page.getByRole('button', { name: editors[0].start }).waitFor();
+        if (editor.locale) {
+          await own.page.evaluate((locale) => localStorage.setItem('sveltia-cms.prefs', JSON.stringify({ locale })), editor.locale);
+          await own.page.reload();
+        }
+        await own.page.getByRole('button', { name: editor.start }).click();
+        // The service asks Forgejo who is asking, so the page sends what Sveltia signed in with.
+        await own.page.waitForFunction(() => localStorage.getItem('sveltia-cms.user') !== null);
+        await own.page.evaluate(() => localStorage.setItem('sveltia-cms.user', JSON.stringify({ ...JSON.parse(localStorage.getItem('sveltia-cms.user')), token: 'a-token' })));
+        await own.page.goto(`${new URL(own.page.url()).origin}/#/collections/pages`);
+        await own.page.getByRole('radio', { name: /^(?:Publishing|Publicering)$/ }).click();
+        const row = own.page.getByRole('row', { name: /Imported long ago/ });
+        await row.getByText(editor.words).waitFor();
+        await row.getByText(editor.warning).waitFor();
+        assert.deepEqual(own.seen.outside, []);
+        assert.deepEqual(own.seen.refused, []);
+        assert.deepEqual(own.seen.errors, []);
       } finally {
         await own.context.close();
       }

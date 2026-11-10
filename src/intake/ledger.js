@@ -4,7 +4,8 @@
 // while it is off the site, and those it had while live; its title as published; the
 // source file's hash and the published version's; when the intake first took it and when
 // its published version last changed; and what its file names, since a refused post's
-// kept file holds on to them. Beside the posts: the old addresses of terms' pages, the
+// kept file holds on to them. Beside the posts: the moment each scheduled post was seen
+// waiting for, while it is still scheduled for it; the old addresses of terms' pages, the
 // source hash of each file of an Admin's that was accepted, what the settings last
 // chose and the masters they last named, since a refused settings file's kept file holds
 // on to them, and the consent revision with the day it last changed.
@@ -12,7 +13,7 @@
 import { isObject } from '../checks.js';
 import { keyOf } from '../format/redirects.js';
 
-export const emptyLedger = () => ({ posts: {}, terms: {}, files: {}, chosen: { legalPages: [], notFound: null }, settingsMedia: [], consent: null });
+export const emptyLedger = () => ({ posts: {}, awaited: {}, terms: {}, files: {}, chosen: { legalPages: [], notFound: null }, settingsMedia: [], consent: null });
 
 // A ledger read from a file: only the shape the intake writes is believed. A file written
 // by another hand is not assumed to be right, and counts for nothing.
@@ -21,6 +22,7 @@ export function normalLedger(given) {
   if (!isObject(given) || !isObject(given.posts)) return empty;
   return {
     posts: given.posts,
+    awaited: isObject(given.awaited) ? given.awaited : empty.awaited,
     terms: isObject(given.terms) ? given.terms : empty.terms,
     files: isObject(given.files) ? given.files : empty.files,
     chosen: isObject(given.chosen) ? { legalPages: given.chosen.legalPages ?? [], notFound: given.chosen.notFound ?? null } : empty.chosen,
@@ -100,8 +102,10 @@ export function nextLedger(run, settings) {
     const held = run.gated.has(path) || refusedFile(run, path);
     if (!held) files[path] = hash;
   }
+  const awaited = Object.fromEntries(source.posts.filter((post) => post.awaited).map((post) => [post.key, post.awaited]));
   return {
     posts: sortedKeys(posts),
+    awaited: sortedKeys(awaited),
     terms: sortedKeys(terms),
     files: sortedKeys(files),
     chosen: settings.refused ? ledger.chosen : run.chosen,

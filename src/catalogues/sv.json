@@ -835,6 +835,7 @@
   "warning.publisher-missing": "webbplatsen har inget utgivarnamn, så sidfoten visar inga av utgivarens uppgifter; ge den ett, eller en titel för webbplatsen",
   "warning.departure-service": "avsteget anger tjänsten {service}, som ingen av webbplatsens sidor låter en besökare nå",
   "warning.departure-tracker": "avsteget räknar utan lagring bara med Matomos egen spårare, som webbplatsinställningarna inte väljer, så ingenting räknas före samtycke",
+  "warning.scheduled-passed": "inlägget är schemalagt till {moment}, en tidpunkt som redan hade passerat när webbplatsen först läste det, så det publiceras direkt, med den tidpunkten som datum",
   "about.inline.strong": "fetstil",
   "about.inline.em": "kursiv stil",
   "about.inline.a": "en länk",
