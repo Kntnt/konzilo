@@ -391,9 +391,13 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
   return {
     load_config_file: false,
     // Konzilo's own, which the editor takes out before Sveltia sees the rest: where this copy
-    // of the site has its live preview, and which collections have pages to show there.
-    ...(preview === null ? {} : {
-      konzilo: { preview: { origin: preview, collections: Object.values(description.types).filter((type) => type.address).map((type) => type.collection) } },
+    // of the site has its live preview, and which collections have pages to show there, and
+    // the site's own components, which its bodies may hold beside the core's elements.
+    ...(preview === null && Object.keys(description.components).length === 0 ? {} : {
+      konzilo: {
+        ...(preview === null ? {} : { preview: { origin: preview, collections: Object.values(description.types).filter((type) => type.address).map((type) => type.collection) } }),
+        ...(Object.keys(description.components).length === 0 ? {} : { components: description.components }),
+      },
     }),
     app_title: 'Konzilo',
     site_url: site,

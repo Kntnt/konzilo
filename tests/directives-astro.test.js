@@ -74,7 +74,7 @@ const body = [
 ].join('\n\n');
 
 // A site repository with `files`, built; { status, output, html(slug) }.
-function build(files, directives = {}) {
+function build(files, directives = {}, described = site) {
   const repository = mkdtempSync(join(tmpdir(), 'konzilo-directives-'));
   repositories.push(repository);
   // The core's dependencies, each on its own, for a package of the site's to stand among them.
@@ -88,7 +88,7 @@ function build(files, directives = {}) {
   };
   write('astro.config.mjs', `import konzilo from ${JSON.stringify(integration)};\n\nexport default { cacheDir: './${CACHE_DIR}', vite: { cacheDir: './${CACHE_DIR}/vite' }, integrations: [konzilo({ directives: ${JSON.stringify(directives)} })] };\n`);
   write('src/content.config.mjs', `import { collections as konziloCollections } from ${JSON.stringify(integration)};\n\nexport const collections = konziloCollections();\n`);
-  write('site-description.json', JSON.stringify(site));
+  write('site-description.json', JSON.stringify(described));
   write('src/pages/[slug].astro', page);
   for (const [path, contents] of Object.entries({ ...components, ...files })) write(path, contents);
   const built = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
@@ -140,6 +140,53 @@ describe('Astro', () => {
   });
 });
 
+describe("a site's own components", () => {
+  const own = {
+    components: {
+      panel: { label: 'Panel', form: 'container', body: 'blocks', attributes: { tone: { type: 'string', label: 'Tone', values: ['plain', 'bright'], default: 'plain' } } },
+      kicker: { label: 'Kicker', form: 'leaf', body: 'text' },
+      list: { label: 'Series', form: 'container', body: 'blocks', attributes: {} },
+    },
+    types: { post: { ...site.types.post, elements: ['paragraph', 'list', 'heading', 'panel', 'kicker', 'list-directive'] } },
+  };
+  const ownBody = [
+    ':::panel{tone="bright"}',
+    '::kicker[A _kicker_]',
+    '## Inside',
+    '::::list',
+    '- One\n- Two',
+    '::::',
+    ':::',
+  ].join('\n\n');
+
+  test('renders the components the site description declares, as their plain rendering or by the component the site gives', () => {
+    const plain = build({ 'content/articles/hello-world.md': post(ownBody) }, {}, own);
+    assert.equal(plain.status, 0, plain.output);
+    assert.equal(plain.article('hello-world').replaceAll('\n', ''), [
+      '<div data-directive="panel" data-tone="bright">',
+      '<div data-directive="kicker">A <em>kicker</em></div>',
+      '<h2 id="inside">Inside</h2>',
+      '<div data-directive="list"><ul><li>One</li><li>Two</li></ul></div>',
+      '</div>',
+    ].join(''));
+    const given = build({ 'content/articles/hello-world.md': post(ownBody) }, { panel: './src/components/Note.astro' }, own);
+    assert.equal(given.status, 0, given.output);
+    assert.match(given.article('hello-world'), /<aside class="site-note"><b><\/b><div data-directive="kicker">/);
+  });
+
+  test('refuses a value a component does not take, naming the file and the line', () => {
+    const built = build({ 'content/articles/hello-world.md': post(':::panel{tone="dark"}\n\nText\n\n:::') }, {}, own);
+    assert.notEqual(built.status, 0);
+    assert.match(built.output, /content\/articles\/hello-world\.md: line 5: the site cannot publish the setting "tone" with the value "dark"/);
+  });
+});
+
 test('the integration refuses a component for a directive the registry has not got', () => {
-  assert.throws(() => konzilo({ directives: { poll: './src/components/Poll.astro' } }), /the site gives a component for the directive poll, which the rule data has not got/);
+  const built = build({ 'content/articles/hello-world.md': post('Fine'), 'src/components/Poll.astro': '<p>Poll</p>\n' }, { poll: './src/components/Poll.astro' });
+  assert.notEqual(built.status, 0);
+  assert.match(built.output, /the site gives a component for the directive poll, which neither the rule data nor the site description declares/);
+});
+
+test('the integration still refuses a component for the post list, which it renders itself', () => {
+  assert.throws(() => konzilo({ directives: { 'post-list': './src/components/List.astro' } }), /renders the directive post-list itself/);
 });

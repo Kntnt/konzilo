@@ -74,6 +74,7 @@ The site description, `site-description.json` in the site repository, declares t
 - **`menus`**, each a file of its own, and **`settings`**, the site's own settings, in the order `settings.json` holds them; on a site in several languages a text setting that declares `"translated": true` has a value in each language.
 - **`forms`**, which a form in a body names ([Forms](#forms)) and each of whose confirmation text `settings.json` holds, and **`consent`**, the site's departures from the consent rules, which `consent.json` holds, and `domain`, the domain the consent choice is kept on for every site below it, which the consent's own storage in `consent.json` names.
 - **`images`**, the widths an image is checked against, which decide which images the site refuses, not how a file names them.
+- **`components`**, the site's own components, each a directive a body may hold beside the core's elements, and **`componentChecks`**, the module of the site's that checks what they hold ([A site's own components](#a-sites-own-components)).
 
 What the description declares for the editors alone, such as a type's `label` and `plural` and a field's `label` and `control`, is not described here; nor are `security` and a form's fields, which decide no content file.
 
@@ -289,6 +290,7 @@ The body is Markdown, as GFM, GitHub's Markdown, writes it, with raw HTML where 
 | [Galleries](#galleries) | `gallery`, each image an `image` |
 | [Post lists](#post-lists) | `post-list` |
 | [Forms](#forms) | `form` |
+| [A site's own components](#a-sites-own-components) | the component's name, or `<name>-directive` |
 
 ### Paragraphs
 
@@ -485,7 +487,7 @@ A post list, a list of posts the site picks at every build, is the leaf directiv
 ::post-list{type="article" order="title" presentation="cards" columns="3"}
 ```
 
-A directive's name follows `::` for a leaf, a directive with no body, and `:::` for a container, which holds blocks, then a blank line, the blocks, a blank line and its closing fence, a colon more than any fence inside. Its attributes are `name="value"`, apart by a space, a value with `&`, `"` and `}` written as `&amp;`, `&quot;` and `&#125;`, and a line feed and a carriage return as `&#10;` and `&#13;`. The rule data registers each directive the site knows, the post list and the [form](#forms) today; a directive it does not register reads as its text, and the intake escapes every colon that would begin one ([Escapes and fallbacks](#escapes-and-fallbacks)).
+A directive's name follows `::` for a leaf, a directive with no body, and `:::` for a container, which holds blocks, then a blank line, the blocks, a blank line and its closing fence, a colon more than any fence inside. Its attributes are `name="value"`, apart by a space, a value with `&`, `"` and `}` written as `&amp;`, `&quot;` and `&#125;`, and a line feed and a carriage return as `&#10;` and `&#13;`. The rule data registers each directive the core knows, the post list and the [form](#forms), and a site adds [its own](#a-sites-own-components); a directive neither registers reads as its text, and the intake escapes every colon that would begin one ([Escapes and fallbacks](#escapes-and-fallbacks)).
 
 ### Forms
 
@@ -495,6 +497,70 @@ A form, one of those the site description declares under `forms`, is the leaf di
 Write to us, and we answer within a day.
 
 ::form{name="contact"}
+```
+
+### A site's own components
+
+A site declares components of its own in its site description, under `components`, each by the name of its directive: its `label`, the name an editor reads; its `form`, `leaf`, a directive on a line of its own, or `container`, around blocks; its `body`, a leaf's `none` or `text`, a label in brackets after its name, or a container's `blocks`; and its `attributes`, each by its name in camelCase, with its `type`, `string`, `integer` or `boolean`, the `values` it takes or a `pattern` of them, its `default` or `required`, the `label` an editor reads, and the `refusal`, the site's words for a value it does not take, with `{value}` for the value. No component is named as the core's own directives, `post-list` and `form`.
+
+A component is a body element by its name, or by `<name>-directive` where the core has an element of that name, as Markdown's list is `list`; a type's `elements` names it so, and the directive keeps the component's name. A leaf's label holds the inline elements of a heading. A container holds blocks, each an element the type takes, images and other components among them, a blank line after its opening fence and before its closing one, and its fence is one colon longer than the longest fence inside it. An attribute at its default is left out, the others are written in the order the site description declares them, and a value the component does not take is refused, in the site's words where it gives a `refusal`.
+
+`componentChecks`, the path of a JavaScript module in the site repository, checks what a component holds beyond its attributes: its export `componentProblems(name, attributes, blocks)` gives the reasons the site cannot publish a component, in words an editor reads, and the post is refused for each.
+
+A site with three components of its own:
+
+```json site-description=components
+{
+  "language": "en_GB",
+  "components": {
+    "section": {
+      "label": "Section",
+      "form": "container",
+      "body": "blocks",
+      "attributes": {
+        "surface": { "type": "string", "label": "Surface", "values": ["page", "raised"], "default": "page" }
+      }
+    },
+    "eyebrow": { "label": "Eyebrow", "form": "leaf", "body": "text" },
+    "list": { "label": "Series", "form": "container", "body": "blocks" }
+  },
+  "types": {
+    "page": {
+      "label": "Page",
+      "plural": "Pages",
+      "collection": "pages",
+      "address": "/{slug}/",
+      "elements": ["paragraph", "heading", "list", "section", "eyebrow", "list-directive"],
+      "fields": {}
+    }
+  }
+}
+```
+
+A section on its raised surface, holding an eyebrow, a heading and a series:
+
+```markdown body site=components read
+::::section{surface="raised"}
+
+::eyebrow[Opening _hours_]
+
+## Every day
+
+:::list
+
+- From 10 to 18
+- Closed on midsummer's eve
+
+:::
+
+::::
+```
+
+```html rendered
+<div data-directive="section" data-surface="raised"><div data-directive="eyebrow">Opening <em>hours</em></div><h2>Every day</h2><div data-directive="list"><ul>
+<li>From 10 to 18</li>
+<li>Closed on midsummer's eve</li>
+</ul></div></div>
 ```
 
 ### Inline elements
@@ -1276,7 +1342,7 @@ The site's reader gives these shapes a meaning beyond Markdown's:
 - **A paragraph of one address an embed service takes** is that service's player ([Embeds](#embeds)).
 - **An empty `<a id>` before a heading's text** is the heading's id ([Headings](#headings)).
 - **A quote's last paragraph wrapped in `<cite>`** is its citation ([Quotes](#quotes)).
-- **A directive the rule data registers**, the post list or the form, is that component; any other reads as its text ([Post lists](#post-lists), [Forms](#forms)).
+- **A directive the rule data registers**, the post list or the form, or one of the site's own components, is that component; any other reads as its text ([Post lists](#post-lists), [Forms](#forms), [A site's own components](#a-sites-own-components)).
 - **An empty HTML comment**, `<!-- -->`, shows nothing.
 
 ## Source files

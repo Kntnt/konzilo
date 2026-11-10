@@ -10,6 +10,7 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { promisify } from 'node:util';
 
+import { componentChecksOf } from '../src/intake/component-checks.js';
 import { readSiteDescription, SITE_DESCRIPTION_FILE } from '../src/site-description.js';
 import { devServer } from '../src/preview/dev-server.js';
 import { previewGate } from '../src/preview/gate.js';
@@ -50,7 +51,8 @@ const source = gitSource({
   home: '/work/home',
 });
 
-const runner = previewRunner({ site: readSiteDescription(`/site/${SITE_DESCRIPTION_FILE}`), source, content: `${SITE_FOLDER}/content`, adminHost });
+const described = readSiteDescription(`/site/${SITE_DESCRIPTION_FILE}`);
+const runner = previewRunner({ site: described, source, content: `${SITE_FOLDER}/content`, adminHost, components: await componentChecksOf(described, '/site') });
 
 const dev = devServer({
   root: SITE_FOLDER,

@@ -26,6 +26,7 @@ import { parseArgs } from 'node:util';
 
 import { POST_IDS_FILE } from '../src/format/write.js';
 import { postFiles, walk, writeContent } from '../src/intake/content-folder.js';
+import { componentChecksOf } from '../src/intake/component-checks.js';
 import { imagesFrom, namedOriginals } from '../src/intake/images.js';
 import { deletion, intake } from '../src/intake/index.js';
 import { readSiteDescription, SITE_DESCRIPTION_FILE } from '../src/site-description.js';
@@ -85,7 +86,8 @@ try {
   const changes = parsed.values.admins ? lastChanges(readJson(parsed.values.admins), readJson(parsed.values.pushers)) : {};
   const adminHost = process.env.KONZILO_ADMIN_ORIGIN ? new URL(process.env.KONZILO_ADMIN_ORIGIN).hostname : null;
 
-  const result = intake({ files, site, now: new Date(), ledger, changes, images, adminHost });
+  const components = await componentChecksOf(site, siteFolder);
+  const result = intake({ files, site, now: new Date(), ledger, changes, images, adminHost, components });
 
   const guard = deletion(postFiles(content, site), result, { confirmed: parsed.values.confirm ?? null });
   if (guard.stop) {

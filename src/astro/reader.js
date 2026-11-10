@@ -48,28 +48,30 @@ export const markdownHastPlugins = Object.freeze(markdownHastPluginsIn(null));
 
 // Sätteri's Markdown tree plugins, for the site: its directives,
 // each one the registry refuses failing the build, naming the file, the line
-// and the reason. `checks`: the site's own checks of a directive, by its
+// and the reason. `known`: the registry of the site's directives, the core's
+// and its components (directives.js). `checks`: the site's own checks of a directive, by its
 // name, as directiveReader() takes them: the integration checks each post
 // list against the site description. `leaveOut`: the site's
 // reasons to leave a directive out of the page, by its name, each handed to
 // `warn(message)`, naming the file and the line, rather than failing the
 // build.
-export function markdownMdastPlugins({ checks, leaveOut, warn = () => {} } = {}) {
+export function markdownMdastPlugins({ checks, leaveOut, warn = () => {}, known } = {}) {
   return [directiveReader(({ file, line, reason }) => {
     throw new Error(`${file ?? 'a content file'}: line ${line}: ${reason}`);
-  }, { checks, leaveOut, warn: ({ file, line, reason }) => warn(`${file ?? 'a content file'}: line ${line}: ${reason}`) })];
+  }, { checks, leaveOut, known, warn: ({ file, line, reason }) => warn(`${file ?? 'a content file'}: line ${line}: ${reason}`) })];
 }
 
 // A content file as the site reads it: its frontmatter, its body as a
 // Markdown tree (mdast, without positions), its body as the HTML the site
 // renders, and the problems its directives have, by the line of the body,
-// as { line, reason }, which would fail the site's build.
-export function readContentFile(text) {
+// as { line, reason }, which would fail the site's build. `known`: the registry
+// of the site's directives, by default that of the site description at the root.
+export function readContentFile(text, { known } = {}) {
   const { frontmatter, content } = parseFrontmatter(text);
   // Astro trims the body of a Markdown entry before it renders it.
   const body = content.trim();
   const problems = [];
-  const reader = directiveReader(({ line, reason }) => problems.push({ line, reason }));
+  const reader = directiveReader(({ line, reason }) => problems.push({ line, reason }), { known });
   return {
     data: frontmatter,
     tree: markdownToMdast(body, { features: markdownFeatures, position: false }),

@@ -16,7 +16,7 @@
 - **A name** is lowercase letters, digits and hyphens, starting with a letter.
 - **Attributes** are `name="value"`, one space apart, in the order the registry lists them, and only those whose value differs from its default. A name is in camelCase, and never `id`, `class` or `content`. A value is text, a whole number or `true` or `false`, always between double quotes. In a value, `&`, `"`, `}`, a line feed and a carriage return are written as `&amp;`, `&quot;`, `&#125;`, `&#10;` and `&#13;`.
 
-**The registry** is in the rule data, `{ name, form, attributes, body }`, each attribute `{ type, required, default, values, pattern, declared, refusal }`, and `body` `none` or `text` for a leaf, and `blocks` for a container. `declared` says that a value names what the site description declares under that key. The core registers its own, and a site adds its own in its site description.
+**The registry** is in the rule data, `{ name, form, attributes, body }`, each attribute `{ type, required, default, values, pattern, declared, refusal }`, and `body` `none` or `text` for a leaf, and `blocks` for a container. `declared` says that a value names what the site description declares under that key. The core registers its own, and a site adds its own in its site description, under `components`, read as [ADR 0060](0060-let-a-site-declare-its-components-and-check-what-they-hold.md) says.
 
 **An unregistered name reads as the literal text it was written as:** `:30` of `10:30` stays `:30`. The build refuses a registered directive against its rule, in another form or with a value it does not allow, and one the registry has not got that no text becomes by chance, naming the file, the line and the reason.
 

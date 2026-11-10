@@ -9,14 +9,17 @@
 //                                         blocks, closed by as many colons
 //
 // The registry is the rule data's: each element whose rule has a `directive`,
-// { name, form, attributes, body }, is written as that directive. This file
-// reads the registry for the site's reader and the site's Body component.
+// { name, form, attributes, body }, is written as that directive, the core's own
+// and the components the site description declares (format/components.js). This
+// file reads the registry for the site's reader and the site's Body component.
 
-import { readFileSync } from 'node:fs';
-import { relative } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { htmlToHast } from 'satteri';
 import rules from '../format/rules.json' with { type: 'json' };
+import { SITE_DESCRIPTION_FILE, siteRules } from '../site-description.js';
+import { describedSite } from './languages.js';
 
 // The forms Konzilo writes, the bodies each form may have, and the types of
 // an attribute. Konzilo writes no inline directive (`:name`): no element
@@ -79,6 +82,21 @@ export function directiveRegistry({ elements }) {
 
 // The core's registry, from its rule data.
 export const registry = directiveRegistry(rules);
+
+// A site's registry: the core's directives and the site's components, for a
+// description as siteDescription() gives it.
+const registries = new WeakMap();
+export function registryOf(site) {
+  if (site === null || site === undefined) return registry;
+  if (!registries.has(site)) registries.set(site, directiveRegistry(siteRules(site)));
+  return registries.get(site);
+}
+
+// The registry of the site being built, by the site description at the root it
+// is built from, or the core's where there is none.
+export function siteRegistry() {
+  return existsSync(resolve(SITE_DESCRIPTION_FILE)) ? registryOf(describedSite()) : registry;
+}
 
 function typeProblem({ type }, value) {
   const fits = type === 'string' ? typeof value === 'string' : type === 'integer' ? Number.isInteger(value) : typeof value === 'boolean';
@@ -198,8 +216,8 @@ export function plainProperties(entry, values) {
 // The core's plain rendering of a directive, as a hast element: a <div>
 // carrying its name and attributes, holding its body, where the site's Body
 // component finds them.
-export function plainElement(name, values, children) {
-  const entry = registry.get(name);
+export function plainElement(name, values, children, known = registry) {
+  const entry = known.get(name);
   return { type: 'element', tagName: 'div', properties: plainProperties(entry, values), children };
 }
 
@@ -239,7 +257,7 @@ const sourceOf = (node, ctx) => ctx.source.slice(node.position.start.offset, nod
 // `warn({ file, line, reason })`, rather than failing the build: a form the
 // site description no longer declares, which the post that places it still
 // names.
-export function directiveReader(problem, { checks, leaveOut = {}, warn = () => {} } = {}) {
+export function directiveReader(problem, { checks, leaveOut = {}, warn = () => {}, known = siteRegistry() } = {}) {
   const where = (node, ctx) => ({ file: ctx.fileURL ? relative(process.cwd(), fileURLToPath(ctx.fileURL)) : null, line: fileLine(node, ctx) });
   const report = (node, ctx, reason) => problem({ ...where(node, ctx), reason });
   const literal = (node, ctx) => {
@@ -254,7 +272,7 @@ export function directiveReader(problem, { checks, leaveOut = {}, warn = () => {
   };
   const visit = (node, ctx) => {
     // No inline directive is registered: each reads as its text.
-    const { entry, values, problems } = node.type === 'textDirective' ? { entry: null, problems: [`the site has no directive :${node.name}`] } : readDirective(node, registry, checks);
+    const { entry, values, problems } = node.type === 'textDirective' ? { entry: null, problems: [`the site has no directive :${node.name}`] } : readDirective(node, known, checks);
     const bare = node.type !== 'containerDirective' && sourceOf(node, ctx).trim() === `${marks[node.type]}${node.name}`;
     if (!entry && bare) return literal(node, ctx);
     for (const reason of problems) report(node, ctx, reason);
@@ -281,7 +299,7 @@ export function directiveReader(problem, { checks, leaveOut = {}, warn = () => {
 // enough: comments and the text of raw text elements are skipped, a void
 // element has no end, and an element ends where the end tag of its name
 // that matches it is.
-export function bodyParts(html, names) {
+export function bodyParts(html, names, known = siteRegistry()) {
   if (names.length === 0 || !html.includes('data-directive=')) return [html];
   const parts = [];
   let from = 0;
@@ -291,9 +309,9 @@ export function bodyParts(html, names) {
     if (!tag) break;
     at = tag.end;
     const name = tag.closing ? undefined : tag.attributes['data-directive'];
-    if (name === undefined || !names.includes(name) || !registry.has(name) || tag.void) continue;
+    if (name === undefined || !names.includes(name) || !known.has(name) || tag.void) continue;
     const close = endOf(html, tag);
-    const entry = registry.get(name);
+    const entry = known.get(name);
     if (tag.start > from) parts.push(html.slice(from, tag.start));
     parts.push({ name, attributes: attributesOf(entry, tag.attributes), body: entry.body === 'none' ? null : html.slice(tag.end, close.start), block: tag.attributes['data-konzilo-block'] ?? null });
     from = at = close.end;

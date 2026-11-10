@@ -9,7 +9,7 @@ import { ownValue } from '../format/frontmatter.js';
 import { readPostList, SECOND_PAGED_LIST } from '../format/post-list.js';
 import { isSource, OTHER_ANSWERS, SHOW } from '../format/redirects.js';
 import rules from '../format/rules.json' with { type: 'json' };
-import { declaredNames, postListModel, SCHEMA_TYPES, SEO_KEYS, SEO_PARTS } from '../site-description.js';
+import { declaredNames, postListModel, SCHEMA_TYPES, SEO_KEYS, SEO_PARTS, siteRules } from '../site-description.js';
 import { sha256 } from './source.js';
 import { say } from './words.js';
 
@@ -177,17 +177,20 @@ export function fieldsOf(post, context, derived = {}) {
   return { lines, problems, warnings };
 }
 
-// What a body takes of the site: the reader, the rule data and the site's own checks.
-// `list` is a post's own state: a second list with pages of its own is refused.
-export function bodyHands(site, post, { reader, adminHost, listTerms, link, image }) {
+// What a body takes of the site: the reader, the rule data with the site's components,
+// and the site's own checks, `components` what its components hold (componentProblems()
+// of the module its description names), or null. `list` is a post's own state: a
+// second list with pages of its own is refused.
+export function bodyHands(site, post, { reader, adminHost, listTerms, link, image, components = null }) {
   const lists = postListModel(site);
   const attributes = rules.elements['post-list'].directive.attributes;
   let paged = 0;
   return {
     reader,
-    rules,
+    rules: siteRules(site),
     embedOf,
     adminHost,
+    ...(components ? { components } : {}),
     elements: post.type.elements,
     declared: declaredNames(site),
     link,

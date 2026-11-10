@@ -17,6 +17,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { registryOf } from '../src/astro/directives.js';
 import { readContentFile } from '../src/astro/reader.js';
 import { CORE_FIELDS, FIELD_TYPES, IDENTITY, OLD_ADDRESSES, OTHER_ADDRESSES, SEO_FIELD, SEO_KEYS, SETTING_TYPES, siteDescription, TRANSLATION_KEY } from '../src/site-description.js';
 import { astroEnvironment } from './lib/astro.js';
@@ -83,7 +84,7 @@ describe('the content format document', () => {
 
   for (const example of marked.checked.filter((one) => one.language !== 'json')) {
     test(`renders the example at line ${example.line}${example.attributes.read ? ' as it says' : ''}`, () => {
-      const { html, problems } = readContentFile(exampleFile(example).contents);
+      const { html, problems } = readContentFile(exampleFile(example).contents, { known: registryOf(siteDescription(marked.sites[siteOf(example)])) });
       assert.deepEqual(problems, []);
       if (example.rendered !== undefined) assert.equal(html.trim(), example.rendered.trim());
       assert.ok(siteOf(example) in marked.sites);
