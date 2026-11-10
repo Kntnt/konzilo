@@ -180,7 +180,21 @@ describe('a build', () => {
     const later = await site.build()();
     assert.equal(later.next, null);
     assert.equal(statusOf(site, 'articles/aaaaaaaaaaaa.md').status, 'live');
+    assert.deepEqual(statusOf(site, 'articles/aaaaaaaaaaaa.md').warnings, [], 'it went live at the moment it waited for');
     assert.equal(site.seen.astro, 2, 'what the clock has made visible is new content');
+  });
+
+  test('publishes at once a scheduled post whose moment had passed, and its status says so for as long as that version stands', async () => {
+    const site = newSite({ 'articles/aaaaaaaaaaaa.md': post('first', { status: 'scheduled', date: '2026-01-01T12:00:00Z' }) });
+    await site.build()();
+    for (const build of [1, 2]) {
+      const status = statusOf(site, 'articles/aaaaaaaaaaaa.md');
+      assert.equal(status.status, 'live', `build ${build}`);
+      assert.deepEqual(status.warnings.map(({ field, name, values }) => ({ field, name, values })), [{ field: 'date', name: 'warning.scheduled-passed', values: { moment: { moment: '2026-01-01T12:00:00Z' } } }]);
+      assert.match(status.warnings[0].reason, /^the post is scheduled for 1 January 2026 at \d\d:00 \S+, which had already passed when the site first read it, so it is published at once, with that moment as its date$/);
+      assert.match(wordsIn('sv', status.warnings[0]), /^inlägget är schemalagt till 1 januari 2026 kl\. \d\d:00 \S+, en tidpunkt som redan hade passerat/);
+      await site.build()();
+    }
   });
 
   test('builds nothing again for the same content, code and origin, and still says live', async () => {
