@@ -25,9 +25,9 @@
 //   banner, the placeholders and the declaration then link to in place of
 //   the site's own (client.js, placeConsent());
 // - optionally, where the site counts visits without storage before
-//   consent, a link that objects to it, `<a href="#konzilo-consent-objection"
-//   data-konzilo-consent-action="objection" hidden>`, such as in its privacy
-//   policy, which the script shows and words;
+//   consent, the right to object, `<div data-konzilo-consent-objection
+//   hidden></div>`, such as in its privacy policy, which the script fills
+//   as the dialog has it and shows while the visitor allows no statistics;
 // - each embed in the markup of ADR 0024, `<figure class="konzilo-embed"
 //   data-embed="<service>">` with the player in a <template>, which the
 //   script makes a placeholder until the visitor allows the service.

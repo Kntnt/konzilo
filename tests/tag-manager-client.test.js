@@ -390,8 +390,13 @@ const at = (h, m, s) => REQUEST.replace('h=1&m=2&s=3', `h=${h}&m=${m}&s=${s}`);
 
 const text = (element) => element.textContent.replace(/\s+/g, ' ').trim();
 
-// Its link that objects, or takes the objection back.
-const objectionLink = (page) => page.document.querySelector('a[data-konzilo-consent-action="objection"]');
+// The right to object in the dialog, its explanation's link, which opens
+// the confirmation, and the link that takes the objection back.
+const objection = (page) => page.document.querySelector('#konzilo-consent-category-statistics').closest('.konzilo-consent-category').querySelector('[data-konzilo-consent-objection]');
+const objectionLink = (page) => objection(page).querySelector('a[data-konzilo-consent-action="objection"]');
+const resumeLink = (page) => objection(page).querySelector('a[data-konzilo-consent-action="resume"]');
+const EXPLANATION = 'We can\'t see who you are, we don\'t follow you from one visit to the next, and we don\'t profile you. All we do is count the visits: how many there are, which pages are read and for how long, from which country, in which language and with which browser, and when in the day. We do so on our legitimate interest in knowing this. If you disagree, you have the right to object.';
+const OBJECTED = 'You have objected to the counting, so your visits are not counted. Undo your objection';
 
 describe('a release whose tracker counts without storage before consent', () => {
   let site;
@@ -445,23 +450,28 @@ describe('a release whose tracker counts without storage before consent', () => 
   test('the statistics category and the cookie declaration say what is counted without storage', () => {
     const page = new JSDOM(site.output('hello/index.html')).window.document;
     const statistics = page.querySelector('#konzilo-consent-category-statistics').closest('.konzilo-consent-category');
-    assert.match(statistics.querySelector('.konzilo-consent-description').textContent, /Each visit is counted from the first page, without storing or reading anything in your browser\./);
+    assert.match(statistics.querySelector('.konzilo-consent-description').textContent, /Each visit is counted from the first page, without storing anything in your browser or reading your device's properties\./);
     const registry = JSON.parse(readFileSync(join(site.repository, 'content/consent.json'), 'utf8'));
     assert.deepEqual(registry.departures, [{ departure: 'statisticsWithoutStorageBeforeConsent', reason: 'We count every visit, and store nothing before consent.', privacySignals: 'stop' }]);
   });
 
-  test('the statistics category\'s services end in the right to object, a short explanation and a link, which opens a confirmation with a plain appeal and two buttons alike', () => {
+  test('the statistics category\'s services end in the right to object, one paragraph whose word in brackets is its link, which opens a confirmation with a plain appeal and two buttons alike', () => {
     const built = new JSDOM(site.output('hello/index.html')).window.document;
     const statistics = built.querySelector('#konzilo-consent-category-statistics').closest('.konzilo-consent-category');
-    const objection = statistics.querySelector('details.konzilo-consent-services > .konzilo-consent-objection');
-    assert.equal(text(objection), 'The counting without storage rests on the site\'s legitimate interest, and you may object to it at any time. Don\'t count my visits');
-    const link = objection.querySelector('a');
-    assert.deepEqual([link.tagName, link.className, link.getAttribute('href'), link.hidden], ['A', 'konzilo-consent-objection-link', '#konzilo-consent-objection', true]);
+    const place = statistics.querySelector('details.konzilo-consent-services > .konzilo-consent-objection');
+    assert.equal(place.hidden, true, 'until the script shows it');
+    const [explanation, objected] = place.querySelectorAll('p');
+    assert.deepEqual([explanation.className, text(explanation)], ['konzilo-consent-objection-text', EXPLANATION]);
+    assert.deepEqual([...explanation.querySelectorAll('a')].map((link) => [text(link), link.className, link.getAttribute('href'), link.dataset.konziloConsentAction]), [['object', 'konzilo-consent-objection-link', '#konzilo-consent-objection', 'objection']]);
+    assert.deepEqual([objected.className, objected.hidden, text(objected)], ['konzilo-consent-objection-objected', true, OBJECTED]);
+    assert.equal(text(objected.querySelector('a')), 'Undo your objection');
+    assert.doesNotMatch(place.textContent, /[[\]]/, 'no bracket is left');
     assert.equal(built.querySelectorAll('.konzilo-consent-objection').length, 1, 'in statistics alone');
     const confirmation = built.querySelector('dialog#konzilo-consent-objection');
     assert.equal(confirmation.className, 'konzilo-consent-confirmation');
     assert.equal(text(built.getElementById(confirmation.getAttribute('aria-labelledby'))), 'Don\'t count my visits');
-    assert.equal(text(built.getElementById(confirmation.getAttribute('aria-describedby'))), 'Do you really want us to stop counting your visits? We can\'t see who you are, and we don\'t follow you from one visit to the next. The figures help us understand what is valuable on the site and what we need to do better.');
+    assert.deepEqual([...confirmation.querySelectorAll('p')].map(text), ['Do you really want us to stop counting your visits? We can\'t see who you are, and we don\'t follow you from one visit to the next. The figures help us understand what is valuable on the site and what we need to do better.']);
+    assert.equal(confirmation.getAttribute('aria-describedby'), confirmation.querySelector('p').id);
     assert.deepEqual([...confirmation.querySelectorAll('button')].map((button) => [button.className, button.dataset.konziloConsentAction, text(button)]), [
       ['konzilo-consent-choice', 'object', 'Don\'t count my visits'],
       ['konzilo-consent-choice', 'cancel', 'Cancel'],
@@ -469,19 +479,18 @@ describe('a release whose tracker counts without storage before consent', () => 
     assert.doesNotMatch(site.output('hello/index.html'), /anonym/i);
 
     const page = visit(site);
-    assert.deepEqual([objectionLink(page).hidden, text(objectionLink(page))], [false, 'Don\'t count my visits']);
+    assert.equal(objection(page).hidden, false);
     objectionLink(page).click();
     assert.equal(page.document.querySelector('#konzilo-consent-objection').open, true);
-    const shown = [...page.document.querySelectorAll('#konzilo-consent-objection p')].filter((paragraph) => !paragraph.hidden);
-    assert.deepEqual(shown.map((paragraph) => paragraph.id), ['konzilo-consent-objection-appeal'], 'the appeal to a visitor counted without storage');
     page.click('cancel');
     assert.equal(page.document.querySelector('#konzilo-consent-objection').open, false);
     assert.equal(page.kept(), null, 'cancel keeps nothing');
     assert.equal(page.window.konziloConsent.objected(), false);
   });
 
-  test('confirming the objection sends nothing more in the page view and sets no cookie; it is kept, no choice, and the next page loads no tracker, its link saying Count my visits again', () => {
+  test('confirming the objection sends nothing more in the page view and sets no cookie; it is kept, no choice; the explanation\'s link is plain text and a paragraph to undo it shows, and the next page loads no tracker', () => {
     const page = visit(site);
+    objectionLink(page).focus();
     objectionLink(page).click();
     page.click('object');
     assert.equal(page.document.querySelector('#konzilo-consent-objection').open, false);
@@ -492,26 +501,34 @@ describe('a release whose tracker counts without storage before consent', () => 
     assert.equal(page.window.konziloConsent.objected(), true);
     assert.equal(page.window.konziloConsent.choice(), null, 'an objection is no choice');
     assert.deepEqual(page.events, [{ choice: null, how: 'objection', objected: true }]);
-    assert.equal(text(objectionLink(page)), 'Count my visits again');
+    assert.equal(objectionLink(page).hasAttribute('href'), false, 'the link word is plain text');
+    assert.equal(text(objection(page).querySelector('.konzilo-consent-objection-text')), EXPLANATION);
+    assert.equal(objection(page).querySelector('.konzilo-consent-objection-objected').hidden, false);
+    assert.equal(page.document.activeElement, resumeLink(page), 'the focus on the link that undoes it');
+    objectionLink(page).click();
+    assert.equal(page.document.querySelector('#konzilo-consent-objection').open, false, 'the plain word opens nothing');
     assert.equal(page.document.querySelector('.konzilo-consent-banner').hidden, false, 'the banner still asks');
 
     const next = visit(site, { stored: page.kept() });
     assert.deepEqual(next.added(), []);
     assert.equal(next.queue(), undefined);
-    assert.equal(text(objectionLink(next)), 'Count my visits again');
+    assert.equal(objectionLink(next).hasAttribute('href'), false);
+    assert.equal(objection(next).querySelector('.konzilo-consent-objection-objected').hidden, false);
     next.click('reject');
     assert.equal(next.kept().objection, page.kept().objection, 'a refusal keeps it');
     assert.equal(visit(site, { stored: next.kept() }).queue(), undefined);
   });
 
-  test('Count my visits again takes the objection back at once, and the next page counts without storage again', () => {
+  test('Undo your objection takes it back at once, with no confirmation, and the next page counts without storage again', () => {
     const page = visit(site, { stored: { objection: new Date().toISOString() } });
-    objectionLink(page).click();
+    resumeLink(page).click();
     assert.equal(page.document.querySelector('#konzilo-consent-objection').open, false, 'no confirmation is asked');
     assert.equal(page.kept(), null);
     assert.equal(page.window.konziloConsent.objected(), false);
     assert.deepEqual(page.events, [{ choice: null, how: 'objection', objected: false }]);
-    assert.equal(text(objectionLink(page)), 'Don\'t count my visits');
+    assert.equal(objection(page).querySelector('.konzilo-consent-objection-objected').hidden, true);
+    assert.equal(objectionLink(page).getAttribute('href'), '#konzilo-consent-objection', 'a link again');
+    assert.equal(page.document.activeElement, objectionLink(page));
     assert.deepEqual(page.added(), [], 'it counts from the next page view');
     assert.deepEqual(visit(site, { stored: page.kept() }).queue(), [...LOG_LIKE, ...COUNTED]);
   });
@@ -532,23 +549,18 @@ describe('a release whose tracker counts without storage before consent', () => 
     assert.equal(page.kept().objection, undefined);
   });
 
-  test('objecting after consent to statistics withdraws it as a choice, after an appeal that says the browser is recognised now: Matomo forgets its cookie consent and holds back every request, and the page reloads', () => {
+  test('while the choice allows statistics nothing about objecting shows, and nothing opens it; it shows again once the choice allows them no more', () => {
     const page = visit(site);
     page.click('accept');
+    assert.equal(objection(page).hidden, true);
     objectionLink(page).click();
-    const confirmation = page.document.querySelector('#konzilo-consent-objection');
-    const shown = [...confirmation.querySelectorAll('p')].filter((paragraph) => !paragraph.hidden);
-    assert.deepEqual(shown.map(text), ['Do you really want us to stop counting your visits? You have allowed statistics, so for now we recognise your browser from one visit to the next. If you object, we turn that off and stop counting your visits altogether. The figures help us understand what is valuable on the site and what we need to do better.']);
-    assert.equal(confirmation.getAttribute('aria-describedby'), shown[0].id);
+    assert.equal(page.document.querySelector('#konzilo-consent-objection').open, false);
     page.click('object');
-    assert.deepEqual(page.queue().slice(-3), [['forgetCookieConsentGiven'], ['disableBrowserFeatureDetection'], ['requireConsent']]);
-    assert.equal(page.kept().services.matomo, false);
-    assert.equal(typeof page.kept().objection, 'string');
-    assert.deepEqual(page.events.at(-1).how, 'objection');
-    assert.equal(page.reloads.length, 1);
+    assert.equal(page.window.konziloConsent.objected(), false, 'not even a stray confirm');
     const next = visit(site, { stored: page.kept() });
-    assert.equal(next.queue(), undefined);
-    assert.equal(next.document.querySelector('.konzilo-consent-banner').hidden, true, 'the choice holds');
+    assert.equal(objection(next).hidden, true, 'it follows the choice kept');
+    next.document.querySelector('dialog [data-konzilo-consent-action="reject"]').click();
+    assert.equal(objection(next).hidden, false, 'and the choice made in the page view');
   });
 
   test('Withdraw consent ends the objection too: the next page counts without storage as for a first visit, and the banner stays away', () => {

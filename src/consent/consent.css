@@ -229,17 +229,27 @@
   color: var(--konzilo-consent-accent);
 }
 
-/* The right to object, below the statistics' services, and its link
-   wherever it stands: a link, not a button, at least a target high. */
+/* The right to object, below the statistics' services and wherever else
+   it stands: a paragraph whose link is a word of its own, inline in its
+   sentence, and plain text again once the visitor objects; then a second
+   paragraph with the link that takes the objection back. */
 .konzilo-consent-objection {
   margin: 0.5rem 0 0;
 }
 
+.konzilo-consent-objection p {
+  margin: 0 0 0.5rem;
+}
+
 .konzilo-consent-objection-link {
-  display: inline-flex;
-  align-items: center;
-  min-block-size: var(--konzilo-consent-target);
   color: var(--konzilo-consent-accent);
+  text-decoration: underline;
+}
+
+.konzilo-consent-objection-link:not([href]) {
+  color: inherit;
+  text-decoration: none;
+  cursor: auto;
 }
 
 .konzilo-consent-confirmation {
@@ -380,7 +390,7 @@
   .konzilo-consent-notice,
   .konzilo-consent-dialog,
   .konzilo-consent-confirmation,
-  .konzilo-consent-objection-link,
+  .konzilo-consent-objection-objected,
   .konzilo-consent-controls .konzilo-consent-buttons,
   .konzilo-declaration .konzilo-consent-buttons {
     display: none !important;

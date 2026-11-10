@@ -139,7 +139,7 @@ const registrySchema = z.strictObject({
     placeholder: z.strictObject({ question: text, button: text }),
     // A registry written before the right to object has none of its
     // texts; the markup then takes the core's defaults.
-    objection: z.strictObject({ text, object: text, resume: text, appeal: text, appealAllowed: text, confirm: text, cancel: text }).optional(),
+    objection: z.strictObject({ text, objected: text, title: text, appeal: text, confirm: text, cancel: text }).optional(),
   }),
 });
 

@@ -14,14 +14,14 @@
 // `links={false}` leaves the links out, for a footer that links the legal
 // pages itself, and `buttons={false}` the buttons, so that each can stand in a
 // place of its own. The buttons show only with JavaScript, and only where the
-// registry asks for consent. `objection` adds the link that objects to
-// counting without storage, or takes the objection back, where the site
-// counts so, for a template such as the privacy policy's to place where it
-// explains the right to object:
+// registry asks for consent. `objection` adds the right to object to
+// counting without storage, as the dialog has it, where the site counts
+// so, for a template such as the privacy policy's to place:
 //
 //   <ConsentControls links={false} buttons={false} objection />
 //
-// It too shows only with JavaScript. The elements carry classes of their
+// It too shows only with JavaScript, and only while the visitor does not
+// allow statistics. The elements carry classes of their
 // own, `konzilo-consent-*`, which the site styles, as ConsentBanner.astro
 // says.
 import { getEntry } from 'astro:content';

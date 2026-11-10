@@ -362,7 +362,7 @@ describe('the service registry', () => {
     const departures = (one) => one.warnings.filter((warning) => warning.file === 'site-description.json').map(({ setting }) => setting);
     assert.deepEqual(departures(result), []);
     const registry = JSON.parse(written(result)['consent.json']);
-    assert.match(registry.categories.find((category) => category.id === 'statistics').description, /Each visit is counted from the first page, without storing or reading anything in your browser\./);
+    assert.match(registry.categories.find((category) => category.id === 'statistics').description, /Each visit is counted from the first page, without storing anything in your browser or reading your device's properties\./);
     assert.deepEqual(registry.departures, [{ departure: 'statisticsWithoutStorageBeforeConsent', reason: 'Every visit counts.', privacySignals: 'ignore' }]);
     const without = run({}, counting);
     assert.deepEqual(departures(without), ['consent.departures.1']);

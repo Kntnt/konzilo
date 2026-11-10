@@ -2,7 +2,7 @@
 // its languages, and the facts of a service in words. The consent texts an
 // Admin may change are not here: a caller hands them in (markup.js), save
 // the defaults of the texts of the right to object, for a caller whose
-// texts are older than it.
+// texts are older than they are.
 //
 // This folder, src/consent/, imports nothing outside itself, so that a site
 // that Konzilo does not build can copy it from a commit and call it.
@@ -41,18 +41,19 @@ const WORDS = {
     ],
     // The default texts of the right to object to counting without storage,
     // for a page whose consent texts give none of their own: the same as the
-    // consent texts' defaults (settings-groups.json, `objection*`).
+    // consent texts' defaults (settings-groups.json, `objection*`). In
+    // `text` and `objected`, the words in square brackets are the link
+    // (markup.js, linked()); `links` are the words of the link for a text
+    // that marks none.
     objection: {
-      text: 'The counting without storage rests on the site\'s legitimate interest, and you may object to it at any time.',
-      object: 'Don\'t count my visits',
-      resume: 'Count my visits again',
+      text: 'We can\'t see who you are, we don\'t follow you from one visit to the next, and we don\'t profile you. All we do is count the visits: how many there are, which pages are read and for how long, from which country, in which language and with which browser, and when in the day. We do so on our legitimate interest in knowing this. If you disagree, you have the right to [object].',
+      objected: 'You have objected to the counting, so your visits are not counted. [Undo your objection]',
+      title: 'Don\'t count my visits',
       appeal: 'Do you really want us to stop counting your visits? We can\'t see who you are, and we don\'t follow you from one visit to the next. The figures help us understand what is valuable on the site and what we need to do better.',
-      // The appeal where the visitor allows statistics, whose cookie does
-      // recognise the browser between visits.
-      appealAllowed: 'Do you really want us to stop counting your visits? You have allowed statistics, so for now we recognise your browser from one visit to the next. If you object, we turn that off and stop counting your visits altogether. The figures help us understand what is valuable on the site and what we need to do better.',
       confirm: 'Don\'t count my visits',
       cancel: 'Cancel',
     },
+    objectionLinks: { text: 'Object', objected: 'Undo your objection' },
     declaration: {
       consent: 'Your choice',
       noScript: 'Your choice is shown here when JavaScript is turned on in your browser.',
@@ -84,7 +85,7 @@ const WORDS = {
       departure: {
         necessaryService: '{service} counts as necessary on this site, so it is always on, without your consent.',
         tagManagerBeforeConsent: 'The site\'s tag manager loads before you make a choice, and the tags it loads follow your choice.',
-        statisticsWithoutStorageBeforeConsent: 'The site\'s statistics count each visit from the first page you see, before you make a choice, without storing anything in your browser or reading anything from it, your device\'s properties included. They store in your browser only once you allow statistics.',
+        statisticsWithoutStorageBeforeConsent: 'The site\'s statistics count each visit from the first page you see, before you make a choice, without storing anything in your browser and without reading your device\'s properties. They store in your browser only once you allow statistics.',
       },
       privacySignals: {
         stop: 'A browser that sends Global Privacy Control or Do Not Track is not counted at all.',
@@ -117,14 +118,14 @@ const WORDS = {
       '{service} kan lagra uppgifter i din webbläsare, och {provider} ({country}) tar emot uppgifter om ditt besök, som kan behandlas utanför EU och EES.',
     ],
     objection: {
-      text: 'Räkningen utan lagring bygger på webbplatsens berättigade intresse, och du kan när som helst invända mot den.',
-      object: 'Räkna inte mina besök',
-      resume: 'Räkna mina besök igen',
+      text: 'Vi kan inte se vem du är, vi följer dig inte mellan besök och vi gör ingen profilering. Det enda vi gör är att räkna besöken: hur många de är, vilka sidor som läses och hur länge, från vilket land, med vilket språk och vilken webbläsare, och när på dygnet. Det gör vi med stöd av vårt berättigade intresse av att veta det. Håller du inte med har du rätt att [invända].',
+      objected: 'Du har invänt mot räkningen, så dina besök räknas inte. [Ångra din invändning]',
+      title: 'Räkna inte mina besök',
       appeal: 'Vill du verkligen att vi slutar räkna dina besök? Vi ser inte vem du är och följer dig inte mellan besök. Siffrorna hjälper oss att förstå vad som är värdefullt på webbplatsen och vad vi behöver göra bättre.',
-      appealAllowed: 'Vill du verkligen att vi slutar räkna dina besök? Du har tillåtit statistik, så i dag känner vi igen din webbläsare mellan besök. Invänder du stänger vi av det och slutar räkna dina besök helt. Siffrorna hjälper oss att förstå vad som är värdefullt på webbplatsen och vad vi behöver göra bättre.',
       confirm: 'Räkna inte mina besök',
       cancel: 'Avbryt',
     },
+    objectionLinks: { text: 'Invänd', objected: 'Ångra din invändning' },
     declaration: {
       consent: 'Ditt val',
       noScript: 'Ditt val visas här när JavaScript är påslaget i din webbläsare.',
@@ -156,7 +157,7 @@ const WORDS = {
       departure: {
         necessaryService: '{service} räknas som nödvändig på den här webbplatsen och är därför alltid på, utan ditt samtycke.',
         tagManagerBeforeConsent: 'Webbplatsens tagghanterare laddas innan du har gjort ett val, och taggarna den laddar följer ditt val.',
-        statisticsWithoutStorageBeforeConsent: 'Webbplatsens statistik räknar varje besök från den första sidan du ser, innan du har gjort ett val, utan att lagra något i din webbläsare eller läsa något från den, inte heller din enhets egenskaper. Den lagrar i din webbläsare först när du tillåter statistik.',
+        statisticsWithoutStorageBeforeConsent: 'Webbplatsens statistik räknar varje besök från den första sidan du ser, innan du har gjort ett val, utan att lagra något i din webbläsare och utan att läsa av din enhets egenskaper. Den lagrar i din webbläsare först när du tillåter statistik.',
       },
       privacySignals: {
         stop: 'En webbläsare som skickar Global Privacy Control eller Do Not Track räknas inte alls.',
