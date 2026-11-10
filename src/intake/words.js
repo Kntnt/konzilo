@@ -16,6 +16,13 @@ export function say(name, values = {}) {
   return { name, values };
 }
 
+// Why a build made no release, shaped as a refusal is, with nothing to name but itself:
+// its name in the catalogues, `failure.…`, its values, and its words in British English.
+export function failure(name, values = {}) {
+  const words = say(name, values);
+  return Object.freeze({ ...words, reason: british(words) });
+}
+
 // A refusal or a warning for `{ post | file, block, field, entry, setting, line,
 // reason }`, its reason given by say(), or in the site's own words.
 export function named(about) {

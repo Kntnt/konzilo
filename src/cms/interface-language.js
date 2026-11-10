@@ -78,3 +78,14 @@ export function languageChanged(loaded, storage = globalThis.localStorage) {
   const { locale } = held(storage);
   return locale !== loaded.locale && (locale === AUTOMATIC || chosenLanguage(storage) !== loaded.chosen);
 }
+
+// The interface language this load of the editor works in, the language of the
+// configuration it fetched (editor.js), by its catalogue's name; British English until
+// the editor names it.
+let working = catalogueFor(null);
+
+export function useInterfaceLanguage(language) {
+  working = catalogueFor(language);
+}
+
+export const interfaceLanguage = () => working;

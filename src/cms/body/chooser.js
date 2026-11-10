@@ -6,6 +6,7 @@
 
 import { uploadProblem } from './chooser-check.js';
 import { button, dialogOf, made, textRow } from './dialog.js';
+import { wordsShown } from '../refusals.js';
 import { say } from './texts.js';
 
 const same = (one, other) => one.src === other.src && one.alt === other.alt && (one.caption ?? '') === (other.caption ?? '');
@@ -96,7 +97,7 @@ export function chooseImage({ library, smallestWidth = null, several = false, ro
         try {
           const problem = await uploadProblem(file, { smallestWidth });
           if (problem !== null) {
-            note.textContent = problem;
+            note.textContent = wordsShown(problem);
             return;
           }
           const entry = await library.add({ file, alt: alt.value, caption: caption.value });

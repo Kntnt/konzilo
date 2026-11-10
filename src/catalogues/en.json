@@ -319,5 +319,10 @@
   "about.someone": "this person",
   "about.collection-folder": "the collection's own folder",
   "about.privacy-policy": "privacy policy",
-  "about.cookie-policy": "cookie policy"
+  "about.cookie-policy": "cookie policy",
+  "failure.not-read": "the source could not be read, so visitors still see the last version",
+  "failure.check-broke": "the check of what was saved broke, so visitors still see the last version",
+  "failure.not-built": "the site could not be built from it, so visitors still see the last version",
+  "failure.not-released": "the new version of the site could not be put in place, so visitors still see the last version",
+  "failure.stopped": "the build would take most of the site's posts off it, so it waits until the deletion is confirmed"
 }

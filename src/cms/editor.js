@@ -16,7 +16,7 @@ import { registerImageField } from './image/register.js';
 import { registerParts } from './parts/register.js';
 import { registerStructureField } from './structure/register.js';
 import { registerPublishing } from './publishing/register.js';
-import { chosenLanguage, followSite, languageChanged, loadedWith } from './interface-language.js';
+import { chosenLanguage, followSite, languageChanged, loadedWith, useInterfaceLanguage } from './interface-language.js';
 import './form.css';
 // The preview's window hides its pane by these; template.js, which shows it, is read by tests too.
 import './preview-window/window.css';
@@ -40,6 +40,7 @@ else start();
 
 function start() {
   const loaded = loadedWith(chosen);
+  useInterfaceLanguage(konzilo.language);
   useComponents(konzilo.components);
   registerBodyField(CMS, config);
   registerPublishing(CMS, config);

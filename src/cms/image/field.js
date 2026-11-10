@@ -17,6 +17,7 @@ import { stemOf } from '../body/library.js';
 import { say } from '../body/texts.js';
 import { MEDIA_FOLDER } from '../../format/masters.js';
 import { kindOf } from '../../format/originals.js';
+import { wordsShown } from '../refusals.js';
 import './field.css';
 
 const EXTENSIONS = { jpeg: 'jpg', png: 'png', webp: 'webp', svg: 'svg' };
@@ -157,7 +158,7 @@ export function mountImageField(host, { value, changed, addFile, library, exists
     try {
       const problem = await uploadProblem(file, { smallestWidth }).catch(() => null);
       if (problem !== null) {
-        note.textContent = problem;
+        note.textContent = wordsShown(problem);
         return;
       }
       const bytes = new Uint8Array(await file.arrayBuffer());

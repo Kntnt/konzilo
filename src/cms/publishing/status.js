@@ -2,6 +2,7 @@
 // someone looks, and what a status means in words. It holds no React.
 
 import { say } from '../body/texts.js';
+import { refusalShown, wordsShown } from '../refusals.js';
 
 const STATUS_PATH = '/_konzilo/status';
 // While something is on its way it is worth asking often, and otherwise a change comes from
@@ -72,7 +73,8 @@ export function watchedStatus(options) {
 }
 
 const where = ({ stillShown }) => say(stillShown ? 'publishStillShown' : 'publishNotShown');
-const reasonsOf = (list = []) => list.map(({ message, reason }) => reason ?? message);
+// Each refusal or warning in the interface language, with what it names in the post.
+const reasonsOf = (list = []) => list.map(refusalShown);
 
 // What a status says: its `tone`, `good`, `busy`, `bad` or `quiet`, its `words`, and any `details`.
 export function statusWords(status, moment = (at) => new Date(at).toLocaleString(globalThis.navigator?.language)) {
@@ -82,7 +84,7 @@ export function statusWords(status, moment = (at) => new Date(at).toLocaleString
       return { tone: 'good', words: say(warnings.length > 0 ? 'publishLiveWarned' : 'publishLive'), details: warnings };
     }
     case 'failed':
-      return { tone: 'bad', words: `${say('publishFailed')} ${where(status)}`, details: status.refusals ? reasonsOf(status.refusals) : [status.reason] };
+      return { tone: 'bad', words: `${say('publishFailed')} ${where(status)}`, details: status.refusals ? reasonsOf(status.refusals) : [wordsShown(status.reason)] };
     case 'scheduled':
       return { tone: 'quiet', words: say('publishScheduled', { at: moment(status.at) }), details: [] };
     case 'draft':

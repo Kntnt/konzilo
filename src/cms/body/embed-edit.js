@@ -6,6 +6,7 @@
 import { embedOf } from '../../format/embeds.js';
 import rules from '../../format/rules.json' with { type: 'json' };
 import { asking, button, dialogOf, made, textRow } from './dialog.js';
+import { wordsShown } from '../refusals.js';
 import { say } from './texts.js';
 
 const capitalised = (words) => words.charAt(0).toUpperCase() + words.slice(1);
@@ -48,7 +49,7 @@ export function editEmbed({ address = null, root = document.body } = {}) {
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       const written = field.value.trim();
-      const refused = written === '' ? say('embedNoAddress') : embedOf(written, rules).reason;
+      const refused = written === '' ? say('embedNoAddress') : wordsShown(embedOf(written, rules).reason);
       if (!refused) {
         finish({ address: written });
         return;

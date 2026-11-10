@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
+import { useInterfaceLanguage } from '../src/cms/interface-language.js';
 import { filesOf, languageOf, readStatus, statusWords, watchStatus } from '../src/cms/publishing/status.js';
 
 describe('what a status says', () => {
@@ -17,10 +18,33 @@ describe('what a status says', () => {
     const refused = statusWords({ status: 'failed', refusals: [{ field: 'title', reason: 'give it a title' }, { reason: 'and this' }], stillShown: true });
     assert.equal(refused.tone, 'bad');
     assert.equal(refused.words, 'Could not be published. Visitors still see the last version.');
-    assert.deepEqual(refused.details, ['give it a title', 'and this']);
+    assert.deepEqual(refused.details, ['the field title: give it a title', 'and this']);
     const gone = statusWords({ status: 'failed', reason: 'the site could not be built', stillShown: false });
     assert.equal(gone.words, 'Could not be published. It is not on the site.');
     assert.deepEqual(gone.details, ['the site could not be built']);
+  });
+
+  test('each refusal and warning in the interface language, by what it names in the post', () => {
+    const refusals = [
+      { field: 'title', name: 'refusal.title-empty', values: {}, reason: 'the site cannot publish a post without a title; give it one' },
+      { block: { path: '2', name: 'heading' }, line: 9, name: 'refusal.heading-level', values: { level: 1, levels: { name: 'about.range', values: { from: 2, to: 6 } } }, reason: 'the site cannot publish a heading at level 1: the post\'s title is its level 1; use a level from 2 to 6' },
+    ];
+    const warnings = [{ field: 'image', name: 'warning.image-narrow', values: { name: 'a.png', width: 800, display: 1280 }, reason: 'the image a.png is 800 pixels wide, narrower than the 1280 the site usually shows images at, so it may look soft' }];
+    try {
+      useInterfaceLanguage('sv');
+      assert.deepEqual(statusWords({ status: 'failed', refusals, stillShown: true }).details, [
+        'fältet title: webbplatsen kan inte publicera ett inlägg utan titel; ge det en',
+        'block 2 (heading): webbplatsen kan inte publicera en rubrik på nivå 1: inläggets titel är dess nivå 1; använd en nivå från 2 till 6',
+      ]);
+      assert.deepEqual(statusWords({ status: 'live', warnings }).details, ['fältet image: bilden a.png är 800 pixlar bred, smalare än de 1280 som webbplatsen oftast visar bilder i, så den kan se oskarp ut']);
+      useInterfaceLanguage('en');
+      assert.deepEqual(statusWords({ status: 'failed', refusals, stillShown: true }).details, [
+        'the field title: the site cannot publish a post without a title; give it one',
+        'block 2 (heading): the site cannot publish a heading at level 1: the post\'s title is its level 1; use a level from 2 to 6',
+      ]);
+    } finally {
+      useInterfaceLanguage('en');
+    }
   });
 
   test('on its way, and what visitors see meanwhile', () => {

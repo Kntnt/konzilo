@@ -1,9 +1,10 @@
 // The check before a save: the body as the draft holds it, through the intake's own check in
-// the browser. A thrown error stops the save, with the reason in the rule data's words, and
+// the browser. A thrown error stops the save, with each reason in the interface language, and
 // the draft stays in the form. The intake remains the check that counts, so a check that
 // could not run lets the save through, and the field has told the editor it is off.
 
 import { handsFor, loadReader, refusalsOf } from './check.js';
+import { wordsShown } from '../refusals.js';
 import { say } from './texts.js';
 
 const bodiesOf = (entry) => {
@@ -12,7 +13,7 @@ const bodiesOf = (entry) => {
   return bodies.filter(({ body }) => typeof body === 'string');
 };
 
-const words = ({ path, reason }) => (path ? `${say('block', { path })}: ${reason}` : reason);
+const words = ({ path, reason }) => (path ? `${say('block', { path })}: ${wordsShown(reason)}` : wordsShown(reason));
 
 // The refusal of an entry, one problem a line, or null where it may be saved.
 export async function refusalOf(entry, body) {

@@ -9,21 +9,24 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { STOPPED } from '../intake/guard.js';
+import { failure } from '../intake/words.js';
 import { webRules } from './web-server.js';
 
 const run = promisify(execFile);
 const BIG = 1024 * 1024 * 256;
 const STOPPED_BY_GUARD = 3;
 
-export const NOT_READ = 'the source could not be read, so visitors still see the last version';
-export const CHECK_BROKE = 'the check of what was saved broke, so visitors still see the last version';
-export const NOT_BUILT = 'the site could not be built from it, so visitors still see the last version';
-export const NOT_RELEASED = 'the new version of the site could not be put in place, so visitors still see the last version';
+// Why a build made no release, by its name, which the publish status shows in the interface
+// language, and in British English, which the build log writes.
+export const NOT_READ = failure('failure.not-read');
+export const CHECK_BROKE = failure('failure.check-broke');
+export const NOT_BUILT = failure('failure.not-built');
+export const NOT_RELEASED = failure('failure.not-released');
 
 // What a run of the intake reported of each post, with each post's version and what it was
-// refused for or warned of.
+// refused for or warned of, by name and values, and in British English.
 function postsFrom(report, versions) {
-  const about = (list, file) => list.filter((one) => one.file === file).map(({ field = null, block = null, line = null, reason, message }) => ({ field, block, line, reason, message }));
+  const about = (list, file) => list.filter((one) => one.file === file).map(({ field = null, block = null, line = null, name, values, reason, message }) => ({ field, block, line, ...(name ? { name, values } : {}), reason, message }));
   return Object.fromEntries((report?.posts ?? []).map((post) => [post.file, {
     id: post.id,
     type: post.type,
@@ -80,7 +83,7 @@ export function siteBuild({ site, origin, code, source, content, roles, control,
         at: record.at,
         site,
         outcome: record.outcome,
-        failures: [...(reason ? [{ reason }] : []), ...refusals],
+        failures: [...(reason ? [reason] : []), ...refusals],
       });
       return record;
     };
