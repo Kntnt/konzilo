@@ -338,160 +338,112 @@
         "type": "string",
         "control": "text",
         "translated": true,
-        "default": {
-          "en": "Your privacy",
-          "sv": "Din integritet"
-        }
+        "default": { "text": "site.settings.consent.bannerTitle" }
       },
       "bannerText": {
         "label": "Banner: text",
         "type": "string",
         "control": "textarea",
         "translated": true,
-        "default": {
-          "en": "This site uses only what it needs to work, unless you allow more. With your consent it also loads content from other services, such as videos, which may store data in your browser and use what they learn for their own purposes. You can change or withdraw your consent at any time, from the bottom of every page.",
-          "sv": "Webbplatsen använder bara det den behöver för att fungera, om du inte tillåter mer. Med ditt samtycke laddar den också innehåll från andra tjänster, till exempel videor, som kan lagra uppgifter i din webbläsare och använda det de får veta för egna syften. Du kan ändra eller återkalla ditt samtycke när som helst, längst ned på varje sida."
-        }
+        "default": { "text": "site.settings.consent.bannerText" }
       },
       "bannerAccept": {
         "label": "Banner: accept button",
         "type": "string",
         "control": "text",
         "translated": true,
-        "default": {
-          "en": "Accept all",
-          "sv": "Acceptera alla"
-        }
+        "default": { "text": "site.settings.consent.bannerAccept" }
       },
       "bannerReject": {
         "label": "Banner: reject button",
         "type": "string",
         "control": "text",
         "translated": true,
-        "default": {
-          "en": "Reject optional",
-          "sv": "Neka valfria"
-        }
+        "default": { "text": "site.settings.consent.bannerReject" }
       },
       "bannerCustomise": {
         "label": "Banner: customise button",
         "type": "string",
         "control": "text",
         "translated": true,
-        "default": {
-          "en": "Customise",
-          "sv": "Anpassa"
-        }
+        "default": { "text": "site.settings.consent.bannerCustomise" }
       },
       "dialogTitle": {
         "label": "Privacy settings: title",
         "type": "string",
         "control": "text",
         "translated": true,
-        "default": {
-          "en": "Privacy settings",
-          "sv": "Integritetsinställningar"
-        }
+        "default": { "text": "site.settings.consent.dialogTitle" }
       },
       "dialogIntroduction": {
         "label": "Privacy settings: introduction",
         "type": "string",
         "control": "textarea",
         "translated": true,
-        "default": {
-          "en": "Choose what the site may load and store beyond what it needs to work. Each category lists its services, who provides them, what they store and for how long. Your choice holds for 12 months. You can change or withdraw it at any time from the footer of every page.",
-          "sv": "Välj vad webbplatsen får ladda och lagra utöver det den behöver för att fungera. Varje kategori visar sina tjänster, vem som tillhandahåller dem, vad de lagrar och hur länge. Ditt val gäller i 12 månader. Du kan när som helst ändra eller återkalla det i sidfoten på varje sida."
-        }
+        "default": { "text": "site.settings.consent.dialogIntroduction" }
       },
       "dialogAccept": {
         "label": "Privacy settings: accept button",
         "type": "string",
         "control": "text",
         "translated": true,
-        "default": {
-          "en": "Accept all",
-          "sv": "Acceptera alla"
-        }
+        "default": { "text": "site.settings.consent.dialogAccept" }
       },
       "dialogReject": {
         "label": "Privacy settings: reject button",
         "type": "string",
         "control": "text",
         "translated": true,
-        "default": {
-          "en": "Reject optional",
-          "sv": "Neka valfria"
-        }
+        "default": { "text": "site.settings.consent.dialogReject" }
       },
       "dialogSave": {
         "label": "Privacy settings: save button",
         "type": "string",
         "control": "text",
         "translated": true,
-        "default": {
-          "en": "Save my choices",
-          "sv": "Spara mina val"
-        }
+        "default": { "text": "site.settings.consent.dialogSave" }
       },
       "dialogClose": {
         "label": "Privacy settings: close button",
         "type": "string",
         "control": "text",
         "translated": true,
-        "default": {
-          "en": "Close",
-          "sv": "Stäng"
-        }
+        "default": { "text": "site.settings.consent.dialogClose" }
       },
       "footerChange": {
         "label": "Footer: change privacy settings",
         "type": "string",
         "control": "text",
         "translated": true,
-        "default": {
-          "en": "Change privacy settings",
-          "sv": "Ändra integritetsinställningar"
-        }
+        "default": { "text": "site.settings.consent.footerChange" }
       },
       "footerWithdraw": {
         "label": "Footer: withdraw consent",
         "type": "string",
         "control": "text",
         "translated": true,
-        "default": {
-          "en": "Withdraw consent",
-          "sv": "Återkalla samtycke"
-        }
+        "default": { "text": "site.settings.consent.footerWithdraw" }
       },
       "noticeWithdrawn": {
         "label": "Notice: consent withdrawn",
         "type": "string",
         "control": "text",
         "translated": true,
-        "default": {
-          "en": "Your consents have been withdrawn. The page will reload.",
-          "sv": "Dina samtycken har återkallats. Sidan laddas om."
-        }
+        "default": { "text": "site.settings.consent.noticeWithdrawn" }
       },
       "placeholderQuestion": {
         "label": "Content waiting for consent: question",
         "type": "string",
         "control": "text",
         "translated": true,
-        "default": {
-          "en": "Allow {service} to play this content?",
-          "sv": "Vill du låta {service} spela upp det här innehållet?"
-        }
+        "default": { "text": "site.settings.consent.placeholderQuestion" }
       },
       "placeholderButton": {
         "label": "Content waiting for consent: button",
         "type": "string",
         "control": "text",
         "translated": true,
-        "default": {
-          "en": "Allow and play",
-          "sv": "Tillåt och spela upp"
-        }
+        "default": { "text": "site.settings.consent.placeholderButton" }
       },
       "objectionText": {
         "label": "Right to object: explanation",
@@ -499,10 +451,7 @@
         "control": "textarea",
         "translated": true,
         "help": "The words in square brackets are the link that objects, such as [object]; without brackets the link follows the text.",
-        "default": {
-          "en": "We can't see who you are, we don't follow you from one visit to the next, and we don't profile you. All we do is count the visits: how many there are, which pages are read and for how long, from which country, in which language and with which browser, and when in the day. We do so on our legitimate interest in knowing this. If you disagree, you have the right to [object].",
-          "sv": "Vi kan inte se vem du är, vi följer dig inte mellan besök och vi gör ingen profilering. Det enda vi gör är att räkna besöken: hur många de är, vilka sidor som läses och hur länge, från vilket land, med vilket språk och vilken webbläsare, och när på dygnet. Det gör vi med stöd av vårt berättigade intresse av att veta det. Håller du inte med har du rätt att [invända]."
-        }
+        "default": { "text": "site.settings.consent.objectionText" }
       },
       "objectionObjected": {
         "label": "Right to object: once the visitor objects",
@@ -510,140 +459,98 @@
         "control": "textarea",
         "translated": true,
         "help": "Shown once the visitor objects. The words in square brackets are the link that takes the objection back; without brackets the link follows the text.",
-        "default": {
-          "en": "You have objected to the counting, so your visits are not counted. [Undo your objection]",
-          "sv": "Du har invänt mot räkningen, så dina besök räknas inte. [Ångra din invändning]"
-        }
+        "default": { "text": "site.settings.consent.objectionObjected" }
       },
       "objectionTitle": {
         "label": "Right to object: confirmation's title",
         "type": "string",
         "control": "text",
         "translated": true,
-        "default": {
-          "en": "Don't count my visits",
-          "sv": "Räkna inte mina besök"
-        }
+        "default": { "text": "site.settings.consent.objectionTitle" }
       },
       "objectionAppeal": {
         "label": "Right to object: confirmation",
         "type": "string",
         "control": "textarea",
         "translated": true,
-        "default": {
-          "en": "Do you really want us to stop counting your visits? We can't see who you are, and we don't follow you from one visit to the next. The figures help us understand what is valuable on the site and what we need to do better.",
-          "sv": "Vill du verkligen att vi slutar räkna dina besök? Vi ser inte vem du är och följer dig inte mellan besök. Siffrorna hjälper oss att förstå vad som är värdefullt på webbplatsen och vad vi behöver göra bättre."
-        }
+        "default": { "text": "site.settings.consent.objectionAppeal" }
       },
       "objectionConfirm": {
         "label": "Right to object: confirm button",
         "type": "string",
         "control": "text",
         "translated": true,
-        "default": {
-          "en": "Don't count my visits",
-          "sv": "Räkna inte mina besök"
-        }
+        "default": { "text": "site.settings.consent.objectionConfirm" }
       },
       "objectionCancel": {
         "label": "Right to object: cancel button",
         "type": "string",
         "control": "text",
         "translated": true,
-        "default": {
-          "en": "Cancel",
-          "sv": "Avbryt"
-        }
+        "default": { "text": "site.settings.consent.objectionCancel" }
       },
       "necessaryName": {
         "label": "Necessary: name",
         "type": "string",
         "control": "text",
         "translated": true,
-        "default": {
-          "en": "Necessary",
-          "sv": "Nödvändiga"
-        }
+        "default": { "text": "site.settings.consent.necessaryName" }
       },
       "necessaryDescription": {
         "label": "Necessary: description",
         "type": "string",
         "control": "textarea",
         "translated": true,
-        "default": {
-          "en": "What the site needs to work and to remember your choice. Always on.",
-          "sv": "Det webbplatsen behöver för att fungera och för att komma ihåg ditt val. Alltid på."
-        }
+        "default": { "text": "site.settings.consent.necessaryDescription" }
       },
       "functionalName": {
         "label": "Functional: name",
         "type": "string",
         "control": "text",
         "translated": true,
-        "default": {
-          "en": "Functional",
-          "sv": "Funktionella"
-        }
+        "default": { "text": "site.settings.consent.functionalName" }
       },
       "functionalDescription": {
         "label": "Functional: description",
         "type": "string",
         "control": "textarea",
         "translated": true,
-        "default": {
-          "en": "Content and features from other services, such as videos and charts, whose providers do not use what they learn for their own advertising or profiling.",
-          "sv": "Innehåll och funktioner från andra tjänster, till exempel videor och diagram, vars leverantörer inte använder det de får veta för egen annonsering eller profilering."
-        }
+        "default": { "text": "site.settings.consent.functionalDescription" }
       },
       "statisticsName": {
         "label": "Statistics: name",
         "type": "string",
         "control": "text",
         "translated": true,
-        "default": {
-          "en": "Statistics",
-          "sv": "Statistik"
-        }
+        "default": { "text": "site.settings.consent.statisticsName" }
       },
       "statisticsDescription": {
         "label": "Statistics: description",
         "type": "string",
         "control": "textarea",
         "translated": true,
-        "default": {
-          "en": "Measuring how visitors use the site, so that it can be made better.",
-          "sv": "Mätning av hur besökare använder webbplatsen, så att den kan bli bättre."
-        }
+        "default": { "text": "site.settings.consent.statisticsDescription" }
       },
       "statisticsWithoutStorageDescription": {
         "label": "Statistics: description where visits are counted without storage before consent",
         "type": "string",
         "control": "textarea",
         "translated": true,
-        "default": {
-          "en": "Measuring how visitors use the site, so that it can be made better. Each visit is counted from the first page, without storing anything in your browser or reading your device's properties. With your consent, the statistics also store an ID in your browser, so that a visitor who comes back is counted once.",
-          "sv": "Mätning av hur besökare använder webbplatsen, så att den kan bli bättre. Varje besök räknas från första sidan, utan att något lagras i din webbläsare och utan att din enhets egenskaper läses av. Med ditt samtycke lagrar statistiken också ett ID i din webbläsare, så att en besökare som kommer tillbaka räknas en gång."
-        }
+        "default": { "text": "site.settings.consent.statisticsWithoutStorageDescription" }
       },
       "marketingName": {
         "label": "Marketing: name",
         "type": "string",
         "control": "text",
         "translated": true,
-        "default": {
-          "en": "Marketing",
-          "sv": "Marknadsföring"
-        }
+        "default": { "text": "site.settings.consent.marketingName" }
       },
       "marketingDescription": {
         "label": "Marketing: description",
         "type": "string",
         "control": "textarea",
         "translated": true,
-        "default": {
-          "en": "Content and features from services whose providers may use what they learn about you for their own advertising or profiling.",
-          "sv": "Innehåll och funktioner från tjänster vars leverantörer kan använda det de får veta om dig för egen annonsering eller profilering."
-        }
+        "default": { "text": "site.settings.consent.marketingDescription" }
       }
     }
   },
@@ -787,10 +694,7 @@
         "type": "string",
         "control": "textarea",
         "translated": true,
-        "default": {
-          "en": "Thank you. Your message has been sent.",
-          "sv": "Tack! Ditt meddelande är skickat."
-        }
+        "default": { "text": "site.settings.forms.confirmation" }
       },
       "retention": {
         "label": "Retention in days",

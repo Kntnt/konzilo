@@ -55,6 +55,26 @@ export function textsOf(language, area) {
     .map((name) => [name.slice(area.length), catalogue[name] ?? CATALOGUES[SOURCE_LANGUAGE][name]]));
 }
 
+// Whether a value of the core's data is a text of the catalogues by its name, `{ text }`,
+// with `values` for its placeholders where the data fills them: a setting's default that
+// visitors read, or a fact of a service.
+export function isCatalogueText(value) {
+  return value !== null && typeof value === 'object' && typeof value.text === 'string'
+    && Object.keys(value).every((key) => key === 'text' || key === 'values');
+}
+
+// A value of the core's data in a language, a locale or a language tag: a text of the
+// catalogues, `{ text, values }`, in its language's catalogue (catalogueFor()), its
+// placeholders filled from `values` where it gives them and left as written where it does
+// not; any other value as it is. A name the source does not have throws, as text() does.
+export function inCatalogue(value, language) {
+  if (!isCatalogueText(value)) return value;
+  if (value.values) return text(catalogueFor(language), value.text, value.values);
+  const found = CATALOGUES[catalogueFor(language)][value.text] ?? CATALOGUES[SOURCE_LANGUAGE][value.text];
+  if (typeof found !== 'string') throw new Error(`the core's catalogues have no text ${value.text}`);
+  return found;
+}
+
 // A site's own label, as its site description gives it, in a language, a locale or a
 // language tag: one text for every language, or texts by interface language, British
 // English among them, of which the language's, else British English.

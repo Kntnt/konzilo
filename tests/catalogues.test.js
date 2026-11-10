@@ -57,6 +57,35 @@ test('the source is written in British English, not American', () => {
   for (const [name, value] of Object.entries(source)) assert.doesNotMatch(value, american, name);
 });
 
+test('the defaults of the core\'s settings groups that visitors read are texts of the catalogues, by name', () => {
+  const groups = JSON.parse(readFileSync(fileURLToPath(new URL('../src/format/settings-groups.json', import.meta.url)), 'utf8'));
+  const settings = Object.entries(groups).flatMap(([group, { settings: own = {}, parts = {}, types }]) => [
+    ...Object.entries(own).map(([name, setting]) => [`${group}.${name}`, setting]),
+    ...Object.entries(parts).flatMap(([part, { settings: inPart = {} }]) => Object.entries(inPart).map(([name, setting]) => [`${group}.${part}.${name}`, setting])),
+    ...Object.entries(types?.settings ?? {}).map(([name, setting]) => [`${group}.types.${name}`, setting]),
+  ]);
+  const named = settings.filter(([, setting]) => setting.default !== null && typeof setting.default === 'object' && !Object.hasOwn(setting.default, 'identity'));
+  assert.ok(named.length > 0);
+  for (const [path, setting] of named) {
+    assert.deepEqual(Object.keys(setting.default), ['text'], path);
+    assert.ok(Object.hasOwn(source, setting.default.text), `${path}: ${setting.default.text}`);
+    assert.match(setting.default.text, /^site\./, path);
+  }
+});
+
+test('the purposes of the core\'s services, which visitors read in the consent, are texts of the catalogues, by name', () => {
+  const data = (name) => JSON.parse(readFileSync(fileURLToPath(new URL(`../src/format/${name}`, import.meta.url)), 'utf8'));
+  const purposes = [
+    ...Object.entries(data('services.json')).map(([id, facts]) => [id, facts.purpose]),
+    ...Object.entries(data('tag-managers.json')).flatMap(([id, facts]) => [[id, facts.purpose], [`${id} tracker`, facts.tracker.purpose]]),
+  ];
+  for (const [id, purpose] of purposes) {
+    assert.deepEqual(Object.keys(purpose), ['text'], id);
+    assert.ok(Object.hasOwn(source, purpose.text), `${id}: ${purpose.text}`);
+    assert.match(purpose.text, /^site\.service\./, id);
+  }
+});
+
 test('gives a text in a language, with its placeholders filled, and British English for a language without a catalogue', () => {
   const name = Object.keys(source).find((key) => placeholders(source[key]).length === 0);
   assert.equal(text('en', name), source[name]);

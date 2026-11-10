@@ -157,6 +157,20 @@ describe('the interface language', () => {
     }
   });
 
+  test('keeps the defaults that visitors read in the content\'s language, whatever the interface language', () => {
+    const consentOf = (made) => field(made.collections.find((one) => one.name === 'settings').files[0].fields, 'consent').fields;
+    for (const language of ['sv', 'en']) {
+      const one = consentOf(cmsConfig(siteDescription({ ...declared(), language: 'sv_SE', interfaceLanguage: 'en' }), { ...place, language }));
+      assert.equal(field(one, 'bannerTitle').default, 'Din integritet', language);
+      assert.equal(field(one, 'placeholderQuestion').default, 'Vill du låta {service} spela upp det här innehållet?', language);
+      const { language: _, ...inOne } = declared();
+      const several = consentOf(cmsConfig(siteDescription({ ...inOne, languages: ['sv_SE', 'en_GB'] }), { ...place, language }));
+      assert.deepEqual(field(several, 'bannerTitle').fields.map((each) => [each.name, each.default]), [['sv_SE', 'Din integritet'], ['en_GB', 'Your privacy']], language);
+    }
+    const english = consentOf(cmsConfig(siteDescription({ ...declared(), language: 'en_GB', interfaceLanguage: 'sv' }), place));
+    assert.equal(field(english, 'bannerTitle').default, 'Your privacy');
+  });
+
   test('is written by konzilo-cms beside the site\'s own: one configuration in each language the interface comes in', () => {
     const folder = mkdtempSync(join(tmpdir(), 'konzilo-cms-'));
     const site = join(folder, 'site');

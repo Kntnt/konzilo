@@ -15,9 +15,8 @@
 
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { SOURCE_LANGUAGE, textsOf } from '../catalogues.js';
+import { inCatalogue, SOURCE_LANGUAGE, textsOf } from '../catalogues.js';
 import groups from '../format/settings-groups.json' with { type: 'json' };
-import { inLanguage } from '../texts.js';
 import { isPublicBuild } from './public-site.js';
 
 // Where a form is taken on the site's own host.
@@ -115,7 +114,7 @@ export function formView(name, { forms, settings, locale, languageTag, base = '/
   });
   // The Admin's confirmation text, as the site settings hold it, or the core's
   // default in the site's language.
-  const confirmation = settings?.forms?.[name]?.confirmation ?? inLanguage(groups.forms.settings.confirmation.default, locale);
+  const confirmation = settings?.forms?.[name]?.confirmation ?? inCatalogue(groups.forms.settings.confirmation.default, locale);
   const outcomes = [
     ['sent', [confirmation]],
     ['invalid', [texts.invalid]],

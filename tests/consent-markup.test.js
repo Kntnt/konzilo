@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { consentClient, cookieDeclaration, embedPanels } from '../src/consent/client.js';
 import { consentControlsMarkup, consentMarkup, consentView, cookieDeclarationMarkup, declarationView, escape } from '../src/consent/markup.js';
 import { wordsFor } from '../src/consent/words.js';
+import { inCatalogue } from '../src/catalogues.js';
 import groups from '../src/format/settings-groups.json' with { type: 'json' };
 
 const core = fileURLToPath(new URL('../', import.meta.url));
@@ -249,7 +250,7 @@ describe('where the statistics count visits without storage before consent', () 
     const settings = groups.consent.settings;
     for (const language of ['en', 'sv']) {
       const defaults = Object.fromEntries(Object.entries(wordsFor(language).objection).map(([name, value]) => [`objection${name[0].toUpperCase()}${name.slice(1)}`, value]));
-      assert.deepEqual(defaults, Object.fromEntries(Object.keys(defaults).map((key) => [key, settings[key]?.default[language]])), language);
+      assert.deepEqual(defaults, Object.fromEntries(Object.keys(defaults).map((key) => [key, inCatalogue(settings[key]?.default, language)])), language);
     }
   });
 
