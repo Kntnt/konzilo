@@ -6,18 +6,21 @@ There are two kinds, and they differ in whose the work is afterwards.
 
 | | Stand-alone work | Work that goes into the core |
 |---|---|---|
-| What it is | Something a site adds to Konzilo, in a repository or a package of its own | A change to the files of this repository |
+| What it is | Something added to Konzilo from outside, in a repository or a package of its own | A change to the files of this repository |
 | Whose it is | Yours alone | Yours, with a license to Kntnt Sweden AB |
-| Its license | Any you choose | Konzilo's, when it is released |
+| Its license | For an extension, any that goes together with the AGPL. For a site's content and look, any at all | Konzilo's, when it is released |
 | What you agree to | Nothing | The contributor agreement, once |
 
 ## Stand-alone work
 
-Stand-alone work adds to Konzilo from outside. It can be a design, a set of components, a presentation of post lists, a form or a package of such things, and, as Konzilo gets more ways to hook in, an extension of what it does. A site installs it and gets more, and Konzilo's own files stay as they are.
+Stand-alone work adds to Konzilo from outside, in a repository or a package of its own, and Konzilo's own files stay as they are. It is yours. You choose its name and where it is published, and Kntnt asks for no rights in it and for no agreement.
 
-It is yours. You choose its license, its name and where it is published. Kntnt asks for no rights in it and for no agreement.
+Its license depends on what it does, and Konzilo's site exception draws the line ([`SITE-EXCEPTION.md`](SITE-EXCEPTION.md)):
 
-Konzilo's site exception makes that so: what reaches Konzilo only through its site interfaces is outside Konzilo's license ([`SITE-EXCEPTION.md`](SITE-EXCEPTION.md)). For its name, [`TRADEMARKS.md`](TRADEMARKS.md) holds: *for Konzilo* is free to say, and Konzilo in the work's own name takes permission.
+- **An extension changes or adds to what Konzilo does:** a new function, a new field or page for editors, a new step of the build. Konzilo's license holds for it, whichever way in it uses: a hook of Konzilo's, of today or of later, or a hook of the software Konzilo is built on, such as an Astro integration or a widget for Sveltia CMS. Give it terms that go together with the AGPL, version 3: the AGPL itself, the GPL, version 3, or a permissive license such as MIT or Apache-2.0. Whoever runs it for others over a network offers them its source.
+- **A site's content and its look are outside Konzilo's license:** its templates, its stylesheets and its design. License them as you like, or keep them to yourself.
+
+For its name, [`TRADEMARKS.md`](TRADEMARKS.md) holds: *for Konzilo* is free to say, and Konzilo in the work's own name takes permission.
 
 If what you want to build needs a way in that Konzilo does not have, open an issue and say what it would take. A new interface is a contribution to the core, and a welcome one.
 

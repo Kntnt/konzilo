@@ -27,5 +27,5 @@ Precedence over any conflicting skill, README, or other doc unless the user over
 - `GLOSSARY.md` — read when naming anything in code, docs or tickets, or when a word may carry a Konzilo meaning
 - `CONTRIBUTING.md` — read before merging work by anyone outside Kntnt, or adding a dependency or code someone else wrote, since each must leave Kntnt free to license the core on other terms
 - `TRADEMARKS.md` — read when writing how the name Konzilo may be used
-- `SITE-EXCEPTION.md` — read before moving code between the core and the site template, or changing what the package exports, since both move the line between what the license covers and what a site may keep
+- `SITE-EXCEPTION.md` — read before moving code between the core and the site template, or giving a site a new way to hand the core a template, since both move the line between what the license covers and what a site may keep
 - `docs/site-design.md` — read when changing a class, a state or a custom property the core's markup has; the same change updates it

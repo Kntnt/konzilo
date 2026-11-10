@@ -30,9 +30,13 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Site template**: The files `new-site` starts a site repository from. A change reaches only sites made after it.
 
-**Site exception**: The additional permission to the license, `SITE-EXCEPTION.md`, that leaves what a site adds to the core, its content and its built pages outside the license. _Avoid_: linking exception.
+**Site exception**: The additional permission to the license, `SITE-EXCEPTION.md`, that leaves a site's content, its look and its built pages outside the license, and whatever changes what the core does under it. _Avoid_: linking exception.
 
-**Stand-alone work**: Work that adds to Konzilo from a repository or a package of its own, through the site interfaces, and is its author's alone.
+**Site material**: A site's files that only declare, show or style its content: a declaration or a setting, a template, a style or an asset, a page script, and a test or a tool for these. The site exception leaves it outside the license.
+
+**Extension**: Stand-alone work that changes or adds to what the core does, through a hook of the core's or of the software it is built on. The license holds for it. _Avoid_: plugin, add-on.
+
+**Stand-alone work**: Work that adds to Konzilo from a repository or a package of its own, and is its author's alone: an extension, or a site's content and look.
 
 **Contributor agreement**: `CONTRIBUTOR-AGREEMENT.md`, by which the author of work that goes into the core keeps its copyright and gives Kntnt Sweden AB a license to release it on any terms. _Avoid_: copyright assignment.
 
