@@ -40,8 +40,8 @@ If you contribute as part of your work, or someone else has rights in what you w
 ### What is checked before a contribution goes in
 
 1. **Its author is in `CONTRIBUTORS.md`,** by a commit of their own.
-2. **It is its author's own work.** Where a part is someone else's, the pull request says whose it is and under which license. Such a part comes in only if it leaves the rest of the core free: under a permissive license, such as MIT, BSD, ISC or Apache-2.0, or as a file of its own that keeps its license and binds no other file, which [`THIRD-PARTY.md`](THIRD-PARTY.md) then lists. Code under the GPL, the AGPL or another license that binds the work it is built into cannot be built into Konzilo's own code, whoever sends it.
-3. **A new dependency has a license on the list** in `tests/licenses.test.js`: a permissive one, or the MPL or the LGPL for a library used as it is. The test fails on any other.
+2. **It is its author's own work.** Where a part is someone else's, the pull request says whose it is and under which license. Such a part comes in only if it leaves the rest of the core free: under a permissive license, such as MIT, BSD, ISC or Apache-2.0, or as a file of its own that keeps its license and binds no other file, which [`ACKNOWLEDGEMENTS.md`](ACKNOWLEDGEMENTS.md) then names. Code under the GPL, the AGPL or another license that binds the work it is built into cannot be built into Konzilo's own code, whoever sends it.
+3. **A new dependency has a license on the list** in `tests/licenses.test.js`: a permissive one, or the MPL or the LGPL for a library used as it is. The test fails on any other. It also fails until the dependency is acknowledged: `node scripts/third-party.js` writes its line in [`THIRD-PARTY.md`](THIRD-PARTY.md), and one that the code uses directly is named in `ACKNOWLEDGEMENTS.md` by hand.
 4. **It comes with tests, and the checks pass.** Run `npm test` while you work. `npm run gate`, which needs Docker, must pass on the commit before it joins `main`.
 
 Work by Kntnt's own people is Kntnt's, and needs no line.

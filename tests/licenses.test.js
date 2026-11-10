@@ -1,13 +1,19 @@
 // What the core installs leaves the core free: every package in the lock is under
 // a license that lets Kntnt give the core any terms (ADR 0059). A license outside
 // the list fails here, so that taking one in is a decision and no accident of an
-// install.
+// install. And what Konzilo is built on is named: every package in THIRD-PARTY.md,
+// and each direct dependency and pinned program in ACKNOWLEDGEMENTS.md.
 
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
-const read = (name) => JSON.parse(readFileSync(new URL(`../${name}`, import.meta.url), 'utf8'));
+import { render } from '../scripts/third-party.js';
+
+const text = (name) => readFileSync(new URL(`../${name}`, import.meta.url), 'utf8');
+const read = (name) => JSON.parse(text(name));
 const lock = read('package-lock.json');
 
 // A permissive license asks for its notice, and nothing of the work around it.
@@ -51,4 +57,23 @@ test('every installed package is under a license that leaves the core free', () 
 test('the core names its own license, alike in the package and the lock', () => {
   assert.equal(read('package.json').license, 'AGPL-3.0-or-later');
   assert.equal(lock.packages[''].license, 'AGPL-3.0-or-later');
+});
+
+test('THIRD-PARTY.md names every package of the lock, as scripts/third-party.js writes it', () => {
+  assert.equal(text('THIRD-PARTY.md'), render(lock), 'run `node scripts/third-party.js`, and commit what it writes');
+});
+
+test('ACKNOWLEDGEMENTS.md names every package the core depends on directly', () => {
+  const manifest = read('package.json');
+  const direct = Object.keys({ ...manifest.dependencies, ...manifest.peerDependencies, ...manifest.devDependencies });
+  const acknowledgements = text('ACKNOWLEDGEMENTS.md');
+  assert.deepEqual(direct.filter((name) => !acknowledgements.includes(`\`${name}\``)), []);
+});
+
+test('ACKNOWLEDGEMENTS.md names every program and list that versions.env pins', () => {
+  const pins = spawnSync('sh', [fileURLToPath(new URL('../scripts/versions', import.meta.url))], { encoding: 'utf8' }).stdout;
+  const names = new Set(pins.split('\n').filter(Boolean).map((line) => line.split('=')[0].replace(/_(DIGEST|RELEASE)$/, '').replaceAll('_', ' ').toLowerCase()));
+  assert.ok(names.has('forgejo'));
+  const acknowledgements = text('ACKNOWLEDGEMENTS.md').toLowerCase();
+  assert.deepEqual([...names].filter((name) => !acknowledgements.includes(name)), []);
 });
