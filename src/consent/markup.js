@@ -8,15 +8,17 @@
 // classes and the attributes.
 //
 // Every function takes the same input, `{ registry, texts, legalPages,
-// language, host }`:
+// language, host, locales }`:
 //
 // - `registry`: the service registry, as consent.json holds it
 //   (content-format.md, "The service registry"): `revision`, `revised`,
 //   `categories`, `services`, `departures` and `texts`.
 // - `texts`: the consent texts the page shows, in the registry's shape,
-//   `{ banner, dialog, footer, notice, placeholder }`, with `categories`, the
-//   name and description of a category by its id, where the page's differ
-//   from the registry's; the registry's own `texts` by default.
+//   `{ banner, dialog, footer, notice, placeholder, objection }`, with
+//   `categories`, the name and description of a category by its id, where
+//   the page's differ from the registry's; the registry's own `texts` by
+//   default. Texts without `objection`, or without some of its texts, take
+//   the core's defaults for it (words.js).
 // - `legalPages`: `{ privacyPolicy, cookiePolicy }`, each `{ title, href }`
 //   or null, the address as the page links to it.
 // - `language`: the page's language tag, such as en-GB; the core's own
@@ -24,12 +26,16 @@
 // - `host`: the host of the page, such as www.example.com, which an item
 //   stored on it is named by, or null where the markup serves pages on
 //   more than one host; the client then names it from the page's address.
+// - `locales`: the locale dates, times, numbers and countries are formatted
+//   in, by the language of the core's words, `{ en, sv }`; en-GB and sv-SE
+//   by default (words.js, LOCALES). The client formats the visitor's choice
+//   in the same one.
 //
 // Every text is escaped, so a registry from anywhere is safe to render.
 //
 // This folder imports nothing outside itself (words.js).
 
-import { factWords, fill, wordsFor } from './words.js';
+import { factWords, fill, formatLocale, wordsFor } from './words.js';
 
 const ENTITIES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 
@@ -40,6 +46,20 @@ export function escape(value) {
 
 // Whether a service is always on.
 const isNecessary = (service) => service.category === 'necessary';
+
+// The departure that has the statistics count before consent without
+// storage, and so offers the visitor the right to object (ADR 0049).
+const WITHOUT_STORAGE = 'statisticsWithoutStorageBeforeConsent';
+
+// The texts of the right to object to counting without storage, from the
+// page's texts and the core's defaults, where the registry offers it: a
+// departure that counts without storage, and a statistics category to
+// count in. Null where it offers none.
+function objectionOf(registry, texts, words) {
+  const counts = (registry.departures ?? []).some((departure) => departure.departure === WITHOUT_STORAGE)
+    && registry.categories.some((category) => category.id === 'statistics' && category.services.length > 0);
+  return counts ? { ...words.objection, ...(texts?.objection ?? {}) } : null;
+}
 
 // Where a stored item is, `{ party, domain }`, as HTML: the page's own host
 // for a first-party item with no domain, which the client fills in from
@@ -55,11 +75,23 @@ function domainMarkup({ party, domain }, words, host) {
 const capital = (text) => `${text[0].toUpperCase()}${text.slice(1)}`;
 
 // The privacy policy and the cookie policy, each once, since the cookie
-// policy may be the privacy policy itself.
+// policy may be the privacy policy itself, each with `rel`, the link type
+// that names it: privacy-policy or cookie-policy.
 function policiesOf(legalPages = {}) {
   const pages = [legalPages.privacyPolicy, legalPages.cookiePolicy];
-  return pages.filter((page, index) => page && pages.findIndex((other) => other?.href === page.href) === index);
+  return pages
+    .map((page, index) => page && { ...page, rel: POLICY_RELS[index] })
+    .filter((page, index) => page && pages.findIndex((other) => other?.href === page.href) === index);
 }
+
+// The link types a policy's link is marked with, `data-konzilo-consent-policy`,
+// so that a page Konzilo does not build can give its own address for each
+// (client.js, placeConsent()): `privacy-policy`, the link type registered
+// for a privacy policy, and `cookie-policy`, which mirrors it.
+const POLICY_RELS = ['privacy-policy', 'cookie-policy'];
+
+// A link to a legal page, marked with the link type that names it.
+const policyLink = (page, rel) => `<a href="${escape(page.href)}" data-konzilo-consent-policy="${rel}">${escape(page.title)}</a>`;
 
 // The name and description a category shows: the page's, where `texts`
 // gives them, else the registry's.
@@ -70,19 +102,22 @@ function categoryWords(category, texts) {
 
 // What the banner, the dialog, the footer controls and the placeholders
 // show of the input, in its language: { asks, texts, policies,
-// declaration, categories, placeholders, labels, data }: whether the
-// registry asks the visitor for consent (a category beyond necessary has a
-// service), the texts, the privacy and cookie policies as { title, href },
-// each once, the cookie policy alone, which holds the cookie declaration,
-// or null, the categories with their services described, what the
-// placeholder of each optional service that shows in a frame says, the
-// core's words, and what the client reads from the page, as JSON.
-export function consentView({ registry, texts = registry.texts, legalPages = {}, language = 'en' }) {
+// declaration, categories, placeholders, objection, labels, data }: whether
+// the registry asks the visitor for consent (a category beyond necessary
+// has a service), the texts, the privacy and cookie policies as { title,
+// href, rel }, each once, the cookie policy alone, which holds the cookie
+// declaration, or null, the categories with their services described, what
+// the placeholder of each optional service that shows in a frame says, the
+// texts of the right to object, { text, object, resume, appeal,
+// appealAllowed, confirm, cancel }, where the registry offers it, else
+// null, the core's words, and
+// what the client reads from the page, as JSON.
+export function consentView({ registry, texts = registry.texts, legalPages = {}, language = 'en', locales }) {
   const words = wordsFor(language);
   const services = new Map(registry.services.map((service) => [service.id, service]));
-  const plural = new Intl.PluralRules(language);
+  const plural = new Intl.PluralRules(formatLocale(language, locales));
   const count = (number) => `${number} ${words.service[plural.select(number) === 'one' ? 0 : 1]}`;
-  const { country, kind, lifetime } = factWords(language);
+  const { country, kind, lifetime } = factWords(language, locales);
   const describe = (service) => ({
     id: service.id,
     name: service.name,
@@ -98,6 +133,7 @@ export function consentView({ registry, texts = registry.texts, legalPages = {},
     const shape = !service.provider ? alone : service.transfers.length > 0 ? transferred : provided;
     return fill(shape, { service: service.name, provider: service.provider?.name, country: service.provider && country(service.provider.country) });
   };
+  const objection = objectionOf(registry, texts, words);
   const data = {
     revision: registry.revision,
     categories: Object.fromEntries(registry.categories.map((category) => [category.id, category.services])),
@@ -109,6 +145,9 @@ export function consentView({ registry, texts = registry.texts, legalPages = {},
     // The language tag of the texts the page shows, which each record
     // notes.
     language,
+    // Where the registry offers the right to object, the words of the
+    // link that objects and of the one that takes the objection back.
+    ...(objection ? { objection: { object: objection.object, resume: objection.resume } } : {}),
   };
   return {
     asks: optional.length > 0,
@@ -132,6 +171,7 @@ export function consentView({ registry, texts = registry.texts, legalPages = {},
       storage: sentence(service),
       button: fill(texts.placeholder.button, { service: service.name }),
     })),
+    objection,
     labels: words,
     data,
   };
@@ -141,12 +181,20 @@ export function consentView({ registry, texts = registry.texts, legalPages = {},
 // accept and reject alike, any other secondary, and the dialog's close.
 const choice = (action, text) => `<button type="button" class="konzilo-consent-choice" data-konzilo-consent-action="${action}">${escape(text)}</button>`;
 const secondary = (action, text, hidden = false) => `<button type="button" class="konzilo-consent-secondary" data-konzilo-consent-action="${action}"${hidden ? ' hidden' : ''}>${escape(text)}</button>`;
-const policyList = (policies) => `<ul class="konzilo-consent-policies">${policies.map((page) => `<li><a href="${escape(page.href)}">${escape(page.title)}</a></li>`).join('')}</ul>`;
+const policyList = (policies) => `<ul class="konzilo-consent-policies">${policies.map((page) => `<li>${policyLink(page, page.rel)}</li>`).join('')}</ul>`;
+
+// The link that objects to counting without storage, or takes the
+// objection back, wherever it stands: it opens the confirmation, the
+// dialog `#konzilo-consent-objection`, and the client writes its words by
+// whether the visitor objects. `hidden` until the client shows it.
+const objectionLink = (objection, hidden) => `<a href="#konzilo-consent-objection" class="konzilo-consent-objection-link" data-konzilo-consent-action="objection"${hidden ? ' hidden' : ''}>${escape(objection.object)}</a>`;
 
 // The consent's own part of a page, once on it: the banner, the notice
-// shown in its place when the visitor withdraws consent, and the
-// preferences dialog, each hidden until the client shows it, and the
-// template of each placeholder, in what the client finds them by,
+// shown in its place when the visitor withdraws consent, the preferences
+// dialog, each hidden until the client shows it, and, where the registry
+// offers the right to object, the dialog that asks the visitor to confirm
+// an objection, and the template of each placeholder, in what the client
+// finds them by,
 // `[data-konzilo-consent]`, which holds the registry the client reads. A
 // registry that asks no consent gives no banner, no notice and no dialog,
 // and still the registry. `legalPage: true` marks the page as a legal page,
@@ -179,7 +227,7 @@ export function consentMarkup(input, { legalPage = false } = {}) {
       `<button type="button" class="konzilo-consent-close" data-konzilo-consent-action="close">${escape(texts.dialog.close)}</button>`,
       '</div>',
       `<p class="konzilo-consent-introduction">${escape(texts.dialog.introduction)}</p>`,
-      ...view.categories.map((category) => categoryMarkup(category, labels, input.host ?? null)),
+      ...view.categories.map((category) => categoryMarkup(category, labels, input.host ?? null, category.id === 'statistics' ? view.objection : null)),
       '<div class="konzilo-consent-buttons">',
       choice('accept', texts.dialog.accept),
       choice('reject', texts.dialog.reject),
@@ -187,8 +235,27 @@ export function consentMarkup(input, { legalPage = false } = {}) {
       '</div>',
       '</dialog>',
     ].join(''));
+    // The confirmation of an objection: a plain appeal, and to confirm and
+    // to cancel alike. The appeal is one of two: the one to a visitor
+    // counted without storage, and the one to a visitor who allows
+    // statistics, whose cookie recognises the browser between visits and
+    // whom the objection takes it from too. The client shows the one that
+    // fits as it opens the confirmation.
+    if (view.objection) {
+      parts.push([
+        '<dialog class="konzilo-consent-confirmation" id="konzilo-consent-objection" aria-labelledby="konzilo-consent-objection-title" aria-describedby="konzilo-consent-objection-appeal">',
+        `<h2 class="konzilo-consent-title" id="konzilo-consent-objection-title">${escape(view.objection.object)}</h2>`,
+        `<p class="konzilo-consent-text" id="konzilo-consent-objection-appeal" data-konzilo-consent-appeal="without-statistics">${escape(view.objection.appeal)}</p>`,
+        `<p class="konzilo-consent-text" id="konzilo-consent-objection-appeal-allowed" data-konzilo-consent-appeal="with-statistics" hidden>${escape(view.objection.appealAllowed)}</p>`,
+        '<div class="konzilo-consent-buttons">',
+        choice('object', view.objection.confirm),
+        choice('cancel', view.objection.cancel),
+        '</div>',
+        '</dialog>',
+      ].join(''));
+    }
   }
-  const cookiePolicy = view.declaration ? ` <a href="${escape(view.declaration.href)}">${escape(view.declaration.title)}</a>` : '';
+  const cookiePolicy = view.declaration ? ` ${policyLink(view.declaration, 'cookie-policy')}` : '';
   for (const placeholder of view.placeholders) {
     parts.push([
       `<template data-konzilo-consent-placeholder="${escape(placeholder.service)}">`,
@@ -203,8 +270,10 @@ export function consentMarkup(input, { legalPage = false } = {}) {
 
 // A category of the dialog: its row with its name, its count and its
 // switch, its description, and its services, each with its facts and its
-// own switch, or the words that it is always on.
-function categoryMarkup(category, labels, host) {
+// own switch, or the words that it is always on; then, in the statistics
+// category where the registry offers it, `objection`, the explanation of
+// the right to object with the link that objects.
+function categoryMarkup(category, labels, host, objection) {
   const id = `konzilo-consent-category-${category.id}`;
   const [before, after] = labels.on.split('{domain}');
   const services = category.services.map((service) => {
@@ -238,7 +307,9 @@ function categoryMarkup(category, labels, host) {
     `<input type="checkbox" role="switch" class="konzilo-consent-switch" aria-labelledby="${escape(id)}" data-konzilo-consent-category="${escape(category.id)}"${category.necessary ? ' checked disabled' : ''}>`,
     '</div>',
     `<p class="konzilo-consent-description">${escape(category.description)}</p>`,
-    `<details class="konzilo-consent-services"><summary>${escape(labels.details)}</summary><ul>${services.join('')}</ul></details>`,
+    `<details class="konzilo-consent-services"><summary>${escape(labels.details)}</summary><ul>${services.join('')}</ul>`,
+    objection ? `<p class="konzilo-consent-objection">${escape(objection.text)} ${objectionLink(objection, true)}</p>` : '',
+    '</details>',
     '</section>',
   ].join('');
 }
@@ -248,34 +319,43 @@ function categoryMarkup(category, labels, host) {
 // neither navigates, hidden until the client shows them, and only where
 // the registry asks for consent. `links: false` leaves the links out, for a
 // footer that links the legal pages itself, and `buttons: false` the
-// buttons, so that each can stand in a place of its own. An empty string
-// where neither is left.
-export function consentControlsMarkup(input, { links = true, buttons = true } = {}) {
+// buttons, so that each can stand in a place of its own. `objection: true`
+// adds the link that objects to counting without storage, or takes the
+// objection back, hidden until the client shows it, where the registry
+// offers the right to object, for a page such as the privacy policy to
+// place where it explains it. An empty string where nothing is left.
+export function consentControlsMarkup(input, { links = true, buttons = true, objection = false } = {}) {
   const view = consentView(input);
   const policies = links ? view.policies : [];
   const withButtons = buttons && view.asks;
-  if (policies.length === 0 && !withButtons) return '';
+  const withObjection = objection && view.objection !== null;
+  if (policies.length === 0 && !withButtons && !withObjection) return '';
   return [
     '<div class="konzilo-consent-controls">',
     policies.length > 0 ? policyList(policies) : '',
     withButtons ? `<div class="konzilo-consent-buttons">${secondary('change', view.texts.footer.change, true)}${secondary('withdraw', view.texts.footer.withdraw, true)}</div>` : '',
+    withObjection ? objectionLink(view.objection, true) : '',
     '</div>',
   ].join('');
 }
 
 // What the cookie declaration shows of the input, in its language:
-// { words, asks, revised, categories, departures, footer }: the
-// declaration's own words; whether the registry asks for consent; the day
-// it last changed, { before, date, datetime, after }, the date in words and
-// as HTML's <time> takes it, between the words around it; each category with
-// its services and all their facts, in the registry's order; each departure
-// in plain words with its reason; and the footer's texts, which name the
-// buttons. A service of the site's own links to the privacy policy.
-export function declarationView({ registry, texts = registry.texts, legalPages = {}, language = 'en' }) {
+// { words, asks, locale, revised, categories, departures, footer, objection }:
+// the declaration's own words; whether the registry asks for consent; the
+// locale it formats in, which the client formats the visitor's choice in
+// too; the day it last changed, { before, date, datetime, after }, the date
+// in words and as HTML's <time> takes it, between the words around it; each
+// category with its services and all their facts, in the registry's order;
+// each departure in plain words with its reason; the footer's texts, which
+// name the buttons; and the texts of the right to object where the registry
+// offers it, else null. A service of the site's own links to the privacy
+// policy.
+export function declarationView({ registry, texts = registry.texts, legalPages = {}, language = 'en', locales }) {
   const words = wordsFor(language).declaration;
-  const { country, kind, lifetime } = factWords(language);
+  const locale = formatLocale(language, locales);
+  const { country, kind, lifetime } = factWords(language, locales);
   const services = new Map(registry.services.map((service) => [service.id, service]));
-  const either = new Intl.ListFormat(language, { type: 'disjunction' });
+  const either = new Intl.ListFormat(locale, { type: 'disjunction' });
   const privacy = legalPages.privacyPolicy ?? null;
   const transfer = ({ country: code, safeguards }) => {
     const where = code === null ? words.unnamed : country(code);
@@ -287,7 +367,7 @@ export function declarationView({ registry, texts = registry.texts, legalPages =
     name: service.name,
     provider: service.provider
       ? { name: service.provider.name, country: country(service.provider.country), privacyPolicy: { title: fill(words.privacyPolicy, { provider: service.provider.name }), href: service.provider.privacyPolicy } }
-      : { name: words.site, country: null, privacyPolicy: privacy },
+      : { name: words.site, country: null, privacyPolicy: privacy && { ...privacy, rel: 'privacy-policy' } },
     purpose: service.purpose,
     necessity: service.necessity,
     hosts: [...new Set(Object.values(service.hosts).flat())].sort(),
@@ -300,7 +380,8 @@ export function declarationView({ registry, texts = registry.texts, legalPages =
   return {
     words,
     asks: registry.categories.some((category) => category.id !== 'necessary'),
-    revised: { before, date: new Intl.DateTimeFormat(language, { dateStyle: 'long', timeZone: 'UTC' }).format(revised), datetime: revised.toISOString().slice(0, 10), after },
+    locale,
+    revised: { before, date: new Intl.DateTimeFormat(locale, { dateStyle: 'long', timeZone: 'UTC' }).format(revised), datetime: revised.toISOString().slice(0, 10), after },
     categories: registry.categories.map((category) => ({
       id: category.id,
       ...categoryWords(category, texts),
@@ -312,15 +393,17 @@ export function declarationView({ registry, texts = registry.texts, legalPages =
       reason: departure.reason,
     })),
     footer: texts.footer,
+    objection: objectionOf(registry, texts, wordsFor(language)),
   };
 }
 
 // The cookie declaration, for the page that is the cookie policy, after
 // its body: the visitor's own consent first, which the client fills in
-// (client.js, cookieDeclaration()), with Change privacy settings and
-// Withdraw consent beside it; then each category of the registry with its
-// services and all their facts, after the day it last changed; and each
-// departure with its reason.
+// (client.js, cookieDeclaration()), in the declaration's locale, with
+// Change privacy settings and Withdraw consent beside it, and the link that
+// objects to counting without storage where the registry offers it; then
+// each category of the registry with its services and all their facts,
+// after the day it last changed; and each departure with its reason.
 //
 // `level` is the level of its top headings, 2 by default, below the page's
 // title; each category's heading is one level below, each service's two.
@@ -349,6 +432,7 @@ export function cookieDeclarationMarkup(input, { level = 2, records = null } = {
         '</ul></dd>',
         '</dl>',
         `<div class="konzilo-consent-buttons">${secondary('change', view.footer.change, true)}${secondary('withdraw', view.footer.withdraw, true)}</div>`,
+        view.objection ? objectionLink(view.objection, true) : '',
       ].join('')
     : `<p>${escape(words.asksNone)}</p>`;
   const services = view.categories.map((one) => [
@@ -359,7 +443,7 @@ export function cookieDeclarationMarkup(input, { level = 2, records = null } = {
     '</section>',
   ].join(''));
   return [
-    '<div class="konzilo-declaration" data-konzilo-declaration>',
+    `<div class="konzilo-declaration" data-konzilo-declaration data-konzilo-declaration-locale="${escape(view.locale)}">`,
     '<section class="konzilo-declaration-consent" aria-labelledby="konzilo-declaration-consent">',
     heading(top, 'konzilo-declaration-consent', words.consent),
     own,
@@ -387,7 +471,8 @@ export function cookieDeclarationMarkup(input, { level = 2, records = null } = {
 function serviceMarkup(service, { tag, words, domain }) {
   const id = `konzilo-declaration-service-${service.id}`;
   const provider = service.provider.country ? `${service.provider.name}, ${service.provider.country}.` : `${service.provider.name}.`;
-  const policy = service.provider.privacyPolicy ? ` <a href="${escape(service.provider.privacyPolicy.href)}">${escape(service.provider.privacyPolicy.title)}</a>` : '';
+  const page = service.provider.privacyPolicy;
+  const policy = page ? ` ${page.rel ? policyLink(page, page.rel) : `<a href="${escape(page.href)}">${escape(page.title)}</a>`}` : '';
   const list = (items, none, code = false) => (items.length > 0 ? `<ul>${items.map((item) => `<li>${code ? `<code>${escape(item)}</code>` : escape(item)}</li>`).join('')}</ul>` : escape(none));
   const storage = service.storage.length > 0
     ? [

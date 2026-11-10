@@ -13,7 +13,9 @@ import { join } from 'node:path';
 import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { consentClient, cookieDeclaration, embedPanels } from '../src/consent/client.js';
-import { consentControlsMarkup, consentMarkup, cookieDeclarationMarkup, declarationView, escape } from '../src/consent/markup.js';
+import { consentControlsMarkup, consentMarkup, consentView, cookieDeclarationMarkup, declarationView, escape } from '../src/consent/markup.js';
+import { wordsFor } from '../src/consent/words.js';
+import groups from '../src/format/settings-groups.json' with { type: 'json' };
 
 const core = fileURLToPath(new URL('../', import.meta.url));
 const { CookieJar, JSDOM, VirtualConsole } = createRequire(join(core, 'package.json'))('jsdom');
@@ -125,8 +127,8 @@ describe('the consent\'s markup functions', () => {
     assert.ok(recorded.querySelector('[data-konzilo-declaration-id]'));
     const unrecorded = parse(cookieDeclarationMarkup(input, { level: 3 }));
     assert.equal(unrecorded.querySelector('[data-konzilo-declaration-id]'), null);
-    assert.deepEqual([...unrecorded.querySelectorAll('.konzilo-declaration-choice dt')].map(text), ['Given', 'Allows']);
-    assert.deepEqual([...unrecorded.querySelectorAll('h3, h4, h5')].map((heading) => `${heading.tagName} ${text(heading)}`).slice(0, 4), ['H3 Your consent', 'H3 Services and what they store', 'H4 Necessary', 'H5 Consent']);
+    assert.deepEqual([...unrecorded.querySelectorAll('.konzilo-declaration-choice dt')].map(text), ['Made', 'Allows']);
+    assert.deepEqual([...unrecorded.querySelectorAll('h3, h4, h5')].map((heading) => `${heading.tagName} ${text(heading)}`).slice(0, 4), ['H3 Your choice', 'H3 Services and what they store', 'H4 Necessary', 'H5 Consent']);
     const consent = unrecorded.querySelector('#konzilo-declaration-service-consent dd a');
     assert.equal(consent.getAttribute('href'), 'https://www.example.com/privacy/');
   });
@@ -188,6 +190,69 @@ test('the declaration says in plain words that the statistics count without stor
   assert.match(counting('stop', 'sv-SE')[0].text, /^Webbplatsens statistik räknar varje besök .* räknas inte alls\.$/);
 });
 
+describe('where the statistics count visits without storage before consent', () => {
+  const counting = { ...registry, departures: [{ departure: 'statisticsWithoutStorageBeforeConsent', reason: 'Every visit counts.', privacySignals: 'ignore' }] };
+  const offered = { ...input, registry: counting };
+
+  test('the dialog\'s statistics offer the right to object, with the core\'s texts where the page\'s give none, and the registry the client reads names the link\'s words', () => {
+    const page = parse(consentMarkup(offered));
+    const objection = page.querySelector('#konzilo-consent-category-statistics').closest('.konzilo-consent-category').querySelector('details > .konzilo-consent-objection');
+    assert.equal(text(objection), 'The counting without storage rests on the site\'s legitimate interest, and you may object to it at any time. Don\'t count my visits');
+    assert.deepEqual(JSON.parse(page.querySelector('[data-konzilo-consent]').dataset.konziloConsent).objection, { object: 'Don\'t count my visits', resume: 'Count my visits again' });
+    assert.ok(page.querySelector('dialog.konzilo-consent-confirmation#konzilo-consent-objection'));
+    const own = parse(consentMarkup({ ...offered, texts: { ...registry.texts, objection: { object: 'Stop counting me' } } }));
+    assert.equal(text(own.querySelector('#konzilo-consent-objection-title')), 'Stop counting me');
+    assert.equal(text(own.querySelector('#konzilo-consent-objection [data-konzilo-consent-action="cancel"]')), 'Cancel');
+    const swedish = parse(consentMarkup({ ...offered, language: 'sv-SE' }));
+    assert.equal(text(swedish.querySelector('#konzilo-consent-objection-appeal')), 'Vill du verkligen att vi slutar räkna dina besök? Vi ser inte vem du är och följer dig inte mellan besök. Siffrorna hjälper oss att förstå vad som är värdefullt på webbplatsen och vad vi behöver göra bättre.');
+    assert.deepEqual([...swedish.querySelectorAll('#konzilo-consent-objection button')].map(text), ['Räkna inte mina besök', 'Avbryt']);
+    assert.equal(text(swedish.querySelector('#konzilo-consent-objection-appeal-allowed')), 'Vill du verkligen att vi slutar räkna dina besök? Du har tillåtit statistik, så i dag känner vi igen din webbläsare mellan besök. Invänder du stänger vi av det och slutar räkna dina besök helt. Siffrorna hjälper oss att förstå vad som är värdefullt på webbplatsen och vad vi behöver göra bättre.');
+    assert.equal(swedish.querySelector('#konzilo-consent-objection-appeal-allowed').hidden, true);
+  });
+
+  test('without the departure, or without a statistics category, nothing offers it', () => {
+    const none = parse(consentMarkup(input) + consentControlsMarkup(input, { objection: true }) + cookieDeclarationMarkup(input));
+    assert.equal(none.querySelector('.konzilo-consent-objection, .konzilo-consent-objection-link, #konzilo-consent-objection'), null);
+    assert.equal(JSON.parse(none.querySelector('[data-konzilo-consent]').dataset.konziloConsent).objection, undefined);
+    const uncounted = { ...counting, categories: counting.categories.filter((category) => category.id !== 'statistics'), services: counting.services.filter((service) => service.id !== 'counter') };
+    assert.equal(consentView({ ...input, registry: uncounted }).objection, null);
+    assert.equal(consentControlsMarkup({ ...input, registry: uncounted }, { links: false, buttons: false, objection: true }), '');
+  });
+
+  test('the controls give the link where asked, hidden until the client shows it, and so does the declaration beside its buttons', () => {
+    const controls = parse(consentControlsMarkup(offered, { links: false, buttons: false, objection: true }));
+    assert.deepEqual([...controls.querySelectorAll('.konzilo-consent-controls > *')].map((element) => [element.tagName, element.className, element.dataset.konziloConsentAction, element.hidden]), [['A', 'konzilo-consent-objection-link', 'objection', true]]);
+    assert.equal(parse(consentControlsMarkup(offered)).querySelector('.konzilo-consent-objection-link'), null, 'not by default');
+    const declaration = parse(cookieDeclarationMarkup(offered));
+    const link = declaration.querySelector('.konzilo-declaration-consent > .konzilo-consent-buttons + .konzilo-consent-objection-link');
+    assert.deepEqual([link.getAttribute('href'), link.hidden], ['#konzilo-consent-objection', true]);
+  });
+
+  test('the core\'s defaults of its texts are the consent texts\' own defaults', () => {
+    const settings = groups.consent.settings;
+    for (const language of ['en', 'sv']) {
+      const defaults = Object.fromEntries(Object.entries(wordsFor(language).objection).map(([name, value]) => [`objection${name[0].toUpperCase()}${name.slice(1)}`, value]));
+      assert.deepEqual(defaults, Object.fromEntries(Object.keys(defaults).map((key) => [key, settings[key]?.default[language]])), language);
+    }
+  });
+
+  test('a page of the markup alone shows the link, and the objection is kept in the origin\'s storage, beside a choice made before or after', () => {
+    const html = `<!doctype html><html lang="en-GB"><body>${consentMarkup(offered)}<main>${consentControlsMarkup(offered, { links: false, buttons: false, objection: true })}</main></body></html>`;
+    const { window } = new JSDOM(html, { url: 'https://www.example.com/privacy/', runScripts: 'outside-only' });
+    window.eval(`(${consentClient})({});`);
+    for (const dialog of window.document.querySelectorAll('dialog')) Object.assign(dialog, { showModal() { this.open = true; }, close() { this.open = false; } });
+    const link = window.document.querySelector('main .konzilo-consent-objection-link');
+    assert.deepEqual([link.hidden, text(link)], [false, 'Don\'t count my visits']);
+    window.document.querySelector('.konzilo-consent-banner [data-konzilo-consent-action="reject"]').click();
+    link.click();
+    window.document.querySelector('[data-konzilo-consent-action="object"]').click();
+    const kept = JSON.parse(window.localStorage.getItem('konzilo-consent'));
+    assert.deepEqual(Object.keys(kept).sort(), ['categories', 'objection', 'revision', 'services', 'time']);
+    assert.equal(window.konziloConsent.choice().objection, undefined, 'the choice is the choice alone');
+    assert.deepEqual([...window.document.querySelectorAll('.konzilo-consent-objection-link')].map(text), ['Count my visits again', 'Count my visits again']);
+  });
+});
+
 describe('on a legal page', () => {
   test('the banner stays hidden, as the markup, the client\'s option or the page\'s own meta says, and the footer\'s buttons show', () => {
     const page = (head, html, options = {}) => {
@@ -228,6 +293,24 @@ describe('a page made of the markup functions alone, with the client', () => {
     assert.equal(document.querySelector('figure.konzilo-embed > iframe').getAttribute('src'), 'https://player.video.example.net/1');
     assert.equal(JSON.parse(window.localStorage.getItem('konzilo-consent')).unsent, undefined);
     assert.equal(JSON.parse(window.localStorage.getItem('konzilo-consent')).id, undefined, 'no consent ID without records');
+  });
+
+  test('a choice kept as before the right to object holds as it did, and objects to nothing', () => {
+    const window = visit({ stored: { time: new Date(Date.now() - 60_000).toISOString(), revision: registry.revision, categories: { necessary: true, statistics: true, marketing: false }, services: { consent: true, counter: true, video: false } } });
+    assert.equal(window.document.querySelector('.konzilo-consent-banner').hidden, true);
+    assert.equal(window.konziloConsent.service('counter'), true);
+    assert.equal(window.konziloConsent.objected(), false);
+  });
+
+  test('the visitor\'s choice shows in the declaration\'s locale, en-GB for English, on a page whose own language says otherwise', () => {
+    const html = `<!doctype html><html lang="en-US"><body>${consentMarkup({ ...input, language: 'en' })}<main>${cookieDeclarationMarkup({ ...input, language: 'en' })}</main></body></html>`;
+    const { window } = new JSDOM(html, { url: 'https://www.example.com/cookies/', runScripts: 'outside-only' });
+    window.localStorage.setItem('konzilo-consent', JSON.stringify({ time: '2026-11-10T09:14:00.000Z', revision: registry.revision, categories: { necessary: true, statistics: false, marketing: false }, services: { consent: true, counter: false, video: false } }));
+    window.eval(`(${consentClient})({});\n(${cookieDeclaration})();`);
+    const shown = text(window.document.querySelector('.konzilo-declaration-choice time'));
+    assert.equal(shown, new Intl.DateTimeFormat('en-GB', { dateStyle: 'long', timeStyle: 'short' }).format(new Date('2026-11-10T09:14:00.000Z')));
+    assert.notEqual(shown, new Intl.DateTimeFormat('en-US', { dateStyle: 'long', timeStyle: 'short' }).format(new Date('2026-11-10T09:14:00.000Z')));
+    assert.equal(window.document.querySelector('.konzilo-declaration').dataset.konziloDeclarationLocale, 'en-GB');
   });
 
   test('a choice with a consent ID, made where records are sent, holds there without the consent ID, and the next choice keeps none', () => {

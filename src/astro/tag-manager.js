@@ -69,12 +69,14 @@ function launchedBuild({ command, base, environment, folder, languages }) {
 // What the page's script needs to load Matomo's own tracker on a page of
 // this build, or null when it loads none, taking what pageTagManager()
 // takes, and `warn`, which is told of a cookie domain the build's host is
-// neither at nor below, which the tracker then leaves out. Returns the
-// client's options of matomoTracker() (src/consent/client.js): { service,
-// script, endpoint, site, cookieDomain, withoutStorage, privacySignals },
-// the last two from the departure statisticsWithoutStorageBeforeConsent,
-// or false and null without it. None while the registry the build reads
-// holds no such service.
+// neither at nor below, which the tracker then leaves out, and, where it
+// counts without storage, of a time zone the settings leave out or the
+// build does not know, which then is UTC. Returns the client's options of
+// matomoTracker() (src/consent/client.js): { service, script, endpoint,
+// site, cookieDomain, timeZone, withoutStorage, privacySignals }, the last
+// two from the departure statisticsWithoutStorageBeforeConsent, or false
+// and null without it. None while the registry the build reads holds no
+// such service.
 export function pageTracker({ command, base, environment = process.env, folder, languages = [], warn = () => {} }) {
   const built = launchedBuild({ command, base, environment, folder, languages });
   const chosen = built && trackerOf(built.settings);
@@ -86,7 +88,24 @@ export function pageTracker({ command, base, environment = process.env, folder, 
     cookieDomain = null;
   }
   const departure = built.registry.departures?.find((one) => one.departure === WITHOUT_STORAGE);
-  return { service: chosen.id, script: chosen.script, endpoint: chosen.endpoint, site: chosen.site, cookieDomain, withoutStorage: Boolean(departure), privacySignals: departure?.privacySignals ?? null };
+  let { timeZone } = chosen;
+  if (timeZone !== null && !knownTimeZone(timeZone)) {
+    warn(`Matomo's time zone is ${timeZone}, which this build does not know, so a visit counted before consent has its time of day in UTC`);
+    timeZone = null;
+  } else if (timeZone === null && departure) {
+    warn('the site counts visits before consent without a time zone for Matomo, so such a visit has its time of day in UTC: set the time zone the site has in Matomo');
+  }
+  return { service: chosen.id, script: chosen.script, endpoint: chosen.endpoint, site: chosen.site, cookieDomain, timeZone, withoutStorage: Boolean(departure), privacySignals: departure?.privacySignals ?? null };
+}
+
+// Whether the build's Intl knows the time zone `name`, as a browser's does.
+function knownTimeZone(name) {
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: name });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // The script of the tag manager, which the integration puts into every
