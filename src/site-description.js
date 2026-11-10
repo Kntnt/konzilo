@@ -808,7 +808,7 @@ function settingOf(name, setting, path, groups, problems) {
   }
   const group = groups.find((found) => found.name === name);
   if (group) {
-    problems.push(`${path}: ${name} is the name of Konzilo's own settings group ${JSON.stringify(group.label)}; give the setting another name`);
+    problems.push(`${path}: ${name} is the name of Konzilo's own settings group ${JSON.stringify(labelIn(group.label, SOURCE_LANGUAGE))}; give the setting another name`);
     return null;
   }
   if (!isObject(setting)) {

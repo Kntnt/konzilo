@@ -157,6 +157,28 @@ describe('the interface language', () => {
     }
   });
 
+  test('shows the core\'s settings groups in the interface language, Breadcrumbs among them, with their headings, labels and help', () => {
+    const breadcrumbs = (language) => {
+      const made = cmsConfig(swedish, { ...place, language });
+      const group = field(made.collections.find((one) => one.name === 'settings').files[0].fields, 'breadcrumbs');
+      const article = field(field(group.fields, 'types').fields, 'article');
+      const current = field(article.fields, 'current');
+      return { heading: group.label, description: group.hint, label: current.label, help: current.hint };
+    };
+    assert.deepEqual(breadcrumbs('sv'), {
+      heading: 'Brödsmulor',
+      description: 'Om en sidas brödsmulor slutar med sidan själv, per typ. Den strukturerade datan har alltid med sidan själv; en sida direkt under startsidan har inga brödsmulor utan den.',
+      label: 'Sidan själv sist',
+      help: 'När den är av slutar brödsmulorna på nivån ovanför sidan.',
+    });
+    assert.deepEqual(breadcrumbs('en'), {
+      heading: 'Breadcrumbs',
+      description: 'Whether a page\'s breadcrumbs end with the page itself, by type. The structured data always holds the page itself; a page right under the start page has no breadcrumbs without it.',
+      label: 'The page itself last',
+      help: 'Off, the breadcrumbs end at the level above the page.',
+    });
+  });
+
   test('is written by konzilo-cms beside the site\'s own: one configuration in each language the interface comes in', () => {
     const folder = mkdtempSync(join(tmpdir(), 'konzilo-cms-'));
     const site = join(folder, 'site');

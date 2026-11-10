@@ -7,7 +7,17 @@
 // use; groupsFor() picks the groups that apply to a site, each per-type part
 // made one part per post type. settings.json holds a group's values under its
 // name.
+//
+// What an editor reads of a group is the catalogues' (catalogues.js, ADR 0066), each text
+// by a name made from where the declaration has it: a group's `settings.<group>.label` and
+// `settings.<group>.description`; a setting's or a part's `settings.<group>.<name>.label`,
+// a setting's `….help` and a part's `….description` where the catalogue has one; a
+// setting of a part's `settings.<group>.<part>.<setting>.label`, and of the part per post
+// type `settings.<group>.types.<setting>.label`; and a select's option's
+// `settings.<…setting>.options.<option>`, the option's value in lower camelCase,
+// `theSummary` for `The summary`. A new setting needs nothing but those texts.
 
+import { CATALOGUES, INTERFACE_LANGUAGES, SOURCE_LANGUAGE } from './catalogues.js';
 import { freeze, isObject, onlyKeys as checkedKeys, text } from './checks.js';
 import { ownValue } from './format/frontmatter.js';
 import declaration from './format/settings-groups.json' with { type: 'json' };
@@ -62,7 +72,11 @@ export function coreSettingsGroups() {
 //   [ { name, label, description, when, settings, parts: [ { name, label, description, settings } ],
 //       types: { only, settings } or null, table, each } ]
 //
-// `settings` are the group's settings in the form of a site's own, each with its `default` as settings.json holds it when one is
+// `label` and `description` are texts by interface language, as a site's own
+// label by language is, `{ en, sv }`, from the catalogues, and so is each
+// part's and setting's `label`, a part's `description` and a setting's `help`,
+// and a select's `optionLabels`, the label of each of its `options` by the
+// option. `settings` are the group's settings in the form of a site's own, each with its `default` as settings.json holds it when one is
 // declared, and `published: false` when it stays out of the published files and
 // the site never gets it, such as a form's recipients. `each` names what the group's
 // settings are repeated for, `forms`, or is null: such a group has no
@@ -193,7 +207,8 @@ function groupOf(name, group, path, problems) {
     problems.push(`${path}: must be an object`);
     return null;
   }
-  onlyKeys(group, ['label', 'description', 'when', 'table', 'settings', 'parts', 'types', 'each'], path, problems);
+  const named = `${TEXTS}.${name}`;
+  onlyKeys(withoutTexts(group, ['label', 'description'], path, named, problems), ['when', 'table', 'settings', 'parts', 'types', 'each'], path, problems);
   const each = group.each === undefined ? null : group.each;
   if (each !== null && !EACH.includes(each)) {
     problems.push(`${path}.each: must be ${EACH.join(' or ')}, the declarations the group is repeated for`);
@@ -207,14 +222,14 @@ function groupOf(name, group, path, problems) {
   }
   const result = {
     name,
-    label: text(group.label, `${path}.label`, problems),
-    description: text(group.description, `${path}.description`, problems),
+    label: textsOf(`${named}.label`, path, problems),
+    description: textsOf(`${named}.description`, path, problems),
     when: repeated ? null : whenOf(group.when, `${path}.when`, problems),
-    settings: group.settings === undefined ? [] : settingsOf(group.settings, `${path}.settings`, problems, repeated ? 'each' : 'group'),
+    settings: group.settings === undefined ? [] : settingsOf(group.settings, `${path}.settings`, problems, repeated ? 'each' : 'group', named),
     each: repeated ? each : null,
   };
-  result.parts = group.parts === undefined || repeated ? [] : partsOf(group.parts, result.settings, `${path}.parts`, problems);
-  result.types = group.types === undefined || repeated ? null : typesOf(group.types, `${path}.types`, problems);
+  result.parts = group.parts === undefined || repeated ? [] : partsOf(group.parts, result.settings, `${path}.parts`, problems, named);
+  result.types = group.types === undefined || repeated ? null : typesOf(group.types, `${path}.types`, problems, named);
   result.table = group.table === undefined || repeated ? null : tableOf(group.table, result, `${path}.table`, problems);
   if (group.settings === undefined && group.parts === undefined && group.types === undefined) {
     problems.push(`${path}: must declare settings, parts, a part per post type or more than one of them`);
@@ -264,7 +279,8 @@ function tableOf(table, group, path, problems) {
 // A group's named parts, each a set of settings kept and written under its
 // name beside the group's own settings, which no part's name may take, and
 // optionally a description, which the page shows under the part's label.
-function partsOf(parts, settings, path, problems) {
+// `named` is where the group's texts are in the catalogues.
+function partsOf(parts, settings, path, problems, named) {
   if (!isObject(parts)) {
     problems.push(`${path}: must be an object`);
     return [];
@@ -285,12 +301,13 @@ function partsOf(parts, settings, path, problems) {
       problems.push(`${at}: must be an object`);
       continue;
     }
-    onlyKeys(part, ['label', 'description', 'settings'], at, problems);
+    const own = `${named}.${name}`;
+    onlyKeys(withoutTexts(part, ['label', 'description'], at, own, problems), ['settings'], at, problems);
     result.push({
       name,
-      label: text(part.label, `${at}.label`, problems),
-      description: part.description === undefined ? null : text(part.description, `${at}.description`, problems),
-      settings: settingsOf(part.settings, `${at}.settings`, problems, 'part'),
+      label: textsOf(`${own}.label`, at, problems),
+      description: textsOf(`${own}.description`, at, problems, false),
+      settings: settingsOf(part.settings, `${at}.settings`, problems, 'part', own),
     });
   }
   return result;
@@ -298,7 +315,7 @@ function partsOf(parts, settings, path, problems) {
 
 // A group's part per post type: the settings each type gets, and the kind
 // of type it is limited to, or null for every type.
-function typesOf(types, path, problems) {
+function typesOf(types, path, problems, named) {
   if (!isObject(types)) {
     problems.push(`${path}: must be an object`);
     return null;
@@ -307,13 +324,15 @@ function typesOf(types, path, problems) {
   if (types.only !== undefined && !Object.hasOwn(limits, types.only)) {
     problems.push(`${path}.only: must be ${Object.keys(limits).join(' or ')}, the post types the part is limited to`);
   }
-  return { only: types.only ?? null, settings: settingsOf(types.settings, `${path}.settings`, problems, 'types') };
+  return { only: types.only ?? null, settings: settingsOf(types.settings, `${path}.settings`, problems, 'types', `${named}.${TYPES}`) };
 }
 
 // A group's settings, `where` it declares them: among its own (`group`),
 // in a named part (`part`), in its part per post type (`types`) or in a
 // group repeated for each form (`each`); a part must declare at least one.
-function settingsOf(settings, path, problems, where = 'group') {
+// `named` is where they are declared, as their texts' names in the catalogues
+// begin, such as `settings.search.home`.
+function settingsOf(settings, path, problems, where, named) {
   const inPart = where !== 'group';
   if (!isObject(settings) || (inPart && Object.keys(settings).length === 0)) {
     problems.push(`${path}: must be an object${inPart ? ' that declares at least one' : ''}`);
@@ -321,7 +340,7 @@ function settingsOf(settings, path, problems, where = 'group') {
   }
   const result = [];
   for (const [name, setting] of Object.entries(settings)) {
-    const read = settingOf(name, setting, `${path}.${name}`, problems, where);
+    const read = settingOf(name, setting, `${path}.${name}`, problems, where, `${named}.${name}`);
     if (!read) continue;
     if (read.requires !== undefined) requiredBy(read, result, `${path}.${name}.requires`, problems);
     result.push(read);
@@ -359,7 +378,7 @@ function requiredBy(read, before, path, problems) {
 // is `translated`, as a site's own setting may be
 // (translatedOf()): on a site in several languages it has a value in each,
 // and none that stays out of the published files is.
-function settingOf(name, setting, path, problems, where) {
+function settingOf(name, setting, path, problems, where, named) {
   if (!fieldName(name, path, problems)) return null;
   if (name === TYPES) {
     problems.push(`${path}: is where a group keeps its part per post type; give the setting another name`);
@@ -369,8 +388,11 @@ function settingOf(name, setting, path, problems, where) {
     problems.push(`${path}: must be an object`);
     return null;
   }
-  const { default: given, defaultFor, template, help, requires, patterns, format, published, translated, min, ...declared } = setting;
-  const read = ownField(name, declared, path, problems, WHOLE);
+  const { default: given, defaultFor, template, requires, patterns, format, published, translated, min, ...declared } = setting;
+  // A label the catalogues lack is a problem already, so the field is read with its name.
+  const label = textsOf(`${named}.label`, path, problems);
+  const read = ownField(name, { ...withoutTexts(declared, ['label', 'help'], path, named, problems), label: label ?? name }, path, problems, WHOLE);
+  if (read.options) read.optionLabels = optionLabelsOf(read.options, `${path}.options`, `${named}.options`, problems);
   if (min !== undefined) {
     if (read.type !== 'integer' && read.type !== 'number') problems.push(`${path}.min: only a number has a least value`);
     else if (read.type === 'integer' ? !Number.isSafeInteger(min) : typeof min !== 'number' || !Number.isFinite(min)) problems.push(`${path}.min: must be ${expected[read.type]}`);
@@ -385,7 +407,8 @@ function settingOf(name, setting, path, problems, where) {
     else if (published !== false) problems.push(`${path}.published: must be false, for a setting that stays out of the published files, or left out`);
     else read.published = false;
   }
-  if (help !== undefined) read.help = text(help, `${path}.help`, problems);
+  const help = textsOf(`${named}.help`, path, problems, false);
+  if (help !== null) read.help = help;
   if (requires !== undefined) read.requires = requires;
   if (patterns !== undefined) {
     if (patterns !== true) problems.push(`${path}.patterns: must be true, or left out`);
@@ -412,6 +435,52 @@ function settingOf(name, setting, path, problems, where) {
     }
   }
   return read;
+}
+
+// Where the catalogues hold the settings groups' texts, as their names begin.
+const TEXTS = 'settings';
+
+// A text of the settings groups in each interface language, as the catalogues give
+// it by its name, `{ en, sv }`, or null where the source has no text by that name,
+// a problem when the text is `required`. A settings text has nothing to fill in: a
+// word in braces in one, such as {service}, is what an Admin writes, so each is
+// read as written.
+function textsOf(name, path, problems, required = true) {
+  if (!Object.hasOwn(CATALOGUES[SOURCE_LANGUAGE], name)) {
+    if (required) problems.push(`${path}: the core's catalogues have no text ${name}, which each must give`);
+    return null;
+  }
+  return Object.fromEntries(INTERFACE_LANGUAGES.map((language) => [language, CATALOGUES[language][name] ?? CATALOGUES[SOURCE_LANGUAGE][name]]));
+}
+
+// A part of the declaration without the texts an editor reads, `keys`, which
+// the catalogues hold instead: each one given here is a problem naming its
+// place there, below `named`.
+function withoutTexts(declared, keys, path, named, problems) {
+  const rest = { ...declared };
+  for (const key of keys) {
+    if (rest[key] !== undefined) problems.push(`${path}.${key}: is a text an editor reads, which the core's catalogues hold, as ${named}.${key}`);
+    delete rest[key];
+  }
+  return rest;
+}
+
+// A select's label of each option, by the option, from the catalogues, where
+// each is named after the option's value in lower camelCase, below `named`.
+function optionLabelsOf(options, path, named, problems) {
+  const labels = {};
+  const names = new Set();
+  for (const option of options) {
+    const words = option.split(/[^A-Za-z0-9]+/).filter(Boolean);
+    const name = words.map((word, i) => (i === 0 ? word[0].toLowerCase() : word[0].toUpperCase()) + word.slice(1)).join('');
+    if (!/^[a-z][a-zA-Z0-9]*$/.test(name) || names.has(name)) {
+      problems.push(`${path}: ${JSON.stringify(option)} gives no name of its own for its label in the catalogues, which must be its words in lower camelCase, starting with a letter`);
+      continue;
+    }
+    names.add(name);
+    labels[option] = textsOf(`${named}.${name}`, path, problems);
+  }
+  return labels;
 }
 
 // The form a text must have, `{ pattern, reason }`: a regular expression

@@ -82,13 +82,15 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     ...extra,
   });
 
-  // A value's field, by the type and control it is declared with.
+  // A value's field, by the type and control it is declared with. The core's settings give
+  // their label, help and options' labels by language, as the catalogues hold them
+  // (settings-groups.js), and a site's own its label as its site description does.
   const valueField = (setting) => {
     const common = {
       name: setting.name,
       label: own(setting.label),
       required: setting.required === true,
-      ...(setting.help ? { hint: setting.help } : {}),
+      ...(setting.help ? { hint: own(setting.help) } : {}),
     };
     // A default that says where its value comes from, such as the site's title, is
     // the intake's to resolve; Sveltia takes only a plain value.
@@ -111,7 +113,10 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
       case 'image':
         return imageField(setting.name, setting.label, { required: false });
       default:
-        if (setting.control === 'select') return { ...common, ...given, widget: 'select', options: setting.options };
+        if (setting.control === 'select') {
+          const options = setting.optionLabels ? setting.options.map((value) => ({ value, label: own(setting.optionLabels[value]) })) : setting.options;
+          return { ...common, ...given, widget: 'select', options };
+        }
         return { ...common, ...given, widget: setting.control === 'textarea' ? 'text' : 'string' };
     }
   };
@@ -143,7 +148,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     required: false,
     accordion: true,
     collapsed: true,
-    ...(hint ? { hint } : {}),
+    ...(hint ? { hint: own(hint) } : {}),
     fields,
   });
 
