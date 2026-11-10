@@ -8,7 +8,7 @@
 - **The name is not licensed with the code.** The name Konzilo and Konzilo's logos are trademarks of Kntnt Sweden AB, and `TRADEMARKS.md` says how they may be used. The license only declines to grant them, as its section 7(e) allows.
 - **Anyone may say what is true:** that a site is built with Konzilo, that a service hosts it, that a piece of software is based on it. Kntnt's written permission is needed for the name in the name of a company, a product, a service, a domain or an account, for a logo, for a word such as *official* or *certified*, and for calling a changed version Konzilo.
 - **Anyone may host Konzilo for others, under a name of their own.** A host that sells under Konzilo's name does so by an agreement that makes it answer for what the name promises: Kntnt's releases unchanged and current, the acceptance tests passing on its servers, a site handed over as its archive, and customers kept apart.
-- **What comes into the core from elsewhere must go together with the license.** A dependency, or code someone else wrote, comes in only under a license that the AGPL, version 3, can be combined with.
+- **What comes into the core from elsewhere must go together with the license, and leave the core free.** A dependency, or code someone else wrote, comes in only on terms that the AGPL, version 3, can be combined with, and that let Kntnt license the core otherwise too, as ADR 0059 says: a permissive license, the MPL or the LGPL for a library used as it is, a file of its own that keeps its license, or the contributor agreement.
 
 ## Why
 
@@ -28,8 +28,8 @@
 
 ## Consequences
 
-- The dependencies of today are under permissive licenses, MPL-2.0 or the LGPL, and all go together with the license. One under the GPL, version 2 alone, or under terms that forbid a use, does not.
+- The dependencies of today are under permissive licenses, MPL-2.0 or the LGPL, and all go together with the license. One under the GPL, version 2 alone, or under terms that forbid a use, does not. One under the GPL, version 3, or the AGPL does, but would bind the core to it, and stays out too (ADR 0059).
 - The programs a Compose project runs beside the core, such as Forgejo and Caddy, are works of their own under their own licenses.
 - The policy has force where the name is a protected trademark. A name not yet well known is protected by registration, which is Thomas's to make.
 - A site is built together with the core's components, and the site template and the demo content end up in every site. ADR 0058 leaves what a site adds outside the license.
-- Not settled, and Thomas's to settle before the repository is public: the terms on which contributions are taken.
+- ADR 0059 holds the terms on which contributions are taken.

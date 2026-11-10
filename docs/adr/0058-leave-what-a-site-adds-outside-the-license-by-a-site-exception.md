@@ -35,5 +35,5 @@
 
 - Code put in the site template or the demo content may be taken for a site on any terms, and what the package exports is what a site may use. Moving code between the core and the site template, or changing the exports, moves the line.
 - The consent folder is made for another website to call or copy (ADR 0049). The exception covers the consent script such a page loads. The call and the copy stay under the license, for everyone but the copyright's holder.
-- The exception covers the whole core only while every part of the core carries it, so the terms for contributions, not yet settled, must have a contribution come in with it.
+- The exception covers the whole core only while every part of the core carries it. Work by others comes in under the contributor agreement, which lets Kntnt release it with the exception (ADR 0059), and the exception says that it covers such work too.
 - Whoever conveys the core may drop the exception from that copy, as section 7 allows. Kntnt's releases carry it.

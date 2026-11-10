@@ -2,7 +2,7 @@
 
 Version 1, 10 November 2026
 
-Konzilo is free software under the GNU Affero General Public License, version 3 or any later version, called the License here ([`LICENSE`](LICENSE)). This exception is an additional permission under section 7 of the License. Kntnt Sweden AB, of Gothenburg, Sweden, gives it as the holder of the copyright in Konzilo.
+Konzilo is free software under the GNU Affero General Public License, version 3 or any later version, called the License here ([`LICENSE`](LICENSE)). This exception is an additional permission under section 7 of the License. Kntnt Sweden AB, of Gothenburg, Sweden, gives it for Konzilo: for what it holds the copyright in, and for what others have contributed under Konzilo's contributor agreement.
 
 It draws one line:
 
@@ -76,7 +76,7 @@ This exception does not cover such a file, and the License holds for it as for a
 
 ### 4. Reach and versions
 
-This exception covers what Kntnt Sweden AB holds the copyright in. Software of others that a release of the Core holds, such as Sveltia CMS, is under its own license.
+This exception covers what Kntnt Sweden AB holds the copyright in, and what others have contributed to the Core under Konzilo's contributor agreement. Software of others that a release of the Core holds, such as Sveltia CMS, is under its own license.
 
 The exception goes with the Core under any later version of the License as well. Kntnt Sweden AB may give a later version of this exception with later releases of the Core, and a release keeps the version it was released with.
 

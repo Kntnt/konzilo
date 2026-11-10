@@ -32,6 +32,7 @@
     "site-template/demo-content",
     "content-format.md",
     "SITE-EXCEPTION.md",
+    "THIRD-PARTY.md",
     "TRADEMARKS.md"
   ],
   "scripts": {
