@@ -337,6 +337,8 @@
   "about.privacy-policy": "privacy policy",
   "about.cookie-policy": "cookie policy",
   "about.no-target": "a {status} answers without a target",
+  "about.feed-type": "the feed of {plural}",
+  "about.feed-term": "the feed of the {taxonomy} {slug}",
   "failure.not-read": "the source could not be read, so visitors still see the last version",
   "failure.check-broke": "the check of what was saved broke, so visitors still see the last version",
   "failure.not-built": "the site could not be built from it, so visitors still see the last version",

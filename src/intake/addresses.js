@@ -2,7 +2,7 @@
 // of the site's own holds one, a post's other addresses and the rules that lead to it, and
 // which of its old addresses still answer.
 
-import { feedAt, feedName, listPageOwners, publicAddress, searchPages, unprefixedAddress } from '../format/addresses.js';
+import { feedAt, feedWords, listPageOwners, publicAddress, searchPages, unprefixedAddress } from '../format/addresses.js';
 import { keyOf, REDIRECTS_FILE, reservedBy } from '../format/redirects.js';
 import { otherAddressesIn, slugOf } from './post-file.js';
 import { refuse } from './run.js';
@@ -174,7 +174,7 @@ function siteHolder(address, site) {
   const reserved = reservedBy(address);
   if (reserved !== null) return say('refusal.address-reserved', { address });
   const feed = feedAt(address.split('?')[0], site);
-  if (feed) return say('refusal.address-feed', { address, feed: feedName(feed) });
+  if (feed) return say('refusal.address-feed', { address, feed: feedWords(feed) });
   if (searchPages(site).some((page) => keyOf(page) === keyOf(address))) return say('refusal.address-search', { address });
   return null;
 }

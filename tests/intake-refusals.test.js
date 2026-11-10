@@ -410,6 +410,12 @@ test('names a site\'s own label given by language in British English, as the com
   assert.match(reasonIn('sv', note), /och anteckningar har ingen egen sida/);
 });
 
+test('a feed a refusal names is named in each interface language', () => {
+  const feed = onePost({ slug: 'feed' }).refusals.find((one) => one.name === 'refusal.address-feed');
+  assert.equal(feed.reason, 'the address /feed/ is the feed of articles; change this post\'s slug');
+  assert.equal(reasonIn('sv', feed), 'adressen /feed/ är flödet för articles; ändra det här inläggets slug');
+});
+
 test('a refusal in the body names its block in each interface language', () => {
   const [heading] = inArticle('# A title').refusals;
   assert.equal(heading.name, 'refusal.heading-level');

@@ -337,6 +337,8 @@
   "about.privacy-policy": "integritetspolicy",
   "about.cookie-policy": "cookiepolicy",
   "about.no-target": "en {status} svarar utan mål",
+  "about.feed-type": "flödet för {plural}",
+  "about.feed-term": "flödet för {taxonomy} {slug}",
   "failure.not-read": "källan gick inte att läsa, så besökare ser fortfarande den senaste versionen",
   "failure.check-broke": "kontrollen av det som sparades gick sönder, så besökare ser fortfarande den senaste versionen",
   "failure.not-built": "webbplatsen gick inte att bygga av det, så besökare ser fortfarande den senaste versionen",
