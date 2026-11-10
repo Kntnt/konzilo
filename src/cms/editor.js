@@ -14,6 +14,12 @@ import { registerImageField } from './image/register.js';
 import { registerParts } from './parts/register.js';
 import { registerPublishing } from './publishing/register.js';
 import './form.css';
+// The preview's window hides its pane by these; template.js, which shows it, is read by tests too.
+import './preview-window/window.css';
+import { say } from './body/texts.js';
+
+// The words of the editor's choice of where the preview stands, which the patched menu reads.
+globalThis.__KONZILO_VIEW_WORDS__ = { beside: say('viewBeside'), window: say('viewWindow'), toggle: say('viewToggle'), off: say('viewOff') };
 
 const answer = await fetch('./config.json', { cache: 'no-store' });
 if (!answer.ok) throw new Error(`no configuration: ${answer.status}`);

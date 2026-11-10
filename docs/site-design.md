@@ -36,7 +36,9 @@ A name in angle brackets is filled in by what it stands for. The core's scripts 
 
 ### The live preview
 
-In the live preview alone, each block of a body has `data-konzilo-block`, its place among the body's blocks, and a click on it leads to the body field.
+In the live preview alone, each block of a body has `data-konzilo-block`, its place among the body's blocks, and a click on it leads to the body field. A block within a directive's body, and a list's item, has its path below it, as `2.1`: a design that renders a component of its own keeps the marks on the blocks it is given, and a level of its own with no element, such as a tab, is found by the first block below it.
+
+When a field asks the page to show a block, the page opens the `<details>` the block stands in, scrolls to it and marks it, and sends the event `konzilo-preview-show` from it, bubbling, so that a design's own tab, panel or answer can open to show it: its script listens on the document and opens what holds `event.target`. A click the page makes itself, to open such a tab, is no editor's, and leads nowhere.
 
 | Class | On | State |
 |---|---|---|

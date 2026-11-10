@@ -124,5 +124,23 @@
     "why": "As above, for several chosen entries.",
     "find": "markerade posterna och tillhörande resurser?",
     "replace": "markerade posterna och tillhörande filer?"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "The editor's menu has room for four choices of the preview where it had three checkboxes.",
+    "find": "var hct=V(`<!> <!> <!> <!>`,1);function gct(",
+    "replace": "var hct=V(`<!> <!> <!> <!> <!>`,1);function gct("
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "One choice of where the preview stands, beside, in a window of its own, switched or off, in place of three checkboxes whose states a site in one language cannot tell apart; each turns sync scrolling back on, so that no one is left with it off, and the window's choice opens it while the click lasts (ADR 0064). The words are the editor's (__KONZILO_VIEW_WORDS__).",
+    "find": "var m=L(p,2);{let e=j(()=>X(`show_second_pane`)),t=j(()=>!B(l));Zu(m,{get label(){return B(e)},get checked(){return B(c)},get disabled(){return B(t)},onChange:()=>{f8(`showSecondPane`,!0)}})}var h=L(m,2);{let e=j(()=>X(`show_preview`)),t=j(()=>d8.current?.showPreview),n=j(()=>!B(o));Zu(h,{get label(){return B(e)},get checked(){return B(t)},get disabled(){return B(n)},onChange:()=>{f8(`showPreview`)}})}var g=L(h,2);{let e=j(()=>X(`sync_scrolling`)),t=j(()=>d8.current?.syncScrolling),n=j(()=>!B(c)||!B(u)&&B(d));Zu(g,{get label(){return B(e)},get checked(){return B(t)},get disabled(){return B(n)},onChange:()=>{f8(`syncScrolling`)}})}",
+    "replace": "var m=L(p,2);{let e=j(()=>B(c)&&B(u)&&!d8.current?.previewWindow),t=j(()=>!B(l)||!B(o));Qu(m,{label:globalThis.__KONZILO_VIEW_WORDS__.beside,get checked(){return B(e)},get disabled(){return B(t)},onChange:e=>{e.detail.checked&&(d8.current={...d8.current,showSecondPane:!0,showPreview:!0,previewWindow:!1,syncScrolling:!0},globalThis.dispatchEvent(new CustomEvent(`konzilo-view`)))}})}var kw=L(m,2);{let e=j(()=>B(u)&&!!d8.current?.previewWindow),t=j(()=>!B(l)||!B(o));Qu(kw,{label:globalThis.__KONZILO_VIEW_WORDS__.window,get checked(){return B(e)},get disabled(){return B(t)},onChange:e=>{e.detail.checked&&(d8.current={...d8.current,showSecondPane:!0,showPreview:!0,previewWindow:!0,syncScrolling:!0},globalThis.dispatchEvent(new CustomEvent(`konzilo-view`)))}})}var h=L(kw,2);{let e=j(()=>!B(c)&&B(u)&&!d8.current?.previewWindow),t=j(()=>!B(o));Qu(h,{label:globalThis.__KONZILO_VIEW_WORDS__.toggle,get checked(){return B(e)},get disabled(){return B(t)},onChange:e=>{e.detail.checked&&(d8.current={...d8.current,showSecondPane:!1,showPreview:!0,previewWindow:!1,syncScrolling:!0},globalThis.dispatchEvent(new CustomEvent(`konzilo-view`)))}})}var g=L(h,2);{let e=j(()=>!B(u));Qu(g,{label:globalThis.__KONZILO_VIEW_WORDS__.off,get checked(){return B(e)},onChange:e=>{e.detail.checked&&(d8.current={...d8.current,showSecondPane:!1,showPreview:!1,previewWindow:!1,syncScrolling:!0},globalThis.dispatchEvent(new CustomEvent(`konzilo-view`)))}})}"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "The editor's view settings within reach of the preview's window, which needs to know whether it is chosen.",
+    "find": "d8=Yk(),f8=(e,t=!1)=>",
+    "replace": "d8=globalThis.konziloEditorView=Yk(),f8=(e,t=!1)=>"
   }
 ]

@@ -158,6 +158,7 @@ export function registerParts(CMS, config) {
     return h('div', { className: 'konzilo-part-slug' },
       h('input', {
         id: forID,
+        'aria-label': plain(field.get('label')),
         className: 'konzilo-part-input',
         type: 'text',
         value: editing ? draft : value ?? '',

@@ -112,16 +112,12 @@ describe('the preview\'s pane, on a site in two languages', () => {
     assert.equal(two.path, one.path);
   });
 
-  test('sends an image not saved yet along with the draft', async () => {
+  test('chooses a post\'s image from the image library, with no file of the post\'s own to send', async () => {
     await newEntry('articles');
     const field = page.locator('.field[data-key-path="image"]').first();
-    await field.getByRole('checkbox').click();
-    await field.locator('input[type=file]').first().setInputFiles({ name: 'photo.png', mimeType: 'image/png', buffer: Buffer.from(PNG, 'base64') });
-    const { fields, images } = await draftWith(({ images: held }) => held.length > 0);
-    assert.equal(images.length, 1);
-    assert.equal(images[0].data, PNG);
-    assert.equal(fields.image.src, `/media/${images[0].name}`);
-    assert.match(images[0].name, /^preview-[A-Za-z0-9-]+\.png$/);
+    await field.locator('.konzilo-pick-choose').waitFor();
+    assert.equal(await field.locator('.konzilo-pick input[type=file]').count(), 0);
+    assert.equal(await field.getByRole('checkbox').count(), 0, 'and none of Sveltia\'s own image field');
   });
 
   test('says why a draft cannot be published, and what becomes of the page', async () => {
