@@ -185,6 +185,12 @@ describe('a page in the preview\'s pane', () => {
         })],
         'location.assign': ['script', '/other/', run(() => location.assign('/other/'))],
         'location.replace': ['script', '/other/', run(() => location.replace('/other/'))],
+        'location.replace to this page with another query': ['script', '/work/?another', run(() => location.replace('/work/?another'))],
+        'a form posted to this page from a script': ['form', '/work/', run(() => {
+          const form = document.getElementById('post');
+          form.action = '/work/';
+          form.submit();
+        })],
         'a script off to another site': ['script', 'https://example.com/', run(() => {
           location.href = 'https://example.com/';
         })],
@@ -287,6 +293,17 @@ describe('a page in the preview\'s pane', () => {
         await frame().locator('h1', { hasText: 'This page' }).waitFor();
         assert.equal(await inFrame(() => window.kept), undefined, 'a new document');
         assert.deepEqual(await told(), []);
+      });
+
+      test('replaces itself with its own address, as the preview has it do to draw a change', async () => {
+        await open('/work/?draft=1');
+        await inFrame(() => location.replace(location.href));
+        await settled();
+        await frame().locator('h1', { hasText: 'This page' }).waitFor();
+        assert.equal(await inFrame(() => window.kept), undefined, 'a new document');
+        assert.equal(await inFrame(() => location.pathname + location.search), '/work/?draft=1');
+        assert.deepEqual(await told(), []);
+        assert.equal(await page.url(), `${adminOrigin}/`, 'the editor around it has not moved');
       });
 
       test('stays when a reload would redirect, and follows nothing', async () => {

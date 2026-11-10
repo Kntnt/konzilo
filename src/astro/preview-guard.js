@@ -50,9 +50,12 @@ export function previewGuard(kind) {
 
   // Everything else that would load a document in this frame: an assignment to `location`, a
   // form sent from a script, a refresh in a tag. A reload stays, since it is how the dev server
-  // shows a change; a step within the document, a fragment or `pushState`, loads nothing.
+  // shows a change, and so does the page replacing itself with its own address, its path and its
+  // query, which is how the page draws that change without an empty frame (preview-redraw.js); a
+  // step within the document, a fragment or `pushState`, loads nothing.
   globalThis.navigation?.addEventListener('navigate', (event) => {
     if (event.destination.sameDocument || event.navigationType === 'reload' || !event.cancelable) return;
+    if (event.navigationType === 'replace' && !event.formData && atThisPage(new URL(event.destination.url))) return;
     event.preventDefault();
     tellOnce(event.destination.url, event.formData ? 'form' : 'script');
   });
