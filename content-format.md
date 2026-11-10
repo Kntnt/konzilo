@@ -1017,6 +1017,7 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
 An ID is text, the name of the post's source file, such as `96ba709ec918`, which never changes. A post's translations share it, so on a site in several languages an entry's key is `<tag>/<ID>`. The file holds, each sorted by its keys:
 
 - **`posts`**, by key, each with `path`, the post's file now, `null` while it has none; `paths`, every path it has had, the first first; `address`, where the current release shows it, which stays while it is off the site; `addresses`, those it had while live, from which its `oldAddresses` come; `title`, as it was published; `source`, the SHA-256 of the source file of its published version, and `published`, that of its published file without `modified`; `taken`, when the intake first took it, the post's `date` where it has none of its own; `modified`, when its published version last changed; and `names`, what its file names, `media`, `terms` and `embeds`, which stay for it while it is refused.
+- **`awaited`**, by key, the moment a scheduled post was seen waiting for, kept while it stays scheduled for that moment, so that it goes live at it with no warning.
 - **`terms`**, by the term's ID, each with the `address` of its page and the `addresses` it has had, for a taxonomy with an address.
 - **`files`**, the SHA-256 of each of an Admin's source files the site last took.
 - **`chosen`**, the posts the settings last chose as `legalPages` and for `notFound`.
@@ -1140,6 +1141,7 @@ An ID is text, the name of the post's source file, such as `96ba709ec918`, which
       }
     }
   },
+  "awaited": {},
   "terms": {},
   "files": {
     "menus/main.json": "c908ea7d89d8c2d1afbf49c879448e82dce4e5c134daaaa0081d4864777ece69",
@@ -1403,7 +1405,7 @@ The source files are what the intake reads: what editors save, one file per thin
 | `services.json` | `services`, the services an Admin declares. |
 | `media/<name>` | Originals, as uploaded, in Git LFS. |
 
-A post's frontmatter holds `title`; `slug`, made from the title if left empty; `parent`, the ID of a post of its type, in a hierarchical type; `status`, `draft`, `scheduled` or `published`, a draft when left out; `date`, which also says when a scheduled post goes live; each field its type declares, a taxonomy's terms by their IDs, a list or, for a field of one term at most, the ID alone, an image by `/media/<name>`; where the type has the search and sharing fields, `search` (`title`, `description`, `canonical`, `noindex`, `nofollow`), `sharing` (`image`, `{ "src", "alt" }`, `title`, `description`) and `structured` (`schema`), three groups the intake writes as the one `seo` map, and never `seo` itself, which is refused; `otherAddresses`, each `{ "address", "answer" }`; and on a site in several languages `translationKey` where the same ID does not tie a translation set. What the intake derives is in no source file: `modified`, `oldAddresses`, masters, `consent.json` and `not-found.md`.
+A post's frontmatter holds `title`; `slug`, made from the title if left empty; `parent`, the ID of a post of its type, in a hierarchical type; `status`, `draft`, `scheduled` or `published`, a draft when left out; `date`, which also says when a scheduled post goes live, and a scheduled post whose moment had passed when the intake first read it goes live at once, with that moment as its date and a warning; each field its type declares, a taxonomy's terms by their IDs, a list or, for a field of one term at most, the ID alone, an image by `/media/<name>`; where the type has the search and sharing fields, `search` (`title`, `description`, `canonical`, `noindex`, `nofollow`), `sharing` (`image`, `{ "src", "alt" }`, `title`, `description`) and `structured` (`schema`), three groups the intake writes as the one `seo` map, and never `seo` itself, which is refused; `otherAddresses`, each `{ "address", "answer" }`; and on a site in several languages `translationKey` where the same ID does not tie a translation set. What the intake derives is in no source file: `modified`, `oldAddresses`, masters, `consent.json` and `not-found.md`.
 
 In a body, a link to a post or to a term's page is `[text](konzilo:<ID>)`, with `#<anchor>` or not, and `konzilo:<tag>/<ID>` for one in another language. An image is `![alt](/media/<name>)`. A post list names its terms by their IDs. A file named with a leading dot, another kind of file, and a folder no collection names are left alone.
 

@@ -22,6 +22,8 @@ const OTHER_POST = 'articles/bbbbbbbbbbbb.md';
 const post = (fields = {}, body = 'Text.') => sourcePost({ title: 'A post', slug: 'first', status: 'published', date: '2026-10-01T08:00:00Z', ...fields }, body);
 const at = (day) => new Date(`2026-11-${day}T12:00:00Z`);
 const entry = (result, id = 'aaaaaaaaaaaa') => result.ledger.posts[id];
+// What a build warns of in its posts, beside what it warns of in the site's files.
+const warned = (result) => result.warnings.filter(({ post: about }) => about);
 const frontmatter = (text) => Object.fromEntries(text.split('---\n')[1].trim().split('\n').map((line) => [line.slice(0, line.indexOf(':')), line.slice(line.indexOf(':') + 2)]));
 
 // A history of builds, each from what the last left.
@@ -217,6 +219,32 @@ describe('what is derived', () => {
     const come = run({ [THE_POST]: post({ status: 'scheduled', date: later }) }, site, { now: new Date('2026-12-01T08:00:00Z') });
     assert.ok(written(come)['articles/first.md']);
     assert.equal(run({ [THE_POST]: post({ status: 'published', date: later }) }, site).next, later, 'published with its date to come waits too');
+  });
+
+  test('a scheduled post that waited for its moment goes live at it with no warning, and stays so', () => {
+    const later = '2026-12-01T08:00:00Z';
+    const scheduled = { [THE_POST]: post({ status: 'scheduled', date: later }) };
+    const waits = run(scheduled, site);
+    const come = run(scheduled, site, { now: new Date('2026-12-01T08:00:20Z'), ledger: waits.ledger });
+    assert.equal(frontmatter(written(come)['articles/first.md']).date, later);
+    assert.deepEqual(warned(come), []);
+    const after = run({ [THE_POST]: post({ status: 'scheduled', date: later }, 'Words changed since.') }, site, { now: new Date('2026-12-05T08:00:00Z'), ledger: come.ledger });
+    assert.deepEqual(warned(after), [], 'nor once its file has changed with the same moment');
+  });
+
+  test('a scheduled post whose moment had passed when it was first read goes live at once, with that moment as its date, and says so while it stands', () => {
+    const passed = '2026-10-01T08:00:00Z';
+    const [first, second] = history({ [THE_POST]: post({ status: 'scheduled', date: passed }) }, { [THE_POST]: post({ status: 'scheduled', date: passed }) });
+    assert.equal(frontmatter(written(first)['articles/first.md']).date, passed);
+    for (const result of [first, second]) {
+      assert.deepEqual(warned(result).map(({ name, post: about, field, values }) => ({ name, post: about.id, field, values })), [{ name: 'warning.scheduled-passed', post: 'aaaaaaaaaaaa', field: 'date', values: { moment: passed } }]);
+    }
+
+    // One that waited, moved by another hand to a moment that has passed.
+    const waits = run({ [THE_POST]: post({ status: 'scheduled', date: '2026-12-01T08:00:00Z' }) }, site);
+    const moved = run({ [THE_POST]: post({ status: 'scheduled', date: passed }) }, site, { ledger: waits.ledger });
+    assert.deepEqual(warned(moved).map(({ name }) => name), ['warning.scheduled-passed']);
+    assert.deepEqual(warned(run({ [THE_POST]: post({ status: 'published', date: passed }) }, site)), [], 'a published post has its date as it is');
   });
 
   test('a draft is no one\'s business but its editor\'s, and is not checked', () => {
