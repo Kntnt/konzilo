@@ -615,5 +615,24 @@
         "default": 10
       }
     }
+  },
+  "related": {
+    "when": [
+      "types.article",
+      "taxonomies.*"
+    ],
+    "settings": {
+      "freshness": {
+        "type": "boolean",
+        "control": "toggle",
+        "default": true
+      },
+      "halfLife": {
+        "type": "integer",
+        "control": "number",
+        "min": 1,
+        "default": 90
+      }
+    }
   }
 }

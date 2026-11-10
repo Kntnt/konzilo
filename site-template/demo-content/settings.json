@@ -151,5 +151,9 @@
   "feeds": {
     "item": "The summary",
     "posts": 10
+  },
+  "related": {
+    "freshness": true,
+    "halfLife": 90
   }
 }
