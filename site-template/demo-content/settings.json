@@ -48,6 +48,16 @@
       }
     }
   },
+  "breadcrumbs": {
+    "types": {
+      "article": {
+        "current": false
+      },
+      "page": {
+        "current": false
+      }
+    }
+  },
   "ai": {
     "home": {
       "markdown": true,

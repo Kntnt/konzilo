@@ -736,3 +736,7 @@
   background: #8c1d18;
   color: #fff;
 }
+
+/* The block a click in the preview went to, framed for a moment. */
+.konzilo-body-ring { position: absolute; z-index: 2; border: 2px solid var(--sui-primary-accent-color, #2563eb); border-radius: 6px; pointer-events: none; animation: konzilo-body-ring 1.6s ease-out forwards; }
+@keyframes konzilo-body-ring { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }

@@ -6,6 +6,7 @@ import { bodyControl } from './control.js';
 import { imageLibrary } from './library.js';
 import './open-fields.js';
 import { say } from './texts.js';
+import { STRUCTURE_WIDGET } from '../structure/widget.js';
 import { BODY_WIDGET } from './widget.js';
 
 // Sveltia's dialog shows these words above a refusal. It tells a refusal from a failure by
@@ -20,7 +21,7 @@ export function registerBodyField(CMS, config) {
   const adminHost = new URL(config.site_url).hostname === here ? null : here;
   const bodies = new Map();
   for (const collection of config.collections) {
-    const field = collection.fields?.find((one) => one.widget === BODY_WIDGET);
+    const field = collection.fields?.find((one) => one.widget === BODY_WIDGET || one.widget === STRUCTURE_WIDGET);
     if (field) bodies.set(collection.name, { elements: field.elements, forms: field.forms, adminHost });
   }
 

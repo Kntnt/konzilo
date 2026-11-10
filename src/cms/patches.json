@@ -82,5 +82,65 @@
     "why": "The preview pane is a blob document in a frame. WebKit refuses one under the editor's frame-ancestors, and sends no cookie to a frame inside one, so the live preview would stand empty. A document given as srcdoc is the editor's own to every engine (ADR 0032).",
     "find": "origin:window.location.origin}),a=URL.createObjectURL(new Blob([n],{type:`text/html`}));B(i).addEventListener(`load`,async()=>{try{await e()}catch(e){f(e)}URL.revokeObjectURL(a),N(r,!0),t.onLoad?.(B(i))},{once:!0}),B(i).src=a};",
     "replace": "origin:window.location.origin});B(i).addEventListener(`load`,async()=>{try{await e()}catch(e){f(e)}N(r,!0),t.onLoad?.(B(i))},{once:!0}),B(i).srcdoc=n};"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "Media is not in the main menu: the image library is where an editor finds images, and every image field chooses from it (ADR 0063).",
+    "find": "return n&&l.push({key:`assets`,label:X(`assets`),icon:`photo`,link:r,selected:e===`assets`||t===`assets`}),",
+    "replace": "return "
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "Media is not in the menu to create either (ADR 0063).",
+    "find": "var s=L(a,2);{let e=j(()=>X(`assets`));Xu(s,{get label(){return B(e)},get disabled(){return B(i)},onclick:async()=>{w0(`/assets`,{transitionType:`forwards`}),await Nl(100),q1.current=!0}})}",
+    "replace": "var s=L(a,2);"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "The menu to create ends without a divider once Media is gone from it.",
+    "find": "}),xu(L(n,2),{}),W(e,t)};K(a,e=>{B(r).length&&e(o)});",
+    "replace": "}),W(e,t)};K(a,e=>{B(r).length&&e(o)});"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "An image deleted from the library takes its file with it in the same commit, as an entry's associated file, unless another entry names the file (ADR 0063). lM holds every entry, KH every file.",
+    "find": "mJe=({entries:e,collectionName:t,fileName:n})=>{let r=VH(",
+    "replace": "mJe=({entries:e,collectionName:t,fileName:n})=>{if(t===`image-library`){let i=new Set(e.map(e=>e.id)),d=new Set;return e.map(e=>{let s=Object.values(e.locales??{}).map(e=>e?.content?.src).find(e=>typeof e==`string`&&e!==``),p=s?.replace(/^\\/+/,``),a=p?KH.current.find(e=>e.path===p):void 0;if(!a||d.has(p))return[];let u=lM.current.some(e=>!i.has(e.id)&&Object.values(e.locales??{}).some(e=>{let t=JSON.stringify(e?.content??{});for(let n=t.indexOf(p);n!==-1;n=t.indexOf(p,n+1))if(!/[\\w.-]/.test(t[n+p.length]??``))return!0;return!1}));return u?[]:(d.add(p),[a])})}let r=VH("
+  },
+  {
+    "module": "@sveltia/cms/locales/sv.json",
+    "why": "Media is called Resurser nowhere now, so the question before a deletion speaks of files.",
+    "find": "radera denna post och tillhörande resurser?",
+    "replace": "radera denna post och tillhörande filer?"
+  },
+  {
+    "module": "@sveltia/cms/locales/sv.json",
+    "why": "As above, for a chosen entry.",
+    "find": "den markerade posten och tillhörande resurser?",
+    "replace": "den markerade posten och tillhörande filer?"
+  },
+  {
+    "module": "@sveltia/cms/locales/sv.json",
+    "why": "As above, for several chosen entries.",
+    "find": "markerade posterna och tillhörande resurser?",
+    "replace": "markerade posterna och tillhörande filer?"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "The editor's menu has room for four choices of the preview where it had three checkboxes.",
+    "find": "var hct=V(`<!> <!> <!> <!>`,1);function gct(",
+    "replace": "var hct=V(`<!> <!> <!> <!> <!>`,1);function gct("
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "One choice of where the preview stands, beside, in a window of its own, switched or off, in place of three checkboxes whose states a site in one language cannot tell apart; each turns sync scrolling back on, so that no one is left with it off, and the window's choice opens it while the click lasts (ADR 0064). The words are the editor's (__KONZILO_VIEW_WORDS__).",
+    "find": "var m=L(p,2);{let e=j(()=>X(`show_second_pane`)),t=j(()=>!B(l));Zu(m,{get label(){return B(e)},get checked(){return B(c)},get disabled(){return B(t)},onChange:()=>{f8(`showSecondPane`,!0)}})}var h=L(m,2);{let e=j(()=>X(`show_preview`)),t=j(()=>d8.current?.showPreview),n=j(()=>!B(o));Zu(h,{get label(){return B(e)},get checked(){return B(t)},get disabled(){return B(n)},onChange:()=>{f8(`showPreview`)}})}var g=L(h,2);{let e=j(()=>X(`sync_scrolling`)),t=j(()=>d8.current?.syncScrolling),n=j(()=>!B(c)||!B(u)&&B(d));Zu(g,{get label(){return B(e)},get checked(){return B(t)},get disabled(){return B(n)},onChange:()=>{f8(`syncScrolling`)}})}",
+    "replace": "var m=L(p,2);{let e=j(()=>B(c)&&B(u)&&!d8.current?.previewWindow),t=j(()=>!B(l)||!B(o));Qu(m,{label:globalThis.__KONZILO_VIEW_WORDS__.beside,get checked(){return B(e)},get disabled(){return B(t)},onChange:e=>{e.detail.checked&&(d8.current={...d8.current,showSecondPane:!0,showPreview:!0,previewWindow:!1,syncScrolling:!0},globalThis.dispatchEvent(new CustomEvent(`konzilo-view`)))}})}var kw=L(m,2);{let e=j(()=>B(u)&&!!d8.current?.previewWindow),t=j(()=>!B(l)||!B(o));Qu(kw,{label:globalThis.__KONZILO_VIEW_WORDS__.window,get checked(){return B(e)},get disabled(){return B(t)},onChange:e=>{e.detail.checked&&(d8.current={...d8.current,showSecondPane:!0,showPreview:!0,previewWindow:!0,syncScrolling:!0},globalThis.dispatchEvent(new CustomEvent(`konzilo-view`)))}})}var h=L(kw,2);{let e=j(()=>!B(c)&&B(u)&&!d8.current?.previewWindow),t=j(()=>!B(o));Qu(h,{label:globalThis.__KONZILO_VIEW_WORDS__.toggle,get checked(){return B(e)},get disabled(){return B(t)},onChange:e=>{e.detail.checked&&(d8.current={...d8.current,showSecondPane:!1,showPreview:!0,previewWindow:!1,syncScrolling:!0},globalThis.dispatchEvent(new CustomEvent(`konzilo-view`)))}})}var g=L(h,2);{let e=j(()=>!B(u));Qu(g,{label:globalThis.__KONZILO_VIEW_WORDS__.off,get checked(){return B(e)},onChange:e=>{e.detail.checked&&(d8.current={...d8.current,showSecondPane:!1,showPreview:!1,previewWindow:!1,syncScrolling:!0},globalThis.dispatchEvent(new CustomEvent(`konzilo-view`)))}})}"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "The editor's view settings within reach of the preview's window, which needs to know whether it is chosen.",
+    "find": "d8=Yk(),f8=(e,t=!1)=>",
+    "replace": "d8=globalThis.konziloEditorView=Yk(),f8=(e,t=!1)=>"
   }
 ]

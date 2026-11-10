@@ -629,6 +629,7 @@
     "field-moment": "the site cannot publish \"{value}\" as a date and time in {field}; choose one",
     "field-text": "the site cannot publish this as {field}; write it as plain text",
     "field-markup": "the site cannot publish {field} holding HTML; write it as plain text",
+    "terms-most": "a post takes at most {most} of its {plural}; choose fewer",
     "image-required": "the site cannot publish a post without its featured image; choose one, or keep the post as a draft",
     "image-gone": "the original of the image {name} is gone from the media library; upload it again, or choose another",
     "image-outside": "the site shows images from its media library, not {address}; upload the image, and choose it there",

@@ -10,7 +10,10 @@
 // - its title tag: the post's own, else its type's template rendered, else
 //   its title; its meta description: the post's own, else the template
 //   rendered; its sharing title and description: the post's own, else the
-//   templates rendered, else the title tag and the description;
+//   templates rendered, else the title tag and the description. A post whose
+//   type has a teaser falls back to what its teaser shows before the
+//   templates, cut as a search result and a shared link show it
+//   (article-parts.js);
 // - its canonical address, the post's public address on the public host,
 //   under its language's prefix on a site in several languages,
 //   or, on a later page of its list with pages of its own, that
@@ -50,6 +53,7 @@
 // dates, `og:locale` and the structured data's `inLanguage`.
 
 import { listPageAddress, searchPages } from '../format/addresses.js';
+import { searchDescriptionOf, searchTitleOf, SHARING_SIZE, socialDescriptionOf, socialTitleOf } from '../format/article-parts.js';
 import { renderTemplate } from '../metadata-templates.js';
 import { isSiteTitle } from '../settings-groups.js';
 import { feedAlternates } from './feeds.js';
@@ -60,7 +64,7 @@ import { summary } from './summary.js';
 import { taxonomyWithPages } from './term-pages.js';
 
 // The size of a sharing image, as Open Graph's and X's large cards show one.
-export const SHARING_IMAGE = Object.freeze({ width: 1200, height: 630 });
+export const SHARING_IMAGE = SHARING_SIZE;
 
 // The title tag of a page of the site's own that gives its title, as a
 // post's is by default.
@@ -214,21 +218,24 @@ async function postPage({ entry, type, path, number, search, site }, known, getE
   const templates = search.types?.[type.name] ?? {};
   const seo = entry.data.seo ?? {};
   const field = (kind) => entry.data[type.fields.find((found) => found.kind === kind)?.name];
-  const titleTag = seo.title || render(templates.title) || entry.data.title;
-  const metaDescription = seo.description || render(templates.description);
+  // What the teaser shows, where the type has one, before the templates.
+  const teaser = type.fields.some((found) => found.kind === 'teaser');
+  const shown = (rule) => (teaser ? rule(entry.data) : '');
+  const titleTag = seo.title || shown((data) => searchTitleOf(data, known.settings?.title ?? '')) || render(templates.title) || entry.data.title;
+  const metaDescription = seo.description || shown(searchDescriptionOf) || render(templates.description);
   const address = entryAddress(type, entry.id, site.languages);
   const later = number > 1;
   const schema = seo.schema ?? templates.schema ?? 'WebPage';
   return {
     title: titleTag,
     description: metaDescription,
-    socialTitle: seo.socialTitle || render(templates.socialTitle) || titleTag,
-    socialDescription: seo.socialDescription || render(templates.socialDescription) || metaDescription,
+    socialTitle: seo.socialTitle || shown(socialTitleOf) || render(templates.socialTitle) || titleTag,
+    socialDescription: seo.socialDescription || shown(socialDescriptionOf) || render(templates.socialDescription) || metaDescription,
     path: address === null ? path : listPageAddress(address, number),
     robots: [(seo.noindex || later) && 'noindex', seo.nofollow && 'nofollow'].filter(Boolean).join(', '),
     schema,
     article: ARTICLES.has(schema),
-    headline: entry.data.title,
+    headline: field('headline') || entry.data.title,
     published: field('date'),
     modified: field('modified'),
     image: seo.socialImage ? { src: seo.socialImage, alt: seo.socialImageAlt } : field('image') ?? null,

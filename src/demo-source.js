@@ -109,9 +109,10 @@ export function sourceFrom(description, published) {
     }
   }
 
-  // A content file holds these in one flat map, and a source file in the parts an editor sees.
+  // A content file holds these in one flat map, and a source file in the three groups an
+  // editor sees, each a key of its own, the sharing image with its alt text.
   const seoInParts = (flat) => Object.fromEntries(Object.entries(SEO_PARTS).flatMap(([part, keys]) => {
-    const inPart = Object.fromEntries(keys.filter((key) => Object.hasOwn(flat, key)).map((key) => [key, key === 'socialImage' ? mediaPath(flat[key]) : flat[key]]));
+    const inPart = Object.fromEntries(Object.entries(keys).filter(([, as]) => Object.hasOwn(flat, as)).map(([key, as]) => [key, as === 'socialImage' ? { src: mediaPath(flat.socialImage), alt: flat.socialImageAlt } : flat[as]]));
     return Object.keys(inPart).length === 0 ? [] : [[part, inPart]];
   }));
 
@@ -126,7 +127,8 @@ export function sourceFrom(description, published) {
       if (key === 'title') continue;
       if (fieldsTaking.has(key)) written[key] = value.map((term) => idOf(fieldsTaking.get(key), term.split('/').at(-1)));
       else if (key === 'image') written.image = toMedia(value);
-      else if (key === 'seo') written.seo = seoInParts(value);
+      else if (key === 'teaser') written.teaser = value.image ? { ...value, image: toMedia(value.image) } : value;
+      else if (key === 'seo') Object.assign(written, seoInParts(value));
       else written[key] = value;
     }
     files.push({ path: `${type.collection}/${tag ? `${tag}/` : ''}${id}.md`, content: writePost(written, bodyAsSource(body, ids)) });

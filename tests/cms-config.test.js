@@ -216,11 +216,12 @@ test('holds search and sharing per language on a site in several', () => {
     if (typeof type.address === 'string') type.address = { sv_SE: type.address, en_GB: type.address.replace(/^\/(?=[a-z]+\/)/, '/en-') };
   }
   const several = cmsConfig(siteDescription(declared), place);
-  const seo = several.collections.find((one) => one.name === 'articles').fields.find((one) => one.name === 'seo');
-  assert.equal(seo.i18n, true);
-  for (const part of seo.fields) {
-    assert.equal(part.i18n, true);
-    for (const one of part.fields) assert.equal(one.i18n, true);
+  const fields = several.collections.find((one) => one.name === 'articles').fields;
+  const groups = fields.filter((one) => ['search', 'sharing', 'structured'].includes(one.name));
+  assert.deepEqual(groups.map((one) => one.name), ['search', 'sharing', 'structured']);
+  for (const group of groups) {
+    assert.equal(group.i18n, true);
+    for (const one of group.fields) assert.equal(one.i18n, true);
   }
 });
 
@@ -239,11 +240,15 @@ describe('the image library', () => {
     assert.equal(library.format, 'json');
     assert.equal(library.create, true);
     assert.equal(library.i18n, undefined, 'in one language, since what a post holds of it is the post\'s');
-    assert.deepEqual(library.fields.map(({ name, widget, required }) => [name, widget, required]), [['src', 'image', true], ['alt', 'string', true], ['caption', 'string', false]]);
+    assert.deepEqual(library.fields.map(({ name, widget, required }) => [name, widget, required]), [['src', 'konzilo-image', true], ['alt', 'string', true], ['caption', 'string', false]]);
+    assert.equal(library.fields[0].upload, true, 'its own file is uploaded, not chosen');
+    assert.equal(library.thumbnail, 'src');
   });
 
-  test('is there only where some type takes images', () => {
-    assert.equal(libraryOf(['paragraph']), undefined);
+  test('is there on every site, since every image field chooses from it, the logo\'s too', () => {
+    assert.equal(libraryOf(['paragraph']).folder, 'image-library');
+    const settings = cmsConfig(describedWith(['paragraph']), place).collections.find(({ name }) => name === 'settings').files[0].fields;
+    assert.deepEqual(settings.filter(({ name }) => ['logo', 'icon'].includes(name)).map(({ widget, alt }) => [widget, alt]), [['konzilo-image', true], ['konzilo-image', false]]);
   });
 
   test('tells a body how narrow an upload may be', () => {

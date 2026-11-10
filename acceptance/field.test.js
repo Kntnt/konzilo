@@ -101,7 +101,8 @@ const NOT_WRITTEN = '[data-footnote-ref], [data-footnote-backref], .sr-only, .ko
 function previewMarks(body) {
   const { html } = markdownToHtml(body, { features: markdownFeatures, mdastPlugins: [directiveReader(() => {})], hastPlugins: [...markdownHastPlugins, blockMarks] });
   const { document, NodeFilter } = new JSDOM(`<body>${html}</body>`).window;
-  return [...document.querySelectorAll('[data-konzilo-block]')].map((element) => {
+  // A body's top-level blocks: a block within one, a list's item say, is found by its path.
+  return [...document.querySelectorAll('[data-konzilo-block]')].filter((element) => !element.dataset.konziloBlock.includes('.')).map((element) => {
     const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
     let text = '';
     for (let node = walker.nextNode(); node; node = walker.nextNode()) if (!node.parentElement.closest(NOT_WRITTEN)) text += node.data;

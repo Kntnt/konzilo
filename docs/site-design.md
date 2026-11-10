@@ -36,7 +36,9 @@ A name in angle brackets is filled in by what it stands for. The core's scripts 
 
 ### The live preview
 
-In the live preview alone, each block of a body has `data-konzilo-block`, its place among the body's blocks, and a click on it leads to the body field.
+In the live preview alone, each block of a body has `data-konzilo-block`, its place among the body's blocks, and a click on it leads to the body field. A block within a directive's body, and a list's item, has its path below it, as `2.1`: a design that renders a component of its own keeps the marks on the blocks it is given, and a level of its own with no element, such as a tab, is found by the first block below it.
+
+When a field asks the page to show a block, the page opens the `<details>` the block stands in, scrolls to it and marks it, and sends the event `konzilo-preview-show` from it, bubbling, so that a design's own tab, panel or answer can open to show it: its script listens on the document and opens what holds `event.target`. A click the page makes itself, to open such a tab, is no editor's, and leads nowhere.
 
 | Class | On | State |
 |---|---|---|
@@ -225,3 +227,5 @@ The current page is a link with `[aria-current=page]`, in an `li` with no class.
 ### Breadcrumbs
 
 They have no class of their own: `nav[aria-label] > ol > li`, the last with `[aria-current=page]`. A design can style them through its own wrapper, or use its own component with `breadcrumbs()`.
+
+Whether they end with the page itself is the type's setting, in the group `breadcrumbs`, off by default. Off, `Breadcrumbs` ends at the level above the page, each level a link, and shows nothing for a page right under the start page. `breadcrumbs()` still gives the page's own level, last, with `hidden: true`, so that a design whose narrow form counts on that level can keep it in its markup and hide it, and the structured data always holds it.

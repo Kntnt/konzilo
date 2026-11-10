@@ -26,7 +26,7 @@ const site = Object.freeze({
       fields: {
         date: {},
         excerpt: {},
-        categories: { taxonomy: 'category' },
+        categories: { taxonomy: 'category', most: 2 },
         image: {},
         seo: {},
         readingTime: { label: 'Reading time', type: 'integer', control: 'number' },
@@ -178,10 +178,11 @@ const cases = {
   'icon-square': [() => run({ 'settings.json': { ...settled, icon: { src: '/media/wide.png' } } }, site, { images: namedImages({ width: 800, height: 600 }) }), { setting: 'icon' }],
   'icon-small': [() => run({ 'settings.json': { ...settled, icon: { src: '/media/site-icon.png' } } }, site, { images: namedImages({ width: 100, height: 100 }) }), { setting: 'icon' }],
   'seo-shape': [() => onePost({ seo: 'none' }), { field: 'seo' }],
-  'seo-flag': [() => onePost({ seo: { advanced: { noindex: 'yes' } } }), { field: 'seo.advanced.noindex' }],
-  'seo-text': [() => onePost({ seo: { search: { title: { a: 1 } } } }), { field: 'seo.search.title' }],
-  'seo-schema': [() => onePost({ seo: { advanced: { schema: 'Blog' } } }), { field: 'seo.advanced.schema' }],
-  'seo-image-alt': [() => onePost({ seo: { sharing: { socialImage: '/media/a.png' } } }), { field: 'seo.sharing.socialImageAlt' }],
+  'seo-flag': [() => onePost({ search: { noindex: 'yes' } }), { field: 'search.noindex' }],
+  'seo-text': [() => onePost({ search: { title: { a: 1 } } }), { field: 'search.title' }],
+  'seo-schema': [() => onePost({ structured: { schema: 'Blog' } }), { field: 'structured.schema' }],
+  'seo-image-alt': [() => onePost({ sharing: { image: { src: '/media/a.png' } } }), { field: 'sharing.image' }],
+  'terms-most': [() => onePost({ categories: ['aaaaaaaaaaaa', 'bbbbbbbbbbbb', 'cccccccccccc'] }), { field: 'categories' }],
   'other-shape': [() => onePost({ otherAddresses: 'none' }), { field: 'otherAddresses' }],
   'other-address': [() => onePost({ otherAddresses: [{ address: 'not a path' }] }), { field: 'otherAddresses' }],
   'other-answer': [() => onePost({ otherAddresses: [{ address: '/x/', answer: 404 }] }), { field: 'otherAddresses' }],
@@ -384,7 +385,7 @@ test('a non-Admin may change a post, and an Admin what is an Admin\'s', () => {
   assert.deepEqual(refusals, []);
 });
 
-test('search and sharing fields in the content file\'s flat form are refused, not dropped', () => {
+test('search and sharing fields in one map, as the content file holds them, are refused, not dropped', () => {
   const { refusals } = onePost({ seo: { title: 'A title' } });
   assert.deepEqual(refusals.map((one) => /cannot read the search and sharing fields/.test(one.message)), [true]);
 });

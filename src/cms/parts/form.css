@@ -1,0 +1,13 @@
+/* The fields of an article's parts, in Sveltia's colours, so that they follow light and dark mode. */
+.konzilo-part-input { box-sizing: border-box; width: 100%; min-height: 36px; padding: 6px 10px; border: 1px solid var(--sui-control-border-color); border-radius: var(--sui-control-medium-border-radius, 6px); background: var(--sui-textbox-background-color, var(--sui-control-background-color)); color: var(--sui-textbox-foreground-color, var(--sui-control-foreground-color)); font: inherit; font-size: var(--sui-font-size-default, 14px); }
+.konzilo-part-input::placeholder { color: var(--sui-tertiary-foreground-color, var(--sui-secondary-foreground-color)); opacity: 1; }
+.konzilo-part-input[readonly] { background: var(--sui-secondary-background-color); }
+.konzilo-part-lines { resize: vertical; line-height: 1.5; }
+.konzilo-part-add, .konzilo-part-button { box-sizing: border-box; height: 32px; padding: 0 12px; border: 1px solid var(--sui-control-border-color); border-radius: 6px; background: var(--sui-control-background-color); color: var(--sui-control-foreground-color); font: inherit; font-size: 13px; line-height: 30px; cursor: pointer; text-decoration: none; white-space: nowrap; }
+.konzilo-part-add { border-style: dashed; }
+.konzilo-part-add:hover, .konzilo-part-button:hover { background: var(--sui-hover-background-color); }
+.konzilo-part-slug { display: flex; gap: 8px; align-items: center; }
+.konzilo-part-slug .konzilo-part-input { flex: 1 1 auto; min-width: 0; }
+.konzilo-part-select { appearance: auto; cursor: pointer; }
+/* A closed teaser is a bar with its name, without a line of what it holds. */
+section.field[data-key-path="teaser"] .item-list > .summary { display: none; }

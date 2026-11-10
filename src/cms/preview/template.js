@@ -8,8 +8,11 @@ import { say } from '../body/texts.js';
 import { signedInCredential } from '../credential.js';
 import { previewClient } from './client.js';
 import { draftOf } from './draft.js';
-import { PLACE_EVENT, PLACE_MESSAGE, STOPPED_MESSAGE } from './paths.js';
+import { PLACE_EVENT, PLACE_MESSAGE, SHOW_EVENT, SHOW_MESSAGE, STOPPED_MESSAGE } from './paths.js';
+import { previewWindow } from '../preview-window/window.js';
 
+// The narrowest the page is laid out at. A narrower pane shows it smaller; a wider one shows it
+// at its own size, as wide as the pane, as a browser window that wide would: never larger.
 const WIDTH = 1280;
 // A page in the frame may run scripts and send forms, and do nothing to the editor around it.
 export const SANDBOX = 'allow-same-origin allow-scripts allow-forms';
@@ -43,6 +46,12 @@ export function previewTemplate({ origin, several, credential = signedInCredenti
     const shown = React.useRef(null);
     const client = React.useRef(null);
     const unsavedId = React.useRef(null);
+    // A window of its own, when the editor's menu says so and the window is open: the page is
+    // drawn there, and this pane is hidden. The frame the page is in is then the window's.
+    const [, windowChanged] = React.useReducer((turn) => turn + 1, 0);
+    React.useEffect(() => previewWindow.watch(windowChanged), []);
+    const away = previewWindow.wanted() && previewWindow.isOpen();
+    const framed = () => previewWindow.frame() ?? shown.current;
 
     client.current ??= previewClient({ origin, credential, changed: setState });
     unsavedId.current ??= freshId();
@@ -51,15 +60,25 @@ export function previewTemplate({ origin, several, credential = signedInCredenti
     // Only the page in this frame, from where it is served, has anything to say here.
     React.useEffect(() => {
       const heard = ({ origin: from, source, data }) => {
-        if (from !== origin || source !== shown.current?.contentWindow) return;
+        if (from !== origin || source !== framed()?.contentWindow) return;
         if (data?.type === STOPPED_MESSAGE) client.current.stopped(data);
-        // A click on a block of the body, for the body field to put the cursor there.
+        // A click on a block of the body, for the field that holds it to put the cursor there:
+        // `block`, its place among the body's blocks, and `path`, its place within them.
         if (data?.type === PLACE_MESSAGE && Number.isInteger(data.block) && data.block >= 0 && Number.isInteger(data.count) && data.count >= 0 && typeof data.text === 'string') {
-          globalThis.dispatchEvent(new CustomEvent(PLACE_EVENT, { detail: { block: data.block, count: data.count, text: data.text.slice(0, 200) } }));
+          const path = typeof data.path === 'string' && /^\d+(?:\.\d+)*$/.test(data.path) ? data.path : String(data.block);
+          globalThis.dispatchEvent(new CustomEvent(PLACE_EVENT, { detail: { block: data.block, path, count: data.count, text: data.text.slice(0, 200) } }));
         }
       };
       paneWindow.addEventListener('message', heard);
-      return () => paneWindow.removeEventListener('message', heard);
+      const unheard = previewWindow.heard(heard);
+      // A block a field shows, for the page to show it too.
+      const show = ({ detail }) => framed()?.contentWindow?.postMessage({ type: SHOW_MESSAGE, path: detail.path, text: detail.text ?? '' }, origin);
+      globalThis.addEventListener(SHOW_EVENT, show);
+      return () => {
+        paneWindow.removeEventListener('message', heard);
+        unheard();
+        globalThis.removeEventListener(SHOW_EVENT, show);
+      };
     }, []);
 
     const data = entry.get('data');
@@ -82,26 +101,46 @@ export function previewTemplate({ origin, several, credential = signedInCredenti
       return () => observer.disconnect();
     }, []);
 
-    const scale = size.width > 0 ? size.width / WIDTH : 1;
-    const frame = state.address === null ? null : h('iframe', {
+    const scale = size.width > 0 ? Math.min(1, size.width / WIDTH) : 1;
+    // What the preview says above the page, and over it for a moment, as data, so that the pane
+    // and the window can each draw it.
+    const notes = [];
+    if (state.phase === 'off') notes.push({ key: 'off', role: 'alert', look: NOTE, text: say('previewOff') });
+    if (state.refusals.length > 0) notes.push({ key: 'refused', role: 'alert', look: NOTE, text: say(state.address === null ? 'previewRefusedNoPage' : 'previewRefused'), items: state.refusals.map(({ field, reason }) => ({ key: `${field}:${reason}`, text: field ? `${field}: ${reason}` : reason })) });
+    if (state.leads !== null) notes.push({ key: 'leads', role: 'status', look: QUIET, text: state.leads.loop ? say('previewLeadsRound', state.leads) : say('previewLeads', state.leads) });
+    if (state.phase === 'starting') notes.push({ key: 'starting', role: 'status', look: QUIET, text: say('previewStarting') });
+    if (state.phase === 'shown' && state.address === null && state.refusals.length === 0 && state.leads === null) notes.push({ key: 'none', role: 'status', look: QUIET, text: say('previewNoPage') });
+    const passing = state.stopped ? { text: stoppedWords(state.stopped), look: PASSING } : null;
+
+    React.useEffect(() => {
+      if (away) previewWindow.show({ origin, address: state.address, notes, passing, sandbox: SANDBOX, frameTitle: say('previewTitle'), title: say('previewWindowTitle', { title: plainData?.title ?? '' }) });
+    });
+    React.useEffect(() => {
+      globalThis.document.documentElement.classList.toggle('konzilo-preview-away', away);
+    }, [away]);
+    React.useEffect(() => () => {
+      globalThis.document.documentElement.classList.remove('konzilo-preview-away');
+      previewWindow.idle();
+    }, []);
+
+    // White behind the page, so that a page being drawn again never shows the editor's colours.
+    const frame = away || state.address === null ? null : h('iframe', {
       ref: shown,
       title: say('previewTitle'),
       src: `${origin}${state.address}`,
       sandbox: SANDBOX,
-      style: { display: 'block', border: 0, width: WIDTH, height: size.height / scale, transform: `scale(${scale})`, transformOrigin: '0 0' },
+      style: { display: 'block', border: 0, width: Math.max(WIDTH, size.width), height: size.height / scale, transform: `scale(${scale})`, transformOrigin: '0 0', background: '#fff' },
     });
-    const notes = [];
-    if (state.phase === 'off') notes.push(h('p', { key: 'off', role: 'alert', style: NOTE }, say('previewOff')));
-    if (state.refusals.length > 0) {
-      notes.push(h('div', { key: 'refused', role: 'alert', style: NOTE }, say(frame === null ? 'previewRefusedNoPage' : 'previewRefused'), h('ul', { style: { margin: '4px 0 0', paddingInlineStart: 20 } }, state.refusals.map(({ field, reason }) => h('li', { key: `${field}:${reason}` }, field ? `${field}: ${reason}` : reason)))));
-    }
-    if (state.leads !== null) notes.push(h('p', { key: 'leads', role: 'status', style: QUIET }, state.leads.loop ? say('previewLeadsRound', state.leads) : say('previewLeads', state.leads)));
-    if (state.phase === 'starting') notes.push(h('p', { key: 'starting', role: 'status', style: QUIET }, say('previewStarting')));
-    if (state.phase === 'shown' && state.address === null && state.refusals.length === 0 && state.leads === null) notes.push(h('p', { key: 'none', role: 'status', style: QUIET }, say('previewNoPage')));
+    const noteIn = ({ key, role, look, text, items }) => (items
+      ? h('div', { key, role, style: look }, text, h('ul', { style: { margin: '4px 0 0', paddingInlineStart: 20 } }, items.map((item) => h('li', { key: item.key }, item.text))))
+      : h('p', { key, role, style: look }, text));
+    // Chosen, but not open: the window has been closed, or the browser would not open it.
+    const closed = previewWindow.wanted() && !away && h('p', { role: 'status', style: QUIET }, say('previewWindowClosed'), ' ', h('button', { type: 'button', onClick: () => previewWindow.open() }, say('previewWindowOpen')));
 
     return h('div', { style: { display: 'flex', flexDirection: 'column', height: '100vh' } },
-      notes,
-      h('div', { ref: holder, style: { position: 'relative', flex: '1 1 auto', overflow: 'hidden', minHeight: 0 } }, frame, state.stopped && h('p', { role: 'status', style: PASSING }, stoppedWords(state.stopped))));
+      closed,
+      away ? null : notes.map(noteIn),
+      h('div', { ref: holder, style: { position: 'relative', flex: '1 1 auto', overflow: 'hidden', minHeight: 0, background: '#fff' } }, frame, !away && passing && h('p', { role: 'status', style: PASSING }, passing.text)));
   };
 }
 

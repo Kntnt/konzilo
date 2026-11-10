@@ -7,6 +7,21 @@
 // rewrite safe, so only a value the editor writes back to the byte opens in the editor.
 
 import { PLACE_EVENT } from '../preview/paths.js';
+import { tellPreview } from './tell.js';
+
+const RING_FOR = 1600;
+
+// A frame around `block` for a moment, drawn in `frame`, outside the editor's document.
+function ring(frame, block) {
+  if (getComputedStyle(frame).position === 'static') frame.style.position = 'relative';
+  const outer = frame.getBoundingClientRect();
+  const inner = block.getBoundingClientRect();
+  const shown = document.createElement('div');
+  shown.className = 'konzilo-body-ring';
+  Object.assign(shown.style, { left: `${inner.left - outer.left - 6}px`, top: `${inner.top - outer.top - 4}px`, width: `${inner.width + 12}px`, height: `${inner.height + 8}px` });
+  frame.append(shown);
+  setTimeout(() => shown.remove(), RING_FOR);
+}
 import { changeBetween, handsFor, loadReader } from './check.js';
 import { chooseImage } from './chooser.js';
 import { makeEditor } from './crepe.js';
@@ -28,7 +43,9 @@ const element = (tag, className, parent) => {
 
 const sameBytes = (one, other) => one.replace(/\r\n?/g, '\n').trimEnd() === other.replace(/\r\n?/g, '\n').trimEnd();
 
-export function mountBodyField(host, { value: given, changed, elements, forms, adminHost, library = null, smallestWidth = null }) {
+// `withPreview: false` for a field within another, the structure field's, which answers the
+// preview's clicks and tells it of its own.
+export function mountBodyField(host, { value: given, changed, elements, forms, adminHost, library = null, smallestWidth = null, withPreview = true }) {
   const images = library && { choose: () => chooseImage({ library, smallestWidth }), chooseSeveral: () => chooseImage({ library, smallestWidth, several: true }), picture: library.picture };
   const frame = element('div', 'konzilo-body', host);
   const bar = element('div', 'konzilo-body-bar', frame);
@@ -239,18 +256,33 @@ export function mountBodyField(host, { value: given, changed, elements, forms, a
       flush();
       gone = true;
       globalThis.removeEventListener(PLACE_EVENT, placed);
+      visual.removeEventListener('click', told);
+      visual.removeEventListener('keyup', told);
       fieldClosed(field);
       closeEditor();
       frame.remove();
     },
   };
   // A click on the preview's page, for whichever field holds that block: on a site in several
-  // languages, the one whose text it is.
+  // languages, the one whose text it is. The block is framed for a moment, outside the editor's
+  // own document, so that the editor sees no change.
   const placed = ({ detail }) => {
-    if (!frame.isConnected) return;
-    field.goTo(detail);
+    if (!frame.isConnected || !field.goTo(detail)) return;
+    const view = editor?.view;
+    const { node } = view?.domAtPos(view.state.selection.from) ?? {};
+    const block = (node?.nodeType === Node.ELEMENT_NODE ? node : node?.parentElement)?.closest('li, p, h2, h3, h4, h5, h6, blockquote, pre, table, [data-type], .konzilo-kept') ?? null;
+    if (block && frame.contains(block)) ring(frame, block);
   };
-  globalThis.addEventListener(PLACE_EVENT, placed);
+  // A click in the field, or the arrows moving to another block, shows that block in the preview.
+  const told = (event) => {
+    const view = editor?.view;
+    if (mode === 'editor' && view?.dom.contains(event.target)) tellPreview(view, event);
+  };
+  if (withPreview) {
+    globalThis.addEventListener(PLACE_EVENT, placed);
+    visual.addEventListener('click', told);
+    visual.addEventListener('keyup', told);
+  }
   fieldOpened(field);
   field.ready = openEditor();
   return field;

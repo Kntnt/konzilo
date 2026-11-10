@@ -5,7 +5,7 @@
 // 1. the start page, named in the site's language (BREADCRUMB_TEXTS);
 // 2. each shorter address the page's address starts with, `/a/` and
 //    `/a/b/` for `/a/b/c/`, at which a post of the build answers, of any
-//    type, named by its name in breadcrumbs (`seo.breadcrumb`), else its
+//    type, named by its name in breadcrumbs (`breadcrumb`), else its
 //    title;
 // 3. the page itself, named the same way, or, a term's page, by
 //    the term's name, or, a page of the site's own, by the title it is
@@ -74,7 +74,7 @@ export async function breadcrumbLevels({ entry = null, path, title }, { site, te
 // A post's name in breadcrumbs: its own, else its title; a term's, its
 // name.
 function nameOf(entry) {
-  return entry.data.seo?.breadcrumb || entry.data.title || entry.data.name;
+  return entry.data.breadcrumb || entry.data.title || entry.data.name;
 }
 
 // The public address of the post an entry holds, in its language, or of

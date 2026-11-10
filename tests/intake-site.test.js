@@ -201,7 +201,8 @@ describe('a post\'s fields', () => {
   const result = run({
     'articles/aaaaaaaaaaaa.md': article({
       image: { src: '/media/barn-aaaaaaaaaa.jpg', alt: ' A barn ' },
-      seo: { search: { title: 'A title', description: '' }, advanced: { noindex: true }, sharing: { socialImage: '/media/share-bbbbbbbbbb.jpg', socialImageAlt: 'Shared', unknown: 'left' } },
+      search: { title: 'A title', description: '', noindex: true, unknown: 'left' },
+      sharing: { image: { src: '/media/share-bbbbbbbbbb.jpg', alt: 'Shared' } },
       featured: true,
       eventDay: '2026-11-05',
       rating: 4.5,

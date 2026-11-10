@@ -390,7 +390,8 @@ export function endOf(html, open) {
 // options of a presentation, each other `data-*` too, as its text.
 function attributesOf(entry, attributes) {
   const values = {};
-  const own = new Set(['data-directive']);
+  // The live preview's mark on a block is no attribute of the directive's (block-marks.js).
+  const own = new Set(['data-directive', 'data-konzilo-block']);
   for (const [attribute, setting] of Object.entries(entry.attributes)) {
     const name = `data-${attribute.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`;
     own.add(name);

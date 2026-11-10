@@ -11,3 +11,7 @@ export const STOPPED_MESSAGE = 'konzilo-preview-stopped';
 // body field of it.
 export const PLACE_MESSAGE = 'konzilo-preview-place';
 export const PLACE_EVENT = 'konzilo-preview-place';
+// What a field tells the preview of the block it shows, and what the pane tells the page of it:
+// `path`, the block's place among the body's blocks and within them, and `text`, its text.
+export const SHOW_EVENT = 'konzilo-preview-show';
+export const SHOW_MESSAGE = 'konzilo-preview-show';

@@ -196,13 +196,24 @@ function fieldSchema(field, image) {
     case 'modified':
       return z.date();
     case 'excerpt':
+    case 'breadcrumb':
+    case 'eyebrow':
+    case 'headline':
+    case 'subheadline':
+    case 'standfirst':
       return optional(z.string(), field);
     case 'image':
       return optional(z.strictObject({ src: image(), alt: z.string().min(1) }), field);
+    case 'teaser':
+      return z.strictObject({
+        image: z.strictObject({ src: image(), alt: z.string().min(1) }).optional(),
+        headline: z.string().min(1).optional(),
+        text: z.string().min(1).optional(),
+      }).optional();
     case 'seo':
       return seoSchema(image);
     case 'terms':
-      return z.array(reference(field.taxonomy.collection)).min(field.required ? 1 : 0);
+      return field.most === null ? z.array(reference(field.taxonomy.collection)).min(field.required ? 1 : 0) : z.array(reference(field.taxonomy.collection)).min(field.required ? 1 : 0).max(field.most);
     case 'meta':
       return field.type === 'boolean' ? z.boolean() : optional(metaSchema(field), field);
     default:
@@ -216,7 +227,6 @@ function seoSchema(image) {
   const text = z.string().min(1).optional();
   return z.strictObject({
     title: text,
-    breadcrumb: text,
     description: text,
     socialTitle: text,
     socialDescription: text,

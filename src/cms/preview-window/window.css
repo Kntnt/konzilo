@@ -1,0 +1,12 @@
+/* The preview in a window of its own: the pane it would stand in is hidden, with the handle and
+   the button that swaps the panes, and the form takes the whole width. The preview sets the class
+   while the window is open. */
+html.konzilo-preview-away .content-editor .content-area > .resizable-pane-group > .resizable-pane:has(iframe.preview),
+html.konzilo-preview-away .content-editor .content-area > .resizable-pane-group > .resizable-handle,
+html.konzilo-preview-away .content-editor .content-area > .swap-button {
+  display: none !important;
+}
+
+html.konzilo-preview-away .content-editor .content-area > .resizable-pane-group > .resizable-pane:not(:has(iframe.preview)) {
+  flex: 1 1 100% !important;
+}

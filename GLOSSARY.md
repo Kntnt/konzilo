@@ -46,6 +46,12 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Field**: A value a post type declares beside its title and body: one of the core's own, the search and sharing fields, a post's terms, or one of the site's own. _Avoid_: custom field, property.
 
+**Article parts**: The fields of the core's that name the parts of an article: the eyebrow, the main headline and the subheadline, the standfirst, the teaser with its image, headline and text, and the name in breadcrumbs, beside the main image, which is the featured image. A part left empty falls back to another by one set of rules, which the editor and the site share. _Avoid_: deck, kicker, lead (for the standfirst).
+
+**Working name**: A post's title where the post has a main headline of its own: the name lists, menus and breadcrumbs show, and the one a new slug is made from. _Avoid_: internal title.
+
+**Teaser**: What shows a post elsewhere, in a list, a search result or a shared link: its image, headline and text, each the post's own or what it falls back to. _Avoid_: card, excerpt (for the teaser as a whole).
+
 **Hierarchical type**: A post type whose posts have parents, so that its addresses and published files follow their paths. _Avoid_: nested type, tree.
 
 **Path**: A post's ancestors' slugs, from the top, and its own, joined by `/`, as `about-us/team`.
@@ -81,6 +87,8 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 **ID**: A source file's generated name, by which every reference holds its target.
 
 **Crepe field**: The body field in Sveltia, built on Milkdown's Crepe with Konzilo's own nodes. _Avoid_: block editor, rich text editor.
+
+**Structure field**: The body field of a type that chooses it, a tree of the body's levels, cards within cards, the selected one as a small form, led to by a click on the preview. _Avoid_: page builder, block editor.
 
 **Kept block**: A block in the Crepe field holding an element it has no form of yet, or one its post type does not take, as its own bytes, shown as source and moved whole. _Avoid_: protected block, raw block.
 

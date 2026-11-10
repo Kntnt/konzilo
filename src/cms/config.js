@@ -6,7 +6,12 @@
 // empty string.
 
 import { IMAGE_LIBRARY_FOLDER } from '../format/masters.js';
-import { declaredNames, SCHEMA_TYPES, SEO_PARTS } from '../site-description.js';
+import { declaredNames, SCHEMA_TYPES } from '../site-description.js';
+import settingsGroups from '../format/settings-groups.json' with { type: 'json' };
+import { SHARING_SAFE, SHARING_SIZE } from '../format/article-parts.js';
+import { IMAGE_WIDGET } from './image/widget.js';
+import { STRUCTURE_WIDGET } from './structure/widget.js';
+import { SCHEMA_WIDGET, SLUG_WIDGET, TEXT_WIDGET } from './parts/widgets.js';
 import { inLanguage } from '../texts.js';
 import { BODY_WIDGET } from './body/widget.js';
 import { PUBLISHING_WIDGET } from './publishing/widget.js';
@@ -29,23 +34,31 @@ const TEXTS = {
   body: { en: 'Body', sv: 'Brödtext' },
   name: { en: 'Name', sv: 'Namn' },
   description: { en: 'Description', sv: 'Beskrivning' },
-  seo: { en: 'Search and sharing', sv: 'Sök och delning' },
-  seoPartSearch: { en: 'In search results', sv: 'I sökresultat' },
-  seoPartSharing: { en: 'When shared', sv: 'När det delas' },
-  seoPartAdvanced: { en: 'Advanced', sv: 'Avancerat' },
+  search: { en: 'Search', sv: 'Sök' },
+  sharing: { en: 'Sharing', sv: 'Delning' },
+  structured: { en: 'Structured data', sv: 'Strukturerad data' },
   seoFollows: { en: 'Left empty, the template for this type of post decides.', sv: 'Lämnas den tom bestämmer mallen för den här inläggstypen.' },
-  seoImageAltHint: { en: 'Needed with a sharing image.', sv: 'Krävs när det finns en delningsbild.' },
   seoTitle: { en: 'Title tag', sv: 'Titeltagg' },
-  seoBreadcrumb: { en: 'Name in breadcrumbs', sv: 'Namn i brödsmulor' },
-  seoBreadcrumbHint: { en: 'Instead of the title, when a shorter name fits better. The levels themselves follow from where the post sits.', sv: 'I stället för titeln, när ett kortare namn passar bättre. Själva nivåerna följer av var inlägget ligger.' },
   seoDescription: { en: 'Meta description', sv: 'Metabeskrivning' },
-  seoSocialTitle: { en: 'Sharing title', sv: 'Delningstitel' },
-  seoSocialDescription: { en: 'Sharing description', sv: 'Delningsbeskrivning' },
-  seoSocialImage: { en: 'Sharing image', sv: 'Delningsbild' },
-  seoSocialImageAlt: { en: 'Sharing image alt text', sv: 'Delningsbildens alternativtext' },
-  seoSchema: { en: 'Structured data type', sv: 'Typ av strukturerad data' },
+  seoSocialTitle: { en: 'Title', sv: 'Titel' },
+  seoSocialDescription: { en: 'Description', sv: 'Beskrivning' },
+  seoSocialImage: { en: 'Image', sv: 'Bild' },
+  seoSchema: { en: 'Type', sv: 'Typ' },
   seoNoindex: { en: 'Keep out of search engines', sv: 'Håll borta från sökmotorer' },
   seoNofollow: { en: 'Do not follow links', sv: 'Följ inte länkar' },
+  breadcrumb: { en: 'Breadcrumb', sv: 'Brödsmula' },
+  breadcrumbHint: { en: 'Instead of the title, when a shorter name fits better. The levels themselves follow from where the post sits.', sv: 'I stället för titeln, när ett kortare namn passar bättre. Själva nivåerna följer av var inlägget ligger.' },
+  eyebrow: { en: 'Eyebrow', sv: 'Dårrad' },
+  headline: { en: 'Main headline', sv: 'Huvudrubrik' },
+  subheadline: { en: 'Subheadline', sv: 'Nedryckare' },
+  standfirst: { en: 'Standfirst', sv: 'Ingress' },
+  teaser: { en: 'Teaser', sv: 'Puff' },
+  teaserHeadline: { en: 'Headline', sv: 'Rubrik' },
+  teaserText: { en: 'Text', sv: 'Text' },
+  addEyebrow: { en: 'Add an eyebrow', sv: 'Lägg till dårrad' },
+  addSubheadline: { en: 'Add a subheadline', sv: 'Lägg till nedryckare' },
+  workingName: { en: 'Working name', sv: 'Arbetsnamn' },
+  workingNameHint: { en: 'Shown in the lists of posts. The breadcrumb, and the slug of a new post, are made from it.', sv: 'Visas i listorna över poster. Brödsmulan, och en ny posts slug, görs av den.' },
   settings: { en: 'Site settings', sv: 'Webbplatsinställningar' },
   siteTitle: { en: 'Site title', sv: 'Webbplatsens titel' },
   logo: { en: 'Logo', sv: 'Logotyp' },
@@ -61,6 +74,9 @@ const TEXTS = {
   labelHint: { en: "The post's title, if left empty.", sv: 'Inläggets titel om du lämnar den tom.' },
   post: { en: 'Post', sv: 'Inlägg' },
   url: { en: 'Address', sv: 'Adress' },
+  otherPath: { en: 'Path', sv: 'Sökväg' },
+  otherPathHint: { en: "The path from the site's root, starting with /, such as /old-page/. Not a whole web address: the site can only answer at addresses of its own.", sv: 'Sökvägen från webbplatsens rot, med / först, till exempel /gammal-sida/. Inte en hel webbadress, eftersom webbplatsen bara kan svara på sina egna adresser.' },
+  otherPathPattern: { en: 'Write a path starting with /, such as /old-page/, not a whole web address.', sv: 'Skriv en sökväg som börjar med /, till exempel /gammal-sida/, inte en hel webbadress.' },
   perType: { en: 'By type of post', sv: 'Per inläggstyp' },
   otherAddresses: { en: 'Other addresses', sv: 'Andra adresser' },
   otherAddress: { en: 'Other address', sv: 'Annan adress' },
@@ -94,15 +110,19 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
 
   const required = (field) => ({ required: field === true });
 
+  // An image from the image library, the one place an editor finds images, with its alt text
+  // copied in where the field has one (image/register.js). Its value is { src, alt }, as the
+  // source holds it.
+  const smallest = description.images?.smallestWidth ? { smallestWidth: description.images.smallestWidth } : {};
+  // On a site in several languages its value is each language's, so that the alt text is too.
   const imageField = (name, label, extra = {}, withAlt = true) => ({
     name,
     label,
-    widget: 'object',
+    widget: IMAGE_WIDGET,
+    alt: withAlt,
+    ...smallest,
     ...extra,
-    fields: [
-      { name: 'src', label: say('file'), widget: 'image', required: true },
-      ...(withAlt ? [{ name: 'alt', label: say('alt'), widget: 'string', required: false, ...within(TRANSLATED) }] : []),
-    ],
+    ...(withAlt ? within(TRANSLATED) : {}),
   });
 
   // The post a choice of one leads to. A relation names one collection, so a choice
@@ -200,50 +220,79 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     return part(group.name, group.label, group.description, parts);
   };
 
-  // Closed, since an editor who sets none of it leaves the type's templates to say it, and in
-  // parts, since all of it open is a lot to take in (ADR 0029).
-  const seoField = (field) => {
-    const keys = {
-      title: { widget: 'string', hint: say('seoFollows') },
-      breadcrumb: { widget: 'string', hint: say('seoBreadcrumbHint') },
-      description: { widget: 'text' },
-      socialTitle: { widget: 'string', hint: say('seoFollows') },
-      socialDescription: { widget: 'text' },
-      socialImage: { widget: 'image' },
-      socialImageAlt: { widget: 'string', hint: say('seoImageAltHint') },
-      schema: { widget: 'select', options: [...SCHEMA_TYPES] },
-      noindex: { widget: 'boolean' },
-      nofollow: { widget: 'boolean' },
-    };
-    const onePart = (name, inPart) => ({
-      name,
-      label: say(`seoPart${name[0].toUpperCase()}${name.slice(1)}`),
-      widget: 'object',
-      required: false,
-      accordion: true,
-      collapsed: true,
-      ...within(TRANSLATED),
-      fields: inPart.map((key) => ({
-        name: key,
-        label: say(`seo${key[0].toUpperCase()}${key.slice(1)}`),
-        required: false,
-        ...keys[key],
-        ...within(TRANSLATED),
-      })),
-    });
-    return {
-      name: field.name,
-      label: say('seo'),
-      widget: 'object',
-      required: false,
-      accordion: true,
-      collapsed: true,
-      ...within(TRANSLATED),
-      fields: Object.entries(SEO_PARTS).map(([name, inPart]) => onePart(name, inPart)),
-    };
+  // Search, sharing and structured data: three groups of the source's own, beside the
+  // post's fields, closed, since an editor who sets none of it leaves the defaults to say it
+  // (ADR 0029). The content file holds them as one map (the intake's seoValue()).
+  // The type's structured data type as the settings give it before a site sets its own.
+  const schemaPreset = (type) => {
+    const { default: preset, defaultFor = {} } = settingsGroups.search.types.settings.schema;
+    const kinds = { address: type.address !== null, date: type.fields.some((field) => field.kind === 'date'), page: type.name === 'page' };
+    const kind = Object.keys(defaultFor).find((one) => kinds[one]);
+    return kind === undefined ? preset : defaultFor[kind];
   };
 
-  const postField = (field) => {
+  // A post whose type has a teaser shows in its search and sharing fields what its teaser
+  // shows, as its head does (article-parts.js); another type's leave it to its templates.
+  const hasTeaser = (type) => type.fields.some((field) => field.kind === 'teaser');
+
+  const seoFields = (type) => {
+    const teaser = hasTeaser(type);
+    const shown = (rule) => (teaser ? { widget: TEXT_WIDGET, fallback: rule } : { hint: say('seoFollows') });
+    const group = (name, fields) => ({
+      name,
+      label: say(name),
+      widget: 'object',
+      required: false,
+      accordion: true,
+      collapsed: true,
+      ...within(TRANSLATED),
+      fields: fields.map((one) => ({ required: false, ...one, ...within(TRANSLATED) })),
+    });
+    return [
+      group('search', [
+        { name: 'title', label: say('seoTitle'), widget: 'string', ...shown('searchTitle') },
+        { name: 'description', label: say('seoDescription'), widget: 'text', ...(teaser ? { widget: TEXT_WIDGET, multiline: true, fallback: 'searchDescription' } : {}) },
+        { name: 'noindex', label: say('seoNoindex'), widget: 'boolean' },
+        { name: 'nofollow', label: say('seoNofollow'), widget: 'boolean' },
+      ]),
+      group('sharing', [
+        imageField('image', say('seoSocialImage'), { required: false, crop: [SHARING_SIZE.width, SHARING_SIZE.height], safe: [SHARING_SAFE.width, SHARING_SAFE.height], ...(type.fields.some((field) => field.kind === 'image') ? { fallback: true } : {}) }),
+        { name: 'title', label: say('seoSocialTitle'), widget: 'string', ...shown('socialTitle') },
+        { name: 'description', label: say('seoSocialDescription'), widget: 'text', ...(teaser ? { widget: TEXT_WIDGET, multiline: true, fallback: 'socialDescription' } : {}) },
+      ]),
+      group('structured', [
+        { name: 'schema', label: say('seoSchema'), widget: SCHEMA_WIDGET, options: [...SCHEMA_TYPES], type: type.name, typeLabel: type.plural, preset: schemaPreset(type) },
+      ]),
+    ];
+  };
+
+  // The teaser: what shows the post elsewhere, closed until an editor wants it otherwise.
+  const teaserField = (field) => ({
+    name: field.name,
+    label: say('teaser'),
+    widget: 'object',
+    required: false,
+    accordion: true,
+    collapsed: true,
+    ...within(TRANSLATED),
+    fields: [
+      imageField('image', say('file'), { required: false, fallback: true }),
+      { name: 'headline', label: say('teaserHeadline'), widget: TEXT_WIDGET, fallback: 'teaserHeadline', required: false },
+      { name: 'text', label: say('teaserText'), widget: TEXT_WIDGET, multiline: true, fallback: 'teaserText', required: false },
+    ],
+  });
+
+  // A part of an article that is a text: its field, which shows what it falls back to, or is
+  // a button until it is wanted.
+  const PARTS = {
+    breadcrumb: { widget: TEXT_WIDGET, fallback: 'breadcrumb', hint: say('breadcrumbHint') },
+    eyebrow: { widget: TEXT_WIDGET, add: say('addEyebrow'), placeholder: say('eyebrow') },
+    headline: { widget: TEXT_WIDGET, placeholder: say('headline') },
+    subheadline: { widget: TEXT_WIDGET, add: say('addSubheadline'), placeholder: say('subheadline') },
+    standfirst: { widget: 'text' },
+  };
+
+  const postField = (field, type) => {
     switch (field.kind) {
       case 'date':
         return { name: 'date', label: say('date'), widget: 'datetime', required: false, picker_utc: true, ...within(SAME_IN_EACH) };
@@ -254,13 +303,24 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
       case 'image':
         return imageField('image', say('image'), { required: field.required === true, ...within(SAME_IN_EACH) });
       case 'seo':
-        return seoField(field);
+        return seoFields(type);
+      case 'teaser':
+        return teaserField(field);
+      case 'breadcrumb':
+      case 'eyebrow':
+      case 'headline':
+      case 'subheadline':
+      case 'standfirst': {
+        return { name: field.name, label: say(field.kind), ...PARTS[field.kind], ...required(field.required), ...within(TRANSLATED) };
+      }
       case 'terms':
+        // A field of one term at most is one choice or none, and its source holds a text.
         return {
           name: field.name,
-          label: field.taxonomy.plural,
+          label: field.most === 1 ? field.taxonomy.label : field.taxonomy.plural,
           ...relation(field.taxonomy.collection, 'name', { allow_add: true }),
-          multiple: true,
+          multiple: field.most !== 1,
+          ...(field.most > 1 ? { max: field.most } : {}),
           ...required(field.required),
           ...within(SAME_IN_EACH),
         };
@@ -280,7 +340,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     collapsed: true,
     ...within(SAME_IN_EACH),
     fields: [
-      { name: 'address', label: say('url'), widget: 'string' },
+      { name: 'address', label: say('otherPath'), widget: 'string', hint: say('otherPathHint'), pattern: ['^/(?!/)\\S*$', say('otherPathPattern')] },
       {
         name: 'answer',
         label: say('answer'),
@@ -306,7 +366,10 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     fields: [
       // What an editor is here for first, and in sight when the entry opens, as Sveltia mounts
       // what lies further down only as it comes into view.
-      { name: 'title', label: say('title'), widget: 'string', ...within(TRANSLATED) },
+      // Where the type has a main headline of its own, the title is the post's working name.
+      type.fields.some((field) => field.kind === 'headline')
+        ? { name: 'title', label: say('workingName'), hint: say('workingNameHint'), widget: 'string', ...within(TRANSLATED) }
+        : { name: 'title', label: say('title'), widget: 'string', ...within(TRANSLATED) },
       {
         name: 'status',
         label: say('status'),
@@ -317,12 +380,13 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
       },
       // How it stands on the site, which is nothing the file holds (ADR 0031).
       { name: 'publishing', label: say('publishing'), widget: PUBLISHING_WIDGET, required: false, ...within(SAME_IN_EACH) },
-      { name: 'body', label: say('body'), widget: BODY_WIDGET, required: false, elements: type.elements, forms, ...(description.images?.smallestWidth ? { smallestWidth: description.images.smallestWidth } : {}), ...within(TRANSLATED) },
-      { name: 'slug', label: say('slug'), widget: 'string', required: false, hint: say('slugHint'), ...within(SAME_IN_EACH) },
+      { name: 'body', label: say('body'), widget: type.editor === 'structure' ? STRUCTURE_WIDGET : BODY_WIDGET, required: false, elements: type.elements, forms, ...(description.images?.smallestWidth ? { smallestWidth: description.images.smallestWidth } : {}), ...within(TRANSLATED) },
+      // Shown, and changed on purpose; a new post's follows its name in breadcrumbs.
+      { name: 'slug', label: say('slug'), widget: SLUG_WIDGET, address: typeof type.address === 'string' ? type.address : null, required: false, ...within(SAME_IN_EACH) },
       ...(type.hierarchical
         ? [{ name: 'parent', label: say('parent'), ...relation(type.collection, 'title'), required: false, ...within(SAME_IN_EACH) }]
         : []),
-      ...type.fields.map(postField).filter(Boolean),
+      ...type.fields.flatMap((field) => postField(field, type) ?? []),
       ...(type.address === null ? [] : [otherAddressesField()]),
     ],
   });
@@ -361,9 +425,11 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     create: true,
     identifier_field: 'alt',
     summary: '{{alt}}',
+    thumbnail: 'src',
     slug: SLUG,
     fields: [
-      { name: 'src', label: say('file'), widget: 'image', required: true },
+      // The entry's own file, which a new entry uploads, and is chosen from nowhere else.
+      { name: 'src', label: say('file'), widget: IMAGE_WIDGET, text: true, upload: true, required: true, ...smallest },
       { name: 'alt', label: say('alt'), widget: 'string', required: true, hint: say('libraryHint') },
       { name: 'caption', label: say('caption'), widget: 'string', required: false },
     ],
@@ -429,7 +495,8 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     collections: [
       ...Object.values(description.types).map(typeCollection),
       ...Object.values(description.taxonomies).map(taxonomyCollection),
-      ...(Object.values(description.types).some((type) => type.elements.includes('image')) ? [imageLibraryCollection()] : []),
+      // Every image field chooses from it, the site's logo among them.
+      imageLibraryCollection(),
       {
         name: 'settings',
         label: say('settings'),

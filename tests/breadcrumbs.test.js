@@ -36,8 +36,8 @@ const site = (language) => ({
   language,
   images: { smallestWidth: 400, displayWidth: 1280 },
   types: {
-    post: { label: 'Article', plural: 'Articles', collection: 'articles', address: '/news/{slug}/', elements: ['paragraph'], fields: { seo: {} } },
-    page: { label: 'Page', plural: 'Pages', collection: 'pages', hierarchical: true, address: '/{path}/', elements: ['paragraph'], fields: { seo: {} } },
+    post: { label: 'Article', plural: 'Articles', collection: 'articles', address: '/news/{slug}/', elements: ['paragraph'], fields: { breadcrumb: {}, seo: {} } },
+    page: { label: 'Page', plural: 'Pages', collection: 'pages', hierarchical: true, address: '/{path}/', elements: ['paragraph'], fields: { breadcrumb: {}, seo: {} } },
     note: { label: 'Note', plural: 'Notes', collection: 'notes', address: '/notes/{slug}/', elements: ['paragraph'] },
   },
 });
@@ -90,11 +90,11 @@ function page(ID, slug, title, parent = null, meta = {}) {
 
 function posts() {
   const about = page(3, 'about', 'About the lantern');
-  const keepers = page(4, 'keepers', 'The keepers of the lantern', about, { seo_breadcrumb: ['Keepers'] });
+  const keepers = page(4, 'keepers', 'The keepers of the lantern', about, { breadcrumb: ['Keepers'] });
   return [
     post({ ID: 1, slug: 'harbour-lights', title: 'Harbour lights', body: paragraphs('The lantern keeps the harbour.') }),
     // The page at /news/, the parent level of every article.
-    page(2, 'news', 'News from the harbour', null, { seo_breadcrumb: ['News'] }),
+    page(2, 'news', 'News from the harbour', null, { breadcrumb: ['News'] }),
     about,
     keepers,
     page(5, 'anna', 'Anna Berg', keepers),
@@ -111,9 +111,11 @@ function write(path, contents) {
 
 // Export the posts for a site in `language` and build it, below `base` if
 // given, and give each page's document by its path.
-function build(language, base) {
+// Each type's breadcrumbs end with the page itself unless `current` is false.
+function build(language, base, current = true) {
   write('site-description.json', JSON.stringify(site(language)));
-  write('site-settings.json', JSON.stringify({ menus: {}, settings: {}, redirects: [], identity: { title: 'The Quiet Lantern', logo: null, icon: null } }));
+  const ending = { types: Object.fromEntries(['post', 'page', 'note'].map((type) => [type, { current }])) };
+  write('site-settings.json', JSON.stringify({ menus: {}, settings: { breadcrumbs: ending }, redirects: [], identity: { title: 'The Quiet Lantern', logo: null, icon: null } }));
   const exported = writeContent(repository, posts());
   assert.equal(exported.status, 0, exported.stderr);
   const built = spawnSync(process.execPath, [astro, 'build', ...(base ? ['--base', base] : [])], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
@@ -206,6 +208,24 @@ describe('a site built with astro build for https://www.example.com', () => {
 
     assert.deepEqual([...anna.querySelectorAll('nav a')].map((link) => link.getAttribute('href')), ['/preview/', '/preview/about/', '/preview/about/keepers/']);
     assert.deepEqual(breadcrumbsOf(anna).list.itemListElement.map(({ item }) => item), [`${ORIGIN}/`, `${ORIGIN}/about/`, `${ORIGIN}/about/keepers/`, `${ORIGIN}/about/keepers/anna/`]);
+  });
+
+  test("by default ends a page's breadcrumbs above the page itself, which its graph still holds, and shows none right under the start page", () => {
+    const pageAt = build('en_GB', undefined, false);
+    const anna = pageAt('about/keepers/anna');
+    assert.deepEqual(breadcrumbsOf(anna).list, breadcrumbList('/about/keepers/anna/', [
+      ['Home', '/'], ['About the lantern', '/about/'], ['Keepers', '/about/keepers/'], ['Anna Berg', '/about/keepers/anna/'],
+    ]));
+    assert.equal(anna.querySelector('main').firstElementChild.outerHTML, [
+      '<nav aria-label="Breadcrumbs"><ol>',
+      '<li><a href="/">Home</a></li>',
+      '<li><a href="/about/">About the lantern</a></li>',
+      '<li><a href="/about/keepers/">Keepers</a></li>',
+      '</ol></nav>',
+    ].join(''));
+    const about = pageAt('about');
+    assert.deepEqual(breadcrumbsOf(about).list, breadcrumbList('/about/', [['Home', '/'], ['About the lantern', '/about/']]));
+    assert.equal(about.querySelector('nav'), null);
   });
 
   test('a site in Swedish names the start page Startsida and the navigation Brödsmulor', () => {
