@@ -8,6 +8,8 @@
 import { IMAGE_LIBRARY_FOLDER } from '../format/masters.js';
 import { declaredNames, SCHEMA_TYPES } from '../site-description.js';
 import settingsGroups from '../format/settings-groups.json' with { type: 'json' };
+import { SHARING_SAFE, SHARING_SIZE } from '../format/article-parts.js';
+import { IMAGE_WIDGET } from './image/widget.js';
 import { SCHEMA_WIDGET, SLUG_WIDGET, TEXT_WIDGET } from './parts/widgets.js';
 import { inLanguage } from '../texts.js';
 import { BODY_WIDGET } from './body/widget.js';
@@ -107,15 +109,19 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
 
   const required = (field) => ({ required: field === true });
 
+  // An image from the image library, the one place an editor finds images, with its alt text
+  // copied in where the field has one (image/register.js). Its value is { src, alt }, as the
+  // source holds it.
+  const smallest = description.images?.smallestWidth ? { smallestWidth: description.images.smallestWidth } : {};
+  // On a site in several languages its value is each language's, so that the alt text is too.
   const imageField = (name, label, extra = {}, withAlt = true) => ({
     name,
     label,
-    widget: 'object',
+    widget: IMAGE_WIDGET,
+    alt: withAlt,
+    ...smallest,
     ...extra,
-    fields: [
-      { name: 'src', label: say('file'), widget: 'image', required: true },
-      ...(withAlt ? [{ name: 'alt', label: say('alt'), widget: 'string', required: false, ...within(TRANSLATED) }] : []),
-    ],
+    ...(withAlt ? within(TRANSLATED) : {}),
   });
 
   // The post a choice of one leads to. A relation names one collection, so a choice
@@ -249,7 +255,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
         { name: 'nofollow', label: say('seoNofollow'), widget: 'boolean' },
       ]),
       group('sharing', [
-        imageField('image', say('seoSocialImage'), { required: false }),
+        imageField('image', say('seoSocialImage'), { required: false, crop: [SHARING_SIZE.width, SHARING_SIZE.height], safe: [SHARING_SAFE.width, SHARING_SAFE.height], ...(type.fields.some((field) => field.kind === 'image') ? { fallback: true } : {}) }),
         { name: 'title', label: say('seoSocialTitle'), widget: 'string', ...shown('socialTitle') },
         { name: 'description', label: say('seoSocialDescription'), widget: 'text', ...(teaser ? { widget: TEXT_WIDGET, multiline: true, fallback: 'socialDescription' } : {}) },
       ]),
@@ -269,7 +275,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     collapsed: true,
     ...within(TRANSLATED),
     fields: [
-      imageField('image', say('file'), { required: false }),
+      imageField('image', say('file'), { required: false, fallback: true }),
       { name: 'headline', label: say('teaserHeadline'), widget: TEXT_WIDGET, fallback: 'teaserHeadline', required: false },
       { name: 'text', label: say('teaserText'), widget: TEXT_WIDGET, multiline: true, fallback: 'teaserText', required: false },
     ],
@@ -418,9 +424,11 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     create: true,
     identifier_field: 'alt',
     summary: '{{alt}}',
+    thumbnail: 'src',
     slug: SLUG,
     fields: [
-      { name: 'src', label: say('file'), widget: 'image', required: true },
+      // The entry's own file, which a new entry uploads, and is chosen from nowhere else.
+      { name: 'src', label: say('file'), widget: IMAGE_WIDGET, text: true, upload: true, required: true, ...smallest },
       { name: 'alt', label: say('alt'), widget: 'string', required: true, hint: say('libraryHint') },
       { name: 'caption', label: say('caption'), widget: 'string', required: false },
     ],
@@ -486,7 +494,8 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     collections: [
       ...Object.values(description.types).map(typeCollection),
       ...Object.values(description.taxonomies).map(taxonomyCollection),
-      ...(Object.values(description.types).some((type) => type.elements.includes('image')) ? [imageLibraryCollection()] : []),
+      // Every image field chooses from it, the site's logo among them.
+      imageLibraryCollection(),
       {
         name: 'settings',
         label: say('settings'),

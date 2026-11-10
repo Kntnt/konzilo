@@ -1,0 +1,26 @@
+/* The image field: the picture on the left, its name and the buttons on the right, the alt text
+   under them, in Sveltia's colours, so that it follows light and dark mode. */
+.konzilo-pick { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 12px 16px; align-items: start; font: 14px/1.4 var(--sui-font-family-default, system-ui, sans-serif); color: var(--sui-primary-foreground-color); }
+.konzilo-pick * { box-sizing: border-box; }
+.konzilo-pick-picture { width: 160px; height: 120px; display: grid; place-items: center; overflow: hidden; border: 1px solid var(--sui-control-border-color); border-radius: 6px; background: var(--sui-secondary-background-color); }
+.konzilo-pick-picture img { width: 100%; height: 100%; object-fit: contain; }
+.konzilo-pick-picture img[hidden], .konzilo-pick [hidden] { display: none; }
+.konzilo-pick-empty { padding: 8px; font-size: 13px; text-align: center; color: var(--sui-secondary-foreground-color); }
+.konzilo-pick-side { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.konzilo-pick-name { margin: 0; overflow-wrap: anywhere; }
+.konzilo-pick-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.konzilo-pick-buttons button { height: 32px; padding: 0 12px; border: 1px solid var(--sui-control-border-color); border-radius: 6px; background: var(--sui-control-background-color); color: var(--sui-control-foreground-color); font: inherit; cursor: pointer; }
+.konzilo-pick-buttons button:hover { background: var(--sui-hover-background-color); }
+.konzilo-pick-buttons button:disabled { opacity: 0.5; cursor: default; }
+.konzilo-pick-note { margin: 0; color: var(--sui-error-foreground-color, #c62828); }
+.konzilo-pick-note:empty { display: none; }
+.konzilo-pick-alt { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 4px; }
+.konzilo-pick-alt span { font-size: 13px; font-weight: 600; color: var(--sui-secondary-foreground-color); }
+.konzilo-pick-alt input { height: 32px; padding: 0 10px; border: 1px solid var(--sui-control-border-color); border-radius: 6px; background: var(--sui-control-background-color); color: var(--sui-control-foreground-color); font: inherit; }
+/* A cropped image: wider, filled, with the safe zone marked; a stand-in: the main image, faded. */
+.konzilo-pick.konzilo-pick-crop { grid-template-columns: 240px minmax(0, 1fr); }
+.konzilo-pick-crop .konzilo-pick-picture { position: relative; width: 240px; height: auto; }
+.konzilo-pick-crop .konzilo-pick-picture img { object-fit: cover; }
+/* What lies outside the safe zone is tinted red, and what lies inside is shown as it is. */
+.konzilo-pick-safe { position: absolute; inset: 0; margin: auto; box-shadow: 0 0 0 100vmax rgb(220 38 38 / 0.4); pointer-events: none; }
+.konzilo-pick-standin img { opacity: 0.45; }

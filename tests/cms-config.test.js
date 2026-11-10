@@ -240,11 +240,15 @@ describe('the image library', () => {
     assert.equal(library.format, 'json');
     assert.equal(library.create, true);
     assert.equal(library.i18n, undefined, 'in one language, since what a post holds of it is the post\'s');
-    assert.deepEqual(library.fields.map(({ name, widget, required }) => [name, widget, required]), [['src', 'image', true], ['alt', 'string', true], ['caption', 'string', false]]);
+    assert.deepEqual(library.fields.map(({ name, widget, required }) => [name, widget, required]), [['src', 'konzilo-image', true], ['alt', 'string', true], ['caption', 'string', false]]);
+    assert.equal(library.fields[0].upload, true, 'its own file is uploaded, not chosen');
+    assert.equal(library.thumbnail, 'src');
   });
 
-  test('is there only where some type takes images', () => {
-    assert.equal(libraryOf(['paragraph']), undefined);
+  test('is there on every site, since every image field chooses from it, the logo\'s too', () => {
+    assert.equal(libraryOf(['paragraph']).folder, 'image-library');
+    const settings = cmsConfig(describedWith(['paragraph']), place).collections.find(({ name }) => name === 'settings').files[0].fields;
+    assert.deepEqual(settings.filter(({ name }) => ['logo', 'icon'].includes(name)).map(({ widget, alt }) => [widget, alt]), [['konzilo-image', true], ['konzilo-image', false]]);
   });
 
   test('tells a body how narrow an upload may be', () => {
