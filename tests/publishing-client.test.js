@@ -47,6 +47,12 @@ describe('what a status says', () => {
     }
   });
 
+  test('a refusal by a name these catalogues lack, from a build of another version, in the words it carries', () => {
+    const refusals = [{ field: 'title', name: 'refusal.gone-since', values: {}, reason: 'the words it was given' }];
+    assert.deepEqual(statusWords({ status: 'failed', refusals, stillShown: true }).details, ['the field title: the words it was given']);
+    assert.deepEqual(statusWords({ status: 'failed', reason: { name: 'failure.gone-since', values: {}, reason: 'the build broke' }, stillShown: true }).details, ['the build broke']);
+  });
+
   test('on its way, and what visitors see meanwhile', () => {
     assert.equal(statusWords({ status: 'being-published', stillShown: false }).tone, 'busy');
     assert.match(statusWords({ status: 'being-published', stillShown: true }).words, /visitors see the last version/);
