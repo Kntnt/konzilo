@@ -228,6 +228,12 @@ Text.
 `);
   });
 
+  test('a canonical address under search is written among the search and sharing fields, as a browser sends it', () => {
+    const given = run({ 'articles/aaaaaaaaaaaa.md': article({ search: { title: 'A title', canonical: ' https://Elsewhere.example.org/the-original?from=lantern ' } }) }, site);
+    assert.deepEqual(given.refusals, []);
+    assert.match(written(given)['articles/an-article.md'], /\nseo: \{"title":"A title","canonical":"https:\/\/elsewhere\.example\.org\/the-original\?from=lantern"\}\n/);
+  });
+
   test('a yes-or-no is always there, and a value that is empty is left out', () => {
     const bare = written(run({ 'articles/aaaaaaaaaaaa.md': article({ rating: '', eventDay: null }) }, site))['articles/an-article.md'];
     assert.match(bare, /\nfeatured: false\n/);

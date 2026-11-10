@@ -647,6 +647,7 @@
     "seo-text": "the search and sharing field {key} is plain text; fill it in, or leave it out",
     "seo-schema": "the site cannot use \"{value}\" as a structured data type; choose one of {types}",
     "seo-image-alt": "a sharing image comes with its alt text, and alt text with its image; fill in both, or neither",
+    "seo-canonical": "the canonical address {address} is not a whole web address; write one starting with https:// or http://, or leave it out",
     "other-shape": "the site cannot read the other addresses; save the post again from the editing tool",
     "other-address": "the site cannot use \"{address}\" as an other address: it is a path as a browser sends it, starting with a slash",
     "other-answer": "the other address {address} cannot answer \"{answer}\": it answers 301, 302, 307, 308 or show",

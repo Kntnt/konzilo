@@ -4,6 +4,7 @@
 
 import { isObject } from '../checks.js';
 import { checkBody, readBody } from '../format/body.js';
+import { canonicalAddress } from '../format/addresses.js';
 import { embedOf } from '../format/embeds.js';
 import { ownValue } from '../format/frontmatter.js';
 import { readPostList, SECOND_PAGED_LIST } from '../format/post-list.js';
@@ -126,6 +127,11 @@ function seoValue(field, value, images) {
         written.socialImage = master.src;
         written.socialImageAlt = alt;
         warning = master.warning;
+      } else if (as === 'canonical') {
+        const given = typeof one === 'string' ? one.trim() : one;
+        const address = canonicalAddress(given);
+        if (address === null) return { reason: say('seo-canonical', { address: JSON.stringify(given) }), part: place };
+        written.canonical = address;
       } else {
         const trimmed = text(one)?.trim();
         if (!trimmed) return { reason: say('seo-text', { key: as }), part: place };
