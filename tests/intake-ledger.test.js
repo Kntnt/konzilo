@@ -237,7 +237,7 @@ describe('what is derived', () => {
     const [first, second] = history({ [THE_POST]: post({ status: 'scheduled', date: passed }) }, { [THE_POST]: post({ status: 'scheduled', date: passed }) });
     assert.equal(frontmatter(written(first)['articles/first.md']).date, passed);
     for (const result of [first, second]) {
-      assert.deepEqual(warned(result).map(({ name, post: about, field, values }) => ({ name, post: about.id, field, values })), [{ name: 'warning.scheduled-passed', post: 'aaaaaaaaaaaa', field: 'date', values: { moment: passed } }]);
+      assert.deepEqual(warned(result).map(({ name, post: about, field, values }) => ({ name, post: about.id, field, values })), [{ name: 'warning.scheduled-passed', post: 'aaaaaaaaaaaa', field: 'date', values: { moment: { moment: passed } } }]);
     }
 
     // One that waited, moved by another hand to a moment that has passed.

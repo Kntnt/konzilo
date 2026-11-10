@@ -253,7 +253,7 @@ function writePost(post, run) {
     taken,
     embeds,
     warnings: [
-      ...(post.passed ? [{ field: 'date', reason: say('warning.scheduled-passed', { moment: post.passed }) }] : []),
+      ...(post.passed ? [{ field: 'date', reason: say('warning.scheduled-passed', { moment: { moment: post.passed } }) }] : []),
       ...warnings.map((warning) => inBody(warning, post)),
       ...fields.warnings,
     ],
