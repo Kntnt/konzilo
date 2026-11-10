@@ -13,7 +13,8 @@
 //     exclude: { <taxonomy>: [<slug>] },     each taxonomy's terms, none of them
 //     where: [ { field, op, value, type } ], conditions, every one of them
 //     order, direction,                      date, title, related or a field;
-//                                            ascending or descending
+//                                            ascending or descending; related
+//                                            by score and freshness, below
 //     orderType,                             the type of the field ordered by
 //     offset, number,                        the posts skipped, then shown
 //     leaveOutThis, leaveOutShown }          leave out this post, and the
@@ -43,6 +44,17 @@
 // page holds the list's number of posts, after its offset and what it
 // leaves out, so that no post is on two pages and none is missing; a page
 // beyond the last holds none.
+//
+// *Related* ranks by a score: `points`, what each term a post shares with
+// this post scores, by taxonomy, nothing in a taxonomy it leaves out, such
+// as `{ topics: 1, category: 0.5 }` for an article; where it is null, by
+// default, one point for a shared term of any taxonomy. A post that scores
+// nothing is never listed. `halfLife`: the days in which a post's freshness
+// halves, or null, by default, for no freshness: with one, each score is
+// multiplied by 2^(-age / halfLife), the age its post's from its date to
+// `now`, by default the moment it runs, and a post without a date is not
+// decayed. Highest first, then newest, then by title. Every post ages
+// alike, so the order of posts with a date is the same whatever `now` is.
 export function evaluate(query, posts, { page = 1, ...options } = {}) {
   return matches(query, posts, options).slice((page - 1) * query.number, page * query.number);
 }
@@ -56,7 +68,7 @@ export function pageCount(query, posts, options = {}) {
 }
 
 // Every post a list shows on any page, in order, from its offset.
-function matches(query, posts, { current = null, shown = new Set(), locale } = {}) {
+function matches(query, posts, { current = null, shown = new Set(), locale, points = null, halfLife = null, now = Date.now() } = {}) {
   const collator = new Intl.Collator(locale, { numeric: true });
   const byTitle = (a, b) => collator.compare(a.post.title, b.post.title) || (a.post.id < b.post.id ? -1 : a.post.id > b.post.id ? 1 : 0);
 
@@ -72,10 +84,12 @@ function matches(query, posts, { current = null, shown = new Set(), locale } = {
   let ordered;
   if (query.order === 'related') {
     const own = current ? termSets(current) : null;
+    const rank = rankOf(halfLife, now);
     ordered = matching
-      .map((one) => ({ ...one, shared: own ? sharedTerms(one.post, own) : 0, time: timeOf(one.post.fields?.date) }))
+      .map((one) => ({ ...one, shared: own ? sharedTerms(one.post, own, points) : 0, time: timeOf(one.post.fields?.date) }))
       .filter((one) => one.shared > 0)
-      .sort((a, b) => b.shared - a.shared || later(a.time, b.time) || byTitle(a, b));
+      .map((one) => ({ ...one, rank: rank(one.shared, one.time) }))
+      .sort((a, b) => b.rank - a.rank || later(a.time, b.time) || byTitle(a, b));
   } else if (query.order === 'title') {
     const sign = query.direction === 'descending' ? -1 : 1;
     ordered = matching.sort((a, b) => sign * collator.compare(a.post.title, b.post.title) || byTitle(a, b));
@@ -175,13 +189,35 @@ function termSets(post) {
   return Object.fromEntries(Object.entries(post.terms ?? {}).map(([taxonomy, slugs]) => [taxonomy, new Set(slugs)]));
 }
 
-// How many terms a post shares with this post's sets, over every taxonomy.
-function sharedTerms(post, own) {
+// A day in milliseconds.
+const DAY = 86_400_000;
+
+// A related post's rank, by which it is ordered, highest first: its score,
+// or, with a half-life in days, its score times its freshness, 2^(-age /
+// half-life), its age from `now` to its date, and no age for a post without
+// one. Every post ages alike, so the rank is taken as log2(score) + date /
+// half-life, which orders as the score times its freshness does and leaves
+// `now` out for each post with a date: the order of such posts is the same
+// at every build moment, to the last bit. It is rounded to a billionth of a
+// halving, so that two posts whose scores times freshness are the same tie,
+// and fall to the newer.
+function rankOf(halfLife, now) {
+  if (halfLife === null) return (score) => score;
+  const span = halfLife * DAY;
+  return (score, time) => Math.round((Math.log2(score) + (time ?? now) / span) * 1e9);
+}
+
+// The points a post scores for the terms it shares with this post's sets:
+// each shared term the points of its taxonomy in `points`, none for a
+// taxonomy it does not name, or one point for a term of any taxonomy where
+// `points` is null.
+function sharedTerms(post, own, points) {
   let shared = 0;
   for (const [taxonomy, slugs] of Object.entries(post.terms ?? {})) {
     const set = own[taxonomy];
-    if (!set) continue;
-    for (const slug of slugs) if (set.has(slug)) shared += 1;
+    const each = points === null ? 1 : points[taxonomy] ?? 0;
+    if (!set || each === 0) continue;
+    for (const slug of slugs) if (set.has(slug)) shared += each;
   }
   return shared;
 }
