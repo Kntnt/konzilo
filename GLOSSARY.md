@@ -8,7 +8,7 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Customer**: An organisation that has a site on Konzilo. _Avoid_: client, tenant.
 
-**Kntnt**: The agency that builds, hosts and runs Konzilo sites in its own hosting.
+**Kntnt**: The agency that builds, hosts and runs Konzilo sites in its own hosting: Kntnt Sweden AB, which holds the copyright in Konzilo and its name.
 
 **Admin**: The customer's highest role: manages the customer's users and changes menus, site settings, redirects and services. _Avoid_: site owner, administrator.
 
@@ -29,6 +29,8 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 **Site repository**: A thin repository that pins a core release and holds what is the site's own: its site description, design, components and tests, never its content. _Avoid_: site template, theme.
 
 **Site template**: The files `new-site` starts a site repository from. A change reaches only sites made after it.
+
+**Site exception**: The additional permission to the license, `SITE-EXCEPTION.md`, that leaves what a site adds to the core, its content and its built pages outside the license. _Avoid_: linking exception.
 
 **Site description**: The one file in a site repository, `site-description.json`, that declares the content model. _Avoid_: schema, config.
 

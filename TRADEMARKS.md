@@ -2,7 +2,7 @@
 
 Konzilo's code is free software under the GNU Affero General Public License, version 3 or any later version ([`LICENSE`](LICENSE)). Anyone may use it, change it, share it and host it for others, on that license's terms.
 
-The name is not part of that. The name Konzilo and Konzilo's logos are trademarks of Kntnt, the agency that develops Konzilo, and the license grants no right to them (its section 7(e)). This policy says how they may be used.
+The name is not part of that. The name Konzilo and Konzilo's logos are trademarks of Kntnt Sweden AB, of Gothenburg, Sweden, the company that develops Konzilo and is called Kntnt here. The license grants no right to them (its section 7(e)), and neither does the site exception ([`SITE-EXCEPTION.md`](SITE-EXCEPTION.md)). This policy says how they may be used.
 
 ## What the name is for
 
