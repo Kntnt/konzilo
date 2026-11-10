@@ -58,10 +58,10 @@ export function mountBodyField(host, { value: given, changed, elements, forms, a
   const toggle = element('button', 'konzilo-body-toggle', bar);
   toggle.type = 'button';
   const loading = element('p', 'konzilo-body-loading', frame);
-  loading.textContent = say('loading');
+  loading.textContent = say('body.loading');
   const visual = element('div', 'konzilo-body-visual', frame);
   const source = element('textarea', 'konzilo-body-source', frame);
-  source.setAttribute('aria-label', say('markdownLabel'));
+  source.setAttribute('aria-label', say('body.markdownLabel'));
   source.spellcheck = true;
   visual.hidden = true;
   source.hidden = true;
@@ -127,7 +127,7 @@ export function mountBodyField(host, { value: given, changed, elements, forms, a
     visual.hidden = true;
     loading.hidden = true;
     toggle.hidden = false;
-    toggle.textContent = say('showEditor');
+    toggle.textContent = say('body.showEditor');
     showNote(wayOutNote, reason);
     frame.dataset.mode = 'markdown';
   };
@@ -138,23 +138,23 @@ export function mountBodyField(host, { value: given, changed, elements, forms, a
     source.hidden = true;
     loading.hidden = true;
     toggle.hidden = false;
-    toggle.textContent = say('showMarkdown');
+    toggle.textContent = say('body.showMarkdown');
     showNote(wayOutNote, null);
     frame.dataset.mode = 'editor';
   };
 
   // Why the editor must not hold this value, or null.
   const reasonAgainst = (written) => {
-    if (!hands) return sameBytes(value, written) ? null : say('wayOutOff');
+    if (!hands) return sameBytes(value, written) ? null : say('body.wayOutOff');
     let change;
     try {
       change = changeBetween(value, written, hands);
     } catch (error) {
       console.warn(`The body field could not compare a value: ${error.message}`);
-      return say('wayOutLost');
+      return say('body.wayOutLost');
     }
     if (change === null) return null;
-    return change.path ? say('wayOutBlock', { element: elementName(change.element), path: change.path }) : say('wayOutLost');
+    return change.path ? say('body.wayOutBlock', { element: elementName(change.element), path: change.path }) : say('body.wayOutLost');
   };
 
   const openEditor = async () => {
@@ -166,13 +166,13 @@ export function mountBodyField(host, { value: given, changed, elements, forms, a
     try {
       const reader = await loadReader();
       hands = reader ? handsFor(reader, { elements, forms, adminHost }) : null;
-      showNote(offNote, reader ? null : say('checkOff'));
+      showNote(offNote, reader ? null : say('body.checkOff'));
       made = await makeEditor({ root: visual, value: opening, elements, changed: () => schedule(), images });
     } catch (error) {
       console.warn(`The body field could not read a value: ${error.message}`);
       if (mine === generation && !gone) {
         visual.replaceChildren();
-        showMarkdown(say('wayOutRead'));
+        showMarkdown(say('body.wayOutRead'));
       }
       return;
     }

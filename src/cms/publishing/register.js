@@ -9,6 +9,6 @@ import { PUBLISHING_WIDGET } from './widget.js';
 export function registerPublishing(CMS, config) {
   const site = config.site_url;
   CMS.registerFieldType(PUBLISHING_WIDGET, publishingField({ site }));
-  CMS.registerCustomPage({ id: 'publishing', label: say('publishing'), icon: 'publish', component: publishingPage({ site, collectionOf: (name) => name }) });
+  CMS.registerCustomPage({ id: 'publishing', label: say('publishing.page'), icon: 'publish', component: publishingPage({ site, collectionOf: (name) => name }) });
   CMS.registerEventListener({ name: 'postSave', handler: () => lookNow() });
 }

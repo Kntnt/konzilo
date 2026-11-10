@@ -230,3 +230,35 @@ describe('the built-in types', () => {
     assert.equal(siteDescription(site({ canvas: { collection: 'canvases', hierarchical: true, address: '/{path}/', elements: ['paragraph'] } })).types.canvas.hierarchical, true);
   });
 });
+
+describe('the settings groups\' texts', () => {
+  const types = { post: { label: 'Post', plural: 'Posts', collection: 'posts', address: '/{slug}/', elements: ['paragraph'] } };
+  const site = { language: 'en_GB', types };
+  const feeds = { settings: { posts: { type: 'integer', control: 'number', min: 1, default: 10 } } };
+
+  test('are the catalogues\', by where each is declared, so that a setting needs nothing else to show', () => {
+    const [group] = siteDescription(site, { feeds }).groups;
+    assert.deepEqual(group.label, { en: 'Feeds', sv: 'Flöden' });
+    assert.deepEqual(group.settings[0].label, { en: 'Posts in each feed', sv: 'Inlägg i varje flöde' });
+    assert.equal(group.settings[0].help, undefined);
+  });
+
+  test('refuses a setting whose texts the catalogues lack, naming the text it needs', () => {
+    const halfLife = { type: 'integer', control: 'number', min: 1, default: 90 };
+    assert.throws(
+      () => siteDescription(site, { feeds: { settings: { ...feeds.settings, halfLife } } }),
+      (error) => error.message.includes('feeds.settings.halfLife: the core\'s catalogues have no text settings.feeds.halfLife.label, which each must give'),
+    );
+  });
+
+  test('refuses a text written into the declaration, naming where in the catalogues it belongs', () => {
+    assert.throws(
+      () => siteDescription(site, { feeds: { ...feeds, label: 'Feeds' } }),
+      (error) => error.message.includes('feeds.label: is a text an editor reads, which the core\'s catalogues hold, as settings.feeds.label'),
+    );
+    assert.throws(
+      () => siteDescription(site, { feeds: { settings: { posts: { ...feeds.settings.posts, help: 'How many.' } } } }),
+      (error) => error.message.includes('feeds.settings.posts.help: is a text an editor reads, which the core\'s catalogues hold, as settings.feeds.posts.help'),
+    );
+  });
+});

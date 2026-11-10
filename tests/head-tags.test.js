@@ -292,6 +292,26 @@ describe('a site built with astro build for https://www.example.com', () => {
       },
       attachments: { 14: { original: join(disk, 'own.png') } },
     }),
+    // Published first elsewhere, which its canonical address names.
+    sitePost({
+      ID: 4,
+      slug: 'ferry-times',
+      title: 'Ferry times',
+      date: '2026-10-04 07:00:00',
+      modified: '2026-10-04 07:00:00',
+      body: paragraphs('The first ferry leaves at dawn.'),
+      meta: { seo_canonical: ['https://ferries.example.org/timetable/ferry-times'] },
+    }),
+    // Its canonical address is its own.
+    sitePost({
+      ID: 5,
+      slug: 'quay-walk',
+      title: 'A walk on the quay',
+      date: '2026-10-05 07:00:00',
+      modified: '2026-10-05 07:00:00',
+      body: paragraphs('The quay is long.'),
+      meta: { seo_canonical: ['https://www.example.com/quay-walk/'] },
+    }),
   ];
 
   // The site settings as a build hands them out: the
@@ -479,6 +499,23 @@ describe('a site built with astro build for https://www.example.com', () => {
       'og:description': 'How to reach the keeper.',
       'og:url': 'https://www.example.com/contact/',
     });
+  });
+
+  test('a post with a canonical address elsewhere names it as its canonical link and its og:url, and is not in the sitemap, as one that names its own is', () => {
+    const head = build({});
+    const ferry = new Map(head('ferry-times'));
+    assert.equal(ferry.get('canonical'), 'https://ferries.example.org/timetable/ferry-times');
+    assert.equal(ferry.get('og:url'), 'https://ferries.example.org/timetable/ferry-times');
+    const quay = new Map(head('quay-walk'));
+    assert.equal(quay.get('canonical'), 'https://www.example.com/quay-walk/');
+    assert.equal(quay.get('og:url'), 'https://www.example.com/quay-walk/');
+    const sitemap = readFileSync(join(repository, 'dist/sitemap.xml'), 'utf8');
+    assert.deepEqual([...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(([, loc]) => loc), [
+      'https://www.example.com/',
+      'https://www.example.com/harbour-lights/',
+      'https://www.example.com/night-watch/',
+      'https://www.example.com/quay-walk/',
+    ]);
   });
 
   test('a changed template changes the title, and without a default sharing image an article without an image of its own shares the logo, drawn as a JPEG', async () => {

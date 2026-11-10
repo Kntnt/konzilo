@@ -224,6 +224,8 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Other address**: An address an editor gives a post beside its own, where the site leads on to the post or shows it. _Avoid_: alias, vanity URL.
 
+**Canonical address**: The address search engines are told a post is at: the one an editor gives it, such as its original's where its text was published elsewhere first, else its public address on the public host. _Avoid_: canonical URL, original URL.
+
 **Redirect rule**: What the public site answers at an address no post has as its own. _Avoid_: alias.
 
 **Pattern**: A redirect rule whose source is a regular expression, beginning with `^`, answering last of all holders. _Avoid_: wildcard.

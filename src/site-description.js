@@ -104,13 +104,13 @@ export const TRANSLATION_KEY = 'translationKey';
 // a type's fields, which takes no keys. These are the frontmatter's `seo` map's
 // keys, in the map's order.
 export const SEO_FIELD = 'seo';
-export const SEO_KEYS = Object.freeze(['title', 'description', 'socialTitle', 'socialDescription', 'socialImage', 'socialImageAlt', 'schema', 'noindex', 'nofollow']);
+export const SEO_KEYS = Object.freeze(['title', 'description', 'canonical', 'socialTitle', 'socialDescription', 'socialImage', 'socialImageAlt', 'schema', 'noindex', 'nofollow']);
 // How a source file holds them: in three groups, as an editor sees them, each a key of
 // the source file's own beside the post's fields, and not as the content file's flat
 // map. Each group's keys as the source names them, with the key each is written under;
 // the sharing image is { src, alt }, written as `socialImage` and `socialImageAlt`.
 export const SEO_PARTS = Object.freeze({
-  search: Object.freeze({ title: 'title', description: 'description', noindex: 'noindex', nofollow: 'nofollow' }),
+  search: Object.freeze({ title: 'title', description: 'description', canonical: 'canonical', noindex: 'noindex', nofollow: 'nofollow' }),
   sharing: Object.freeze({ image: 'socialImage', title: 'socialTitle', description: 'socialDescription' }),
   structured: Object.freeze({ schema: 'schema' }),
 });
@@ -828,7 +828,7 @@ function settingOf(name, setting, path, groups, problems) {
   }
   const group = groups.find((found) => found.name === name);
   if (group) {
-    problems.push(`${path}: ${name} is the name of Konzilo's own settings group ${JSON.stringify(group.label)}; give the setting another name`);
+    problems.push(`${path}: ${name} is the name of Konzilo's own settings group ${JSON.stringify(labelIn(group.label, SOURCE_LANGUAGE))}; give the setting another name`);
     return null;
   }
   if (!isObject(setting)) {

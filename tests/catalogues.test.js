@@ -52,6 +52,28 @@ for (const name of files.filter((one) => one !== `${SOURCE_LANGUAGE}.json`)) {
   });
 }
 
+// The editor's own code in the browser, the body field's, the image field's, the structure
+// field's, the preview's, the publish status's and the article parts' fields', names each text
+// whole, as `say('body.loading')`, so that a name it asks for and the source can be held side by
+// side: a name the source lacks would throw in the editor, and a text no code names is dead.
+const EDITOR_AREAS = ['body', 'image', 'structure', 'preview', 'publishing', 'parts'];
+const editorCode = fileURLToPath(new URL('../src/cms/', import.meta.url));
+const namedInCode = () => {
+  const name = new RegExp(String.raw`(['"\`])((?:${EDITOR_AREAS.join('|')})\.[a-zA-Z0-9.-]+)\1`, 'g');
+  const named = new Set();
+  for (const file of readdirSync(editorCode, { recursive: true }).filter((one) => one.endsWith('.js'))) {
+    for (const [, , found] of readFileSync(`${editorCode}${file}`, 'utf8').matchAll(name)) named.add(found);
+  }
+  return named;
+};
+
+test('every text the editor\'s own code names is in the source, and every text of its areas is named there', () => {
+  const named = namedInCode();
+  for (const area of EDITOR_AREAS) assert.ok(Object.keys(source).some((key) => key.startsWith(`${area}.`)), `the source has the area ${area}`);
+  assert.deepEqual([...named].filter((key) => !Object.hasOwn(source, key)), [], 'names the source does not have');
+  assert.deepEqual(Object.keys(source).filter((key) => EDITOR_AREAS.includes(key.split('.')[0]) && !named.has(key)), [], 'texts no code names');
+});
+
 test('the source is written in British English, not American', () => {
   const american = /\b(?:colors?|centers?|behaviors?|favorites?|gray|catalogs?|canceled|canceling|organizations?|organize[ds]?|recognize[ds]?|customize[ds]?|optimize[ds]?|analyze[ds]?|labeled|labeling|modeled|traveled)\b/i;
   for (const [name, value] of Object.entries(source)) assert.doesNotMatch(value, american, name);

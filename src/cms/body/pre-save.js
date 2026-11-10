@@ -12,7 +12,7 @@ const bodiesOf = (entry) => {
   return bodies.filter(({ body }) => typeof body === 'string');
 };
 
-const words = ({ path, reason }) => (path ? `${say('block', { path })}: ${reason}` : reason);
+const words = ({ path, reason }) => (path ? `${say('body.block', { path })}: ${reason}` : reason);
 
 // The refusal of an entry, one problem a line, or null where it may be saved.
 export async function refusalOf(entry, body) {
