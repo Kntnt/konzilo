@@ -1,5 +1,6 @@
 // The live preview's pane in real Sveltia, on a site in two languages, against a service that
-// is this test's: what it sends, in which language, and an image that has not been saved.
+// is this test's: what it sends, in which language, an image that has not been saved, and what a
+// click on the page shows in the form.
 // compose.test.js's neighbour preview.test.js has the real service.
 
 import assert from 'node:assert/strict';
@@ -216,6 +217,8 @@ describe('the preview\'s pane, on a site in two languages', () => {
       const { anchorNode, anchorOffset, focusOffset } = document.getSelection();
       return { text: anchorNode?.textContent ?? null, anchorOffset, focusOffset };
     });
+    // A frame from a click before has gone, as it does after a moment.
+    const unframed = () => page.waitForFunction(() => document.querySelector('.konzilo-body-ring') === null);
     const previewHasFocus = () => page.evaluate(() => document.activeElement?.matches('iframe.preview') ?? false);
     // The text of the block a field frames: the largest element within the frame.
     const framed = (field) => field.evaluate((frame) => {
@@ -230,9 +233,10 @@ describe('the preview\'s pane, on a site in two languages', () => {
       return inside.sort((one, other) => area(other) - area(one))[0]?.textContent ?? null;
     });
 
-    test('frames the block in the body field, and leaves the focus in the preview and the cursor where it was', async () => {
+    // An article whose body has the page's blocks, with the cursor at the end of the second.
+    const openBlocks = async () => {
       answer = { address: '/blocks/', refusals: [] };
-      await newEntry('pages');
+      await newEntry('articles');
       await page.getByRole('textbox', { name: 'Titel' }).first().fill('Block');
       const field = fields().first();
       await field.locator('.konzilo-body-toggle').click();
@@ -240,10 +244,16 @@ describe('the preview\'s pane, on a site in two languages', () => {
       await field.locator('.konzilo-body-toggle').click();
       await field.locator('.ProseMirror p', { hasText: 'Andra stycket' }).click();
       await page.keyboard.press('End');
+      return field;
+    };
+
+    test('frames the block in the body field, and leaves the focus in the preview and the cursor where it was', async () => {
+      const field = await openBlocks();
       const before = await cursor();
       assert.equal(before.text, 'Andra stycket');
       const text = await field.locator('.ProseMirror').textContent();
 
+      await unframed();
       await shownPage().getByText('Första stycket').click();
       await field.locator('.konzilo-body-ring').waitFor();
       assert.equal(await framed(field), 'Första stycket');
@@ -253,6 +263,33 @@ describe('the preview\'s pane, on a site in two languages', () => {
       await page.keyboard.type('§ ', { delay: 30 });
       await page.waitForTimeout(200);
       assert.equal(await field.locator('.ProseMirror').textContent(), text, 'a key goes nowhere into the text');
+    });
+
+    test('frames the block from the preview\'s window of its own, and leaves the focus there', async () => {
+      const field = await openBlocks();
+      const view = (words) => page.getByRole('menuitemradio', { name: words });
+      await page.getByRole('button', { name: 'Show Editor Options' }).click();
+      const [popup] = await Promise.all([page.context().waitForEvent('page'), view(/own window|eget fönster/).click()]);
+      try {
+        const before = await cursor();
+        assert.equal(before.text, 'Andra stycket');
+        const text = await field.locator('.ProseMirror').textContent();
+
+        await unframed();
+        await popup.frameLocator('iframe').getByText('Första stycket').click();
+        await field.locator('.konzilo-body-ring').waitFor();
+        assert.equal(await framed(field), 'Första stycket');
+        assert.equal(await popup.evaluate(() => document.activeElement?.tagName), 'IFRAME', 'the focus stays in the window\'s page');
+        assert.equal(await page.evaluate(() => Boolean(document.activeElement?.closest('.ProseMirror'))), false, 'and the field does not take it');
+        assert.deepEqual(await cursor(), before, 'the cursor has not moved');
+        await popup.keyboard.type('§ ', { delay: 30 });
+        await page.waitForTimeout(200);
+        assert.equal(await field.locator('.ProseMirror').textContent(), text, 'a key goes nowhere into the text');
+      } finally {
+        await page.getByRole('button', { name: 'Show Editor Options' }).click();
+        await view(/beside|bredvid/).click();
+        if (!popup.isClosed()) await popup.waitForEvent('close');
+      }
     });
 
     test('opens the block\'s row in the structure field, and leaves the focus in the preview', async () => {
