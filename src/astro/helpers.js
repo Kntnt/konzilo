@@ -1,8 +1,10 @@
 // The helpers, reached as `@kntnt/konzilo/astro/helpers`: the common ways a
 // site's templates work on their data.
 //
-//   import { longDate, termPath, postalAddress, oneLine, legalPages, summary, ordered, countOf, builtInType } from '@kntnt/konzilo/astro/helpers';
+//   import { longDate, termPath, postalAddress, oneLine, legalPages, summary, ordered, countOf, builtInType, authorsOf } from '@kntnt/konzilo/astro/helpers';
 //   <time datetime={article.data.date.toISOString()}>{longDate(article.data.date, Astro.url)}</time>
+//   const authors = await authorsOf(article);
+//   {authors.map((author) => <li>{author.url ? <a href={author.url}>{author.name}</a> : author.name}</li>)}
 //   {builtInType(entry) !== 'canvas' && <header>…</header>}
 //   <p>{summary(article.data.excerpt, 20)}</p>
 //   <p>{countOf(categories)} categories</p>
@@ -12,6 +14,7 @@
 // needs no helper.
 
 import { builtInOf } from '../format/built-in-types.js';
+import { articleAuthors } from './authors.js';
 import { describedSite } from './languages.js';
 import { publicSite } from './public-site.js';
 
@@ -126,4 +129,17 @@ export function ordered(items, by, { language, descending = false } = {}) {
 export function builtInType(entry, { site = describedSite() } = {}) {
   if (!entry) return null;
   return builtInOf(Object.values(site.types).find((type) => type?.collection === entry.collection));
+}
+
+// An article's authors, for its byline, in the order its editor gave them, the first
+// author first (authors.js): each { name, url, slug, entry }, its name, its page's address
+// where the authors taxonomy declares one, else null, its slug, and its term's entry, which
+// holds its biography as `data.description`. None for a post of a type of the site's own.
+// `entry`: an entry of a type's collection, as Astro hands a template one. `site`: the site
+// description as checked, the site's own by default; `getEntries`: Astro's own from
+// astro:content, by default.
+export async function authorsOf(entry, { site = describedSite(), getEntries } = {}) {
+  const type = Object.values(site.types).find((declared) => declared?.collection === entry?.collection);
+  const read = getEntries ?? (await import('astro:content')).getEntries;
+  return articleAuthors(entry, type, site, read);
 }
