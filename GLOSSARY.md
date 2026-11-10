@@ -190,6 +190,10 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Language switcher**: The links on a page to its translations, and to nothing else. _Avoid_: flags.
 
+**Interface language**: The language the editor's interface takes, chosen apart from the site's: the editor's own choice, else the site's default, else the site language where the core has a catalogue for it, else British English. What visitors read follows the content's language instead. _Avoid_: UI language, admin language.
+
+**Catalogue**: The core's texts in one language, each by a stable name; British English is the source and each other catalogue a translation of it. _Avoid_: dictionary, language file.
+
 ## Addresses and hosts
 
 **Admin host**: The hostname where editors sign in and Sveltia lives; it never shows editor-written HTML. _Avoid_: backend.

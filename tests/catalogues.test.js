@@ -8,7 +8,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { CATALOGUES, INTERFACE_LANGUAGES, interfaceLanguageFor, labelIn, SOURCE_LANGUAGE, text } from '../src/catalogues.js';
+import { CATALOGUES, catalogueFor, INTERFACE_LANGUAGES, labelIn, SOURCE_LANGUAGE, text } from '../src/catalogues.js';
 
 const folder = fileURLToPath(new URL('../src/catalogues/', import.meta.url));
 const files = readdirSync(folder).filter((name) => name.endsWith('.json')).sort();
@@ -68,13 +68,13 @@ test('gives a text in a language, with its placeholders filled, and British Engl
   assert.throws(() => text('en', 'no.such.text'), /no\.such\.text/);
 });
 
-test('takes the interface language of a language or a locale, British English where there is no catalogue', () => {
-  assert.equal(interfaceLanguageFor('sv'), 'sv');
-  assert.equal(interfaceLanguageFor('sv_SE'), 'sv');
-  assert.equal(interfaceLanguageFor('sv-FI'), 'sv');
-  assert.equal(interfaceLanguageFor('en-US'), 'en');
-  assert.equal(interfaceLanguageFor('de_DE'), 'en');
-  assert.equal(interfaceLanguageFor(null), 'en');
+test('takes the catalogue of a language or a locale, British English\'s where there is none', () => {
+  assert.equal(catalogueFor('sv'), 'sv');
+  assert.equal(catalogueFor('sv_SE'), 'sv');
+  assert.equal(catalogueFor('sv-FI'), 'sv');
+  assert.equal(catalogueFor('en-US'), 'en');
+  assert.equal(catalogueFor('de_DE'), 'en');
+  assert.equal(catalogueFor(null), 'en');
 });
 
 test('gives a site\'s own label in a language: one text in every language, else the language\'s, else British English', () => {

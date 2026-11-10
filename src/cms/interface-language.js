@@ -8,7 +8,7 @@
 // which it then takes as the browser's language. Konzilo takes `auto` as no choice, the
 // site's language.
 
-import { interfaceLanguageFor, interfaceLanguageTag } from '../catalogues.js';
+import { catalogueFor, interfaceLanguageTag } from '../catalogues.js';
 
 const PREFERENCES = 'sveltia-cms.prefs';
 const SET = 'konzilo.interface-language';
@@ -28,7 +28,7 @@ const held = (storage) => {
 export function chosenLanguage(storage = globalThis.localStorage) {
   const { locale } = held(storage);
   if (typeof locale !== 'string' || locale === AUTOMATIC || locale === storage.getItem(SET)) return null;
-  return interfaceLanguageFor(locale);
+  return catalogueFor(locale);
 }
 
 // Sveltia set to the site's interface language, `language`, for an editor who has chosen

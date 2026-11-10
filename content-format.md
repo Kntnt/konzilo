@@ -76,7 +76,7 @@ The site description, `site-description.json` in the site repository, declares t
 - **`images`**, the widths an image is checked against, which decide which images the site refuses, not how a file names them.
 - **`components`**, the site's own components, each a directive a body may hold beside the core's elements, and **`componentChecks`**, the module of the site's that checks what they hold ([A site's own components](#a-sites-own-components)).
 
-What the description declares for the editors alone, such as a type's `label` and `plural` and a field's `label` and `control`, is not described here; nor are `security` and a form's fields, which decide no content file.
+What the description declares for the editors alone, such as `interfaceLanguage`, a type's `label` and `plural`, and a field's `label` and `control`, is not described here; nor are `security` and a form's fields, which decide no content file.
 
 The site description every example in this document is of:
 

@@ -22,9 +22,9 @@ export const CATALOGUES = Object.freeze({ en, sv });
 // The languages the core's interface comes in, by their catalogues' names.
 export const INTERFACE_LANGUAGES = Object.freeze(Object.keys(CATALOGUES));
 
-// The interface language for a language, a locale or a language tag (`sv`, `sv_SE`,
-// `sv-FI`): the catalogue of its language subtag, else British English.
-export function interfaceLanguageFor(language) {
+// The catalogue for a language, a locale or a language tag (`sv`, `sv_SE`, `sv-FI`),
+// by its name: its language subtag's, else British English's.
+export function catalogueFor(language) {
   const subtag = typeof language === 'string' ? language.split(/[_-]/)[0].toLowerCase() : null;
   return Object.hasOwn(CATALOGUES, subtag) ? subtag : SOURCE_LANGUAGE;
 }

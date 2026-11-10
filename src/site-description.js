@@ -7,7 +7,7 @@
 // file; a description with any problem is refused whole.
 
 import { readFileSync } from 'node:fs';
-import { INTERFACE_LANGUAGES, interfaceLanguageFor, labelIn, SOURCE_LANGUAGE } from './catalogues.js';
+import { catalogueFor, INTERFACE_LANGUAGES, labelIn, SOURCE_LANGUAGE } from './catalogues.js';
 import { freeze, interfaceLanguagesNamed, isObject, label, onlyKeys as checkedKeys, text } from './checks.js';
 import { IMAGE_LIBRARY_FOLDER, MEDIA_FOLDER } from './format/masters.js';
 import { suffixTakenIn } from './format/public-suffixes.js';
@@ -150,6 +150,7 @@ const results = new WeakSet();
 //
 //   { language: <locale> or null,
 //     languages: [ { locale, tag, prefix, main } ],
+//     interfaceLanguage: <interface language>,
 //     types: { <post type>: { name, label, plural, collection, address, feed, hierarchical, search, elements, fields, editor } },
 //     taxonomies: { <taxonomy>: { name, label, plural, collection, hierarchical, address, feed } },
 //     images: { smallestWidth, displayWidth } or null,
@@ -172,7 +173,15 @@ const results = new WeakSet();
 // language subtag (`sv`), or the whole tag in lowercase
 // (`en-gb`) where another of the site's locales starts with the same subtag,
 // as two variants of one language do. A site with one language gives it with
-// no prefix (null), and a site that declares none gives none. A type's address is
+// no prefix (null), and a site that declares none gives none. The interface
+// language is the one the editor's interface takes where an editor has chosen
+// none (interfaceLanguageOf()). A label of the site's own, a type's or a
+// taxonomy's `label` and `plural`, a menu's, a setting's, a field's, a
+// presentation's and its options', and a component's and its attributes', is as
+// declared: one text for every language, or an object of a text by interface
+// language, `en` among them (checks.js, label()), which catalogues.js's labelIn()
+// gives in a language. A form's label and its fields' are one text, since
+// visitors read them. A type's address is
 // where visitors reach each of its posts, a path from the site's root with
 // `{slug}` as its last segment, or `{path}` in a hierarchical type, whose
 // posts have parents (format/addresses.js); null for a type whose posts have
@@ -623,10 +632,10 @@ function languagesOf({ language, languages }, problems) {
 // the site's main language where the core has a catalogue for it, else British
 // English.
 function interfaceLanguageOf(declared, language, problems) {
-  if (declared === undefined) return interfaceLanguageFor(language);
+  if (declared === undefined) return catalogueFor(language);
   if (INTERFACE_LANGUAGES.includes(declared)) return declared;
   problems.push(`interfaceLanguage: ${JSON.stringify(declared)} is not a language Konzilo's interface comes in, which are ${interfaceLanguagesNamed()}`);
-  return interfaceLanguageFor(language);
+  return catalogueFor(language);
 }
 
 // Several languages, locales in order, the main language first.
