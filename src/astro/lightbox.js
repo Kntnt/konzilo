@@ -7,13 +7,11 @@
 // It goes through a body's HTML as `Body.astro` renders it, so a page has it and the body's own
 // HTML does not. Only what it adds is new: every other byte stays as it was.
 
-import { textLanguage } from '../texts.js';
+import { textsOf } from '../catalogues.js';
 import { endOf, nextTag } from './directives.js';
 
-const TEXTS = {
-  en: { open: 'Show larger: {alt}', image: 'Image', images: 'Images', close: 'Close', previous: 'Previous image', next: 'Next image', place: '{at} of {all}' },
-  sv: { open: 'Visa större: {alt}', image: 'Bild', images: 'Bilder', close: 'Stäng', previous: 'Föregående bild', next: 'Nästa bild', place: '{at} av {all}' },
-};
+// What a visitor reads of the lightbox, in the catalogues (ADR 0066) under `site.lightbox.`.
+const TEXTS = 'site.lightbox.';
 
 const ICON = (path) => `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="${path}"/></svg>`;
 const CLOSE = ICON('M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z');
@@ -92,7 +90,7 @@ export function withLightboxes(html, { next, locale }) {
   if (!html.includes('<img')) return html;
   const found = figuresIn(html);
   if (found.length === 0) return html;
-  const texts = TEXTS[textLanguage(locale)];
+  const texts = textsOf(locale, TEXTS);
   const inserts = [];
   for (const figureFound of found) {
     const id = `konzilo-modal-${next()}`;

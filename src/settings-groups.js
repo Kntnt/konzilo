@@ -17,14 +17,13 @@
 // `settings.<…setting>.options.<option>`, the option's value in lower camelCase,
 // `theSummary` for `The summary`. A new setting needs nothing but those texts.
 
-import { CATALOGUES, INTERFACE_LANGUAGES, SOURCE_LANGUAGE } from './catalogues.js';
+import { CATALOGUES, inCatalogue, INTERFACE_LANGUAGES, isCatalogueText, SOURCE_LANGUAGE } from './catalogues.js';
 import { freeze, isObject, onlyKeys as checkedKeys, text } from './checks.js';
 import { ownValue } from './format/frontmatter.js';
 import declaration from './format/settings-groups.json' with { type: 'json' };
 import { templateProblems, variablesOf } from './metadata-templates.js';
 import { builtInOf, PAGE } from './format/built-in-types.js';
 import { fieldName, IDENTITY, IMAGE, ownField, POST, translatedOf } from './site-description.js';
-import { inLanguage, isTextInEachLanguage, TEXT_LANGUAGES } from './texts.js';
 
 // The kinds of post type a per-type part may be limited to: those with an
 // address, whose posts have a page, and those with a date.
@@ -116,18 +115,19 @@ export function settingsGroups(declared) {
 // `types`, one part for each post type it is repeated for, in the order the
 // site declares them: [ { type, label, settings } ], `label` the type's
 // plural, each setting with the default for the kind of type it is
-// (`defaultFor`). A default in each language is the one in the site's
-// language (texts.js); a translated setting's keeps the text in each of the
-// core's languages beside it, as `defaults`, from which each of a site's
-// languages takes its own (groupsIn()).
+// (`defaultFor`). A default that is a text of the catalogues, `{ text }`,
+// which visitors read, is the one in the site's language (ADR 0066), never
+// the interface language's; a translated setting's keeps the text's name
+// beside it, as `defaults`, from which each of a site's languages takes its
+// own (groupsIn()).
 //
 // A group repeated for each form has no settings of its own (`settings` is
 // empty) and `each`, one part for each form the site declares, in its order:
 // [ { name, label, settings } ], `name` and `label` the form's, `forms` as
 // siteDescription() reads them. Any other group's `each` is null.
 export function groupsFor(declared, types, groups, language = null, forms = {}) {
-  const inSite = (settings) => settings.map((setting) => (isTextInEachLanguage(setting.default)
-    ? { ...setting, default: inLanguage(setting.default, language), ...(setting.translated ? { defaults: setting.default } : {}) }
+  const inSite = (settings) => settings.map((setting) => (isCatalogueText(setting.default)
+    ? { ...setting, default: inCatalogue(setting.default, language), ...(setting.translated ? { defaults: setting.default } : {}) }
     : setting));
   const each = { forms: Object.values(forms).filter((form) => form !== null) };
   const applies = (group) => (group.each === null
@@ -153,14 +153,14 @@ export function groupsFor(declared, types, groups, language = null, forms = {}) 
 
 // The groups that apply to a site, as groupsFor() gives them, for one of
 // the site's languages other than its main one, `locale`: a
-// translated setting's default in each language is the one in that
+// translated setting's default of the catalogues is the one in that
 // language, and a setting that is not translated, whose value is the same in
 // every language, has the site's title as its default as `title`, the title
 // as the main language's settings file holds it, or no default when that has
 // none.
 export function groupsIn(groups, locale, title) {
   const inLanguageOf = (settings) => settings.map((setting) => {
-    if (setting.translated) return setting.defaults ? { ...setting, default: inLanguage(setting.defaults, locale) } : setting;
+    if (setting.translated) return setting.defaults ? { ...setting, default: inCatalogue(setting.defaults, locale) } : setting;
     if (!isSiteTitle(setting.default)) return setting;
     const { default: _, ...rest } = setting;
     return title === undefined ? rest : { ...rest, default: title };
@@ -431,7 +431,7 @@ function settingOf(name, setting, path, problems, where, named) {
   if (defaultFor !== undefined) read.defaultFor = defaultsFor(read, defaultFor, given, where, path, problems);
   if (read.template && read.default !== undefined) {
     const variables = variablesOf(where === 'types' ? ANY_TYPE : null);
-    const defaults = typeof read.default === 'string' ? { '': read.default } : isSiteTitle(read.default) ? {} : read.default;
+    const defaults = typeof read.default === 'string' ? { '': read.default } : isSiteTitle(read.default) ? {} : inEachCatalogue(read.default);
     for (const [language, text] of Object.entries(defaults)) {
       for (const problem of templateProblems(text, variables)) problems.push(`${path}.default${language ? `.${language}` : ''}: ${problem}`);
     }
@@ -514,8 +514,12 @@ function formatOf(format, path, problems) {
 // A post type that declares no field, whose variables every type knows.
 const ANY_TYPE = Object.freeze({ label: 'its label', fields: [] });
 
-// A setting's default into `read`, as declared: one value, or a text in
-// each of the core's languages.
+// A text of the catalogues, `{ text }`, in each of their languages, by language.
+const inEachCatalogue = (value) => Object.fromEntries(INTERFACE_LANGUAGES.map((language) => [language, inCatalogue(value, language)]));
+
+// A setting's default into `read`, as declared: one value, or a text of the
+// catalogues by its name, `{ "text": "site.…" }`, which visitors read in the
+// content's language (ADR 0066).
 function defaultsOf(read, given, path, problems) {
   if (given !== undefined && read.type === POST) {
     problems.push(`${path}.default: a choice of a post has no default, since no post is on every site`);
@@ -537,14 +541,16 @@ function defaultsOf(read, given, path, problems) {
     return;
   }
   if (read.type === 'string' && isObject(given)) {
-    // A text's default in each of the core's languages (texts.js).
+    // A text of the catalogues, which each of their languages gives.
     if (!textControls.includes(read.control)) {
-      problems.push(`${path}.default: only a text shown as text or a text area has a default in each language`);
-    } else if (!isTextInEachLanguage(given)) {
-      problems.push(`${path}.default: must give the text in English and Swedish, as { "en": …, "sv": … }`);
+      problems.push(`${path}.default: only a text shown as text or a text area has a text of the catalogues as its default`);
+    } else if (!isCatalogueText(given) || Object.keys(given).length !== 1) {
+      problems.push(`${path}.default: must name a text of the catalogues, as { "text": "site.…" }`);
+    } else if (!Object.hasOwn(CATALOGUES[SOURCE_LANGUAGE], given.text)) {
+      problems.push(`${path}.default: names ${given.text}, which is no text of the catalogues`);
     } else {
-      const each = TEXT_LANGUAGES.map((language) => defaultOf(given[language], read, `${path}.default.${language}`, problems));
-      if (!each.includes(undefined)) read.default = Object.fromEntries(TEXT_LANGUAGES.map((language, i) => [language, each[i]]));
+      const each = Object.entries(inEachCatalogue(given)).map(([language, value]) => defaultOf(value, read, `${path}.default (${given.text} in ${language})`, problems));
+      if (!each.includes(undefined)) read.default = Object.freeze({ text: given.text });
     }
     return;
   }

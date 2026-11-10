@@ -1,11 +1,12 @@
-// The core's texts that its editors read, in catalogues (ADR 0066): one per language,
-// `catalogues/<language>.json`, each text by a stable name, such as `form.title`, with
-// named placeholders, `{to}`. British English, `en`, is the source, and each other
+// The core's texts that its editors and visitors read, in catalogues (ADR 0066): one per
+// language, `catalogues/<language>.json`, each text by a stable name, such as `form.title`,
+// with named placeholders, `{to}`. British English, `en`, is the source, and each other
 // catalogue a translation of it that holds exactly its names (tests/catalogues.test.js).
 // A language is added by translating en.json into a file of its own and naming it below.
 //
 // The editor's interface takes one of these languages, its interface language, chosen
-// apart from the language of the site's content (cms/interface-language.js).
+// apart from the language of the site's content (cms/interface-language.js). What visitors
+// read, the texts named `site.…`, takes the content's language instead.
 //
 // This module imports nothing but its catalogues, so that the editor's code in the
 // browser reads it as the intake and the build do.
@@ -43,6 +44,36 @@ export function text(language, name, values = {}) {
   const found = Object.hasOwn(catalogue, name) ? catalogue[name] : CATALOGUES[SOURCE_LANGUAGE][name];
   if (typeof found !== 'string') throw new Error(`the core's catalogues have no text ${name}`);
   return found.replace(/\{(\w+)\}/g, (_, placeholder) => String(values[placeholder] ?? ''));
+}
+
+// The texts of an area, such as `site.search.`, in a language, a locale or a language tag,
+// each by its name after the area, as the catalogue writes it: the caller fills its
+// placeholders. Its language's catalogue's (catalogueFor()), else British English's.
+export function textsOf(language, area) {
+  const catalogue = CATALOGUES[catalogueFor(language)];
+  return Object.fromEntries(Object.keys(CATALOGUES[SOURCE_LANGUAGE])
+    .filter((name) => name.startsWith(area))
+    .map((name) => [name.slice(area.length), catalogue[name] ?? CATALOGUES[SOURCE_LANGUAGE][name]]));
+}
+
+// Whether a value of the core's data is a text of the catalogues by its name, `{ text }`,
+// with `values` for its placeholders where the data fills them: a setting's default that
+// visitors read, or a fact of a service.
+export function isCatalogueText(value) {
+  return value !== null && typeof value === 'object' && typeof value.text === 'string'
+    && Object.keys(value).every((key) => key === 'text' || key === 'values');
+}
+
+// A value of the core's data in a language, a locale or a language tag: a text of the
+// catalogues, `{ text, values }`, in its language's catalogue (catalogueFor()), its
+// placeholders filled from `values` where it gives them and left as written where it does
+// not; any other value as it is. A name the source does not have throws, as text() does.
+export function inCatalogue(value, language) {
+  if (!isCatalogueText(value)) return value;
+  if (value.values) return text(catalogueFor(language), value.text, value.values);
+  const found = CATALOGUES[catalogueFor(language)][value.text] ?? CATALOGUES[SOURCE_LANGUAGE][value.text];
+  if (typeof found !== 'string') throw new Error(`the core's catalogues have no text ${value.text}`);
+  return found;
 }
 
 // A site's own label, as its site description gives it, in a language, a locale or a

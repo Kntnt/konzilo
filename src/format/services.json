@@ -5,10 +5,7 @@
       "country": "IE",
       "privacyPolicy": "https://policies.google.com/privacy"
     },
-    "purpose": {
-      "en": "Plays videos from YouTube in the page.",
-      "sv": "Spelar upp videor från YouTube på sidan."
-    },
+    "purpose": { "text": "site.service.youtube.purpose" },
     "advertising": true,
     "storage": [],
     "transfers": [
@@ -49,10 +46,7 @@
       "country": "US",
       "privacyPolicy": "https://vimeo.com/legal/privacy/policy"
     },
-    "purpose": {
-      "en": "Plays videos from Vimeo in the page.",
-      "sv": "Spelar upp videor från Vimeo på sidan."
-    },
+    "purpose": { "text": "site.service.vimeo.purpose" },
     "advertising": true,
     "storage": [
       {
@@ -118,10 +112,7 @@
       "country": "SE",
       "privacyPolicy": "https://quickchannel.com/en/privacy-policy/"
     },
-    "purpose": {
-      "en": "Plays videos hosted on Screen9 (now Quickchannel) in the page.",
-      "sv": "Spelar upp videor från Screen9 (numera Quickchannel) på sidan."
-    },
+    "purpose": { "text": "site.service.screen9.purpose" },
     "advertising": true,
     "storage": [
       {
@@ -217,10 +208,7 @@
       "country": "AU",
       "privacyPolicy": "https://www.atlassian.com/legal/privacy-policy"
     },
-    "purpose": {
-      "en": "Plays Loom video recordings in the page.",
-      "sv": "Spelar upp videoinspelningar från Loom på sidan."
-    },
+    "purpose": { "text": "site.service.loom.purpose" },
     "advertising": true,
     "storage": [],
     "transfers": [
@@ -345,10 +333,7 @@
       "country": "SE",
       "privacyPolicy": "https://www.spotify.com/ie/legal/privacy-policy/"
     },
-    "purpose": {
-      "en": "Plays music and podcasts from Spotify in the page.",
-      "sv": "Spelar upp musik och poddar från Spotify på sidan."
-    },
+    "purpose": { "text": "site.service.spotify.purpose" },
     "advertising": true,
     "storage": [],
     "transfers": [
@@ -389,10 +374,7 @@
       "country": "SE",
       "privacyPolicy": "https://www.acast.com/en/privacy/general-data-protection-regulation-gdpr-privacy-policy"
     },
-    "purpose": {
-      "en": "Plays podcast episodes hosted on Acast in the page.",
-      "sv": "Spelar upp poddavsnitt från Acast på sidan."
-    },
+    "purpose": { "text": "site.service.acast.purpose" },
     "advertising": true,
     "storage": [],
     "transfers": [
@@ -433,10 +415,7 @@
       "country": "IE",
       "privacyPolicy": "https://www.apple.com/legal/privacy/en-ww/"
     },
-    "purpose": {
-      "en": "Plays podcast episodes from Apple Podcasts in the page.",
-      "sv": "Spelar upp poddavsnitt från Apple Podcasts på sidan."
-    },
+    "purpose": { "text": "site.service.apple-podcasts.purpose" },
     "advertising": true,
     "storage": [],
     "transfers": [
@@ -476,10 +455,7 @@
       "country": "US",
       "privacyPolicy": "https://speakerdeck.com/privacy"
     },
-    "purpose": {
-      "en": "Shows slide presentations from Speaker Deck in the page.",
-      "sv": "Visar bildspel från Speaker Deck på sidan."
-    },
+    "purpose": { "text": "site.service.speaker-deck.purpose" },
     "advertising": false,
     "storage": [],
     "transfers": [
@@ -517,10 +493,7 @@
       "country": "DE",
       "privacyPolicy": "https://www.datawrapper.de/privacy"
     },
-    "purpose": {
-      "en": "Shows charts, maps and tables made with Datawrapper in the page.",
-      "sv": "Visar diagram, kartor och tabeller från Datawrapper på sidan."
-    },
+    "purpose": { "text": "site.service.datawrapper.purpose" },
     "advertising": false,
     "storage": [],
     "transfers": [],
@@ -553,10 +526,7 @@
       "country": "US",
       "privacyPolicy": "https://blog.codepen.io/legal/privacy-policy/"
     },
-    "purpose": {
-      "en": "Shows and runs code examples (Pens) from CodePen in the page.",
-      "sv": "Visar och kör kodexempel från CodePen på sidan."
-    },
+    "purpose": { "text": "site.service.codepen.purpose" },
     "advertising": true,
     "storage": [],
     "transfers": [
@@ -594,10 +564,7 @@
       "country": "IE",
       "privacyPolicy": "https://www.linkedin.com/legal/privacy-policy"
     },
-    "purpose": {
-      "en": "Shows posts from LinkedIn in the page.",
-      "sv": "Visar inlägg från LinkedIn på sidan."
-    },
+    "purpose": { "text": "site.service.linkedin.purpose" },
     "advertising": true,
     "storage": [
       {

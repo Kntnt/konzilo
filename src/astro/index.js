@@ -369,14 +369,15 @@ function checkPresentations(described, components) {
 // in several; by default the core's (site-texts.js).
 // `formTexts`: the site's own texts for its forms, in the site's language,
 // its main language on a site in several, in place of the core's, by the
-// keys of FORM_TEXTS in forms.js (`{ send: 'Send message' }`); a key the
+// names of FORM_TEXT_NAMES in forms.js (`{ send: 'Send message' }`); a name the
 // core has not got fails at once. The confirmation text once a form is sent
 // is the Admin's, among the site settings.
 // `texts`: the site's own texts in each language, by locale, over
 // those above and the core's: the language switcher's label, a post list's
-// text where it matches nothing, a form's texts and search's
-// (site-texts.js says which). On a site in a language the core writes no
-// texts in, the build warns of each the site does not give.
+// text where it matches nothing, a form's texts, search's and the plain text
+// of a page not found (site-texts.js says which). On a site in a language
+// the core has no catalogue for, the build warns of each the site does not
+// give.
 // `searchPage`: the site's search page, a page of its design as
 // a path from the site's root (`./src/components/SearchPage.astro`), which
 // places Konzilo's Search and which the integration puts at the address the

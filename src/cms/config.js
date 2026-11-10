@@ -16,8 +16,7 @@ import { SHARING_SAFE, SHARING_SIZE } from '../format/article-parts.js';
 import { IMAGE_WIDGET } from './image/widget.js';
 import { STRUCTURE_WIDGET } from './structure/widget.js';
 import { SCHEMA_WIDGET, SLUG_WIDGET, TEXT_WIDGET } from './parts/widgets.js';
-import { labelIn, text } from '../catalogues.js';
-import { inLanguage } from '../texts.js';
+import { inCatalogue, labelIn, text } from '../catalogues.js';
 import { BODY_WIDGET } from './body/widget.js';
 import { PUBLISHING_WIDGET } from './publishing/widget.js';
 
@@ -136,7 +135,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
         name: language.locale,
         label: language.tag,
         translated: false,
-        default: setting.defaults ? inLanguage(setting.defaults, language.locale) : setting.default,
+        default: setting.defaults ? inCatalogue(setting.defaults, language.locale) : setting.default,
       })),
     };
   };

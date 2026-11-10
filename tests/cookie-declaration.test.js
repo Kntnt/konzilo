@@ -17,6 +17,7 @@ import { dirname, join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { isCookiePolicy } from '../src/astro/consent.js';
+import { CATALOGUES } from '../src/catalogues.js';
 import { declarationView } from '../src/consent/markup.js';
 import { astroConfig, astroEnvironment, ORIGIN } from './lib/astro.js';
 import { paragraphs, post, siteSettingsArgs, writeContent } from './lib/content.js';
@@ -458,7 +459,7 @@ test('a transfer names its country, or says that its provider names none, and ea
     departures: [{ departure: 'tagManagerBeforeConsent', reason: 'Its tags wait for consent themselves.' }],
     texts: { footer: { change: 'Change', withdraw: 'Withdraw' } },
   };
-  const transfers = (language) => declarationView({ registry, language }).categories[0].services.map((one) => one.transfers);
+  const transfers = (language) => declarationView({ registry, language, catalogues: CATALOGUES }).categories[0].services.map((one) => one.transfers);
   assert.deepEqual(transfers('en-GB'), [
     ['A country its provider does not name, on the basis of an adequacy decision or standard contractual clauses'],
     ['United States, with no safeguard its provider documents'],
@@ -469,7 +470,7 @@ test('a transfer names its country, or says that its provider names none, and ea
     ['USA, utan någon skyddsåtgärd som leverantören redovisar'],
     ['Indien, med stöd av bindande företagsbestämmelser', 'Schweiz, med stöd av ett beslut om adekvat skyddsnivå'],
   ]);
-  const english = declarationView({ registry, language: 'en-GB' });
+  const english = declarationView({ registry, language: 'en-GB', catalogues: CATALOGUES });
   assert.deepEqual(english.departures, [{ text: 'The site\'s tag manager loads before you make a choice, and the tags it loads follow your choice.', reason: 'Its tags wait for consent themselves.' }]);
   assert.deepEqual(english.revised, { before: 'The list was last changed on ', date: '5 January 2026', datetime: '2026-01-05', after: '.' });
 });
@@ -477,7 +478,7 @@ test('a transfer names its country, or says that its provider names none, and ea
 test('the declaration formats in one locale per language of its words, en-GB and sv-SE unless the caller gives its own, whatever the page\'s own tag', () => {
   const registry = { revision: '0123456789abcdef', revised: '2026-01-05', categories: [], services: [], departures: [], texts: { footer: { change: 'Change', withdraw: 'Withdraw' } } };
   const shown = (given) => {
-    const view = declarationView({ registry, ...given });
+    const view = declarationView({ registry, catalogues: CATALOGUES, ...given });
     return [view.locale, view.revised.date];
   };
   assert.deepEqual(shown({ language: 'en' }), ['en-GB', '5 January 2026']);

@@ -176,8 +176,9 @@ export async function alternates(url, entry = null) {
 
 // The core's texts a site may give its own of (site-texts.js), in the
 // language of the page at `url`, Astro.url, as the core's components show
-// them: { languageSwitcher, emptyList, forms, search }, the site's own over
-// the core's, such as `search.title`, a search page's title and heading.
+// them: { languageSwitcher, emptyList, forms, search, notFound }, the site's
+// own over the core's, such as `search.title`, a search page's title and
+// heading, and `notFound`, the plain text of a page not found.
 export function pageTexts(url = null) {
   return textsIn(pageLanguage(url)?.locale ?? null);
 }

@@ -18,6 +18,7 @@
     "./astro/post-lists": "./src/astro/post-lists.js",
     "./astro/site-settings": "./src/astro/site-settings.js",
     "./astro/languages": "./src/astro/site-languages.js",
+    "./catalogues/*": "./src/catalogues/*",
     "./consent/*": "./src/consent/*",
     "./post-lists": "./src/post-lists.js",
     "./search": "./src/search.js"
