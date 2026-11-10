@@ -168,3 +168,129 @@ describe('the interface language in Sveltia', () => {
     assert.deepEqual(seen.errors, []);
   });
 });
+
+describe('the body field, the preview and the publish status in the interface language', () => {
+  const PREVIEW = 'http://localhost:3';
+  // What each says, by the interface language, and Sveltia's own words for its menus there.
+  const SWEDISH = {
+    title: 'Titel',
+    toggle: 'Visa Markdown',
+    image: 'Välj bild…',
+    find: 'Hitta en text på sidan',
+    notSaved: 'Inte sparad än.',
+    refused: /^Webbplatsen kan inte publicera det här än, så sidan nedan är den senaste som gick\. Det här behöver ändras:/,
+    frame: 'Sidan så som den skulle se ut',
+    beside: 'Förhandsvisning: bredvid',
+    sveltia: { options: 'Visa redigeringsalternativ', menu: 'Visa användarkontomeny', settings: 'Inställningar', language: 'Språk', select: 'Välj språk' },
+  };
+  const ENGLISH = {
+    title: 'Title',
+    toggle: 'Show Markdown',
+    image: 'Choose an image…',
+    find: 'Find a text on the page',
+    notSaved: 'Not saved yet.',
+    refused: /^The site cannot publish this yet, so the page below is the last good one\. What to change:/,
+    frame: 'The page as it would look',
+    beside: 'Preview: beside',
+    sveltia: { options: 'Show Editor Options', menu: 'Show Account Menu', settings: 'Settings', language: 'Language', select: 'Select Language' },
+  };
+
+  let site;
+  let page;
+  let seen;
+
+  const origin = () => new URL(page.url()).origin;
+  const open = async (collection) => {
+    await page.goto(`${origin()}/#/collections/${collection}/new`);
+    await page.locator('.konzilo-body-visual .ProseMirror, .konzilo-tree-host').first().waitFor();
+  };
+  // Sveltia's own choice of language, in its preferences, from the list of pages, which shows
+  // again once Sveltia has signed in anew.
+  const choose = async ({ sveltia }, option) => {
+    await page.goto(`${origin()}/#/collections/pages`);
+    await page.getByRole('button', { name: sveltia.menu }).click();
+    await page.getByRole('menuitem', { name: sveltia.settings }).click();
+    await page.getByRole('tab', { name: sveltia.language }).click();
+    await page.getByRole('combobox', { name: sveltia.select }).click();
+    const loaded = page.waitForEvent('load');
+    await page.getByRole('option', { name: option }).click();
+    await loaded;
+    await page.getByText('Pages', { exact: true }).first().waitFor();
+  };
+  // Every text of the body field, the image field, the structure field, the preview and the
+  // publish status in one language, `words`, beside Sveltia's own in it.
+  const speaks = async (words) => {
+    // The test repository signs in with no token, at each load, and the pane needs one to show.
+    await page.evaluate(() => {
+      const user = JSON.parse(localStorage.getItem('sveltia-cms.user'));
+      localStorage.setItem('sveltia-cms.user', JSON.stringify({ ...user, token: 'a-token' }));
+    });
+    await open('articles');
+    const body = page.locator('.konzilo-body').first();
+    assert.equal(await body.locator('.konzilo-body-toggle').textContent(), words.toggle);
+    assert.equal(await page.locator('.field[data-key-path="image"] .konzilo-pick-choose').first().textContent(), words.image);
+
+    await open('landings');
+    assert.equal(await page.locator('.konzilo-tree-search').first().getAttribute('placeholder'), words.find);
+
+    await open('pages');
+    await page.getByText(words.notSaved).first().waitFor();
+    await page.getByRole('textbox', { name: words.title, exact: true }).first().fill('En sida');
+    const pane = page.frameLocator('iframe.preview');
+    const alert = pane.getByRole('alert');
+    await alert.waitFor();
+    assert.match(await alert.textContent(), words.refused);
+    assert.equal(await pane.locator('iframe').first().getAttribute('title'), words.frame);
+    await page.getByRole('button', { name: words.sveltia.options }).click();
+    await page.getByRole('menuitemradio', { name: words.beside }).waitFor();
+    await page.keyboard.press('Escape');
+  };
+
+  // A Swedish site, opened in a browser in American English, which decides nothing, with a
+  // live preview that answers each draft with a refusal and a page.
+  before(async () => {
+    const declared = JSON.parse(readFileSync(`${core}site-template/files/site-description.json`, 'utf8'));
+    declared.language = 'sv_SE';
+    declared.types.landing = { label: 'Landing', plural: 'Landings', collection: 'landings', address: '/landings/{slug}/', elements: ['paragraph', 'heading', 'list'], editor: 'structure', fields: {} };
+    const description = siteDescription(declared);
+    const made = (language) => ({
+      ...cmsConfig(description, { forgejo: 'http://localhost:1', repository: 'a/b', clientId: 'c', site: 'http://localhost:2', preview: PREVIEW, language }),
+      backend: { name: 'test-repo' },
+    });
+    site = await openFieldPage({ configs: { 'config.json': made(), 'config.sv.json': made('sv'), 'config.en.json': made('en') } });
+    let context;
+    ({ page, seen, context } = await site.newPage({ language: 'en-US', viewport: { width: 1600, height: 1000 } }));
+    await context.route(`${PREVIEW}/**`, (route) => {
+      const asked = route.request();
+      const headers = { 'access-control-allow-origin': origin(), 'access-control-allow-credentials': 'true', 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-methods': 'POST' };
+      if (asked.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
+      if (asked.url().endsWith('/session')) return route.fulfill({ status: 200, headers, json: {} });
+      if (asked.url().endsWith('/draft')) return route.fulfill({ status: 200, headers, json: { address: '/a-page/', refusals: [{ field: 'title', reason: 'x' }] } });
+      return route.fulfill({ status: 200, contentType: 'text/html', body: '<h1>The page</h1>', headers: { 'content-security-policy': `frame-ancestors ${origin()}` } });
+    });
+    await page.getByRole('button', { name: 'Arbeta med test-repo' }).click();
+    await page.getByText('Pages', { exact: true }).first().waitFor();
+  }, { timeout: 120_000 });
+
+  after(() => site?.close());
+
+  test('are the site\'s, Swedish, for an editor in an English browser who has chosen none, as the form is', async () => {
+    await speaks(SWEDISH);
+  });
+
+  test('are all in English once the editor chooses English', async () => {
+    await choose(SWEDISH, /English \(UK\)/);
+    await speaks(ENGLISH);
+  });
+
+  test('are all in Swedish once the editor chooses Swedish, in the same English browser', async () => {
+    await choose(ENGLISH, /svenska/i);
+    await speaks(SWEDISH);
+  });
+
+  test('has asked nothing outside, and broken no policy', () => {
+    assert.deepEqual(seen.outside, []);
+    assert.deepEqual(seen.refused, []);
+    assert.deepEqual(seen.errors, []);
+  });
+});
