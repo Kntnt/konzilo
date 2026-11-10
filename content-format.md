@@ -206,7 +206,7 @@ The keys come in this order, each on one line: `title`; then each field the type
 | `eyebrow`, `headline` and `subheadline` | `"headline": { "required": true }` | An article's headline in its three parts: the eyebrow above it, the main headline, and the subheadline under it, each a JSON string without spaces at its ends. Plain text. Only the main headline may be required. |
 | `standfirst` | `"standfirst": {}` | An article's standfirst, between its headline and its body, a JSON string without spaces at its ends. Plain text. |
 | `teaser` | `"teaser": {}` | What shows the post elsewhere, in a list or a search result, as one JSON object, each part only when the post sets it: `image`, as the featured image is written; `headline`; and `text`. Plain text. No key when the post sets none. |
-| the terms of a taxonomy | `"regions": { "taxonomy": "region" }` | The slugs of the post's terms, sorted, as a JSON list: `["harbours","lanterns"]`, `[]` for none; each names a term's file ([A term](#a-term)). A required field, `"required": true`, is never empty, and one with `"most": 1`, or another whole number, holds at most that many. An article's `authors`, `category` and `topics` are such fields, of the built-in taxonomies of their names, `category` with at most one. |
+| the terms of a taxonomy | `"regions": { "taxonomy": "region" }` | The slugs of the post's terms, each once, sorted, as a JSON list: `["harbours","lanterns"]`, `[]` for none; each names a term's file ([A term](#a-term)). A required field, `"required": true`, is never empty, and one with `"most": 1`, or another whole number, holds at most that many. An article's `authors`, `category` and `topics` are such fields, of the built-in taxonomies of their names, `category` with at most one. An article's `authors` alone is not sorted, and keeps the order the editor gave them, its first author first: `["ben-holm","ada-lind"]`. |
 | `seo` | `"seo": {}` | The search and sharing fields the post sets, as one JSON object, in this order, each only when set: `title`, the title tag; `description`, the meta description; `canonical`, the post's canonical address where it names one, a whole `http://` or `https://` address as a browser sends it, such as the original's where the text was published elsewhere first; `socialTitle` and `socialDescription`, for a shared link; `socialImage`, a master as the featured image's `src`, with `socialImageAlt`, its alt text; `schema`, a structured data type, one of `Article`, `BlogPosting`, `NewsArticle`, `WebPage`, `AboutPage`, `ContactPage` and `CollectionPage`; and `noindex` and `nofollow`, `true` when set. No key when the post sets none. |
 | a field of the site's own | `{ "type": … }` | By its `type`, below. |
 | `translationKey` | Not declared. | On a site in several languages: 16 lowercase hexadecimal digits that a post shares with its translations ([Several languages](#several-languages)). |
@@ -236,7 +236,7 @@ eyebrow: "The quay"
 headline: "Why the harbour keeps its lanterns lit"
 subheadline: "A night with the keepers"
 standfirst: "The lanterns have burned every night for two hundred years."
-authors: ["ada-lind","ben-holm"]
+authors: ["ben-holm","ada-lind"]
 category: ["local"]
 topics: ["harbours","lanterns"]
 teaser: {"image":{"src":"../media/harbour-lights-5c0ffee5a1.webp","alt":"Two keepers by a lantern"},"headline":"The keepers of the lanterns","text":"Two hundred years of light."}
@@ -1157,8 +1157,8 @@ An ID is text, the name of the post's source file, such as `96ba709ec918`, which
         "/harbour-lights/"
       ],
       "title": "Harbour lights & lanterns",
-      "source": "cb70efe093083dbe15f13217708e00ce1f9425a650c3f2b85af1a237dd745dea",
-      "published": "a4c35c2a737a570f5e0c886df72e366b4edaf23bf04a231caa1d963474983ddd",
+      "source": "6da1fa92b8343c291be5406cc109eaef9e6309b42dcf3ed6c5ac627f6d18c838",
+      "published": "eacf443e94a6eb54e4be0336e07d002205ee5eade306ed26a6d591efbf90522c",
       "taken": "2026-10-20T08:00:00Z",
       "modified": "2026-10-21T09:30:00Z",
       "names": {
