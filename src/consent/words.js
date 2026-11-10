@@ -1,199 +1,93 @@
-// The words of the consent's markup that the core writes itself, in each of
-// its languages, and the facts of a service in words. The consent texts an
-// Admin may change are not here: a caller hands them in (markup.js), save
-// the defaults of the texts of the right to object, for a caller whose
-// texts are older than they are.
+// The words of the consent's markup that the core writes itself, and the
+// facts of a service in words. They are the core's catalogues' (ADR 0066),
+// `src/catalogues/<language>.json`, which the caller hands in by language as
+// `catalogues`, so that this folder reads them without importing them: the
+// texts named `site.consent.…`, and the defaults of the texts of the right
+// to object, `site.settings.consent.objection…`, for a caller whose consent
+// texts are older than they are. The consent texts an Admin may change are
+// not here: a caller hands them in (markup.js).
 //
 // This folder, src/consent/, imports nothing outside itself, so that a site
-// that Konzilo does not build can copy it from a commit and call it.
+// that Konzilo does not build can copy it from a commit, with the
+// catalogues, and call it.
 
-// The words, by the language of the core's texts. `{…}` stands for what is
-// put in its place.
-const WORDS = {
-  en: {
-    service: ['service', 'services'],
-    details: 'Services and what they store',
-    alwaysOn: 'Always on',
-    purpose: 'Purpose',
-    necessity: 'Why it is needed',
-    provider: 'Provider',
-    site: 'This site',
-    privacyPolicy: 'Privacy policy',
-    stores: 'Stores in your browser',
-    nothing: 'Its provider lists nothing that it stores',
-    session: 'until you close the browser',
-    persistent: 'until it is deleted',
-    kinds: { cookie: 'cookie', localStorage: 'local storage', sessionStorage: 'session storage', other: 'other storage' },
-    // Where an item is stored: on the host of the page, on a domain the
-    // site shares with the sites below it, on a provider's domain, or on one
-    // its provider does not name.
-    on: 'on {domain}',
-    thisHost: 'this site',
-    shared: '{domain} and the sites below it',
-    unnamedDomain: 'its provider\'s domain',
-    // A placeholder's sentence on what its service may store and where its
-    // data goes: with no provider, with one, and with one whose data may
-    // leave the EU and EEA.
-    placeholder: [
-      '{service} may store data in your browser.',
-      '{service} may store data in your browser, and {provider} ({country}) receives data about your visit.',
-      '{service} may store data in your browser, and {provider} ({country}) receives data about your visit, which may be processed outside the EU and EEA.',
-    ],
-    // The default texts of the right to object to counting without storage,
-    // for a page whose consent texts give none of their own: the same as the
-    // consent texts' defaults (settings-groups.json, `objection*`). In
-    // `text` and `objected`, the words in square brackets are the link
-    // (markup.js, linked()); `links` are the words of the link for a text
-    // that marks none.
-    objection: {
-      text: 'We can\'t see who you are, we don\'t follow you from one visit to the next, and we don\'t profile you. All we do is count the visits: how many there are, which pages are read and for how long, from which country, in which language and with which browser, and when in the day. We do so on our legitimate interest in knowing this. If you disagree, you have the right to [object].',
-      objected: 'You have objected to the counting, so your visits are not counted. [Undo your objection]',
-      title: 'Don\'t count my visits',
-      appeal: 'Do you really want us to stop counting your visits? We can\'t see who you are, and we don\'t follow you from one visit to the next. The figures help us understand what is valuable on the site and what we need to do better.',
-      confirm: 'Don\'t count my visits',
-      cancel: 'Cancel',
-    },
-    objectionLinks: { text: 'Object', objected: 'Undo your objection' },
-    declaration: {
-      consent: 'Your choice',
-      noScript: 'Your choice is shown here when JavaScript is turned on in your browser.',
-      none: 'You have not made a choice yet, or your last one no longer applies.',
-      asksNone: 'This site asks for no consent, since every service it uses counts as necessary.',
-      id: 'Consent ID',
-      given: 'Made',
-      allows: 'Allows',
-      services: 'Services and what they store',
-      revised: 'The list was last changed on {date}.',
-      provider: 'Provider',
-      site: 'This site',
-      privacyPolicy: '{provider}\'s privacy policy',
-      purpose: 'Purpose',
-      necessity: 'Why it is needed',
-      hosts: 'Addresses your browser contacts',
-      noHosts: 'None but this site\'s own',
-      transfers: 'Transfers outside the EU and EEA',
-      noTransfers: 'None',
-      transfer: '{country}, on the basis of {safeguards}',
-      unguarded: '{country}, with no safeguard its provider documents',
-      unnamed: 'A country its provider does not name',
-      safeguards: { adequacy: 'an adequacy decision', scc: 'standard contractual clauses', bcr: 'binding corporate rules' },
-      stores: 'What {service} stores in your browser',
-      columns: ['Name', 'Type', 'How long', 'Set by', 'Domain'],
-      party: { first: 'This site', third: 'Its provider' },
-      nothing: 'Its provider lists nothing that it stores.',
-      departures: 'What this site does without your consent',
-      departure: {
-        necessaryService: '{service} counts as necessary on this site, so it is always on, without your consent.',
-        tagManagerBeforeConsent: 'The site\'s tag manager loads before you make a choice, and the tags it loads follow your choice.',
-        statisticsWithoutStorageBeforeConsent: 'The site\'s statistics count each visit from the first page you see, before you make a choice, without storing anything in your browser and without reading your device\'s properties. They store in your browser only once you allow statistics.',
-      },
-      privacySignals: {
-        stop: 'A browser that sends Global Privacy Control or Do Not Track is not counted at all.',
-        ignore: 'A browser that sends Global Privacy Control or Do Not Track is counted too, without storage until you allow statistics.',
-      },
-      reason: 'The reason:',
-    },
-  },
-  sv: {
-    service: ['tjänst', 'tjänster'],
-    details: 'Tjänster och vad de lagrar',
-    alwaysOn: 'Alltid på',
-    purpose: 'Syfte',
-    necessity: 'Varför den behövs',
-    provider: 'Leverantör',
-    site: 'Den här webbplatsen',
-    privacyPolicy: 'Integritetspolicy',
-    stores: 'Lagrar i din webbläsare',
-    nothing: 'Leverantören anger inget som den lagrar',
-    session: 'tills du stänger webbläsaren',
-    persistent: 'tills den raderas',
-    kinds: { cookie: 'kaka', localStorage: 'lokal lagring', sessionStorage: 'sessionslagring', other: 'annan lagring' },
-    on: 'på {domain}',
-    thisHost: 'den här webbplatsen',
-    shared: '{domain} och webbplatserna under den',
-    unnamedDomain: 'leverantörens domän',
-    placeholder: [
-      '{service} kan lagra uppgifter i din webbläsare.',
-      '{service} kan lagra uppgifter i din webbläsare, och {provider} ({country}) tar emot uppgifter om ditt besök.',
-      '{service} kan lagra uppgifter i din webbläsare, och {provider} ({country}) tar emot uppgifter om ditt besök, som kan behandlas utanför EU och EES.',
-    ],
-    objection: {
-      text: 'Vi kan inte se vem du är, vi följer dig inte mellan besök och vi gör ingen profilering. Det enda vi gör är att räkna besöken: hur många de är, vilka sidor som läses och hur länge, från vilket land, med vilket språk och vilken webbläsare, och när på dygnet. Det gör vi med stöd av vårt berättigade intresse av att veta det. Håller du inte med har du rätt att [invända].',
-      objected: 'Du har invänt mot räkningen, så dina besök räknas inte. [Ångra din invändning]',
-      title: 'Räkna inte mina besök',
-      appeal: 'Vill du verkligen att vi slutar räkna dina besök? Vi ser inte vem du är och följer dig inte mellan besök. Siffrorna hjälper oss att förstå vad som är värdefullt på webbplatsen och vad vi behöver göra bättre.',
-      confirm: 'Räkna inte mina besök',
-      cancel: 'Avbryt',
-    },
-    objectionLinks: { text: 'Invänd', objected: 'Ångra din invändning' },
-    declaration: {
-      consent: 'Ditt val',
-      noScript: 'Ditt val visas här när JavaScript är påslaget i din webbläsare.',
-      none: 'Du har inte gjort något val ännu, eller så gäller ditt förra val inte längre.',
-      asksNone: 'Webbplatsen ber inte om samtycke, eftersom varje tjänst den använder räknas som nödvändig.',
-      id: 'Samtyckes-ID',
-      given: 'Gjort',
-      allows: 'Tillåter',
-      services: 'Tjänster och vad de lagrar',
-      revised: 'Listan ändrades senast den {date}.',
-      provider: 'Leverantör',
-      site: 'Den här webbplatsen',
-      privacyPolicy: 'Integritetspolicy för {provider}',
-      purpose: 'Syfte',
-      necessity: 'Varför den behövs',
-      hosts: 'Adresser som din webbläsare kontaktar',
-      noHosts: 'Inga andra än webbplatsens egna',
-      transfers: 'Överföringar utanför EU och EES',
-      noTransfers: 'Inga',
-      transfer: '{country}, med stöd av {safeguards}',
-      unguarded: '{country}, utan någon skyddsåtgärd som leverantören redovisar',
-      unnamed: 'Ett land som leverantören inte namnger',
-      safeguards: { adequacy: 'ett beslut om adekvat skyddsnivå', scc: 'standardavtalsklausuler', bcr: 'bindande företagsbestämmelser' },
-      stores: 'Vad {service} lagrar i din webbläsare',
-      columns: ['Namn', 'Typ', 'Hur länge', 'Sätts av', 'Domän'],
-      party: { first: 'Den här webbplatsen', third: 'Leverantören' },
-      nothing: 'Leverantören anger inget som den lagrar.',
-      departures: 'Det här gör webbplatsen utan ditt samtycke',
-      departure: {
-        necessaryService: '{service} räknas som nödvändig på den här webbplatsen och är därför alltid på, utan ditt samtycke.',
-        tagManagerBeforeConsent: 'Webbplatsens tagghanterare laddas innan du har gjort ett val, och taggarna den laddar följer ditt val.',
-        statisticsWithoutStorageBeforeConsent: 'Webbplatsens statistik räknar varje besök från den första sidan du ser, innan du har gjort ett val, utan att lagra något i din webbläsare och utan att läsa av din enhets egenskaper. Den lagrar i din webbläsare först när du tillåter statistik.',
-      },
-      privacySignals: {
-        stop: 'En webbläsare som skickar Global Privacy Control eller Do Not Track räknas inte alls.',
-        ignore: 'En webbläsare som skickar Global Privacy Control eller Do Not Track räknas också, utan lagring tills du tillåter statistik.',
-      },
-      reason: 'Skälet:',
-    },
-  },
-};
+// The language every text of the catalogues is first written in, British
+// English, which a page in a language without a catalogue takes.
+const SOURCE = 'en';
+
+// The texts of the right to object, by their names in the registry's texts.
+const OBJECTION = ['text', 'objected', 'title', 'appeal', 'confirm', 'cancel'];
+
+// The cookie declaration's columns of what a service stores, in order.
+const COLUMNS = ['name', 'kind', 'lifetime', 'party', 'domain'];
 
 // A lifetime's unit, in ISO 8601 (an M after T is minutes), as Intl names it.
 const UNITS = { Y: 'year', M: 'month', W: 'week', D: 'day', H: 'hour', TM: 'minute', S: 'second' };
 
 // The locale the core formats dates, times, numbers and countries in, by
 // the language of its words: British English and Swedish as Sweden writes
-// it, so that the words and the formats agree. A caller may give its own,
-// by the same keys (formatLocale()).
+// it, so that the words and the formats agree, and the language itself for
+// any other catalogue. A caller may give its own, by the same keys
+// (formatLocale()).
 export const LOCALES = Object.freeze({ en: 'en-GB', sv: 'sv-SE' });
 
-// The language of the core's words for a page in `language`, a language
-// tag such as sv-SE: Swedish for Swedish, and English for any other.
-export function wordsLanguage(language) {
-  return String(language ?? '').split(/[-_]/)[0].toLowerCase() === 'sv' ? 'sv' : 'en';
+// The core's catalogues, by language, as the caller hands them in, or an
+// error that says what the markup needs.
+function cataloguesOf(catalogues) {
+  if (catalogues === null || typeof catalogues !== 'object' || typeof catalogues[SOURCE] !== 'object') {
+    throw new Error('the consent\'s markup needs the core\'s catalogues, `catalogues`, by language, as src/catalogues/<language>.json holds them, British English\'s, en, among them');
+  }
+  return catalogues;
 }
 
-// The core's words for a page in `language`, a language tag.
-export function wordsFor(language) {
-  return WORDS[wordsLanguage(language)];
+// The language of the core's words for a page in `language`, a language
+// tag such as sv-SE: its language subtag's where `catalogues` has a
+// catalogue for it, else British English.
+export function wordsLanguage(language, catalogues) {
+  const subtag = String(language ?? '').split(/[-_]/)[0].toLowerCase();
+  return Object.hasOwn(cataloguesOf(catalogues), subtag) ? subtag : SOURCE;
+}
+
+// The texts of a catalogue directly below a name, such as `site.consent.`,
+// by the rest of their names.
+function below(catalogue, prefix) {
+  return Object.fromEntries(Object.entries(catalogue)
+    .filter(([name]) => name.startsWith(prefix) && !name.slice(prefix.length).includes('.'))
+    .map(([name, value]) => [name.slice(prefix.length), value]));
+}
+
+// The core's words for a page in `language`, a language tag, from
+// `catalogues`: its language's catalogue, each text it lacks British
+// English's.
+export function wordsFor(language, catalogues) {
+  const given = cataloguesOf(catalogues);
+  const catalogue = { ...given[SOURCE], ...given[wordsLanguage(language, given)] };
+  const at = (prefix) => below(catalogue, `site.consent.${prefix}`);
+  const capital = (name) => `${name[0].toUpperCase()}${name.slice(1)}`;
+  return {
+    ...at(''),
+    serviceCount: at('serviceCount.'),
+    kinds: at('kind.'),
+    placeholder: at('placeholder.'),
+    objection: Object.fromEntries(OBJECTION.map((name) => [name, catalogue[`site.settings.consent.objection${capital(name)}`]])),
+    objectionLinks: at('objectionLink.'),
+    declaration: {
+      ...at('declaration.'),
+      safeguards: at('declaration.safeguard.'),
+      columns: COLUMNS.map((column) => catalogue[`site.consent.declaration.column.${column}`]),
+      party: at('declaration.party.'),
+      departure: at('declaration.departure.'),
+      privacySignals: at('declaration.privacySignals.'),
+    },
+  };
 }
 
 // The one locale a page in `language` formats dates, times, numbers and
 // countries in, the build and the browser alike: `locales`' own for the
-// language of its words, { en, sv }, else LOCALES'.
-export function formatLocale(language, locales = {}) {
-  const words = wordsLanguage(language);
-  return locales?.[words] ?? LOCALES[words];
+// language of its words, by catalogue, else LOCALES', else that language.
+export function formatLocale(language, catalogues, locales = {}) {
+  const words = wordsLanguage(language, catalogues);
+  return locales?.[words] ?? LOCALES[words] ?? words;
 }
 
 // Text with each `{name}` in `words` put in its place from `values`.
@@ -202,14 +96,14 @@ export function fill(words, values) {
 }
 
 // The words the core writes itself of a service's facts, in the language
-// of a page in `language`, a language tag, formatted in its locale
-// (formatLocale(), with `locales`): `country(code)`, a country's name by
-// its ISO 3166-1 alpha-2 code; `kind(kind)`, a kind of storage; and
+// of a page in `language`, a language tag, from `catalogues`, formatted in
+// its locale (formatLocale(), with `locales`): `country(code)`, a country's
+// name by its ISO 3166-1 alpha-2 code; `kind(kind)`, a kind of storage; and
 // `lifetime(value)`, how long an item is kept, from the registry's ISO 8601
 // duration, `session` or `persistent`.
-export function factWords(language, locales) {
-  const words = wordsFor(language);
-  const locale = formatLocale(language, locales);
+export function factWords(language, catalogues, locales) {
+  const words = wordsFor(language, catalogues);
+  const locale = formatLocale(language, catalogues, locales);
   const regions = new Intl.DisplayNames([locale], { type: 'region' });
   return {
     country: (code) => regions.of(code),

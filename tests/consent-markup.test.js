@@ -12,10 +12,9 @@ import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { CATALOGUES, inCatalogue } from '../src/catalogues.js';
 import { consentClient, cookieDeclaration, embedPanels } from '../src/consent/client.js';
 import { consentControlsMarkup, consentMarkup, consentView, cookieDeclarationMarkup, declarationView, escape } from '../src/consent/markup.js';
-import { wordsFor } from '../src/consent/words.js';
-import { inCatalogue } from '../src/catalogues.js';
 import groups from '../src/format/settings-groups.json' with { type: 'json' };
 
 const core = fileURLToPath(new URL('../', import.meta.url));
@@ -49,7 +48,7 @@ const registry = {
 };
 
 const legalPages = { privacyPolicy: { title: 'Privacy', href: 'https://www.example.com/privacy/' }, cookiePolicy: { title: 'Cookies', href: 'https://www.example.com/cookies/' } };
-const input = { registry, legalPages, language: 'en-GB' };
+const input = { registry, legalPages, language: 'en-GB', catalogues: CATALOGUES };
 
 const parse = (html) => new JSDOM(`<!doctype html><html><body>${html}</body></html>`).window.document;
 const text = (element) => element.textContent.replace(/\s+/g, ' ').trim();
@@ -102,6 +101,21 @@ describe('the consent\'s markup functions', () => {
     assert.deepEqual([...page.querySelectorAll('.konzilo-consent-category-name')].map(text), ['Necessary', 'Statistik', 'Marketing']);
     assert.equal(text(page.querySelector('.konzilo-consent-always')), 'Alltid på');
     assert.equal(JSON.parse(page.querySelector('[data-konzilo-consent]').dataset.konziloConsent).language, 'sv-SE');
+  });
+
+  test('take the core\'s words from the catalogues the caller hands in, the page\'s language\'s, else British English\'s, and need them', () => {
+    const always = (given) => text(parse(consentMarkup({ ...input, ...given })).querySelector('.konzilo-consent-always'));
+    const catalogues = { ...CATALOGUES, en: { ...CATALOGUES.en, 'site.consent.alwaysOn': 'On, always' } };
+    assert.equal(always({ catalogues }), 'On, always');
+    assert.equal(always({ catalogues, language: 'de-DE' }), 'On, always');
+    assert.equal(always({ catalogues, language: 'sv-SE' }), 'Alltid på');
+    const german = { ...CATALOGUES, de: { ...CATALOGUES.en, 'site.consent.alwaysOn': 'Immer an', 'site.consent.serviceCount.one': '{count} Dienst' } };
+    const page = parse(consentMarkup({ ...input, catalogues: german, language: 'de-DE' }));
+    assert.equal(text(page.querySelector('.konzilo-consent-always')), 'Immer an');
+    assert.deepEqual([...page.querySelectorAll('.konzilo-consent-count')].map(text), ['1 Dienst', '1 Dienst', '1 Dienst']);
+    assert.equal(declarationView({ ...input, catalogues: german, language: 'de-DE' }).revised.date, '1. November 2026', 'formatted in the catalogue\'s language');
+    const { catalogues: _, ...without } = input;
+    assert.throws(() => consentMarkup(without), /needs the core's catalogues/);
   });
 
   test('give a registry that asks no consent no banner, no dialog and no buttons, and still the registry', () => {
@@ -246,11 +260,12 @@ describe('where the statistics count visits without storage before consent', () 
     assert.equal(place.hidden, true);
   });
 
-  test('the core\'s defaults of its texts are the consent texts\' own defaults', () => {
+  test('the core\'s texts of the right to object, for a page whose texts give none, are the consent texts\' own defaults', () => {
     const settings = groups.consent.settings;
-    for (const language of ['en', 'sv']) {
-      const defaults = Object.fromEntries(Object.entries(wordsFor(language).objection).map(([name, value]) => [`objection${name[0].toUpperCase()}${name.slice(1)}`, value]));
-      assert.deepEqual(defaults, Object.fromEntries(Object.keys(defaults).map((key) => [key, inCatalogue(settings[key]?.default, language)])), language);
+    for (const language of ['en-GB', 'sv-SE']) {
+      const { objection } = consentView({ ...offered, language });
+      assert.deepEqual(Object.keys(objection), ['text', 'objected', 'title', 'appeal', 'confirm', 'cancel']);
+      assert.deepEqual(objection, Object.fromEntries(Object.keys(objection).map((name) => [name, inCatalogue(settings[`objection${name[0].toUpperCase()}${name.slice(1)}`].default, language)])), language);
     }
   });
 
