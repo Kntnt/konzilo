@@ -210,7 +210,7 @@ const places = {
   footer: ['change', 'withdraw'],
   notice: ['withdrawn'],
   placeholder: ['question', 'button'],
-  objection: ['text', 'object', 'resume', 'appeal', 'appealAllowed', 'confirm', 'cancel'],
+  objection: ['text', 'objected', 'title', 'appeal', 'confirm', 'cancel'],
 };
 
 export function textsOf(texts) {

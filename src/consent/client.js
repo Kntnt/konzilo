@@ -75,18 +75,21 @@ export function placeConsent(consent, declaration) {
 //
 // Where the registry offers it (`objection` in its data), the visitor may
 // object to the statistics counting the visit without storage, on the
-// departure statisticsWithoutStorageBeforeConsent: each link marked
-// `data-konzilo-consent-action="objection"` says *Don't count my visits* and
-// opens the confirmation, `#konzilo-consent-objection`, with the appeal
-// that fits, `data-konzilo-consent-appeal` `with-statistics` where the
-// visitor allows statistics, else `without-statistics`, whose `object`
-// button objects; once the visitor objects, the link says *Count my visits
-// again*, and takes the objection back at once. The objection is kept
+// departure statisticsWithoutStorageBeforeConsent. Each element marked
+// `data-konzilo-consent-objection` holds the right to object (markup.js),
+// and shows while the choice that holds allows no statistics service, and
+// at no other time; one a page leaves empty gets the dialog's. Its
+// explanation's link, `data-konzilo-consent-action="objection"`, opens the
+// confirmation, `#konzilo-consent-objection`, whose `object` button
+// objects. Once the visitor objects, that link is plain text, an `a`
+// without `href`, and the paragraph marked `data-konzilo-consent-objected`
+// shows, whose link, `resume`, takes the objection back at once, without a
+// confirmation; the tracker counts again from the next page view. The objection is kept
 // beside the choice, in the same item, for `months`, whether a choice holds
 // or not: `{ …choice, objection }`, `objection` the time it was made, or
-// `{ objection }` alone before any choice. It withdraws consent to every
-// statistics service the choice allowed, as a choice of its own, and is not
-// a consent: it makes no consent ID and changes no revision. A choice that
+// `{ objection }` alone before any choice. It is offered only while the
+// choice allows no statistics service, and is not a consent: it makes no
+// consent ID, sends no record and changes no revision. A choice that
 // allows a statistics service ends it, and so does Withdraw consent; a new
 // consent revision does not. The signal's `objected()` says whether the
 // visitor objects, and the event comes at every change of it too.
@@ -133,10 +136,18 @@ export function consentClient({ name = 'konzilo-consent', months = 12, domain = 
   const banner = root?.querySelector('.konzilo-consent-banner') ?? null;
   const notice = root?.querySelector('.konzilo-consent-notice') ?? null;
   const dialog = root?.querySelector('dialog.konzilo-consent-dialog') ?? root?.querySelector('dialog') ?? null;
-  // The confirmation of an objection, and the words of its links, where the
-  // registry offers the right to object.
-  const offered = registry.objection && typeof registry.objection === 'object' ? registry.objection : null;
+  // Whether the registry offers the right to object, and the confirmation
+  // of an objection where it does.
+  const offered = registry.objection === true;
   const confirmation = offered ? root?.querySelector('dialog#konzilo-consent-objection') ?? null : null;
+  // A place for the right to object that a page leaves empty gets the
+  // dialog's.
+  const model = [...(root?.querySelectorAll('[data-konzilo-consent-objection]') ?? [])].find((place) => place.children.length > 0);
+  if (offered && model) {
+    for (const place of document.querySelectorAll('[data-konzilo-consent-objection]')) {
+      if (place.children.length === 0) place.innerHTML = model.innerHTML;
+    }
+  }
   const statistics = Array.isArray(registry.categories.statistics) ? registry.categories.statistics : [];
   const onLegalPage = legalPage === true || registry.legalPage === true || document.querySelector('meta[name="konzilo-consent"][content="legal-page"]') !== null;
   for (const element of document.querySelectorAll('[data-konzilo-consent-host]')) element.textContent = location.hostname;
@@ -340,9 +351,9 @@ export function consentClient({ name = 'konzilo-consent', months = 12, domain = 
 
   // The visitor allows exactly `allowed`, the ids of services, and the
   // necessary ones; a category is allowed when each of its services is.
-  // `how`: banner, dialog, placeholder, withdrawal or objection; `control`:
-  // accept, reject, save, allow, withdraw or object. A choice that allows a
-  // statistics service ends the objection, and so does a withdrawal.
+  // `how`: banner, dialog, placeholder or withdrawal; `control`: accept,
+  // reject, save, allow or withdraw. A choice that allows a statistics
+  // service ends the objection, and so does a withdrawal.
   //
   // A choice that withdraws consent, to every optional service with
   // Withdraw consent or to some of them in the dialog, removes what each
@@ -386,18 +397,26 @@ export function consentClient({ name = 'konzilo-consent', months = 12, domain = 
   };
   const withdraw = () => choose(new Set(), 'withdrawal', 'withdraw');
 
-  // The links that object, or take the objection back: each says which it
-  // does now, and shows where the registry offers the right to object.
+  // The right to object, wherever it stands: shown while the choice that
+  // holds allows no statistics service, where the registry offers it; its
+  // explanation's link a link until the visitor objects, and plain text
+  // then, when the paragraph that takes the objection back shows.
   function showObjection() {
-    for (const link of document.querySelectorAll('[data-konzilo-consent-action="objection"]')) {
-      if (!offered) continue;
-      link.textContent = objection ? offered.resume : offered.object;
-      link.hidden = false;
+    const shown = offered && !statistics.some(allowsService);
+    for (const place of document.querySelectorAll('[data-konzilo-consent-objection]')) {
+      place.hidden = !shown;
+      for (const link of place.querySelectorAll('a[data-konzilo-consent-action="objection"]')) {
+        if (objection) link.removeAttribute('href');
+        else link.setAttribute('href', '#konzilo-consent-objection');
+      }
+      for (const after of place.querySelectorAll('[data-konzilo-consent-objected]')) after.hidden = objection === null;
     }
+    if (!shown && confirmation?.open) confirmation.close();
   }
-  // The visitor objects: kept beside whatever is kept, at once, and with
-  // consent to statistics withdrawn where the choice gave it, which is a
-  // choice of its own, recorded as one, that reloads the page.
+  // The visitor objects, which is offered only while the choice allows no
+  // statistics service: kept beside whatever is kept, at once, with the
+  // dialog's statistics switches turned off, so that saving it keeps the
+  // objection.
   const object = () => {
     const last = kept();
     objection = new Date(Math.max(Date.now(), (Date.parse(last?.objection) || 0) + 1)).toISOString();
@@ -405,23 +424,9 @@ export function consentClient({ name = 'konzilo-consent', months = 12, domain = 
       if (statistics.includes(input.dataset.konziloConsentService)) input.checked = false;
     }
     sync();
-    if (statistics.some(allowsService)) {
-      choose(new Set([...allowed()].filter((service) => !statistics.includes(service))), 'objection', 'object');
-      return;
-    }
     keep({ ...(last ?? {}), objection });
     showObjection();
     document.dispatchEvent(new CustomEvent('konzilo:consent', { detail: { choice: choice ? copy(choice) : null, how: 'objection', objected: true } }));
-  };
-  // The appeal the confirmation makes: to a visitor who allows statistics,
-  // whose cookie recognises the browser, the one that says so, else the
-  // other; the dialog is described by the one it shows.
-  const appeal = () => {
-    const allows = statistics.some(allowsService);
-    for (const text of confirmation.querySelectorAll('[data-konzilo-consent-appeal]')) {
-      text.hidden = (text.dataset.konziloConsentAppeal === 'with-statistics') !== allows;
-      if (!text.hidden && text.id) confirmation.setAttribute('aria-describedby', text.id);
-    }
   };
   // The visitor takes the objection back; what else is kept stays.
   const resume = () => {
@@ -501,18 +506,26 @@ export function consentClient({ name = 'konzilo-consent', months = 12, domain = 
     else if (action === 'withdraw') withdraw();
     else if (action === 'close') dialog?.close();
     else if (action === 'objection') {
-      // A link: it goes nowhere but to the confirmation, or takes the
-      // objection back.
+      // A link that goes nowhere but to the confirmation, and plain text
+      // once the visitor objects.
       event.preventDefault();
-      if (!offered) return;
-      if (objection) resume();
-      else if (confirmation && !confirmation.open) {
-        appeal();
-        show(confirmation);
-      }
+      if (offered && !objection && !statistics.some(allowsService) && confirmation && !confirmation.open) show(confirmation);
+    } else if (action === 'resume') {
+      // A link that takes the objection back, and gives the focus to the
+      // explanation's link, which is one again.
+      event.preventDefault();
+      if (!offered || !objection) return;
+      resume();
+      pressed.closest('[data-konzilo-consent-objection]')?.querySelector('a[data-konzilo-consent-action="objection"]')?.focus();
     } else if (action === 'object') {
+      const opener = openers.get(confirmation);
       confirmation?.close();
-      if (offered) object();
+      if (!offered) return;
+      if (statistics.some(allowsService)) return;
+      object();
+      // The explanation's link is plain text now: the focus goes to the
+      // link that takes the objection back.
+      opener?.closest?.('[data-konzilo-consent-objection]')?.querySelector('a[data-konzilo-consent-action="resume"]')?.focus();
     } else if (action === 'cancel') confirmation?.close();
     else if (actions[action]) {
       actions[action](inDialog ? 'dialog' : 'banner');
@@ -572,8 +585,8 @@ export function consentClient({ name = 'konzilo-consent', months = 12, domain = 
 // Where the visitor objects (the signal's `objected()`), it sends nothing:
 // on a page where the objection holds it does not load, and where the
 // visitor objects in the page view it calls requireConsent, which holds
-// back every later request and sets no cookie, as Matomo's
-// forgetConsentGiven and optUserOut would. A visitor who takes the
+// back every later request and, unlike Matomo's forgetConsentGiven and
+// optUserOut, sets no cookie. A visitor who takes the
 // objection back is counted from the next page view; one who allows
 // statistics at once, by setConsentGiven.
 //

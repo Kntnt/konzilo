@@ -272,7 +272,7 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Departure**: A default of the consent rules a site sets aside on purpose, from a closed list, with its reason. _Avoid_: exception.
 
-**Server-log principle**: What the statistics count before consent: only what a web server's log would hold of each request, with nothing stored in the visitor's browser and nothing read from the device beyond what the browser sends anyway. _Avoid_: cookieless tracking, anonymous statistics.
+**Server-log principle**: What the statistics count before consent: only what a web server's log would hold of each request, with nothing stored in the visitor's browser and no property of the device read; the script reads only the page's address, the page it came from and the clock. _Avoid_: cookieless tracking, anonymous statistics.
 
 **Objection**: A visitor's word that the statistics are not to count their visits, which a site that counts without storage offers, kept beside the consent choice for 12 months; it is no consent, and allowing statistics ends it. _Avoid_: opt-out.
 

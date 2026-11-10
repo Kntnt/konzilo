@@ -18,7 +18,8 @@
 //   `categories`, the name and description of a category by its id, where
 //   the page's differ from the registry's; the registry's own `texts` by
 //   default. Texts without `objection`, or without some of its texts, take
-//   the core's defaults for it (words.js).
+//   the core's defaults for it (words.js). In its `text` and `objected`,
+//   the words in square brackets are the link (linked()).
 // - `legalPages`: `{ privacyPolicy, cookiePolicy }`, each `{ title, href }`
 //   or null, the address as the page links to it.
 // - `language`: the page's language tag, such as en-GB; the core's own
@@ -55,6 +56,11 @@ const WITHOUT_STORAGE = 'statisticsWithoutStorageBeforeConsent';
 // page's texts and the core's defaults, where the registry offers it: a
 // departure that counts without storage, and a statistics category to
 // count in. Null where it offers none.
+//
+// { text, objected, title, appeal, confirm, cancel }: the explanation,
+// which ends in the link that objects; the paragraph shown once the visitor
+// objects, which holds the link that takes the objection back; the
+// confirmation's title and appeal; and its two buttons.
 function objectionOf(registry, texts, words) {
   const counts = (registry.departures ?? []).some((departure) => departure.departure === WITHOUT_STORAGE)
     && registry.categories.some((category) => category.id === 'statistics' && category.services.length > 0);
@@ -108,9 +114,8 @@ function categoryWords(category, texts) {
 // href, rel }, each once, the cookie policy alone, which holds the cookie
 // declaration, or null, the categories with their services described, what
 // the placeholder of each optional service that shows in a frame says, the
-// texts of the right to object, { text, object, resume, appeal,
-// appealAllowed, confirm, cancel }, where the registry offers it, else
-// null, the core's words, and
+// texts of the right to object (objectionOf()), where the registry offers
+// it, else null, the core's words, and
 // what the client reads from the page, as JSON.
 export function consentView({ registry, texts = registry.texts, legalPages = {}, language = 'en', locales }) {
   const words = wordsFor(language);
@@ -145,9 +150,8 @@ export function consentView({ registry, texts = registry.texts, legalPages = {},
     // The language tag of the texts the page shows, which each record
     // notes.
     language,
-    // Where the registry offers the right to object, the words of the
-    // link that objects and of the one that takes the objection back.
-    ...(objection ? { objection: { object: objection.object, resume: objection.resume } } : {}),
+    // Whether the registry offers the right to object.
+    ...(objection ? { objection: true } : {}),
   };
   return {
     asks: optional.length > 0,
@@ -183,11 +187,32 @@ const choice = (action, text) => `<button type="button" class="konzilo-consent-c
 const secondary = (action, text, hidden = false) => `<button type="button" class="konzilo-consent-secondary" data-konzilo-consent-action="${action}"${hidden ? ' hidden' : ''}>${escape(text)}</button>`;
 const policyList = (policies) => `<ul class="konzilo-consent-policies">${policies.map((page) => `<li>${policyLink(page, page.rel)}</li>`).join('')}</ul>`;
 
-// The link that objects to counting without storage, or takes the
-// objection back, wherever it stands: it opens the confirmation, the
-// dialog `#konzilo-consent-objection`, and the client writes its words by
-// whether the visitor objects. `hidden` until the client shows it.
-const objectionLink = (objection, hidden) => `<a href="#konzilo-consent-objection" class="konzilo-consent-objection-link" data-konzilo-consent-action="objection"${hidden ? ' hidden' : ''}>${escape(objection.object)}</a>`;
+// Text with a link in it, as HTML: the first words of `text` in square
+// brackets are the link, made by `link` from their escaped words, and the
+// rest is escaped text without its brackets. A text that marks no link,
+// such as one a site wrote without brackets, stays as it is, with the link
+// after it in `fallback`'s words.
+export function linked(text, fallback, link) {
+  const marked = /\[([^\]\n]+)\]/.exec(text);
+  if (!marked) return `${escape(text)} ${link(escape(fallback))}`;
+  return `${escape(text.slice(0, marked.index))}${link(escape(marked[1]))}${escape(text.slice(marked.index + marked[0].length))}`;
+}
+
+// The right to object, wherever it stands: the explanation, whose link
+// opens the confirmation, the dialog `#konzilo-consent-objection`, and,
+// hidden until the visitor objects, the paragraph whose link takes the
+// objection back. The client shows it while the visitor does not allow
+// statistics, makes the explanation's link plain text once the visitor
+// objects, and shows the second paragraph then. `hidden` until it does.
+function objectionMarkup(objection, links) {
+  const link = (action) => (words) => `<a href="#konzilo-consent-objection" class="konzilo-consent-objection-link" data-konzilo-consent-action="${action}">${words}</a>`;
+  return [
+    '<div class="konzilo-consent-objection" data-konzilo-consent-objection hidden>',
+    `<p class="konzilo-consent-objection-text">${linked(objection.text, links.text, link('objection'))}</p>`,
+    `<p class="konzilo-consent-objection-objected" data-konzilo-consent-objected hidden>${linked(objection.objected, links.objected, link('resume'))}</p>`,
+    '</div>',
+  ].join('');
+}
 
 // The consent's own part of a page, once on it: the banner, the notice
 // shown in its place when the visitor withdraws consent, the preferences
@@ -236,17 +261,12 @@ export function consentMarkup(input, { legalPage = false } = {}) {
       '</dialog>',
     ].join(''));
     // The confirmation of an objection: a plain appeal, and to confirm and
-    // to cancel alike. The appeal is one of two: the one to a visitor
-    // counted without storage, and the one to a visitor who allows
-    // statistics, whose cookie recognises the browser between visits and
-    // whom the objection takes it from too. The client shows the one that
-    // fits as it opens the confirmation.
+    // to cancel alike.
     if (view.objection) {
       parts.push([
         '<dialog class="konzilo-consent-confirmation" id="konzilo-consent-objection" aria-labelledby="konzilo-consent-objection-title" aria-describedby="konzilo-consent-objection-appeal">',
-        `<h2 class="konzilo-consent-title" id="konzilo-consent-objection-title">${escape(view.objection.object)}</h2>`,
-        `<p class="konzilo-consent-text" id="konzilo-consent-objection-appeal" data-konzilo-consent-appeal="without-statistics">${escape(view.objection.appeal)}</p>`,
-        `<p class="konzilo-consent-text" id="konzilo-consent-objection-appeal-allowed" data-konzilo-consent-appeal="with-statistics" hidden>${escape(view.objection.appealAllowed)}</p>`,
+        `<h2 class="konzilo-consent-title" id="konzilo-consent-objection-title">${escape(view.objection.title)}</h2>`,
+        `<p class="konzilo-consent-text" id="konzilo-consent-objection-appeal">${escape(view.objection.appeal)}</p>`,
         '<div class="konzilo-consent-buttons">',
         choice('object', view.objection.confirm),
         choice('cancel', view.objection.cancel),
@@ -271,8 +291,8 @@ export function consentMarkup(input, { legalPage = false } = {}) {
 // A category of the dialog: its row with its name, its count and its
 // switch, its description, and its services, each with its facts and its
 // own switch, or the words that it is always on; then, in the statistics
-// category where the registry offers it, `objection`, the explanation of
-// the right to object with the link that objects.
+// category where the registry offers it, `objection`, the right to object
+// (objectionMarkup()).
 function categoryMarkup(category, labels, host, objection) {
   const id = `konzilo-consent-category-${category.id}`;
   const [before, after] = labels.on.split('{domain}');
@@ -308,7 +328,7 @@ function categoryMarkup(category, labels, host, objection) {
     '</div>',
     `<p class="konzilo-consent-description">${escape(category.description)}</p>`,
     `<details class="konzilo-consent-services"><summary>${escape(labels.details)}</summary><ul>${services.join('')}</ul>`,
-    objection ? `<p class="konzilo-consent-objection">${escape(objection.text)} ${objectionLink(objection, true)}</p>` : '',
+    objection ? objectionMarkup(objection, labels.objectionLinks) : '',
     '</details>',
     '</section>',
   ].join('');
@@ -320,10 +340,10 @@ function categoryMarkup(category, labels, host, objection) {
 // the registry asks for consent. `links: false` leaves the links out, for a
 // footer that links the legal pages itself, and `buttons: false` the
 // buttons, so that each can stand in a place of its own. `objection: true`
-// adds the link that objects to counting without storage, or takes the
-// objection back, hidden until the client shows it, where the registry
-// offers the right to object, for a page such as the privacy policy to
-// place where it explains it. An empty string where nothing is left.
+// adds the right to object to counting without storage, as the dialog has
+// it, hidden until the client shows it, where the registry offers it, for
+// a page such as the privacy policy to place. An empty string where
+// nothing is left.
 export function consentControlsMarkup(input, { links = true, buttons = true, objection = false } = {}) {
   const view = consentView(input);
   const policies = links ? view.policies : [];
@@ -334,7 +354,7 @@ export function consentControlsMarkup(input, { links = true, buttons = true, obj
     '<div class="konzilo-consent-controls">',
     policies.length > 0 ? policyList(policies) : '',
     withButtons ? `<div class="konzilo-consent-buttons">${secondary('change', view.texts.footer.change, true)}${secondary('withdraw', view.texts.footer.withdraw, true)}</div>` : '',
-    withObjection ? objectionLink(view.objection, true) : '',
+    withObjection ? objectionMarkup(view.objection, view.labels.objectionLinks) : '',
     '</div>',
   ].join('');
 }
@@ -400,8 +420,8 @@ export function declarationView({ registry, texts = registry.texts, legalPages =
 // The cookie declaration, for the page that is the cookie policy, after
 // its body: the visitor's own consent first, which the client fills in
 // (client.js, cookieDeclaration()), in the declaration's locale, with
-// Change privacy settings and Withdraw consent beside it, and the link that
-// objects to counting without storage where the registry offers it; then
+// Change privacy settings and Withdraw consent beside it, and the right to
+// object to counting without storage where the registry offers it; then
 // each category of the registry with its services and all their facts,
 // after the day it last changed; and each departure with its reason.
 //
@@ -432,7 +452,7 @@ export function cookieDeclarationMarkup(input, { level = 2, records = null } = {
         '</ul></dd>',
         '</dl>',
         `<div class="konzilo-consent-buttons">${secondary('change', view.footer.change, true)}${secondary('withdraw', view.footer.withdraw, true)}</div>`,
-        view.objection ? objectionLink(view.objection, true) : '',
+        view.objection ? objectionMarkup(view.objection, domainWords.objectionLinks) : '',
       ].join('')
     : `<p>${escape(words.asksNone)}</p>`;
   const services = view.categories.map((one) => [

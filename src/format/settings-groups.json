@@ -482,13 +482,25 @@
         "type": "string",
         "control": "textarea",
         "translated": true,
+        "help": "The words in square brackets are the link that objects, such as [object]; without brackets the link follows the text.",
         "default": {
-          "en": "The counting without storage rests on the site's legitimate interest, and you may object to it at any time.",
-          "sv": "Räkningen utan lagring bygger på webbplatsens berättigade intresse, och du kan när som helst invända mot den."
+          "en": "We can't see who you are, we don't follow you from one visit to the next, and we don't profile you. All we do is count the visits: how many there are, which pages are read and for how long, from which country, in which language and with which browser, and when in the day. We do so on our legitimate interest in knowing this. If you disagree, you have the right to [object].",
+          "sv": "Vi kan inte se vem du är, vi följer dig inte mellan besök och vi gör ingen profilering. Det enda vi gör är att räkna besöken: hur många de är, vilka sidor som läses och hur länge, från vilket land, med vilket språk och vilken webbläsare, och när på dygnet. Det gör vi med stöd av vårt berättigade intresse av att veta det. Håller du inte med har du rätt att [invända]."
         }
       },
-      "objectionObject": {
-        "label": "Right to object: link that objects",
+      "objectionObjected": {
+        "label": "Right to object: once the visitor objects",
+        "type": "string",
+        "control": "textarea",
+        "translated": true,
+        "help": "Shown once the visitor objects. The words in square brackets are the link that takes the objection back; without brackets the link follows the text.",
+        "default": {
+          "en": "You have objected to the counting, so your visits are not counted. [Undo your objection]",
+          "sv": "Du har invänt mot räkningen, så dina besök räknas inte. [Ångra din invändning]"
+        }
+      },
+      "objectionTitle": {
+        "label": "Right to object: confirmation's title",
         "type": "string",
         "control": "text",
         "translated": true,
@@ -497,34 +509,14 @@
           "sv": "Räkna inte mina besök"
         }
       },
-      "objectionResume": {
-        "label": "Right to object: link that takes the objection back",
-        "type": "string",
-        "control": "text",
-        "translated": true,
-        "default": {
-          "en": "Count my visits again",
-          "sv": "Räkna mina besök igen"
-        }
-      },
       "objectionAppeal": {
-        "label": "Right to object: confirmation where statistics are not allowed",
+        "label": "Right to object: confirmation",
         "type": "string",
         "control": "textarea",
         "translated": true,
         "default": {
           "en": "Do you really want us to stop counting your visits? We can't see who you are, and we don't follow you from one visit to the next. The figures help us understand what is valuable on the site and what we need to do better.",
           "sv": "Vill du verkligen att vi slutar räkna dina besök? Vi ser inte vem du är och följer dig inte mellan besök. Siffrorna hjälper oss att förstå vad som är värdefullt på webbplatsen och vad vi behöver göra bättre."
-        }
-      },
-      "objectionAppealAllowed": {
-        "label": "Right to object: confirmation where statistics are allowed",
-        "type": "string",
-        "control": "textarea",
-        "translated": true,
-        "default": {
-          "en": "Do you really want us to stop counting your visits? You have allowed statistics, so for now we recognise your browser from one visit to the next. If you object, we turn that off and stop counting your visits altogether. The figures help us understand what is valuable on the site and what we need to do better.",
-          "sv": "Vill du verkligen att vi slutar räkna dina besök? Du har tillåtit statistik, så i dag känner vi igen din webbläsare mellan besök. Invänder du stänger vi av det och slutar räkna dina besök helt. Siffrorna hjälper oss att förstå vad som är värdefullt på webbplatsen och vad vi behöver göra bättre."
         }
       },
       "objectionConfirm": {
@@ -613,8 +605,8 @@
         "control": "textarea",
         "translated": true,
         "default": {
-          "en": "Measuring how visitors use the site, so that it can be made better. Each visit is counted from the first page, without storing or reading anything in your browser. With your consent, the statistics also store an ID in your browser, so that a visitor who comes back is counted once.",
-          "sv": "Mätning av hur besökare använder webbplatsen, så att den kan bli bättre. Varje besök räknas från första sidan, utan att något lagras i eller läses från din webbläsare. Med ditt samtycke lagrar statistiken också ett ID i din webbläsare, så att en besökare som kommer tillbaka räknas en gång."
+          "en": "Measuring how visitors use the site, so that it can be made better. Each visit is counted from the first page, without storing anything in your browser or reading your device's properties. With your consent, the statistics also store an ID in your browser, so that a visitor who comes back is counted once.",
+          "sv": "Mätning av hur besökare använder webbplatsen, så att den kan bli bättre. Varje besök räknas från första sidan, utan att något lagras i din webbläsare och utan att din enhets egenskaper läses av. Med ditt samtycke lagrar statistiken också ett ID i din webbläsare, så att en besökare som kommer tillbaka räknas en gång."
         }
       },
       "marketingName": {

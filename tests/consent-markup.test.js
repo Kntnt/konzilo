@@ -185,7 +185,7 @@ describe('where the markup names each stored item\'s domain', () => {
 
 test('the declaration says in plain words that the statistics count without storage before consent, and what Global Privacy Control and Do Not Track do', () => {
   const counting = (privacySignals, language = 'en-GB') => declarationView({ ...input, registry: { ...registry, departures: [{ departure: 'statisticsWithoutStorageBeforeConsent', reason: 'Every visit counts.', privacySignals }] }, language }).departures;
-  assert.deepEqual(counting('stop'), [{ text: 'The site\'s statistics count each visit from the first page you see, before you make a choice, without storing anything in your browser or reading anything from it, your device\'s properties included. They store in your browser only once you allow statistics. A browser that sends Global Privacy Control or Do Not Track is not counted at all.', reason: 'Every visit counts.' }]);
+  assert.deepEqual(counting('stop'), [{ text: 'The site\'s statistics count each visit from the first page you see, before you make a choice, without storing anything in your browser and without reading your device\'s properties. They store in your browser only once you allow statistics. A browser that sends Global Privacy Control or Do Not Track is not counted at all.', reason: 'Every visit counts.' }]);
   assert.match(counting('ignore')[0].text, /A browser that sends Global Privacy Control or Do Not Track is counted too, without storage until you allow statistics\.$/);
   assert.match(counting('stop', 'sv-SE')[0].text, /^Webbplatsens statistik räknar varje besök .* räknas inte alls\.$/);
 });
@@ -194,20 +194,36 @@ describe('where the statistics count visits without storage before consent', () 
   const counting = { ...registry, departures: [{ departure: 'statisticsWithoutStorageBeforeConsent', reason: 'Every visit counts.', privacySignals: 'ignore' }] };
   const offered = { ...input, registry: counting };
 
-  test('the dialog\'s statistics offer the right to object, with the core\'s texts where the page\'s give none, and the registry the client reads names the link\'s words', () => {
+  test('the dialog\'s statistics offer the right to object in two paragraphs, each with its link where its text has words in brackets, with the core\'s texts where the page\'s give none', () => {
     const page = parse(consentMarkup(offered));
-    const objection = page.querySelector('#konzilo-consent-category-statistics').closest('.konzilo-consent-category').querySelector('details > .konzilo-consent-objection');
-    assert.equal(text(objection), 'The counting without storage rests on the site\'s legitimate interest, and you may object to it at any time. Don\'t count my visits');
-    assert.deepEqual(JSON.parse(page.querySelector('[data-konzilo-consent]').dataset.konziloConsent).objection, { object: 'Don\'t count my visits', resume: 'Count my visits again' });
+    const place = page.querySelector('#konzilo-consent-category-statistics').closest('.konzilo-consent-category').querySelector('details > .konzilo-consent-objection');
+    const [explanation, objected] = place.querySelectorAll('p');
+    assert.match(text(explanation), /^We can't see who you are, .* and when in the day\. .* If you disagree, you have the right to object\.$/);
+    assert.equal(explanation.innerHTML.endsWith('the right to <a href="#konzilo-consent-objection" class="konzilo-consent-objection-link" data-konzilo-consent-action="objection">object</a>.'), true);
+    assert.equal(objected.innerHTML, 'You have objected to the counting, so your visits are not counted. <a href="#konzilo-consent-objection" class="konzilo-consent-objection-link" data-konzilo-consent-action="resume">Undo your objection</a>');
+    assert.equal(JSON.parse(page.querySelector('[data-konzilo-consent]').dataset.konziloConsent).objection, true);
     assert.ok(page.querySelector('dialog.konzilo-consent-confirmation#konzilo-consent-objection'));
-    const own = parse(consentMarkup({ ...offered, texts: { ...registry.texts, objection: { object: 'Stop counting me' } } }));
+    assert.equal(page.querySelectorAll('#konzilo-consent-objection p').length, 1, 'one appeal');
+
+    const own = parse(consentMarkup({ ...offered, texts: { ...registry.texts, objection: { title: 'Stop counting me', text: 'We count <b>visits</b>; [say no] [twice] if you like.' } } }));
     assert.equal(text(own.querySelector('#konzilo-consent-objection-title')), 'Stop counting me');
     assert.equal(text(own.querySelector('#konzilo-consent-objection [data-konzilo-consent-action="cancel"]')), 'Cancel');
+    const ownText = own.querySelector('.konzilo-consent-objection-text');
+    assert.equal(ownText.innerHTML, 'We count &lt;b&gt;visits&lt;/b&gt;; <a href="#konzilo-consent-objection" class="konzilo-consent-objection-link" data-konzilo-consent-action="objection">say no</a> [twice] if you like.', 'the first words in brackets are the link, the rest is text');
+
+    const unmarked = parse(consentMarkup({ ...offered, texts: { ...registry.texts, objection: { text: 'You may object to the counting.', objected: 'You have objected.' } } }));
+    assert.deepEqual([...unmarked.querySelectorAll('.konzilo-consent-objection p')].map((paragraph) => [text(paragraph), text(paragraph.querySelector('a'))]), [
+      ['You may object to the counting. Object', 'Object'],
+      ['You have objected. Undo your objection', 'Undo your objection'],
+    ], 'a text without brackets has the link after it');
+
     const swedish = parse(consentMarkup({ ...offered, language: 'sv-SE' }));
+    const [svExplanation, svObjected] = swedish.querySelectorAll('.konzilo-consent-objection p');
+    assert.equal(text(svExplanation), 'Vi kan inte se vem du är, vi följer dig inte mellan besök och vi gör ingen profilering. Det enda vi gör är att räkna besöken: hur många de är, vilka sidor som läses och hur länge, från vilket land, med vilket språk och vilken webbläsare, och när på dygnet. Det gör vi med stöd av vårt berättigade intresse av att veta det. Håller du inte med har du rätt att invända.');
+    assert.equal(text(svExplanation.querySelector('a')), 'invända');
+    assert.deepEqual([text(svObjected), text(svObjected.querySelector('a'))], ['Du har invänt mot räkningen, så dina besök räknas inte. Ångra din invändning', 'Ångra din invändning']);
     assert.equal(text(swedish.querySelector('#konzilo-consent-objection-appeal')), 'Vill du verkligen att vi slutar räkna dina besök? Vi ser inte vem du är och följer dig inte mellan besök. Siffrorna hjälper oss att förstå vad som är värdefullt på webbplatsen och vad vi behöver göra bättre.');
     assert.deepEqual([...swedish.querySelectorAll('#konzilo-consent-objection button')].map(text), ['Räkna inte mina besök', 'Avbryt']);
-    assert.equal(text(swedish.querySelector('#konzilo-consent-objection-appeal-allowed')), 'Vill du verkligen att vi slutar räkna dina besök? Du har tillåtit statistik, så i dag känner vi igen din webbläsare mellan besök. Invänder du stänger vi av det och slutar räkna dina besök helt. Siffrorna hjälper oss att förstå vad som är värdefullt på webbplatsen och vad vi behöver göra bättre.');
-    assert.equal(swedish.querySelector('#konzilo-consent-objection-appeal-allowed').hidden, true);
   });
 
   test('without the departure, or without a statistics category, nothing offers it', () => {
@@ -219,13 +235,14 @@ describe('where the statistics count visits without storage before consent', () 
     assert.equal(consentControlsMarkup({ ...input, registry: uncounted }, { links: false, buttons: false, objection: true }), '');
   });
 
-  test('the controls give the link where asked, hidden until the client shows it, and so does the declaration beside its buttons', () => {
+  test('the controls give the right to object where asked, hidden until the client shows it, and so does the declaration beside its buttons', () => {
     const controls = parse(consentControlsMarkup(offered, { links: false, buttons: false, objection: true }));
-    assert.deepEqual([...controls.querySelectorAll('.konzilo-consent-controls > *')].map((element) => [element.tagName, element.className, element.dataset.konziloConsentAction, element.hidden]), [['A', 'konzilo-consent-objection-link', 'objection', true]]);
-    assert.equal(parse(consentControlsMarkup(offered)).querySelector('.konzilo-consent-objection-link'), null, 'not by default');
+    assert.deepEqual([...controls.querySelectorAll('.konzilo-consent-controls > *')].map((element) => [element.tagName, element.className, element.hidden]), [['DIV', 'konzilo-consent-objection', true]]);
+    assert.equal(controls.querySelectorAll('.konzilo-consent-objection p').length, 2);
+    assert.equal(parse(consentControlsMarkup(offered)).querySelector('.konzilo-consent-objection'), null, 'not by default');
     const declaration = parse(cookieDeclarationMarkup(offered));
-    const link = declaration.querySelector('.konzilo-declaration-consent > .konzilo-consent-buttons + .konzilo-consent-objection-link');
-    assert.deepEqual([link.getAttribute('href'), link.hidden], ['#konzilo-consent-objection', true]);
+    const place = declaration.querySelector('.konzilo-declaration-consent > .konzilo-consent-buttons + .konzilo-consent-objection');
+    assert.equal(place.hidden, true);
   });
 
   test('the core\'s defaults of its texts are the consent texts\' own defaults', () => {
@@ -236,20 +253,26 @@ describe('where the statistics count visits without storage before consent', () 
     }
   });
 
-  test('a page of the markup alone shows the link, and the objection is kept in the origin\'s storage, beside a choice made before or after', () => {
+  test('a page of the markup alone shows the right to object, keeps the objection in the origin\'s storage beside a choice, and follows the choice', () => {
     const html = `<!doctype html><html lang="en-GB"><body>${consentMarkup(offered)}<main>${consentControlsMarkup(offered, { links: false, buttons: false, objection: true })}</main></body></html>`;
     const { window } = new JSDOM(html, { url: 'https://www.example.com/privacy/', runScripts: 'outside-only' });
     window.eval(`(${consentClient})({});`);
     for (const dialog of window.document.querySelectorAll('dialog')) Object.assign(dialog, { showModal() { this.open = true; }, close() { this.open = false; } });
-    const link = window.document.querySelector('main .konzilo-consent-objection-link');
-    assert.deepEqual([link.hidden, text(link)], [false, 'Don\'t count my visits']);
+    const place = window.document.querySelector('main .konzilo-consent-objection');
+    assert.equal(place.hidden, false);
     window.document.querySelector('.konzilo-consent-banner [data-konzilo-consent-action="reject"]').click();
-    link.click();
+    place.querySelector('a[data-konzilo-consent-action="objection"]').click();
     window.document.querySelector('[data-konzilo-consent-action="object"]').click();
     const kept = JSON.parse(window.localStorage.getItem('konzilo-consent'));
     assert.deepEqual(Object.keys(kept).sort(), ['categories', 'objection', 'revision', 'services', 'time']);
     assert.equal(window.konziloConsent.choice().objection, undefined, 'the choice is the choice alone');
-    assert.deepEqual([...window.document.querySelectorAll('.konzilo-consent-objection-link')].map(text), ['Count my visits again', 'Count my visits again']);
+    for (const each of window.document.querySelectorAll('.konzilo-consent-objection')) {
+      assert.equal(each.querySelector('a[data-konzilo-consent-action="objection"]').hasAttribute('href'), false);
+      assert.equal(each.querySelector('.konzilo-consent-objection-objected').hidden, false);
+    }
+    window.konziloConsent.allow('counter');
+    assert.equal(window.konziloConsent.objected(), false, 'allowing statistics ends it');
+    assert.deepEqual([...window.document.querySelectorAll('.konzilo-consent-objection')].map((each) => each.hidden), [true, true], 'and nothing of it shows while they are allowed');
   });
 });
 

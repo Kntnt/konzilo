@@ -170,11 +170,10 @@
       "button": "Allow and play"
     },
     "objection": {
-      "text": "The counting without storage rests on the site's legitimate interest, and you may object to it at any time.",
-      "object": "Don't count my visits",
-      "resume": "Count my visits again",
+      "text": "We can't see who you are, we don't follow you from one visit to the next, and we don't profile you. All we do is count the visits: how many there are, which pages are read and for how long, from which country, in which language and with which browser, and when in the day. We do so on our legitimate interest in knowing this. If you disagree, you have the right to [object].",
+      "objected": "You have objected to the counting, so your visits are not counted. [Undo your objection]",
+      "title": "Don't count my visits",
       "appeal": "Do you really want us to stop counting your visits? We can't see who you are, and we don't follow you from one visit to the next. The figures help us understand what is valuable on the site and what we need to do better.",
-      "appealAllowed": "Do you really want us to stop counting your visits? You have allowed statistics, so for now we recognise your browser from one visit to the next. If you object, we turn that off and stop counting your visits altogether. The figures help us understand what is valuable on the site and what we need to do better.",
       "confirm": "Don't count my visits",
       "cancel": "Cancel"
     }
