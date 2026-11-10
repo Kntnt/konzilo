@@ -714,9 +714,12 @@ describe('a site in Compose', () => {
   });
 
   describe('in Swedish', () => {
-    test('speaks the browser\'s language, on files it holds itself', async () => {
+    test('speaks the site\'s interface language in a browser in another, and the editor\'s own once chosen, on files it holds itself', async () => {
       const session = await openEditor('chromium', site, { locale: 'sv-SE' });
       try {
+        await session.page.getByRole('button', { name: /Sign In with/ }).waitFor();
+        await session.page.evaluate(() => localStorage.setItem('sveltia-cms.prefs', JSON.stringify({ locale: 'sv' })));
+        await session.page.reload();
         await session.page.getByRole('button', { name: /Logga in med/ }).waitFor();
         assert.deepEqual(session.seen.outside, []);
       } finally {

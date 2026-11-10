@@ -94,3 +94,77 @@ describe('the form in Sveltia', () => {
     assert.deepEqual(seen.errors, []);
   });
 });
+
+describe('the interface language in Sveltia', () => {
+  let site;
+  let page;
+  let seen;
+
+  const origin = () => new URL(page.url()).origin;
+  const newArticle = async () => {
+    await page.goto(`${origin()}/#/collections/articles/new`);
+    await page.locator('.konzilo-body-visual .ProseMirror').waitFor();
+  };
+  // Sveltia's own choice of language, in its preferences, from the list of articles.
+  const choose = async (words, option) => {
+    await page.goto(`${origin()}/#/collections/articles`);
+    await page.getByRole('button', { name: words.menu }).click();
+    await page.getByRole('menuitem', { name: words.settings }).click();
+    await page.getByRole('tab', { name: words.language }).click();
+    await page.getByRole('combobox', { name: words.select }).click();
+    const loaded = page.waitForEvent('load');
+    await page.getByRole('option', { name: option }).click();
+    await loaded;
+  };
+
+  // A Swedish site, whose articles are named in each interface language, opened in a
+  // browser in American English, which decides nothing.
+  before(async () => {
+    const declared = JSON.parse(readFileSync(`${core}site-template/files/site-description.json`, 'utf8'));
+    declared.language = 'sv_SE';
+    declared.types.article.plural = { en: 'Articles', sv: 'Artiklar' };
+    const description = siteDescription(declared);
+    const made = (language) => ({
+      ...cmsConfig(description, { forgejo: 'http://localhost:1', repository: 'a/b', clientId: 'c', site: 'http://localhost:2', language }),
+      backend: { name: 'test-repo' },
+    });
+    site = await openFieldPage({ configs: { 'config.json': made(), 'config.sv.json': made('sv'), 'config.en.json': made('en') } });
+    ({ page, seen } = await site.newPage({ language: 'en-US', viewport: { width: 1400, height: 1200 } }));
+  }, { timeout: 120_000 });
+
+  after(() => site?.close());
+
+  test('is the site\'s for an editor who has chosen none, in the form\'s labels and in Sveltia\'s own interface alike', async () => {
+    await page.getByRole('button', { name: 'Arbeta med test-repo' }).click();
+    await page.getByText('Artiklar', { exact: true }).first().waitFor();
+    await newArticle();
+    await page.getByRole('textbox', { name: 'Titel', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Spara', exact: true }).waitFor();
+    assert.equal(await page.getByRole('textbox', { name: 'Title', exact: true }).count(), 0);
+  });
+
+  test('is the editor\'s own once chosen in Sveltia\'s preferences, which loads the editor again in it', async () => {
+    await choose({ menu: 'Visa användarkontomeny', settings: 'Inställningar', language: 'Språk', select: 'Välj språk' }, /English \(UK\)/);
+    await page.getByText('Articles', { exact: true }).first().waitFor();
+    await newArticle();
+    await page.getByRole('textbox', { name: 'Title', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Save', exact: true }).waitFor();
+    assert.equal(await page.getByRole('textbox', { name: 'Titel', exact: true }).count(), 0);
+  });
+
+  test('stays the editor\'s at the next visit, and Automatic gives the site\'s again', async () => {
+    await page.reload();
+    await newArticle();
+    await page.getByRole('textbox', { name: 'Title', exact: true }).waitFor();
+    await choose({ menu: 'Show Account Menu', settings: 'Settings', language: 'Language', select: 'Select Language' }, 'Automatic');
+    await newArticle();
+    await page.getByRole('textbox', { name: 'Titel', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Spara', exact: true }).waitFor();
+  });
+
+  test('has asked nothing outside, and broken no policy', () => {
+    assert.deepEqual(seen.outside, []);
+    assert.deepEqual(seen.refused, []);
+    assert.deepEqual(seen.errors, []);
+  });
+});

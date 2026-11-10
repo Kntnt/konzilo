@@ -21,7 +21,7 @@ const adminPolicy = () => {
   return /Content-Security-Policy "([^"]+)"/.exec(caddyfile)[1].replaceAll('{$KONZILO_FORGEJO_ORIGIN}', 'http://localhost:1').replaceAll('{$KONZILO_PREVIEW_ORIGIN}', 'http://localhost:3');
 };
 
-async function serve(folder, config) {
+async function serve(folder, configs) {
   const policy = adminPolicy();
   const read = (path) => {
     try {
@@ -32,9 +32,9 @@ async function serve(folder, config) {
   };
   const server = createServer((request, response) => {
     const asked = normalize(new URL(request.url, 'http://x').pathname);
-    const found = asked === '/config.json' && config
-      ? { path: asked, body: JSON.stringify(config) }
-      : read(asked === '/' ? '/index.html' : asked) ?? (config ? read('/index.html') : null);
+    const found = configs && Object.hasOwn(configs, asked.slice(1))
+      ? { path: asked, body: JSON.stringify(configs[asked.slice(1)]) }
+      : read(asked === '/' ? '/index.html' : asked) ?? (configs ? read('/index.html') : null);
     if (found === null) {
       response.writeHead(404).end();
       return;
@@ -48,11 +48,12 @@ async function serve(folder, config) {
   return server;
 }
 
-// A browser on a built page. `config` makes it the editor itself, with that configuration.
-export async function openFieldPage({ locale = 'en-GB', engine = chromium, config } = {}) {
+// A browser on a built page. `config` makes it the editor itself, with that configuration,
+// and `configs` with those, by file, as config.json and config.<language>.json.
+export async function openFieldPage({ locale = 'en-GB', engine = chromium, config, configs = config ? { 'config.json': config } : null } = {}) {
   const folder = realpathSync(mkdtempSync(join(tmpdir(), 'konzilo-field-page-')));
-  await buildEditor(folder, config ? {} : { input: pageFile });
-  const server = await serve(folder, config);
+  await buildEditor(folder, configs ? {} : { input: pageFile });
+  const server = await serve(folder, configs);
   const origin = `http://127.0.0.1:${server.address().port}`;
   const browser = await engine.launch();
 
@@ -75,7 +76,7 @@ export async function openFieldPage({ locale = 'en-GB', engine = chromium, confi
     });
     page.on('pageerror', (error) => seen.errors.push(error.message));
     await page.goto(`${origin}/`);
-    if (!config) await page.waitForFunction(() => globalThis.fieldPage !== undefined);
+    if (!configs) await page.waitForFunction(() => globalThis.fieldPage !== undefined);
     return { page, seen, context };
   };
 

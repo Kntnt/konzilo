@@ -32,7 +32,10 @@
 		Referrer-Policy "no-referrer"
 		X-Content-Type-Options "nosniff"
 	}
-	handle /config.json {
+	# The generated configuration, in the site's interface language and in each other
+	# (ADR 0066).
+	@config path /config.json /config.*.json
+	handle @config {
 		root * /srv/admin-config
 		header Cache-Control "no-store"
 		file_server
