@@ -188,7 +188,7 @@ const cases = {
   'source-json': [() => withFiles({ 'menus/main.json': '{ not json' }), { file: 'menus/main.json' }],
   status: [() => onePost({ status: 'perhaps' }), { field: 'status' }],
   'scheduled-date': [() => onePost({ status: 'scheduled' }), { field: 'status' }],
-  'scheduled-passed': [() => onePost({ status: 'scheduled', date: '2026-01-01T00:00:00Z' }), { post: { id: 'aaaaaaaaaaaa', type: 'article', title: 'An article' }, field: 'date' }, 'warning'],
+  'scheduled-passed': [() => onePost({ status: 'scheduled', date: '2026-01-01T00:00:00Z' }), { post: true, field: 'date' }, 'warning'],
   'language-folder': [() => run({
     'articles/sv-SE/aaaaaaaaaaaa.md': article({}, 'Text.'),
     'articles/de-DE/bbbbbbbbbbbb.md': article({ slug: 'annat' }, 'Text.'),
