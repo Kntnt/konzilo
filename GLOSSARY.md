@@ -102,7 +102,7 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Warning**: The intake's word about a post it publishes otherwise than it holds, such as a link shown as text while its target has no page. _Avoid_: refusal, error.
 
-**Ledger**: `.post-ids.json` in the content repository, which only the intake writes: per ID the paths a post has had, the addresses it had while live, the source file's hash and its times. _Avoid_: index, mapping.
+**Ledger**: `.post-ids.json` in the content repository, which only the intake writes: per ID the paths a post has had, the addresses it had while live, the source file's hash and its times; and the moment each scheduled post was seen waiting for. _Avoid_: index, mapping.
 
 **Content files**: The Markdown and JSON files the intake writes; the published state of a site. A file means *published*. _Avoid_: export, dump.
 
