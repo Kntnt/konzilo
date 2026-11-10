@@ -14,7 +14,7 @@ import { registerImageField } from './image/register.js';
 import { registerParts } from './parts/register.js';
 import { registerStructureField } from './structure/register.js';
 import { registerPublishing } from './publishing/register.js';
-import { chosenLanguage, followSite, languageChanged } from './interface-language.js';
+import { chosenLanguage, followSite, languageChanged, loadedWith } from './interface-language.js';
 import './form.css';
 // The preview's window hides its pane by these; template.js, which shows it, is read by tests too.
 import './preview-window/window.css';
@@ -24,13 +24,15 @@ import { say } from './body/texts.js';
 globalThis.__KONZILO_VIEW_WORDS__ = { beside: say('viewBeside'), window: say('viewWindow'), toggle: say('viewToggle'), off: say('viewOff') };
 
 // The configuration in the language the editor has chosen, else in the site's, which an
-// editor who has chosen none then takes in Sveltia's own interface too.
+// editor who has chosen none then takes in Sveltia's own interface too
+// (interface-language.js).
 const chosen = chosenLanguage();
 const answer = await fetch(chosen === null ? './config.json' : `./config.${chosen}.json`, { cache: 'no-store' });
 if (!answer.ok) throw new Error(`no configuration: ${answer.status}`);
 // What is Konzilo's own stays out of what Sveltia is given.
 const { konzilo, ...config } = await answer.json();
 if (chosen === null) followSite(konzilo.language);
+const loaded = loadedWith(chosen);
 const { default: CMS } = await import('@sveltia/cms');
 useComponents(konzilo.components);
 registerBodyField(CMS, config);
@@ -45,6 +47,6 @@ CMS.init({ config });
 // on the page; the editor loads again for its own texts to follow, once Sveltia has kept it.
 new MutationObserver(() => {
   setTimeout(() => {
-    if (languageChanged(chosen)) window.location.reload();
+    if (languageChanged(loaded)) window.location.reload();
   });
 }).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] });

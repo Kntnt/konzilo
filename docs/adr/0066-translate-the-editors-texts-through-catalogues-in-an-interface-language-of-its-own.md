@@ -37,4 +37,4 @@ Sveltia 0.256.1:
 ## Consequences
 
 - The web image copies `src/catalogues.js` and `src/catalogues/`, which the editor imports.
-- The texts left in the two-language tables, the body field's, the preview's and the publish status's, the settings groups', and those visitors read, move to the catalogues; refusals and warnings, in British English alone so far, come to carry a name and values that the editor renders in the interface language. This record says when the tables are gone.
+- The rest of the core's texts move to the catalogues: the body field's, the preview's, the publish status's and what visitors read, from the two-language tables, and the settings groups', in English alone so far. Refusals and warnings, in British English alone so far, come to carry a name and values, which the editor renders in the interface language. This record says when the tables are gone.
