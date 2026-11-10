@@ -82,6 +82,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { PLACE_MESSAGE, SHOW_MESSAGE, STOPPED_MESSAGE } from '../cms/preview/paths.js';
 import { searchPages } from '../format/addresses.js';
 import { declaredProblem, readPostList } from '../format/post-list.js';
+import { british } from '../refusals.js';
 import { CONSENT_STORAGE } from '../format/consent.js';
 import { keyOf } from '../format/redirects.js';
 import rules from '../format/rules.json' with { type: 'json' };
@@ -474,7 +475,7 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
         }
         const lists = described ? postListModel(described) : null;
         const leaveOut = lists ? declaredChecks(declaredNames(described), known) : {};
-        const checks = lists ? { [LIST.name]: (values) => readPostList(values, lists, { attributes: LIST.attributes }).problems } : {};
+        const checks = lists ? { [LIST.name]: (values) => readPostList(values, lists, { attributes: LIST.attributes }).problems.map(british) } : {};
         Object.assign(processor.options.features, markdownFeatures);
         processor.options.mdastPlugins.push(...markdownMdastPlugins({ checks, leaveOut, known, warn: (message) => logger.warn(message) }));
         // An embed's panel says in the site's language, its post's on a site

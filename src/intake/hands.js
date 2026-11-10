@@ -3,7 +3,7 @@
 
 import { bodyHands, slugOf } from './post-file.js';
 import { linkTarget } from './resolve.js';
-import { british, say } from './words.js';
+import { say } from './words.js';
 
 const hashDigits = (hash) => hash.slice(0, 10);
 
@@ -16,18 +16,18 @@ export const climb = (path) => '../'.repeat(fileFolders(path));
 // A master for an image a post names: { src, warning }, or { reason }.
 export function masterFor(run, address, stem, from, { icon = false } = {}) {
   const name = mediaName(address);
-  if (name === null) return { reason: say('image-outside', { address: String(address) }) };
+  if (name === null) return { reason: say('refusal.image-outside', { address: String(address) }) };
   const facts = run.images(`media/${name}`);
-  if (!facts) return { reason: say('image-gone', { name }) };
+  if (!facts) return { reason: say('refusal.image-gone', { name }) };
   if (facts.reason) return { reason: facts.reason };
   const { images: widths } = run.site;
   if (icon) {
-    if (facts.width !== facts.height) return { reason: say('icon-square') };
-    if (!facts.svg && facts.width < 512) return { reason: say('icon-small', { width: facts.width }) };
+    if (facts.width !== facts.height) return { reason: say('refusal.icon-square') };
+    if (!facts.svg && facts.width < 512) return { reason: say('refusal.icon-small', { width: facts.width }) };
   } else if (!facts.svg && widths) {
-    if (widths.smallestWidth !== null && facts.width < widths.smallestWidth) return { reason: say('image-small', { width: facts.width, smallest: widths.smallestWidth }) };
+    if (widths.smallestWidth !== null && facts.width < widths.smallestWidth) return { reason: say('refusal.image-small', { width: facts.width, smallest: widths.smallestWidth }) };
   }
-  const warning = !icon && !facts.svg && widths?.displayWidth && facts.width < widths.displayWidth ? say('image-narrow', { name, width: facts.width, display: widths.displayWidth }) : undefined;
+  const warning = !icon && !facts.svg && widths?.displayWidth && facts.width < widths.displayWidth ? say('warning.image-narrow', { name, width: facts.width, display: widths.displayWidth }) : undefined;
   const master = `${stem}-${hashDigits(facts.hash)}.${facts.extension}`;
   return { src: `${from}media/${master}`, warning, master, contents: facts.contents };
 }
@@ -63,13 +63,13 @@ export function contextFor(post, run, from) {
 
 function termField(field, value, post, run) {
   const given = value === undefined || value === null || value === '' ? [] : Array.isArray(value) ? value : [value];
-  if (given.length === 0 && field.required) return { reason: say('field-required', { field: field.name }) };
-  if (field.most !== null && new Set(given).size > field.most) return { reason: say('terms-most', { most: String(field.most), plural: british(field.taxonomy.plural).toLowerCase() }) };
+  if (given.length === 0 && field.required) return { reason: say('refusal.field-required', { field: field.name }) };
+  if (field.most !== null && new Set(given).size > field.most) return { reason: say('refusal.terms-most', { most: field.most, plural: { label: field.taxonomy.plural } }) };
   const slugs = [];
   const folder = run.several && post.tag ? `${post.tag}/` : '';
   for (const id of given) {
     const term = run.terms.get(`${field.taxonomy.collection}/${id}`);
-    if (!term) return { reason: say('term-gone', { id: String(id), plural: british(field.taxonomy.plural).toLowerCase() }) };
+    if (!term) return { reason: say('refusal.term-gone', { id: String(id), plural: { label: field.taxonomy.plural } }) };
     const [problem] = term.chain.flatMap((one) => one.problems);
     if (problem) return { reason: problem };
     for (const one of term.chain) post.termIds.add(one.key);
@@ -96,7 +96,7 @@ function listTermsOf(run) {
         const byId = run.terms.get(`${taxonomy.collection}/${given}`);
         const bySlug = [...run.terms.values()].find((term) => term.taxonomy === taxonomy && term.slug === given);
         if (byId || bySlug) slugs.push((byId ?? bySlug).slug);
-        else warnings.push(say('list-term-gone', { term: given, taxonomy: british(taxonomy.label).toLowerCase() }));
+        else warnings.push(say('warning.list-term-gone', { term: given, taxonomy: { label: taxonomy.label } }));
       }
       if (slugs.length > 0) groups.push(`${name}:${slugs.join(',')}`);
     }

@@ -1,14 +1,18 @@
-// Every refusal and warning the rule data has words for: each has a case, which names
+// Every refusal and warning the catalogues have words for: each has a case, which names
 // what it is about, the post and the block or the field, or the file with the entry or the
-// setting in it, and gives the reason in words an editor can act on. A key the rule data
-// gains needs its case here.
+// setting in it, and carries its reason by its name and values, which give the words an
+// editor can act on in each interface language, and British English for the command line.
+// A refusal or a warning the catalogues gain needs its case here.
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { CATALOGUES } from '../src/catalogues.js';
 import { checkBody } from '../src/format/body.js';
 import { embedOf } from '../src/format/embeds.js';
 import rules from '../src/format/rules.json' with { type: 'json' };
+import { messageIn, reasonIn } from '../src/refusals.js';
 import { reader } from '../src/intake/reader.js';
+import { named as refusalOf } from '../src/intake/words.js';
 import { namedImages, run, sourcePost } from './lib/intake.js';
 
 const site = Object.freeze({
@@ -30,6 +34,7 @@ const site = Object.freeze({
         image: {},
         seo: {},
         readingTime: { label: 'Reading time', type: 'integer', control: 'number' },
+        tone: { label: 'Tone', type: 'string', control: 'select', options: ['calm', 'loud'] },
       },
     },
     brief: {
@@ -48,7 +53,10 @@ const site = Object.freeze({
     category: { label: 'Category', plural: 'Categories', collection: 'categories', hierarchical: true, address: '/category/{path}/' },
     tag: { label: 'Tag', plural: 'Tags', collection: 'tags' },
   },
-  presentations: { list: { label: 'List', options: { date: { label: 'Date', type: 'boolean', control: 'toggle' } } } },
+  presentations: {
+    list: { label: 'List', options: { date: { label: 'Date', type: 'boolean', control: 'toggle' } } },
+    cards: { label: 'Cards', options: { size: { label: 'Size', type: 'string', control: 'select', options: ['small', 'large'] }, heading: { label: 'Heading', type: 'string', control: 'text', required: true } } },
+  },
   menus: { main: { label: 'Main menu' } },
   settings: {
     seats: { label: 'Seats', type: 'integer', control: 'number', required: true },
@@ -69,7 +77,8 @@ const table = (inner) => `<table>\n${inner}\n</table>`;
 function withReader(tree, source = 'x') {
   const hands = { reader: { tree }, rules, embedOf, elements: Object.keys(rules.elements), link: (id) => ({ href: `/${id}/` }), image: (address) => ({ src: address }) };
   const { problems, warnings } = checkBody(source, hands);
-  return { refusals: problems.map((one) => ({ block: { path: one.path, name: one.name }, reason: one.reason })), warnings };
+  const shaped = (one) => refusalOf({ file: 'pages/x.md', block: { path: one.path, name: one.name }, reason: one.reason });
+  return { refusals: problems.map(shaped), warnings: warnings.map(shaped) };
 }
 
 const inBlock = (name) => ({ block: name });
@@ -129,6 +138,34 @@ const cases = {
   'directive-attribute': [() => inArticle('::form{name="contact" colour="red"}'), inBlock('form')],
   'directive-required': [() => inArticle('::form'), inBlock('form')],
   'directive-value': [() => inArticle('::post-list{type="article" presentation="list" pages="perhaps"}'), inBlock('post-list')],
+  'list-direction': [() => inArticle('::post-list{type="article" presentation="list" direction="sideways"}'), inBlock('post-list')],
+  'list-offset': [() => inArticle('::post-list{type="article" presentation="list" offset="-1"}'), inBlock('post-list')],
+  'list-number': [() => inArticle('::post-list{type="article" presentation="list" number="101"}'), inBlock('post-list')],
+  'form-name': [() => inArticle('::form{name="order"}'), inBlock('form')],
+  'list-paged-twice': [() => inArticle('::post-list{type="article" pages="true" presentation="list"}\n\n::post-list{type="article" pages="true" presentation="list"}'), inBlock('post-list')],
+  'list-type': [() => inArticle('::post-list{type="nothing" presentation="list"}'), inBlock('post-list')],
+  'list-presentation': [() => inArticle('::post-list{type="article" presentation="slides"}'), inBlock('post-list')],
+  'list-option': [() => inArticle('::post-list{type="article" presentation="list" colour="red"}'), inBlock('post-list')],
+  'list-option-value': [() => inArticle('::post-list{type="article" presentation="list" date="perhaps"}'), inBlock('post-list')],
+  'list-option-choice': [() => inArticle('::post-list{type="article" presentation="cards" size="huge" heading="H"}'), inBlock('post-list')],
+  'list-option-required': [() => inArticle('::post-list{type="article" presentation="cards"}'), inBlock('post-list')],
+  'list-terms': [() => inArticle('::post-list{type="article" presentation="list" include="nonsense"}'), inBlock('post-list')],
+  'list-taxonomy': [() => inArticle('::post-list{type="article" presentation="list" include="colour:red"}'), inBlock('post-list')],
+  'list-taxonomy-twice': [() => withFiles({ 'articles/aaaaaaaaaaaa.md': article({}, '::post-list{type="article" presentation="list" include="category:tttttttttttt category:tttttttttttt"}'), 'categories/tttttttttttt.json': { name: 'News', slug: 'news' } }), inBlock('post-list')],
+  'list-where': [() => inArticle('::post-list{type="article" presentation="list" where="nonsense"}'), inBlock('post-list')],
+  'list-where-field': [() => inArticle('::post-list{type="article" presentation="list" where="colour=red"}'), inBlock('post-list')],
+  'list-where-operator': [() => inArticle('::post-list{type="article" presentation="list" where="tone<calm"}'), inBlock('post-list')],
+  'list-where-value': [() => inArticle('::post-list{type="article" presentation="list" where="readingTime=many"}'), inBlock('post-list')],
+  'list-where-choice': [() => inArticle('::post-list{type="article" presentation="list" where="tone=quiet"}'), inBlock('post-list')],
+  'list-related': [() => inArticle('::post-list{type="note" order="related" presentation="list"}'), inBlock('post-list')],
+  'list-related-direction': [() => inArticle('::post-list{type="article" order="related" direction="ascending" presentation="list"}'), inBlock('post-list')],
+  'list-order': [() => inArticle('::post-list{type="article" order="colour" presentation="list"}'), inBlock('post-list')],
+  'link-target': [() => inArticle('<a href="/x/" target="_self">A link</a> here'), inBlock('paragraph')],
+  'link-rel': [() => inArticle('<a href="/x/" rel="me">A link</a> here'), inBlock('paragraph')],
+  'embed-host': [() => inArticle('https://example.com/video'), inBlock('embed')],
+  'embed-address': [() => ({ refusals: [refusalOf({ file: 'pages/x.md', reason: embedOf('https://[', rules).reason })] }), { file: 'pages/x.md' }],
+  // Each service's own words, for an address of its that is none of its forms.
+  ...Object.fromEntries(Object.entries(rules.embeds.services).map(([key, service]) => [`embed-${key}`, [() => inArticle(`https://${service.hosts[0]}/nothing-of-its`), inBlock('embed')]])),
   'footnote-twice': [() => inArticle('One[^1] and again[^1].\n\n[^1]: The note.'), inBlock('paragraph')],
   'footnote-unmarked': [() => inArticle('No mark.\n\n[^1]: The note.'), inBlock('footnotes')],
   'footnote-empty': [() => inArticle('A claim[^1].\n\n[^1]:'), inBlock('footnotes')],
@@ -294,27 +331,35 @@ const cases = {
 // What the seam says, which a test of its own holds (intake-images.test.js).
 const inSeam = new Set(['image-moving', 'image-kind', 'image-large', 'image-pointer', 'svg']);
 
-const keys = [...Object.keys(rules.refusals).filter((key) => key !== 'constructs'), ...Object.keys(rules.refusals.constructs).map((key) => `constructs.${key}`)];
+// The refusals and warnings the catalogues name, by the words' key in each area.
+const named = Object.keys(CATALOGUES.en).filter((name) => /^(?:refusal|warning)\./.test(name));
+const nameOf = (key, kind) => `${kind}.${key}`;
 
-test('every word of the rule data has its case', () => {
-  assert.deepEqual(keys.filter((key) => !Object.hasOwn(cases, key) && !inSeam.has(key)), []);
-  assert.deepEqual(Object.keys(cases).filter((key) => !keys.includes(key)), []);
+test('every refusal and warning of the catalogues has its case', () => {
+  const covered = Object.entries(cases).map(([key, [, , kind = 'refusal']]) => nameOf(key, kind));
+  assert.deepEqual(named.filter((name) => !covered.includes(name) && !inSeam.has(name.replace(/^\w+\./, ''))), []);
+  assert.deepEqual(covered.filter((name) => !named.includes(name)), []);
 });
 
-const wordsOf = (key) => (key.startsWith('constructs.') ? rules.refusals.constructs[key.slice('constructs.'.length)] : rules.refusals[key]);
 const asPattern = (words) => new RegExp(`^${words.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\{\w+\\\}/g, '[\\s\\S]*')}$`);
 
 for (const [key, [make, about, kind = 'refusal']] of Object.entries(cases)) {
-  test(`${key}: ${wordsOf(key).slice(0, 70)}`, () => {
+  const name = nameOf(key, kind);
+  test(`${key}: ${(CATALOGUES.en[name] ?? '').slice(0, 70)}`, () => {
     const result = make();
     const list = kind === 'warning' ? result.warnings : result.refusals;
-    const pattern = asPattern(wordsOf(key));
-    const found = list.find((one) => pattern.test(one.reason));
-    assert.ok(found, `no such ${kind} in ${JSON.stringify([...(result.refusals ?? []), ...(result.warnings ?? [])].map((one) => one.reason ?? one))}`);
-    for (const [name, value] of Object.entries(about)) {
-      if (name === 'block') assert.equal(found.block?.name, value, JSON.stringify(found));
-      else if (value === true) assert.ok(found[name] !== undefined, `names no ${name}: ${JSON.stringify(found)}`);
-      else assert.deepEqual(found[name], value, JSON.stringify(found));
+    const found = list.find((one) => one.name === name);
+    assert.ok(found, `no such ${kind} in ${JSON.stringify([...(result.refusals ?? []), ...(result.warnings ?? [])].map((one) => one.name ?? one.reason ?? one))}`);
+    // The command line's words are British English, and each interface language has its own.
+    assert.match(found.reason, asPattern(CATALOGUES.en[name]));
+    assert.equal(reasonIn('en', found), found.reason);
+    assert.match(reasonIn('sv', found), asPattern(CATALOGUES.sv[name]));
+    assert.equal(messageIn('en', found), found.message);
+    assert.deepEqual(JSON.parse(JSON.stringify(found)), found, 'it travels as JSON');
+    for (const [part, value] of Object.entries(about)) {
+      if (part === 'block') assert.equal(found.block?.name, value, JSON.stringify(found));
+      else if (value === true) assert.ok(found[part] !== undefined, `names no ${part}: ${JSON.stringify(found)}`);
+      else assert.deepEqual(found[part], value, JSON.stringify(found));
     }
   });
 }
@@ -326,30 +371,43 @@ test('names a site\'s own label given by language in British English, as the com
     types: { ...site.types, note: { ...site.types.note, plural: { en: 'Notes', sv: 'Anteckningar' } } },
     taxonomies: { ...site.taxonomies, category: { ...site.taxonomies.category, plural: { en: 'Categories', sv: 'Kategorier' } } },
   };
-  const reasons = run({
+  const { refusals } = run({
     'settings.json': settled,
     'notes/nnnnnnnnnnnn.md': sourcePost({ title: 'A note', slug: 'a-note', status: 'published' }, 'Text.'),
     'articles/aaaaaaaaaaaa.md': article({ categories: ['aaaaaaaaaaaa', 'bbbbbbbbbbbb', 'cccccccccccc'] }),
     'articles/bbbbbbbbbbbb.md': article({ slug: 'another' }, 'A [note](konzilo:nnnnnnnnnnnn).'),
-  }, byLanguage).refusals.map((one) => one.reason);
+  }, byLanguage);
+  const reasons = refusals.map((one) => one.reason);
   assert.ok(reasons.includes('a post takes at most 2 of its categories; choose fewer'), reasons.join('\n'));
   assert.ok(reasons.some((reason) => reason.includes('and notes have no page of their own')), reasons.join('\n'));
+
+  // And in the editor's interface language, the post and the field it names with it.
+  const most = refusals.find((one) => one.name === 'refusal.terms-most');
+  assert.deepEqual(most.values, { most: 2, plural: { label: { en: 'Categories', sv: 'Kategorier' } } });
+  assert.equal(reasonIn('sv', most), 'ett inlägg tar högst 2 av sina kategorier; välj färre');
+  assert.equal(messageIn('sv', most), 'Inlägget "An article" (article, aaaaaaaaaaaa), fältet categories: ett inlägg tar högst 2 av sina kategorier; välj färre');
+  assert.equal(messageIn('en', most), 'The article "An article" (aaaaaaaaaaaa), the field categories: a post takes at most 2 of its categories; choose fewer');
+  const note = refusals.find((one) => one.name === 'refusal.reference-no-address');
+  assert.match(reasonIn('sv', note), /och anteckningar har ingen egen sida/);
+});
+
+test('a refusal in the body names its block in each interface language', () => {
+  const [heading] = inArticle('# A title').refusals;
+  assert.equal(heading.name, 'refusal.heading-level');
+  assert.equal(heading.reason, 'the site cannot publish a heading at level 1: the post\'s title is its level 1; use a level from 2 to 6');
+  assert.equal(reasonIn('sv', heading), 'webbplatsen kan inte publicera en rubrik på nivå 1: inläggets titel är dess nivå 1; använd en nivå från 2 till 6');
+  assert.equal(messageIn('sv', heading), `Inlägget "An article" (article, aaaaaaaaaaaa), block 1 (heading), rad ${heading.line}: ${reasonIn('sv', heading)}`);
 });
 
 // What the rule data holds in its elements: a directive's refusals, and a link's.
 const body = (text) => inArticle(text).refusals.map((one) => one.reason);
 
-test('a link\'s target and rel are refused in the rule data\'s words', () => {
+test('a link\'s target and rel are refused in their own words', () => {
   assert.deepEqual(body('<a href="/x/" target="_self">A link</a> here'), ['the site cannot publish a link that opens anywhere but a new tab (target "_self")']);
   assert.deepEqual(body('<a href="/x/" rel="me">A link</a> here'), ['the site cannot publish a link with the rel value "me"; a link\'s rel may hold noreferrer, noopener, nofollow, sponsored and ugc, each once']);
   assert.deepEqual(body('<a href="/x/" rel="ugc ugc">A link</a> here'), ['the site cannot publish a link with the rel value "ugc ugc"; a link\'s rel may hold noreferrer, noopener, nofollow, sponsored and ugc, each once']);
-});
-
-test('a post list\'s attributes are refused in the rule data\'s words', () => {
-  const list = (attributes) => body(`::post-list{type="article" presentation="list" ${attributes}}`);
-  assert.deepEqual(list('direction="sideways"'), ['the site cannot publish a list in the direction "sideways": a list is ascending or descending']);
-  assert.deepEqual(list('offset="-1"'), ['the site cannot publish a list that skips -1 posts: a list skips none, or a whole number of them']);
-  assert.deepEqual(list('number="101"'), ['the site cannot publish a list of 101 posts: a list shows 1 to 100 posts']);
+  const [rel] = inArticle('<a href="/x/" rel="me">A link</a> here').refusals;
+  assert.equal(reasonIn('sv', rel), 'webbplatsen kan inte publicera en länk med rel-värdet "me"; en länks rel får innehålla noreferrer, noopener, nofollow, sponsored och ugc, vart och ett en gång');
 });
 
 test('a form the site no longer offers, and a second list with pages', () => {

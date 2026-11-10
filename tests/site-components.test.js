@@ -143,7 +143,7 @@ describe('a body', () => {
     const site = own();
     site.types = { page: { ...site.types.page, elements: everyElement.types.page.elements.concat('section') } };
     const { refusals } = out('::eyebrow[Hello]', site);
-    assert.ok(refusals.some((one) => /Eyebrow/.test(one)), refusals.join('\n'));
+    assert.ok(refusals.some((one) => /cannot hold eyebrow;/.test(one)), refusals.join('\n'));
   });
 });
 

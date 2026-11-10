@@ -26,20 +26,20 @@ export function readTerms(run) {
     const term = { key, id: first.id, taxonomy: first.taxonomy, name, value, byTag: new Map(group.map((one) => [one.tag, one.value])), problems: [], parentId: null };
     term.label = name || first.id;
     if (group.some((one) => one.refusal)) term.problems.push(group.find((one) => one.refusal).refusal.reason);
-    else if (!main && run.several) term.problems.push(say('term-main', { term: term.label, language: mainTag }));
-    else if (name === '') term.problems.push(say('term-name', { term: first.id }));
+    else if (!main && run.several) term.problems.push(say('refusal.term-main', { term: term.label, language: mainTag }));
+    else if (name === '') term.problems.push(say('refusal.term-name', { term: first.id }));
     const description = typeof value?.description === 'string' ? value.description.trim() : '';
     term.description = description;
-    if (MARKUP.test(name) || MARKUP.test(description)) term.problems.push(say('term-markup', { term: term.label }));
+    if (MARKUP.test(name) || MARKUP.test(description)) term.problems.push(say('refusal.term-markup', { term: term.label }));
     const slug = value?.slug === undefined || value?.slug === null || value?.slug === '' ? slugFrom(name) : value.slug;
     term.slug = typeof slug === 'string' ? slug : '';
-    if (!TERM_SLUG.test(term.slug) && name !== '') term.problems.push(say('term-slug', { term: term.label, slug: String(slug) }));
+    if (!TERM_SLUG.test(term.slug) && name !== '') term.problems.push(say('refusal.term-slug', { term: term.label, slug: String(slug) }));
     if (first.taxonomy.hierarchical && typeof value?.parent === 'string' && value.parent !== '') term.parentId = value.parent;
     for (const one of group) {
       if (!run.several || one === main || !one.value) continue;
       const differs = (field) => (typeof one.value[field] === 'string' ? one.value[field].trim() : '') !== (typeof value?.[field] === 'string' ? value[field].trim() : '');
-      if (one.language === null) term.problems.push(say('term-language', { term: term.label, folder: one.tag ?? '' }));
-      else if (differs('description') || differs('parent')) term.problems.push(say('term-differs', { term: term.label, language: one.tag }));
+      if (one.language === null) term.problems.push(say('refusal.term-language', { term: term.label, folder: one.tag ?? '' }));
+      else if (differs('description') || differs('parent')) term.problems.push(say('refusal.term-differs', { term: term.label, language: one.tag }));
     }
     run.terms.set(key, term);
     run.termsById.set(first.id, term);
@@ -50,11 +50,11 @@ export function readTerms(run) {
     for (let next = term; next.parentId !== null;) {
       const parent = run.terms.get(`${term.taxonomy.collection}/${next.parentId}`);
       if (!parent) {
-        term.problems.push(say('term-parent', { term: term.label, parent: next.parentId }));
+        term.problems.push(say('refusal.term-parent', { term: term.label, parent: next.parentId }));
         break;
       }
       if (seen.has(parent.key)) {
-        term.problems.push(say('term-loop', { term: term.label }));
+        term.problems.push(say('refusal.term-loop', { term: term.label }));
         break;
       }
       seen.add(parent.key);
@@ -116,7 +116,7 @@ export function termFiles(run, files) {
     const folder = tag ? `${tag}/` : '';
     const inLanguage = term.byTag.get(tag);
     const own = typeof inLanguage?.name === 'string' && inLanguage.name.trim() !== '' ? inLanguage.name.trim() : null;
-    if (tag && own === null) run.warnings.push(named({ file: `${term.taxonomy.collection}/${term.id}.json`, reason: say('term-translation', { term: term.label, language: language?.tag ?? tag }) }));
+    if (tag && own === null) run.warnings.push(named({ file: `${term.taxonomy.collection}/${term.id}.json`, reason: say('warning.term-translation', { term: term.label, language: language?.tag ?? tag }) }));
     const parent = term.chain.length > 1 ? term.chain.at(-2) : null;
     files.set(`${term.taxonomy.collection}/${folder}${term.slug}.json`, json({
       name: own ?? term.name,

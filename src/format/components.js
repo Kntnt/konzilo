@@ -34,10 +34,6 @@ export function componentElement(name, rules) {
 
 const fitsType = (type, value) => (type === 'string' ? typeof value === 'string' : type === 'integer' ? Number.isInteger(value) : typeof value === 'boolean');
 
-// A label in British English, for what the intake and the editor's early check write:
-// one text for every language as it is, else the one by language in `en`.
-export const britishLabel = (label) => (label !== null && typeof label === 'object' ? label.en : label);
-
 function readAttribute(name, setting, path, problems, readLabel) {
   if (!ATTRIBUTE.test(name) || RESERVED.has(name)) problems.push(`${path}: an attribute's name is in camelCase, and not id, class or content`);
   if (!isObject(setting)) {
@@ -149,7 +145,8 @@ export function withComponents(rules, components) {
   for (const component of list) {
     const attributes = Object.fromEntries(Object.entries(component.attributes).map(([name, { label, ...setting }]) => [name, setting]));
     elements[component.element] = {
-      label: britishLabel(component.label),
+      // As a reason names it, in the language it is shown in (refusals.js).
+      label: component.label,
       ...(component.form === 'container' ? { inner: blocks } : {}),
       ...(component.body === 'text' ? { inline: [...rules.elements.heading.inline] } : {}),
       directive: { name: component.name, form: component.form, body: component.body, attributes },

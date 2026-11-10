@@ -25,7 +25,7 @@ function textProblem(setting, value, variables) {
       try {
         new RegExp(line, 'iu');
       } catch {
-        return say('setting-pattern', { line });
+        return say('refusal.setting-pattern', { line });
       }
     }
   }
@@ -38,7 +38,7 @@ function textProblem(setting, value, variables) {
 
 // One value of a plain type: { value } or { reason }; {} for none.
 function plainValue(setting, stored, variables) {
-  if (typeof stored === 'object' && stored !== null) return { reason: say('setting-shape') };
+  if (typeof stored === 'object' && stored !== null) return { reason: say('refusal.setting-shape') };
   const read = ownValue(stored === undefined || stored === null ? '' : String(stored), setting);
   if (read.reason) return { reason: read.reason };
   if (read.value === undefined) return {};
@@ -83,7 +83,7 @@ function settingValue(setting, raw, at, context) {
     return context.choice(raw, at);
   }
   if (setting.type === IMAGE) {
-    if (empty) return setting.required ? { reason: say('setting-required') } : {};
+    if (empty) return setting.required ? { reason: say('refusal.setting-required') } : {};
     return context.image(raw, stemOf(at));
   }
   // An empty yes-or-no is a no, which a default must not turn into a yes.
@@ -93,7 +93,7 @@ function settingValue(setting, raw, at, context) {
       if (isSiteTitle(setting.default)) return context.title === undefined ? {} : { value: context.title };
       return { value: setting.default };
     }
-    if (setting.required) return { reason: say('setting-required') };
+    if (setting.required) return { reason: say('refusal.setting-required') };
     return setting.type === 'boolean' ? { value: false } : {};
   }
   return plainValue(setting, raw, context.variables);
@@ -104,7 +104,7 @@ function identity(source, into, context) {
   const { title, logo, icon } = source;
   const own = isObject(title) ? title[context.language?.locale] : title;
   if (own !== undefined && own !== null && own !== '') {
-    if (typeof own !== 'string') context.problems.push({ setting: 'title', reason: say('setting-shape') });
+    if (typeof own !== 'string') context.problems.push({ setting: 'title', reason: say('refusal.setting-shape') });
     else into.title = own.trim();
   }
   if (logo) {

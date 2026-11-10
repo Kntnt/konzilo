@@ -20,28 +20,40 @@
 //              what one of its components holds, `blocks` the model's blocks of a
 //              container; optional, and run on a source alone
 //   link       (id, fragment) gives { href }, { text: true, warning } or { reason }
-//              for a link `konzilo:<id>#<fragment>`
+//              for a link `konzilo:<id>#<fragment>`, whose warning's `text` the
+//              check fills with the link's text
 //   image      (address) gives { src, warning }, or { reason }
 //   adminHost  the host no link may lead to, or null
 //
 // A problem is { path, name, line, reason }: the block by its path, `2.1`, and its
-// element's name, the line in `source`, and the reason in words an editor can act
-// on. Every problem in a body is named, in the order of its blocks.
+// element's name, the line in `source`, and the reason an editor can act on, by its
+// name in the core's catalogues and the values that fill it, `{ name, values }`
+// (refusals.js), or in the site's own words where its own check gives them. Every
+// problem in a body is named, in the order of its blocks.
 
 const ALNUM = /[\p{L}\p{N}]/u;
 const NAME_START = /^[\p{L}\p{N}][\p{L}\p{N}_-]*/u;
 const MARKS = ['strong', 'em', 's', 'sup', 'sub'];
 
-// The words of a refusal, from the rule data. A key the rule data lacks is a fault
-// in the core, so it throws, and the check fails closed.
-function say(rules, key, values = {}) {
-  const words = rules.refusals?.[key];
-  if (typeof words !== 'string') throw new Error(`the rule data has no words for the refusal ${key}`);
-  return words.replace(/\{(\w+)\}/g, (_, name) => String(values[name] ?? ''));
-}
+// A reason by its name in the core's catalogues, and the values that fill it. Whoever
+// shows it puts it into words, so that this check needs none of its own.
+const said = (name, values = {}) => ({ name, values });
 
-const labelOf = (rules, element) => rules.elements[element]?.label ?? element;
-const inlineLabel = (rules, inline) => rules.inline[inline]?.label ?? inline;
+// An element as a reason names it: the core's by its name in the catalogues, a site's
+// component by its own label, which the rule data holds.
+const labelOf = (rules, element) => {
+  const own = rules.elements[element]?.label;
+  return own === undefined ? said(`about.element.${element}`) : { label: own };
+};
+const inlineLabel = (inline) => said(`about.inline.${inline}`);
+
+// The constructs Markdown has that the core names a reason for, which the site cannot
+// publish; any other is named by its Markdown name.
+const CONSTRUCTS = ['thematicBreak', 'linkReference', 'imageReference', 'definition'];
+
+// An attribute's refusal of a value: the site's own words for its component, with
+// `{value}`, or the core's by its name.
+const refusalOf = (refusal, values) => (typeof refusal === 'string' ? refusal.replaceAll('{value}', values.value) : said(refusal.name, values));
 
 // Where a node stands, kept off the JSON that two trees are compared by.
 function at(node, where) {
@@ -95,7 +107,7 @@ function sorted(problems) {
 }
 
 function refuse(scope, node, name, key, values) {
-  scope.problems.push({ path: scope.path, name, line: lineOf(node), reason: say(scope.rules, key, values) });
+  scope.problems.push({ path: scope.path, name, line: lineOf(node), reason: said(`refusal.${key}`, values) });
 }
 
 // The reason a block's element is not taken: its type names the elements it takes.
@@ -118,13 +130,13 @@ function blockOf(node, scope) {
     case 'leafDirective':
     case 'containerDirective': return directiveOf(node, scope);
     default:
-      scope.problems.push({ path: scope.path, name: node.type, line: lineOf(node), reason: constructWords(scope.rules, node.type) });
+      scope.problems.push({ path: scope.path, name: node.type, line: lineOf(node), reason: constructWords(node.type) });
       return [];
   }
 }
 
-function constructWords(rules, type) {
-  return rules.refusals?.constructs?.[type] ?? say(rules, 'construct', { type });
+function constructWords(type) {
+  return CONSTRUCTS.includes(type) ? said(`refusal.constructs.${type}`) : said('refusal.construct', { type });
 }
 
 // Inline content as the model's inline nodes. `allowed` names the inline elements
@@ -136,7 +148,7 @@ function inlineOf(children, allowed, scope, element, inLink = false) {
   const linked = () => inLink || stack.some(({ tag }) => tag === 'a');
   const check = (name, node) => {
     if (allowed.includes(name)) return true;
-    refuse(scope, node, element, 'inline-element', { inline: inlineLabel(scope.rules, name), element: labelOf(scope.rules, element) });
+    refuse(scope, node, element, 'inline-element', { inline: inlineLabel(name), element: labelOf(scope.rules, element) });
     return false;
   };
   for (const node of children) {
@@ -199,7 +211,7 @@ function inlineOf(children, allowed, scope, element, inLink = false) {
         rawInline(node, { push, stack, check, allowed, scope, element, inLink });
         break;
       default:
-        scope.problems.push({ path: scope.path, name: element, line: lineOf(node), reason: constructWords(scope.rules, node.type) });
+        scope.problems.push({ path: scope.path, name: element, line: lineOf(node), reason: constructWords(node.type) });
     }
   }
   if (stack.length > 1) refuse(scope, children.at(-1), element, 'raw-unclosed', { tag: stack.at(-1).tag });
@@ -301,21 +313,17 @@ function rawLink(attributes, node, scope, element) {
   }
   const { target = null, rel = null } = attributes;
   const problems = [];
-  if (target !== null && !values.target.values.includes(target)) problems.push(values.target.refusal.replaceAll('{value}', target));
+  if (target !== null && !values.target.values.includes(target)) problems.push(said(values.target.refusal.name, { value: target }));
   if (rel !== null) {
     const words = rel.split(' ');
     if (words.some((word) => !values.rel.words.includes(word)) || new Set(words).size !== words.length) {
-      problems.push(values.rel.refusal.replaceAll('{value}', rel).replaceAll('{words}', listed(values.rel.words)));
+      problems.push(said(values.rel.refusal.name, { value: rel, words: { and: values.rel.words } }));
     }
   }
-  for (const problem of problems) scope.problems.push({ path: scope.path, name: element, line: lineOf(node), reason: `the site cannot publish ${problem}` });
+  for (const problem of problems) scope.problems.push({ path: scope.path, name: element, line: lineOf(node), reason: problem });
   const address = linkProblem(attributes.href, scope);
   if (address) refuse(scope, node, element, address.key, address.values);
   return at({ type: 'link', href: attributes.href, target, rel, children: [] }, { path: scope.path, line: lineOf(node), element });
-}
-
-function listed(words) {
-  return words.length < 2 ? words.join('') : `${words.slice(0, -1).join(', ')} and ${words.at(-1)}`;
 }
 
 // A raw tag's attributes by name, decoded, or null for what is no such list.
@@ -364,7 +372,7 @@ function linkProblem(href, scope) {
   const { schemes, paths } = scope.rules.links;
   if (paths && href.startsWith('/') && !href.startsWith('//')) return null;
   const scheme = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(href)?.[1]?.toLowerCase();
-  if (!scheme || !schemes.includes(scheme)) return { key: 'link-address', values: { address: href, schemes: listed(schemes.map((one) => `${one}:`)) } };
+  if (!scheme || !schemes.includes(scheme)) return { key: 'link-address', values: { address: href, schemes: { and: schemes.map((one) => `${one}:`) } } };
   if (scope.adminHost && (scheme === 'http' || scheme === 'https')) {
     const host = /^[a-zA-Z]+:\/\/([^/?#:]*)/.exec(href)?.[1]?.toLowerCase();
     if (host === scope.adminHost.toLowerCase()) return { key: 'link-admin', values: { address: href } };
@@ -565,7 +573,7 @@ function headingOf(node, scope) {
   if (!taken(scope, node, element)) return [];
   const rule = scope.rules.elements[element];
   if (!scope.written && !rule.levels.includes(node.depth)) {
-    refuse(scope, node, element, 'heading-level', { level: node.depth, levels: `${rule.levels[0]} to ${rule.levels.at(-1)}` });
+    refuse(scope, node, element, 'heading-level', { level: node.depth, levels: said('about.range', { from: rule.levels[0], to: rule.levels.at(-1) }) });
     return [];
   }
   let { children } = node;
@@ -704,7 +712,7 @@ function codeOf(node, scope) {
     refuse(scope, node, element, 'code-empty');
     return [];
   }
-  if (!scope.written && node.lang) scope.warnings.push({ path: scope.path, name: element, line: lineOf(node), reason: say(scope.rules, 'code-language', { language: node.lang }) });
+  if (!scope.written && node.lang) scope.warnings.push({ path: scope.path, name: element, line: lineOf(node), reason: said('warning.code-language', { language: node.lang }) });
   return [{ type: 'code', value }];
 }
 
@@ -942,7 +950,7 @@ function directiveOf(node, scope) {
     return [{ type: 'directive', element, name: node.name, attributes: mapValues(node.attributes ?? {}, (text) => decode(text ?? '', scope)), ...contentOf(node, directive, element, scope) }];
   }
   if (form !== directive.form) {
-    refuse(scope, node, element, 'directive-form', { name: node.name, form: directive.form === 'leaf' ? `::${node.name}, on a line of its own` : `:::${node.name}, around its body` });
+    refuse(scope, node, element, 'directive-form', { name: node.name, form: said(directive.form === 'leaf' ? 'about.directive-leaf' : 'about.directive-container', { name: node.name }) });
     return [];
   }
   if (!taken(scope, node, element)) return [];
@@ -1001,14 +1009,14 @@ function attributesFrom(node, directive, element, scope) {
     const allowed = typed !== undefined && (!setting.values || setting.values.includes(typed)) && (!setting.pattern || new RegExp(setting.pattern).test(String(typed)));
     if (!allowed) {
       if (setting.refusal && !setting.declared) {
-        scope.problems.push({ path: scope.path, name: element, line: lineOf(node), reason: setting.refusal.replaceAll('{value}', value) });
+        scope.problems.push({ path: scope.path, name: element, line: lineOf(node), reason: refusalOf(setting.refusal, { value }) });
         wrong = true;
       } else fail('directive-value', { attribute: name, value });
       continue;
     }
     if (setting.declared && !(scope.declared?.[setting.declared] ?? []).includes(typed)) {
       const names = scope.declared?.[setting.declared] ?? [];
-      scope.problems.push({ path: scope.path, name: element, line: lineOf(node), reason: setting.refusal.replaceAll('{value}', value).replaceAll('{declared}', names.length === 0 ? 'none' : listed(names)) });
+      scope.problems.push({ path: scope.path, name: element, line: lineOf(node), reason: said(setting.refusal.name, { value, declared: names.length === 0 ? said('about.none') : { and: names } }) });
       wrong = true;
       continue;
     }
@@ -1053,13 +1061,13 @@ function footnotesOf(scope, rules) {
   for (const { mark, node, path, element } of marks) {
     const label = String(mark.n);
     if (numbers.has(label)) {
-      scope.problems.push({ path, name: element, line: lineOf(node), reason: say(rules, 'footnote-twice', { label }) });
+      scope.problems.push({ path, name: element, line: lineOf(node), reason: said('refusal.footnote-twice', { label }) });
       continue;
     }
     numbers.set(label, numbers.size + 1);
     mark.n = numbers.get(label);
   }
-  if (marks.length > 0 && !takesThem) scope.problems.push({ path: marks[0].path, name: 'footnotes', line: lineOf(marks[0].node), reason: say(rules, 'element-not-taken', { element: labelOf(rules, 'footnotes') }) });
+  if (marks.length > 0 && !takesThem) scope.problems.push({ path: marks[0].path, name: 'footnotes', line: lineOf(marks[0].node), reason: said('refusal.element-not-taken', { element: labelOf(rules, 'footnotes') }) });
   const blocks = [];
   for (const definition of definitions) {
     const label = definition.identifier;
@@ -1101,7 +1109,7 @@ function resolved(nodes, scope) {
     const target = scope.link(id, fragment.join('#') || null);
     const entry = { path: where.path, name: where.element, line: where.line };
     if (target.reason) scope.problems.push({ ...entry, reason: target.reason });
-    if (target.warning) scope.warnings.push({ ...entry, reason: target.warning.replaceAll('{text}', plainText(node.children)) });
+    if (target.warning) scope.warnings.push({ ...entry, reason: { ...target.warning, values: { ...target.warning.values, text: plainText(node.children) } } });
     if (target.href) {
       node.href = target.href;
       out.push(node);
@@ -1589,7 +1597,7 @@ export function writeBody(model, hands) {
     if (levels[wrong] === MOST) {
       failed.add(wrong);
       const { path, name, line } = blocks[wrong];
-      scope.problems.push({ path, name, line, reason: say(hands.rules, 'read-back', { element: labelOf(hands.rules, name) }) });
+      scope.problems.push({ path, name, line, reason: said('refusal.read-back', { element: labelOf(hands.rules, name) }) });
       continue;
     }
     // A level that writes the same bytes as the one below reads no better.

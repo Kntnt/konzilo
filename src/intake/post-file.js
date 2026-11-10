@@ -34,9 +34,9 @@ export function slugOf(post) {
   const { slug } = post.fields;
   if (slug === undefined || slug === null || slug === '') {
     const made = slugFrom(post.title ?? '');
-    return made === '' ? { reason: say('slug-empty') } : { slug: made };
+    return made === '' ? { reason: say('refusal.slug-empty') } : { slug: made };
   }
-  return typeof slug === 'string' && SLUG.test(slug) ? { slug } : { reason: say('slug', { slug: String(slug) }) };
+  return typeof slug === 'string' && SLUG.test(slug) ? { slug } : { reason: say('refusal.slug', { slug: String(slug) }) };
 }
 
 // A moment as a file writes it, to the second in UTC, or null for what is none. A
@@ -58,9 +58,9 @@ const text = (value) => (value === undefined || value === null ? '' : typeof val
 function fieldValue(field, value, { images, terms }) {
   if (TEXT_FIELDS.includes(field.kind)) {
     const written = text(value)?.trim();
-    if (written === undefined || written === null) return { reason: say('field-text', { field: field.name }) };
-    if (MARKUP.test(written)) return { reason: say('field-markup', { field: field.name }) };
-    if (written === '') return field.required ? { reason: say('field-required', { field: field.name }) } : {};
+    if (written === undefined || written === null) return { reason: say('refusal.field-text', { field: field.name }) };
+    if (MARKUP.test(written)) return { reason: say('refusal.field-markup', { field: field.name }) };
+    if (written === '') return field.required ? { reason: say('refusal.field-required', { field: field.name }) } : {};
     return { yaml: JSON.stringify(written) };
   }
   switch (field.kind) {
@@ -84,15 +84,15 @@ function ownField(field, value) {
   if (stored === null) return { reason: `the site cannot publish this as ${field.name}` };
   const read = ownValue(stored, field);
   if (read.reason) return { reason: read.reason };
-  if (read.value === undefined) return field.required ? { reason: say('field-required', { field: field.name }) } : {};
+  if (read.value === undefined) return field.required ? { reason: say('refusal.field-required', { field: field.name }) } : {};
   return { yaml: read.yaml };
 }
 
 function featuredImage(field, value, images) {
   const given = isObject(value) ? value : value ? { src: value } : {};
-  if (!given.src) return field.required ? { reason: say('image-required') } : {};
+  if (!given.src) return field.required ? { reason: say('refusal.image-required') } : {};
   const alt = text(given.alt)?.trim() ?? '';
-  if (alt === '') return { reason: say('image-alt') };
+  if (alt === '') return { reason: say('refusal.image-alt') };
   const master = images(given.src, field.name);
   if (master.reason) return master;
   return { yaml: JSON.stringify({ src: master.src, alt }), warning: master.warning };
@@ -102,25 +102,25 @@ function featuredImage(field, value, images) {
 // content file's flat map, in SEO_KEYS's order. A sharing image comes with its alt text.
 function seoValue(field, value, images) {
   if (value === undefined || value === null) return {};
-  if (value.stale) return { reason: say('seo-shape') };
+  if (value.stale) return { reason: say('refusal.seo-shape') };
   const written = {};
   let warning;
   for (const [part, keys] of Object.entries(SEO_PARTS)) {
     const inPart = value[part];
     if (inPart === undefined || inPart === null) continue;
-    if (!isObject(inPart)) return { reason: say('seo-shape'), part };
+    if (!isObject(inPart)) return { reason: say('refusal.seo-shape'), part };
     for (const [key, as] of Object.entries(keys)) {
       const one = inPart[key];
       const place = `${part}.${key}`;
       if (one === undefined || one === null || one === '' || one === false) continue;
       if (as === 'noindex' || as === 'nofollow') {
-        if (one !== true) return { reason: say('seo-flag', { key: as }), part: place };
+        if (one !== true) return { reason: say('refusal.seo-flag', { key: as }), part: place };
         written[as] = true;
       } else if (as === 'socialImage') {
         const image = isObject(one) ? one : { src: one };
         if (!image.src) continue;
         const alt = text(image.alt)?.trim() ?? '';
-        if (alt === '') return { reason: say('seo-image-alt'), part: place };
+        if (alt === '') return { reason: say('refusal.seo-image-alt'), part: place };
         const master = images(image.src, place);
         if (master.reason) return { ...master, part: place };
         written.socialImage = master.src;
@@ -128,8 +128,8 @@ function seoValue(field, value, images) {
         warning = master.warning;
       } else {
         const trimmed = text(one)?.trim();
-        if (!trimmed) return { reason: say('seo-text', { key: as }), part: place };
-        if (as === 'schema' && !SCHEMA_TYPES.includes(trimmed)) return { reason: say('seo-schema', { value: trimmed, types: SCHEMA_TYPES.join(', ') }), part: place };
+        if (!trimmed) return { reason: say('refusal.seo-text', { key: as }), part: place };
+        if (as === 'schema' && !SCHEMA_TYPES.includes(trimmed)) return { reason: say('refusal.seo-schema', { value: trimmed, types: SCHEMA_TYPES.join(', ') }), part: place };
         written[as] = trimmed;
       }
     }
@@ -150,13 +150,13 @@ export function seoSource(fields) {
 // The teaser: its image with its alt text, its headline and its text, each only when given.
 function teaserValue(field, value, images) {
   if (value === undefined || value === null) return {};
-  if (!isObject(value)) return { reason: say('field-text', { field: field.name }) };
+  if (!isObject(value)) return { reason: say('refusal.field-text', { field: field.name }) };
   const written = {};
   let warning;
   const image = isObject(value.image) ? value.image : value.image ? { src: value.image } : null;
   if (image?.src) {
     const alt = text(image.alt)?.trim() ?? '';
-    if (alt === '') return { reason: say('image-alt'), part: `${field.name}.image` };
+    if (alt === '') return { reason: say('refusal.image-alt'), part: `${field.name}.image` };
     const master = images(image.src, `${field.name}.image`);
     if (master.reason) return { ...master, part: `${field.name}.image` };
     written.image = { src: master.src, alt };
@@ -164,9 +164,9 @@ function teaserValue(field, value, images) {
   }
   for (const key of ['headline', 'text']) {
     const one = text(value[key]);
-    if (one === null) return { reason: say('field-text', { field: `${field.name}.${key}` }) };
+    if (one === null) return { reason: say('refusal.field-text', { field: `${field.name}.${key}` }) };
     const trimmed = one.trim();
-    if (MARKUP.test(trimmed)) return { reason: say('field-markup', { field: `${field.name}.${key}` }) };
+    if (MARKUP.test(trimmed)) return { reason: say('refusal.field-markup', { field: `${field.name}.${key}` }) };
     if (trimmed !== '') written[key] = trimmed;
   }
   return Object.keys(written).length === 0 ? {} : { yaml: JSON.stringify(written), warning };
@@ -176,13 +176,13 @@ function teaserValue(field, value, images) {
 export function otherAddressesIn(post) {
   const given = post.fields.otherAddresses;
   if (given === undefined || given === null) return { list: [] };
-  if (!Array.isArray(given)) return { reason: say('other-shape') };
+  if (!Array.isArray(given)) return { reason: say('refusal.other-shape') };
   const list = [];
   for (const entry of given) {
     const answer = /^\d+$/.test(String(entry?.answer)) ? Number(entry.answer) : entry?.answer ?? 301;
-    if (!isSource(entry?.address)) return { reason: say('other-address', { address: String(entry?.address) }) };
-    if (!OTHER_ANSWERS.includes(answer)) return { reason: say('other-answer', { address: entry.address, answer: String(answer) }) };
-    if (answer === SHOW && entry.address.includes('?')) return { reason: say('other-show-query', { address: entry.address }) };
+    if (!isSource(entry?.address)) return { reason: say('refusal.other-address', { address: String(entry?.address) }) };
+    if (!OTHER_ANSWERS.includes(answer)) return { reason: say('refusal.other-answer', { address: entry.address, answer: String(answer) }) };
+    if (answer === SHOW && entry.address.includes('?')) return { reason: say('refusal.other-show-query', { address: entry.address }) };
     list.push({ address: entry.address, answer });
   }
   return { list };
@@ -199,7 +199,7 @@ export function fieldsOf(post, context, derived = {}) {
     const given = post.fields[field.name];
     if (field.kind === 'date') {
       const moment = given === undefined || given === null || given === '' ? derived.date : momentOf(given);
-      if (moment === null) problems.push({ field: field.name, reason: say('field-moment', { field: field.name, value: String(given) }) });
+      if (moment === null) problems.push({ field: field.name, reason: say('refusal.field-moment', { field: field.name, value: String(given) }) });
       else lines.push([field.name, moment ?? '']);
       continue;
     }

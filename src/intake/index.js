@@ -82,7 +82,7 @@ function adminProblem(run, path) {
   const change = run.changes?.[path];
   if (!change || change.admin !== false) return null;
   if (run.source.hashes.get(path) === run.ledger.files[path]) return null;
-  return say('admin-file', { by: change.by ?? 'this person', file: path });
+  return say('refusal.admin-file', { by: change.by ?? say('about.someone'), file: path });
 }
 
 function readAdminFiles(run) {
@@ -98,7 +98,7 @@ function readAdminFiles(run) {
   }
   run.settingsSource = source.settings?.value ?? {};
   const unusable = source.settings?.refused || run.gated.has('settings.json') || !isObject(run.settingsSource);
-  if (source.settings && !source.settings.refused && !isObject(run.settingsSource)) run.refusals.push(named({ file: 'settings.json', reason: say('setting-shape') }));
+  if (source.settings && !source.settings.refused && !isObject(run.settingsSource)) run.refusals.push(named({ file: 'settings.json', reason: say('refusal.setting-shape') }));
   run.settingsRefused = Boolean(unusable);
   run.chosen = unusable ? run.ledger.chosen : chosenIn(run.settingsSource);
   // A file an Admin has not accepted says nothing here: the rules go on as they were.
@@ -155,14 +155,14 @@ function stateOf(post, run) {
   if (taking) {
     post.on = true;
     post.notFound = run.chosen.notFound === post.id;
-    refuse(run, post, { reason: say(post.gone ? 'admin-legal-gone' : 'admin-legal', { by: taking.by ?? 'this person' }) });
+    refuse(run, post, { reason: say(post.gone ? 'refusal.admin-legal-gone' : 'refusal.admin-legal', { by: taking.by ?? say('about.someone') }) });
     return;
   }
   if (run.preview.has(post.path)) {
     post.on = true;
     post.notFound = run.chosen.notFound === post.id;
     if (run.several && post.language === null) {
-      refuse(run, post, { reason: say('language-folder', { folder: post.tag ?? 'the collection\'s own folder' }) });
+      refuse(run, post, { reason: say('refusal.language-folder', { folder: post.tag ?? say('about.collection-folder') }) });
       post.keepsNothing = true;
     }
     return;
@@ -170,13 +170,13 @@ function stateOf(post, run) {
   if (status === 'draft' || status === null) return;
   if (status !== 'published' && status !== 'scheduled') {
     post.on = true;
-    refuse(run, post, { field: 'status', reason: say('status', { status: String(status) }) });
+    refuse(run, post, { field: 'status', reason: say('refusal.status', { status: String(status) }) });
     return;
   }
   const date = post.fields.date === undefined || post.fields.date === null || post.fields.date === '' ? undefined : momentOf(post.fields.date);
   if (status === 'scheduled' && !date) {
     post.on = true;
-    refuse(run, post, { field: date === null ? 'date' : 'status', reason: date === null ? say('field-moment', { field: 'date', value: String(post.fields.date) }) : say('scheduled-date') });
+    refuse(run, post, { field: date === null ? 'date' : 'status', reason: date === null ? say('refusal.field-moment', { field: 'date', value: String(post.fields.date) }) : say('refusal.scheduled-date') });
     return;
   }
   if (date && new Date(date) > run.now) {
@@ -185,20 +185,20 @@ function stateOf(post, run) {
   }
   post.on = true;
   if (run.several && post.language === null) {
-    refuse(run, post, { reason: say('language-folder', { folder: post.tag ?? 'the collection\'s own folder' }) });
+    refuse(run, post, { reason: say('refusal.language-folder', { folder: post.tag ?? say('about.collection-folder') }) });
     post.keepsNothing = true;
     return;
   }
   post.notFound = run.chosen.notFound === post.id;
   const change = legalChangedBy(post, run);
-  if (change) refuse(run, post, { reason: say('admin-legal', { by: change.by ?? 'this person' }) });
+  if (change) refuse(run, post, { reason: say('refusal.admin-legal', { by: change.by ?? say('about.someone') }) });
 }
 
 // A post's own problems, what no other post can change.
 function checkPost(post, run) {
   if (post.unreadable || post.keepsNothing || post.gone) return;
-  if (post.title === null) refuse(run, post, { field: 'title', reason: say('title-empty') });
-  else if (MARKUP.test(post.title)) refuse(run, post, { field: 'title', reason: say('title-markup') });
+  if (post.title === null) refuse(run, post, { field: 'title', reason: say('refusal.title-empty') });
+  else if (MARKUP.test(post.title)) refuse(run, post, { field: 'title', reason: say('refusal.title-markup') });
   const slug = slugOf(post);
   if (slug.reason) refuse(run, post, { field: 'slug', reason: slug.reason });
   const other = otherAddressesIn(post);
@@ -275,7 +275,7 @@ function checkSets(run) {
   const groups = groupBy(live, (post) => `${setOf(post)}\n${post.tag}`);
   for (const group of groups.values()) {
     const [first, ...rest] = [...group].sort((a, b) => earlier(run, a, b));
-    for (const post of rest) refuse(run, post, { field: 'translationKey', reason: say('set-twice', { holder: first.title ?? first.id }) });
+    for (const post of rest) refuse(run, post, { field: 'translationKey', reason: say('refusal.set-twice', { holder: first.title ?? first.id }) });
   }
   return run.refused.size !== before;
 }

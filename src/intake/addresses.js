@@ -7,7 +7,7 @@ import { keyOf, REDIRECTS_FILE, reservedBy } from '../format/redirects.js';
 import { otherAddressesIn, slugOf } from './post-file.js';
 import { refuse } from './run.js';
 import { termPagesOf } from './terms.js';
-import { british, named, say } from './words.js';
+import { named, say } from './words.js';
 
 // Where each post that goes live has its file and its address: its path is its
 // ancestors' slugs from the top and its own. An ancestor refused, missing or of another
@@ -22,12 +22,12 @@ function pathOf(post, run) {
     if (parentId === undefined || parentId === null || parentId === '') break;
     const key = post.tag ? `${post.tag}/${parentId}` : String(parentId);
     const parent = run.posts.get(key);
-    if (!parent) return { reason: say('parent-missing', { parent: String(parentId) }) };
-    if (parent.type !== post.type) return { reason: say('parent-type', { parent: parent.title ?? String(parentId), plural: british(post.type.plural).toLowerCase() }) };
-    if (seen.has(key)) return { reason: say('parent-loop', { parent: parent.title ?? String(parentId) }) };
-    if (run.refused.has(key)) return { reason: say('parent-refused', { parent: parent.title ?? String(parentId) }) };
+    if (!parent) return { reason: say('refusal.parent-missing', { parent: String(parentId) }) };
+    if (parent.type !== post.type) return { reason: say('refusal.parent-type', { parent: parent.title ?? String(parentId), plural: { label: post.type.plural } }) };
+    if (seen.has(key)) return { reason: say('refusal.parent-loop', { parent: parent.title ?? String(parentId) }) };
+    if (run.refused.has(key)) return { reason: say('refusal.parent-refused', { parent: parent.title ?? String(parentId) }) };
     const own = slugOf(parent);
-    if (own.reason) return { reason: say('parent-refused', { parent: parent.title ?? String(parentId) }) };
+    if (own.reason) return { reason: say('refusal.parent-refused', { parent: parent.title ?? String(parentId) }) };
     seen.add(key);
     names.unshift(own.slug);
     next = parent;
@@ -88,7 +88,7 @@ export function holdAddresses(run) {
     const [winner, ...losers] = sorted;
     for (const { post, kept } of losers) {
       if (kept || post === winner.post || run.refused.has(post.key)) continue;
-      refuse(run, post, { field: 'slug', reason: say('address-held', { address: key.startsWith('file:') ? key.slice(5) : post.place.address, holder: winner.post.title ?? winner.post.id }) });
+      refuse(run, post, { field: 'slug', reason: say('refusal.address-held', { address: key.startsWith('file:') ? key.slice(5) : post.place.address, holder: winner.post.title ?? winner.post.id }) });
     }
   }
   if (run.refused.size !== before) return true;
@@ -104,14 +104,14 @@ export function holdAddresses(run) {
   const pagers = new Map(candidates.filter((post) => post.place.address && pagedList(post)).map((post) => [post.place.address, post]));
   for (const post of candidates) {
     const owner = post.place.address && listPageOwners(post.place.address).map((one) => pagers.get(one)).find(Boolean);
-    if (owner && owner !== post) refuse(run, post, { field: 'slug', reason: say('address-list', { address: post.place.address, holder: owner.title ?? owner.id }) });
+    if (owner && owner !== post) refuse(run, post, { field: 'slug', reason: say('refusal.address-list', { address: post.place.address, holder: owner.title ?? owner.id }) });
   }
   if (run.refused.size !== before) return true;
   // A term has a page only while a post has it, or a term below it.
   run.termPages = termPagesOf(run, candidates);
   for (const post of candidates) {
     const term = post.place.address ? [...run.termPages].find(([, page]) => keyOf(page) === keyOf(post.place.address)) : null;
-    if (term) refuse(run, post, { field: 'slug', reason: say('address-term', { address: post.place.address, term: run.terms.get(term[0]).label }) });
+    if (term) refuse(run, post, { field: 'slug', reason: say('refusal.address-term', { address: post.place.address, term: run.terms.get(term[0]).label }) });
   }
   if (run.refused.size !== before) return true;
   // Rules that lead to a post are the post's.
@@ -122,11 +122,11 @@ export function holdAddresses(run) {
     if (rule.post) {
       const post = run.posts.get(rule.post) ?? run.postsById.get(rule.post)?.[0];
       if (post && run.live.has(post.key) && post.type.address !== null) post.ruleOthers.push({ address: rule.from, answer: rule.status });
-      else run.roundWarnings.push(named({ file: REDIRECTS_FILE, reason: say('rule-post-off', { source: rule.from }) }));
+      else run.roundWarnings.push(named({ file: REDIRECTS_FILE, reason: say('warning.rule-post-off', { source: rule.from }) }));
     } else if (rule.term) {
       const page = run.termPages.get(`${run.termsById.get(rule.term)?.key}`);
       if (page) run.siteRules.push({ from: rule.from, to: page, status: rule.status });
-      else run.roundWarnings.push(named({ file: REDIRECTS_FILE, reason: say('rule-post-off', { source: rule.from }) }));
+      else run.roundWarnings.push(named({ file: REDIRECTS_FILE, reason: say('warning.rule-post-off', { source: rule.from }) }));
     } else {
       const toPost = typeof rule.to === 'string' ? byAddress.get(targetKey(rule.to)) : undefined;
       if (toPost) toPost.ruleOthers.push({ address: rule.from, answer: rule.status });
@@ -142,11 +142,11 @@ export function holdAddresses(run) {
       const reserved = siteHolder(address, site);
       const own = byAddress.get(key) ?? holders.get(key)?.[0]?.post;
       const inFile = post.place.address !== null;
-      if (!inFile) refuse(run, post, { field: 'otherAddresses', reason: say('other-no-address', { plural: british(post.type.plural).toLowerCase() }) });
+      if (!inFile) refuse(run, post, { field: 'otherAddresses', reason: say('refusal.other-no-address', { plural: { label: post.type.plural } }) });
       else if (reserved) refuse(run, post, { field: 'otherAddresses', reason: reserved });
-      else if (own) refuse(run, post, { field: 'otherAddresses', reason: say('other-held', { address, holder: own.title ?? own.id }) });
-      else if (others.has(key) && others.get(key) !== post) refuse(run, post, { field: 'otherAddresses', reason: say('other-held', { address, holder: others.get(key).title ?? others.get(key).id }) });
-      else if (exact.has(key)) refuse(run, post, { field: 'otherAddresses', reason: say('other-rule', { address }) });
+      else if (own) refuse(run, post, { field: 'otherAddresses', reason: say('refusal.other-held', { address, holder: own.title ?? own.id }) });
+      else if (others.has(key) && others.get(key) !== post) refuse(run, post, { field: 'otherAddresses', reason: say('refusal.other-held', { address, holder: others.get(key).title ?? others.get(key).id }) });
+      else if (exact.has(key)) refuse(run, post, { field: 'otherAddresses', reason: say('refusal.other-rule', { address }) });
       else others.set(key, post);
     }
   }
@@ -172,10 +172,10 @@ export function allOthers(post) {
 // What of the site's own holds an address, in words, or null.
 function siteHolder(address, site) {
   const reserved = reservedBy(address);
-  if (reserved !== null) return say('address-reserved', { address });
+  if (reserved !== null) return say('refusal.address-reserved', { address });
   const feed = feedAt(address.split('?')[0], site);
-  if (feed) return say('address-feed', { address, feed: feedName(feed) });
-  if (searchPages(site).some((page) => keyOf(page) === keyOf(address))) return say('address-search', { address });
+  if (feed) return say('refusal.address-feed', { address, feed: feedName(feed) });
+  if (searchPages(site).some((page) => keyOf(page) === keyOf(address))) return say('refusal.address-search', { address });
   return null;
 }
 

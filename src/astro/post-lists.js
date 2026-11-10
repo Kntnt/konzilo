@@ -27,6 +27,7 @@ import { presentations, site } from 'virtual:konzilo/post-lists';
 import { textsIn } from 'virtual:konzilo/texts';
 import { listPageAddress } from '../format/addresses.js';
 import { readPostList, SECOND_PAGED_LIST } from '../format/post-list.js';
+import { british } from '../refusals.js';
 import rules from '../format/rules.json' with { type: 'json' };
 import { evaluate, pageCount } from '../post-lists.js';
 import { textLanguage } from '../texts.js';
@@ -67,7 +68,7 @@ export async function postList(given, { post, shown = shownOnPage(), page = 1 } 
   let at = 1;
   let address = null;
   if (read.settings.pages === true) {
-    if (paged.has(shown)) throw new Error(`a post list${post ? ` in ${post.collection}/${post.id}` : ''}: ${SECOND_PAGED_LIST}`);
+    if (paged.has(shown)) throw new Error(`a post list${post ? ` in ${post.collection}/${post.id}` : ''}: ${british(SECOND_PAGED_LIST)}`);
     paged.add(shown);
     address = post ? addressOf(post) : null;
     if (address !== null) at = page;
@@ -141,7 +142,7 @@ async function pagesOf(entry) {
   const lists = postListsIn(entry.body);
   const withPages = lists.filter((given) => given.pages === true);
   if (withPages.length === 0 || addressOf(entry) === null) return null;
-  if (withPages.length > 1) throw new Error(`a post list in ${entry.collection}/${entry.id}: ${SECOND_PAGED_LIST}`);
+  if (withPages.length > 1) throw new Error(`a post list in ${entry.collection}/${entry.id}: ${british(SECOND_PAGED_LIST)}`);
   const shown = shownOnPage();
   for (const given of lists) {
     const { query, settings } = settingsOf(given, entry);
@@ -266,7 +267,7 @@ function settingsOf(given, post) {
     if (!allowed) problems.push(`the site cannot list by the setting ${JSON.stringify(name)} with the value ${JSON.stringify(value)}`);
   }
   const read = problems.length > 0 ? { problems } : readPostList(given, site.lists, { attributes, side: 'file' });
-  if (read.problems.length > 0) throw new Error(`a post list${post ? ` in ${post.collection}/${post.id}` : ''}: ${read.problems.join('; ')}`);
+  if (read.problems.length > 0) throw new Error(`a post list${post ? ` in ${post.collection}/${post.id}` : ''}: ${read.problems.map(british).join('; ')}`);
   return read;
 }
 

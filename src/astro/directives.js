@@ -18,6 +18,7 @@ import { relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { htmlToHast } from 'satteri';
 import rules from '../format/rules.json' with { type: 'json' };
+import { british } from '../refusals.js';
 import { SITE_DESCRIPTION_FILE, siteRules } from '../site-description.js';
 import { describedSite } from './languages.js';
 
@@ -40,10 +41,11 @@ const RESERVED = new Set(['id', 'class', 'content']);
 
 // The directives of rule data, by name: { name, element, form, attributes,
 // body, optionsOf, inline, inner }, each attribute { type, required,
-// default, values, pattern, refusal, declared }: `declared`, the key of
-// the site description whose names the attribute takes one of, such as
-// `forms`, with the `refusal` for any other (format/post-list.js,
-// declaredProblem()). `optionsOf` names the attribute
+// default, values, pattern, refusal, declared }: `refusal`, the words for a
+// value it does not take, the site's own or the core's by their name in the
+// catalogues, `{ name }`; `declared`, the key of the site description whose
+// names the attribute takes one of, such as `forms`, with the `refusal` for
+// any other (format/post-list.js, declaredProblem()). `optionsOf` names the attribute
 // that names one of the site's presentations, whose options the directive
 // takes as attributes beside its own (the post list), or is null.
 // Throws, naming every problem, for a registry the reader cannot follow.
@@ -70,7 +72,7 @@ export function directiveRegistry({ elements }) {
       if (Object.hasOwn(setting, 'declared')) {
         if (!DECLARED.includes(setting.declared)) problems.push(`${where}: declared names ${DECLARED.join(', ')}, what the site description declares that an attribute may name`);
         else if (setting.type !== 'string') problems.push(`${where}: declared names a text`);
-        else if (typeof setting.refusal !== 'string') problems.push(`${where}: declared needs the refusal for a name the site does not declare`);
+        else if (typeof setting.refusal?.name !== 'string') problems.push(`${where}: declared needs the refusal for a name the site does not declare`);
       }
     }
     if (optionsOf !== null && attributes[optionsOf]?.type !== 'string') problems.push(`${at}: optionsOf names an attribute of the type string`);
@@ -138,7 +140,8 @@ const settingOf = (attribute, value) => `the setting ${JSON.stringify(attribute)
 export function valueProblem(attribute, setting, value) {
   const allowed = !setting.values || setting.values.includes(value);
   if (allowed && (!setting.pattern || new RegExp(setting.pattern).test(String(value)))) return null;
-  return setting.refusal ? setting.refusal.replaceAll('{value}', String(value)) : `the site cannot publish ${settingOf(attribute, value)}`;
+  if (!setting.refusal) return `the site cannot publish ${settingOf(attribute, value)}`;
+  return typeof setting.refusal === 'string' ? setting.refusal.replaceAll('{value}', String(value)) : british({ name: setting.refusal.name, values: { value: String(value) } });
 }
 
 const marks = { leafDirective: '::', containerDirective: ':::', textDirective: ':' };

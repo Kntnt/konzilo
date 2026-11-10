@@ -8,10 +8,12 @@ import { gzipSync } from 'node:zlib';
 import { describe, test } from 'node:test';
 import { imagesFrom, namedOriginals, originalFacts, svgMaster } from '../src/intake/images.js';
 import { svgProblem } from '../src/intake/svg.js';
-import rules from '../src/format/rules.json' with { type: 'json' };
+import { CATALOGUES } from '../src/catalogues.js';
+import { british } from '../src/refusals.js';
 import { sharp } from './lib/images.js';
 
-const words = (key) => new RegExp(`^${rules.refusals[key].replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\{\w+\\\}/g, '[\\s\\S]*')}$`);
+// A reason by its name, in British English, as the command line writes it.
+const words = (key) => new RegExp(`^${CATALOGUES.en[`refusal.${key}`].replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\{\w+\\\}/g, '[\\s\\S]*')}$`);
 const picture = ({ width = 600, height = 400, format = 'jpeg', ...options } = {}) => sharp({ create: { width, height, channels: 3, background: '#a33' } })[format](options);
 
 const png = await picture({ format: 'png' }).toBuffer();
@@ -64,7 +66,7 @@ describe('what is refused, saying what to do instead', () => {
   test('a moving image', async () => {
     const other = await sharp({ create: { width: 600, height: 400, channels: 3, background: '#3a3' } }).png().toBuffer();
     const moving = await sharp([png, other], { join: { animated: true } }).webp().toBuffer();
-    assert.match((await originalFacts(moving)).reason, words('image-moving'));
+    assert.match(british((await originalFacts(moving)).reason), words('image-moving'));
   });
 
   for (const [what, bytes] of [
@@ -75,22 +77,22 @@ describe('what is refused, saying what to do instead', () => {
     ['this file', Buffer.from('plain text')],
   ]) {
     test(`${what}, whatever its name says`, async () => {
-      const { reason } = await originalFacts(bytes);
+      const reason = british((await originalFacts(bytes)).reason);
       assert.match(reason, words('image-kind'));
       assert.ok(reason.includes(what), reason);
     });
   }
 
   test('a file larger than 30 MB', async () => {
-    assert.match((await originalFacts(Buffer.alloc(30 * 1024 * 1024 + 1))).reason, words('image-large'));
+    assert.match(british((await originalFacts(Buffer.alloc(30 * 1024 * 1024 + 1))).reason), words('image-large'));
   });
 
   test('a pointer left where the image should be', async () => {
-    assert.match((await originalFacts(Buffer.from('version https://git-lfs.github.com/spec/v1\noid sha256:abc\n'))).reason, words('image-pointer'));
+    assert.match(british((await originalFacts(Buffer.from('version https://git-lfs.github.com/spec/v1\noid sha256:abc\n'))).reason), words('image-pointer'));
   });
 
   test('a file that only starts as an image', async () => {
-    assert.match((await originalFacts(Buffer.from([0xff, 0xd8, 0xff, 0x00]))).reason, words('image-kind'));
+    assert.match(british((await originalFacts(Buffer.from([0xff, 0xd8, 0xff, 0x00]))).reason), words('image-kind'));
   });
 });
 
@@ -146,15 +148,15 @@ describe('an SVG', () => {
     ['another root', Buffer.from('<html viewBox="0 0 1 1"/>'), /no <svg>/],
   ]) {
     test(`refuses ${what}`, () => {
-      const problem = svgProblem(bytes);
+      const problem = british(svgProblem(bytes));
       assert.match(problem ?? '', says);
       assert.match(problem, words('svg'));
     });
   }
 
   test('is refused through the seam too, named by its first bytes', async () => {
-    assert.match((await originalFacts(svg('<script>alert(1)</script>'))).reason, words('svg'));
-    assert.match((await originalFacts(gzipSync(svg('<rect/>')))).reason, words('svg'));
+    assert.match(british((await originalFacts(svg('<script>alert(1)</script>'))).reason), words('svg'));
+    assert.match(british((await originalFacts(gzipSync(svg('<rect/>')))).reason), words('svg'));
   });
 });
 
