@@ -159,6 +159,24 @@ describe('the consent scripts of a site in one language', () => {
     assert.equal(again.document.querySelector('.konzilo-consent-banner').hidden, true);
   });
 
+  test('Withdraw consent there removes the shared choice, so the next page below the domain asks again with the banner', async () => {
+    const jar = new CookieJar();
+    const shared = () => jar.getCookiesSync('https://www.example.com/').find((one) => one.key === 'konzilo-consent');
+    const first = await otherPage(files.get('/_konzilo/consent/en.js'), { jar });
+    first.document.querySelector('figure.konzilo-embed .konzilo-embed-allow').click();
+    assert.ok(shared());
+    const second = await otherPage(files.get('/_konzilo/consent/en.js'), { jar, url: 'https://investors.example.com/news/' });
+    assert.equal(second.document.querySelector('.konzilo-consent-banner').hidden, true);
+    second.document.querySelector('footer [data-konzilo-consent-action="withdraw"]').click();
+    assert.equal(second.document.querySelector('.konzilo-consent-notice').hidden, false);
+    assert.equal(shared(), undefined);
+    first.window.close();
+    second.window.close();
+    const third = await otherPage(files.get('/_konzilo/consent/en.js'), { jar, url: 'https://www.example.com/' });
+    assert.equal(third.document.querySelector('.konzilo-consent-banner').hidden, false);
+    third.window.close();
+  });
+
   test('a page that marks itself as a legal page shows no banner, and its buttons still work', async () => {
     const page = await otherPage(files.get('/_konzilo/consent/en.js'), { head: '<meta name="konzilo-consent" content="legal-page">' });
     assert.equal(page.document.querySelector('.konzilo-consent-banner').hidden, true);

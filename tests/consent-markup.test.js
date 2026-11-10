@@ -403,7 +403,7 @@ describe('a choice kept on a domain for every site below it', () => {
     assert.equal(window.konziloConsent.choice(), null);
   });
 
-  test('withdrawing on one site removes cookies on the shared domain, and the other site removes what it stored at its next page view', () => {
+  test('withdrawing on one site removes cookies on the shared domain, the shared choice with them, and the other site removes what it stored and asks again at its next page view', () => {
     const jar = browser();
     const first = open(jar, 'https://www.example.com/');
     first.document.querySelector('.konzilo-consent-banner [data-konzilo-consent-action="accept"]').click();
@@ -415,12 +415,12 @@ describe('a choice kept on a domain for every site below it', () => {
     const again = open(jar, 'https://www.example.com/');
     again.document.querySelector('footer [data-konzilo-consent-action="withdraw"]').click();
     assert.equal(jar.getCookiesSync('https://www.example.com/').some((one) => one.key === '_count'), false, 'the shared domain\'s cookie is gone');
-    assert.deepEqual(cookieOf(again).services, { consent: true, counter: false, video: false });
+    assert.equal(jar.getCookiesSync('https://www.example.com/').some((one) => one.key === 'konzilo-consent'), false, 'so is the shared choice');
 
     const next = open(jar, 'https://investors.example.com/');
     assert.equal(next.localStorage.getItem('video-volume'), null);
     assert.equal(jar.getCookiesSync('https://investors.example.com/').some((one) => one.key === '_count'), false);
-    assert.equal(next.document.querySelector('.konzilo-consent-banner').hidden, true, 'the withdrawal holds there too');
+    assert.equal(next.document.querySelector('.konzilo-consent-banner').hidden, false, 'the withdrawal holds there too: it asks again');
   });
 
   test('every page removes, as it loads, what each service the choice does not allow stored, before a choice too', () => {

@@ -348,16 +348,16 @@ describe('the visitor\'s own consent on the cookie policy page, with the site\'s
     assert.deepEqual(ownConsent(visited).choice.allows, ['Necessary', 'Statistics', 'Marketing']);
   });
 
-  test('Withdraw consent there rejects every optional service, keeps the consent ID and reloads, as the footer\'s does', () => {
+  test('Withdraw consent there rejects every optional service, keeps no choice and reloads, as the footer\'s does', () => {
     const visited = visit(site, 'cookies');
     visited.signal.allow('youtube');
-    const { id } = visited.kept();
     visited.document.querySelector('.konzilo-declaration button[data-konzilo-consent-action="withdraw"]').click();
-    assert.deepEqual(visited.kept().services, { consent: true, vimeo: true, counter: false, pixel: false, youtube: false });
-    assert.equal(visited.kept().id, id);
+    assert.equal(visited.signal.service('youtube'), false);
+    assert.equal(visited.kept(), null);
     visited.later();
     assert.equal(visited.reloads.length, 1);
-    assert.deepEqual(ownConsent(visit(site, 'cookies', { stored: visited.kept() })).choice.allows, ['Necessary']);
+    const next = ownConsent(visit(site, 'cookies', { stored: visited.kept() }));
+    assert.deepEqual([next.sentences, next.choice], [['You have not made a choice yet, or your last one no longer applies.'], null]);
   });
 });
 

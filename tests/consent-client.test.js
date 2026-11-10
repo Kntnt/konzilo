@@ -571,7 +571,7 @@ describe('the consent client on a page of a site whose registry asks for consent
     assert.deepEqual(next.reloads, []);
   });
 
-  test('Withdraw consent rejects every optional service, keeps the consent ID, removes what each one stored that the page reaches, says so in the banner\'s place, and reloads two seconds later', () => {
+  test('Withdraw consent rejects every optional service, keeps no choice, removes what each one stored that the page reaches, says so in the banner\'s place, and reloads two seconds later to ask again', () => {
     // A registry whose YouTube stores items of its own on the site: a
     // cookie, local storage under a pattern, and session storage.
     const storage = { youtube: [{ name: 'yt_visitor', kind: 'cookie' }, { name: 'yt-player-*', kind: 'localStorage' }, { name: 'yt-session', kind: 'sessionStorage' }] };
@@ -587,12 +587,13 @@ describe('the consent client on a page of a site whose registry asks for consent
     page.window.sessionStorage.setItem('yt-session', 'x');
 
     click(page, 'withdraw');
-    assert.deepEqual(page.kept().services, { consent: true, vimeo: false, youtube: false });
-    assert.equal(page.kept().id, id);
+    assert.equal(page.kept(), null);
     assert.deepEqual(page.events.map(({ how }) => how), ['banner', 'withdrawal']);
+    assert.deepEqual({ ...page.events.at(-1).choice.services }, { consent: true, vimeo: false, youtube: false });
+    assert.equal(page.signal.service('youtube'), false);
     assert.equal(page.document.cookie, 'kept=1');
     const keys = Array.from({ length: page.window.localStorage.length }, (_, index) => page.window.localStorage.key(index)).sort();
-    assert.deepEqual(keys, ['elsewhere', 'konzilo-consent']);
+    assert.deepEqual(keys, ['elsewhere']);
     assert.equal(page.window.sessionStorage.length, 0);
     const notice = page.document.querySelector('.konzilo-consent-notice');
     assert.equal(notice.hidden, false);
@@ -605,8 +606,11 @@ describe('the consent client on a page of a site whose registry asks for consent
     assert.equal(page.reloads.length, 1);
 
     const next = visit(site, 'videos', { stored: page.kept() });
-    assert.equal(next.document.querySelector('.konzilo-consent-banner').hidden, true, 'the banner does not come back');
+    assert.equal(next.document.querySelector('.konzilo-consent-banner').hidden, false, 'the banner asks again');
     assert.equal(next.document.querySelector('.konzilo-consent-notice').hidden, true);
+    click(next, 'reject');
+    assert.equal(next.document.querySelector('.konzilo-consent-banner').hidden, true);
+    assert.notEqual(next.kept().id, id, 'the next choice has a new consent ID');
   });
 
   test('turning a service off in the dialog does for it what withdrawing does: it removes what that service stored that the page reaches, and reloads; a choice that withdraws nothing does neither', () => {
@@ -857,7 +861,8 @@ describe('the consent client\'s records', () => {
     const next = visit(site, 'text', { stored: page.kept(), endpoint: flaky });
     await settled();
     assert.deepEqual(flaky.sent.map(({ record }) => record), records);
-    assert.equal(next.kept().unsent, undefined);
+    assert.equal(next.kept(), null, 'after the withdrawal, nothing waits and no choice holds');
+    assert.equal(next.document.querySelector('.konzilo-consent-banner').hidden, false);
 
     // One stored of two that wait on the same page: the other still waits.
     let answers = 0;

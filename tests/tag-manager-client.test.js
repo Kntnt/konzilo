@@ -563,18 +563,17 @@ describe('a release whose tracker counts without storage before consent', () => 
     assert.equal(objection(next).hidden, false, 'and the choice made in the page view');
   });
 
-  test('Withdraw consent ends the objection too: the next page counts without storage as for a first visit, and the banner stays away', () => {
+  test('Withdraw consent ends the objection too: the next page counts without storage as for a first visit, and the banner asks again', () => {
     const page = visit(site);
     page.click('reject');
     objectionLink(page).click();
     page.click('object');
     page.window.document.body.insertAdjacentHTML('beforeend', '<button type="button" data-konzilo-consent-action="withdraw">Withdraw consent</button>');
     page.click('withdraw');
-    assert.equal(page.kept().objection, undefined);
-    assert.equal(page.kept().services.matomo, false);
+    assert.equal(page.kept(), null);
     const next = visit(site, { stored: page.kept() });
     assert.deepEqual(next.queue(), [...LOG_LIKE, ...COUNTED]);
-    assert.equal(next.document.querySelector('.konzilo-consent-banner').hidden, true);
+    assert.equal(next.document.querySelector('.konzilo-consent-banner').hidden, false);
   });
 
   test('an objection holds 12 months from when it was made, whatever the choice beside it', () => {

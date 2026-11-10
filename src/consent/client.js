@@ -181,19 +181,23 @@ export function consentClient({ name = 'konzilo-consent', months = 12, domain = 
     }
   };
   // A choice has a time, and a consent ID where it has one; an objection
-  // alone has its own time and nothing else of a choice.
+  // alone has its own time and nothing else of a choice. After a
+  // withdrawal, the records that still wait may be all there is.
   const valid = (value) => {
     if (!value || typeof value !== 'object') return null;
     if (typeof value.time === 'string') return value.id === undefined || typeof value.id === 'string' ? value : null;
-    return value.time === undefined && typeof value.objection === 'string' ? value : null;
+    if (value.time !== undefined) return null;
+    if (typeof value.objection === 'string') return value;
+    return value.objection === undefined && Array.isArray(value.unsent) && value.unsent.length > 0 ? value : null;
   };
   // The choice kept in the browser, whether it holds or not, with the
-  // records that wait beside it, or null.
+  // records that wait beside it, or the waiting records alone, or null.
   const kept = () => {
     if (!shared) return valid(local());
     const found = valid(cookie());
     const waiting = local()?.unsent;
-    return found && Array.isArray(waiting) ? { ...found, unsent: waiting } : found;
+    if (!found) return valid({ unsent: waiting });
+    return Array.isArray(waiting) ? { ...found, unsent: waiting } : found;
   };
   const toLocal = (value) => {
     try {
@@ -234,17 +238,18 @@ export function consentClient({ name = 'konzilo-consent', months = 12, domain = 
   };
   // The objection a kept value holds, the time it was made, or null.
   const objectionOf = (value) => (typeof value?.objection === 'string' && !expired(value.objection) ? value.objection : null);
-  // Keep `value`, a choice, an objection or both, or nothing where it holds
-  // neither.
+  // Keep `value`, a choice, an objection or both, with the records that
+  // wait beside them; the records alone where it holds neither; or nothing.
   const keep = (value) => {
-    const empty = value === null || (typeof value.time !== 'string' && typeof value.objection !== 'string');
+    const { unsent: waiting, ...alone } = value ?? {};
+    const empty = typeof alone.time !== 'string' && typeof alone.objection !== 'string';
+    const records = Array.isArray(waiting) && waiting.length > 0 ? { unsent: waiting } : null;
     if (!shared) {
-      toLocal(empty ? null : value);
+      toLocal(empty ? records : value);
       return;
     }
-    const { unsent: waiting, ...alone } = empty ? {} : value;
     toCookie(empty ? null : alone);
-    toLocal(Array.isArray(waiting) && waiting.length > 0 ? { unsent: waiting } : null);
+    toLocal(records);
   };
 
   // A choice older than its lifetime is gone, its consent ID and its
@@ -360,8 +365,9 @@ export function consentClient({ name = 'konzilo-consent', months = 12, domain = 
   // service withdrawn from stored that the page can reach, after the event,
   // and reloads the page, so that none of their code keeps running.
   // Withdraw consent shows the notice in the banner's place first, and
-  // reloads two seconds later; the banner does not come back, since the
-  // choice of the necessary alone holds.
+  // reloads two seconds later. It keeps no choice, only the records that
+  // still wait, so the reloaded page asks again with the banner, as at a
+  // first visit, and the next choice has a new consent ID.
   const choose = (allowed, how, control) => {
     const before = [...categoryOf.keys()].filter(allowsService);
     const services = Object.fromEntries([...categoryOf].map(([service, category]) => [service, category === 'necessary' || allowed.has(service)]));
@@ -372,7 +378,7 @@ export function consentClient({ name = 'konzilo-consent', months = 12, domain = 
     const time = new Date(Math.max(Date.now(), (Date.parse(last?.time) || 0) + 1)).toISOString();
     choice = { ...(identified ? { id: last?.id ?? newId() } : {}), time, revision: registry.revision, categories, services };
     if (how === 'withdrawal' || statistics.some((service) => services[service] === true)) objection = null;
-    const value = objection ? { ...choice, objection } : choice;
+    const value = how === 'withdrawal' ? {} : (objection ? { ...choice, objection } : choice);
     if (sending) {
       const record = { id: choice.id, chosen: time, revision: registry.revision, categories, services, how, control, path: location.pathname, language: registry.language };
       keep({ ...value, unsent: [...unsent(last), record] });
