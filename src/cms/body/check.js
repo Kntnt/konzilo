@@ -63,7 +63,7 @@ function flattened(nodes, around = []) {
   return out;
 }
 
-const isInline = (nodes) => Array.isArray(nodes) && nodes.length > 0 && nodes.every((node) => WRAPPERS.has(node?.type) || ['text', 'code', 'break', 'footnote'].includes(node?.type));
+const isInline = (nodes) => Array.isArray(nodes) && nodes.length > 0 && nodes.every((node) => WRAPPERS.has(node?.type) || ['text', 'code', 'break', 'footnote', 'image'].includes(node?.type));
 
 function inOneOrder(value) {
   if (Array.isArray(value)) return isInline(value) ? flattened(value) : value.map(inOneOrder);

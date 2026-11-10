@@ -170,12 +170,22 @@ function codeBlock(pre) {
 
 const indented = (text, first, rest) => text.split('\n').map((line, index) => (index === 0 ? `${first}${line}` : line === '' ? '' : `${rest}${line}`)).join('\n');
 
+// A list item's task box, `[ ] ` or `[x] `, from the checkbox the reader renders first in
+// a task's item, and what follows it; no box for an item that is no task.
+function taskOf(children) {
+  const [first, next, ...rest] = children;
+  if (!isElement(first) || first.tagName !== 'input' || propertiesOf(first).type !== 'checkbox') return { box: '', children };
+  const after = next?.type === 'text' ? [{ ...next, value: next.value.replace(/^ /, '') }] : next === undefined ? [] : [next];
+  return { box: propertiesOf(first).checked ? '[x] ' : '[ ] ', children: [...after, ...rest] };
+}
+
 function list(node, base) {
   const ordered = node.tagName === 'ol';
   const items = (node.children ?? []).filter((child) => isElement(child) && child.tagName === 'li');
   const parts = items.map((item, index) => {
     const marker = ordered ? `${index + 1}. ` : '- ';
-    return indented(blocks(item.children ?? [], base).join('\n\n'), marker, ' '.repeat(marker.length));
+    const { box, children } = taskOf(item.children ?? []);
+    return indented(`${box}${blocks(children, base).join('\n\n')}`, marker, ' '.repeat(marker.length));
   });
   const loose = items.some((item) => (item.children ?? []).some((child) => isElement(child) && child.tagName === 'p'));
   return parts.join(loose ? '\n\n' : '\n');

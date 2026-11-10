@@ -183,7 +183,8 @@ function inlineOf(children, allowed, scope, element, inLink = false) {
         break;
       }
       case 'image':
-        refuse(scope, node, element, 'image-alone');
+        if (allowed.includes('image')) push(inlineImage(node, scope, element, linked()));
+        else refuse(scope, node, element, 'image-alone');
         break;
       case 'textDirective': {
         const literal = literalDirective(node, scope);
@@ -203,6 +204,19 @@ function inlineOf(children, allowed, scope, element, inLink = false) {
   }
   if (stack.length > 1) refuse(scope, children.at(-1), element, 'raw-unclosed', { tag: stack.at(-1).tag });
   return root;
+}
+
+// An image in the text of what takes one, a list's item: its alt text and its original's
+// address, resolved later as a figure's is. It never goes without alt text, which names
+// the link where the image is one.
+function inlineImage(node, scope, element, linked) {
+  const alt = node.alt.trim();
+  if (!scope.written) {
+    if (node.title) refuse(scope, node, element, 'image-title');
+    if (alt === '') refuse(scope, node, element, linked ? 'image-link-alt' : 'image-alt');
+    else if (alt.includes('\n')) refuse(scope, node, element, 'image-alt-lines');
+  }
+  return at({ type: 'image', alt, src: node.url }, { path: scope.path, line: lineOf(node), element });
 }
 
 // The literal text a directive with no attributes and no label was written as, or
@@ -605,9 +619,6 @@ function listOf(node, scope) {
   const allowed = scope.rules.elements[element].inline;
   const items = node.children.map((item, index) => {
     const inner = { ...scope, path: `${scope.path}.${index + 1}`, top: false };
-    if (!scope.written) {
-      if (item.checked !== null && item.checked !== undefined) refuse(inner, item, element, 'list-task');
-    }
     const [first, second, ...rest] = item.children;
     if (first?.type !== 'paragraph') {
       if (scope.written) return { unreadable: true };
@@ -626,7 +637,7 @@ function listOf(node, scope) {
       return null;
     }
     const nested = second ? listOf(second, inner)[0] ?? null : null;
-    return { children, list: nested };
+    return { checked: typeof item.checked === 'boolean' ? item.checked : null, children, list: nested };
   });
   return [{ type: 'list', ordered: node.ordered === true, items: items.filter(Boolean) }];
 }
@@ -1080,6 +1091,7 @@ function resolved(nodes, scope) {
   const out = [];
   for (const node of nodes) {
     if (node.children) node.children = resolved(node.children, scope);
+    if (node.type === 'image') resolveImage(node, scope);
     if (node.type !== 'link' || !node.href.startsWith('konzilo:')) {
       out.push(node);
       continue;
@@ -1098,7 +1110,20 @@ function resolved(nodes, scope) {
   return tidy(out);
 }
 
-const plainText = (nodes) => nodes.map((node) => node.value ?? plainText(node.children ?? [])).join('');
+const plainText = (nodes) => nodes.map((node) => node.value ?? node.alt ?? plainText(node.children ?? [])).join('');
+
+// An image's master, a figure's or one in a list's item, with the site's reason or warning
+// at the block it stands in.
+function resolveImage(node, scope, path) {
+  const given = scope.image(node.src);
+  const where = node.at ?? {};
+  const entry = { path: where.path ?? path, name: where.element ?? 'image', line: where.line };
+  if (given.reason) scope.problems.push({ ...entry, reason: given.reason });
+  else {
+    node.src = given.src;
+    if (given.warning) scope.warnings.push({ ...entry, reason: given.warning });
+  }
+}
 
 function resolveBlock(node, scope, path) {
   const inner = (index) => `${path}.${index + 1}`;
@@ -1126,18 +1151,10 @@ function resolveBlock(node, scope, path) {
       if (node.caption) node.caption = resolved(node.caption, scope);
       for (const row of [node.head, ...node.body, ...node.foot]) for (const cell of row) cell.children = resolved(cell.children, scope);
       break;
-    case 'image': {
+    case 'image':
       if (node.caption) node.caption = resolved(node.caption, scope);
-      const given = scope.image(node.src);
-      const where = node.at ?? {};
-      const entry = { path: where.path ?? path, name: where.element ?? 'image', line: where.line };
-      if (given.reason) scope.problems.push({ ...entry, reason: given.reason });
-      else {
-        node.src = given.src;
-        if (given.warning) scope.warnings.push({ ...entry, reason: given.warning });
-      }
+      resolveImage(node, scope, path);
       break;
-    }
     case 'gallery':
       for (const image of node.images) resolveBlock(image, scope, path);
       if (node.caption) node.caption = resolved(node.caption, scope);
@@ -1275,6 +1292,9 @@ function inlineText(nodes, context) {
       case 'link':
         out += linkText(node, context);
         break;
+      case 'image':
+        out += `![${altText(node.alt, context.level, context.scope)}](${linkAddress(node.src, context)})`;
+        break;
       default:
         throw new Error(`the body check cannot write an inline ${node.type}`);
     }
@@ -1332,14 +1352,15 @@ function headingText(node, level, scope) {
 }
 
 // A list's marker, the other one for a list right after a list of its kind, so that
-// the two stay apart.
+// the two stay apart, and a task's box after it, ticked or not.
 function listText(node, level, scope, second = false) {
   const items = node.items.map((item, index) => {
     const marker = node.ordered ? `${index + 1}${second ? ')' : '.'} ` : `${second ? '*' : '-'} `;
     const pad = ' '.repeat(marker.length);
     const text = inlineText(item.children, inlineContext(level, scope));
     const nested = item.list ? `\n${pad}${indented(listText(item.list, level, scope), pad)}` : '';
-    return `${marker}${indented(text, pad)}${nested}`;
+    const box = item.checked === true ? '[x] ' : item.checked === false ? '[ ] ' : '';
+    return `${marker}${box}${indented(text, pad)}${nested}`;
   });
   return items.join('\n');
 }

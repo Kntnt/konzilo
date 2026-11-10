@@ -336,6 +336,36 @@ A bulleted item starts with `- `, a numbered item with its number, counted from 
 1) Serve
 ```
 
+An item may be a task, its box after its marker: `[ ] ` for one not done, `[x] ` for one done, in a bulleted or a numbered list, and a list may hold tasks and plain items both. A plain item whose text begins as a box would is written with its brackets escaped, `\[ \]`. The site shows a task with a checkbox the visitor cannot change.
+
+```markdown body read
+- [ ] Is the camera allowed here?
+- [x] Ask the board
+- Keep the answer
+```
+
+```html rendered
+<ul class="contains-task-list">
+<li class="task-list-item"><input type="checkbox" disabled> Is the camera allowed here?</li>
+<li class="task-list-item"><input type="checkbox" checked disabled> Ask the board</li>
+<li>Keep the answer</li>
+</ul>
+```
+
+An item's text may hold an image, as a list of logos does, or an image that is a link, its alt text then naming where the link leads. The image is its master, as a figure's ([Images](#images)), and never goes without its alt text.
+
+```markdown body read
+- ![The harbour office](../media/example-3f9a1c2b7d.webp)
+- [![The lantern guild](../media/example-3f9a1c2b7d.webp)](/pages/about-us/)
+```
+
+```html rendered
+<ul>
+<li><img src="../media/example-3f9a1c2b7d.webp" alt="The harbour office"></li>
+<li><a href="/pages/about-us/"><img src="../media/example-3f9a1c2b7d.webp" alt="The lantern guild"></a></li>
+</ul>
+```
+
 ### Quotes
 
 A quote puts `> ` before each line of its blocks, paragraphs, headings, lists and quotes, and a lone `>` between them. Its citation, who said it, is its last paragraph, after a lone `>`, wrapped whole in raw `<cite>`; it takes the inline elements a heading takes.

@@ -125,13 +125,19 @@ describe('a body', () => {
     ['a value against its pattern, in the site\'s words', ':::section{anchor="Hours"}\nText\n:::', /"Hours" is no anchor; write lowercase letters and hyphens/],
     ['a label on a component with no text', '::breadcrumbs[Home]', /the site cannot publish the directive breadcrumbs with a label/],
     ['a leaf written as a container', ':::eyebrow\nText\n:::', /the site writes the directive eyebrow as ::eyebrow, on a line of its own/],
-    ['an element inside a container that the type does not take', ':::section\n\n- [ ] Task\n\n:::', /task list/],
   ]) {
     test(`refuses ${what}`, () => {
       const { refusals } = out(body);
       assert.ok(refusals.some((one) => reason.test(one)), refusals.join('\n'));
     });
   }
+
+  test('refuses an element inside a container that the type does not take', () => {
+    const site = own();
+    site.types = { page: { ...site.types.page, elements: site.types.page.elements.filter((element) => element !== 'code') } };
+    const { refusals } = out(':::section\n\n```\ncode\n```\n\n:::', site);
+    assert.ok(refusals.some((one) => /cannot hold a code block/.test(one)), refusals.join('\n'));
+  });
 
   test('refuses a component a type does not take', () => {
     const site = own();

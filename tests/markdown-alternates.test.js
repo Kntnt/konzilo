@@ -13,6 +13,7 @@ import { astroConfig, astroEnvironment } from './lib/astro.js';
 import { postFile, settingsFile, writeFiles } from './lib/content.js';
 import { plainImage, sharp } from './lib/images.js';
 import { markdownAddress, markdownAlternate, pageOfMarkdown, prefersMarkdown } from '../src/astro/markdown-alternates.js';
+import { pageMarkdown } from '../src/astro/html-to-markdown.js';
 import { siteDescription } from '../src/site-description.js';
 
 const core = fileURLToPath(new URL('../', import.meta.url));
@@ -557,3 +558,8 @@ async function until(check, timeout = 90_000) {
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
 }
+
+test("keeps a task's box, ticked or not, and a plain item as it is", () => {
+  const html = '<main data-konzilo-main><ul class="contains-task-list">\n<li class="task-list-item"><input type="checkbox" disabled> Ask</li>\n<li class="task-list-item"><input type="checkbox" checked disabled> Asked <em>twice</em></li>\n<li>Plain</li>\n</ul></main>';
+  assert.match(pageMarkdown({ html, url: 'https://example.com/a/', title: 'Tasks' }).markdown, /^- \[ \] Ask\n- \[x\] Asked \*twice\*\n- Plain$/m);
+});
