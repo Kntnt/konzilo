@@ -15,6 +15,7 @@ import { cmsConfig } from '../src/cms/config.js';
 import { demoSource } from '../src/demo-source.js';
 import { checkBody } from '../src/format/body.js';
 import { reader } from '../src/intake/reader.js';
+import { british } from '../src/refusals.js';
 import { readSiteDescription, siteDescription } from '../src/site-description.js';
 import { contentFormat, exampleFile, markedExamples } from '../tests/lib/content-format.js';
 import { everyElement, pageFile, pagePath, pageSource, run, written } from '../tests/lib/intake.js';
@@ -209,7 +210,7 @@ describe('the body field, alone', () => {
       test(name, async () => {
         const inBrowser = await call('check', body, FORMS);
         const onServer = checkBody(body, handsFor(reader, { elements: everyElement.types.page.elements, forms: FORMS }));
-        assert.deepEqual(inBrowser, { written: onServer.body, reasons: onServer.problems.map(({ reason }) => reason) }, 'the browser\'s check gives the intake\'s verdict');
+        assert.deepEqual(inBrowser, { written: onServer.body, reasons: onServer.problems.map(({ reason }) => british(reason)) }, 'the browser\'s check gives the intake\'s verdict');
 
         const mode = await call('open', body);
         assert.equal(mode, OPENS_AS_MARKDOWN.has(name) ? 'markdown' : 'editor', (await call('notes')).join(' '));

@@ -10,6 +10,7 @@ import { blockAt } from '../../../src/cms/body/place.js';
 import { mountBodyField } from '../../../src/cms/body/field.js';
 import { useInterfaceLanguage } from '../../../src/cms/body/texts.js';
 import { PLACE_EVENT } from '../../../src/cms/preview/paths.js';
+import { wordsShown } from '../../../src/cms/refusals.js';
 import { checkBody } from '../../../src/format/body.js';
 
 const EVERY_ELEMENT = ['paragraph', 'heading', 'list', 'quote', 'code', 'table', 'footnotes', 'embed', 'image', 'gallery', 'post-list', 'form'];
@@ -204,10 +205,10 @@ globalThis.fieldPage = {
     if (html && !text) data.setData('text/plain', html.replace(/<[^>]*>/g, ''));
     view.dom.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
   },
-  // The early check's verdict, as the browser gives it.
+  // The early check's verdict, as the browser gives it, each reason in the interface language.
   async check(body, forms) {
     const { body: written, problems } = checkBody(body, handsFor(await loadReader(), { elements: EVERY_ELEMENT, forms }));
-    return { written, reasons: problems.map(({ reason }) => reason) };
+    return { written, reasons: problems.map(({ reason }) => wordsShown(reason)) };
   },
   added: () => current().library.added,
   stopThrowing() {
