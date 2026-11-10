@@ -31,6 +31,7 @@
     "src",
     "site-template/demo-content",
     "content-format.md",
+    "SITE-EXCEPTION.md",
     "TRADEMARKS.md"
   ],
   "scripts": {

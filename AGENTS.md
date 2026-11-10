@@ -26,4 +26,5 @@ Precedence over any conflicting skill, README, or other doc unless the user over
 - `docs/adr/README.md` — read before reversing or questioning a decision, or when recording a new one
 - `GLOSSARY.md` — read when naming anything in code, docs or tickets, or when a word may carry a Konzilo meaning
 - `docs/adr/0057-license-the-code-under-the-agpl-and-keep-the-name-by-a-trademark-policy.md` — read before adding a dependency or code someone else wrote, since its license must fit the core's, and when writing how the name Konzilo may be used
+- `SITE-EXCEPTION.md` — read before moving code between the core and the site template, or changing what the package exports, since both move the line between what the license covers and what a site may keep
 - `docs/site-design.md` — read when changing a class, a state or a custom property the core's markup has; the same change updates it
