@@ -60,6 +60,7 @@ import { searchDescriptionOf, searchTitleOf, SHARING_SIZE, socialDescriptionOf, 
 import { followsParts } from '../format/built-in-types.js';
 import { renderTemplate } from '../metadata-templates.js';
 import { isSiteTitle } from '../settings-groups.js';
+import { articleAuthors } from './authors.js';
 import { feedAlternates } from './feeds.js';
 import { entryAddress } from './languages.js';
 import { markdownLink } from './markdown-alternates.js';
@@ -142,6 +143,7 @@ export async function headTags({ entry = null, title, description, path, page: n
     image,
     logo,
     breadcrumbs: breadcrumbs.map(({ name, path: at }) => ({ name, url: new URL(at, origin).href })),
+    authors: (page.authors ?? []).map(({ name, slug, url: at }) => ({ name, slug, url: at === null ? null : new URL(at, origin).href })),
   });
   // A later page of a list's pages is in no other language.
   const inLanguages = number > 1 ? [] : languages;
@@ -246,6 +248,7 @@ async function postPage({ entry, type, path, number, search, site }, known, getE
     published: field('date'),
     modified: field('modified'),
     image: seo.socialImage ? { src: seo.socialImage, alt: seo.socialImageAlt } : field('image') ?? null,
+    authors: await articleAuthors(entry, type, site, getEntries),
   };
 }
 
