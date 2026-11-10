@@ -31,5 +31,5 @@
 - The dependencies of today are under permissive licenses, MPL-2.0 or the LGPL, and all go together with the license. One under the GPL, version 2 alone, or under terms that forbid a use, does not. One under the GPL, version 3, or the AGPL does, but would bind the core to it, and stays out too (ADR 0059).
 - The programs a Compose project runs beside the core, such as Forgejo and Caddy, are works of their own under their own licenses.
 - The policy has force where the name is a protected trademark. A name not yet well known is protected by registration, which is Thomas's to make.
-- A site is built together with the core's components, and the site template and the demo content end up in every site. ADR 0058 leaves what a site adds outside the license.
+- A site is built together with the core's components, and the site template and the demo content end up in every site. ADR 0058 leaves a site's content and look outside the license, and whatever changes what the core does under it.
 - ADR 0059 holds the terms on which contributions are taken.

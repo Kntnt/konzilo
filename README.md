@@ -12,7 +12,7 @@ Konzilo is built on Astro, Sveltia CMS, Milkdown and Sätteri, runs beside Forge
 
 ## Contributing
 
-Contributions are welcome, and [`CONTRIBUTING.md`](CONTRIBUTING.md) says how. Stand-alone work, which a site adds to Konzilo from outside, is its author's alone. Work that goes into this repository comes in under [Konzilo's contributor agreement](CONTRIBUTOR-AGREEMENT.md), by which its author keeps the copyright and gives Kntnt Sweden AB a license to it.
+Contributions are welcome, and [`CONTRIBUTING.md`](CONTRIBUTING.md) says how. Stand-alone work, added to Konzilo from outside, is its author's alone, under terms that go together with the license where it changes what Konzilo does. Work that goes into this repository comes in under [Konzilo's contributor agreement](CONTRIBUTOR-AGREEMENT.md), by which its author keeps the copyright and gives Kntnt Sweden AB a license to it.
 
 ## License
 
@@ -24,7 +24,7 @@ Konzilo is distributed in the hope that it will be useful, but WITHOUT ANY WARRA
 
 [`LICENSE`](LICENSE) holds the license's text. Its identifier is `AGPL-3.0-or-later`. The few files that hold material of others keep their own licenses, and [`ACKNOWLEDGEMENTS.md`](ACKNOWLEDGEMENTS.md) names them.
 
-As an additional permission under section 7 of that license, Konzilo comes with a site exception. What a site adds to Konzilo, its templates, components, design, settings and content, and the pages Konzilo builds from them, is outside the license. Konzilo itself, and every change to it, stays under it. [`SITE-EXCEPTION.md`](SITE-EXCEPTION.md) holds the terms.
+As an additional permission under section 7 of that license, Konzilo comes with a site exception. A site's content and its look, the templates and stylesheets that show it, and the pages Konzilo builds from them are outside the license. Whatever changes what Konzilo does stays under it, however it is done. [`SITE-EXCEPTION.md`](SITE-EXCEPTION.md) holds the terms.
 
 ## Name
 

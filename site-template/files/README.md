@@ -21,6 +21,6 @@ The first run copies the core's fictional demo content into `content/`, which Gi
 - `src/` is the design: the layout, the pages, the components and the styles. `src/styles/body.css` styles body text; `src/styles/site.css` everything around it.
 - `astro.config.mjs` names the body styles, the presentations' components and the pages of search and terms to Konzilo's integration.
 
-What is the site's own is outside Konzilo's license, the GNU Affero General Public License, and may be kept private or shared on any terms. Konzilo itself stays under that license, changes to it included. Konzilo's `SITE-EXCEPTION.md` says where the line runs.
+The site's content and its look, which is the description, the templates and the styles, are outside Konzilo's license, the GNU Affero General Public License, and may be kept private or shared on any terms. Whatever changes what Konzilo does stays under that license, however it is done: an integration, a plugin or a script that adds function is no template. Konzilo's `SITE-EXCEPTION.md` says where the line runs.
 
 An address the site has nothing at shows its 404 page, `src/pages/404.astro`. A category or a tag has a page of its own only when `site-description.json` gives its taxonomy an address, such as `"address": "/category/{slug}/"`.
