@@ -36,3 +36,9 @@ test('finds each node at the path the preview marks its block with', () => {
   const paths = [...everyNode(root)].map((node) => pathTo(root, node).join('.'));
   assert.deepEqual(paths.filter((path) => !marked.includes(path)), [], 'and a mark for each node');
 });
+
+test('sums up an item that is a picture by its alt text', () => {
+  const root = parseBody(':::section\n\n- ![The harbour office](/media/a.webp)\n- [![The guild](/media/b.webp)](/guild/)\n\n:::');
+  const [list] = root.children[0].children;
+  assert.deepEqual(list.children.map((item) => summaryOf(item)), ['The harbour office', 'The guild']);
+});

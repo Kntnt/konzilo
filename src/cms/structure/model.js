@@ -144,8 +144,8 @@ export function* everyNode(node) {
   }
 }
 
-// Text without its Markdown, to show in the tree.
-export const plain = (text) => (text ?? '').replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/<[^>]+>/g, '').replace(/\\(.)/g, '$1').replace(/[*_`>]/g, '').replace(/\s+/g, ' ').trim();
+// Text without its Markdown, to show in the tree: an image by its alt text.
+export const plain = (text) => (text ?? '').replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/<[^>]+>/g, '').replace(/\\(.)/g, '$1').replace(/[*_`>]/g, '').replace(/\s+/g, ' ').trim();
 
 // What says what a node is about: its own text, else the first text within it, else, for a
 // form of items, its items' headings. `count(kind, n)` words a number of images or items.
