@@ -2,7 +2,7 @@
   "name": "@kntnt/konzilo",
   "version": "0.0.0",
   "description": "Konzilo's content format and Astro integration.",
-  "license": "UNLICENSED",
+  "license": "AGPL-3.0-or-later",
   "private": true,
   "type": "module",
   "repository": {
@@ -30,7 +30,8 @@
     "bin",
     "src",
     "site-template/demo-content",
-    "content-format.md"
+    "content-format.md",
+    "TRADEMARKS.md"
   ],
   "scripts": {
     "test": "node scripts/test.js",
