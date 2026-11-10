@@ -45,7 +45,8 @@
         "br",
         "code",
         "s",
-        "footnote"
+        "footnote",
+        "image"
       ],
       "inner": [
         "list"
@@ -570,7 +571,6 @@
     "anchor-taken": "the site keeps the anchor \"{anchor}\" for its footnotes; give the heading another",
     "list-start": "the site cannot publish a numbered list that starts at {start}; start it at 1",
     "list-loose": "the site cannot publish a list with blank lines between its items; take the blank lines out",
-    "list-task": "the site cannot publish a task list; write its items as plain text",
     "list-item-empty": "the site cannot publish a list item without text; write its text, or take it out",
     "list-item-blocks": "a list item holds one paragraph, and a list under it at most; move the rest out of the list",
     "quote-empty": "the site cannot publish a quote without text; write its text, or take it out",
@@ -593,9 +593,10 @@
     "link-fragment": "the site cannot link to {address} alone; link to the post and the anchor, as a path on the site",
     "link-admin": "the site cannot link to {address}, the host where editors sign in, which visitors never reach",
     "image-alone": "an image stands alone in its paragraph, with its caption after a line break; move the rest out",
-    "image-place": "an image stands at the top of the body, never in a quote or a list; move it out",
+    "image-place": "an image stands at the top of the body, or in a list's item, never in a quote; move it out",
     "image-alt": "the site cannot publish an image without alt text; describe the image",
     "image-alt-lines": "an image's alt text is one line; join its lines",
+    "image-link-alt": "the site cannot publish a linked image without alt text; name where the link leads",
     "image-title": "the site cannot publish an image with a title; take the title out, or make it the caption",
     "embed-place": "an embed stands at the top of the body, never in a quote or a list; move it out",
     "embed-caption": "the site cannot show a caption with the embed {address}; take the caption out",

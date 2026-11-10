@@ -22,7 +22,7 @@
 The barn _in 1920_
 ```
 
-Alt text belongs to each use. It is written without the spaces at its edges, with `\`, `*`, `` ` ``, `[` and `]` always escaped, and it is required: decorative images and multi-line alt text are refused. A caption takes emphasis, strong, code, superscript and subscript, and no link, line break or footnote. An image stands at the top of the body only. The reader renders the paragraph as `<figure><img src alt><figcaption>…</figcaption></figure>`, and Astro makes its versions from the master.
+Alt text belongs to each use. It is written without the spaces at its edges, with `\`, `*`, `` ` ``, `[` and `]` always escaped, and it is required: decorative images and multi-line alt text are refused. A caption takes emphasis, strong, code, superscript and subscript, and no link, line break or footnote. An image stands at the top of the body, or in a list's item ([ADR 0061](0061-keep-a-tasks-box-and-let-a-lists-item-hold-an-image.md)). The reader renders the paragraph as `<figure><img src alt><figcaption>…</figcaption></figure>`, and Astro makes its versions from the master.
 
 **A gallery** is two or more images, one line after another in one paragraph, the gallery's caption, if any, on the line after the last:
 

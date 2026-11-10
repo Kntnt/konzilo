@@ -69,6 +69,7 @@ const TEXTS = {
   },
   block: { en: 'Block {path}', sv: 'Block {path}' },
   keptImage: { en: 'An image, kept as Markdown', sv: 'En bild, behålls som Markdown' },
+  keptList: { en: 'A list with pictures, kept as Markdown', sv: 'En lista med bilder, behålls som Markdown' },
   keptEmbed: { en: 'An embed, kept as Markdown', sv: 'En inbäddning, behålls som Markdown' },
   keptDirective: { en: 'A component, kept as Markdown', sv: 'En komponent, behålls som Markdown' },
   keptHtml: { en: 'A structured table or raw HTML, kept as Markdown', sv: 'En strukturerad tabell eller rå HTML, behålls som Markdown' },

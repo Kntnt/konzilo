@@ -38,8 +38,10 @@ const fixtures = readdirSync(fixturesRoot, { withFileTypes: true })
     .map((file) => ({ name: `${element}/${file.slice(0, -'.md'.length)}`, body: readFileSync(join(fixturesRoot, element, file), 'utf8').replace(/\n$/, '') })));
 
 const bodyOf = (contents) => contents.replace(/^---\n[\s\S]*?\n---\n\n?/, '').replace(/\n$/, '');
+// The examples of the document's own site, which the field is set up for here; another
+// site's, such as one with components of its own, are that site's.
 const examples = markedExamples(contentFormat()).checked
-  .filter((example) => ['markdown', 'md'].includes(example.language) && !example.attributes['site-description'])
+  .filter((example) => ['markdown', 'md'].includes(example.language) && !example.attributes['site-description'] && !example.attributes.site)
   .map((example) => ({ name: `content-format.md line ${example.line}`, body: bodyOf(exampleFile(example).contents) }))
   .filter(({ body }) => body !== '');
 

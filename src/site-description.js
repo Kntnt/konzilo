@@ -10,6 +10,7 @@ import { readFileSync } from 'node:fs';
 import { freeze, isObject, onlyKeys as checkedKeys, text } from './checks.js';
 import { IMAGE_LIBRARY_FOLDER, MEDIA_FOLDER } from './format/masters.js';
 import { suffixTakenIn } from './format/public-suffixes.js';
+import { readComponents, withComponents } from './format/components.js';
 import rules from './format/rules.json' with { type: 'json' };
 import { coreSettingsGroups, groupsFor, settingsGroups } from './settings-groups.js';
 
@@ -101,14 +102,15 @@ export const SEO_PARTS = Object.freeze({
 // group of Konzilo's, takes one of them.
 export const IDENTITY = Object.freeze(['title', 'logo', 'icon']);
 
-// The elements a type's posts may hold in their bodies, by the rule data's names.
-function elementsOf(elements, path, problems) {
+// The elements a type's posts may hold in their bodies, by the names in the rule data
+// with the site's components (`known`).
+function elementsOf(elements, path, known, problems) {
   if (!Array.isArray(elements) || !elements.every((element) => typeof element === 'string')) {
     problems.push(`${path}: must list the elements the type takes, by name`);
     return [];
   }
   for (const element of elements) {
-    if (!Object.hasOwn(rules.elements, element)) problems.push(`${path}: the core cannot publish the element ${JSON.stringify(element)}`);
+    if (!Object.hasOwn(known.elements, element)) problems.push(`${path}: the core cannot publish the element ${JSON.stringify(element)}`);
   }
   if (new Set(elements).size !== elements.length) problems.push(`${path}: names an element twice`);
   return [...elements];
@@ -136,6 +138,8 @@ const results = new WeakSet();
 //     security: { includeSubDomains, frameAncestors: [ <origin> ] },
 //     forms: { <form>: { name, label, fields: [ { name, label, kind, required, maxLength, options, help } ] } },
 //     search: { address } or null,
+//     components: { <component>: { name, element, label, form, body, attributes } },
+//     componentChecks: <path> or null,
 //     groups: [ { name, label, description, settings, types, each } ] }
 //
 // The language is the one the site's content is written in, a locale,
@@ -161,7 +165,10 @@ const results = new WeakSet();
 // its terms' pages, as a type's is, with `{slug}`, or `{path}` in a
 // hierarchical taxonomy, the slugs of the term's parents and its own; null for
 // a taxonomy whose terms have no page, which no taxonomy has unless it
-// declares one. Each field is { name, kind, required } and what its
+// declares one. `components` are the directives the site declares of its
+// own, as format/components.js reads them, each an element of the rule data
+// that siteRules() gives, and `componentChecks` the module of the site's
+// that checks what they hold. Each field is { name, kind, required } and what its
 // kind needs: `date`, `modified`, `excerpt` and `image`, the core's own; `seo`
 // ({ keys }, SEO_KEYS), Konzilo's own; `terms` ({ taxonomy }) or `meta`
 // ({ label, type, control, options }). `images`
@@ -268,7 +275,10 @@ function description(declared, groups, problems) {
     problems.push('the site description must be a JSON object');
     return null;
   }
-  onlyKeys(declared, ['language', 'languages', 'images', 'types', 'taxonomies', 'presentations', 'menus', 'settings', 'consent', 'security', 'forms', 'search'], '', problems);
+  onlyKeys(declared, ['language', 'languages', 'images', 'types', 'taxonomies', 'presentations', 'menus', 'settings', 'consent', 'security', 'forms', 'search', 'components', 'componentChecks'], '', problems);
+  const components = readComponents(declared.components, rules, 'components', problems);
+  const known = withComponents(rules, components);
+  const componentChecks = componentChecksOf(declared.componentChecks, components, problems);
   const languages = languagesOf(declared, problems);
   const language = languages.length > 0 ? languages[0].locale : null;
   const collections = new Map();
@@ -279,7 +289,7 @@ function description(declared, groups, problems) {
   }
   const types = {};
   for (const [name, type] of entries(declared.types, 'types', problems, true)) {
-    types[name] = typeOf(name, type, `types.${name}`, { collections, taxonomies, addresses }, problems);
+    types[name] = typeOf(name, type, `types.${name}`, { collections, taxonomies, addresses, rules: known }, problems);
   }
   feedsOf(types, taxonomies, problems);
   const presentations = {};
@@ -304,7 +314,29 @@ function description(declared, groups, problems) {
   for (const [name, form] of entries(declared.forms, 'forms', problems, false)) {
     forms[name] = formOf(name, form, `forms.${name}`, problems);
   }
-  return freeze({ language, languages, types, taxonomies, presentations, images, menus, settings, consent, security, forms, search, groups: groupsFor(declared, types, groups, language, forms) });
+  return freeze({ language, languages, types, taxonomies, presentations, images, menus, settings, consent, security, forms, search, components, componentChecks, groups: groupsFor(declared, types, groups, language, forms) });
+}
+
+// The rule data a site's bodies are read against: the core's, with the components the
+// site declares (format/components.js), for a description as siteDescription() gives it.
+const ruled = new WeakMap();
+export function siteRules(site) {
+  if (!site?.components || Object.keys(site.components).length === 0) return rules;
+  if (!ruled.has(site)) ruled.set(site, withComponents(rules, site.components));
+  return ruled.get(site);
+}
+
+// The module that checks what the site's components hold, a path from the site
+// repository's root, or null for a site that has none. Its `componentProblems(name,
+// attributes, blocks)` gives the reasons the site cannot publish what a component holds.
+function componentChecksOf(given, components, problems) {
+  if (given === undefined) return null;
+  if (typeof given !== 'string' || !/^(?!\/)(?!.*(?:^|\/)\.\.?(?:\/|$))[^\\:]+\.m?js$/.test(given)) {
+    problems.push('componentChecks: must be the path of a JavaScript module in the site repository, from its root, such as component-checks.js');
+    return null;
+  }
+  if (Object.keys(components).length === 0) problems.push('componentChecks: checks what the site\'s components hold, and the site declares none');
+  return given;
 }
 
 // An origin that may frame the site's pages: `https://` and a host, in
@@ -783,7 +815,7 @@ function typeOf(name, type, path, site, problems) {
     feed: feedAddressOf(type.feed, `${path}.feed`, false, problems),
     hierarchical,
     search: takesPart(type.search, address, site.addresses.searched, `${path}.search`, problems),
-    elements: elementsOf(type.elements, `${path}.elements`, problems),
+    elements: elementsOf(type.elements, `${path}.elements`, site.rules, problems),
     fields: [],
   };
   const taken = new Set();

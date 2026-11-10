@@ -98,7 +98,7 @@ import { previewGuard } from './preview-guard.js';
 import { previewLink } from './preview-link.js';
 import { isLivePreview, isPublicBuild, origin } from './public-site.js';
 import { pageTagManager, pageTracker, tagManagerClient } from './tag-manager.js';
-import { registry } from './directives.js';
+import { registryOf } from './directives.js';
 import { FORM_NOT_SENT, formClient, siteFormNotSentPage, siteFormTexts } from './forms.js';
 import { devDiscovery, devMarkdown, MARKDOWN_LIST, markdownList, writeMarkdownAlternates } from './markdown-alternates.js';
 import { markdownFeatures, markdownHastPluginsIn, markdownMdastPlugins } from './reader.js';
@@ -295,9 +295,9 @@ function postListModule(root, components, described) {
 // the form out of the page, and the build warns, naming the file, its line
 // and the form, so that one post that still places a form a developer took
 // out keeps no other post off the site.
-function declaredChecks(declared) {
+function declaredChecks(declared, known) {
   const leaveOut = {};
-  for (const entry of registry.values()) {
+  for (const entry of known.values()) {
     const named = Object.entries(entry.attributes).filter(([, setting]) => setting.declared);
     if (named.length === 0) continue;
     leaveOut[entry.name] = (values) => named
@@ -400,7 +400,6 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
   const ownTexts = givenTexts(texts);
   if (emptyList !== undefined && (typeof emptyList !== 'string' || emptyList.trim() === '')) throw new Error('Konzilo: emptyList must be a text');
   for (const name of Object.keys(directives)) {
-    if (!registry.has(name)) throw new Error(`Konzilo: the site gives a component for the directive ${name}, which the rule data has not got`);
     if (name === LIST.name) throw new Error(`Konzilo: the integration renders the directive ${name} itself, through the presentations the site registers in konzilo({ presentations })`);
   }
   const named = tokensOf(tokens);
@@ -444,6 +443,11 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
         // Without a description it can read, there is nothing to hold them against, and what is
         // wrong with it comes from where it is read.
         if (described) checkPresentations(described, presentations);
+        // The site's directives: the core's, and the components its description declares.
+        const known = registryOf(described);
+        for (const name of Object.keys(directives)) {
+          if (!known.has(name)) throw new Error(`Konzilo: the site gives a component for the directive ${name}, which neither the rule data nor the site description declares`);
+        }
         // The site's search page, at the address its description declares,
         // each language's after its prefix on a site in several.
         search = described ? searchPages(described) : [];
@@ -468,10 +472,10 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
           injectRoute({ pattern: termRoute(taxonomy.address), entrypoint: componentAt(fileURLToPath(config.root), termPage), prerender: true });
         }
         const lists = described ? postListModel(described) : null;
-        const leaveOut = lists ? declaredChecks(declaredNames(described)) : {};
+        const leaveOut = lists ? declaredChecks(declaredNames(described), known) : {};
         const checks = lists ? { [LIST.name]: (values) => readPostList(values, lists, { attributes: LIST.attributes }).problems } : {};
         Object.assign(processor.options.features, markdownFeatures);
-        processor.options.mdastPlugins.push(...markdownMdastPlugins({ checks, leaveOut, warn: (message) => logger.warn(message) }));
+        processor.options.mdastPlugins.push(...markdownMdastPlugins({ checks, leaveOut, known, warn: (message) => logger.warn(message) }));
         // An embed's panel says in the site's language, its post's on a site
         // in several, that the site's script has not run, until it runs.
         processor.options.hastPlugins.push(...markdownHastPluginsIn(described?.language ?? null, languages));

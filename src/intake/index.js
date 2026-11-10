@@ -42,7 +42,7 @@ const MARKUP = /<\/?[a-zA-Z!?][^<>]*>/;
 // file of a post, `state` being `live`, `refused`, `waiting` for its moment `at`, or `off`,
 // with its `address`, and whether the site `shown` shows a version of it; `next`, the next
 // scheduled moment, or null.
-export function intake({ files, site: described, now, ledger = null, changes = {}, images = () => null, adminHost = null, reader = siteReader, preview = [] }) {
+export function intake({ files, site: described, now, ledger = null, changes = {}, images = () => null, adminHost = null, reader = siteReader, preview = [], components = null }) {
   const site = siteDescription(described);
   const clock = typeof now === 'function' ? now() : now;
   const run = {
@@ -55,6 +55,7 @@ export function intake({ files, site: described, now, ledger = null, changes = {
     images,
     adminHost,
     reader,
+    components,
     preview: new Set(preview),
     refused: new Map(),
     warnings: [],

@@ -6,6 +6,7 @@
 import { linkAddress, splitAutolinks } from '../../format/body.js';
 import { embedOf } from '../../format/embeds.js';
 import rules from '../../format/rules.json' with { type: 'json' };
+import { siteComponents } from './components.js';
 
 const NAME_START = /^:{2,3}[\p{L}\p{N}]/u;
 const CLOSING = /^ {0,3}:::[ \t]*$/m;
@@ -18,7 +19,8 @@ const INLINE_PAIRS = {
   '<del>': ['</del>', 'delete'],
 };
 
-const DIRECTIVES = new Set(Object.values(rules.elements).map((rule) => rule.directive?.name).filter(Boolean));
+// The directives the site knows: the core's, and its own components.
+const isDirective = (name) => Object.values(rules.elements).some((rule) => rule.directive?.name === name) || Object.hasOwn(siteComponents(), name);
 
 const offsets = (node) => [node.position?.start?.offset, node.position?.end?.offset];
 const sliceOf = (node, source) => {
@@ -47,7 +49,7 @@ function directiveStart(node, source) {
   if (text === null || !NAME_START.test(text)) return null;
   if (text.startsWith(':::')) return 'container';
   const [name] = /^::[\p{L}\p{N}][\p{L}\p{N}_-]*/u.exec(text);
-  return DIRECTIVES.has(name.slice(2)) || text.slice(name.length).startsWith('{') ? 'leaf' : null;
+  return isDirective(name.slice(2)) || text.slice(name.length).startsWith('{') || text.slice(name.length).startsWith('[') ? 'leaf' : null;
 }
 
 // What a caption may hold, as a reader's tree has it: raw pairs of what it takes are folded
@@ -113,6 +115,8 @@ function asEmbed(node, source) {
   return embedOf(address, rules).reason ? null : { type: 'konziloEmbed', address, value: sliceOf(node, source) };
 }
 
+const holdsImage = (node) => node.type === 'image' || (node.children ?? []).some(holdsImage);
+
 // Why a top-level node is kept as source, or null: it is a later element, or one its type
 // does not take, and the field has no form of it yet.
 function keptAs(node, source, policy) {
@@ -120,6 +124,8 @@ function keptAs(node, source, policy) {
   if (node.type === 'thematicBreak') return 'other';
   if (node.type === 'html') return 'html';
   if (node.type === 'definition') return 'other';
+  // A list of pictures, such as logos, which the editor has no form of in a list's item.
+  if (node.type === 'list' && holdsImage(node)) return 'list';
   if (node.type !== 'paragraph') return ELEMENT_OF[node.type] && !policy.takes(ELEMENT_OF[node.type]) ? 'other' : null;
   if (isLoneHtml(node)) return 'html';
   if (node.children?.some((child) => child.type === 'image')) return 'image';

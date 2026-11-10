@@ -163,3 +163,13 @@ test('imports nothing, so that the field can run it in the browser', () => {
   const text = readFileSync(fileURLToPath(new URL('../src/format/body.js', import.meta.url)), 'utf8');
   assert.doesNotMatch(text, /^\s*import\b|\bimport\(|\brequire\(/m);
 });
+
+test('keeps each task\'s box, ticked or not, beside plain items, and escapes a plain item that begins as a box', () => {
+  const { text } = out('* [ ] Ask\n* [X] Asked\n* Plain\n  1. [ ] Nested\n* \\[ ] Not a task');
+  assert.equal(text, pageFile('- [ ] Ask\n- [x] Asked\n- Plain\n  1. [ ] Nested\n- \\[ \\] Not a task'));
+});
+
+test('takes an image in a list\'s item, as a link too, resolved to its master', () => {
+  const { text } = out('- ![Harbour](/media/harbour.png)\n- [![Guild](/media/harbour.png)](https://example.com/)', everyElement, { 'media/harbour.png': 'an original' });
+  assert.match(text, /^- !\[Harbour\]\(\.\.\/media\/hello-world-[0-9a-f]{10}\.webp\)\n- \[!\[Guild\]\(\.\.\/media\/hello-world-[0-9a-f]{10}\.webp\)\]\(https:\/\/example\.com\/\)$/m);
+});

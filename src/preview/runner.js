@@ -29,7 +29,9 @@ const decoded = (name) => {
 
 // `site`: the site description. `source`: where the source files come from, as source.js
 // gives it. `content`: the preview's content folder. `adminHost`: as the intake takes it.
-export function previewRunner({ site: described, source, content, adminHost = null, now = () => new Date(), images: imagesOf = imagesFrom }) {
+// `components`: the site's check of what its components hold, as intake/component-checks.js
+// gives it, or null.
+export function previewRunner({ site: described, source, content, adminHost = null, now = () => new Date(), images: imagesOf = imagesFrom, components = null }) {
   const site = siteDescription(described);
   const drafts = new Map();
   let images = { key: null, of: () => null };
@@ -62,7 +64,7 @@ export function previewRunner({ site: described, source, content, adminHost = nu
     const originals = [...source.originals().filter(({ path }) => !named.has(path)), ...unsaved];
     const ledgerFile = join(content, POST_IDS_FILE);
     const ledger = existsSync(ledgerFile) ? JSON.parse(readFileSync(ledgerFile, 'utf8')) : null;
-    const result = intake({ files, site, now: moment, ledger, images: await imagesFor(namedOriginals(originals, files), source.head()), adminHost, preview: [...drafts.keys()] });
+    const result = intake({ files, site, now: moment, ledger, images: await imagesFor(namedOriginals(originals, files), source.head()), adminHost, preview: [...drafts.keys()], components });
     writeContent(content, site, result);
     return result;
   };

@@ -87,7 +87,8 @@ describe('the examples of content-format.md', () => {
     test(`the body at line ${example.line}`, () => {
       const { path, contents } = exampleFile(example);
       const body = contents.replace(/^---\ntitle: "Example"\n---\n\n/, '').replace(/\n$/, '');
-      const result = run({ [pagePath]: sourcePost({ title: 'Example', slug: 'example', status: 'published' }, body), 'categories/newsnewsnews.json': { name: 'News', slug: 'news' } }, site);
+      const of = siteOf(example) === '' ? site : siteDescription(marked.sites[siteOf(example)]);
+      const result = run({ [pagePath]: sourcePost({ title: 'Example', slug: 'example', status: 'published' }, body), ...(of === site ? { 'categories/newsnewsnews.json': { name: 'News', slug: 'news' } } : {}) }, of);
       assert.deepEqual(result.refusals, []);
       assert.equal(written(result)[path], contents);
     });

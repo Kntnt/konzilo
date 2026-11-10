@@ -108,6 +108,7 @@ export function handsFor(post, run, from) {
   return bodyHands(run.site, post, {
     reader: run.reader,
     adminHost: run.adminHost,
+    components: run.components,
     listTerms: listTermsOf(run),
     link: (id, fragment) => linkTarget(run, post, id, fragment),
     image: (address) => {

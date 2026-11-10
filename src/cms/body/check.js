@@ -6,7 +6,9 @@
 import { markdownFeatures } from '../../astro/reader-features.js';
 import { checkBody, readBody } from '../../format/body.js';
 import { embedOf } from '../../format/embeds.js';
+import { withComponents } from '../../format/components.js';
 import rules from '../../format/rules.json' with { type: 'json' };
+import { siteComponents } from './components.js';
 
 // Longer than a slow machine's first load; past it, the field goes on without the check.
 const LOAD_LIMIT = 10_000;
@@ -31,7 +33,7 @@ export function loadReader() {
 
 export const handsFor = (tree, { elements, forms = [], adminHost = null }) => ({
   reader: tree,
-  rules,
+  rules: withComponents(rules, siteComponents()),
   elements,
   embedOf,
   adminHost,
@@ -61,7 +63,7 @@ function flattened(nodes, around = []) {
   return out;
 }
 
-const isInline = (nodes) => Array.isArray(nodes) && nodes.length > 0 && nodes.every((node) => WRAPPERS.has(node?.type) || ['text', 'code', 'break', 'footnote'].includes(node?.type));
+const isInline = (nodes) => Array.isArray(nodes) && nodes.length > 0 && nodes.every((node) => WRAPPERS.has(node?.type) || ['text', 'code', 'break', 'footnote', 'image'].includes(node?.type));
 
 function inOneOrder(value) {
   if (Array.isArray(value)) return isInline(value) ? flattened(value) : value.map(inOneOrder);

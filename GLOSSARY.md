@@ -140,6 +140,8 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Component**: A body element that the site renders with its own Astro component, written as a directive.
 
+**Site component**: A component a site declares in its site description, beside the core's own post list and form, with its label, form, body and attributes, and checked for what it holds by the site's own module. _Avoid_: custom block, widget.
+
 **Plain rendering**: The HTML the core gives a directive where the site gives it no component. _Avoid_: fallback.
 
 **Post list**: A list of posts placed in a body, chosen by a query, evaluated at every build and shown by one of the site's presentations. _Avoid_: archive, feed.

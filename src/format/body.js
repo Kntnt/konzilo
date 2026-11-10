@@ -16,6 +16,9 @@
 //   directive  (name, values) gives { reasons, warnings, values }, the site's own
 //              check of a directive, its values in the order they are written;
 //              optional
+//   components (name, values, blocks) gives the reasons the site cannot publish
+//              what one of its components holds, `blocks` the model's blocks of a
+//              container; optional, and run on a source alone
 //   link       (id, fragment) gives { href }, { text: true, warning } or { reason }
 //              for a link `konzilo:<id>#<fragment>`
 //   image      (address) gives { src, warning }, or { reason }
@@ -180,7 +183,8 @@ function inlineOf(children, allowed, scope, element, inLink = false) {
         break;
       }
       case 'image':
-        refuse(scope, node, element, 'image-alone');
+        if (allowed.includes('image')) push(inlineImage(node, scope, element, linked()));
+        else refuse(scope, node, element, 'image-alone');
         break;
       case 'textDirective': {
         const literal = literalDirective(node, scope);
@@ -200,6 +204,19 @@ function inlineOf(children, allowed, scope, element, inLink = false) {
   }
   if (stack.length > 1) refuse(scope, children.at(-1), element, 'raw-unclosed', { tag: stack.at(-1).tag });
   return root;
+}
+
+// An image in the text of what takes one, a list's item: its alt text and its original's
+// address, resolved later as a figure's is. It never goes without alt text, which names
+// the link where the image is one.
+function inlineImage(node, scope, element, linked) {
+  const alt = node.alt.trim();
+  if (!scope.written) {
+    if (node.title) refuse(scope, node, element, 'image-title');
+    if (alt === '') refuse(scope, node, element, linked ? 'image-link-alt' : 'image-alt');
+    else if (alt.includes('\n')) refuse(scope, node, element, 'image-alt-lines');
+  }
+  return at({ type: 'image', alt, src: node.url }, { path: scope.path, line: lineOf(node), element });
 }
 
 // The literal text a directive with no attributes and no label was written as, or
@@ -602,9 +619,6 @@ function listOf(node, scope) {
   const allowed = scope.rules.elements[element].inline;
   const items = node.children.map((item, index) => {
     const inner = { ...scope, path: `${scope.path}.${index + 1}`, top: false };
-    if (!scope.written) {
-      if (item.checked !== null && item.checked !== undefined) refuse(inner, item, element, 'list-task');
-    }
     const [first, second, ...rest] = item.children;
     if (first?.type !== 'paragraph') {
       if (scope.written) return { unreadable: true };
@@ -623,7 +637,7 @@ function listOf(node, scope) {
       return null;
     }
     const nested = second ? listOf(second, inner)[0] ?? null : null;
-    return { children, list: nested };
+    return { checked: typeof item.checked === 'boolean' ? item.checked : null, children, list: nested };
   });
   return [{ type: 'list', ordered: node.ordered === true, items: items.filter(Boolean) }];
 }
@@ -924,22 +938,43 @@ function directiveOf(node, scope) {
   const [element, { directive }] = found;
   const form = node.type === 'leafDirective' ? 'leaf' : 'container';
   if (scope.written) {
-    if (form !== directive.form || (node.children?.length ?? 0) > 0) return [{ type: 'unreadable' }];
-    return [{ type: 'directive', element, name: node.name, attributes: mapValues(node.attributes ?? {}, (text) => decode(text ?? '', scope)) }];
+    if (form !== directive.form || (directive.body === 'none' && (node.children?.length ?? 0) > 0)) return [{ type: 'unreadable' }];
+    return [{ type: 'directive', element, name: node.name, attributes: mapValues(node.attributes ?? {}, (text) => decode(text ?? '', scope)), ...contentOf(node, directive, element, scope) }];
   }
   if (form !== directive.form) {
     refuse(scope, node, element, 'directive-form', { name: node.name, form: directive.form === 'leaf' ? `::${node.name}, on a line of its own` : `:::${node.name}, around its body` });
     return [];
   }
   if (!taken(scope, node, element)) return [];
-  if ((node.children?.length ?? 0) > 0 && directive.body !== 'text') refuse(scope, node, element, 'directive-label', { name: node.name });
+  const labelled = form === 'container' ? (node.children ?? []).some((child) => child.data?.directiveLabel) : (node.children?.length ?? 0) > 0 && directive.body !== 'text';
+  if (labelled) refuse(scope, node, element, 'directive-label', { name: node.name });
   const values = attributesFrom(node, directive, element, scope);
   if (values === null) return [];
   const checked = scope.directive?.(node.name, values, directive) ?? { reasons: [], warnings: [], values };
   for (const reason of checked.reasons ?? []) scope.problems.push({ path: scope.path, name: element, line: lineOf(node), reason });
   for (const reason of checked.warnings ?? []) scope.warnings.push({ path: scope.path, name: element, line: lineOf(node), reason });
   if ((checked.reasons ?? []).length > 0) return [];
-  return [{ type: 'directive', element, name: node.name, attributes: writtenAttributes(checked.values ?? values, directive) }];
+  const content = contentOf(node, directive, element, scope);
+  // The site's own check of what one of its components holds.
+  for (const reason of scope.components?.(node.name, checked.values ?? values, content.children ?? []) ?? []) scope.problems.push({ path: scope.path, name: element, line: lineOf(node), reason });
+  return [{ type: 'directive', element, name: node.name, attributes: writtenAttributes(checked.values ?? values, directive), ...content }];
+}
+
+// What a directive holds: a container's blocks, each with its path below the
+// container's, or a leaf's text, its label. A directive with no body holds nothing.
+function contentOf(node, directive, element, scope) {
+  if (directive.body === 'blocks') {
+    const children = [];
+    let index = 0;
+    for (const child of node.children ?? []) {
+      if (child.data?.directiveLabel) continue;
+      index += 1;
+      children.push(...blockOf(child, { ...scope, path: `${scope.path}.${index}`, top: true }));
+    }
+    return { children };
+  }
+  if (directive.body === 'text') return { label: textOf(node.children ?? [], scope.rules.elements[element].inline, scope, element, node) };
+  return {};
 }
 
 const mapValues = (object, map) => Object.fromEntries(Object.entries(object).map(([key, value]) => [key, map(value)]));
@@ -1056,6 +1091,7 @@ function resolved(nodes, scope) {
   const out = [];
   for (const node of nodes) {
     if (node.children) node.children = resolved(node.children, scope);
+    if (node.type === 'image') resolveImage(node, scope);
     if (node.type !== 'link' || !node.href.startsWith('konzilo:')) {
       out.push(node);
       continue;
@@ -1074,11 +1110,28 @@ function resolved(nodes, scope) {
   return tidy(out);
 }
 
-const plainText = (nodes) => nodes.map((node) => node.value ?? plainText(node.children ?? [])).join('');
+const plainText = (nodes) => nodes.map((node) => node.value ?? node.alt ?? plainText(node.children ?? [])).join('');
+
+// An image's master, a figure's or one in a list's item, with the site's reason or warning
+// at the block it stands in.
+function resolveImage(node, scope, path) {
+  const given = scope.image(node.src);
+  const where = node.at ?? {};
+  const entry = { path: where.path ?? path, name: where.element ?? 'image', line: where.line };
+  if (given.reason) scope.problems.push({ ...entry, reason: given.reason });
+  else {
+    node.src = given.src;
+    if (given.warning) scope.warnings.push({ ...entry, reason: given.warning });
+  }
+}
 
 function resolveBlock(node, scope, path) {
   const inner = (index) => `${path}.${index + 1}`;
   switch (node.type) {
+    case 'directive':
+      node.children?.forEach((child, index) => resolveBlock(child, scope, inner(index)));
+      if (node.label) node.label = resolved(node.label, scope);
+      break;
     case 'paragraph':
     case 'heading':
     case 'definition':
@@ -1098,18 +1151,10 @@ function resolveBlock(node, scope, path) {
       if (node.caption) node.caption = resolved(node.caption, scope);
       for (const row of [node.head, ...node.body, ...node.foot]) for (const cell of row) cell.children = resolved(cell.children, scope);
       break;
-    case 'image': {
+    case 'image':
       if (node.caption) node.caption = resolved(node.caption, scope);
-      const given = scope.image(node.src);
-      const where = node.at ?? {};
-      const entry = { path: where.path ?? path, name: where.element ?? 'image', line: where.line };
-      if (given.reason) scope.problems.push({ ...entry, reason: given.reason });
-      else {
-        node.src = given.src;
-        if (given.warning) scope.warnings.push({ ...entry, reason: given.warning });
-      }
+      resolveImage(node, scope, path);
       break;
-    }
     case 'gallery':
       for (const image of node.images) resolveBlock(image, scope, path);
       if (node.caption) node.caption = resolved(node.caption, scope);
@@ -1247,6 +1292,9 @@ function inlineText(nodes, context) {
       case 'link':
         out += linkText(node, context);
         break;
+      case 'image':
+        out += `![${altText(node.alt, context.level, context.scope)}](${linkAddress(node.src, context)})`;
+        break;
       default:
         throw new Error(`the body check cannot write an inline ${node.type}`);
     }
@@ -1304,14 +1352,15 @@ function headingText(node, level, scope) {
 }
 
 // A list's marker, the other one for a list right after a list of its kind, so that
-// the two stay apart.
+// the two stay apart, and a task's box after it, ticked or not.
 function listText(node, level, scope, second = false) {
   const items = node.items.map((item, index) => {
     const marker = node.ordered ? `${index + 1}${second ? ')' : '.'} ` : `${second ? '*' : '-'} `;
     const pad = ' '.repeat(marker.length);
     const text = inlineText(item.children, inlineContext(level, scope));
     const nested = item.list ? `\n${pad}${indented(listText(item.list, level, scope), pad)}` : '';
-    return `${marker}${indented(text, pad)}${nested}`;
+    const box = item.checked === true ? '[x] ' : item.checked === false ? '[ ] ' : '';
+    return `${marker}${box}${indented(text, pad)}${nested}`;
   });
   return items.join('\n');
 }
@@ -1432,10 +1481,20 @@ function imageText(node, level, scope) {
   return node.caption ? `${image}\\\n${inlineText(node.caption, inlineContext(level, scope))}` : image;
 }
 
-function directiveText(node) {
+// A directive: a leaf on its line, with its label, if any, or a container around its
+// blocks, its fence a colon longer than the longest inside it.
+function directiveText(node, level, scope) {
   const written = (value) => value.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('}', '&#125;').replaceAll('\n', '&#10;').replaceAll('\r', '&#13;');
   const attributes = Object.entries(node.attributes).map(([name, value]) => `${name}="${written(value)}"`);
-  return `::${node.name}${attributes.length > 0 ? `{${attributes.join(' ')}}` : ''}`;
+  const after = attributes.length > 0 ? `{${attributes.join(' ')}}` : '';
+  if (node.children) {
+    const inner = siblingsText(node.children, level, scope).join('\n\n');
+    const longest = Math.max(2, ...[...inner.matchAll(/^ *(:{3,})/gm)].map(([, fence]) => fence.length));
+    const fence = ':'.repeat(longest + 1);
+    return inner === '' ? `${fence}${node.name}${after}\n${fence}` : `${fence}${node.name}${after}\n\n${inner}\n\n${fence}`;
+  }
+  if (node.label) return `::${node.name}[${inlineText(node.label, inlineContext(level, scope, { lineStart: false }))}]${after}`;
+  return `::${node.name}${after}`;
 }
 
 // A link alone in a paragraph whose text is its own address, which the site would
@@ -1461,7 +1520,7 @@ function blockText(node, level, scope, second = false) {
       if (node.caption) lines.push(inlineText(node.caption, inlineContext(level, scope)));
       return lines.join('\n');
     }
-    case 'directive': return directiveText(node);
+    case 'directive': return directiveText(node, level, scope);
     case 'definition': return `[^${node.n}]: ${indented(inlineText(node.children, inlineContext(level, scope)), '    ')}`;
     default: throw new Error(`the body check cannot write a block ${node.type}`);
   }

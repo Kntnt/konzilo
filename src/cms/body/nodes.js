@@ -21,7 +21,7 @@ import { editGallery } from './gallery-edit.js';
 import { editImage } from './image-edit.js';
 import { say } from './texts.js';
 
-const LABEL_OF = { image: 'keptImage', embed: 'keptEmbed', directive: 'keptDirective', html: 'keptHtml', other: 'keptOther' };
+const LABEL_OF = { image: 'keptImage', list: 'keptList', embed: 'keptEmbed', directive: 'keptDirective', html: 'keptHtml', other: 'keptOther' };
 const ANCHOR = new RegExp(rules.elements.heading.anchor);
 const NON_BREAKING = ' ';
 
