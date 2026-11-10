@@ -7,7 +7,7 @@ import { keyOf, REDIRECTS_FILE, reservedBy } from '../format/redirects.js';
 import { otherAddressesIn, slugOf } from './post-file.js';
 import { refuse } from './run.js';
 import { termPagesOf } from './terms.js';
-import { named, say } from './words.js';
+import { british, named, say } from './words.js';
 
 // Where each post that goes live has its file and its address: its path is its
 // ancestors' slugs from the top and its own. An ancestor refused, missing or of another
@@ -23,7 +23,7 @@ function pathOf(post, run) {
     const key = post.tag ? `${post.tag}/${parentId}` : String(parentId);
     const parent = run.posts.get(key);
     if (!parent) return { reason: say('parent-missing', { parent: String(parentId) }) };
-    if (parent.type !== post.type) return { reason: say('parent-type', { parent: parent.title ?? String(parentId), plural: post.type.plural.toLowerCase() }) };
+    if (parent.type !== post.type) return { reason: say('parent-type', { parent: parent.title ?? String(parentId), plural: british(post.type.plural).toLowerCase() }) };
     if (seen.has(key)) return { reason: say('parent-loop', { parent: parent.title ?? String(parentId) }) };
     if (run.refused.has(key)) return { reason: say('parent-refused', { parent: parent.title ?? String(parentId) }) };
     const own = slugOf(parent);
@@ -142,7 +142,7 @@ export function holdAddresses(run) {
       const reserved = siteHolder(address, site);
       const own = byAddress.get(key) ?? holders.get(key)?.[0]?.post;
       const inFile = post.place.address !== null;
-      if (!inFile) refuse(run, post, { field: 'otherAddresses', reason: say('other-no-address', { plural: post.type.plural.toLowerCase() }) });
+      if (!inFile) refuse(run, post, { field: 'otherAddresses', reason: say('other-no-address', { plural: british(post.type.plural).toLowerCase() }) });
       else if (reserved) refuse(run, post, { field: 'otherAddresses', reason: reserved });
       else if (own) refuse(run, post, { field: 'otherAddresses', reason: say('other-held', { address, holder: own.title ?? own.id }) });
       else if (others.has(key) && others.get(key) !== post) refuse(run, post, { field: 'otherAddresses', reason: say('other-held', { address, holder: others.get(key).title ?? others.get(key).id }) });

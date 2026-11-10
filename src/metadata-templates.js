@@ -8,12 +8,14 @@
 // does not know refuses the template. Astro renders each template into a
 // page's head (astro/search-and-sharing.js) with renderTemplate().
 
+import { labelIn, SOURCE_LANGUAGE } from './catalogues.js';
 import table from './format/template-variables.json' with { type: 'json' };
 
 // The variables a part of the templates knows, in the table's order, each
 // { variable, label }: for the start page and the site (`type` null), the
 // site's; for a post type, as siteDescription() checks it, also its posts',
-// one for each field of the site's own and each taxonomy it declares.
+// one for each field of the site's own and each taxonomy it declares, a label
+// of the site's in British English, as the settings' help is.
 export function variablesOf(type = null) {
   const variables = table.site.map(({ variable, label }) => ({ variable, label }));
   if (type === null) return variables;
@@ -21,14 +23,14 @@ export function variablesOf(type = null) {
   for (const { variable, label, field } of table.post) {
     if (field === 'meta') {
       for (const own of fields.filter((found) => found.kind === 'meta')) {
-        variables.push({ variable: variable.replace('{key}', own.name), label: label.replace('{label}', own.label) });
+        variables.push({ variable: variable.replace('{key}', own.name), label: label.replace('{label}', labelIn(own.label, SOURCE_LANGUAGE)) });
       }
     } else if (field === 'terms') {
       for (const terms of fields.filter((found) => found.kind === 'terms' && found.taxonomy)) {
-        variables.push({ variable: variable.replace('{taxonomy}', terms.taxonomy.name), label: label.replace('{plural}', terms.taxonomy.plural) });
+        variables.push({ variable: variable.replace('{taxonomy}', terms.taxonomy.name), label: label.replace('{plural}', labelIn(terms.taxonomy.plural, SOURCE_LANGUAGE)) });
       }
     } else if (field === undefined || fields.some((found) => found.kind === field)) {
-      variables.push({ variable, label: label.replace('{type}', type.label) });
+      variables.push({ variable, label: label.replace('{type}', labelIn(type.label, SOURCE_LANGUAGE)) });
     }
   }
   return variables;

@@ -3,7 +3,10 @@
 // and a sign-in can only go through Forgejo's OAuth.
 
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
@@ -107,10 +110,71 @@ test('gives a field only a plain value as its default, which is all Sveltia take
   }
 });
 
-test('takes its labels in the site\'s language', () => {
-  const swedish = cmsConfig(siteDescription({ ...JSON.parse(readFileSync(file('site-template/files/site-description.json'), 'utf8')), language: 'sv_SE' }), place);
-  assert.equal(field(swedish.collections[0].fields, 'title').label, 'Titel');
-  assert.equal(field(config.collections[0].fields, 'title').label, 'Title');
+describe('the interface language', () => {
+  const declared = () => JSON.parse(readFileSync(file('site-template/files/site-description.json'), 'utf8'));
+  const swedish = siteDescription({ ...declared(), language: 'sv_SE' });
+  const title = (made) => field(made.collections[0].fields, 'title').label;
+
+  test('takes the core\'s labels in the site\'s interface language, or in the one it is made for, and says which', () => {
+    assert.equal(title(cmsConfig(swedish, place)), 'Titel');
+    assert.equal(cmsConfig(swedish, place).konzilo.language, 'sv');
+    assert.equal(title(cmsConfig(swedish, { ...place, language: 'en' })), 'Title');
+    assert.equal(cmsConfig(swedish, { ...place, language: 'en' }).konzilo.language, 'en');
+    assert.equal(title(config), 'Title');
+    assert.equal(config.konzilo.language, 'en');
+    assert.equal(title(cmsConfig(siteDescription({ ...declared(), interfaceLanguage: 'sv' }), place)), 'Titel');
+  });
+
+  test('shows a site\'s own label given by language in the interface language, and one given as one text in every language', () => {
+    const given = declared();
+    given.language = 'sv_SE';
+    given.types.article.label = { en: 'Article', sv: 'Artikel' };
+    given.types.article.plural = { en: 'Articles', sv: 'Artiklar' };
+    given.types.article.fields.size = { label: { en: 'Size', sv: 'Storlek' }, type: 'string', control: 'text' };
+    given.taxonomies.category.plural = { en: 'Categories', sv: 'Kategorier' };
+    given.menus.main.label = { en: 'Main menu', sv: 'Huvudmeny' };
+    given.settings.footerText.label = { en: 'Footer text', sv: 'Sidfotstext' };
+    given.components = { card: { label: { en: 'Card', sv: 'Kort' }, form: 'container', body: 'blocks', attributes: { tone: { type: 'string', label: { en: 'Tone', sv: 'Ton' } } } } };
+    const site = siteDescription(given);
+    for (const [language, words] of [
+      ['sv', { articles: 'Artiklar', article: 'Artikel', size: 'Storlek', categories: 'Kategorier', menu: 'Huvudmeny', footer: 'Sidfotstext', card: 'Kort', tone: 'Ton' }],
+      ['en', { articles: 'Articles', article: 'Article', size: 'Size', categories: 'Categories', menu: 'Main menu', footer: 'Footer text', card: 'Card', tone: 'Tone' }],
+    ]) {
+      const made = cmsConfig(site, { ...place, language });
+      const one = (name) => made.collections.find((each) => each.name === name);
+      assert.equal(one('articles').label, words.articles, language);
+      assert.equal(one('articles').label_singular, words.article, language);
+      assert.equal(field(one('articles').fields, 'size').label, words.size, language);
+      assert.equal(field(one('articles').fields, 'categories').label, words.categories, language);
+      assert.equal(one('categories').label, words.categories, language);
+      assert.equal(one('menus').files[0].label, words.menu, language);
+      assert.equal(field(one('settings').files[0].fields, 'footerText').label, words.footer, language);
+      assert.equal(made.konzilo.components.card.label, words.card, language);
+      assert.equal(made.konzilo.components.card.attributes.tone.label, words.tone, language);
+      // One text is the same in every language.
+      assert.equal(one('pages').label, 'Pages', language);
+      assert.equal(one('tags').label, 'Tags', language);
+    }
+  });
+
+  test('is written by konzilo-cms beside the site\'s own: one configuration in each language the interface comes in', () => {
+    const folder = mkdtempSync(join(tmpdir(), 'konzilo-cms-'));
+    const site = join(folder, 'site');
+    mkdirSync(site);
+    writeFileSync(join(site, 'site-description.json'), JSON.stringify({ ...declared(), language: 'sv_SE' }));
+    const ran = spawnSync(process.execPath, [file('bin/konzilo-cms.js'), site, join(folder, 'out/config.json')], {
+      encoding: 'utf8',
+      env: { ...process.env, KONZILO_FORGEJO_ORIGIN: 'http://localhost:1', KONZILO_SITE_ORIGIN: 'http://localhost:2', KONZILO_REPOSITORY: 'a/b', KONZILO_OAUTH_CLIENT: 'c' },
+    });
+    assert.equal(ran.status, 0, ran.stderr);
+    const written = (name) => JSON.parse(readFileSync(join(folder, 'out', name), 'utf8'));
+    assert.deepEqual(readdirSync(join(folder, 'out')).sort(), ['config.en.json', 'config.json', 'config.sv.json']);
+    assert.equal(written('config.json').konzilo.language, 'sv');
+    assert.equal(title(written('config.json')), 'Titel');
+    assert.equal(title(written('config.sv.json')), 'Titel');
+    assert.equal(title(written('config.en.json')), 'Title');
+    assert.equal(written('config.en.json').konzilo.language, 'en');
+  });
 });
 
 test('writes each language in a folder of its own on a site in several', () => {
@@ -204,9 +268,9 @@ test('holds search and sharing in closed parts, each key once, with nothing requ
 test('says where the live preview is, and which collections have pages to show there', () => {
   const given = cmsConfig(description, { forgejo: 'http://localhost:1', repository: 'a/b', clientId: 'c', site: 'http://localhost:2', preview: 'http://localhost:3' });
   const withPages = Object.values(description.types).filter((type) => type.address).map((type) => type.collection);
-  assert.deepEqual(given.konzilo, { preview: { origin: 'http://localhost:3', collections: withPages } });
+  assert.deepEqual(given.konzilo, { language: 'en', preview: { origin: 'http://localhost:3', collections: withPages } });
   assert.ok(withPages.length > 0);
-  assert.equal(cmsConfig(description, { forgejo: 'http://localhost:1', repository: 'a/b', clientId: 'c', site: 'http://localhost:2' }).konzilo, undefined);
+  assert.deepEqual(cmsConfig(description, { forgejo: 'http://localhost:1', repository: 'a/b', clientId: 'c', site: 'http://localhost:2' }).konzilo, { language: 'en' });
 });
 
 test('holds search and sharing per language on a site in several', () => {

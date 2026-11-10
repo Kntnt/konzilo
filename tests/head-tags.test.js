@@ -18,6 +18,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { feedTitle, siteFeeds } from '../src/astro/feeds.js';
 import { renderTemplate } from '../src/metadata-templates.js';
 import { ALTERNATES, headTags, templateValues } from '../src/astro/search-and-sharing.js';
 import { siteDescription } from '../src/site-description.js';
@@ -115,6 +116,23 @@ test('a date is written in the site\'s language, and the summary is the body\'s 
   const plain = { ...post, entry: { ...article, data: { ...article.data, excerpt: undefined, featured: false } } };
   assert.equal(rendered('{{ post.auto_description }}', { post: plain }), 'The lantern keeps the harbour.');
   assert.equal(rendered('{{ post.excerpt }}|{{ post.custom_field.featured }}', { post: plain }), '|');
+});
+
+test('a type\'s label given by language renders in the page\'s language, else in British English', () => {
+  const byLanguage = { ...post, type: { ...model.types.post, label: { en: 'Article', sv: 'Artikel' } } };
+  assert.equal(rendered('{{ post_type.labels.singular }}', { post: byLanguage, languageTag: 'sv-SE' }), 'Artikel');
+  assert.equal(rendered('{{ post_type.labels.singular }}', { post: byLanguage, languageTag: 'en-GB' }), 'Article');
+  assert.equal(rendered('{{ post_type.labels.singular }}', { post: byLanguage, languageTag: 'fi' }), 'Article');
+});
+
+test('a type\'s feed among others takes the type\'s plural given by language in the feed\'s language', () => {
+  const type = (plural, collection, feed) => ({ label: 'x', plural, collection, address: `/${collection}/{slug}/`, feed, elements: ['paragraph'], fields: { date: {} } });
+  const site = siteDescription({
+    languages: ['sv_SE', 'en_GB'],
+    types: { news: type({ en: 'News', sv: 'Nyheter' }, 'news', '/news/feed/'), notes: type('Notes', 'notes', '/notes/feed/') },
+  });
+  const titles = siteFeeds(site).filter((feed) => feed.type.name === 'news').map((feed) => [feed.language.locale, feedTitle(site, feed, { title: 'Lyktan' })]);
+  assert.deepEqual(titles, [['sv_SE', 'Lyktan – Nyheter'], ['en_GB', 'Lyktan – News']]);
 });
 
 test('the start page\'s part renders the site\'s variables', () => {

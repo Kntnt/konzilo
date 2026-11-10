@@ -3,7 +3,12 @@
 // by path and name, or the field; or a file with the entry or the setting in it. The
 // reason is the rule data's words, and a message says the whole.
 
+import { labelIn, SOURCE_LANGUAGE } from '../catalogues.js';
 import rules from '../format/rules.json' with { type: 'json' };
+
+// A site's own label as a refusal names it: in British English, as the command line
+// and the build log write every refusal.
+export const british = (label) => labelIn(label, SOURCE_LANGUAGE);
 
 // The words of a refusal, from the rule data. A key the rule data lacks is a fault
 // in the core, so it throws, and the intake fails closed.

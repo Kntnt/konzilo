@@ -7,7 +7,8 @@
 // file; a description with any problem is refused whole.
 
 import { readFileSync } from 'node:fs';
-import { freeze, isObject, onlyKeys as checkedKeys, text } from './checks.js';
+import { INTERFACE_LANGUAGES, interfaceLanguageFor, labelIn, SOURCE_LANGUAGE } from './catalogues.js';
+import { freeze, interfaceLanguagesNamed, isObject, label, onlyKeys as checkedKeys, text } from './checks.js';
 import { IMAGE_LIBRARY_FOLDER, MEDIA_FOLDER } from './format/masters.js';
 import { suffixTakenIn } from './format/public-suffixes.js';
 import { readComponents, withComponents } from './format/components.js';
@@ -240,7 +241,8 @@ export function siteDescription(declared, groups = coreSettingsGroups()) {
 //                        fields: { <field>: { type, options } } } },
 //     presentations: { <presentation>: { options: [ { name, type, options, required } ] } } }
 //
-// A type's taxonomies are those its fields hold the terms of, in order; its
+// A type's plural and its taxonomies' labels are in British English, as the
+// refusals that name them are. Its taxonomies are those its fields hold the terms of, in order; its
 // fields are those a list filters on and orders by, `date` and `modified`, of
 // the type `date`, and the site's own: `text`, `choice` (a
 // select, with its options), `boolean`, `number`, `integer` or `date`. A
@@ -254,8 +256,8 @@ export function postListModel({ types, presentations }) {
   };
   return {
     types: Object.fromEntries(Object.values(types).filter(Boolean).map((type) => [type.name, {
-      plural: type.plural,
-      taxonomies: type.fields.filter((field) => field.kind === 'terms' && field.taxonomy).map(({ taxonomy }) => ({ name: taxonomy.name, label: taxonomy.label })),
+      plural: labelIn(type.plural, SOURCE_LANGUAGE),
+      taxonomies: type.fields.filter((field) => field.kind === 'terms' && field.taxonomy).map(({ taxonomy }) => ({ name: taxonomy.name, label: labelIn(taxonomy.label, SOURCE_LANGUAGE) })),
       fields: Object.fromEntries(type.fields.filter((field) => ['date', 'modified', 'meta'].includes(field.kind)).map((field) => [field.name, fieldOf(field)])),
     }])),
     presentations: Object.fromEntries(Object.values(presentations ?? {}).filter(Boolean).map((presentation) => [presentation.name, {
@@ -295,12 +297,13 @@ function description(declared, groups, problems) {
     problems.push('the site description must be a JSON object');
     return null;
   }
-  onlyKeys(declared, ['language', 'languages', 'images', 'types', 'taxonomies', 'presentations', 'menus', 'settings', 'consent', 'security', 'forms', 'search', 'components', 'componentChecks'], '', problems);
-  const components = readComponents(declared.components, rules, 'components', problems);
+  onlyKeys(declared, ['language', 'languages', 'interfaceLanguage', 'images', 'types', 'taxonomies', 'presentations', 'menus', 'settings', 'consent', 'security', 'forms', 'search', 'components', 'componentChecks'], '', problems);
+  const components = readComponents(declared.components, rules, 'components', problems, label);
   const known = withComponents(rules, components);
   const componentChecks = componentChecksOf(declared.componentChecks, components, problems);
   const languages = languagesOf(declared, problems);
   const language = languages.length > 0 ? languages[0].locale : null;
+  const interfaceLanguage = interfaceLanguageOf(declared.interfaceLanguage, language, problems);
   const collections = new Map();
   const addresses = { languages, taken: new Map(), told: new Set(), searched: declared.search !== undefined };
   const taxonomies = {};
@@ -334,7 +337,7 @@ function description(declared, groups, problems) {
   for (const [name, form] of entries(declared.forms, 'forms', problems, false)) {
     forms[name] = formOf(name, form, `forms.${name}`, problems);
   }
-  return freeze({ language, languages, types, taxonomies, presentations, images, menus, settings, consent, security, forms, search, components, componentChecks, groups: groupsFor(declared, types, groups, language, forms) });
+  return freeze({ language, languages, interfaceLanguage, types, taxonomies, presentations, images, menus, settings, consent, security, forms, search, components, componentChecks, groups: groupsFor(declared, types, groups, language, forms) });
 }
 
 // The rule data a site's bodies are read against: the core's, with the components the
@@ -615,6 +618,17 @@ function languagesOf({ language, languages }, problems) {
   return [];
 }
 
+// The language the editor's interface takes where an editor has chosen none
+// (ADR 0066): the one the site declares, one Konzilo's interface comes in, else
+// the site's main language where the core has a catalogue for it, else British
+// English.
+function interfaceLanguageOf(declared, language, problems) {
+  if (declared === undefined) return interfaceLanguageFor(language);
+  if (INTERFACE_LANGUAGES.includes(declared)) return declared;
+  problems.push(`interfaceLanguage: ${JSON.stringify(declared)} is not a language Konzilo's interface comes in, which are ${interfaceLanguagesNamed()}`);
+  return interfaceLanguageFor(language);
+}
+
 // Several languages, locales in order, the main language first.
 function severalLanguages(languages, problems) {
   const locales = Array.isArray(languages) ? languages : [];
@@ -706,7 +720,7 @@ function menuOf(name, menu, path, problems) {
     return null;
   }
   onlyKeys(menu, ['label'], path, problems);
-  return { name, label: text(menu.label, `${path}.label`, problems) };
+  return { name, label: label(menu.label, `${path}.label`, problems) };
 }
 
 // The attributes of every post list, which no option of a
@@ -739,7 +753,7 @@ function presentationOf(name, presentation, path, optionTypes, problems) {
     return null;
   }
   onlyKeys(presentation, ['label', 'options'], path, problems);
-  const result = { name, label: text(presentation.label, `${path}.label`, problems), options: [] };
+  const result = { name, label: label(presentation.label, `${path}.label`, problems), options: [] };
   for (const [option, declared] of entries(presentation.options, `${path}.options`, problems, false)) {
     const where = `${path}.options.${option}`;
     if (!/^[a-z][a-zA-Z0-9]*$/.test(option)) {
@@ -829,8 +843,8 @@ function typeOf(name, type, path, site, problems) {
   const address = addressOf(name, type.address, hierarchical, `${path}.address`, site.addresses, problems);
   const result = {
     name,
-    label: text(type.label, `${path}.label`, problems),
-    plural: text(type.plural, `${path}.plural`, problems),
+    label: label(type.label, `${path}.label`, problems),
+    plural: label(type.plural, `${path}.plural`, problems),
     collection: collectionOf(type.collection, `${path}.collection`, site.collections, problems),
     address,
     feed: feedAddressOf(type.feed, `${path}.feed`, false, problems),
@@ -869,8 +883,8 @@ function taxonomyOf(name, taxonomy, path, { collections, addresses }, problems) 
   const hierarchical = flag(taxonomy.hierarchical, `${path}.hierarchical`, problems);
   return {
     name,
-    label: text(taxonomy.label, `${path}.label`, problems),
-    plural: text(taxonomy.plural, `${path}.plural`, problems),
+    label: label(taxonomy.label, `${path}.label`, problems),
+    plural: label(taxonomy.plural, `${path}.plural`, problems),
     collection: collectionOf(taxonomy.collection, `${path}.collection`, collections, problems),
     hierarchical,
     address: termAddressOf(name, taxonomy.address, hierarchical, `${path}.address`, addresses, problems),
@@ -1039,7 +1053,7 @@ export function ownField(name, field, path, problems, whole, takes = SETTING_TYP
   onlyKeys(field, ['label', 'type', 'control', 'options', 'required'], path, problems, whole);
   const result = {
     name,
-    label: text(field.label, `${path}.label`, problems),
+    label: label(field.label, `${path}.label`, problems),
     type: field.type,
     control: field.control,
     required: flag(field.required, `${path}.required`, problems),

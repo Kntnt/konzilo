@@ -16,6 +16,7 @@ import { htmlToHast } from 'satteri';
 import { registryOf } from './astro/directives.js';
 import { readContentFile } from './astro/reader.js';
 import { ownSummary } from './astro/summary.js';
+import { labelIn } from './catalogues.js';
 import { publicAddress } from './format/addresses.js';
 import { siteDescription } from './site-description.js';
 
@@ -70,12 +71,14 @@ export function searchDocuments({ site, content }) {
     for (const { id, path, language } of entriesOf(join(content, type.collection), type, several ? described.languages : null)) {
       const { data, html } = readContentFile(readFileSync(join(content, type.collection, `${id}.md`), 'utf8'), { known: registryOf(described) });
       if (seo && data[seo.name]?.noindex === true) continue;
+      const locale = language?.locale ?? described.language;
       const document = {
         id: `${type.collection}/${id}`,
         title: data[type.fields.find((field) => field.kind === 'headline')?.name] || data.title,
         address: publicAddress(type, path, language),
         type: type.name,
-        label: type.label,
+        // A label the site gives by language is the post's language's, as all a visitor reads is.
+        label: labelIn(type.label, locale),
       };
       for (const field of type.fields) {
         const value = data[field.name];
@@ -90,7 +93,6 @@ export function searchDocuments({ site, content }) {
         if (field.kind !== 'terms' || !field.taxonomy) continue;
         document[`terms_${field.taxonomy.name}`] = (data[field.name] ?? []).map((reference) => termName(field.taxonomy, reference)).filter((name) => name !== null);
       }
-      const locale = language?.locale ?? described.language;
       if (locale !== null) document.language = locale;
       documents.push(several ? inItsLanguage(document, locale) : document);
     }

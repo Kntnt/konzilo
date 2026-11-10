@@ -21,6 +21,8 @@
 // own address does: a link, a menu entry and a rule may lead to it, as to a
 // post, by its ID.
 
+import { labelIn, SOURCE_LANGUAGE } from '../catalogues.js';
+
 // A post's public address, a path from the site's root, or null when its
 // type (the site description's, as checked) has no address. `name` is the
 // post's slug, or its path in a hierarchical type. `language` is the post's,
@@ -77,10 +79,10 @@ export function searchPages({ search = null, languages = [] }) {
   return languages.length > 1 ? languages.map(({ prefix }) => `/${prefix}${search.address}`) : [search.address];
 }
 
-// A feed as feedAt() gives it, in words: `the feed of Articles`, `the feed
-// of the category news`.
+// A feed as feedAt() gives it, in words, as a refusal names it in British English:
+// `the feed of Articles`, `the feed of the category news`.
 export function feedName({ type, taxonomy, slug }) {
-  return type ? `the feed of ${type.plural}` : `the feed of the ${taxonomy.label.toLowerCase()} ${slug}`;
+  return type ? `the feed of ${labelIn(type.plural, SOURCE_LANGUAGE)}` : `the feed of the ${labelIn(taxonomy.label, SOURCE_LANGUAGE).toLowerCase()} ${slug}`;
 }
 
 // The pages of a post list with pages of its own: page 1 is the

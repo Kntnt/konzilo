@@ -319,6 +319,23 @@ for (const [key, [make, about, kind = 'refusal']] of Object.entries(cases)) {
   });
 }
 
+test('names a site\'s own label given by language in British English, as the command line writes every refusal', () => {
+  const byLanguage = {
+    ...site,
+    language: 'sv_SE',
+    types: { ...site.types, note: { ...site.types.note, plural: { en: 'Notes', sv: 'Anteckningar' } } },
+    taxonomies: { ...site.taxonomies, category: { ...site.taxonomies.category, plural: { en: 'Categories', sv: 'Kategorier' } } },
+  };
+  const reasons = run({
+    'settings.json': settled,
+    'notes/nnnnnnnnnnnn.md': sourcePost({ title: 'A note', slug: 'a-note', status: 'published' }, 'Text.'),
+    'articles/aaaaaaaaaaaa.md': article({ categories: ['aaaaaaaaaaaa', 'bbbbbbbbbbbb', 'cccccccccccc'] }),
+    'articles/bbbbbbbbbbbb.md': article({ slug: 'another' }, 'A [note](konzilo:nnnnnnnnnnnn).'),
+  }, byLanguage).refusals.map((one) => one.reason);
+  assert.ok(reasons.includes('a post takes at most 2 of its categories; choose fewer'), reasons.join('\n'));
+  assert.ok(reasons.some((reason) => reason.includes('and notes have no page of their own')), reasons.join('\n'));
+});
+
 // What the rule data holds in its elements: a directive's refusals, and a link's.
 const body = (text) => inArticle(text).refusals.map((one) => one.reason);
 

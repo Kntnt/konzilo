@@ -3,7 +3,7 @@
 
 import { bodyHands, slugOf } from './post-file.js';
 import { linkTarget } from './resolve.js';
-import { say } from './words.js';
+import { british, say } from './words.js';
 
 const hashDigits = (hash) => hash.slice(0, 10);
 
@@ -64,12 +64,12 @@ export function contextFor(post, run, from) {
 function termField(field, value, post, run) {
   const given = value === undefined || value === null || value === '' ? [] : Array.isArray(value) ? value : [value];
   if (given.length === 0 && field.required) return { reason: say('field-required', { field: field.name }) };
-  if (field.most !== null && new Set(given).size > field.most) return { reason: say('terms-most', { most: String(field.most), plural: field.taxonomy.plural.toLowerCase() }) };
+  if (field.most !== null && new Set(given).size > field.most) return { reason: say('terms-most', { most: String(field.most), plural: british(field.taxonomy.plural).toLowerCase() }) };
   const slugs = [];
   const folder = run.several && post.tag ? `${post.tag}/` : '';
   for (const id of given) {
     const term = run.terms.get(`${field.taxonomy.collection}/${id}`);
-    if (!term) return { reason: say('term-gone', { id: String(id), plural: field.taxonomy.plural.toLowerCase() }) };
+    if (!term) return { reason: say('term-gone', { id: String(id), plural: british(field.taxonomy.plural).toLowerCase() }) };
     const [problem] = term.chain.flatMap((one) => one.problems);
     if (problem) return { reason: problem };
     for (const one of term.chain) post.termIds.add(one.key);
@@ -96,7 +96,7 @@ function listTermsOf(run) {
         const byId = run.terms.get(`${taxonomy.collection}/${given}`);
         const bySlug = [...run.terms.values()].find((term) => term.taxonomy === taxonomy && term.slug === given);
         if (byId || bySlug) slugs.push((byId ?? bySlug).slug);
-        else warnings.push(say('list-term-gone', { term: given, taxonomy: taxonomy.label.toLowerCase() }));
+        else warnings.push(say('list-term-gone', { term: given, taxonomy: british(taxonomy.label).toLowerCase() }));
       }
       if (slugs.length > 0) groups.push(`${name}:${slugs.join(',')}`);
     }

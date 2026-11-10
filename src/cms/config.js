@@ -1,5 +1,7 @@
 // Sveltia's configuration, made from the site description and the settings
-// groups, so that nothing is stored that could drift (ADR 0029). The source files
+// groups, so that nothing is stored that could drift (ADR 0029), in one interface
+// language: its labels are the core's catalogues' in that language, and the
+// site's own as the site description gives them in it (ADR 0066). The source files
 // it reads and writes are those ADR 0026 names: a post or a term under its
 // collection's folder, named by an ID that never changes, and a reference by that
 // ID. Empty optional fields are left out, since the intake's schemas refuse an
@@ -12,78 +14,10 @@ import { SHARING_SAFE, SHARING_SIZE } from '../format/article-parts.js';
 import { IMAGE_WIDGET } from './image/widget.js';
 import { STRUCTURE_WIDGET } from './structure/widget.js';
 import { SCHEMA_WIDGET, SLUG_WIDGET, TEXT_WIDGET } from './parts/widgets.js';
+import { labelIn, text } from '../catalogues.js';
 import { inLanguage } from '../texts.js';
 import { BODY_WIDGET } from './body/widget.js';
 import { PUBLISHING_WIDGET } from './publishing/widget.js';
-
-const TEXTS = {
-  title: { en: 'Title', sv: 'Titel' },
-  slug: { en: 'Slug', sv: 'Slug' },
-  slugHint: { en: 'The last part of the address. Made from the title if left empty.', sv: 'Sista delen av adressen. Skapas av titeln om du lämnar den tom.' },
-  parent: { en: 'Parent', sv: 'Förälder' },
-  status: { en: 'Status', sv: 'Status' },
-  publishing: { en: 'Publishing', sv: 'Publicering' },
-  draft: { en: 'Draft', sv: 'Utkast' },
-  scheduled: { en: 'Scheduled', sv: 'Schemalagd' },
-  published: { en: 'Published', sv: 'Publicerad' },
-  date: { en: 'Date', sv: 'Datum' },
-  excerpt: { en: 'Excerpt', sv: 'Utdrag' },
-  image: { en: 'Featured image', sv: 'Utvald bild' },
-  file: { en: 'Image', sv: 'Bild' },
-  alt: { en: 'Alt text', sv: 'Alternativtext' },
-  body: { en: 'Body', sv: 'Brödtext' },
-  name: { en: 'Name', sv: 'Namn' },
-  description: { en: 'Description', sv: 'Beskrivning' },
-  search: { en: 'Search', sv: 'Sök' },
-  sharing: { en: 'Sharing', sv: 'Delning' },
-  structured: { en: 'Structured data', sv: 'Strukturerad data' },
-  seoFollows: { en: 'Left empty, the template for this type of post decides.', sv: 'Lämnas den tom bestämmer mallen för den här inläggstypen.' },
-  seoTitle: { en: 'Title tag', sv: 'Titeltagg' },
-  seoDescription: { en: 'Meta description', sv: 'Metabeskrivning' },
-  seoSocialTitle: { en: 'Title', sv: 'Titel' },
-  seoSocialDescription: { en: 'Description', sv: 'Beskrivning' },
-  seoSocialImage: { en: 'Image', sv: 'Bild' },
-  seoSchema: { en: 'Type', sv: 'Typ' },
-  seoNoindex: { en: 'Keep out of search engines', sv: 'Håll borta från sökmotorer' },
-  seoNofollow: { en: 'Do not follow links', sv: 'Följ inte länkar' },
-  breadcrumb: { en: 'Breadcrumb', sv: 'Brödsmula' },
-  breadcrumbHint: { en: 'Instead of the title, when a shorter name fits better. The levels themselves follow from where the post sits.', sv: 'I stället för titeln, när ett kortare namn passar bättre. Själva nivåerna följer av var inlägget ligger.' },
-  eyebrow: { en: 'Eyebrow', sv: 'Dårrad' },
-  headline: { en: 'Main headline', sv: 'Huvudrubrik' },
-  subheadline: { en: 'Subheadline', sv: 'Nedryckare' },
-  standfirst: { en: 'Standfirst', sv: 'Ingress' },
-  teaser: { en: 'Teaser', sv: 'Puff' },
-  teaserHeadline: { en: 'Headline', sv: 'Rubrik' },
-  teaserText: { en: 'Text', sv: 'Text' },
-  addEyebrow: { en: 'Add an eyebrow', sv: 'Lägg till dårrad' },
-  addSubheadline: { en: 'Add a subheadline', sv: 'Lägg till nedryckare' },
-  workingName: { en: 'Working name', sv: 'Arbetsnamn' },
-  workingNameHint: { en: 'Shown in the lists of posts. The breadcrumb, and the slug of a new post, are made from it.', sv: 'Visas i listorna över poster. Brödsmulan, och en ny posts slug, görs av den.' },
-  settings: { en: 'Site settings', sv: 'Webbplatsinställningar' },
-  siteTitle: { en: 'Site title', sv: 'Webbplatsens titel' },
-  logo: { en: 'Logo', sv: 'Logotyp' },
-  icon: { en: 'Site icon', sv: 'Webbplatsikon' },
-  imageLibrary: { en: 'Image library', sv: 'Bildbibliotek' },
-  libraryImage: { en: 'Image', sv: 'Bild' },
-  caption: { en: 'Caption', sv: 'Bildtext' },
-  libraryHint: { en: 'Copied into a post when the image is chosen there, where it can then be changed for that use.', sv: 'Kopieras in i ett inlägg när bilden väljs där, och kan sedan ändras för just den användningen.' },
-  menus: { en: 'Menus', sv: 'Menyer' },
-  entries: { en: 'Entries', sv: 'Poster' },
-  entry: { en: 'Entry', sv: 'Post' },
-  label: { en: 'Label', sv: 'Etikett' },
-  labelHint: { en: "The post's title, if left empty.", sv: 'Inläggets titel om du lämnar den tom.' },
-  post: { en: 'Post', sv: 'Inlägg' },
-  url: { en: 'Address', sv: 'Adress' },
-  otherPath: { en: 'Path', sv: 'Sökväg' },
-  otherPathHint: { en: "The path from the site's root, starting with /, such as /old-page/. Not a whole web address: the site can only answer at addresses of its own.", sv: 'Sökvägen från webbplatsens rot, med / först, till exempel /gammal-sida/. Inte en hel webbadress, eftersom webbplatsen bara kan svara på sina egna adresser.' },
-  otherPathPattern: { en: 'Write a path starting with /, such as /old-page/, not a whole web address.', sv: 'Skriv en sökväg som börjar med /, till exempel /gammal-sida/, inte en hel webbadress.' },
-  perType: { en: 'By type of post', sv: 'Per inläggstyp' },
-  otherAddresses: { en: 'Other addresses', sv: 'Andra adresser' },
-  otherAddress: { en: 'Other address', sv: 'Annan adress' },
-  answer: { en: 'Answer', sv: 'Svar' },
-  otherShow: { en: 'Show the post here too', sv: 'Visa inlägget här också' },
-  urlHint: { en: 'Only for an entry that does not lead to a post.', sv: 'Bara för en post som inte leder till ett inlägg.' },
-};
 
 // How deep a menu's entries go in the form. Sveltia has no recursive field.
 const MENU_DEPTH = 3;
@@ -101,9 +35,12 @@ const SAME_IN_EACH = { i18n: 'duplicate' };
  * @param {string} place.repository `<organisation>/<repository>`
  * @param {string} place.clientId the OAuth client of this Forgejo
  * @param {string} place.site the public site's origin
+ * @param {string} [place.language] the interface language, by default the site's
  */
-export function cmsConfig(description, { forgejo, repository, clientId, site, preview = null }) {
-  const say = (key) => inLanguage(TEXTS[key], description.language);
+export function cmsConfig(description, { forgejo, repository, clientId, site, preview = null, language: interfaceLanguage = description.interfaceLanguage }) {
+  const say = (key, values) => text(interfaceLanguage, `form.${key}`, values);
+  // A label of the site's own, as its site description gives it, in the interface language.
+  const own = (label) => labelIn(label, interfaceLanguage);
   const several = description.languages.length > 1;
   const within = (extra) => (several ? extra : {});
   const { forms } = declaredNames(description);
@@ -117,7 +54,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
   // On a site in several languages its value is each language's, so that the alt text is too.
   const imageField = (name, label, extra = {}, withAlt = true) => ({
     name,
-    label,
+    label: own(label),
     widget: IMAGE_WIDGET,
     alt: withAlt,
     ...smallest,
@@ -149,7 +86,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
   const valueField = (setting) => {
     const common = {
       name: setting.name,
-      label: setting.label,
+      label: own(setting.label),
       required: setting.required === true,
       ...(setting.help ? { hint: setting.help } : {}),
     };
@@ -184,7 +121,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     if (!setting.translated || !several) return valueField(setting);
     return {
       name: setting.name,
-      label: setting.label,
+      label: own(setting.label),
       widget: 'object',
       required: false,
       fields: description.languages.map((language) => valueField({
@@ -201,7 +138,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
 
   const part = (name, label, hint, fields) => ({
     name,
-    label,
+    label: own(label),
     widget: 'object',
     required: false,
     accordion: true,
@@ -261,7 +198,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
         { name: 'description', label: say('seoSocialDescription'), widget: 'text', ...(teaser ? { widget: TEXT_WIDGET, multiline: true, fallback: 'socialDescription' } : {}) },
       ]),
       group('structured', [
-        { name: 'schema', label: say('seoSchema'), widget: SCHEMA_WIDGET, options: [...SCHEMA_TYPES], type: type.name, typeLabel: type.plural, preset: schemaPreset(type) },
+        { name: 'schema', label: say('seoSchema'), widget: SCHEMA_WIDGET, options: [...SCHEMA_TYPES], type: type.name, typeLabel: own(type.plural), preset: schemaPreset(type) },
       ]),
     ];
   };
@@ -317,7 +254,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
         // A field of one term at most is one choice or none, and its source holds a text.
         return {
           name: field.name,
-          label: field.most === 1 ? field.taxonomy.label : field.taxonomy.plural,
+          label: own(field.most === 1 ? field.taxonomy.label : field.taxonomy.plural),
           ...relation(field.taxonomy.collection, 'name', { allow_add: true }),
           multiple: field.most !== 1,
           ...(field.most > 1 ? { max: field.most } : {}),
@@ -353,8 +290,8 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
 
   const typeCollection = (type) => ({
     name: type.collection,
-    label: type.plural,
-    label_singular: type.label,
+    label: own(type.plural),
+    label_singular: own(type.label),
     folder: type.collection,
     extension: 'md',
     format: 'yaml-frontmatter',
@@ -393,8 +330,8 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
 
   const taxonomyCollection = (taxonomy) => ({
     name: taxonomy.collection,
-    label: taxonomy.plural,
-    label_singular: taxonomy.label,
+    label: own(taxonomy.plural),
+    label_singular: own(taxonomy.label),
     folder: taxonomy.collection,
     extension: 'json',
     format: 'json',
@@ -454,17 +391,24 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
 
   const menus = Object.values(description.menus);
 
+  // The site's components, their labels and their attributes' in the interface language.
+  const components = Object.fromEntries(Object.entries(description.components).map(([name, component]) => [name, {
+    ...component,
+    label: own(component.label),
+    attributes: Object.fromEntries(Object.entries(component.attributes).map(([attribute, setting]) => [attribute, setting.label === undefined ? setting : { ...setting, label: own(setting.label) }])),
+  }]));
+
   return {
     load_config_file: false,
-    // Konzilo's own, which the editor takes out before Sveltia sees the rest: where this copy
-    // of the site has its live preview, and which collections have pages to show there, and
-    // the site's own components, which its bodies may hold beside the core's elements.
-    ...(preview === null && Object.keys(description.components).length === 0 ? {} : {
-      konzilo: {
-        ...(preview === null ? {} : { preview: { origin: preview, collections: Object.values(description.types).filter((type) => type.address).map((type) => type.collection) } }),
-        ...(Object.keys(description.components).length === 0 ? {} : { components: description.components }),
-      },
-    }),
+    // Konzilo's own, which the editor takes out before Sveltia sees the rest: the interface
+    // language this configuration is in, where this copy of the site has its live preview,
+    // and which collections have pages to show there, and the site's own components, which
+    // its bodies may hold beside the core's elements.
+    konzilo: {
+      language: interfaceLanguage,
+      ...(preview === null ? {} : { preview: { origin: preview, collections: Object.values(description.types).filter((type) => type.address).map((type) => type.collection) } }),
+      ...(Object.keys(components).length === 0 ? {} : { components }),
+    },
     app_title: 'Konzilo',
     site_url: site,
     display_url: site,
@@ -524,7 +468,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
               label: say('menus'),
               files: menus.flatMap((menu) => (several ? description.languages : [null]).map((language) => ({
                 name: language ? `${menu.name}-${language.tag}` : menu.name,
-                label: language ? `${menu.label} (${language.tag})` : menu.label,
+                label: language ? say('menuInLanguage', { menu: own(menu.label), language: language.tag }) : own(menu.label),
                 file: language ? `menus/${language.tag}/${menu.name}.json` : `menus/${menu.name}.json`,
                 format: 'json',
                 fields: [entriesField(MENU_DEPTH)],

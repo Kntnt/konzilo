@@ -52,6 +52,7 @@
 // Every value is in the page's language: its settings and templates, its
 // dates, `og:locale` and the structured data's `inLanguage`.
 
+import { labelIn } from '../catalogues.js';
 import { listPageAddress, searchPages } from '../format/addresses.js';
 import { searchDescriptionOf, searchTitleOf, SHARING_SIZE, socialDescriptionOf, socialTitleOf } from '../format/article-parts.js';
 import { renderTemplate } from '../metadata-templates.js';
@@ -304,7 +305,8 @@ export function templateValues({ settings = {}, post = null, languageTag, now = 
     'post.excerpt': typeof data.excerpt === 'string' ? data.excerpt : '',
     'post.date': day(data.date),
     'post.modified_date': day(data.modified),
-    'post_type.labels.singular': type.label,
+    // A label the site gives by language is the page's language's, as all a visitor reads is.
+    'post_type.labels.singular': labelIn(type.label, languageTag),
   });
   for (const field of type.fields) {
     if (field.kind === 'meta') values[`post.custom_field.${field.name}`] = asKept(data[field.name]);

@@ -49,6 +49,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { htmlToHast } from 'satteri';
+import { labelIn } from '../catalogues.js';
 import { POST_IDS_FILE, postIdsByPath } from '../format/write.js';
 import { contentFolder } from './collections.js';
 import { entryAddress, entryLanguage, entryName, pageLanguage, startAddress } from './languages.js';
@@ -115,11 +116,12 @@ export function feedSettings(settings) {
 }
 
 // The title of a type's feed, among the site's in its language, or of the
-// feed of a term named `term`, with the site's title `title`.
+// feed of a term named `term`, with the site's title `title`. A type's plural
+// given by language is the feed's language's.
 export function feedTitle(site, feed, { title = '', term = null } = {}) {
   if (feed.taxonomy) return [title, term].filter(Boolean).join(SEPARATOR);
   const several = siteFeeds(site).filter((each) => each.type && each.language === feed.language).length > 1;
-  return [title, several ? feed.type.plural : ''].filter(Boolean).join(SEPARATOR);
+  return [title, several ? labelIn(feed.type.plural, feed.language?.locale ?? site.language) : ''].filter(Boolean).join(SEPARATOR);
 }
 
 // The alternates every page's head links (search-and-sharing.js): each
