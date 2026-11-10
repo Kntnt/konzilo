@@ -7,6 +7,7 @@ import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { cmsConfig } from '../src/cms/config.js';
+import { named, say } from '../src/intake/words.js';
 import { siteDescription } from '../src/site-description.js';
 import { openFieldPage } from './lib/field-page.js';
 
@@ -160,6 +161,66 @@ describe('the interface language in Sveltia', () => {
     await newArticle();
     await page.getByRole('textbox', { name: 'Titel', exact: true }).waitFor();
     await page.getByRole('button', { name: 'Spara', exact: true }).waitFor();
+  });
+
+  // A refusal at Save and in the publish status, in the interface language, naming the block,
+  // the field or the file, for an editor who has chosen none and so has the site's, and for one
+  // who has chosen English, each in a browser of their own. The words of the body field and of
+  // the publish status around them follow the browser until they move to the catalogues, so
+  // those are found by either. The status is the service's answer, as the intake shapes each
+  // refusal in it.
+  test('refuses at Save and in the publish status in the interface language, naming what it is about', async () => {
+    const answer = {
+      posts: [{ file: 'pages/aaaaaaaaaaaa.md', version: 'v1', status: 'failed', stillShown: false, id: 'aaaaaaaaaaaa', type: 'page', title: 'Untitled', refusals: [named({ post: { id: 'aaaaaaaaaaaa', type: 'page', title: 'aaaaaaaaaaaa' }, file: 'pages/aaaaaaaaaaaa.md', field: 'title', reason: say('refusal.title-empty') })] }],
+      others: { refusals: [named({ file: 'menus/main.json', entry: '1', reason: say('refusal.menu-title') })], warnings: [] },
+      reason: null,
+      at: '2026-11-10T12:00:00Z',
+    };
+    const editors = [
+      {
+        locale: null, start: 'Arbeta med test-repo', title: 'Titel', save: 'Spara',
+        refusal: 'Block 1: webbplatsen kan inte publicera en rubrik på nivå 1: inläggets titel är dess nivå 1; använd en nivå från 2 till 6',
+        post: 'fältet title: webbplatsen kan inte publicera ett inlägg utan titel; ge det en',
+        file: 'Filen menus/main.json, post 1: posten har ingen etikett; ge den en, eller välj ett inlägg',
+      },
+      {
+        locale: 'en-GB', start: 'Work with Test Repository', title: 'Title', save: 'Save',
+        refusal: 'Block 1: the site cannot publish a heading at level 1: the post\'s title is its level 1; use a level from 2 to 6',
+        post: 'the field title: the site cannot publish a post without a title; give it one',
+        file: 'The file menus/main.json, entry 1: the entry has no label; give it one, or choose a post',
+      },
+    ];
+    for (const editor of editors) {
+      const own = await site.newPage({ language: 'en-US', viewport: { width: 1400, height: 1200 } });
+      try {
+        await own.context.route('**/_konzilo/status', (route) => route.fulfill({ json: answer }));
+        // Once Sveltia has settled in the site's language, which it keeps in its preferences.
+        await own.page.getByRole('button', { name: editors[0].start }).waitFor();
+        if (editor.locale) {
+          await own.page.evaluate((locale) => localStorage.setItem('sveltia-cms.prefs', JSON.stringify({ locale })), editor.locale);
+          await own.page.reload();
+        }
+        await own.page.getByRole('button', { name: editor.start }).click();
+        await own.page.goto(`${new URL(own.page.url()).origin}/#/collections/pages/new`);
+        await own.page.locator('.konzilo-body-visual .ProseMirror').waitFor();
+        await own.page.getByRole('textbox', { name: editor.title, exact: true }).fill('Refused');
+        await own.page.getByRole('button', { name: /^(?:Show|Visa) Markdown$/ }).click();
+        await own.page.locator('.konzilo-body-source').fill('# A title in the body\n\nText.');
+        await own.page.getByRole('button', { name: editor.save, exact: true }).click();
+        await own.page.getByRole('alertdialog').getByText(editor.refusal).waitFor();
+
+        // The service asks Forgejo who is asking, so the page sends what Sveltia signed in with.
+        await own.page.evaluate(() => localStorage.setItem('sveltia-cms.user', JSON.stringify({ ...JSON.parse(localStorage.getItem('sveltia-cms.user') ?? '{}'), token: 'a-token' })));
+        await own.page.goto(`${new URL(own.page.url()).origin}/#/collections/pages`);
+        await own.page.getByRole('radio', { name: /^(?:Publishing|Publicering)$/ }).click();
+        await own.page.getByRole('row', { name: /Untitled/ }).getByText(editor.post).waitFor();
+        await own.page.getByText(editor.file).waitFor();
+        assert.deepEqual(own.seen.outside, []);
+        assert.deepEqual(own.seen.refused, []);
+      } finally {
+        await own.context.close();
+      }
+    }
   });
 
   test('has asked nothing outside, and broken no policy', () => {

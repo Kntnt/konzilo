@@ -1,13 +1,13 @@
 # ADR 0027: Let the intake read source files, and write content files or refusals
 
-**Date:** 2026-11-03 · **Status:** Accepted as a technical choice, within Thomas's decision of an intake (ADR 0001); Thomas may veto.
+**Date:** 2026-11-03, amended 2026-11-10 · **Status:** Accepted as a technical choice, within Thomas's decision of an intake (ADR 0001); Thomas may veto.
 
 ## Decision
 
 - **One function, no input or output of its own.** It takes the source files at one commit, the site description, a clock, the previous ledger and who last changed what, and returns files, refusals and warnings. A command, `konzilo-intake`, reads a checkout and writes the content folder, in the site's build, as the site's user. A file is `{ path, contents }`. **Images come through a seam:** the function asks `images(path)` what an original is, and the command fills that with sharp and SVGO before it runs, so that the function stays pure and synchronous, and a master already there is reused by the hash in its name.
-- **A refusal is data:** the post by ID, type and title, the block by path and name, or the field, or the file and line, the reason in words an editor can act on, and a message. **Every problem in a post is named,** in the order of its blocks. A refused post gets no new file, and keeps the one it was last published with, by the ledger, even after its slug has changed. Other posts are unaffected.
+- **A refusal is data:** the post by ID, type and title, the block by path and name, or the field, or the file and line; the reason an editor can act on, by its name in the core's catalogues and the values that fill it (ADR 0066), which the editor shows in its interface language; and the reason and a message in British English, which the command line and the build log write. **Every problem in a post is named,** in the order of its blocks. A refused post gets no new file, and keeps the one it was last published with, by the ledger, even after its slug has changed. Other posts are unaffected.
 - **A warning is shaped as a refusal is,** for what a written file shows otherwise than the post holds, and a post with warnings is still live.
-- **The rules are data.** `rules.json` holds each element the core can publish, keyed by element name: its settings, its inline elements, what it may hold, its directive, its embeds, the reserved addresses, and plain words for each refusal. The intake and the field read the same file. **The checks are one implementation that imports nothing,** handed its parser, so that the field runs them in the browser. The intake remains the check that counts.
+- **The rules are data.** `rules.json` holds each element the core can publish, keyed by element name: its settings, its inline elements, what it may hold, its directive, its embeds and the reserved addresses, and names the refusal of a setting or an embed whose words are its own. The words of every refusal are in the catalogues. The intake and the field read the same files. **The checks are one implementation that imports nothing,** handed its parser, so that the field runs them in the browser. The intake remains the check that counts.
 - **What the check compares.** The reader's tree of the source body, with references resolved and image paths replaced, against the reader's tree of the written body, both by Sätteri. The check accepts only the raw HTML shapes the format lists, and refuses any other. An image anywhere but alone in a paragraph is refused, as is any construct outside the rule data, by its Markdown name and line. A soft line break, a loose list and a list item of more than one paragraph are refused.
 - **Exact bytes are the intake's job, not the editor's.** So table padding, bullet characters and a bare address in angle brackets make no difference, and a change of the exact form needs no migration of source files.
 - **The whole set.** Because the intake sees every file, it checks across them: one holder per address, a parent refused or missing, a term a post names, a form or component the site no longer offers, a second list with pages, a file of an Admin's, or a post chosen as a legal page, changed by a non-Admin (ADR 0008). A post, its image and its terms move together, because the intake writes a whole tree in one commit.
@@ -21,6 +21,7 @@
 - A function without I/O runs hundreds of cases in a second.
 - Stopping at the first problem would make an editor fix one problem per save.
 - One implementation gives one verdict in one wording. Two drift apart.
+- A reason carried by its name and values reads in each editor's interface language, while the command line and the build log keep British English (ADR 0066); words in one language could give only one of them.
 - Anything pushed to the source repository bypasses the field, so the server stays the authority.
 - Leaving a refused post's file keeps its last published version on the site, and a refused rename must not take a post off it.
 
