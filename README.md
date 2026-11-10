@@ -6,6 +6,10 @@ Konzilo is a core for websites whose editors write Markdown and whose visitors g
 
 **Under construction, and private.** The content format and the Astro integration come first. Editing in Sveltia CMS with a Crepe body field, publishing through an intake, and running everything with Docker Compose follow. The first release is not made yet.
 
+## Acknowledgements
+
+Konzilo is built on Astro, Sveltia CMS, Milkdown and Sätteri, runs beside Forgejo and Caddy, and uses many libraries. [`ACKNOWLEDGEMENTS.md`](ACKNOWLEDGEMENTS.md) names them, with thanks, and says how their licenses fit. [`THIRD-PARTY.md`](THIRD-PARTY.md) lists every package the core installs.
+
 ## Contributing
 
 Contributions are welcome, and [`CONTRIBUTING.md`](CONTRIBUTING.md) says how. Stand-alone work, which a site adds to Konzilo from outside, is its author's alone. Work that goes into this repository comes in under [Konzilo's contributor agreement](CONTRIBUTOR-AGREEMENT.md), by which its author keeps the copyright and gives Kntnt Sweden AB a license to it.
@@ -18,7 +22,7 @@ Konzilo is free software: you can redistribute it and/or modify it under the ter
 
 Konzilo is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
 
-[`LICENSE`](LICENSE) holds the license's text. Its identifier is `AGPL-3.0-or-later`. The few files that hold material of others keep their own licenses, and [`THIRD-PARTY.md`](THIRD-PARTY.md) lists them.
+[`LICENSE`](LICENSE) holds the license's text. Its identifier is `AGPL-3.0-or-later`. The few files that hold material of others keep their own licenses, and [`ACKNOWLEDGEMENTS.md`](ACKNOWLEDGEMENTS.md) names them.
 
 As an additional permission under section 7 of that license, Konzilo comes with a site exception. What a site adds to Konzilo, its templates, components, design, settings and content, and the pages Konzilo builds from them, is outside the license. Konzilo itself, and every change to it, stays under it. [`SITE-EXCEPTION.md`](SITE-EXCEPTION.md) holds the terms.
 
