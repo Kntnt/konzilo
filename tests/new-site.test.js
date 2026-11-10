@@ -106,12 +106,17 @@ describe('new-site', () => {
     const read = (path) => readFileSync(join(dist, path), 'utf8');
     const pages = () => readdirSync(dist, { recursive: true }).filter((path) => path.endsWith('.html'));
 
-    test('builds the demo content, which Git ignores, into a static site', () => {
+    test('builds the demo content, which Git ignores, on the built-in types, into a static site', () => {
       assert.ok(existsSync(join(site, 'content/articles')));
       assert.equal(run('git', ['-C', site, 'status', '--porcelain'], folder).stdout.includes('content/'), false);
       assert.ok(pages().length >= 10, pages().join());
       assert.match(read('index.html'), /The Gentle Garden/);
       assert.match(read('quiet-harbours-and-the-lantern/index.html'), /<h1>Quiet harbours and the lantern<\/h1>/);
+      assert.match(read('golden-harbours-and-the-harbour/index.html'), /<p class="eyebrow">Harbours<\/p>\s*<h1>Golden harbours and the harbour<\/h1>\s*<p class="subheadline">/);
+      assert.match(read('golden-harbours-and-the-harbour/index.html'), /<ul class="topics"><li>Orchards<\/li><li>Rivers<\/li><\/ul>/);
+      assert.match(read('landing/spring-in-the-valley/index.html'), /<h2[^>]*>Spring in the valley<\/h2>/);
+      assert.doesNotMatch(read('landing/spring-in-the-valley/index.html'), /<header>|<footer>/, 'a canvas has neither header nor footer');
+      assert.ok(existsSync(join(site, 'content/authors/ines-holm.json')));
     });
 
     test('writes the files a web server and a search engine read', () => {
@@ -135,7 +140,7 @@ describe('new-site', () => {
     test('writes body text with no class of the core\'s but its own', () => {
       const body = /<article class="body-text">([\s\S]*?)<\/article>/.exec(read('quiet-harbours-and-the-lantern/index.html'))?.[1] ?? '';
       assert.notEqual(body, '');
-      for (const [, classes] of body.matchAll(/<(?:h[2-6]|p|ul|ol|li|blockquote|figure|figcaption)\b[^>]* class="([^"]*)"/g)) assert.match(classes, /^(?:konzilo-|terms|categories|tags)/);
+      for (const [, classes] of body.matchAll(/<(?:h[2-6]|p|ul|ol|li|blockquote|figure|figcaption)\b[^>]* class="([^"]*)"/g)) assert.match(classes, /^(?:konzilo-|eyebrow|subheadline|standfirst|terms|categories|topics)/);
     });
 
     test('is built for the host KONZILO_ORIGIN names', () => {

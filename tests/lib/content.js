@@ -200,6 +200,9 @@ export function writeContent(repository, posts, settingsPath = join(repository, 
       title: decoded(one.title),
       seo: Object.keys(seo).length > 0 ? seo : undefined,
       breadcrumb: first('breadcrumb') || undefined,
+      // A post of a type that requires a main headline, as the built-in article does, has its
+      // title as one where the test gives none.
+      headline: one.headline ?? (type?.fields.some((field) => field.kind === 'headline' && field.required) ? decoded(one.title) : undefined),
       image: thumbnail ? { src: `../media/${thumbnail}`, alt: first('image_alt') ?? '' } : undefined,
       oldAddresses: old.length > 0 ? old : undefined,
       fields,

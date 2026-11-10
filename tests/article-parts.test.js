@@ -2,7 +2,8 @@
 // three parts, the standfirst and the teaser, what each falls back to when left empty
 // (article-parts.js), the source's three groups of search, sharing and structured data,
 // a taxonomy field that takes at most `most` terms, and the head, the summary and search,
-// which follow the parts where a type has a teaser.
+// which follow the parts in the built-in article and in a type of the site's own that has
+// a teaser.
 
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
@@ -15,32 +16,12 @@ import { run, sourcePost, written } from './lib/intake.js';
 const declared = {
   language: 'sv_SE',
   images: { smallestWidth: 1, displayWidth: 1 },
-  taxonomies: {
-    category: { label: 'Kategori', plural: 'Kategorier', collection: 'categories' },
-    topic: { label: 'Ämne', plural: 'Ämnen', collection: 'topics' },
-  },
   types: {
-    article: {
-      label: 'Artikel',
-      plural: 'Artiklar',
-      collection: 'articles',
-      address: '/magasin/{slug}/',
-      elements: ['paragraph'],
-      fields: {
-        date: {},
-        image: {},
-        breadcrumb: {},
-        eyebrow: {},
-        headline: { required: true },
-        subheadline: {},
-        standfirst: {},
-        category: { taxonomy: 'category', most: 1 },
-        topics: { taxonomy: 'topic' },
-        teaser: {},
-        seo: {},
-      },
-    },
-    page: { label: 'Sida', plural: 'Sidor', collection: 'pages', address: '/{slug}/', elements: ['paragraph'], fields: { breadcrumb: {}, seo: {} } },
+    // The built-in article, which has every part and the taxonomies of its own.
+    article: { label: 'Artikel', plural: 'Artiklar', collection: 'articles', address: '/magasin/{slug}/', elements: ['paragraph'] },
+    page: { label: 'Sida', plural: 'Sidor', collection: 'pages', address: '/{slug}/', elements: ['paragraph'] },
+    // A type of the site's own that has a teaser.
+    story: { label: 'Reportage', plural: 'Reportage', collection: 'stories', address: '/reportage/{slug}/', elements: ['paragraph'], fields: { date: {}, headline: {}, eyebrow: {}, standfirst: {}, teaser: {}, seo: {} } },
   },
 };
 const site = siteDescription(declared);
@@ -48,6 +29,7 @@ const terms = {
   'categories/aaaaaaaaaaaa.json': { name: 'Brf', slug: 'brf' },
   'categories/bbbbbbbbbbbb.json': { name: 'Handel', slug: 'handel' },
   'topics/cccccccccccc.json': { name: 'Kameror', slug: 'kameror' },
+  'authors/dddddddddddd.json': { name: 'Signe Lind', slug: 'signe-lind', description: 'Skriver om teknik.' },
 };
 const article = (fields, body = 'Brödtext.') => run({ 'articles/111111111111.md': sourcePost({ title: 'Arbetsnamn', slug: 'en-artikel', status: 'published', headline: 'Smarta kameror', ...fields }, body), ...terms }, site);
 const fileOf = (result) => written(result)['articles/en-artikel.md'];
@@ -91,18 +73,25 @@ describe('what each part falls back to', () => {
 });
 
 describe('the intake', () => {
-  test('writes each part in the order declared, the teaser with its image as a master', () => {
+  test('writes every part of the built-in article in its order, the teaser with its image as a master, and its terms', () => {
     const result = article({
+      date: '2026-10-01T08:00:00Z',
+      image: { src: '/media/huvud.png', alt: 'En kamera' },
       breadcrumb: 'Kameror',
       eyebrow: 'Analys',
       subheadline: 'Och gör det bra',
       standfirst: 'Kameran ser.',
+      authors: ['dddddddddddd'],
       category: 'aaaaaaaaaaaa',
       topics: ['cccccccccccc'],
       teaser: { image: { src: '/media/puff.png', alt: 'En puff' }, headline: 'Puffens rubrik', text: '' },
+      search: { title: 'Egen titel' },
     });
     assert.deepEqual(reasons(result), []);
-    assert.match(fileOf(result), /^breadcrumb: "Kameror"\neyebrow: "Analys"\nheadline: "Smarta kameror"\nsubheadline: "Och gör det bra"\nstandfirst: "Kameran ser\."\ncategory: \["brf"\]\ntopics: \["kameror"\]\nteaser: \{"image":\{"src":"\.\.\/media\/en-artikel-[0-9a-f]{10}\.webp","alt":"En puff"\},"headline":"Puffens rubrik"\}$/m);
+    assert.match(fileOf(result), /^---\ntitle: "Arbetsnamn"\ndate: 2026-10-01T08:00:00Z\nmodified: 2026-10-01T08:00:00Z\nimage: \{"src":"\.\.\/media\/en-artikel-[0-9a-f]{10}\.webp","alt":"En kamera"\}\nbreadcrumb: "Kameror"\neyebrow: "Analys"\nheadline: "Smarta kameror"\nsubheadline: "Och gör det bra"\nstandfirst: "Kameran ser\."\nauthors: \["signe-lind"\]\ncategory: \["brf"\]\ntopics: \["kameror"\]\nteaser: \{"image":\{"src":"\.\.\/media\/en-artikel-[0-9a-f]{10}\.webp","alt":"En puff"\},"headline":"Puffens rubrik"\}\nseo: \{"title":"Egen titel"\}\n---\n/);
+    assert.equal(written(result)['authors/signe-lind.json'], '{\n  "name": "Signe Lind",\n  "description": "Skriver om teknik."\n}\n');
+    assert.ok(written(result)['categories/brf.json']);
+    assert.ok(written(result)['topics/kameror.json']);
   });
 
   test('refuses a main headline left empty, a part holding HTML and a teaser image without its alt text', () => {
@@ -114,7 +103,7 @@ describe('the intake', () => {
   test('takes a category of one term as a text or a list, and refuses more than the field takes', () => {
     assert.match(fileOf(article({ category: 'bbbbbbbbbbbb' })), /^category: \["handel"\]$/m);
     assert.match(fileOf(article({ category: ['bbbbbbbbbbbb'] })), /^category: \["handel"\]$/m);
-    assert.ok(reasons(article({ category: ['aaaaaaaaaaaa', 'bbbbbbbbbbbb'] })).some((one) => /takes at most 1 of its kategorier/.test(one)));
+    assert.ok(reasons(article({ category: ['aaaaaaaaaaaa', 'bbbbbbbbbbbb'] })).some((one) => /takes at most 1 of its categories/.test(one)));
   });
 
   test('writes search, sharing and structured data from the source\'s three groups into one map', () => {
@@ -137,7 +126,7 @@ describe('the intake', () => {
   });
 });
 
-describe('what shows a post that has a teaser', () => {
+describe('what shows an article, and a post of the site\'s own type that has a teaser', () => {
   const entry = {
     id: 'en-artikel',
     collection: 'articles',
@@ -163,6 +152,17 @@ describe('what shows a post that has a teaser', () => {
     assert.equal(graph.find((node) => node['@type'] === 'Article').headline, 'Smarta kameror');
     const own = await tagsOf(entry, { title: 'Egen' });
     assert.equal(value(own, 'title'), 'Egen');
+  });
+
+  test('says the same in the head of a post of the site\'s own type that has a teaser', async () => {
+    const story = { ...entry, id: 'ett-reportage', collection: 'stories' };
+    const tags = await headTags(
+      { entry: story, path: '/reportage/ett-reportage/', settings: { title: 'Lyktan', search: { separator: '–', types: { story: { title: 'Mallen', description: 'Mallen' } } } }, site, origin: 'https://www.example.com', locale: 'sv_SE', languageTag: 'sv-SE' },
+      { getImage: () => assert.fail('no image to make'), getEntries: async () => [] },
+    );
+    assert.equal(value(tags, 'title'), 'Analys: Smarta kameror | Lyktan');
+    assert.equal(value(tags, 'description'), 'Kameran ser, men inte allt.');
+    assert.equal(value(tags, 'canonical'), 'https://www.example.com/reportage/ett-reportage/');
   });
 
   test('summarises it by its excerpt, else its teaser\'s text, else its standfirst', () => {

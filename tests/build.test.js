@@ -24,7 +24,7 @@ const core = fileURLToPath(new URL('../', import.meta.url));
 const ENV = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' };
 const description = {
   language: 'en_GB',
-  types: { article: { label: 'Article', plural: 'Articles', collection: 'articles', address: '/{slug}/', elements: ['paragraph'], fields: {} } },
+  types: { story: { label: 'Article', plural: 'Articles', collection: 'articles', address: '/{slug}/', elements: ['paragraph'], fields: {} } },
 };
 // Git LFS is the builder's, and no file here needs it.
 const noLfs = async (program, args, options) => (args[0] === 'lfs' ? { stdout: '' } : run(program, args, options));

@@ -2,7 +2,8 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { countOf, legalPages, longDate, oneLine, ordered, postalAddress, summary, termPath } from '@kntnt/konzilo/astro/helpers';
+import { builtInType, countOf, legalPages, longDate, oneLine, ordered, postalAddress, summary, termPath } from '@kntnt/konzilo/astro/helpers';
+import { siteDescription } from '../src/site-description.js';
 
 test('longDate writes a date as the same long date in each language', () => {
   const dates = ['2001-02-03T04:05:06Z'];
@@ -74,4 +75,21 @@ test('ordered orders a list by a text of each item in the page\'s language, ties
   assert.deepEqual(ordered(terms, 'name', { language: 'sv-SE' }).map((term) => term.name), ['apelsiner', 'bananer', 'Bananer', 'Zucchini', 'Äpplen', 'Örter'], 'Swedish puts å, ä and ö last, and lowercase first');
   assert.deepEqual(ordered(terms, 'name', { language: 'en-GB' }).map((term) => term.name).slice(0, 2), ['apelsiner', 'Äpplen'], 'English among the a\'s');
   assert.throws(() => ordered(terms, 'name'), /language/);
+});
+
+test('builtInType tells a template which of the core\'s types a post is, and nothing of a type of the site\'s own', () => {
+  const site = siteDescription({
+    language: 'en_GB',
+    images: { smallestWidth: 400, displayWidth: 1280 },
+    types: {
+      article: { collection: 'articles', address: '/{slug}/', elements: ['paragraph'] },
+      page: { collection: 'pages', address: '/pages/{slug}/', elements: ['paragraph'] },
+      canvas: { collection: 'landings', address: '/landing/{slug}/', elements: ['paragraph'] },
+      event: { label: 'Event', plural: 'Events', collection: 'events', address: '/events/{slug}/', elements: ['paragraph'] },
+    },
+  });
+  const typeOf = (collection) => builtInType({ id: 'one', collection, data: {} }, { site });
+  assert.deepEqual(['articles', 'pages', 'landings', 'events', 'categories'].map(typeOf), ['article', 'page', 'canvas', null, null]);
+  assert.equal(builtInType(null, { site }), null, 'a page of the site\'s own, which shows no entry');
+  assert.equal(builtInType(undefined, { site }), null);
 });

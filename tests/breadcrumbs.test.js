@@ -36,8 +36,8 @@ const site = (language) => ({
   language,
   images: { smallestWidth: 400, displayWidth: 1280 },
   types: {
-    post: { label: 'Article', plural: 'Articles', collection: 'articles', address: '/news/{slug}/', elements: ['paragraph'], fields: { breadcrumb: {}, seo: {} } },
-    page: { label: 'Page', plural: 'Pages', collection: 'pages', hierarchical: true, address: '/{path}/', elements: ['paragraph'], fields: { breadcrumb: {}, seo: {} } },
+    post: { label: 'Article', plural: 'Articles', collection: 'articles', address: '/news/{slug}/', elements: ['paragraph'] },
+    page: { label: 'Page', plural: 'Pages', collection: 'pages', hierarchical: true, address: '/{path}/', elements: ['paragraph'] },
     note: { label: 'Note', plural: 'Notes', collection: 'notes', address: '/notes/{slug}/', elements: ['paragraph'] },
   },
 });

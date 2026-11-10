@@ -33,6 +33,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { builtInOf, PAGE } from '../format/built-in-types.js';
 import { languageTag } from '../site-description.js';
 import { pageMarkdown } from './html-to-markdown.js';
 import { aiSettings, markdownPages, marksOf, pageOfMarkdown, renderedPage } from './markdown-alternates.js';
@@ -66,11 +67,11 @@ function label(text) {
   return oneLine(text).replace(/[\\`[\]]/g, (character) => `\\${character}`);
 }
 
-// The site's types in the files' order: `page`, `post`, then the others in
-// the site description's order.
+// The site's types in the files' order: the built-in page, then a type named
+// `post`, then the others in the site description's order.
 function inOrder(site) {
   const types = Object.values(site.types);
-  const first = ['page', 'post'].map((name) => types.find((type) => type.name === name)).filter(Boolean);
+  const first = [types.find((type) => builtInOf(type) === PAGE), types.find((type) => type.name === 'post')].filter(Boolean);
   return [...first, ...types.filter((type) => !first.includes(type))];
 }
 

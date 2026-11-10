@@ -7,6 +7,7 @@
 // ID. Empty optional fields are left out, since the intake's schemas refuse an
 // empty string.
 
+import { AUTHORS, builtInOf, followsParts, PAGE } from '../format/built-in-types.js';
 import { CANONICAL_PATTERN, publicAddress } from '../format/addresses.js';
 import { IMAGE_LIBRARY_FOLDER } from '../format/masters.js';
 import { declaredNames, SCHEMA_TYPES } from '../site-description.js';
@@ -63,11 +64,11 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
   });
 
   // The post a choice of one leads to. A relation names one collection, so a choice
-  // of a post is among pages where the site has them, and otherwise among the first
-  // type with an address.
+  // of a post is among the built-in pages where the site has them, and otherwise among
+  // the first type with an address.
   const chooseAmong = () => {
     const types = Object.values(description.types).filter((type) => type.address !== null);
-    return types.find((type) => type.name === 'page') ?? types[0] ?? null;
+    return types.find((type) => builtInOf(type) === PAGE) ?? types[0] ?? null;
   };
 
   // Nothing is made from inside another's form, but for a post's terms, where a new one is
@@ -168,14 +169,14 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
   // The type's structured data type as the settings give it before a site sets its own.
   const schemaPreset = (type) => {
     const { default: preset, defaultFor = {} } = settingsGroups.search.types.settings.schema;
-    const kinds = { address: type.address !== null, date: type.fields.some((field) => field.kind === 'date'), page: type.name === 'page' };
+    const kinds = { address: type.address !== null, date: type.fields.some((field) => field.kind === 'date'), page: builtInOf(type) === PAGE };
     const kind = Object.keys(defaultFor).find((one) => kinds[one]);
     return kind === undefined ? preset : defaultFor[kind];
   };
 
-  // A post whose type has a teaser shows in its search and sharing fields what its teaser
-  // shows, as its head does (article-parts.js); another type's leave it to its templates.
-  const hasTeaser = (type) => type.fields.some((field) => field.kind === 'teaser');
+  // An article, and a post of the site's own type that has a teaser, shows in its search
+  // and sharing fields what its teaser shows, as its head does (article-parts.js); another
+  // type's leave it to its templates.
 
   // A post's own address, from which the canonical address field shows it while the post names
   // none: its type's address with `{slug}`, and on a site in several languages one for the
@@ -187,7 +188,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
   };
 
   const seoFields = (type) => {
-    const teaser = hasTeaser(type);
+    const teaser = followsParts(type);
     const shown = (rule) => (teaser ? { widget: TEXT_WIDGET, fallback: rule } : { hint: say('seoFollows') });
     const group = (name, fields) => ({
       name,
@@ -370,7 +371,8 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
       ...(taxonomy.hierarchical
         ? [{ name: 'parent', label: say('parent'), ...relation(taxonomy.collection, 'name'), required: false, ...within(SAME_IN_EACH) }]
         : []),
-      { name: 'description', label: say('description'), widget: 'text', required: false, ...within(TRANSLATED) },
+      // An author's description is the biography an author page shows.
+      { name: 'description', label: say(taxonomy.builtIn === AUTHORS ? 'biography' : 'description'), widget: 'text', required: false, ...within(TRANSLATED) },
     ],
   });
 

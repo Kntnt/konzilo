@@ -240,7 +240,7 @@ describe('the preview\'s pane, on a site in two languages', () => {
     const openBlocks = async () => {
       answer = { address: '/blocks/', refusals: [] };
       await newEntry('articles');
-      await page.getByRole('textbox', { name: 'Title' }).first().fill('Block');
+      await page.getByRole('textbox', { name: 'Working name' }).first().fill('Block');
       const field = fields().first();
       await field.locator('.konzilo-body-toggle').click();
       await field.locator('.konzilo-body-source').fill(BLOCKS_BODY);

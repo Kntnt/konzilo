@@ -126,7 +126,7 @@ export { contentSecurityPolicy, policyText, releaseCode } from './content-securi
 export { markdownFeatures, markdownHastPlugins, markdownHastPluginsIn, markdownMdastPlugins, readContentFile } from './reader.js';
 export { renderTemplate } from '../metadata-templates.js';
 export { templateValues } from './search-and-sharing.js';
-export { summary } from './summary.js';
+export { ownSummary, summary } from './summary.js';
 
 // Astro's own image service, which a site has unless it names another, and
 // Konzilo's in its place.

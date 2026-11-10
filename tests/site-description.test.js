@@ -19,7 +19,7 @@ for (const language of ['Swedish', 'sv-SE', '', 42, null, ['sv_SE']]) {
 }
 
 test('takes the domain the consent choice is kept on, in lowercase, never a public suffix or a shared domain, nor a name above one', () => {
-  const types = { page: { label: 'Page', plural: 'Pages', collection: 'pages', address: '/{slug}/', elements: ['paragraph'] } };
+  const types = { post: { label: 'Post', plural: 'Posts', collection: 'posts', address: '/{slug}/', elements: ['paragraph'] } };
   const read = (domain) => siteDescription({ language: 'en_GB', types, consent: { domain } }).consent;
   assert.deepEqual(read('example.com'), { departures: [], domain: 'example.com' });
   assert.equal(read('www.example.co.uk').domain, 'www.example.co.uk');
@@ -38,7 +38,7 @@ test('takes the domain the consent choice is kept on, in lowercase, never a publ
 });
 
 test('lets the pages show data: images unless security.dataImages is false, and refuses any other value', () => {
-  const types = { page: { label: 'Page', plural: 'Pages', collection: 'pages', address: '/{slug}/', elements: ['paragraph'] } };
+  const types = { post: { label: 'Post', plural: 'Posts', collection: 'posts', address: '/{slug}/', elements: ['paragraph'] } };
   const read = (security) => siteDescription({ language: 'en_GB', types, ...(security === undefined ? {} : { security }) }).security.dataImages;
   assert.equal(read(undefined), true);
   assert.equal(read({}), true);
@@ -50,7 +50,7 @@ test('lets the pages show data: images unless security.dataImages is false, and 
 });
 
 test('takes the departure that counts without storage before consent with what Global Privacy Control and Do Not Track do, and no other departure with it', () => {
-  const types = { page: { label: 'Page', plural: 'Pages', collection: 'pages', address: '/{slug}/', elements: ['paragraph'] } };
+  const types = { post: { label: 'Post', plural: 'Posts', collection: 'posts', address: '/{slug}/', elements: ['paragraph'] } };
   const read = (departures) => siteDescription({ language: 'en_GB', types, consent: { departures } }).consent.departures;
   const departure = (privacySignals) => ({ departure: 'statisticsWithoutStorageBeforeConsent', reason: 'Counted from the first page.', ...(privacySignals === undefined ? {} : { privacySignals }) });
   assert.deepEqual(read([departure('stop')]), [{ departure: 'statisticsWithoutStorageBeforeConsent', reason: 'Counted from the first page.', privacySignals: 'stop' }]);
@@ -62,7 +62,7 @@ test('takes the departure that counts without storage before consent with what G
 });
 
 describe('the interface language', () => {
-  const types = { page: { label: 'Page', plural: 'Pages', collection: 'pages', address: '/{slug}/', elements: ['paragraph'] } };
+  const types = { post: { label: 'Post', plural: 'Posts', collection: 'posts', address: '/{slug}/', elements: ['paragraph'] } };
 
   test('is the one the site declares, else its language where the core has a catalogue for it, else British English', () => {
     assert.equal(siteDescription({ language: 'sv_SE', interfaceLanguage: 'en', types }).interfaceLanguage, 'en');
@@ -89,7 +89,7 @@ describe('a site\'s own label', () => {
   const declared = (label) => ({
     language: 'sv_SE',
     types: {
-      article: {
+      story: {
         label,
         plural: { en: 'Articles', sv: 'Artiklar' },
         collection: 'articles',
@@ -107,9 +107,9 @@ describe('a site\'s own label', () => {
 
   test('is one text for every language, or a text by interface language, British English among them', () => {
     const read = siteDescription(declared('Artikel'));
-    assert.equal(read.types.article.label, 'Artikel');
-    assert.deepEqual(read.types.article.plural, { en: 'Articles', sv: 'Artiklar' });
-    assert.deepEqual(read.types.article.fields.find((field) => field.name === 'size').label, { en: 'Size', sv: 'Storlek' });
+    assert.equal(read.types.story.label, 'Artikel');
+    assert.deepEqual(read.types.story.plural, { en: 'Articles', sv: 'Artiklar' });
+    assert.deepEqual(read.types.story.fields.find((field) => field.name === 'size').label, { en: 'Size', sv: 'Storlek' });
     assert.deepEqual(read.taxonomies.tag.label, { en: 'Tag', sv: 'Etikett' });
     assert.deepEqual(read.presentations.list.label, { en: 'List', sv: 'Lista' });
     assert.deepEqual(read.presentations.list.options[0].label, { en: 'Date', sv: 'Datum' });
@@ -117,16 +117,16 @@ describe('a site\'s own label', () => {
     assert.deepEqual(read.settings[0].label, { en: 'Footer', sv: 'Sidfot' });
     assert.deepEqual(read.components.card.label, { en: 'Card', sv: 'Kort' });
     assert.deepEqual(read.components.card.attributes.tone.label, { en: 'Tone', sv: 'Ton' });
-    assert.deepEqual(siteDescription(declared({ en: 'Article' })).types.article.label, { en: 'Article' });
+    assert.deepEqual(siteDescription(declared({ en: 'Article' })).types.story.label, { en: 'Article' });
   });
 
   for (const [label, problem] of [
-    [{ sv: 'Artikel' }, 'types.article.label: gives no en, the British English a label by language needs'],
-    [{ en: 'Article', de: 'Artikel' }, 'types.article.label.de: de is not a language Konzilo\'s interface comes in, which are en (British English) and sv (Swedish)'],
-    [{ en: 'Article', sv: ' ' }, 'types.article.label.sv: must be a non-empty string'],
-    [{}, 'types.article.label: gives no en, the British English a label by language needs'],
-    [42, 'types.article.label: must be a non-empty string, or one by interface language, such as { "en": "Article", "sv": "Artikel" }'],
-    [['Article'], 'types.article.label: must be a non-empty string, or one by interface language, such as { "en": "Article", "sv": "Artikel" }'],
+    [{ sv: 'Artikel' }, 'types.story.label: gives no en, the British English a label by language needs'],
+    [{ en: 'Article', de: 'Artikel' }, 'types.story.label.de: de is not a language Konzilo\'s interface comes in, which are en (British English) and sv (Swedish)'],
+    [{ en: 'Article', sv: ' ' }, 'types.story.label.sv: must be a non-empty string'],
+    [{}, 'types.story.label: gives no en, the British English a label by language needs'],
+    [42, 'types.story.label: must be a non-empty string, or one by interface language, such as { "en": "Article", "sv": "Artikel" }'],
+    [['Article'], 'types.story.label: must be a non-empty string, or one by interface language, such as { "en": "Article", "sv": "Artikel" }'],
   ]) {
     test(`refuses ${JSON.stringify(label)}, naming what is wrong`, () => {
       assert.throws(() => siteDescription(declared(label)), (error) => error.message.includes(problem));
@@ -142,8 +142,97 @@ describe('a site\'s own label', () => {
   });
 });
 
+describe('the built-in types', () => {
+  const site = (types, more = {}) => ({ language: 'en_GB', images: { smallestWidth: 400, displayWidth: 1280 }, types, ...more });
+  const article = (more = {}) => ({ collection: 'articles', address: '/{slug}/', elements: ['paragraph'], ...more });
+  const refused = (declared, problem) => assert.throws(() => siteDescription(declared), (error) => {
+    assert.ok(error.message.includes(problem), `${error.message}\ndoes not say\n${problem}`);
+    return true;
+  });
+
+  test('give an article named with its address and elements every article part, and the three taxonomies', () => {
+    const read = siteDescription(site({ article: article() }));
+    const { fields } = read.types.article;
+    assert.equal(read.types.article.builtIn, 'article');
+    assert.deepEqual(fields.map((field) => field.name), ['date', 'modified', 'image', 'breadcrumb', 'eyebrow', 'headline', 'subheadline', 'standfirst', 'authors', 'category', 'topics', 'teaser', 'seo']);
+    assert.deepEqual(fields.filter((field) => field.required).map((field) => field.name), ['headline']);
+    assert.deepEqual(fields.filter((field) => field.kind === 'terms').map((field) => [field.name, field.taxonomy.name, field.most]), [['authors', 'authors', null], ['category', 'category', 1], ['topics', 'topics', null]]);
+    assert.deepEqual(Object.values(read.taxonomies).map(({ name, builtIn, collection, hierarchical, address, feed }) => ({ name, builtIn, collection, hierarchical, address, feed })), [
+      { name: 'authors', builtIn: 'authors', collection: 'authors', hierarchical: false, address: null, feed: null },
+      { name: 'category', builtIn: 'category', collection: 'categories', hierarchical: true, address: null, feed: null },
+      { name: 'topics', builtIn: 'topics', collection: 'topics', hierarchical: false, address: null, feed: null },
+    ]);
+  });
+
+  test('give a page its name in breadcrumbs and the search and sharing fields, and a canvas the search and sharing fields', () => {
+    const read = siteDescription(site({ page: { collection: 'pages', hierarchical: true, address: '/{path}/', elements: ['paragraph'] }, canvas: { collection: 'canvases', address: '/landing/{slug}/', elements: ['paragraph'] } }));
+    assert.equal(read.types.page.builtIn, 'page');
+    assert.equal(read.types.page.hierarchical, true);
+    assert.deepEqual(read.types.page.fields.map((field) => field.name), ['breadcrumb', 'seo']);
+    assert.equal(read.types.canvas.builtIn, 'canvas');
+    assert.deepEqual(read.types.canvas.fields.map((field) => field.name), ['seo']);
+    assert.deepEqual(read.taxonomies, {}, 'the taxonomies come with the article alone');
+  });
+
+  test('keep a site\'s own types and taxonomies as its own', () => {
+    const read = siteDescription(site({ event: article({ label: 'Event', plural: 'Events', collection: 'events', address: '/events/{slug}/', fields: { date: {}, regions: { taxonomy: 'region' } } }) }, { taxonomies: { region: { label: 'Region', plural: 'Regions', collection: 'regions' } } }));
+    assert.equal(read.types.event.builtIn, null);
+    assert.equal(read.taxonomies.region.builtIn, null);
+    assert.deepEqual(read.types.event.fields.map((field) => field.name), ['date', 'regions']);
+  });
+
+  test('take a site\'s own fields, before the search and sharing fields', () => {
+    const read = siteDescription(site({
+      article: article({ fields: { readingTime: { label: 'Reading time', type: 'integer', control: 'number' }, regions: { taxonomy: 'region' } } }),
+      page: { collection: 'pages', address: '/pages/{slug}/', elements: ['paragraph'], fields: { lead: { label: 'Lead', type: 'string', control: 'textarea' } } },
+    }, { taxonomies: { region: { label: 'Region', plural: 'Regions', collection: 'regions' } } }));
+    assert.deepEqual(read.types.article.fields.map((field) => field.name).slice(-4), ['teaser', 'readingTime', 'regions', 'seo']);
+    assert.equal(read.types.article.fields.find((field) => field.name === 'readingTime').kind, 'meta');
+    assert.deepEqual(read.types.page.fields.map((field) => field.name), ['breadcrumb', 'lead', 'seo']);
+  });
+
+  test('take their labels from the catalogues, and a site\'s own label in place of them', () => {
+    const read = siteDescription(site({ article: article(), page: { collection: 'pages', address: '/pages/{slug}/', elements: ['paragraph'] }, canvas: { collection: 'canvases', address: '/landing/{slug}/', elements: ['paragraph'] } }));
+    assert.deepEqual([read.types.article.label, read.types.article.plural], [{ en: 'Article', sv: 'Artikel' }, { en: 'Articles', sv: 'Artiklar' }]);
+    assert.deepEqual([read.types.page.label, read.types.page.plural], [{ en: 'Page', sv: 'Sida' }, { en: 'Pages', sv: 'Sidor' }]);
+    assert.deepEqual([read.types.canvas.label, read.types.canvas.plural], [{ en: 'Canvas', sv: 'Tom sida' }, { en: 'Canvases', sv: 'Tomma sidor' }]);
+    assert.deepEqual(Object.values(read.taxonomies).map((taxonomy) => [taxonomy.label.en, taxonomy.plural.sv]), [['Author', 'Författare'], ['Category', 'Kategorier'], ['Topic', 'Ämnen']]);
+    const own = siteDescription(site({ article: article({ label: 'Magazine', plural: { en: 'Magazines', sv: 'Magasin' } }) }, { taxonomies: { topics: { label: 'Tag', plural: 'Tags' } } }));
+    assert.equal(own.types.article.label, 'Magazine');
+    assert.deepEqual(own.types.article.plural, { en: 'Magazines', sv: 'Magasin' });
+    assert.deepEqual([own.taxonomies.topics.label, own.taxonomies.topics.plural], ['Tag', 'Tags']);
+    refused(site({ article: article({ label: { sv: 'Magasin' } }) }), 'types.article.label: gives no en');
+  });
+
+  test('let a site give each built-in taxonomy an address and a feed, and nothing of its shape, and leave their names to a site without the article', () => {
+    const read = siteDescription(site({ article: article({ feed: '/feed/', fields: {} }) }, { taxonomies: { authors: { address: '/authors/{slug}/' }, category: { feed: '/category/{slug}/feed/' } } }));
+    assert.equal(read.taxonomies.authors.address, '/authors/{slug}/');
+    assert.equal(read.taxonomies.category.feed, '/category/{slug}/feed/');
+    assert.equal(read.taxonomies.topics.address, null);
+    refused(site({ article: article() }, { taxonomies: { category: { hierarchical: false } } }), 'taxonomies.category.hierarchical: the shape of the built-in taxonomy category is the core\'s; a site gives it an address, a feed and a label of its own, if any');
+    refused(site({ article: article() }, { taxonomies: { topics: { collection: 'tags' } } }), 'taxonomies.topics.collection: the shape of the built-in taxonomy topics is the core\'s');
+    const without = siteDescription(site({ event: article({ label: 'Event', plural: 'Events', fields: { date: {}, topics: { taxonomy: 'topics' } } }) }, { taxonomies: { topics: { label: 'Topic', plural: 'Topics', collection: 'subjects' } } }));
+    assert.deepEqual([without.taxonomies.topics.builtIn, without.taxonomies.topics.collection], [null, 'subjects'], 'without the article, the name is the site\'s own');
+  });
+
+  test('refuse a core field redeclared or left out, in plain words', () => {
+    refused(site({ article: article({ fields: { headline: { required: true } } }) }), 'types.article.fields.headline: is one of the core\'s fields of the built-in article, which has it without being declared; leave it out of fields');
+    refused(site({ article: article({ fields: { category: { taxonomy: 'category' } } }) }), 'types.article.fields.category: is one of the core\'s fields of the built-in article');
+    refused(site({ article: article({ fields: { subheadline: false } }) }), 'types.article.fields.subheadline: is one of the core\'s fields of the built-in article, which every article has; a site cannot leave it out');
+    refused(site({ page: { collection: 'pages', address: '/{slug}/', elements: ['paragraph'], fields: { seo: null } } }), 'types.page.fields.seo: is one of the core\'s fields of the built-in page, which every page has; a site cannot leave it out');
+    refused(site({ page: { collection: 'pages', address: '/{slug}/', elements: ['paragraph'], fields: { date: {} } } }), 'types.page.fields.date: names a field of the core\'s, which the built-in page does not take; give a field of the site\'s own another name');
+    refused(site({ article: article({ fields: { excerpt: {} } }) }), 'types.article.fields.excerpt: names a field of the core\'s, which the built-in article does not take');
+    refused(site({ article: article({ fields: { tags: { taxonomy: 'topics' } } }) }), 'types.article.fields.tags: a second field for the taxonomy topics');
+  });
+
+  test('let only a page and a canvas be hierarchical', () => {
+    refused(site({ article: article({ hierarchical: true, address: '/{path}/' }) }), 'types.article.hierarchical: an article has no parent; only a page and a canvas may be hierarchical');
+    assert.equal(siteDescription(site({ canvas: { collection: 'canvases', hierarchical: true, address: '/{path}/', elements: ['paragraph'] } })).types.canvas.hierarchical, true);
+  });
+});
+
 describe('the settings groups\' texts', () => {
-  const types = { page: { label: 'Page', plural: 'Pages', collection: 'pages', address: '/{slug}/', elements: ['paragraph'] } };
+  const types = { post: { label: 'Post', plural: 'Posts', collection: 'posts', address: '/{slug}/', elements: ['paragraph'] } };
   const site = { language: 'en_GB', types };
   const feeds = { settings: { posts: { type: 'integer', control: 'number', min: 1, default: 10 } } };
 
