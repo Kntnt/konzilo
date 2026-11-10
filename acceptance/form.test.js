@@ -133,8 +133,6 @@ describe('a scheduled post at Save in Sveltia', () => {
 
   before(async () => {
     const declared = JSON.parse(readFileSync(`${core}site-template/files/site-description.json`, 'utf8'));
-    // An article that needs nothing but its title, so that only the schedule can stop it.
-    delete declared.types.article.fields.categories.required;
     const config = cmsConfig(siteDescription(declared), { forgejo: 'http://localhost:1', repository: 'a/b', clientId: 'c', site: 'http://localhost:2' });
     site = await openFieldPage({ config: { ...config, backend: { name: 'test-repo' } } });
     ({ page, seen } = await site.newPage({ viewport: { width: 1400, height: 1200 } }));
@@ -147,7 +145,9 @@ describe('a scheduled post at Save in Sveltia', () => {
   test('is refused with a moment in the past, saying why, and saves with one ahead', async () => {
     await page.goto(`${new URL(page.url()).origin}/#/collections/articles/new`);
     await page.locator('.konzilo-body-visual .ProseMirror').waitFor();
-    await page.getByRole('textbox', { name: 'Title', exact: true }).fill('Out on time');
+    // An article needs its main headline, and nothing else but its moment can stop it here.
+    await page.getByRole('textbox', { name: 'Working name', exact: true }).fill('Out on time');
+    await page.getByRole('textbox', { name: 'Main headline', exact: true }).fill('Out on time');
     await page.getByRole('radio', { name: 'Scheduled' }).click();
     const date = page.locator('.field[data-key-path="date"] input[type="datetime-local"]');
     await date.scrollIntoViewIfNeeded();
