@@ -12,7 +12,7 @@ import { BODY_WIDGET } from './widget.js';
 // Sveltia's dialog shows these words above a refusal. It tells a refusal from a failure by
 // the reason itself, which only the handler below made (patches.json).
 let lastRefusal = null;
-globalThis.__KONZILO_REFUSAL_WORDS__ = (shown) => (lastRefusal !== null && shown === lastRefusal ? say('refused') : undefined);
+globalThis.__KONZILO_REFUSAL_WORDS__ = (shown) => (lastRefusal !== null && shown === lastRefusal ? say('body.refused') : undefined);
 
 export function registerBodyField(CMS, config) {
   // The host no link may lead to is this one, unless the site's address has the same name,
