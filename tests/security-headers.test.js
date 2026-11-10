@@ -10,8 +10,9 @@
 //   the framing part alone, since its own code is inline.
 //
 // The site description's `security` part opts in to `includeSubDomains`,
-// and lists the origins that may frame the site. The policy itself, from the
-// release's pages and the service registry, is content-security-policy.test.js's.
+// lists the origins that may frame the site, and may switch `data:` images
+// off. The policy itself, from the release's pages and the service registry,
+// is content-security-policy.test.js's.
 
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
@@ -49,9 +50,10 @@ const PERMISSIONS = [
 ].join(', ');
 
 // The Content Security Policy of a site whose pages hold no inline code and
-// whose registry has no host: the site alone, for every kind of request.
+// whose registry has no host: the site alone, for every kind of request, and
+// `data:` images.
 const POLICY = [
-  "default-src 'self'", "script-src 'self'", "style-src 'self'", "style-src-attr 'none'", "img-src 'self'", "font-src 'self'",
+  "default-src 'self'", "script-src 'self'", "style-src 'self'", "style-src-attr 'none'", "img-src 'self' data:", "font-src 'self'",
   "connect-src 'self'", "media-src 'self'", "frame-src 'self'", "object-src 'none'", "base-uri 'none'", "form-action 'self'",
 ].join('; ');
 
@@ -124,6 +126,7 @@ describe('the static build', () => {
     const descriptions = {
       plain: { types },
       opted: { types, security: { includeSubDomains: true, frameAncestors: ['https://partner.example.org', 'https://intranet.example.com'] } },
+      strict: { types, security: { dataImages: false } },
     };
     for (const [name, description] of Object.entries(descriptions)) {
       const repository = siteRepository(description);
@@ -148,7 +151,7 @@ describe('the static build', () => {
   });
 
   test('holds every header within what a web server is asked to take', () => {
-    for (const build of ['plain', 'opted']) {
+    for (const build of ['plain', 'opted', 'strict']) {
       for (const [name, value] of parse(output(build, '_headers'))) assert.ok(value.length <= HEADER_LIMIT, `${build}: ${name}`);
     }
   });
@@ -164,6 +167,14 @@ describe('the static build', () => {
       plain.delete(name);
     }
     assert.deepEqual([...opted], [...plain]);
+  });
+
+  test('data: images switched off leave img-src the site alone, and change nothing else', () => {
+    const strict = parse(output('strict', '_headers'));
+    const policy = new Map(strict).get('Content-Security-Policy');
+    assert.equal(policy, `${POLICY.replace("img-src 'self' data:", "img-src 'self'")}; frame-ancestors 'self'; ${REPORTS}`);
+    assert.doesNotMatch(policy, /data:/);
+    assert.deepEqual(strict.filter(([name]) => name !== 'Content-Security-Policy'), HEADERS.filter(([name]) => name !== 'Content-Security-Policy'));
   });
 });
 

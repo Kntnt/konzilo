@@ -1,13 +1,13 @@
 # ADR 0051: Write security headers and an enforced policy into each release
 
-**Date:** 2026-10-29 · **Status:** Accepted. Settled by Thomas on 2026-10-29: the Content Security Policy is generated at every build, enforced from the first day, an Admin adds the sources tags need, and violations go to a log. The rest is a technical choice; Thomas may veto.
+**Date:** 2026-10-29, amended 2026-11-10 · **Status:** Accepted. Settled by Thomas on 2026-10-29: the Content Security Policy is generated at every build, enforced from the first day, an Admin adds the sources tags need, and violations go to a log. Settled by Thomas on 2026-11-10: `data:` images allowed by default, which a site may switch off. The rest is a technical choice; Thomas may veto.
 
 ## Decision
 
 - **The build writes the headers into the release as `_headers`,** `/*`, then one indented `Name: value` per header; then, on a release with consent scripts, `/_konzilo/consent/*` with `Cache-Control: public, max-age=300` alone, which the web server takes for that folder and refuses for any other path or header (ADR 0049). One set holds for every answer: HSTS for one year, with `includeSubDomains` only by opt-in and never `preload`; `nosniff`; `strict-origin-when-cross-origin`; framing by the site alone, or by the origins it lists; a permissions policy that turns off camera, microphone, geolocation, payment, USB, serial, HID and Bluetooth, and gives each feature an embed's player is given to the site and the players' origins; COOP `same-origin`.
-- **`security` in the site description** holds the opt-ins: `includeSubDomains` and `frameAncestors`.
-- **One policy per release,** enforced, also by share links. `'self'` first in every directive that loads: `default-src 'self'`; the SHA-256 of each inline script in `script-src`, of each inline style element in `style-src`, and of each distinct `style` attribute value in `style-src-attr` under `'unsafe-hashes'`, collected over every page as built, a `<template>`'s and a `<noscript>`'s content too; in `frame-src`, the player origins of the embed services the release's panels show; the registry's hosts per kind of request; `object-src 'none'`, `base-uri 'none'`, `form-action 'self'`, `frame-ancestors`; last, reporting to `/_konzilo/violations`, as `report-uri` and `report-to`. Preview and share policies report nothing, so that editors' previews are not logged.
-- **Never offered:** `'unsafe-inline'`, `'unsafe-eval'`, `*` alone, a scheme alone, `data:` or `blob:` for scripts, or a nonce.
+- **`security` in the site description** holds the site's choices: the opt-ins `includeSubDomains` and `frameAncestors`, and `dataImages`, true unless the site says `false`, and refused as anything but `true` or `false`.
+- **One policy per release,** enforced, also by share links. `'self'` first in every directive that loads: `default-src 'self'`; the SHA-256 of each inline script in `script-src`, of each inline style element in `style-src`, and of each distinct `style` attribute value in `style-src-attr` under `'unsafe-hashes'`, collected over every page as built, a `<template>`'s and a `<noscript>`'s content too; in `frame-src`, the player origins of the embed services the release's panels show; the registry's hosts per kind of request; `data:` in `img-src`, unless `security.dataImages` is `false`; `object-src 'none'`, `base-uri 'none'`, `form-action 'self'`, `frame-ancestors`; last, reporting to `/_konzilo/violations`, as `report-uri` and `report-to`. Preview and share policies report nothing, so that editors' previews are not logged.
+- **Never offered:** `'unsafe-inline'`, `'unsafe-eval'`, `*` alone, a scheme alone but `data:` in `img-src`, `data:` or `blob:` for scripts, or a nonce.
 - **The build fails** on an inline event handler or a `javascript:` address, naming the page and the element, and on a header longer than a host takes, 65,536 characters.
 - **The host takes the file before the release is current,** so that the policy goes live with its pages: only names on its list, each once, printable ASCII, nothing the web server reads as its own. A file with anything else is refused whole, and the site keeps its release. The web server's own answers carry the headers too.
 - **The dev server sends the same headers but the policy,** of which it sends the framing part alone, since its own code is inline.
@@ -19,12 +19,14 @@
 - Astro's `<meta>` policy cannot control framing or send reports.
 - Hashing attribute values keeps the content files unchanged.
 - Every report holds the whole policy, so a limit of a few kilobytes would refuse every report of a site with many hashes.
+- A design embeds its icons in its stylesheet as `data:` images, which `'self'` alone blocks, so the page does not look as designed. An image runs no code, even an SVG one, so `data:` in `img-src` loosens nothing that runs code or styles a page; inline styles and `data:` scripts stay blocked. A site with strict requirements switches it off.
 
 ## Considered and rejected
 
 - **Headers in the web server's site file.** Only a release's build knows the hashes of its code.
 - **Astro's meta policy alone.**
 - **`'unsafe-inline'` for tags.**
+- **`data:` images by opt-in.** Every site whose design embeds an icon would have to know to ask, and its icons would be missing until it did.
 
 ## What practice has shown
 
