@@ -12,6 +12,7 @@ import { freeze, isObject, onlyKeys as checkedKeys, text } from './checks.js';
 import { ownValue } from './format/frontmatter.js';
 import declaration from './format/settings-groups.json' with { type: 'json' };
 import { templateProblems, variablesOf } from './metadata-templates.js';
+import { builtInOf, PAGE } from './format/built-in-types.js';
 import { fieldName, IDENTITY, IMAGE, ownField, POST, translatedOf } from './site-description.js';
 import { inLanguage, isTextInEachLanguage, TEXT_LANGUAGES } from './texts.js';
 
@@ -23,10 +24,10 @@ const limits = {
 };
 
 // The kinds of post type a setting of a part per post type may have a
-// default for: those a part may be limited to, and a type named `page`.
+// default for: those a part may be limited to, and the built-in page.
 const kinds = {
   ...limits,
-  page: (type) => type.name === 'page',
+  page: (type) => builtInOf(type) === PAGE,
 };
 
 // The key a group's per-type part is kept and written under, which no

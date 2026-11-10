@@ -19,7 +19,7 @@ const site = {
   language: 'en_GB',
   images: { smallestWidth: 1, displayWidth: 1 },
   types: {
-    page: { label: 'Page', plural: 'Pages', collection: 'pages', hierarchical: true, address: '/pages/{path}/', elements: ['paragraph'], fields: { image: {} } },
+    post: { label: 'Page', plural: 'Pages', collection: 'pages', hierarchical: true, address: '/pages/{path}/', elements: ['paragraph'], fields: { image: {} } },
     note: { label: 'Note', plural: 'Notes', collection: 'notes', elements: ['paragraph'] },
   },
 };

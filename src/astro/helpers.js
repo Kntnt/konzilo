@@ -1,8 +1,9 @@
 // The helpers, reached as `@kntnt/konzilo/astro/helpers`: the common ways a
 // site's templates work on their data.
 //
-//   import { longDate, termPath, postalAddress, oneLine, legalPages, summary, ordered, countOf } from '@kntnt/konzilo/astro/helpers';
+//   import { longDate, termPath, postalAddress, oneLine, legalPages, summary, ordered, countOf, builtInType } from '@kntnt/konzilo/astro/helpers';
 //   <time datetime={article.data.date.toISOString()}>{longDate(article.data.date, Astro.url)}</time>
+//   {builtInType(entry) !== 'canvas' && <header>…</header>}
 //   <p>{summary(article.data.excerpt, 20)}</p>
 //   <p>{countOf(categories)} categories</p>
 //   {ordered(categories, (category) => category.data.name, { language: Astro.url, descending: true }).map(...)}
@@ -10,6 +11,8 @@
 // A date's ISO form, `date.toISOString()`, is its data put in place, and
 // needs no helper.
 
+import { builtInOf } from '../format/built-in-types.js';
+import { describedSite } from './languages.js';
 import { publicSite } from './public-site.js';
 
 // The separator between a term's parents' names and its own in termPath().
@@ -113,4 +116,14 @@ export function ordered(items, by, { language, descending = false } = {}) {
   return [...(items ?? [])].map((item, index) => ({ item, index, text: String(textOf(item) ?? '') }))
     .sort((one, other) => sign * collator.compare(one.text, other.text) || one.index - other.index)
     .map(({ item }) => item);
+}
+
+// The core's built-in type a post is (format/built-in-types.js), `canvas`, `page` or
+// `article`, so that a layout can draw a canvas without the site's header and footer:
+// null for a post of a type of the site's own, and for no post, as on a page of the
+// site's own. `entry`: an entry of a type's collection, as Astro hands a template one.
+// `site`: the site description as checked, the site's own by default.
+export function builtInType(entry, { site = describedSite() } = {}) {
+  if (!entry) return null;
+  return builtInOf(Object.values(site.types).find((type) => type?.collection === entry.collection));
 }

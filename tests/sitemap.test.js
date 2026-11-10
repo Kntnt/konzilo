@@ -38,7 +38,7 @@ const site = {
   types: {
     post: { label: 'Article', plural: 'Articles', collection: 'articles', address: '/{slug}/', elements: ['paragraph'], fields: { date: {}, modified: {}, seo: {} } },
     news: { label: 'News item', plural: 'News', collection: 'news', address: '/news/{slug}/', elements: ['paragraph'], fields: { date: {} } },
-    page: { label: 'Page', plural: 'Pages', collection: 'pages', hierarchical: true, address: '/pages/{path}/', elements: ['paragraph'], fields: { seo: {} } },
+    page: { label: 'Page', plural: 'Pages', collection: 'pages', hierarchical: true, address: '/pages/{path}/', elements: ['paragraph'] },
     snippet: { label: 'Snippet', plural: 'Snippets', collection: 'snippets', elements: ['paragraph'] },
   },
 };
@@ -206,7 +206,7 @@ test('on a site in several languages, every page carries its alternates, in each
   const { types, languages } = siteDescription({
     languages: ['sv_SE', 'en_GB'],
     images: site.images,
-    types: { page: { label: 'Page', plural: 'Pages', collection: 'pages', hierarchical: true, address: '/pages/{path}/', elements: ['paragraph', 'post-list'], fields: { seo: {} } } },
+    types: { page: { label: 'Page', plural: 'Pages', collection: 'pages', hierarchical: true, address: '/pages/{path}/', elements: ['paragraph', 'post-list'] } },
   });
   const key = (letter) => ({ translationKey: letter.repeat(16) });
   const entry = (id, data = {}, body = 'Body.\n') => ({ id, data: { title: id, ...data }, body });

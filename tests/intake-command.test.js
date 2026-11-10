@@ -16,7 +16,7 @@ const description = {
   language: 'en_GB',
   images: { smallestWidth: 10, displayWidth: 10 },
   taxonomies: { tag: { label: 'Tag', plural: 'Tags', collection: 'tags' } },
-  types: { article: { label: 'Article', plural: 'Articles', collection: 'articles', address: '/{slug}/', elements: ['paragraph', 'image'], fields: { tags: { taxonomy: 'tag' }, image: {} } } },
+  types: { story: { label: 'Article', plural: 'Articles', collection: 'articles', address: '/{slug}/', elements: ['paragraph', 'image'], fields: { tags: { taxonomy: 'tag' }, image: {} } } },
   menus: { main: { label: 'Main' } },
 };
 const post = (slug, fields = {}, body = 'Text.') => sourcePost({ title: slug, slug, status: 'published', ...fields }, body);
@@ -313,7 +313,7 @@ describe('konzilo-intake', () => {
     });
     const { report } = intake(site);
     const by = Object.fromEntries(report.posts.map((one) => [one.file, one]));
-    assert.deepEqual(by['articles/aaaaaaaaaaaa.md'], { file: 'articles/aaaaaaaaaaaa.md', id: 'aaaaaaaaaaaa', type: 'article', title: 'first', state: 'live', at: null, address: '/first/', shown: true });
+    assert.deepEqual(by['articles/aaaaaaaaaaaa.md'], { file: 'articles/aaaaaaaaaaaa.md', id: 'aaaaaaaaaaaa', type: 'story', title: 'first', state: 'live', at: null, address: '/first/', shown: true });
     assert.equal(by['articles/bbbbbbbbbbbb.md'].state, 'off');
     assert.equal(by['articles/bbbbbbbbbbbb.md'].shown, false);
     assert.equal(by['articles/cccccccccccc.md'].state, 'waiting');

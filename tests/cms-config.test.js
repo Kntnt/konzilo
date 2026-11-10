@@ -42,7 +42,7 @@ test('makes no reference to anything outside this copy of the site', () => {
 });
 
 test('names every post and term by an ID an editor cannot change', () => {
-  for (const name of ['articles', 'pages', 'categories', 'tags']) {
+  for (const name of ['articles', 'pages', 'canvases', 'authors', 'categories', 'topics']) {
     assert.deepEqual(collection(name).slug, { template: '{{uuid_short}}', editable: false }, name);
     assert.equal(collection(name).folder, name);
     assert.equal(collection(name).create, true);
@@ -68,16 +68,40 @@ test('edits a body in Konzilo\'s own field, which knows what its type takes and 
 });
 
 test('refers to a term and a parent by ID', () => {
-  const categories = field(collection('articles').fields, 'categories');
-  assert.equal(categories.widget, 'relation');
-  assert.equal(categories.collection, 'categories');
-  assert.equal(categories.value_field, '{{slug}}');
-  assert.equal(categories.multiple, true);
-  assert.equal(categories.required, true);
+  const category = field(collection('articles').fields, 'category');
+  assert.equal(category.widget, 'relation');
+  assert.equal(category.collection, 'categories');
+  assert.equal(category.value_field, '{{slug}}');
+  assert.equal(category.multiple, false, 'an article has one category or none');
+  assert.equal(category.required, false);
+  for (const [name, among] of [['authors', 'authors'], ['topics', 'topics']]) {
+    assert.equal(field(collection('articles').fields, name).collection, among);
+    assert.equal(field(collection('articles').fields, name).multiple, true);
+  }
   assert.equal(field(collection('pages').fields, 'parent').collection, 'pages');
   assert.equal(field(collection('articles').fields, 'parent'), undefined);
   assert.equal(field(collection('categories').fields, 'parent').collection, 'categories');
-  assert.equal(field(collection('tags').fields, 'parent'), undefined);
+  assert.equal(field(collection('topics').fields, 'parent'), undefined);
+});
+
+test('gives the built-in types and taxonomies the core\'s labels in the interface language, and an author a biography', () => {
+  const labels = (made) => Object.fromEntries(made.collections.filter((one) => one.label_singular).map((one) => [one.name, [one.label_singular, one.label]]));
+  assert.deepEqual(labels(config), {
+    articles: ['Article', 'Articles'],
+    pages: ['Page', 'Pages'],
+    canvases: ['Canvas', 'Canvases'],
+    authors: ['Author', 'Authors'],
+    categories: ['Category', 'Categories'],
+    topics: ['Topic', 'Topics'],
+    'image-library': ['Image', 'Image library'],
+  });
+  const swedish = cmsConfig(description, { ...place, language: 'sv' });
+  assert.deepEqual(Object.values(labels(swedish)).slice(0, 6), [['Artikel', 'Artiklar'], ['Sida', 'Sidor'], ['Tom sida', 'Tomma sidor'], ['Författare', 'Författare'], ['Kategori', 'Kategorier'], ['Ämne', 'Ämnen']]);
+  assert.equal(field(collection('articles').fields, 'authors').label, 'Authors');
+  assert.equal(field(swedish.collections.find((one) => one.name === 'articles').fields, 'category').label, 'Kategori');
+  assert.equal(field(collection('authors').fields, 'description').label, 'Biography');
+  assert.equal(field(swedish.collections.find((one) => one.name === 'authors').fields, 'description').label, 'Biografi');
+  assert.equal(field(collection('categories').fields, 'description').label, 'Description');
 });
 
 test('shows the site\'s settings and groups in one file, and a menu in its own', () => {
@@ -113,7 +137,7 @@ test('gives a field only a plain value as its default, which is all Sveltia take
 describe('the interface language', () => {
   const declared = () => JSON.parse(readFileSync(file('site-template/files/site-description.json'), 'utf8'));
   const swedish = siteDescription({ ...declared(), language: 'sv_SE' });
-  const title = (made) => field(made.collections[0].fields, 'title').label;
+  const title = (made) => field(made.collections.find((one) => one.name === 'pages').fields, 'title').label;
 
   test('takes the core\'s labels in the site\'s interface language, or in the one it is made for, and says which', () => {
     assert.equal(title(cmsConfig(swedish, place)), 'Titel');
@@ -130,30 +154,32 @@ describe('the interface language', () => {
     given.language = 'sv_SE';
     given.types.article.label = { en: 'Article', sv: 'Artikel' };
     given.types.article.plural = { en: 'Articles', sv: 'Artiklar' };
-    given.types.article.fields.size = { label: { en: 'Size', sv: 'Storlek' }, type: 'string', control: 'text' };
-    given.taxonomies.category.plural = { en: 'Categories', sv: 'Kategorier' };
+    given.types.article.fields = { size: { label: { en: 'Size', sv: 'Storlek' }, type: 'string', control: 'text' } };
+    given.taxonomies.category.label = { en: 'Section', sv: 'Avdelning' };
+    given.taxonomies.category.plural = { en: 'Sections', sv: 'Avdelningar' };
+    given.taxonomies.topics.plural = 'Tags';
     given.menus.main.label = { en: 'Main menu', sv: 'Huvudmeny' };
     given.settings.footerText.label = { en: 'Footer text', sv: 'Sidfotstext' };
     given.components = { card: { label: { en: 'Card', sv: 'Kort' }, form: 'container', body: 'blocks', attributes: { tone: { type: 'string', label: { en: 'Tone', sv: 'Ton' } } } } };
     const site = siteDescription(given);
     for (const [language, words] of [
-      ['sv', { articles: 'Artiklar', article: 'Artikel', size: 'Storlek', categories: 'Kategorier', menu: 'Huvudmeny', footer: 'Sidfotstext', card: 'Kort', tone: 'Ton' }],
-      ['en', { articles: 'Articles', article: 'Article', size: 'Size', categories: 'Categories', menu: 'Main menu', footer: 'Footer text', card: 'Card', tone: 'Tone' }],
+      ['sv', { articles: 'Artiklar', article: 'Artikel', size: 'Storlek', section: 'Avdelning', sections: 'Avdelningar', pages: 'Sidor', menu: 'Huvudmeny', footer: 'Sidfotstext', card: 'Kort', tone: 'Ton' }],
+      ['en', { articles: 'Articles', article: 'Article', size: 'Size', section: 'Section', sections: 'Sections', pages: 'Pages', menu: 'Main menu', footer: 'Footer text', card: 'Card', tone: 'Tone' }],
     ]) {
       const made = cmsConfig(site, { ...place, language });
       const one = (name) => made.collections.find((each) => each.name === name);
       assert.equal(one('articles').label, words.articles, language);
       assert.equal(one('articles').label_singular, words.article, language);
       assert.equal(field(one('articles').fields, 'size').label, words.size, language);
-      assert.equal(field(one('articles').fields, 'categories').label, words.categories, language);
-      assert.equal(one('categories').label, words.categories, language);
+      assert.equal(field(one('articles').fields, 'category').label, words.section, language);
+      assert.equal(one('categories').label, words.sections, language);
+      assert.equal(one('pages').label, words.pages, language, 'the core\'s, where the site gives none');
       assert.equal(one('menus').files[0].label, words.menu, language);
       assert.equal(field(one('settings').files[0].fields, 'footerText').label, words.footer, language);
       assert.equal(made.konzilo.components.card.label, words.card, language);
       assert.equal(made.konzilo.components.card.attributes.tone.label, words.tone, language);
       // One text is the same in every language.
-      assert.equal(one('pages').label, 'Pages', language);
-      assert.equal(one('tags').label, 'Tags', language);
+      assert.equal(one('topics').label, 'Tags', language);
     }
   });
 
@@ -208,8 +234,8 @@ test('every file of the demo source fits the collections, by ID', () => {
   assert.match(article, /\nslug: "quiet-harbours-and-the-lantern"\n/);
   assert.match(article, /\nstatus: "published"\n/);
   assert.doesNotMatch(article, /\nmodified:/);
-  const categories = JSON.parse(/\ncategories: (\[.*\])\n/.exec(article)[1]);
-  assert.equal(categories.length, 2);
+  const categories = JSON.parse(/\ncategory: (\[.*\])\n/.exec(article)[1]);
+  assert.equal(categories.length, 1);
   for (const id of categories) assert.ok(terms.has(id), id);
   assert.match(article, /\nimage: \{"src":"\/media\/quiet-harbours-and-the-lantern-737b017c8a\.webp",/);
 });
@@ -235,7 +261,7 @@ test('makes nothing from inside another\'s form, but for a post\'s terms', () =>
     walk(entry.fields);
     for (const file of entry.files ?? []) walk(file.fields);
   }
-  assert.deepEqual([...new Set(allowed)].sort(), ['categories', 'tags']);
+  assert.deepEqual([...new Set(allowed)].sort(), ['authors', 'category', 'topics']);
 });
 
 test('holds search and sharing in closed parts, each key once, with nothing required', () => {

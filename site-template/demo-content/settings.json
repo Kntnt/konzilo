@@ -45,6 +45,13 @@
         "socialTitle": "{{ post.title }}",
         "socialDescription": "{{ post.auto_description }}",
         "schema": "WebPage"
+      },
+      "canvas": {
+        "title": "{{ post.title }} {{ sep }} {{ site.title }}",
+        "description": "{{ post.auto_description }}",
+        "socialTitle": "{{ post.title }}",
+        "socialDescription": "{{ post.auto_description }}",
+        "schema": "WebPage"
       }
     }
   },
@@ -54,6 +61,9 @@
         "current": false
       },
       "page": {
+        "current": false
+      },
+      "canvas": {
         "current": false
       }
     }
@@ -79,6 +89,11 @@
         "markdown": true,
         "llms": true,
         "llmsFull": true
+      },
+      "canvas": {
+        "markdown": true,
+        "llms": true,
+        "llmsFull": false
       }
     }
   },

@@ -65,5 +65,18 @@
   "form.otherAddress": "Annan adress",
   "form.answer": "Svar",
   "form.otherShow": "Visa inlägget här också",
-  "form.urlHint": "Bara för en post som inte leder till ett inlägg."
+  "form.urlHint": "Bara för en post som inte leder till ett inlägg.",
+  "form.article": "Artikel",
+  "form.articles": "Artiklar",
+  "form.page": "Sida",
+  "form.pages": "Sidor",
+  "form.canvas": "Tom sida",
+  "form.canvases": "Tomma sidor",
+  "form.author": "Författare",
+  "form.authors": "Författare",
+  "form.category": "Kategori",
+  "form.categories": "Kategorier",
+  "form.topic": "Ämne",
+  "form.topics": "Ämnen",
+  "form.biography": "Biografi"
 }

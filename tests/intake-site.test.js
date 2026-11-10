@@ -16,7 +16,7 @@ const site = {
   language: 'en_GB',
   images: { smallestWidth: 400, displayWidth: 1280 },
   types: {
-    article: {
+    story: {
       label: 'Article',
       plural: 'Articles',
       collection: 'articles',
@@ -24,7 +24,7 @@ const site = {
       elements: ['paragraph', 'embed'],
       fields: { categories: { taxonomy: 'category' }, tags: { taxonomy: 'tag' }, image: {}, seo: {}, featured: { label: 'Featured', type: 'boolean', control: 'toggle' }, eventDay: { label: 'Day', type: 'date', control: 'date' }, rating: { label: 'Rating', type: 'number', control: 'number' } },
     },
-    page: { label: 'Page', plural: 'Pages', collection: 'pages', hierarchical: true, address: '/pages/{path}/', elements: ['paragraph', 'image'], fields: { seo: {} } },
+    page: { label: 'Page', plural: 'Pages', collection: 'pages', hierarchical: true, address: '/pages/{path}/', elements: ['paragraph', 'image'] },
     note: { label: 'Note', plural: 'Notes', collection: 'notes', elements: ['paragraph'] },
   },
   taxonomies: {
@@ -63,8 +63,8 @@ describe('the site settings', () => {
       size: 'large',
       contact: 'contactpage0',
       heroImage: { src: '/media/hero-3333333333.jpg', alt: 'The harbour' },
-      search: { separator: '|', publisher: { kind: 'Person' }, types: { article: { schema: 'NewsArticle' } } },
-      ai: { types: { article: { markdown: false } } },
+      search: { separator: '|', publisher: { kind: 'Person' }, types: { story: { schema: 'NewsArticle' } } },
+      ai: { types: { story: { markdown: false } } },
       legalPages: { privacyPolicy: 'contactpage0', cookiePolicy: 'contactpage0' },
     },
     'pages/contactpage0.md': page('contact'),
@@ -92,20 +92,20 @@ describe('the site settings', () => {
     assert.equal(values.search.separator, '|');
     assert.equal(values.search.publisher.kind, 'Person');
     assert.equal(values.search.publisher.name, 'The Lantern', 'the site\'s title by default');
-    assert.equal(values.search.types.article.schema, 'NewsArticle');
+    assert.equal(values.search.types.story.schema, 'NewsArticle');
     assert.equal(values.search.types.page.schema, 'WebPage');
     assert.equal(values.search.home.title, '{{ site.title }}');
     assert.equal(values.consent.bannerAccept, 'Accept all');
     assert.equal(values.forms.contact.confirmation, 'Thank you. Your message has been sent.');
     assert.equal(values.forms.contact.recipients, undefined, 'what stays out of the published files');
-    assert.equal(values.ai.types.article.markdown, false);
+    assert.equal(values.ai.types.story.markdown, false);
     assert.equal(values.ai.types.page.markdown, true);
     assert.equal(values.notFound, undefined);
   });
 
   test('a yes-or-no that requires another is off wherever that is off', () => {
-    const on = run({ 'settings.json': { ai: { types: { article: { markdown: false, llmsFull: true } } } } }, site);
-    assert.equal(settingsOf(on).ai.types.article.llmsFull, false);
+    const on = run({ 'settings.json': { ai: { types: { story: { markdown: false, llmsFull: true } } } } }, site);
+    assert.equal(settingsOf(on).ai.types.story.llmsFull, false);
   });
 
   test('writes in two spaces with one final newline', () => {
@@ -113,8 +113,8 @@ describe('the site settings', () => {
   });
 
   test('is refused whole, naming each setting by its path, and keeps its last file', () => {
-    const refused = run({ 'settings.json': { seats: 'many', search: { types: { article: { title: '{{ post.nope }}' } } }, tagManager: { container: 'nope' } } }, site);
-    assert.deepEqual(refused.refusals.map((one) => one.setting), ['seats', 'search.types.article.title', 'tagManager.container']);
+    const refused = run({ 'settings.json': { seats: 'many', search: { types: { story: { title: '{{ post.nope }}' } } }, tagManager: { container: 'nope' } } }, site);
+    assert.deepEqual(refused.refusals.map((one) => one.setting), ['seats', 'search.types.story.title', 'tagManager.container']);
     assert.equal(refused.refusals[0].file, 'settings.json');
     assert.equal(refused.refusals[0].reason, 'the site cannot publish "many" as a whole number');
     assert.equal(written(refused)['settings.json'], undefined);
@@ -525,6 +525,7 @@ describe('what is an Admin\'s alone', () => {
   test('holds a legal page in the language an Editor took it away in, and in that alone', () => {
     const inTwo = {
       languages: ['sv_SE', 'en_GB'],
+      images: { smallestWidth: 400, displayWidth: 1280 },
       types: { page: { label: 'P', plural: 'Ps', collection: 'pages', address: { sv_SE: '/sidor/{slug}/', en_GB: '/pages/{slug}/' }, elements: ['paragraph'] } },
     };
     const source = {
@@ -551,8 +552,9 @@ describe('what is an Admin\'s alone', () => {
 describe('a site in several languages', () => {
   const several = {
     languages: ['sv_SE', 'en_GB'],
+    images: { smallestWidth: 400, displayWidth: 1280 },
     types: {
-      article: { label: 'A', plural: 'As', collection: 'articles', address: '/{slug}/', elements: ['paragraph'], fields: { categories: { taxonomy: 'category' } } },
+      story: { label: 'A', plural: 'As', collection: 'articles', address: '/{slug}/', elements: ['paragraph'], fields: { categories: { taxonomy: 'category' } } },
       page: { label: 'P', plural: 'Ps', collection: 'pages', hierarchical: true, address: { sv_SE: '/sidor/{path}/', en_GB: '/pages/{path}/' }, elements: ['paragraph'] },
     },
     taxonomies: { category: { label: 'C', plural: 'Cs', collection: 'categories', hierarchical: true } },
@@ -673,7 +675,7 @@ describe('source files as the editing tool writes them', () => {
     const settings = config.collections.find((one) => one.name === 'settings').files[0];
     const search = settings.fields.find((one) => one.name === 'search');
     const types = search.fields.find((one) => one.name === 'types');
-    assert.deepEqual(types.fields.map((one) => one.name), ['article', 'page']);
+    assert.deepEqual(types.fields.map((one) => one.name), ['article', 'page', 'canvas']);
     const articles = config.collections.find((one) => one.name === 'articles');
     const other = articles.fields.find((one) => one.name === 'otherAddresses');
     assert.deepEqual(other.fields.map((one) => one.name), ['address', 'answer']);

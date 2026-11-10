@@ -117,7 +117,6 @@ describe('a site built with astro build for https://www.example.com', () => {
         collection: 'pages', hierarchical: true,
         address: '/{path}/',
         elements: ['paragraph'],
-        fields: { seo: {} },
       },
     },
   };

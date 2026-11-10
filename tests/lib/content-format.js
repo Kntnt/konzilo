@@ -121,6 +121,10 @@ export function unnamed(document, known) {
   check('Inline elements', Object.keys(known.rules.inline), 'the inline element');
   check('Embeds', Object.keys(known.rules.embeds.services), 'the embed service');
   check('A post\'s file', [...Object.keys(known.coreFields), known.seoField, ...known.frontmatterKeys], 'the field');
+  check('The built-in types', Object.keys(known.builtInTypes), 'the built-in type');
+  check('The built-in types', Object.values(known.builtInTypes).flatMap((type) => Object.keys(type.fields)), 'the field');
+  check('The built-in types', Object.keys(known.builtInTaxonomies), 'the built-in taxonomy');
+  check('The built-in types', Object.values(known.builtInTaxonomies).map((taxonomy) => taxonomy.collection), 'the collection');
   check('A post\'s file', known.seoKeys, 'the search and sharing field');
   check('A post\'s file', Object.keys(known.fieldTypes), 'the type of field');
   check('The site settings', Object.keys(known.settingTypes), 'the type of setting');

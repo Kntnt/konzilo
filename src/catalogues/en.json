@@ -65,5 +65,18 @@
   "form.otherAddress": "Other address",
   "form.answer": "Answer",
   "form.otherShow": "Show the post here too",
-  "form.urlHint": "Only for an entry that does not lead to a post."
+  "form.urlHint": "Only for an entry that does not lead to a post.",
+  "form.article": "Article",
+  "form.articles": "Articles",
+  "form.page": "Page",
+  "form.pages": "Pages",
+  "form.canvas": "Canvas",
+  "form.canvases": "Canvases",
+  "form.author": "Author",
+  "form.authors": "Authors",
+  "form.category": "Category",
+  "form.categories": "Categories",
+  "form.topic": "Topic",
+  "form.topics": "Topics",
+  "form.biography": "Biography"
 }
