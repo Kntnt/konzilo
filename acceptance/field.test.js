@@ -2131,7 +2131,7 @@ describe('the body field in Sveltia, on a site in two languages', () => {
     assert.deepEqual(await editors().allTextContents(), ['Svensk text', 'English text']);
   });
 
-  test('a refusal in one language names it, in the rule data\'s words, and a fix saves', async () => {
+  test('a refusal in one language names it, in the interface language, and a fix saves', async () => {
     await page.getByRole('button', { name: 'Show Markdown' }).last().click();
     const source = page.locator('.konzilo-body-source').last();
     await source.fill('# A title in the body\n\nEnglish text');

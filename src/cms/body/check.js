@@ -1,6 +1,6 @@
 // The early check, in the browser: the same implementation and rule data as the intake's,
 // reading through Sätteri's WebAssembly build, so that the field gives the site's own
-// verdict in the rule data's words. It has no list of a site's posts or originals, so it
+// verdict, by the names of its reasons. It has no list of a site's posts or originals, so it
 // takes a link or an image as given; the intake remains the check that counts.
 
 import { markdownFeatures } from '../../astro/reader-features.js';

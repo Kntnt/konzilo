@@ -384,7 +384,7 @@ for (const [key, [make, about, kind = 'refusal']] of Object.entries(cases)) {
   });
 }
 
-test('names a site\'s own label given by language in British English, as the command line writes every refusal', () => {
+test('names a site\'s own label given by language in the language a refusal is shown in, British English on the command line', () => {
   const byLanguage = {
     ...site,
     language: 'sv_SE',
