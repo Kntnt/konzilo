@@ -7,8 +7,10 @@
 // its footer shows the publisher's details after the footer text, or none of
 // them without a publisher's name. Its 404 page, 404.html, shows
 // the page an Admin chose in the site's frame, or the core's plain text in
-// the site's language. An article shows its headline, its category after its
-// parents, and its topics, and a canvas has neither header nor footer. On a
+// the site's language. An article shows its headline, its byline, its authors
+// in the order the editor gave them, each linked to its page where the authors
+// have pages, its category after its parents, and its topics, and a canvas has
+// neither header nor footer. On a
 // site in several
 // languages its frame shows the menu, the settings and the title of the
 // page's language.
@@ -29,7 +31,8 @@ const core = fileURLToPath(new URL('../', import.meta.url));
 const astro = join(core, 'node_modules/astro/bin/astro.mjs');
 
 // The demo model's posts, as a build hands them out: an article
-// in a category below another, with two topics, and a page.
+// by two authors, the one first who is not first by name, in a category below
+// another, with two topics, and a page.
 const posts = [
   post({
     ID: 1,
@@ -38,6 +41,7 @@ const posts = [
     modified: '2026-10-02 09:00:00',
     body: paragraphs('The lantern keeps the harbour.'),
     terms: {
+      authors: [term('rafael-berg', 'Rafael Berg', { taxonomy: 'authors' }), term('ines-holm', 'Ines Holm', { taxonomy: 'authors', description: 'Writes of the northern harbours.' })],
       category: [term('local', 'Local news', { taxonomy: 'category', parent: 'news' })],
       topics: [term('lanterns', 'Lanterns', { taxonomy: 'topics' }), term('harbours', 'Harbours', { taxonomy: 'topics' })],
     },
@@ -165,6 +169,38 @@ describe('the site template, built by Astro', () => {
     assert.deepEqual(list('topics'), ['Harbours', 'Lanterns']);
     assert.match(page, /<div class="terms"[^>]*>\s*<ul class="categories"/);
     assert.match(page, /<h1[^>]*>Harbour lights<\/h1>/);
+  });
+
+  test('shows an article\'s byline, its authors in the order the editor gave them, as its structured data names them', () => {
+    const page = build(repository, { title: 'Lantern', logo: null, icon: null })('harbour-lights/index.html');
+    const byline = /<ul class="byline"[^>]*>(.*?)<\/ul>/s.exec(main(page))?.[1];
+    assert.deepEqual([...byline.matchAll(/<li[^>]*>(.*?)<\/li>/gs)].map(([, item]) => item), ['Rafael Berg', 'Ines Holm'], 'no links while the authors have no pages');
+    assert.match(main(page), /<\/h1>\s*<ul class="byline"[^>]*>.*?<\/ul>\s*<time/s, 'in the meta line, after the headline, before the date');
+    const graph = JSON.parse(/<script type="application\/ld\+json">(.*?)<\/script>/s.exec(page)[1])['@graph'];
+    const people = graph.find((node) => node['@type'] === 'Article').author.map(({ '@id': id }) => graph.find((node) => node['@id'] === id));
+    assert.deepEqual(people, [
+      { '@type': 'Person', '@id': 'https://www.example.com/#author-rafael-berg', name: 'Rafael Berg' },
+      { '@type': 'Person', '@id': 'https://www.example.com/#author-ines-holm', name: 'Ines Holm' },
+    ]);
+  });
+
+  test('links each author in the byline to the author\'s page once the authors declare an address, which shows the biography and what the author wrote', () => {
+    const description = join(repository, 'site-description.json');
+    const declared = readFileSync(description, 'utf8');
+    try {
+      const read = JSON.parse(declared);
+      writeFileSync(description, JSON.stringify({ ...read, taxonomies: { ...read.taxonomies, authors: { address: '/authors/{slug}/' } } }));
+      const page = build(repository, { title: 'Lantern', logo: null, icon: null });
+      const byline = /<ul class="byline"[^>]*>(.*?)<\/ul>/s.exec(main(page('harbour-lights/index.html')))?.[1];
+      assert.deepEqual([...byline.matchAll(/<li[^>]*>(.*?)<\/li>/gs)].map(([, item]) => item), ['<a href="/authors/rafael-berg/">Rafael Berg</a>', '<a href="/authors/ines-holm/">Ines Holm</a>']);
+      const author = /<main class="term-page"[^>]*>(.*?)<\/main>/s.exec(page('authors/ines-holm/index.html'))?.[1];
+      assert.match(author, /<h1>Ines Holm<\/h1>\s*<p class="term-description">Writes of the northern harbours\.<\/p>/);
+      assert.match(author, /<li><a href="\/harbour-lights\/">Harbour lights<\/a>/);
+      const graph = JSON.parse(/<script type="application\/ld\+json">(.*?)<\/script>/s.exec(page('harbour-lights/index.html'))[1])['@graph'];
+      assert.equal(graph.find((node) => node['@id'] === 'https://www.example.com/#author-ines-holm').url, 'https://www.example.com/authors/ines-holm/');
+    } finally {
+      writeFileSync(description, declared);
+    }
   });
 
   test('draws a canvas without the header and the footer, which an article and a page have', () => {
