@@ -514,7 +514,7 @@ function formatOf(format, path, problems) {
 const ANY_TYPE = Object.freeze({ label: 'its label', fields: [] });
 
 // A text of the catalogues, `{ text }`, in each of their languages, by language.
-const inEachCatalogue = (value) => Object.fromEntries(Object.keys(CATALOGUES).map((language) => [language, inCatalogue(value, language)]));
+const inEachCatalogue = (value) => Object.fromEntries(INTERFACE_LANGUAGES.map((language) => [language, inCatalogue(value, language)]));
 
 // A setting's default into `read`, as declared: one value, or a text of the
 // catalogues by its name, `{ "text": "site.…" }`, which visitors read in the

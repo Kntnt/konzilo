@@ -1,7 +1,8 @@
-// The core's catalogues of the texts its editors read: British English as the source, and
-// every other language a translation of it that holds exactly its texts, by the same names, with
-// the same placeholders. An editor never meets a text in English because a translation lacks it,
-// nor a text no code asks for.
+// The core's catalogues of the texts its editors and visitors read: British English as the
+// source, and every other language a translation of it that holds exactly its texts, by the same
+// names, with the same placeholders. An editor never meets a text in English because a
+// translation lacks it, nor a text no code asks for, and neither does a visitor: what the core's
+// data gives visitors to read, a setting's default or a service's purpose, names its text here.
 
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';

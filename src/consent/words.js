@@ -58,7 +58,14 @@ function below(catalogue, prefix) {
 
 // The core's words for a page in `language`, a language tag, from
 // `catalogues`: its language's catalogue, each text it lacks British
-// English's.
+// English's. `{…}` stands for what is put in its place. Among them,
+// `serviceCount` counts a category's services, `one` and `other`;
+// `placeholder` is a placeholder's sentence on what its service may store
+// and where its data goes, with no provider, `alone`, with one,
+// `provided`, and with one whose data may leave the EU and EEA,
+// `transferred`; `on`, `thisHost`, `shared` and `unnamedDomain` say where
+// an item is stored; and `objectionLinks` are the words of the link for a
+// text of the right to object that marks none.
 export function wordsFor(language, catalogues) {
   const given = cataloguesOf(catalogues);
   const catalogue = { ...given[SOURCE], ...given[wordsLanguage(language, given)] };
