@@ -54,6 +54,8 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Author**: A person credited with an article: a term of the built-in taxonomy `authors`, with a name and a biography. Not the editor who saves it. _Avoid_: byline (for the person), writer.
 
+**Byline**: The names of an article's authors, in the order the editor gave them, the main author first, shown between its standfirst and its body. _Avoid_: author line.
+
 **Category**: The term of the built-in hierarchical taxonomy `category` an article is filed under, one or none. _Avoid_: section, department.
 
 **Topic**: A term of the built-in taxonomy `topics`, what an article is about, as many as fit. _Avoid_: tag, keyword.

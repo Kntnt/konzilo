@@ -175,7 +175,7 @@ describe('the site template, built by Astro', () => {
     const page = build(repository, { title: 'Lantern', logo: null, icon: null })('harbour-lights/index.html');
     const byline = /<ul class="byline"[^>]*>(.*?)<\/ul>/s.exec(main(page))?.[1];
     assert.deepEqual([...byline.matchAll(/<li[^>]*>(.*?)<\/li>/gs)].map(([, item]) => item), ['Rafael Berg', 'Ines Holm'], 'no links while the authors have no pages');
-    assert.match(main(page), /<\/h1>\s*<ul class="byline"[^>]*>.*?<\/ul>\s*<time/s, 'in the meta line, after the headline, before the date');
+    assert.match(main(page), /<\/h1>\s*<ul class="byline"[^>]*>.*?<\/ul>\s*<time/s, 'after the headline, before the date');
     const graph = JSON.parse(/<script type="application\/ld\+json">(.*?)<\/script>/s.exec(page)[1])['@graph'];
     const people = graph.find((node) => node['@type'] === 'Article').author.map(({ '@id': id }) => graph.find((node) => node['@id'] === id));
     assert.deepEqual(people, [
