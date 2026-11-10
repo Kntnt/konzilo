@@ -22,3 +22,11 @@ test('marks each block by its place, and each block within a directive and each 
   const html = marked('Before\n\n:::section\n\n## Inside\n\n- One\n- Two\n  - Deeper\n\n:::\n\nAfter');
   assert.deepEqual(marks(html), ['p 0', 'div 1', 'h2 1.0', 'ul 1.1', 'li 1.1.0', 'li 1.1.1', 'li 1.1.1.0', 'p 2']);
 });
+
+test("a directive's mark is no attribute of its own, nor an option of a post list's presentation", async () => {
+  const { bodyParts, registry } = await import('../src/astro/directives.js');
+  const html = '<div data-directive="post-list" data-type="article" data-presentation="cards" data-konzilo-block="1.2"></div>';
+  const [part] = bodyParts(html, ['post-list'], registry);
+  assert.equal(part.block, '1.2');
+  assert.equal(Object.hasOwn(part.attributes, 'konziloBlock'), false);
+});

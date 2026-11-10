@@ -97,8 +97,17 @@ export function previewLink(kind, showKind) {
     return holding[0] ?? at;
   };
   let marked = null;
+  // The editor: the window around the pane, the pane itself, or, for a window of its own, the
+  // editor that opened it.
+  const fromEditor = (source) => {
+    try {
+      return [window.parent, window.top, window.parent.opener, window.top.opener].includes(source);
+    } catch {
+      return source === window.parent || source === window.top;
+    }
+  };
   window.addEventListener('message', ({ source, data }) => {
-    if (source !== window.parent || data?.type !== showKind || typeof data.path !== 'string' || !/^\d+(?:\.\d+)*$/.test(data.path)) return;
+    if (!fromEditor(source) || data?.type !== showKind || typeof data.path !== 'string' || !/^\d+(?:\.\d+)*$/.test(data.path)) return;
     const block = found(data.path, data.text);
     if (marked) marked.style.boxShadow = '';
     marked = block;
