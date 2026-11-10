@@ -101,6 +101,18 @@ describe('the interface language in Sveltia', () => {
   let seen;
 
   const origin = () => new URL(page.url()).origin;
+  const bar = (name) => page.locator('button[aria-expanded]', { hasText: name }).first();
+  // The core's settings group of breadcrumbs, opened down to the setting of articles, which
+  // shows its heading, help and label in `words`.
+  const breadcrumbs = async (words) => {
+    await page.goto(`${origin()}/#/collections/settings/entries/settings`);
+    await bar(words.heading).click();
+    await page.getByText(words.description).waitFor();
+    await bar(words.perType).click();
+    await bar(words.articles).click();
+    await page.getByText(words.label, { exact: true }).waitFor();
+    await page.getByText(words.help).waitFor();
+  };
   const newArticle = async () => {
     await page.goto(`${origin()}/#/collections/articles/new`);
     await page.locator('.konzilo-body-visual .ProseMirror').waitFor();
@@ -143,6 +155,11 @@ describe('the interface language in Sveltia', () => {
     assert.equal(await page.getByRole('textbox', { name: 'Title', exact: true }).count(), 0);
   });
 
+  test('shows the core\'s settings groups in it, Breadcrumbs among them, with their headings, labels and help', async () => {
+    await breadcrumbs({ heading: 'Brödsmulor', description: 'Om en sidas brödsmulor slutar med sidan själv', perType: 'Per inläggstyp', articles: 'Artiklar', label: 'Sidan själv sist', help: 'När den är av slutar brödsmulorna' });
+    assert.equal(await bar('Breadcrumbs').count(), 0);
+  });
+
   test('is the editor\'s own once chosen in Sveltia\'s preferences, which loads the editor again in it', async () => {
     await choose({ menu: 'Visa användarkontomeny', settings: 'Inställningar', language: 'Språk', select: 'Välj språk' }, /English \(UK\)/);
     await page.getByText('Articles', { exact: true }).first().waitFor();
@@ -150,6 +167,8 @@ describe('the interface language in Sveltia', () => {
     await page.getByRole('textbox', { name: 'Title', exact: true }).waitFor();
     await page.getByRole('button', { name: 'Save', exact: true }).waitFor();
     assert.equal(await page.getByRole('textbox', { name: 'Titel', exact: true }).count(), 0);
+    await breadcrumbs({ heading: 'Breadcrumbs', description: 'Whether a page\'s breadcrumbs end with the page itself', perType: 'By type of post', articles: 'Articles', label: 'The page itself last', help: 'Off, the breadcrumbs end at the level above the page.' });
+    assert.equal(await bar('Brödsmulor').count(), 0);
   });
 
   test('stays the editor\'s at the next visit, and Automatic gives the site\'s again', async () => {
