@@ -10,6 +10,7 @@ import CMS from '@sveltia/cms';
 import { useComponents } from './body/components.js';
 import { registerBodyField } from './body/register.js';
 import { registerPreview } from './preview/template.js';
+import { registerParts } from './parts/register.js';
 import { registerPublishing } from './publishing/register.js';
 import './form.css';
 
@@ -20,5 +21,6 @@ const { konzilo, ...config } = await answer.json();
 useComponents(konzilo?.components);
 registerBodyField(CMS, config);
 registerPublishing(CMS, config);
+registerParts(CMS, config);
 if (konzilo?.preview) registerPreview(CMS, config, konzilo.preview);
 CMS.init({ config });
