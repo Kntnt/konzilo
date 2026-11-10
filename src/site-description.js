@@ -157,7 +157,7 @@ const results = new WeakSet();
 //     menus: { <menu>: { name, label } },
 //     settings: [ { name, label, type, control, options, required, translated } ],
 //     consent: { departures: [ { departure, service, reason } ], domain },
-//     security: { includeSubDomains, frameAncestors: [ <origin> ] },
+//     security: { includeSubDomains, frameAncestors: [ <origin> ], dataImages },
 //     forms: { <form>: { name, label, fields: [ { name, label, kind, required, maxLength, options, help } ] } },
 //     search: { address } or null,
 //     components: { <component>: { name, element, label, form, body, attributes } },
@@ -375,23 +375,26 @@ function componentChecksOf(given, components, problems) {
 // lowercase, with no port, path or wildcard.
 const FRAMING_ORIGIN = /^https:\/\/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/;
 
-// What the site opts in to of its security headers: HSTS that
+// What the site chooses of its security headers: HSTS that
 // holds for every subdomain of its host too, which would force HTTPS on the
-// customer's every other subdomain, and the origins that may frame its
-// pages beside its own. Nothing else of the headers is the site's.
+// customer's every other subdomain, the origins that may frame its pages
+// beside its own, and whether its pages may show `data:` images, such as a
+// design's icons embedded in its stylesheet, which they may unless
+// `dataImages` is false. Nothing else of the headers is the site's.
 function securityOf(security, problems) {
-  const none = { includeSubDomains: false, frameAncestors: [] };
+  const none = { includeSubDomains: false, frameAncestors: [], dataImages: true };
   if (security === undefined) return none;
   if (!isObject(security)) {
     problems.push('security: must be an object');
     return none;
   }
-  onlyKeys(security, ['includeSubDomains', 'frameAncestors'], 'security', problems);
+  onlyKeys(security, ['includeSubDomains', 'frameAncestors', 'dataImages'], 'security', problems);
   const includeSubDomains = flag(security.includeSubDomains, 'security.includeSubDomains', problems);
+  const dataImages = flag(security.dataImages, 'security.dataImages', problems, true);
   const declared = security.frameAncestors ?? [];
   if (!Array.isArray(declared)) {
     problems.push('security.frameAncestors: must list the origins that may frame the site');
-    return { includeSubDomains, frameAncestors: [] };
+    return { includeSubDomains, frameAncestors: [], dataImages };
   }
   const frameAncestors = [];
   declared.forEach((origin, index) => {
@@ -404,7 +407,7 @@ function securityOf(security, problems) {
       frameAncestors.push(origin);
     }
   });
-  return { includeSubDomains, frameAncestors };
+  return { includeSubDomains, frameAncestors, dataImages };
 }
 
 // The kinds of a form's field, each with the rules it takes beside its
@@ -1272,8 +1275,9 @@ function onlyKeys(object, allowed, path, problems, whole = 'the site description
   checkedKeys(object, allowed, path, problems, whole);
 }
 
-function flag(value, path, problems) {
-  if (value === undefined) return false;
+// A key that is true or false, `fallback` where it is left out.
+function flag(value, path, problems, fallback = false) {
+  if (value === undefined) return fallback;
   if (typeof value !== 'boolean') problems.push(`${path}: must be true or false`);
   return value === true;
 }

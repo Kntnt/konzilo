@@ -17,6 +17,9 @@
 //   request in its directive: scripts, frames, connections, images, styles
 //   and fonts. A host reaches the policy only as part of a service, and
 //   consent decides when each loads.
+// - `data:` in `img-src`, so that a design's icons embedded in its
+//   stylesheet show, unless the site description's `security.dataImages`
+//   is false. An image runs no code, and `data:` reaches no other directive.
 // - `object-src 'none'`, `base-uri 'none'`, `form-action 'self'`, and
 //   `frame-ancestors`, the site alone or the origins its description lists.
 // - Last, where the pages report a violation: the endpoint's kind for
@@ -26,10 +29,11 @@
 //   public site's pages report; a preview's and a share link's do not, so
 //   that editors' previews are not logged.
 //
-// Never offered: 'unsafe-inline', 'unsafe-eval', `*`, a scheme alone or a
-// nonce, which a static site has none of per request. So code no hash can
-// allow, an inline event handler or a `javascript:` address, has no place:
-// releaseCode() names each, and the build fails on them.
+// Never offered: 'unsafe-inline', 'unsafe-eval', `*`, a scheme alone but
+// `data:` for images, or a nonce, which a static site has none of per
+// request. So code no hash can allow, an inline event handler or a
+// `javascript:` address, has no place: releaseCode() names each, and the
+// build fails on them.
 
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -136,13 +140,13 @@ export function contentSecurityPolicy({ code, registry, description, reports = f
     }
   }
   for (const origin of code.players) hosts['frame-src'].add(origin);
-  const own = (directive, ...hashes) => ["'self'", ...hashes, ...[...hosts[directive]].sort()];
+  const own = (directive, ...sources) => ["'self'", ...sources, ...[...hosts[directive]].sort()];
   return {
     'default-src': ["'self'"],
     'script-src': own('script-src', ...code.scripts),
     'style-src': own('style-src', ...code.styles),
     'style-src-attr': code.attributes.length > 0 ? ["'unsafe-hashes'", ...code.attributes] : ["'none'"],
-    'img-src': own('img-src'),
+    'img-src': own('img-src', ...(security.dataImages ? ['data:'] : [])),
     'font-src': own('font-src'),
     'connect-src': own('connect-src'),
     'media-src': ["'self'"],

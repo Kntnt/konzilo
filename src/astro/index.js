@@ -96,6 +96,7 @@ import { resolvedColors, tokensOf } from './theme-tokens.js';
 import { blockMarks } from './block-marks.js';
 import { previewGuard } from './preview-guard.js';
 import { previewLink } from './preview-link.js';
+import { previewRedraw } from './preview-redraw.js';
 import { isLivePreview, isPublicBuild, origin } from './public-site.js';
 import { pageTagManager, pageTracker, tagManagerClient } from './tag-manager.js';
 import { registryOf } from './directives.js';
@@ -514,6 +515,9 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
         if (config.image.service.entrypoint === ASTROS_IMAGE_SERVICE) {
           updateConfig({ image: { service: { entrypoint: IMAGE_SERVICE, config: config.image.service.config } } });
         }
+
+        // A page in the live preview is drawn again in place, with no empty frame between.
+        if (isLivePreview()) injectScript('head-inline', `(${previewRedraw})();`);
 
         // A page in the live preview's pane stays there, whatever it tries.
         if (isLivePreview()) injectScript('head-inline', `(${previewGuard})(${JSON.stringify(STOPPED_MESSAGE)});\n(${previewLink})(${JSON.stringify(PLACE_MESSAGE)}, ${JSON.stringify(SHOW_MESSAGE)});`);

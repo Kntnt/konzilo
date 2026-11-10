@@ -250,7 +250,6 @@ export function mountBodyField(host, { value: given, changed, elements, forms, a
       return editor?.view ?? null;
     },
     command: (name) => editor?.run(name),
-    goTo: (place) => mode === 'editor' && editor !== null && editor.goTo(place),
     frame,
     destroy() {
       flush();
@@ -264,14 +263,15 @@ export function mountBodyField(host, { value: given, changed, elements, forms, a
     },
   };
   // A click on the preview's page, for whichever field holds that block: on a site in several
-  // languages, the one whose text it is. The block is framed for a moment, outside the editor's
-  // own document, so that the editor sees no change.
+  // languages, the one whose text it is. The field scrolls to the block and frames it for a
+  // moment, outside the editor's own document, and leaves the focus and the cursor where they
+  // were, so that a key pressed while looking around the page never lands in the text.
   const placed = ({ detail }) => {
-    if (!frame.isConnected || !field.goTo(detail)) return;
-    const view = editor?.view;
-    const { node } = view?.domAtPos(view.state.selection.from) ?? {};
-    const block = (node?.nodeType === Node.ELEMENT_NODE ? node : node?.parentElement)?.closest('li, p, h2, h3, h4, h5, h6, blockquote, pre, table, [data-type], .konzilo-kept') ?? null;
-    if (block && frame.contains(block)) ring(frame, block);
+    if (!frame.isConnected || mode !== 'editor' || editor === null) return;
+    const block = editor.blockElement(detail);
+    if (!block) return;
+    block.scrollIntoView({ block: 'center' });
+    ring(frame, block);
   };
   // A click in the field, or the arrows moving to another block, shows that block in the preview.
   const told = (event) => {

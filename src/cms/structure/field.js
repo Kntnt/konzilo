@@ -493,7 +493,8 @@ export function mountStructureField(host, { value: given, changed, key, forms = 
     }
   }
 
-  // From the preview: a click on the page, by the block's path.
+  // From the preview: a click on the page, by the block's path, opens its row and brings it into
+  // sight, and leaves the focus on the page, so that a key pressed there never lands in a field.
   const picked = ({ detail }) => {
     if (!frame.isConnected) return;
     // The page counts blocks by what is written, so the tree splits what a text holds first.
@@ -502,7 +503,8 @@ export function mountStructureField(host, { value: given, changed, key, forms = 
     const node = nodeAt(root, String(detail.path ?? detail.block).split('.').map(Number));
     if (!node) return;
     mode = 'tree';
-    select(node, { tell: false });
+    select(node, { focus: false, tell: false });
+    frame.querySelector('.konzilo-tree-row[data-selected="true"]')?.scrollIntoView({ block: 'center' });
   };
   globalThis.addEventListener(PLACE_EVENT, picked);
 

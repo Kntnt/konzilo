@@ -37,6 +37,18 @@ test('takes the domain the consent choice is kept on, in lowercase, never a publ
   }
 });
 
+test('lets the pages show data: images unless security.dataImages is false, and refuses any other value', () => {
+  const types = { page: { label: 'Page', plural: 'Pages', collection: 'pages', address: '/{slug}/', elements: ['paragraph'] } };
+  const read = (security) => siteDescription({ language: 'en_GB', types, ...(security === undefined ? {} : { security }) }).security.dataImages;
+  assert.equal(read(undefined), true);
+  assert.equal(read({}), true);
+  assert.equal(read({ dataImages: true }), true);
+  assert.equal(read({ dataImages: false }), false);
+  for (const given of ['false', 'no', 0, null, []]) {
+    assert.throws(() => read({ dataImages: given }), /security\.dataImages: must be true or false/, JSON.stringify(given));
+  }
+});
+
 test('takes the departure that counts without storage before consent with what Global Privacy Control and Do Not Track do, and no other departure with it', () => {
   const types = { page: { label: 'Page', plural: 'Pages', collection: 'pages', address: '/{slug}/', elements: ['paragraph'] } };
   const read = (departures) => siteDescription({ language: 'en_GB', types, consent: { departures } }).consent.departures;
