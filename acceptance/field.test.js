@@ -2056,6 +2056,8 @@ describe('the body field in Sveltia, on a site in two languages', () => {
   before(async () => {
     const { language: _one, ...declared } = JSON.parse(readFileSync(join(core, 'site-template/files/site-description.json'), 'utf8'));
     declared.languages = ['sv_SE', 'en_GB'];
+    // Its editors work in English, which is what these words are in (ADR 0066).
+    declared.interfaceLanguage = 'en';
     for (const type of Object.values(declared.types)) {
       if (typeof type.address === 'string') type.address = { sv_SE: type.address, en_GB: type.address.replace(/^\/(?=[a-z]+\/)/, '/en-') };
     }
@@ -2072,8 +2074,8 @@ describe('the body field in Sveltia, on a site in two languages', () => {
   after(() => site?.close());
 
   test('holds a field for each language, each keeping to its own text', async () => {
-    await page.getByRole('textbox', { name: 'Titel' }).first().fill('En titel');
-    await page.getByRole('textbox', { name: 'Titel' }).last().fill('A title');
+    await page.getByRole('textbox', { name: 'Title' }).first().fill('En titel');
+    await page.getByRole('textbox', { name: 'Title' }).last().fill('A title');
     await editors().first().click();
     await page.keyboard.type('Svensk text', { delay: KEY_DELAY });
     await editors().last().click();
@@ -2149,8 +2151,8 @@ describe('the body field in Sveltia, on a site in two languages', () => {
       await off.page.getByRole('button', { name: 'Create New Entry' }).first().click();
       await off.page.getByRole('radio', { name: 'English (UK)' }).last().click();
       await off.page.locator('.konzilo-body-visual .ProseMirror').nth(1).waitFor();
-      await off.page.getByRole('textbox', { name: 'Titel' }).first().fill('En titel');
-      await off.page.getByRole('textbox', { name: 'Titel' }).last().fill('A title');
+      await off.page.getByRole('textbox', { name: 'Title' }).first().fill('En titel');
+      await off.page.getByRole('textbox', { name: 'Title' }).last().fill('A title');
       await off.page.getByRole('button', { name: 'Save', exact: true }).click();
       await off.page.waitForFunction(() => /\/entries\//.test(window.location.hash));
     } finally {

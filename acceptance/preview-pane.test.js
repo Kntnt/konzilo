@@ -55,6 +55,8 @@ describe('the preview\'s pane, on a site in two languages', () => {
   before(async () => {
     const { language: _one, ...declared } = JSON.parse(readFileSync(join(core, 'site-template/files/site-description.json'), 'utf8'));
     declared.languages = ['sv_SE', 'en_GB'];
+    // Its editors work in English, which is what these words are in (ADR 0066).
+    declared.interfaceLanguage = 'en';
     declared.types.landing = { label: 'Landing', plural: 'Landings', collection: 'landings', address: '/landings/{slug}/', elements: ['paragraph', 'heading', 'list'], editor: 'structure', fields: {} };
     for (const type of Object.values(declared.types)) {
       if (typeof type.address === 'string') type.address = { sv_SE: type.address, en_GB: type.address.replace(/^\/(?=[a-z]+\/)/, '/en-') };
@@ -104,7 +106,7 @@ describe('the preview\'s pane, on a site in two languages', () => {
 
   test('asks for a session with the editor\'s token, and shows what it is told to', async () => {
     await newEntry('pages');
-    await page.getByRole('textbox', { name: 'Titel' }).first().fill('En sida');
+    await page.getByRole('textbox', { name: 'Title' }).first().fill('En sida');
     await draftWith(({ fields }) => fields.title === 'En sida');
     assert.equal(sessions.at(-1), 'token a-token');
     await pane().frameLocator('iframe').getByRole('heading', { name: 'The page' }).waitFor();
@@ -112,16 +114,16 @@ describe('the preview\'s pane, on a site in two languages', () => {
 
   test('sends the language it shows, from that language\'s folder', async () => {
     await newEntry('pages');
-    await page.getByRole('textbox', { name: 'Titel' }).first().fill('En svensk titel');
+    await page.getByRole('textbox', { name: 'Title' }).first().fill('En svensk titel');
     const swedish = await draftWith(({ fields }) => fields.title === 'En svensk titel');
     assert.match(swedish.path, /^pages\/sv-SE\/[0-9a-f]{12}\.md$/);
   });
 
   test('keeps to one file while a new post has none', async () => {
     await newEntry('pages');
-    await page.getByRole('textbox', { name: 'Titel' }).first().fill('Ett');
+    await page.getByRole('textbox', { name: 'Title' }).first().fill('Ett');
     const one = await draftWith(({ fields }) => fields.title === 'Ett');
-    await page.getByRole('textbox', { name: 'Titel' }).first().fill('Två');
+    await page.getByRole('textbox', { name: 'Title' }).first().fill('Två');
     const two = await draftWith(({ fields }) => fields.title === 'Två');
     assert.equal(two.path, one.path);
   });
@@ -137,13 +139,13 @@ describe('the preview\'s pane, on a site in two languages', () => {
   test('says why a draft cannot be published, and what becomes of the page', async () => {
     await newEntry('pages');
     answer = { address: '/a-page/', refusals: [{ field: 'title', reason: 'give it a title' }] };
-    await page.getByRole('textbox', { name: 'Titel' }).first().fill('Ett');
+    await page.getByRole('textbox', { name: 'Title' }).first().fill('Ett');
     const alert = pane().getByRole('alert');
     await alert.waitFor();
     assert.match(await alert.textContent(), /last good one/);
     assert.match(await alert.textContent(), /title: give it a title/);
     answer = { address: '/a-page/', refusals: [] };
-    await page.getByRole('textbox', { name: 'Titel' }).first().fill('Två');
+    await page.getByRole('textbox', { name: 'Title' }).first().fill('Två');
     await draftWith(({ fields }) => fields.title === 'Två');
     await pane().getByRole('alert').waitFor({ state: 'detached' });
   });
@@ -152,7 +154,7 @@ describe('the preview\'s pane, on a site in two languages', () => {
     const shownPage = () => pane().frameLocator('iframe');
     const leave = async () => {
       await newEntry('pages');
-      await page.getByRole('textbox', { name: 'Titel' }).first().fill('En sida');
+      await page.getByRole('textbox', { name: 'Title' }).first().fill('En sida');
       await shownPage().getByRole('heading', { name: 'The page' }).waitFor();
       await shownPage().locator('#leave').click();
       const note = pane().getByRole('status');
@@ -170,7 +172,7 @@ describe('the preview\'s pane, on a site in two languages', () => {
         return { width, height };
       });
       await newEntry('pages');
-      await page.getByRole('textbox', { name: 'Titel' }).first().fill('En sida');
+      await page.getByRole('textbox', { name: 'Title' }).first().fill('En sida');
       await shownPage().getByRole('heading', { name: 'The page' }).waitFor();
       const before = await box();
       await shownPage().locator('#leave').click();
@@ -199,7 +201,7 @@ describe('the preview\'s pane, on a site in two languages', () => {
 
     test('hears only the page in its frame', async () => {
       await newEntry('pages');
-      await page.getByRole('textbox', { name: 'Titel' }).first().fill('En sida');
+      await page.getByRole('textbox', { name: 'Title' }).first().fill('En sida');
       await shownPage().getByRole('heading', { name: 'The page' }).waitFor();
       await pane().locator('html').evaluate((element, target) => {
         element.ownerDocument.defaultView.postMessage({ type: 'konzilo-preview-stopped', to: `${target}/forged/`, how: 'link' }, '*');
@@ -237,7 +239,7 @@ describe('the preview\'s pane, on a site in two languages', () => {
     const openBlocks = async () => {
       answer = { address: '/blocks/', refusals: [] };
       await newEntry('articles');
-      await page.getByRole('textbox', { name: 'Titel' }).first().fill('Block');
+      await page.getByRole('textbox', { name: 'Title' }).first().fill('Block');
       const field = fields().first();
       await field.locator('.konzilo-body-toggle').click();
       await field.locator('.konzilo-body-source').fill(BLOCKS_BODY);
@@ -299,7 +301,7 @@ describe('the preview\'s pane, on a site in two languages', () => {
       await tree.locator('.konzilo-tree-modes button').nth(1).click();
       await tree.locator('.konzilo-tree-source').fill(BLOCKS_BODY);
       await tree.locator('.konzilo-tree-modes button').nth(0).click();
-      await page.getByRole('textbox', { name: 'Titel' }).first().fill('Block');
+      await page.getByRole('textbox', { name: 'Title' }).first().fill('Block');
       const selected = () => tree.locator('li[data-selected="true"]');
 
       await shownPage().getByText('Två').click();
@@ -326,11 +328,11 @@ describe('the preview\'s pane, on a site in two languages', () => {
       answer = { address: '/moved/', refusals: [] };
       whereAnswer = { status: 200, redirect: { status: 301, to: '/y/' }, loop: false };
       await newEntry('pages');
-      await page.getByRole('textbox', { name: 'Titel' }).first().fill('Ett');
+      await page.getByRole('textbox', { name: 'Title' }).first().fill('Ett');
       const note = pane().getByText('/moved/ redirects to /y/ (301)');
       await note.waitFor();
       for (const title of ['Två', 'Tre']) {
-        await page.getByRole('textbox', { name: 'Titel' }).first().fill(title);
+        await page.getByRole('textbox', { name: 'Title' }).first().fill(title);
         await draftWith(({ fields }) => fields.title === title);
       }
       assert.deepEqual(wheres, ['/moved/']);
@@ -342,12 +344,12 @@ describe('the preview\'s pane, on a site in two languages', () => {
   test('stays calm when the preview is away, and the entry can be written on', async () => {
     await newEntry('pages');
     answer = 'not json at all';
-    await page.getByRole('textbox', { name: 'Titel' }).first().fill('Ett');
+    await page.getByRole('textbox', { name: 'Title' }).first().fill('Ett');
     const alert = pane().getByRole('alert');
     await alert.waitFor();
     assert.match(await alert.textContent(), /still here/);
-    await page.getByRole('textbox', { name: 'Titel' }).first().fill('Två');
-    assert.equal(await page.getByRole('textbox', { name: 'Titel' }).first().inputValue(), 'Två');
+    await page.getByRole('textbox', { name: 'Title' }).first().fill('Två');
+    assert.equal(await page.getByRole('textbox', { name: 'Title' }).first().inputValue(), 'Två');
   });
 
   test('breaks no policy, and asks nothing outside', () => {
