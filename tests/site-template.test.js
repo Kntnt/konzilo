@@ -6,8 +6,8 @@
 // sharing tags in its head, with the links to the site's icons;
 // its footer shows the publisher's details after the footer text, or none of
 // them without a publisher's name. Its 404 page, 404.html, shows
-// the page an Admin chose in the site's frame, or the template's own plain
-// text in the site's language. An article shows its categories,
+// the page an Admin chose in the site's frame, or the core's plain text in
+// the site's language. An article shows its categories,
 // each after its parents, and its tags. On a site in several
 // languages its frame shows the menu, the settings and the title of the
 // page's language.
@@ -263,7 +263,7 @@ describe('the site template, built by Astro', () => {
 
   // Its file lies at the content folder's root, not in a collection's
   // folder, so its images' addresses climb no folder.
-  test('builds the template\'s plain text as 404.html where no page is chosen, in the site\'s language', () => {
+  test('builds the core\'s plain text as 404.html where no page is chosen, in the site\'s language', () => {
     const english = build(repository, { title: 'Lantern', logo: null, icon: null })('404.html');
     assert.equal(title(english), 'Page not found – Lantern');
     assert.match(english, /<html lang="en-GB">/);
@@ -635,7 +635,7 @@ describe('the site template in Swedish and English, built by Astro', () => {
   });
 
   // An unknown address below a language's prefix gets the 404
-  // page in that language; without a chosen page, the template's plain text
+  // page in that language; without a chosen page, the core's plain text
   // in that language, as the root's is in the main language.
   test('builds a 404 page for each language below its prefix, in its language and its frame, beside the root\'s in the main language', () => {
     assert.equal(languageTag(page('sv/404.html')), 'sv-SE');
