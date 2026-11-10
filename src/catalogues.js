@@ -1,11 +1,12 @@
-// The core's texts that its editors read, in catalogues (ADR 0066): one per language,
-// `catalogues/<language>.json`, each text by a stable name, such as `form.title`, with
-// named placeholders, `{to}`. British English, `en`, is the source, and each other
+// The core's texts that its editors and visitors read, in catalogues (ADR 0066): one per
+// language, `catalogues/<language>.json`, each text by a stable name, such as `form.title`,
+// with named placeholders, `{to}`. British English, `en`, is the source, and each other
 // catalogue a translation of it that holds exactly its names (tests/catalogues.test.js).
 // A language is added by translating en.json into a file of its own and naming it below.
 //
 // The editor's interface takes one of these languages, its interface language, chosen
-// apart from the language of the site's content (cms/interface-language.js).
+// apart from the language of the site's content (cms/interface-language.js). What visitors
+// read, the texts named `site.…`, takes the content's language instead.
 //
 // This module imports nothing but its catalogues, so that the editor's code in the
 // browser reads it as the intake and the build do.

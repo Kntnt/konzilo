@@ -263,7 +263,7 @@ describe('the site template, built by Astro', () => {
 
   // Its file lies at the content folder's root, not in a collection's
   // folder, so its images' addresses climb no folder.
-  test('builds the core\'s plain text as 404.html where no page is chosen, in the site\'s language', () => {
+  test('builds the core\'s plain text as 404.html where no page is chosen, in the site\'s language, whatever language its editors work in', () => {
     const english = build(repository, { title: 'Lantern', logo: null, icon: null })('404.html');
     assert.equal(title(english), 'Page not found – Lantern');
     assert.match(english, /<html lang="en-GB">/);
@@ -272,10 +272,12 @@ describe('the site template, built by Astro', () => {
     const description = join(repository, 'site-description.json');
     const declared = readFileSync(description, 'utf8');
     try {
-      writeFileSync(description, JSON.stringify({ ...JSON.parse(declared), language: 'sv_SE' }));
+      writeFileSync(description, JSON.stringify({ ...JSON.parse(declared), language: 'sv_SE', interfaceLanguage: 'en' }));
       const swedish = build(repository, { title: 'Lantern', logo: null, icon: null })('404.html');
       assert.equal(title(swedish), 'Sidan finns inte – Lantern');
       assert.match(swedish, /<p>Det finns ingen sida på den här adressen\./);
+      assert.match(swedish, /<label for="konzilo-search-box-query">Sök<\/label>/, 'search');
+      assert.match(swedish, /"name":"Startsida"/, 'the breadcrumbs');
     } finally {
       writeFileSync(description, declared);
     }
