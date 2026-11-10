@@ -6,10 +6,14 @@
 // A text field's settings in the configuration (config.js):
 //   fallback: <rule>      the placeholder shows what the part falls back to, by a rule of
 //                         article-parts.js: breadcrumb, teaserHeadline, teaserText,
-//                         searchTitle, searchDescription, socialTitle or socialDescription
+//                         searchTitle, searchDescription, socialTitle or socialDescription;
+//                         or ownAddress, the post's own address on the public site, from
+//                         `address`, its type's with {slug}, or one by the language tag of
+//                         each pane, while the post has a slug and no parent
 //   add: <words>          an optional part: a button with the words until something is written
 //   multiline: true       a text of several lines
-//   placeholder: <words>  the placeholder of a field without a fallback
+//   placeholder: <words>  the placeholder of a field without a fallback, or while its
+//                         fallback gives nothing
 // The slug's: `address`, the type's address with {slug}, to open the post's page.
 // The structured data type's: `options`, `type` and `typeLabel`, the post's type, and `preset`,
 // its type's structured data type until the site's settings say another.
@@ -61,6 +65,11 @@ export function registerParts(CMS, config) {
     searchDescription: (data) => searchDescriptionOf(data),
     socialTitle: (data) => socialTitleOf(data),
     socialDescription: (data) => socialDescriptionOf(data),
+    // A post below another has its parents' slugs in its address, which the form does not hold.
+    ownAddress: (data, { address, locale }) => {
+      const own = typeof address === 'string' ? address : address?.[locale];
+      return own && data.slug && !data.parent ? addressOf(site, own, data.slug) : '';
+    },
   };
 
   CMS.registerFieldType(TEXT_WIDGET, function KonziloText({ value, onChange, field, forID, entry }) {
@@ -69,8 +78,13 @@ export function registerParts(CMS, config) {
     const multiline = plain(field.get('multiline')) === true;
     const [open, setOpen] = React.useState(Boolean(value));
     const [name, setName] = React.useState('');
+    const [locale, setLocale] = React.useState(null);
     const input = React.useRef(null);
     const composing = React.useRef(false);
+    // The language of the pane the field is in, on a site in several languages.
+    React.useEffect(() => {
+      setLocale(input.current?.closest('[data-locale]')?.dataset.locale ?? null);
+    }, [open]);
     React.useEffect(() => {
       if (fallback !== 'searchTitle') return undefined;
       let gone = false;
@@ -99,7 +113,7 @@ export function registerParts(CMS, config) {
     if (add && !value && !open) {
       return h('button', { type: 'button', id: forID, className: 'konzilo-part-add', onClick: () => setOpen(true) }, `+ ${add}`);
     }
-    const placeholder = fallback && RULES[fallback] ? RULES[fallback](dataOf(entry), { name }) : plain(field.get('placeholder')) ?? '';
+    const placeholder = (fallback && RULES[fallback] ? RULES[fallback](dataOf(entry), { name, address: plain(field.get('address')), locale }) : '') || (plain(field.get('placeholder')) ?? '');
     return h(multiline ? 'textarea' : 'input', {
       ref: input,
       id: forID,

@@ -78,6 +78,33 @@ describe('the form in Sveltia', () => {
     assert.equal(await page.locator('.field[data-key-path="sharing.title"]').count(), 0, 'a group with nothing in it stays closed');
   });
 
+  test('a canonical address under Search shows the post\'s own address while it is empty, following the slug, and takes a whole web address alone', async () => {
+    await newEntry('pages');
+    await bar('Search').click();
+    await page.getByRole('textbox', { name: 'Title tag' }).waitFor();
+    const title = page.getByRole('textbox', { name: 'Title', exact: true });
+    await title.fill('Ferry times');
+    // Sveltia mounts a field as it comes into view.
+    const canonical = page.getByRole('textbox', { name: 'Canonical address' });
+    await page.locator('.field[data-key-path="search.canonical"]').scrollIntoViewIfNeeded();
+    await canonical.waitFor();
+    const placeholder = (shown) => page.waitForFunction((address) => document.querySelector('input[aria-label="Canonical address"]')?.placeholder === address, shown);
+    await placeholder('http://localhost:2/pages/ferry-times/');
+    await title.fill('Ferry times in winter');
+    await placeholder('http://localhost:2/pages/ferry-times-in-winter/');
+
+    await canonical.fill('/ferry-times/');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.getByText('Write a whole web address, starting with https:// or http://').waitFor();
+    assert.match(await page.evaluate(() => window.location.hash), /\/new$/, 'a path is not saved');
+
+    await canonical.fill('https://ferries.example.org/timetable/ferry-times');
+    await save();
+    await page.getByText('Ferry times in winter').first().click();
+    await page.locator('.field[data-key-path="search.canonical"]').scrollIntoViewIfNeeded();
+    assert.equal(await canonical.inputValue(), 'https://ferries.example.org/timetable/ferry-times');
+  });
+
   test('settings are closed bars too, whose long hints wait until they are open', async () => {
     await page.goto(`${new URL(page.url()).origin}/#/collections/settings/entries/settings`);
     await bar('Consent texts').waitFor();
@@ -160,6 +187,55 @@ describe('the interface language in Sveltia', () => {
     await newArticle();
     await page.getByRole('textbox', { name: 'Titel', exact: true }).waitFor();
     await page.getByRole('button', { name: 'Spara', exact: true }).waitFor();
+  });
+
+  test('has asked nothing outside, and broken no policy', () => {
+    assert.deepEqual(seen.outside, []);
+    assert.deepEqual(seen.refused, []);
+    assert.deepEqual(seen.errors, []);
+  });
+});
+
+// Real Sveltia on a site in two languages, each with a pane of its own.
+describe('the canonical address in Sveltia, on a site in two languages', () => {
+  let site;
+  let page;
+  let seen;
+
+  before(async () => {
+    const { language: _one, ...declared } = JSON.parse(readFileSync(`${core}site-template/files/site-description.json`, 'utf8'));
+    declared.languages = ['sv_SE', 'en_GB'];
+    declared.interfaceLanguage = 'en';
+    declared.types.page.address = { sv_SE: '/sidor/{path}/', en_GB: '/pages/{path}/' };
+    const config = cmsConfig(siteDescription(declared), { forgejo: 'http://localhost:1', repository: 'a/b', clientId: 'c', site: 'http://localhost:2' });
+    site = await openFieldPage({ config: { ...config, backend: { name: 'test-repo' } } });
+    ({ page, seen } = await site.newPage({ viewport: { width: 1600, height: 1200 } }));
+    await page.getByRole('button', { name: 'Work with Test Repository' }).click();
+    await page.getByText('Pages', { exact: true }).first().click();
+    await page.getByRole('button', { name: 'Create New Entry' }).first().click();
+    await page.getByRole('radio', { name: 'English (UK)' }).last().click();
+    await page.locator('.konzilo-body-visual .ProseMirror').nth(1).waitFor();
+  }, { timeout: 120_000 });
+
+  after(() => site?.close());
+
+  test('shows in each pane the post\'s own address in that pane\'s language', async () => {
+    await page.getByRole('textbox', { name: 'Title' }).first().fill('Färjetider');
+    await page.getByRole('textbox', { name: 'Title' }).last().fill('Ferry times');
+    // Sveltia opens a group in every pane at once.
+    await page.locator('.pane[data-locale="sv-SE"] button[aria-expanded]', { hasText: 'Search' }).first().click();
+    for (const pane of ['sv-SE', 'en-GB']) {
+      const inPane = page.locator(`.pane[data-locale="${pane}"]`);
+      await inPane.getByRole('textbox', { name: 'Title tag' }).waitFor();
+      await inPane.locator('.field[data-key-path="search.canonical"]').scrollIntoViewIfNeeded();
+      await inPane.getByRole('textbox', { name: 'Canonical address' }).waitFor();
+    }
+    // The slug is one in both languages, and the address each language's, after its prefix.
+    const slug = await page.locator('.pane[data-locale="sv-SE"] input[aria-label="Slug"]').inputValue();
+    assert.match(slug, /^(farjetider|ferry-times)$/);
+    for (const [pane, address] of [['sv-SE', `http://localhost:2/sv/sidor/${slug}/`], ['en-GB', `http://localhost:2/en/pages/${slug}/`]]) {
+      await page.waitForFunction(([locale, shown]) => document.querySelector(`.pane[data-locale="${locale}"] input[aria-label="Canonical address"]`)?.placeholder === shown, [pane, address]);
+    }
   });
 
   test('has asked nothing outside, and broken no policy', () => {

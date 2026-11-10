@@ -7,6 +7,7 @@
 // ID. Empty optional fields are left out, since the intake's schemas refuse an
 // empty string.
 
+import { CANONICAL_PATTERN, publicAddress } from '../format/addresses.js';
 import { IMAGE_LIBRARY_FOLDER } from '../format/masters.js';
 import { declaredNames, SCHEMA_TYPES } from '../site-description.js';
 import settingsGroups from '../format/settings-groups.json' with { type: 'json' };
@@ -172,6 +173,15 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
   // shows, as its head does (article-parts.js); another type's leave it to its templates.
   const hasTeaser = (type) => type.fields.some((field) => field.kind === 'teaser');
 
+  // A post's own address, from which the canonical address field shows it while the post names
+  // none: its type's address with `{slug}`, and on a site in several languages one for the
+  // language of each pane, by its tag, after its prefix (parts/register.js).
+  const ownAddress = (type) => {
+    if (type.address === null) return null;
+    if (!several) return publicAddress(type, '{slug}');
+    return Object.fromEntries(description.languages.map((language) => [language.tag, publicAddress(type, '{slug}', language)]));
+  };
+
   const seoFields = (type) => {
     const teaser = hasTeaser(type);
     const shown = (rule) => (teaser ? { widget: TEXT_WIDGET, fallback: rule } : { hint: say('seoFollows') });
@@ -189,6 +199,16 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
       group('search', [
         { name: 'title', label: say('seoTitle'), widget: 'string', ...shown('searchTitle') },
         { name: 'description', label: say('seoDescription'), widget: 'text', ...(teaser ? { widget: TEXT_WIDGET, multiline: true, fallback: 'searchDescription' } : {}) },
+        {
+          name: 'canonical',
+          label: say('seoCanonical'),
+          widget: TEXT_WIDGET,
+          fallback: 'ownAddress',
+          address: ownAddress(type),
+          placeholder: say('seoCanonicalOwn'),
+          hint: say('seoCanonicalHint'),
+          pattern: [CANONICAL_PATTERN, say('seoCanonicalPattern')],
+        },
         { name: 'noindex', label: say('seoNoindex'), widget: 'boolean' },
         { name: 'nofollow', label: say('seoNofollow'), widget: 'boolean' },
       ]),

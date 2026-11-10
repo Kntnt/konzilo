@@ -265,6 +265,50 @@ test('holds search and sharing in closed parts, each key once, with nothing requ
   }
 });
 
+describe('the canonical address', () => {
+  const declared = () => JSON.parse(readFileSync(file('site-template/files/site-description.json'), 'utf8'));
+  const canonicalOf = (made, name) => field(field(made.collections.find((one) => one.name === name).fields, 'search').fields, 'canonical');
+
+  test('is a field of search, after the description, which shows the post\'s own address from its type\'s address and its slug while it is empty', () => {
+    assert.deepEqual(field(collection('articles').fields, 'search').fields.map((one) => one.name), ['title', 'description', 'canonical', 'noindex', 'nofollow']);
+    const canonical = canonicalOf(config, 'articles');
+    assert.equal(canonical.label, 'Canonical address');
+    assert.equal(canonical.required, false);
+    assert.equal(canonical.widget, 'konzilo-text');
+    assert.equal(canonical.fallback, 'ownAddress');
+    assert.equal(canonical.address, '/{slug}/');
+    assert.equal(canonicalOf(config, 'pages').address, '/pages/{slug}/');
+    assert.equal(canonical.placeholder, 'The post\'s own address');
+    assert.match(canonical.hint, /published elsewhere first/);
+  });
+
+  test('takes a whole http:// or https:// address alone, and says so', () => {
+    const [source, words] = canonicalOf(config, 'articles').pattern;
+    const pattern = new RegExp(source);
+    for (const address of ['https://elsewhere.example.org/the-original/', 'http://elsewhere.example.org', 'https://elsewhere.example.org:8443/a?b=c#d']) assert.ok(pattern.test(address), address);
+    for (const address of ['the-original/', '/the-original/', '//elsewhere.example.org/', 'ftp://elsewhere.example.org/', 'https://', 'https://elsewhere.example.org/the original/', 'https://keeper@elsewhere.example.org/']) assert.ok(!pattern.test(address), address);
+    assert.equal(words, 'Write a whole web address, starting with https:// or http://, such as https://www.example.com/the-original/.');
+  });
+
+  test('on a site in several languages shows the address in the language of the pane, after its prefix', () => {
+    const given = declared();
+    delete given.language;
+    given.languages = ['sv_SE', 'en_GB'];
+    given.types.page.address = { sv_SE: '/sidor/{path}/', en_GB: '/pages/{path}/' };
+    const made = cmsConfig(siteDescription(given), place);
+    assert.deepEqual(canonicalOf(made, 'articles').address, { 'sv-SE': '/sv/{slug}/', 'en-GB': '/en/{slug}/' });
+    assert.deepEqual(canonicalOf(made, 'pages').address, { 'sv-SE': '/sv/sidor/{slug}/', 'en-GB': '/en/pages/{slug}/' });
+  });
+
+  test('is in the interface language', () => {
+    const swedish = cmsConfig(siteDescription({ ...declared(), language: 'sv_SE' }), place);
+    const canonical = canonicalOf(swedish, 'articles');
+    assert.equal(canonical.label, 'Kanonisk adress');
+    assert.equal(canonical.placeholder, 'Inläggets egen adress');
+    assert.equal(canonical.pattern[1], 'Skriv en hel webbadress som börjar med https:// eller http://, till exempel https://www.example.com/originalet/.');
+  });
+});
+
 test('says where the live preview is, and which collections have pages to show there', () => {
   const given = cmsConfig(description, { forgejo: 'http://localhost:1', repository: 'a/b', clientId: 'c', site: 'http://localhost:2', preview: 'http://localhost:3' });
   const withPages = Object.values(description.types).filter((type) => type.address).map((type) => type.collection);
