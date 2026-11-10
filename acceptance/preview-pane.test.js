@@ -54,6 +54,7 @@ describe('the preview\'s pane, on a site in two languages', () => {
   before(async () => {
     const { language: _one, ...declared } = JSON.parse(readFileSync(join(core, 'site-template/files/site-description.json'), 'utf8'));
     declared.languages = ['sv_SE', 'en_GB'];
+    declared.types.landing = { label: 'Landing', plural: 'Landings', collection: 'landings', address: '/landings/{slug}/', elements: ['paragraph', 'heading', 'list'], editor: 'structure', fields: {} };
     for (const type of Object.values(declared.types)) {
       if (typeof type.address === 'string') type.address = { sv_SE: type.address, en_GB: type.address.replace(/^\/(?=[a-z]+\/)/, '/en-') };
     }
@@ -252,6 +253,34 @@ describe('the preview\'s pane, on a site in two languages', () => {
       await page.keyboard.type('§ ', { delay: 30 });
       await page.waitForTimeout(200);
       assert.equal(await field.locator('.ProseMirror').textContent(), text, 'a key goes nowhere into the text');
+    });
+
+    test('opens the block\'s row in the structure field, and leaves the focus in the preview', async () => {
+      answer = { address: '/blocks/', refusals: [] };
+      await page.goto(`${new URL(page.url()).origin}/#/collections/landings/new`);
+      const tree = page.locator('.konzilo-tree-host').first();
+      await tree.locator('.konzilo-tree-modes button').nth(1).click();
+      await tree.locator('.konzilo-tree-source').fill(BLOCKS_BODY);
+      await tree.locator('.konzilo-tree-modes button').nth(0).click();
+      await page.getByRole('textbox', { name: 'Titel' }).first().fill('Block');
+      const selected = () => tree.locator('li[data-selected="true"]');
+
+      await shownPage().getByText('Två').click();
+      await selected().waitFor();
+      assert.equal(await selected().getAttribute('data-kind'), 'item');
+      assert.equal(await selected().locator('.konzilo-tree-text').first().textContent(), 'Två');
+      assert.equal(await tree.locator('li[data-kind="list"]').getAttribute('data-open'), 'true', 'with the list it stands in open');
+      await page.waitForTimeout(300);
+      assert.equal(await previewHasFocus(), true, 'the focus stays in the preview');
+
+      await shownPage().getByText('Andra stycket').click();
+      await selected().locator('.konzilo-tree-body .ProseMirror').waitFor();
+      assert.equal(await selected().locator('.konzilo-tree-text').first().textContent(), 'Andra stycket');
+      await page.waitForTimeout(300);
+      assert.equal(await previewHasFocus(), true, 'the focus stays in the preview, with the paragraph\'s own field open');
+      await page.keyboard.type('§ ', { delay: 30 });
+      await page.waitForTimeout(200);
+      assert.equal(await selected().locator('.konzilo-tree-body .ProseMirror').textContent(), 'Andra stycket', 'a key goes nowhere into the text');
     });
   });
 
