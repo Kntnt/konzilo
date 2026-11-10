@@ -19,22 +19,16 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { catalogueFor, text } from '../catalogues.js';
 import { embedOf } from '../format/embeds.js';
 import rules from '../format/rules.json' with { type: 'json' };
-import { inLanguage } from '../texts.js';
 
 const element = (tagName, properties, children = []) => ({ type: 'element', tagName, properties, children });
 
-// What a panel says until the site's script runs, in the core's languages.
-const NO_SCRIPT = {
-  en: 'The site\'s script has not run, so this content can neither ask for your consent nor load.',
-  sv: 'Webbplatsens skript har inte körts, så innehållet kan varken be om ditt samtycke eller laddas.',
-};
-
 // A panel's sentence that the site's script has not run, for a site in
-// `locale` (English for null).
+// `locale` (British English for null), from the catalogues (ADR 0066).
 export function noScriptSentence(locale = null) {
-  return inLanguage(NO_SCRIPT, locale);
+  return text(catalogueFor(locale), 'site.embed.noScript');
 }
 
 // The panel for an address, as a hast element, its sentence in the language

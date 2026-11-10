@@ -157,6 +157,83 @@ describe('the interface language', () => {
     }
   });
 
+  test('keeps the defaults that visitors read in the content\'s language, whatever the interface language', () => {
+    const consentOf = (made) => field(made.collections.find((one) => one.name === 'settings').files[0].fields, 'consent').fields;
+    for (const language of ['sv', 'en']) {
+      const one = consentOf(cmsConfig(siteDescription({ ...declared(), language: 'sv_SE', interfaceLanguage: 'en' }), { ...place, language }));
+      assert.equal(field(one, 'bannerTitle').default, 'Din integritet', language);
+      assert.equal(field(one, 'placeholderQuestion').default, 'Vill du låta {service} spela upp det här innehållet?', language);
+      const { language: _, ...inOne } = declared();
+      const several = consentOf(cmsConfig(siteDescription({ ...inOne, languages: ['sv_SE', 'en_GB'] }), { ...place, language }));
+      assert.deepEqual(field(several, 'bannerTitle').fields.map((each) => [each.name, each.default]), [['sv_SE', 'Din integritet'], ['en_GB', 'Your privacy']], language);
+    }
+    const english = consentOf(cmsConfig(siteDescription({ ...declared(), language: 'en_GB', interfaceLanguage: 'sv' }), place));
+    assert.equal(field(english, 'bannerTitle').default, 'Your privacy');
+  });
+
+  test('shows the core\'s settings groups in the interface language, Breadcrumbs among them, with their headings, labels and help', () => {
+    const breadcrumbs = (language) => {
+      const made = cmsConfig(swedish, { ...place, language });
+      const group = field(made.collections.find((one) => one.name === 'settings').files[0].fields, 'breadcrumbs');
+      const article = field(field(group.fields, 'types').fields, 'article');
+      const current = field(article.fields, 'current');
+      return { heading: group.label, description: group.hint, label: current.label, help: current.hint };
+    };
+    assert.deepEqual(breadcrumbs('sv'), {
+      heading: 'Brödsmulor',
+      description: 'Om en sidas brödsmulor slutar med sidan själv, per typ. Den strukturerade datan har alltid med sidan själv; en sida direkt under startsidan har inga brödsmulor utan den.',
+      label: 'Sidan själv sist',
+      help: 'När den är av slutar brödsmulorna på nivån ovanför sidan.',
+    });
+    assert.deepEqual(breadcrumbs('en'), {
+      heading: 'Breadcrumbs',
+      description: 'Whether a page\'s breadcrumbs end with the page itself, by type. The structured data always holds the page itself; a page right under the start page has no breadcrumbs without it.',
+      label: 'The page itself last',
+      help: 'Off, the breadcrumbs end at the level above the page.',
+    });
+  });
+
+  test('shows every settings text of the catalogues in the settings groups, and in Swedish nothing beside them but the site\'s own', () => {
+    const given = declared();
+    given.forms = { contact: { label: 'Contact', fields: [{ name: 'email', label: 'Email', kind: 'email', required: true }] } };
+    const site = siteDescription(given);
+    const catalogue = (language) => JSON.parse(readFileSync(file(`src/catalogues/${language}.json`), 'utf8'));
+    // A form's recipients and the days its submissions are kept stay out of the published files,
+    // and so out of the form.
+    const unshown = ['settings.forms.recipients.label', 'settings.forms.retention.label'];
+    const groupsIn = (language) => {
+      const fields = cmsConfig(site, { ...place, language }).collections.find((one) => one.name === 'settings').files[0].fields;
+      return fields.filter((one) => site.groups.some((group) => group.name === one.name));
+    };
+    const shown = (fields, texts = new Set()) => {
+      for (const one of fields) {
+        texts.add(one.label);
+        if (one.hint) texts.add(one.hint);
+        for (const option of one.options ?? []) texts.add(option.label);
+        if (one.fields) shown(one.fields, texts);
+      }
+      return texts;
+    };
+    for (const language of ['en', 'sv']) {
+      const texts = shown(groupsIn(language));
+      const settings = Object.entries(catalogue(language)).filter(([name]) => name.startsWith('settings.') && !unshown.includes(name));
+      assert.deepEqual(settings.filter(([, one]) => !texts.has(one)), [], `${language}: settings texts the form does not show`);
+    }
+    const swedish = new Set(Object.values(catalogue('sv')));
+    const own = new Set([...Object.values(site.types).map((type) => type.plural), ...Object.values(site.forms).map((form) => form.label)]);
+    assert.deepEqual([...shown(groupsIn('sv'))].filter((one) => !swedish.has(one) && !own.has(one)), [], 'texts in neither the Swedish catalogue nor the site description');
+  });
+
+  test('labels a select\'s options in the interface language and keeps their values, and keeps each default visitors read in the content\'s language', () => {
+    for (const [language, labels] of [['sv', ['Sammanfattningen', 'Hela texten']], ['en', ['The summary', 'The whole text']]]) {
+      const groups = cmsConfig(description, { ...place, language }).collections.find((one) => one.name === 'settings').files[0].fields;
+      const item = field(field(groups, 'feeds').fields, 'item');
+      assert.deepEqual(item.options, [{ value: 'The summary', label: labels[0] }, { value: 'The whole text', label: labels[1] }], language);
+      assert.equal(item.default, 'The summary', language);
+      assert.equal(field(field(groups, 'consent').fields, 'bannerTitle').default, 'Your privacy', language);
+    }
+  });
+
   test('is written by konzilo-cms beside the site\'s own: one configuration in each language the interface comes in', () => {
     const folder = mkdtempSync(join(tmpdir(), 'konzilo-cms-'));
     const site = join(folder, 'site');
@@ -263,6 +340,50 @@ test('holds search and sharing in closed parts, each key once, with nothing requ
     assert.match(breadcrumb.hint, /instead of the title/i);
     assert.match(breadcrumb.hint, /follow/i);
   }
+});
+
+describe('the canonical address', () => {
+  const declared = () => JSON.parse(readFileSync(file('site-template/files/site-description.json'), 'utf8'));
+  const canonicalOf = (made, name) => field(field(made.collections.find((one) => one.name === name).fields, 'search').fields, 'canonical');
+
+  test('is a field of search, after the description, which shows the post\'s own address from its type\'s address and its slug while it is empty', () => {
+    assert.deepEqual(field(collection('articles').fields, 'search').fields.map((one) => one.name), ['title', 'description', 'canonical', 'noindex', 'nofollow']);
+    const canonical = canonicalOf(config, 'articles');
+    assert.equal(canonical.label, 'Canonical address');
+    assert.equal(canonical.required, false);
+    assert.equal(canonical.widget, 'konzilo-text');
+    assert.equal(canonical.fallback, 'ownAddress');
+    assert.equal(canonical.address, '/{slug}/');
+    assert.equal(canonicalOf(config, 'pages').address, '/pages/{slug}/');
+    assert.equal(canonical.placeholder, 'The post\'s own address');
+    assert.match(canonical.hint, /published elsewhere first/);
+  });
+
+  test('takes a whole http:// or https:// address alone, and says so', () => {
+    const [source, words] = canonicalOf(config, 'articles').pattern;
+    const pattern = new RegExp(source);
+    for (const address of ['https://elsewhere.example.org/the-original/', 'http://elsewhere.example.org', 'https://elsewhere.example.org:8443/a?b=c#d']) assert.ok(pattern.test(address), address);
+    for (const address of ['the-original/', '/the-original/', '//elsewhere.example.org/', 'ftp://elsewhere.example.org/', 'https://', 'https://elsewhere.example.org/the original/', 'https://keeper@elsewhere.example.org/']) assert.ok(!pattern.test(address), address);
+    assert.equal(words, 'Write a whole web address, starting with https:// or http://, such as https://www.example.com/the-original/.');
+  });
+
+  test('on a site in several languages shows the address in the language of the pane, after its prefix', () => {
+    const given = declared();
+    delete given.language;
+    given.languages = ['sv_SE', 'en_GB'];
+    given.types.page.address = { sv_SE: '/sidor/{path}/', en_GB: '/pages/{path}/' };
+    const made = cmsConfig(siteDescription(given), place);
+    assert.deepEqual(canonicalOf(made, 'articles').address, { 'sv-SE': '/sv/{slug}/', 'en-GB': '/en/{slug}/' });
+    assert.deepEqual(canonicalOf(made, 'pages').address, { 'sv-SE': '/sv/sidor/{slug}/', 'en-GB': '/en/pages/{slug}/' });
+  });
+
+  test('is in the interface language', () => {
+    const swedish = cmsConfig(siteDescription({ ...declared(), language: 'sv_SE' }), place);
+    const canonical = canonicalOf(swedish, 'articles');
+    assert.equal(canonical.label, 'Kanonisk adress');
+    assert.equal(canonical.placeholder, 'Inläggets egen adress');
+    assert.equal(canonical.pattern[1], 'Skriv en hel webbadress som börjar med https:// eller http://, till exempel https://www.example.com/originalet/.');
+  });
 });
 
 test('says where the live preview is, and which collections have pages to show there', () => {

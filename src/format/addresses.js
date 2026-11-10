@@ -107,3 +107,19 @@ export function listPageOwners(address) {
   }
   return owners;
 }
+
+// A post's canonical address, where it names one of its own: a whole `http://` or
+// `https://` address, with a host and no user name, and no space. The editor's field takes
+// the same pattern, so that what it lets through the intake writes.
+export const CANONICAL_PATTERN = '^https?://[^\\s/?#@]+(?:[/?#]\\S*)?$';
+
+// The canonical address `text` names, as a browser sends it, or null where it names none.
+export function canonicalAddress(text) {
+  if (typeof text !== 'string' || !new RegExp(CANONICAL_PATTERN).test(text)) return null;
+  try {
+    const url = new URL(text);
+    return url.hostname === '' ? null : url.href;
+  } catch {
+    return null;
+  }
+}

@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import { useInterfaceLanguage } from '../src/cms/interface-language.js';
+import { useInterfaceLanguage } from '../src/cms/body/texts.js';
 import { filesOf, languageOf, readStatus, statusWords, watchStatus } from '../src/cms/publishing/status.js';
 
 describe('what a status says', () => {
@@ -57,6 +57,19 @@ describe('what a status says', () => {
     assert.equal(statusWords({ status: 'draft', stillShown: false }).words, 'A draft, which is not on the site.');
     assert.equal(statusWords({ status: 'draft', stillShown: true }).words, 'A draft, on its way off the site.');
     assert.equal(statusWords({ status: 'scheduled', at: '2026-12-24T15:00:00Z' }, (at) => `at ${at}`).words, 'Scheduled: goes live at 2026-12-24T15:00:00Z.');
+  });
+
+  test('in the interface language, the moment of a scheduled post too, whatever the browser\'s', () => {
+    try {
+      useInterfaceLanguage('sv');
+      assert.equal(statusWords({ status: 'live', warnings: [] }).words, 'Publicerad på webbplatsen.');
+      assert.equal(statusWords({ status: 'failed', reason: 'x', stillShown: true }).words, 'Kunde inte publiceras. Besökare ser fortfarande den förra versionen.');
+      assert.match(statusWords({ status: 'scheduled', at: '2026-12-24T15:00:00Z' }).words, /^Schemalagd: publiceras 2026-12-24 \d\d:00:00\.$/);
+      useInterfaceLanguage('en');
+      assert.match(statusWords({ status: 'scheduled', at: '2026-12-24T15:00:00Z' }).words, /^Scheduled: goes live 24\/12\/2026, \d\d:00:00\.$/);
+    } finally {
+      useInterfaceLanguage('en');
+    }
   });
 });
 

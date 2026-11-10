@@ -43,7 +43,7 @@ const said = (name, values = {}) => ({ name, values });
 // component by its own label, which the rule data holds.
 const labelOf = (rules, element) => {
   const own = rules.elements[element]?.label;
-  return own === undefined ? said(`about.element.${element}`) : { label: own };
+  return own === undefined ? said(`body.element.${element}`) : { label: own };
 };
 const inlineLabel = (inline) => said(`about.inline.${inline}`);
 

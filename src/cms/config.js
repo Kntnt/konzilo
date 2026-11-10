@@ -7,6 +7,7 @@
 // ID. Empty optional fields are left out, since the intake's schemas refuse an
 // empty string.
 
+import { CANONICAL_PATTERN, publicAddress } from '../format/addresses.js';
 import { IMAGE_LIBRARY_FOLDER } from '../format/masters.js';
 import { declaredNames, SCHEMA_TYPES } from '../site-description.js';
 import settingsGroups from '../format/settings-groups.json' with { type: 'json' };
@@ -14,8 +15,7 @@ import { SHARING_SAFE, SHARING_SIZE } from '../format/article-parts.js';
 import { IMAGE_WIDGET } from './image/widget.js';
 import { STRUCTURE_WIDGET } from './structure/widget.js';
 import { SCHEMA_WIDGET, SLUG_WIDGET, TEXT_WIDGET } from './parts/widgets.js';
-import { labelIn, text } from '../catalogues.js';
-import { inLanguage } from '../texts.js';
+import { inCatalogue, labelIn, text } from '../catalogues.js';
 import { BODY_WIDGET } from './body/widget.js';
 import { PUBLISHING_WIDGET } from './publishing/widget.js';
 
@@ -82,13 +82,15 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     ...extra,
   });
 
-  // A value's field, by the type and control it is declared with.
+  // A value's field, by the type and control it is declared with. The core's settings give
+  // their label, help and options' labels by language, as the catalogues hold them
+  // (settings-groups.js), and a site's own its label as its site description does.
   const valueField = (setting) => {
     const common = {
       name: setting.name,
       label: own(setting.label),
       required: setting.required === true,
-      ...(setting.help ? { hint: setting.help } : {}),
+      ...(setting.help ? { hint: own(setting.help) } : {}),
     };
     // A default that says where its value comes from, such as the site's title, is
     // the intake's to resolve; Sveltia takes only a plain value.
@@ -111,7 +113,10 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
       case 'image':
         return imageField(setting.name, setting.label, { required: false });
       default:
-        if (setting.control === 'select') return { ...common, ...given, widget: 'select', options: setting.options };
+        if (setting.control === 'select') {
+          const options = setting.optionLabels ? setting.options.map((value) => ({ value, label: own(setting.optionLabels[value]) })) : setting.options;
+          return { ...common, ...given, widget: 'select', options };
+        }
         return { ...common, ...given, widget: setting.control === 'textarea' ? 'text' : 'string' };
     }
   };
@@ -129,7 +134,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
         name: language.locale,
         label: language.tag,
         translated: false,
-        default: setting.defaults ? inLanguage(setting.defaults, language.locale) : setting.default,
+        default: setting.defaults ? inCatalogue(setting.defaults, language.locale) : setting.default,
       })),
     };
   };
@@ -143,7 +148,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     required: false,
     accordion: true,
     collapsed: true,
-    ...(hint ? { hint } : {}),
+    ...(hint ? { hint: own(hint) } : {}),
     fields,
   });
 
@@ -172,6 +177,15 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
   // shows, as its head does (article-parts.js); another type's leave it to its templates.
   const hasTeaser = (type) => type.fields.some((field) => field.kind === 'teaser');
 
+  // A post's own address, from which the canonical address field shows it while the post names
+  // none: its type's address with `{slug}`, and on a site in several languages one for the
+  // language of each pane, by its tag, after its prefix (parts/register.js).
+  const ownAddress = (type) => {
+    if (type.address === null) return null;
+    if (!several) return publicAddress(type, '{slug}');
+    return Object.fromEntries(description.languages.map((language) => [language.tag, publicAddress(type, '{slug}', language)]));
+  };
+
   const seoFields = (type) => {
     const teaser = hasTeaser(type);
     const shown = (rule) => (teaser ? { widget: TEXT_WIDGET, fallback: rule } : { hint: say('seoFollows') });
@@ -189,6 +203,16 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
       group('search', [
         { name: 'title', label: say('seoTitle'), widget: 'string', ...shown('searchTitle') },
         { name: 'description', label: say('seoDescription'), widget: 'text', ...(teaser ? { widget: TEXT_WIDGET, multiline: true, fallback: 'searchDescription' } : {}) },
+        {
+          name: 'canonical',
+          label: say('seoCanonical'),
+          widget: TEXT_WIDGET,
+          fallback: 'ownAddress',
+          address: ownAddress(type),
+          placeholder: say('seoCanonicalOwn'),
+          hint: say('seoCanonicalHint'),
+          pattern: [CANONICAL_PATTERN, say('seoCanonicalPattern')],
+        },
         { name: 'noindex', label: say('seoNoindex'), widget: 'boolean' },
         { name: 'nofollow', label: say('seoNofollow'), widget: 'boolean' },
       ]),

@@ -16,14 +16,11 @@ import { registerImageField } from './image/register.js';
 import { registerParts } from './parts/register.js';
 import { registerStructureField } from './structure/register.js';
 import { registerPublishing } from './publishing/register.js';
-import { chosenLanguage, followSite, languageChanged, loadedWith, useInterfaceLanguage } from './interface-language.js';
+import { chosenLanguage, followSite, languageChanged, loadedWith } from './interface-language.js';
 import './form.css';
 // The preview's window hides its pane by these; template.js, which shows it, is read by tests too.
 import './preview-window/window.css';
-import { say } from './body/texts.js';
-
-// The words of the editor's choice of where the preview stands, which the patched menu reads.
-globalThis.__KONZILO_VIEW_WORDS__ = { beside: say('viewBeside'), window: say('viewWindow'), toggle: say('viewToggle'), off: say('viewOff') };
+import { say, useInterfaceLanguage } from './body/texts.js';
 
 // The configuration in the language the editor has chosen, else in the site's
 // (interface-language.js).
@@ -40,7 +37,10 @@ else start();
 
 function start() {
   const loaded = loadedWith(chosen);
+  // The editor's own texts in the language the configuration is in, before anything is drawn.
   useInterfaceLanguage(konzilo.language);
+  // The words of the editor's choice of where the preview stands, which the patched menu reads.
+  globalThis.__KONZILO_VIEW_WORDS__ = { beside: say('preview.viewBeside'), window: say('preview.viewWindow'), toggle: say('preview.viewToggle'), off: say('preview.viewOff') };
   useComponents(konzilo.components);
   registerBodyField(CMS, config);
   registerPublishing(CMS, config);

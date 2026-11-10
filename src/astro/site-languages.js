@@ -14,8 +14,9 @@
 // neither the language switcher nor the hreflang links (Head.astro). On a
 // site in one language, or none, every page is where it was before
 // languages: a post at its type's address, the start page at the root. A
-// translation kept from search engines (`noindex`) is in the switcher, and
-// in neither the hreflang links nor the sitemap's alternates (alternates()).
+// translation kept from search engines (`noindex`), or canonical to another
+// address, is in the switcher, and in neither the hreflang links nor the
+// sitemap's alternates (alternates()).
 //
 // Each address here is a path from the site's root, as the content files
 // keep them, and each `url` that path below the site's base, as a link on
@@ -28,6 +29,7 @@ import {
   alternatesAmong, describedSite, entryAddress as addressOf, entryLanguage as languageOfId, languageName, pageLanguage as languageAt, siteLanguages, startAddress, translationsAmong,
 } from './languages.js';
 import { postPages } from './post-lists.js';
+import { origin } from './public-site.js';
 
 // The site's languages, each { locale, tag, prefix, main }, the main
 // language first: its locale (`sv_SE`), its language tag
@@ -152,8 +154,8 @@ export async function counterparts(url, entry = null) {
 // The page at `url`, Astro.url, in each language search engines are told
 // it is in, as Head links them with `hreflang` and the sitemap gives them
 // as its alternates (sitemap.js), each as counterparts() gives it: a post's
-// translations, but one kept from search engines (`noindex`), as
-// alternatesAmong() of languages.js gives them, and a language's start
+// translations, but one kept from search engines (`noindex`, or canonical to
+// another address), as alternatesAmong() of languages.js gives them, and a language's start
 // page every language's. Nothing where counterparts() gives nothing, nor
 // for a post kept from search engines itself, nor for one whose
 // translations all are, which a language switcher still links to, nor for
@@ -167,15 +169,16 @@ export async function alternates(url, entry = null) {
   }
   const type = typeOf(entry.collection);
   if (type === null) return [];
-  const members = alternatesAmong(entry, await getCollection(entry.collection), type, all);
+  const members = alternatesAmong(entry, await getCollection(entry.collection), type, all, origin());
   if (members.length <= 1) return [];
   return members.map(({ language, address, entry: member }) => ({ language, address, url: based(address), current: member.id === entry.id }));
 }
 
 // The core's texts a site may give its own of (site-texts.js), in the
 // language of the page at `url`, Astro.url, as the core's components show
-// them: { languageSwitcher, emptyList, forms, search }, the site's own over
-// the core's, such as `search.title`, a search page's title and heading.
+// them: { languageSwitcher, emptyList, forms, search, notFound }, the site's
+// own over the core's, such as `search.title`, a search page's title and
+// heading, and `notFound`, the plain text of a page not found.
 export function pageTexts(url = null) {
   return textsIn(pageLanguage(url)?.locale ?? null);
 }

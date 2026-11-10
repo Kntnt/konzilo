@@ -35,7 +35,7 @@ function PostStatus({ post, site, withLanguage }) {
     h('p', { style: LINE },
       h('span', { 'aria-hidden': true, style: DOT(tone) }),
       h('span', null, language ? `${language}: ${words}` : words, post.status === 'live' && post.address ? ' ' : null,
-        post.status === 'live' && post.address ? h('a', { href: new URL(post.address, site).href, target: '_blank', rel: 'noopener' }, say('publishShowPage')) : null)),
+        post.status === 'live' && post.address ? h('a', { href: new URL(post.address, site).href, target: '_blank', rel: 'noopener' }, say('publishing.showPage')) : null)),
     details.length > 0 ? h('ul', { style: LIST }, details.map((detail) => h('li', { key: detail }, detail))) : null);
 }
 
@@ -44,9 +44,9 @@ export function publishingField({ site, credential = signedInCredential }) {
     const { createElement: h } = react();
     const status = useStatus(credential);
     const id = entry?.get('slug');
-    if (!id) return h('p', { style: LINE }, say('publishNotSaved'));
+    if (!id) return h('p', { style: LINE }, say('publishing.notSaved'));
     if (status === undefined) return null;
-    if (status === null) return h('p', { style: LINE }, say('publishUnknown'));
+    if (status === null) return h('p', { style: LINE }, say('publishing.unknown'));
     const posts = filesOf(status.posts, entry.get('collection'), id);
     // A save the service has not seen yet, of a post it has never heard of.
     if (posts.length === 0) return h(PostStatus, { post: { status: 'being-published', stillShown: false }, site });
@@ -59,16 +59,16 @@ export function publishingPage({ site, collectionOf, credential = signedInCreden
     const { createElement: h } = react();
     const status = useStatus(credential);
     if (status === undefined) return null;
-    if (status === null) return h('p', { style: { ...LINE, padding: 16 } }, say('publishUnknown'));
+    if (status === null) return h('p', { style: { ...LINE, padding: 16 } }, say('publishing.unknown'));
     const posts = [...status.posts].sort((a, b) => ORDER[a.status] - ORDER[b.status] || String(a.title ?? a.file).localeCompare(String(b.title ?? b.file)));
     const others = [...status.others.refusals, ...status.others.warnings];
     return h('div', { style: { padding: 16, overflow: 'auto', height: '100%', boxSizing: 'border-box' } },
       status.reason ? h('p', { role: 'alert', style: { ...LINE, color: TONES.bad } }, wordsShown(status.reason)) : null,
       others.length > 0 ? h('section', null,
-        h('h3', { style: { margin: '12px 0 4px', font: '600 15px/1.3 system-ui, sans-serif' } }, say('publishOthers')),
+        h('h3', { style: { margin: '12px 0 4px', font: '600 15px/1.3 system-ui, sans-serif' } }, say('publishing.others')),
         h('ul', { style: LIST }, others.map((refusal) => h('li', { key: refusal.message ?? `${refusal.file}:${refusal.reason}` }, fileRefusalShown(refusal))))) : null,
       h('table', { style: { borderCollapse: 'collapse', width: '100%' } },
-        h('thead', null, h('tr', null, h('th', { style: CELL }, say('publishTitle')), h('th', { style: CELL }, say('status')))),
+        h('thead', null, h('tr', null, h('th', { style: CELL }, say('publishing.title')), h('th', { style: CELL }, say('publishing.status')))),
         h('tbody', null, posts.map((post) => {
           const collection = post.file.split('/')[0];
           const name = post.title ?? post.file;

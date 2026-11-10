@@ -2,17 +2,11 @@
   "matomo": {
     "label": "Matomo Tag Manager",
     "name": "Matomo",
-    "purpose": {
-      "en": "Measures how visitors use the site, with the site's own Matomo, and runs the tags of its tag manager.",
-      "sv": "Mäter hur besökare använder webbplatsen, med webbplatsens egen Matomo, och kör taggarna i dess tagghanterare."
-    },
+    "purpose": { "text": "site.service.matomo.purpose" },
     "container": "{address}/js/container_{container}.js",
     "tracker": {
       "label": "Matomo",
-      "purpose": {
-        "en": "Measures how visitors use the site, with the site's own Matomo.",
-        "sv": "Mäter hur besökare använder webbplatsen, med webbplatsens egen Matomo."
-      },
+      "purpose": { "text": "site.service.matomo.trackerPurpose" },
       "script": "{address}/matomo.js",
       "endpoint": "{address}/matomo.php"
     },

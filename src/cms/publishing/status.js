@@ -1,7 +1,7 @@
 // How publishing stands, as the service says (ADR 0031): reading it, keeping it up to date while
 // someone looks, and what a status means in words. It holds no React.
 
-import { say } from '../body/texts.js';
+import { languageTag, say } from '../body/texts.js';
 import { refusalShown, wordsShown } from '../refusals.js';
 
 const STATUS_PATH = '/_konzilo/status';
@@ -72,24 +72,24 @@ export function watchedStatus(options) {
   };
 }
 
-const where = ({ stillShown }) => say(stillShown ? 'publishStillShown' : 'publishNotShown');
+const where = ({ stillShown }) => say(stillShown ? 'publishing.stillShown' : 'publishing.notShown');
 // Each refusal or warning in the interface language, with what it names in the post.
 const reasonsOf = (list = []) => list.map(refusalShown);
 
 // What a status says: its `tone`, `good`, `busy`, `bad` or `quiet`, its `words`, and any `details`.
-export function statusWords(status, moment = (at) => new Date(at).toLocaleString(globalThis.navigator?.language)) {
+export function statusWords(status, moment = (at) => new Date(at).toLocaleString(languageTag())) {
   switch (status.status) {
     case 'live': {
       const warnings = reasonsOf(status.warnings);
-      return { tone: 'good', words: say(warnings.length > 0 ? 'publishLiveWarned' : 'publishLive'), details: warnings };
+      return { tone: 'good', words: say(warnings.length > 0 ? 'publishing.liveWarned' : 'publishing.live'), details: warnings };
     }
     case 'failed':
-      return { tone: 'bad', words: `${say('publishFailed')} ${where(status)}`, details: status.refusals ? reasonsOf(status.refusals) : [wordsShown(status.reason)] };
+      return { tone: 'bad', words: `${say('publishing.failed')} ${where(status)}`, details: status.refusals ? reasonsOf(status.refusals) : [wordsShown(status.reason)] };
     case 'scheduled':
-      return { tone: 'quiet', words: say('publishScheduled', { at: moment(status.at) }), details: [] };
+      return { tone: 'quiet', words: say('publishing.scheduled', { at: moment(status.at) }), details: [] };
     case 'draft':
-      return { tone: 'quiet', words: say(status.stillShown ? 'publishDraftShown' : 'publishDraft'), details: [] };
+      return { tone: 'quiet', words: say(status.stillShown ? 'publishing.draftShown' : 'publishing.draft'), details: [] };
     default:
-      return { tone: 'busy', words: say(status.stillShown ? 'publishBeingShown' : 'publishBeing'), details: [] };
+      return { tone: 'busy', words: say(status.stillShown ? 'publishing.beingShown' : 'publishing.being'), details: [] };
   }
 }

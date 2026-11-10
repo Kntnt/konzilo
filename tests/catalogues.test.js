@@ -1,14 +1,15 @@
-// The core's catalogues of the texts its editors read: British English as the source, and
-// every other language a translation of it that holds exactly its texts, by the same names, with
-// the same placeholders. An editor never meets a text in English because a translation lacks it,
-// nor a text no code asks for.
+// The core's catalogues of the texts its editors and visitors read: British English as the
+// source, and every other language a translation of it that holds exactly its texts, by the same
+// names, with the same placeholders. An editor never meets a text in English because a
+// translation lacks it, nor a text no code asks for, and neither does a visitor: what the core's
+// data gives visitors to read, a setting's default or a service's purpose, names its text here.
 
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { CATALOGUES, catalogueFor, INTERFACE_LANGUAGES, labelIn, SOURCE_LANGUAGE, text } from '../src/catalogues.js';
+import { CATALOGUES, catalogueFor, INTERFACE_LANGUAGES, labelIn, SOURCE_LANGUAGE, text, textsOf } from '../src/catalogues.js';
 
 const folder = fileURLToPath(new URL('../src/catalogues/', import.meta.url));
 const files = readdirSync(folder).filter((name) => name.endsWith('.json')).sort();
@@ -52,9 +53,60 @@ for (const name of files.filter((one) => one !== `${SOURCE_LANGUAGE}.json`)) {
   });
 }
 
+// The editor's own code in the browser, the body field's, the image field's, the structure
+// field's, the preview's, the publish status's and the article parts' fields', names each text
+// whole, as `say('body.loading')`, so that a name it asks for and the source can be held side by
+// side: a name the source lacks would throw in the editor, and a text no code names is dead.
+const EDITOR_AREAS = ['body', 'image', 'structure', 'preview', 'publishing', 'parts'];
+const editorCode = fileURLToPath(new URL('../src/cms/', import.meta.url));
+const namedInCode = () => {
+  const name = new RegExp(String.raw`(['"\`])((?:${EDITOR_AREAS.join('|')})\.[a-zA-Z0-9.-]+)\1`, 'g');
+  const named = new Set();
+  for (const file of readdirSync(editorCode, { recursive: true }).filter((one) => one.endsWith('.js'))) {
+    for (const [, , found] of readFileSync(`${editorCode}${file}`, 'utf8').matchAll(name)) named.add(found);
+  }
+  return named;
+};
+
+test('every text the editor\'s own code names is in the source, and every text of its areas is named there', () => {
+  const named = namedInCode();
+  for (const area of EDITOR_AREAS) assert.ok(Object.keys(source).some((key) => key.startsWith(`${area}.`)), `the source has the area ${area}`);
+  assert.deepEqual([...named].filter((key) => !Object.hasOwn(source, key)), [], 'names the source does not have');
+  assert.deepEqual(Object.keys(source).filter((key) => EDITOR_AREAS.includes(key.split('.')[0]) && !named.has(key)), [], 'texts no code names');
+});
+
 test('the source is written in British English, not American', () => {
   const american = /\b(?:colors?|centers?|behaviors?|favorites?|gray|catalogs?|canceled|canceling|organizations?|organize[ds]?|recognize[ds]?|customize[ds]?|optimize[ds]?|analyze[ds]?|labeled|labeling|modeled|traveled)\b/i;
   for (const [name, value] of Object.entries(source)) assert.doesNotMatch(value, american, name);
+});
+
+test('the defaults of the core\'s settings groups that visitors read are texts of the catalogues, by name', () => {
+  const groups = JSON.parse(readFileSync(fileURLToPath(new URL('../src/format/settings-groups.json', import.meta.url)), 'utf8'));
+  const settings = Object.entries(groups).flatMap(([group, { settings: own = {}, parts = {}, types }]) => [
+    ...Object.entries(own).map(([name, setting]) => [`${group}.${name}`, setting]),
+    ...Object.entries(parts).flatMap(([part, { settings: inPart = {} }]) => Object.entries(inPart).map(([name, setting]) => [`${group}.${part}.${name}`, setting])),
+    ...Object.entries(types?.settings ?? {}).map(([name, setting]) => [`${group}.types.${name}`, setting]),
+  ]);
+  const named = settings.filter(([, setting]) => setting.default !== null && typeof setting.default === 'object' && !Object.hasOwn(setting.default, 'identity'));
+  assert.ok(named.length > 0);
+  for (const [path, setting] of named) {
+    assert.deepEqual(Object.keys(setting.default), ['text'], path);
+    assert.ok(Object.hasOwn(source, setting.default.text), `${path}: ${setting.default.text}`);
+    assert.match(setting.default.text, /^site\./, path);
+  }
+});
+
+test('the purposes of the core\'s services, which visitors read in the consent, are texts of the catalogues, by name', () => {
+  const data = (name) => JSON.parse(readFileSync(fileURLToPath(new URL(`../src/format/${name}`, import.meta.url)), 'utf8'));
+  const purposes = [
+    ...Object.entries(data('services.json')).map(([id, facts]) => [id, facts.purpose]),
+    ...Object.entries(data('tag-managers.json')).flatMap(([id, facts]) => [[id, facts.purpose], [`${id} tracker`, facts.tracker.purpose]]),
+  ];
+  for (const [id, purpose] of purposes) {
+    assert.deepEqual(Object.keys(purpose), ['text'], id);
+    assert.ok(Object.hasOwn(source, purpose.text), `${id}: ${purpose.text}`);
+    assert.match(purpose.text, /^site\.service\./, id);
+  }
 });
 
 test('gives a text in a language, with its placeholders filled, and British English for a language without a catalogue', () => {
@@ -66,6 +118,13 @@ test('gives a text in a language, with its placeholders filled, and British Engl
   const values = Object.fromEntries(placeholders(source[filled]).map((one) => [one, `<${one}>`]));
   assert.equal(text('en', filled, values), source[filled].replace(/\{(\w+)\}/g, (_, one) => `<${one}>`));
   assert.throws(() => text('en', 'no.such.text'), /no\.such\.text/);
+});
+
+test('gives the texts of an area in a language or a locale, by their names after it, their placeholders left for the caller', () => {
+  assert.deepEqual(textsOf('sv', 'site.pager.'), { label: 'Sidor', page: 'Sida {n}', previous: 'Föregående sida', next: 'Nästa sida' });
+  assert.deepEqual(textsOf('sv_SE', 'site.pager.'), textsOf('sv', 'site.pager.'));
+  assert.deepEqual(textsOf('de_DE', 'site.pager.'), { label: 'Pages', page: 'Page {n}', previous: 'Previous page', next: 'Next page' });
+  assert.deepEqual(textsOf('en', 'no.such.'), {});
 });
 
 test('takes the catalogue of a language or a locale, British English\'s where there is none', () => {

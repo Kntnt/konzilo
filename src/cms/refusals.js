@@ -3,7 +3,7 @@
 // status alike (refusals.js).
 
 import { messageIn, placeIn, reasonIn, wordsIn } from '../refusals.js';
-import { interfaceLanguage } from './interface-language.js';
+import { interfaceLanguage } from './body/texts.js';
 
 // A reason in the interface language: by its name, else in the words it came in.
 export const wordsShown = (words) => wordsIn(interfaceLanguage(), words);

@@ -15,6 +15,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { CATALOGUES } from '../src/catalogues.js';
 import { consentView } from '../src/consent/markup.js';
 import { astroConfig, astroEnvironment, ORIGIN } from './lib/astro.js';
 import { paragraphs, post, siteSettingsArgs, writeContent } from './lib/content.js';
@@ -721,7 +722,7 @@ test('withdrawing removes what each optional service stores on the site itself, 
     ],
     texts: {},
   };
-  const { data } = consentView({ registry, language: 'en-GB' });
+  const { data } = consentView({ registry, language: 'en-GB', catalogues: CATALOGUES });
   assert.deepEqual(data.storage, { counter: [{ name: '_count*', kind: 'cookie' }, { name: 'count', kind: 'localStorage' }, { name: 'visit', kind: 'sessionStorage' }] });
 });
 
@@ -954,7 +955,7 @@ test('a placeholder\'s sentence names the provider and its country, says so when
     ],
     texts: { placeholder: { question: 'Play {service}?', button: 'Play {service}' } },
   };
-  const sentences = (language) => consentView({ registry, language }).placeholders.map(({ service, storage }) => [service, storage]);
+  const sentences = (language) => consentView({ registry, language, catalogues: CATALOGUES }).placeholders.map(({ service, storage }) => [service, storage]);
   assert.deepEqual(sentences('en-GB'), [
     ['datawrapper', 'Datawrapper may store data in your browser.'],
     ['screen9', 'Screen9 may store data in your browser, and Quickchannel AB (Sweden) receives data about your visit.'],
@@ -965,7 +966,7 @@ test('a placeholder\'s sentence names the provider and its country, says so when
     ['screen9', 'Screen9 kan lagra uppgifter i din webbläsare, och Quickchannel AB (Sverige) tar emot uppgifter om ditt besök.'],
     ['spotify', 'Spotify kan lagra uppgifter i din webbläsare, och Spotify AB (Sverige) tar emot uppgifter om ditt besök, som kan behandlas utanför EU och EES.'],
   ]);
-  const view = consentView({ registry, language: 'en-GB' });
+  const view = consentView({ registry, language: 'en-GB', catalogues: CATALOGUES });
   assert.equal(view.declaration, null);
   assert.deepEqual(view.placeholders.map(({ question, button }) => [question, button]), [['Play Datawrapper?', 'Play Datawrapper'], ['Play Screen9?', 'Play Screen9'], ['Play Spotify?', 'Play Spotify']]);
 });

@@ -37,7 +37,7 @@
 
 ## What practice has shown
 
-- **Crepe's block menu filters by a row's label,** with no other words to go by, so the row is `/image` in an English browser and `/bild` in a Swedish one, like every other row.
+- **Crepe's block menu filters by a row's label,** with no other words to go by, so the row is `/image` in an English interface and `/bild` in a Swedish one, like every other row (ADR 0066).
 - **Sätteri makes a link of an address however it is escaped,** where remark thinks an escape enough, so a caption, which takes no link, splits an address with the empty comment, as the intake does.
 - **Sveltia looks for changes in the repository each minute and when its tab gets focus,** so an entry added from a post shows in its list by itself soon after.
 - **An image's node** has a group of its own beside `block`, in a document node of Konzilo's, so that the schema itself keeps an image out of a quote or a list; its caption is what it holds, `(text | html)*`, the comment being the `html`. A `$view` takes `imageNode.node`.

@@ -228,6 +228,12 @@ Text.
 `);
   });
 
+  test('a canonical address under search is written among the search and sharing fields, as a browser sends it', () => {
+    const given = run({ 'articles/aaaaaaaaaaaa.md': article({ search: { title: 'A title', canonical: ' https://Elsewhere.example.org/the-original?from=lantern ' } }) }, site);
+    assert.deepEqual(given.refusals, []);
+    assert.match(written(given)['articles/an-article.md'], /\nseo: \{"title":"A title","canonical":"https:\/\/elsewhere\.example\.org\/the-original\?from=lantern"\}\n/);
+  });
+
   test('a yes-or-no is always there, and a value that is empty is left out', () => {
     const bare = written(run({ 'articles/aaaaaaaaaaaa.md': article({ rating: '', eventDay: null }) }, site))['articles/an-article.md'];
     assert.match(bare, /\nfeatured: false\n/);
@@ -342,6 +348,25 @@ describe('the service registry', () => {
     assert.deepEqual(domains.consent, [['konzilo-consent', null]]);
     assert.deepEqual(domains.pixel, [['own', null], ['theirs', 'cdn.example.com']]);
     assert.ok(domains.vimeo.every(([, domain]) => domain === 'player.vimeo.com'));
+  });
+
+  test('on a Swedish site whose editors work in English, holds what visitors read in Swedish, as the settings\' defaults are', () => {
+    const swedish = { ...site, language: 'sv_SE', interfaceLanguage: 'en', consent: { domain: 'example.com' } };
+    const result = run({ 'articles/aaaaaaaaaaaa.md': article({}, 'https://vimeo.com/76979871') }, swedish);
+    const registry = JSON.parse(written(result)['consent.json']);
+    const service = (id) => registry.services.find((one) => one.id === id);
+    assert.equal(service('consent').name, 'Samtycke');
+    assert.equal(service('consent').purpose, 'Kommer ihåg vilka kategorier och tjänster du har tillåtit, och när, så att den här webbplatsen och varje annan webbplats under example.com respekterar ditt val.');
+    assert.equal(service('consent').necessity, 'Utan den kunde webbplatsen inte hålla sig till ditt val, och skulle fråga dig på varje sida.');
+    assert.equal(service('vimeo').purpose, 'Spelar upp videor från Vimeo på sidan.');
+    assert.equal(registry.texts.banner.title, 'Din integritet');
+    assert.equal(registry.categories.find((one) => one.id === 'necessary').name, 'Nödvändiga');
+    const settings = settingsOf(result);
+    assert.equal(settings.consent.bannerTitle, 'Din integritet');
+    assert.equal(settings.forms.contact.confirmation, 'Tack! Ditt meddelande är skickat.');
+    const english = JSON.parse(written(run({ 'articles/aaaaaaaaaaaa.md': article({}, 'https://vimeo.com/76979871') }, { ...site, interfaceLanguage: 'sv' }))['consent.json']);
+    assert.equal(english.services.find((one) => one.id === 'vimeo').purpose, 'Plays videos from Vimeo in the page.');
+    assert.equal(english.texts.banner.title, 'Your privacy');
   });
 
   test('on a site that keeps the choice on a domain, declares the consent\'s cookie on it, and the local storage item the records wait in', () => {

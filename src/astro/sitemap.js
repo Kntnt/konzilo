@@ -5,7 +5,8 @@
 // host; on a site in several languages, each language's start
 // page, at its prefix, and every post at its address in its language, and
 // not the root, which leads to the main language's start page. A post
-// marked noindex is left out, and so is every
+// marked noindex is left out, and so is a post whose canonical address is
+// not its own on the public host, which is a copy of a page elsewhere, and every
 // address that redirects: a post's old and other addresses and the site's
 // own rules are no page, and nor is a later page of a post list with pages
 // of its own, which is noindex, nor a post below its `page/`. The
@@ -20,8 +21,9 @@
 // one: a post the members of its translation set the build has, as its
 // head links them (alternatesAmong() in languages.js), so that the two
 // agree, and each language's start page every language's. A post alone
-// in its set has itself alone. A post marked noindex is no alternate
-// either, and every alternate is a page the sitemap lists. A site in one
+// in its set has itself alone. A post marked noindex, or canonical to
+// another address, is no alternate either, and every alternate is a page
+// the sitemap lists. A site in one
 // language has none, and its sitemap no `xhtml` namespace.
 //
 // `lastmod` is a post's last change, else its date, where its type declares
@@ -59,14 +61,15 @@ export function isNumbered(address) {
 
 // The addresses the sitemap lists, from the site description's `types` and
 // `taxonomies` and `languages` and `entries(collection)`, the entries of a
-// collection as Astro's getCollection gives them: [{ path, lastmod,
+// collection as Astro's getCollection gives them, for the public host
+// `origin`, which a post's canonical address is compared on: [{ path, lastmod,
 // alternates }], `lastmod` a Date or undefined, the start page first, each
 // language's in the languages' order, and the rest sorted by address, each
 // term's page of a taxonomy with an address among them, without a lastmod.
 // On a site in several languages each start page and post has
 // `alternates`, [{ hreflang, path }], its page in each language, by the
 // language's tag, in the languages' order, and `x-default` last.
-export async function sitemapAddresses(types, entries, taxonomies = {}, languages = []) {
+export async function sitemapAddresses(types, entries, taxonomies = {}, languages = [], origin = null) {
   const several = languages.length > 1;
   const posts = [];
   const withPages = new Set();
@@ -85,13 +88,13 @@ export async function sitemapAddresses(types, entries, taxonomies = {}, language
       const path = entryAddress(type, entry.id, languages);
       if (path === null) continue;
       if (postListsIn(entry.body).some((list) => list.pages === true)) withPages.add(path);
-      if (!indexed(entry, type)) continue;
+      if (!indexed(entry, type, languages, origin)) continue;
       const lastmod = (modified && entry.data[modified]) || (date && entry.data[date]) || undefined;
       if (!several) {
         posts.push({ path, lastmod });
         continue;
       }
-      const members = alternatesAmong(entry, sets.get(entry.data?.[TRANSLATION_KEY]) ?? [entry], type, languages);
+      const members = alternatesAmong(entry, sets.get(entry.data?.[TRANSLATION_KEY]) ?? [entry], type, languages, origin);
       posts.push({ path, lastmod, alternates: members.map(({ language, address }) => ({ language, path: address })) });
     }
   }
@@ -132,7 +135,7 @@ export function sitemapFiles(addresses, origin, limit = LIMIT) {
 // the collections do.
 export async function siteSitemap(getCollection, origin) {
   const { types, taxonomies, languages } = readSiteDescription(resolve(SITE_DESCRIPTION_FILE));
-  return sitemapFiles(await sitemapAddresses(types, (collection) => getCollection(collection), taxonomies, languages), origin);
+  return sitemapFiles(await sitemapAddresses(types, (collection) => getCollection(collection), taxonomies, languages, origin), origin);
 }
 
 function urlset(addresses, origin) {

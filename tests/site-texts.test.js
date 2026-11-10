@@ -30,6 +30,15 @@ test('each language takes the core\'s texts in it, the main language the site\'s
   assert.equal(texts.en_GB.search.submit, 'Search');
 });
 
+test('the plain text of a page not found is the core\'s in each language, and the site\'s where it gives its own', () => {
+  const given = givenTexts({ en_GB: { notFound: { title: 'Lost' } } });
+  const { texts } = siteTexts(swedishAndEnglish, given);
+  assert.deepEqual(texts.sv_SE.notFound, { title: 'Sidan finns inte', text: 'Det finns ingen sida på den här adressen. Den kan ha flyttats, eller så är länken hit fel.', start: 'Gå till startsidan' });
+  assert.deepEqual(texts.en_GB.notFound, { title: 'Lost', text: 'There is no page at this address. It may have moved, or the link that led here may be wrong.', start: 'Go to the start page' });
+  assert.throws(() => givenTexts({ de_DE: { notFound: { heading: 'Weg' } } }), /texts\.de_DE\.notFound\.heading is not one of the texts of a page not found, which are title, text, start/);
+  assert.throws(() => givenTexts({ de_DE: { notFound: { title: '' } } }), /texts\.de_DE\.notFound\.title must be a text/);
+});
+
 test('a site in one language, or none, takes the core\'s texts in it, or English', () => {
   assert.equal(siteTexts([{ locale: 'sv_SE', tag: 'sv-SE', prefix: null, main: true }]).texts.sv_SE.emptyList, 'Inget att visa ännu.');
   assert.deepEqual(Object.keys(siteTexts([]).texts), ['']);
@@ -51,11 +60,12 @@ test('a language the core writes no texts in takes English, and the warning name
   assert.match(warning, /astro\.config\.mjs: emptyList, forms\.required, /);
   assert.match(warning, /forms\.send, /);
   assert.match(warning, /search\.submit/);
+  assert.match(warning, /notFound\.title, notFound\.text, notFound\.start/);
   assert.doesNotMatch(warning, /languageSwitcher|search\.label\b/);
 });
 
 test('a text the core has not got, or one that is no text, fails at once, naming it', () => {
-  assert.throws(() => givenTexts({ de_DE: { switcher: 'Sprachen' } }), /texts\.de_DE\.switcher is not one of the texts a site gives, which are languageSwitcher, emptyList, forms, search/);
+  assert.throws(() => givenTexts({ de_DE: { switcher: 'Sprachen' } }), /texts\.de_DE\.switcher is not one of the texts a site gives, which are languageSwitcher, emptyList, forms, search, notFound/);
   assert.throws(() => givenTexts({ de_DE: { emptyList: '' } }), /texts\.de_DE\.emptyList must be a text/);
   assert.throws(() => givenTexts({ de_DE: { forms: { submit: 'Go' } } }), /texts\.de_DE\.forms\.submit is not one of the form's texts/);
   assert.throws(() => givenTexts({ de_DE: { search: { find: 'Suche' } } }), /texts\.de_DE\.search\.find is not one of search's texts/);

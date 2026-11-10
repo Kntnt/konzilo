@@ -13,13 +13,13 @@ const same = (one, other) => one.src === other.src && one.alt === other.alt && (
 
 export function chooseImage({ library, smallestWidth = null, several = false, root = document.body }) {
   return new Promise((resolve) => {
-    const { dialog, head, body } = dialogOf(say(several ? 'imagesChoose' : 'imageChoose'));
-    const close = button('', say('imageClose'), head);
+    const { dialog, head, body } = dialogOf(say(several ? 'body.chooseImages' : 'body.chooseImage'));
+    const close = button('', say('body.close'), head);
     const picked = [];
     const add = several ? button('', '', made('div', 'konzilo-chooser-foot', dialog)) : null;
     const showPicked = () => {
       add.disabled = picked.length === 0;
-      add.textContent = picked.length === 1 ? say('imagesAddOne') : say(picked.length === 0 ? 'imagesAddNone' : 'imagesAdd', { count: picked.length });
+      add.textContent = picked.length === 1 ? say('body.addImagesOne') : say(picked.length === 0 ? 'body.addImagesNone' : 'body.addImages', { count: picked.length });
     };
     if (several) {
       add.addEventListener('click', () => finish(picked));
@@ -53,22 +53,22 @@ export function chooseImage({ library, smallestWidth = null, several = false, ro
       const form = made('form', 'konzilo-chooser-upload');
       form.noValidate = true;
       body.replaceChildren(form);
-      button('konzilo-chooser-back', say('imageBack'), form).addEventListener('click', returnTo);
+      button('konzilo-chooser-back', say('body.libraryBack'), form).addEventListener('click', returnTo);
       const fileRow = made('label', 'konzilo-dialog-row', form);
-      made('span', '', fileRow).textContent = say('imageFile');
+      made('span', '', fileRow).textContent = say('body.uploadFile');
       const input = made('input', '', fileRow);
       input.type = 'file';
       input.accept = 'image/jpeg,image/png,image/webp,image/svg+xml';
       const preview = made('img', 'konzilo-chooser-preview', form);
       preview.alt = '';
       preview.hidden = true;
-      const alt = textRow(form, say('imageAlt'), { required: true });
-      const caption = textRow(form, say('imageCaption'));
+      const alt = textRow(form, say('body.alt'), { required: true });
+      const caption = textRow(form, say('body.uploadCaption'));
       const note = made('p', 'konzilo-dialog-note', form);
       note.setAttribute('role', 'alert');
       const send = made('button', 'konzilo-chooser-send', form);
       send.type = 'submit';
-      send.textContent = say('imageUpload');
+      send.textContent = say('body.upload');
 
       input.addEventListener('change', () => {
         letGoOfFile();
@@ -83,17 +83,17 @@ export function chooseImage({ library, smallestWidth = null, several = false, ro
         event.preventDefault();
         const [file] = input.files;
         if (!file) {
-          note.textContent = say('imageNoFile');
+          note.textContent = say('body.uploadNoFile');
           return;
         }
         if (alt.value.trim() === '') {
-          note.textContent = say('imageNoAlt');
+          note.textContent = say('body.noAlt');
           alt.focus();
           return;
         }
         note.textContent = '';
         send.disabled = true;
-        send.textContent = say('imageUploading');
+        send.textContent = say('body.uploading');
         try {
           const problem = await uploadProblem(file, { smallestWidth });
           if (problem !== null) {
@@ -110,10 +110,10 @@ export function chooseImage({ library, smallestWidth = null, several = false, ro
           returnTo();
         } catch (error) {
           console.warn(`The image was not uploaded: ${error.message}`);
-          note.textContent = say('imageUploadFailed');
+          note.textContent = say('body.uploadFailed');
         } finally {
           send.disabled = false;
-          send.textContent = say('imageUpload');
+          send.textContent = say('body.upload');
         }
       });
       input.focus();
@@ -125,8 +125,8 @@ export function chooseImage({ library, smallestWidth = null, several = false, ro
       const tools = made('div', 'konzilo-chooser-tools');
       const search = made('input', '', tools);
       search.type = 'search';
-      search.placeholder = say('imageSearch');
-      search.setAttribute('aria-label', say('imageSearch'));
+      search.placeholder = say('body.librarySearch');
+      search.setAttribute('aria-label', say('body.librarySearch'));
       // A search box's own Escape only empties it, in some browsers, and the dialog stays. Taken
       // here, it must go no further, or it closes a dialog this one was opened from as well.
       search.addEventListener('keydown', (event) => {
@@ -134,10 +134,10 @@ export function chooseImage({ library, smallestWidth = null, several = false, ro
         event.preventDefault();
         finish(null);
       });
-      button('konzilo-chooser-new', say('imageNew'), tools).addEventListener('click', () => showUpload(showList));
+      button('konzilo-chooser-new', say('body.libraryNew'), tools).addEventListener('click', () => showUpload(showList));
       const status = made('p', 'konzilo-chooser-status');
       status.setAttribute('role', 'status');
-      status.textContent = say('imageLoading');
+      status.textContent = say('body.libraryLoading');
       const grid = made('ul', 'konzilo-chooser-grid');
       body.replaceChildren(tools, status, grid);
       search.focus();
@@ -148,14 +148,14 @@ export function chooseImage({ library, smallestWidth = null, several = false, ro
       } catch (error) {
         if (done) return;
         console.warn(`The image library could not be read: ${error.message}`);
-        status.textContent = say('imageListFailed');
-        button('konzilo-chooser-retry', say('imageRetry'), status).addEventListener('click', showList);
+        status.textContent = say('body.libraryFailed');
+        button('konzilo-chooser-retry', say('body.libraryRetry'), status).addEventListener('click', showList);
         return;
       }
       if (done) return;
       // What was uploaded a moment ago may not be in the list yet.
       for (const entry of picked) if (!entries.some((one) => same(one, entry))) entries.push(entry);
-      status.textContent = entries.length === 0 ? say('imageEmpty') : '';
+      status.textContent = entries.length === 0 ? say('body.libraryEmpty') : '';
 
       // A picture is asked for when it comes into view: a library can be long.
       watcher = new globalThis.IntersectionObserver((seen) => {
@@ -208,7 +208,7 @@ export function chooseImage({ library, smallestWidth = null, several = false, ro
           item.hidden = !words.includes(sought);
           if (!item.hidden) left += 1;
         }
-        if (entries.length > 0) status.textContent = left === 0 ? say('imageNoneFound') : '';
+        if (entries.length > 0) status.textContent = left === 0 ? say('body.libraryNoneFound') : '';
       });
     };
 
