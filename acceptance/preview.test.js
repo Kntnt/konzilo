@@ -30,11 +30,12 @@ describe('the live preview', () => {
     await page.getByText(title).first().click();
     await page.locator('.konzilo-body-visual .ProseMirror').waitFor({ timeout: 30_000 });
   };
-  // A new title typed in the form, with the page scrolled a little, and every frame of the pane
+  // A new main headline typed in an article's form, which its page's heading shows, with the page
+  // scrolled a little, and every frame of the pane
   // while the page is drawn again with it, until a moment after it shows. The draft the pane sends
   // on opening reloads the page once, at a moment of its own, so a first change goes before.
   const drawnAgain = async (page, changed) => {
-    const title = page.getByRole('textbox', { name: 'Title', exact: true });
+    const title = page.getByRole('textbox', { name: 'Main headline', exact: true });
     const shown = frameOf(page).locator('html');
     await title.fill(`${changed}, at first`);
     await frameOf(page).getByRole('heading', { level: 1, name: `${changed}, at first` }).waitFor({ timeout: ON_THE_PAGE });
@@ -197,11 +198,11 @@ describe('the live preview', () => {
     });
 
     test('says why it cannot publish a draft, above the last good page', async () => {
-      const title = page.getByRole('textbox', { name: 'Title', exact: true });
+      const title = page.getByRole('textbox', { name: 'Main headline', exact: true });
       await title.fill('');
       const refused = paneOf(page).getByRole('alert');
       await refused.waitFor({ timeout: ON_THE_PAGE });
-      assert.match(await refused.textContent(), /title/);
+      assert.match(await refused.textContent(), /headline/);
       assert.ok(await frameOf(page).getByRole('heading', { level: 1, name: `${POST}, changed` }).isVisible(), 'the last good page stands');
       await title.fill(`${POST}, again`);
       await frameOf(page).getByRole('heading', { level: 1, name: `${POST}, again` }).waitFor({ timeout: ON_THE_PAGE });
@@ -223,7 +224,7 @@ describe('the live preview', () => {
     });
 
     test('goes on showing what is typed after that', async () => {
-      const title = page.getByRole('textbox', { name: 'Title', exact: true });
+      const title = page.getByRole('textbox', { name: 'Main headline', exact: true });
       await title.fill(`${POST}, still here`);
       await frameOf(page).getByRole('heading', { level: 1, name: `${POST}, still here` }).waitFor({ timeout: ON_THE_PAGE });
     });
@@ -237,7 +238,7 @@ describe('the live preview', () => {
       const content = Buffer.from(JSON.stringify({ rules: [{ from: '/an-old-address/', to: '/a-new-address/', status: 302 }] })).toString('base64');
       assert.equal((await fetch(file, { method: 'PUT', headers, body: JSON.stringify({ content, sha, message: 'A rule' }) })).status, 200);
       const { request } = page.context();
-      const title = page.getByRole('textbox', { name: 'Title', exact: true });
+      const title = page.getByRole('textbox', { name: 'Main headline', exact: true });
       for (let tried = 0; ; tried += 1) {
         await title.fill(`${POST}, ${tried}`);
         await page.waitForTimeout(3000);
@@ -347,11 +348,11 @@ describe('the live preview', () => {
 
     test('says what it lacks while it can have no page, and shows none', async () => {
       await newEntry('articles');
-      await page.getByRole('textbox', { name: 'Title', exact: true }).fill('An article with no category');
+      await page.getByRole('textbox', { name: 'Working name', exact: true }).fill('An article with no main headline');
       const refused = paneOf(page).getByRole('alert');
       await refused.waitFor({ timeout: ON_THE_PAGE });
       assert.match(await refused.textContent(), /no page to show/);
-      assert.match(await refused.textContent(), /categories/);
+      assert.match(await refused.textContent(), /headline/);
       assert.equal(await paneOf(page).locator('iframe').count(), 0);
     });
   });

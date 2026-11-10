@@ -41,11 +41,11 @@ describe('the form in Sveltia', () => {
 
   after(() => site?.close());
 
-  test('a page cannot be made from another page, but an article can make a category', async () => {
+  test('a page cannot be made from another page, but an article can make an author, a category and a topic', async () => {
     await newEntry('pages');
     assert.equal(await page.getByRole('button', { name: /Add.*Page/ }).count(), 0);
     await newEntry('articles');
-    await page.getByRole('button', { name: /Add.*Category/ }).first().waitFor();
+    for (const name of [/Add.*Author/, /Add.*Category/, /Add.*Topic/]) await page.getByRole('button', { name }).first().waitFor();
     assert.equal(await page.getByRole('button', { name: /Add.*Article/ }).count(), 0);
   });
 
@@ -177,9 +177,9 @@ describe('the interface language in Sveltia', () => {
     await page.getByRole('button', { name: 'Arbeta med test-repo' }).click();
     await page.getByText('Artiklar', { exact: true }).first().waitFor();
     await newArticle();
-    await page.getByRole('textbox', { name: 'Titel', exact: true }).waitFor();
+    await page.getByRole('textbox', { name: 'Arbetsnamn', exact: true }).waitFor();
     await page.getByRole('button', { name: 'Spara', exact: true }).waitFor();
-    assert.equal(await page.getByRole('textbox', { name: 'Title', exact: true }).count(), 0);
+    assert.equal(await page.getByRole('textbox', { name: 'Working name', exact: true }).count(), 0);
   });
 
   test('shows the core\'s settings groups in it, Breadcrumbs among them, with their headings, labels and help', async () => {
@@ -191,9 +191,9 @@ describe('the interface language in Sveltia', () => {
     await choose({ menu: 'Visa användarkontomeny', settings: 'Inställningar', language: 'Språk', select: 'Välj språk' }, /English \(UK\)/);
     await page.getByText('Articles', { exact: true }).first().waitFor();
     await newArticle();
-    await page.getByRole('textbox', { name: 'Title', exact: true }).waitFor();
+    await page.getByRole('textbox', { name: 'Working name', exact: true }).waitFor();
     await page.getByRole('button', { name: 'Save', exact: true }).waitFor();
-    assert.equal(await page.getByRole('textbox', { name: 'Titel', exact: true }).count(), 0);
+    assert.equal(await page.getByRole('textbox', { name: 'Arbetsnamn', exact: true }).count(), 0);
     await breadcrumbs({ heading: 'Breadcrumbs', description: 'Whether a page\'s breadcrumbs end with the page itself', perType: 'By type of post', articles: 'Articles', label: 'The page itself last', help: 'Off, the breadcrumbs end at the level above the page.' });
     assert.equal(await bar('Brödsmulor').count(), 0);
   });
@@ -201,10 +201,10 @@ describe('the interface language in Sveltia', () => {
   test('stays the editor\'s at the next visit, and Automatic gives the site\'s again', async () => {
     await page.reload();
     await newArticle();
-    await page.getByRole('textbox', { name: 'Title', exact: true }).waitFor();
+    await page.getByRole('textbox', { name: 'Working name', exact: true }).waitFor();
     await choose({ menu: 'Show Account Menu', settings: 'Settings', language: 'Language', select: 'Select Language' }, 'Automatic');
     await newArticle();
-    await page.getByRole('textbox', { name: 'Titel', exact: true }).waitFor();
+    await page.getByRole('textbox', { name: 'Arbetsnamn', exact: true }).waitFor();
     await page.getByRole('button', { name: 'Spara', exact: true }).waitFor();
   });
 
@@ -220,6 +220,7 @@ describe('the body field, the preview and the publish status in the interface la
   // What each says, by the interface language, and Sveltia's own words for its menus there.
   const SWEDISH = {
     title: 'Titel',
+    pages: 'Sidor',
     toggle: 'Visa Markdown',
     image: 'Välj bild…',
     find: 'Hitta en text på sidan',
@@ -231,6 +232,7 @@ describe('the body field, the preview and the publish status in the interface la
   };
   const ENGLISH = {
     title: 'Title',
+    pages: 'Pages',
     toggle: 'Show Markdown',
     image: 'Choose an image…',
     find: 'Find a text on the page',
@@ -251,8 +253,8 @@ describe('the body field, the preview and the publish status in the interface la
     await page.locator('.konzilo-body-visual .ProseMirror, .konzilo-tree-host').first().waitFor();
   };
   // Sveltia's own choice of language, in its preferences, from the list of pages, which shows
-  // again once Sveltia has signed in anew.
-  const choose = async ({ sveltia }, option) => {
+  // again, named in the language chosen, `to`, once Sveltia has signed in anew.
+  const choose = async ({ sveltia }, option, to) => {
     await page.goto(`${origin()}/#/collections/pages`);
     await page.getByRole('button', { name: sveltia.menu }).click();
     await page.getByRole('menuitem', { name: sveltia.settings }).click();
@@ -261,7 +263,7 @@ describe('the body field, the preview and the publish status in the interface la
     const loaded = page.waitForEvent('load');
     await page.getByRole('option', { name: option }).click();
     await loaded;
-    await page.getByText('Pages', { exact: true }).first().waitFor();
+    await page.getByText(to.pages, { exact: true }).first().waitFor();
   };
   // Every text of the body field, the image field, the structure field, the preview and the
   // publish status in one language, `words`, beside Sveltia's own in it.
@@ -315,7 +317,8 @@ describe('the body field, the preview and the publish status in the interface la
       return route.fulfill({ status: 200, contentType: 'text/html', body: '<h1>The page</h1>', headers: { 'content-security-policy': `frame-ancestors ${origin()}` } });
     });
     await page.getByRole('button', { name: 'Arbeta med test-repo' }).click();
-    await page.getByText('Pages', { exact: true }).first().waitFor();
+    // The built-in pages are named in the interface language.
+    await page.getByText(SWEDISH.pages, { exact: true }).first().waitFor();
   }, { timeout: 120_000 });
 
   after(() => site?.close());
@@ -325,12 +328,12 @@ describe('the body field, the preview and the publish status in the interface la
   });
 
   test('are all in English once the editor chooses English', async () => {
-    await choose(SWEDISH, /English \(UK\)/);
+    await choose(SWEDISH, /English \(UK\)/, ENGLISH);
     await speaks(ENGLISH);
   });
 
   test('are all in Swedish once the editor chooses Swedish, in the same English browser', async () => {
-    await choose(ENGLISH, /svenska/i);
+    await choose(ENGLISH, /svenska/i, SWEDISH);
     await speaks(SWEDISH);
   });
 
