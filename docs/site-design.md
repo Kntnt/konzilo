@@ -225,3 +225,5 @@ The current page is a link with `[aria-current=page]`, in an `li` with no class.
 ### Breadcrumbs
 
 They have no class of their own: `nav[aria-label] > ol > li`, the last with `[aria-current=page]`. A design can style them through its own wrapper, or use its own component with `breadcrumbs()`.
+
+Whether they end with the page itself is the type's setting, in the group `breadcrumbs`, off by default. Off, `Breadcrumbs` ends at the level above the page, each level a link, and shows nothing for a page right under the start page. `breadcrumbs()` still gives the page's own level, last, with `hidden: true`, so that a design whose narrow form counts on that level can keep it in its markup and hide it, and the structured data always holds it.

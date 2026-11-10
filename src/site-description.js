@@ -44,7 +44,20 @@ export const CORE_FIELDS = Object.freeze({
   modified: Object.freeze([]),
   excerpt: Object.freeze(['required']),
   image: Object.freeze(['required']),
+  // The parts of an article (article-parts.js), each a text but the teaser: the post's
+  // name in breadcrumbs, the headline's eyebrow, main headline and subheadline, the
+  // standfirst, and the teaser, which shows the post elsewhere, with its image, headline
+  // and text.
+  breadcrumb: Object.freeze([]),
+  eyebrow: Object.freeze([]),
+  headline: Object.freeze(['required']),
+  subheadline: Object.freeze([]),
+  standfirst: Object.freeze(['required']),
+  teaser: Object.freeze([]),
 });
+
+// The core's fields that hold a plain text, which the intake writes as one.
+export const TEXT_FIELDS = Object.freeze(['excerpt', 'breadcrumb', 'eyebrow', 'headline', 'subheadline', 'standfirst']);
 
 // The value types of the site's own fields and settings, and the editor
 // controls each may be shown with. A post and an image are a site setting's
@@ -89,12 +102,15 @@ export const TRANSLATION_KEY = 'translationKey';
 // a type's fields, which takes no keys. These are the frontmatter's `seo` map's
 // keys, in the map's order.
 export const SEO_FIELD = 'seo';
-export const SEO_KEYS = Object.freeze(['title', 'breadcrumb', 'description', 'socialTitle', 'socialDescription', 'socialImage', 'socialImageAlt', 'schema', 'noindex', 'nofollow']);
-// How a source file holds them, in the parts an editor sees: not the content file's flat map.
+export const SEO_KEYS = Object.freeze(['title', 'description', 'socialTitle', 'socialDescription', 'socialImage', 'socialImageAlt', 'schema', 'noindex', 'nofollow']);
+// How a source file holds them: in three groups, as an editor sees them, each a key of
+// the source file's own beside the post's fields, and not as the content file's flat
+// map. Each group's keys as the source names them, with the key each is written under;
+// the sharing image is { src, alt }, written as `socialImage` and `socialImageAlt`.
 export const SEO_PARTS = Object.freeze({
-  search: Object.freeze(['title', 'description', 'breadcrumb']),
-  sharing: Object.freeze(['socialTitle', 'socialDescription', 'socialImage', 'socialImageAlt']),
-  advanced: Object.freeze(['schema', 'noindex', 'nofollow']),
+  search: Object.freeze({ title: 'title', description: 'description', noindex: 'noindex', nofollow: 'nofollow' }),
+  sharing: Object.freeze({ image: 'socialImage', title: 'socialTitle', description: 'socialDescription' }),
+  structured: Object.freeze({ schema: 'schema' }),
 });
 
 // The site's identity: its title, logo and site icon, which settings.json holds
@@ -964,6 +980,10 @@ function fieldOf(name, field, path, taxonomies, problems) {
     problems.push(`${path}: a post's translation set is kept under this name; it is not declared`);
     return null;
   }
+  if (Object.hasOwn(SEO_PARTS, name)) {
+    problems.push(`${path}: a source file keeps a group of the search and sharing fields under this name; give the field another`);
+    return null;
+  }
   if (!isObject(field)) {
     problems.push(`${path}: must be an object`);
     return null;
@@ -981,10 +1001,12 @@ function fieldOf(name, field, path, taxonomies, problems) {
     return { name, kind: 'seo', keys: SEO_KEYS, required: false };
   }
   if (Object.hasOwn(field, 'taxonomy')) {
-    onlyKeys(field, ['taxonomy', 'required'], path, problems);
+    onlyKeys(field, ['taxonomy', 'required', 'most'], path, problems);
     const taxonomy = Object.hasOwn(taxonomies, field.taxonomy) ? taxonomies[field.taxonomy] : null;
     if (!taxonomy) problems.push(`${path}.taxonomy: ${JSON.stringify(field.taxonomy)} is not a taxonomy the site description declares`);
-    return { name, kind: 'terms', taxonomy, required: flag(field.required, `${path}.required`, problems) };
+    const most = field.most === undefined ? null : Number.isSafeInteger(field.most) && field.most > 0 ? field.most : undefined;
+    if (most === undefined) problems.push(`${path}.most: must be a whole number from 1, the most terms a post takes`);
+    return { name, kind: 'terms', taxonomy, required: flag(field.required, `${path}.required`, problems), most: most ?? null };
   }
   return metaField(name, field, path, problems);
 }

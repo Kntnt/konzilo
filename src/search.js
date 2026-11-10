@@ -13,7 +13,9 @@ import { createHmac } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { htmlToHast } from 'satteri';
+import { registryOf } from './astro/directives.js';
 import { readContentFile } from './astro/reader.js';
+import { ownSummary } from './astro/summary.js';
 import { publicAddress } from './format/addresses.js';
 import { siteDescription } from './site-description.js';
 
@@ -66,11 +68,11 @@ export function searchDocuments({ site, content }) {
     if (!type.search) continue;
     const seo = type.fields.find((field) => field.kind === 'seo');
     for (const { id, path, language } of entriesOf(join(content, type.collection), type, several ? described.languages : null)) {
-      const { data, html } = readContentFile(readFileSync(join(content, type.collection, `${id}.md`), 'utf8'));
+      const { data, html } = readContentFile(readFileSync(join(content, type.collection, `${id}.md`), 'utf8'), { known: registryOf(described) });
       if (seo && data[seo.name]?.noindex === true) continue;
       const document = {
         id: `${type.collection}/${id}`,
-        title: data.title,
+        title: data[type.fields.find((field) => field.kind === 'headline')?.name] || data.title,
         address: publicAddress(type, path, language),
         type: type.name,
         label: type.label,
@@ -78,8 +80,11 @@ export function searchDocuments({ site, content }) {
       for (const field of type.fields) {
         const value = data[field.name];
         if (field.kind === 'date' && value instanceof Date) document.date = Math.floor(value.valueOf() / 1000);
-        if (field.kind === 'excerpt' && typeof value === 'string' && value !== '') document.excerpt = value;
       }
+      // What the post says of itself in a sentence: its excerpt, else its teaser's text, else
+      // its standfirst, as its summary is (summary.js).
+      const excerpt = ownSummary(data);
+      if (excerpt !== '') document.excerpt = excerpt;
       document.body = plainText(html);
       for (const field of type.fields) {
         if (field.kind !== 'terms' || !field.taxonomy) continue;

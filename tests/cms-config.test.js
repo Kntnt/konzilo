@@ -216,11 +216,12 @@ test('holds search and sharing per language on a site in several', () => {
     if (typeof type.address === 'string') type.address = { sv_SE: type.address, en_GB: type.address.replace(/^\/(?=[a-z]+\/)/, '/en-') };
   }
   const several = cmsConfig(siteDescription(declared), place);
-  const seo = several.collections.find((one) => one.name === 'articles').fields.find((one) => one.name === 'seo');
-  assert.equal(seo.i18n, true);
-  for (const part of seo.fields) {
-    assert.equal(part.i18n, true);
-    for (const one of part.fields) assert.equal(one.i18n, true);
+  const fields = several.collections.find((one) => one.name === 'articles').fields;
+  const groups = fields.filter((one) => ['search', 'sharing', 'structured'].includes(one.name));
+  assert.deepEqual(groups.map((one) => one.name), ['search', 'sharing', 'structured']);
+  for (const group of groups) {
+    assert.equal(group.i18n, true);
+    for (const one of group.fields) assert.equal(one.i18n, true);
   }
 });
 

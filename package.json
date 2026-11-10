@@ -12,6 +12,7 @@
   "exports": {
     "./astro": "./src/astro/index.js",
     "./astro/*.astro": "./src/astro/*.astro",
+    "./article-parts": "./src/format/article-parts.js",
     "./astro/breadcrumbs": "./src/astro/breadcrumbs.js",
     "./astro/helpers": "./src/astro/helpers.js",
     "./astro/post-lists": "./src/astro/post-lists.js",

@@ -26,13 +26,21 @@ const LEFT_OUT = new Set(['figure', 'pre', 'template', 'script', 'style', 'img']
 // Elements whose text stands apart from the text around them.
 const BLOCKS = new Set(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'blockquote', 'table', 'tr', 'td', 'th', 'div', 'section', 'br', 'hr', 'dt', 'dd']);
 
-// The summary of an entry as Astro hands a template one: `data.excerpt`, the
-// excerpt, when the post has one, else its `body`, the content file's
-// Markdown. Spaces, line breaks included, collapse to one.
+// The summary of an entry as Astro hands a template one: what the post says
+// of itself, ownSummary(), when it says anything, else its `body`, the
+// content file's Markdown. Spaces, line breaks included, collapse to one.
 export function summary({ data = {}, body = '' }) {
-  const excerpt = collapse(typeof data.excerpt === 'string' ? data.excerpt : '');
-  if (excerpt !== '') return excerpt;
+  const own = ownSummary(data);
+  if (own !== '') return own;
   return cut(plainText(body), SUMMARY_LENGTH);
+}
+
+// What a post says of itself in a sentence, by its frontmatter `data`: its
+// excerpt, else its teaser's text, else its standfirst, its spaces collapsed;
+// nothing when it says none of them.
+export function ownSummary(data = {}) {
+  const found = [data.excerpt, data.teaser?.text, data.standfirst].find((one) => typeof one === 'string' && one.trim() !== '');
+  return collapse(found ?? '');
 }
 
 // A body's plain text, as the site renders it, a space between blocks.

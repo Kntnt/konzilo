@@ -199,9 +199,13 @@ The keys come in this order, each on one line: `title`; then each field the type
 | `date` | `"date": {}` | When the post was published, to the second in UTC, unquoted: `2026-10-20T08:00:00Z`. Always there. |
 | `modified` | `"modified": {}` | When the post last changed, as `date`. Always there. |
 | `excerpt` | `"excerpt": {}` | The post's own summary, a JSON string without spaces at its ends. Plain text. |
-| `image` | `"image": {}` | The featured image: `{"src":"../media/<name>","alt":"…"}`, its master ([Masters](#masters)) and its alt text, which it never goes without. |
-| the terms of a taxonomy | `"categories": { "taxonomy": "category" }` | The slugs of the post's terms, sorted, as a JSON list: `["harbours","lanterns"]`, `[]` for none; each names a term's file ([A term](#a-term)). A required field, `"required": true`, is never empty. |
-| `seo` | `"seo": {}` | The search and sharing fields the post sets, as one JSON object, in this order, each only when set: `title`, the title tag; `breadcrumb`, the post's name in breadcrumbs in place of its title; `description`, the meta description; `socialTitle` and `socialDescription`, for a shared link; `socialImage`, a master as the featured image's `src`, with `socialImageAlt`, its alt text; `schema`, a structured data type, one of `Article`, `BlogPosting`, `NewsArticle`, `WebPage`, `AboutPage`, `ContactPage` and `CollectionPage`; and `noindex` and `nofollow`, `true` when set. No key when the post sets none. |
+| `image` | `"image": {}` | The featured image, an article's main image: `{"src":"../media/<name>","alt":"…"}`, its master ([Masters](#masters)) and its alt text, which it never goes without. |
+| `breadcrumb` | `"breadcrumb": {}` | The post's name in breadcrumbs in place of its title, a JSON string without spaces at its ends. Plain text. |
+| `eyebrow`, `headline` and `subheadline` | `"headline": { "required": true }` | An article's headline in its three parts: the eyebrow above it, the main headline, and the subheadline under it, each a JSON string without spaces at its ends. Plain text. Only the main headline may be required. |
+| `standfirst` | `"standfirst": {}` | An article's standfirst, between its headline and its body, a JSON string without spaces at its ends. Plain text. |
+| `teaser` | `"teaser": {}` | What shows the post elsewhere, in a list or a search result, as one JSON object, each part only when the post sets it: `image`, as the featured image is written; `headline`; and `text`. Plain text. No key when the post sets none. |
+| the terms of a taxonomy | `"categories": { "taxonomy": "category" }` | The slugs of the post's terms, sorted, as a JSON list: `["harbours","lanterns"]`, `[]` for none; each names a term's file ([A term](#a-term)). A required field, `"required": true`, is never empty, and one with `"most": 1`, or another whole number, holds at most that many. |
+| `seo` | `"seo": {}` | The search and sharing fields the post sets, as one JSON object, in this order, each only when set: `title`, the title tag; `description`, the meta description; `socialTitle` and `socialDescription`, for a shared link; `socialImage`, a master as the featured image's `src`, with `socialImageAlt`, its alt text; `schema`, a structured data type, one of `Article`, `BlogPosting`, `NewsArticle`, `WebPage`, `AboutPage`, `ContactPage` and `CollectionPage`; and `noindex` and `nofollow`, `true` when set. No key when the post sets none. |
 | a field of the site's own | `{ "type": … }` | By its `type`, below. |
 | `translationKey` | Not declared. | On a site in several languages: 16 lowercase hexadecimal digits that a post shares with its translations ([Several languages](#several-languages)). |
 | `oldAddresses` | Not declared. | The addresses the post had before, which redirect to it, sorted, as a JSON list ([Old and other addresses](#old-and-other-addresses)). |
@@ -751,7 +755,7 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
 
 1. **The site's identity**, each only when it is set: `title`, the site's title; `logo`, `{ "src": "media/<name>", "alt": "…" }`, its alt text only when it has one; and `icon`, the site icon, `{ "src": "media/<name>" }`, square, from which every build makes the site's icons.
 2. **The site's own settings**, each by its name in the order the site description declares them, by its `type`: a `string` as a string, a `number` and an `integer` as a number, a `boolean` as `true` or `false`, always there, a `date` as a day, `"YYYY-MM-DD"`, quoted; a `post`, the choice of a post, as `{ "title": "…", "url": "…" }`, the post's title and current address, left out while the post has no page; and an `image`, the choice of an image, as `{ "src": "media/<name>", "alt": "…" }`, as the logo. A setting without a value is left out.
-3. **Konzilo's own settings groups** that apply to the site, each an object under its name: `search`, the search and sharing settings; `ai`, AI visibility; `consent`, the consent texts; `tagManager`, what the public site loads to measure visits, `None`, `Matomo Tag Manager` or `Matomo`, Matomo's own tracker, with the instance's `address`, the `container`'s ID, the `site`'s ID in Matomo, the tracker's `cookieDomain` and `timeZone`, the site's time zone in Matomo by its IANA name, and who runs the instance, `provider`, each only once given; `legalPages`, the legal pages, each a choice of a post; `forms`, each declared form's confirmation text, by the form's name; and `feeds`, what the site's feeds hold, `item`, `"The summary"` or `"The whole text"`, and `posts`, a whole number from 1. The 404 page an Admin chooses is no setting here: it is `not-found.md`. A group holds its settings, then its named parts, each an object under its name, then `types`, a part for each post type, by the type's name. A setting with a default is always there. [`src/format/settings-groups.json`](src/format/settings-groups.json) describes each group's settings.
+3. **Konzilo's own settings groups** that apply to the site, each an object under its name: `search`, the search and sharing settings; `breadcrumbs`, whether a page's breadcrumbs end with the page itself, `current`, by type; `ai`, AI visibility; `consent`, the consent texts; `tagManager`, what the public site loads to measure visits, `None`, `Matomo Tag Manager` or `Matomo`, Matomo's own tracker, with the instance's `address`, the `container`'s ID, the `site`'s ID in Matomo, the tracker's `cookieDomain` and `timeZone`, the site's time zone in Matomo by its IANA name, and who runs the instance, `provider`, each only once given; `legalPages`, the legal pages, each a choice of a post; `forms`, each declared form's confirmation text, by the form's name; and `feeds`, what the site's feeds hold, `item`, `"The summary"` or `"The whole text"`, and `posts`, a whole number from 1. The 404 page an Admin chooses is no setting here: it is `not-found.md`. A group holds its settings, then its named parts, each an object under its name, then `types`, a part for each post type, by the type's name. A setting with a default is always there. [`src/format/settings-groups.json`](src/format/settings-groups.json) describes each group's settings.
 
 ```json file=settings.json
 {
@@ -803,6 +807,16 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
         "socialTitle": "{{ post.title }}",
         "socialDescription": "{{ post.auto_description }}",
         "schema": "WebPage"
+      }
+    }
+  },
+  "breadcrumbs": {
+    "types": {
+      "article": {
+        "current": false
+      },
+      "page": {
+        "current": false
       }
     }
   },
@@ -1108,7 +1122,7 @@ An ID is text, the name of the post's source file, such as `96ba709ec918`, which
         "/harbour-lights/"
       ],
       "title": "Harbour lights & lanterns",
-      "source": "a8efbd67b32321b2fd4ed29f8c1ce3f8527b9b9d742ca7e23f3c9ea3c6f5857c",
+      "source": "24509a046e939b1f49db8dafe1fba48b276e0e290d21068280cb0ace5cace672",
       "published": "d231912b13020756583f55539fd31d904788a8eea83dc987471426abbda5ce00",
       "taken": "2026-10-20T08:00:00Z",
       "modified": "2026-10-21T09:30:00Z",
@@ -1389,7 +1403,7 @@ The source files are what the intake reads: what editors save, one file per thin
 | `services.json` | `services`, the services an Admin declares. |
 | `media/<name>` | Originals, as uploaded, in Git LFS. |
 
-A post's frontmatter holds `title`; `slug`, made from the title if left empty; `parent`, the ID of a post of its type, in a hierarchical type; `status`, `draft`, `scheduled` or `published`, a draft when left out; `date`, which also says when a scheduled post goes live; each field its type declares, a taxonomy's terms by their IDs, an image by `/media/<name>`; `otherAddresses`, each `{ "address", "answer" }`; and on a site in several languages `translationKey` where the same ID does not tie a translation set. What the intake derives is in no source file: `modified`, `oldAddresses`, masters, `consent.json` and `not-found.md`.
+A post's frontmatter holds `title`; `slug`, made from the title if left empty; `parent`, the ID of a post of its type, in a hierarchical type; `status`, `draft`, `scheduled` or `published`, a draft when left out; `date`, which also says when a scheduled post goes live; each field its type declares, a taxonomy's terms by their IDs, a list or, for a field of one term at most, the ID alone, an image by `/media/<name>`; where the type has the search and sharing fields, `search` (`title`, `description`, `noindex`, `nofollow`), `sharing` (`image`, `{ "src", "alt" }`, `title`, `description`) and `structured` (`schema`), three groups the intake writes as the one `seo` map, and never `seo` itself, which is refused; `otherAddresses`, each `{ "address", "answer" }`; and on a site in several languages `translationKey` where the same ID does not tie a translation set. What the intake derives is in no source file: `modified`, `oldAddresses`, masters, `consent.json` and `not-found.md`.
 
 In a body, a link to a post or to a term's page is `[text](konzilo:<ID>)`, with `#<anchor>` or not, and `konzilo:<tag>/<ID>` for one in another language. An image is `![alt](/media/<name>)`. A post list names its terms by their IDs. A file named with a leading dot, another kind of file, and a folder no collection names are left alone.
 

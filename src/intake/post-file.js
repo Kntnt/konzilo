@@ -9,7 +9,7 @@ import { ownValue } from '../format/frontmatter.js';
 import { readPostList, SECOND_PAGED_LIST } from '../format/post-list.js';
 import { isSource, OTHER_ANSWERS, SHOW } from '../format/redirects.js';
 import rules from '../format/rules.json' with { type: 'json' };
-import { declaredNames, postListModel, SCHEMA_TYPES, SEO_KEYS, SEO_PARTS, siteRules } from '../site-description.js';
+import { declaredNames, postListModel, SCHEMA_TYPES, SEO_KEYS, SEO_PARTS, siteRules, TEXT_FIELDS } from '../site-description.js';
 import { sha256 } from './source.js';
 import { say } from './words.js';
 
@@ -56,16 +56,18 @@ const text = (value) => (value === undefined || value === null ? '' : typeof val
 // One frontmatter field's value: { yaml } to write it, {} to leave it out, or
 // { reason }. `images(address, field)` gives a master's address, or { reason }.
 function fieldValue(field, value, { images, terms }) {
+  if (TEXT_FIELDS.includes(field.kind)) {
+    const written = text(value)?.trim();
+    if (written === undefined || written === null) return { reason: say('field-text', { field: field.name }) };
+    if (MARKUP.test(written)) return { reason: say('field-markup', { field: field.name }) };
+    if (written === '') return field.required ? { reason: say('field-required', { field: field.name }) } : {};
+    return { yaml: JSON.stringify(written) };
+  }
   switch (field.kind) {
-    case 'excerpt': {
-      const written = text(value)?.trim();
-      if (written === undefined || written === null) return { reason: say('field-text', { field: field.name }) };
-      if (MARKUP.test(written)) return { reason: say('field-markup', { field: field.name }) };
-      if (written === '') return field.required ? { reason: say('field-required', { field: field.name }) } : {};
-      return { yaml: JSON.stringify(written) };
-    }
     case 'image':
       return featuredImage(field, value, images);
+    case 'teaser':
+      return teaserValue(field, value, images);
     case 'seo':
       return seoValue(field, value, images);
     case 'terms':
@@ -96,41 +98,77 @@ function featuredImage(field, value, images) {
   return { yaml: JSON.stringify({ src: master.src, alt }), warning: master.warning };
 }
 
+// The search and sharing fields, from the source's three groups (seoSource()), as the
+// content file's flat map, in SEO_KEYS's order. A sharing image comes with its alt text.
 function seoValue(field, value, images) {
   if (value === undefined || value === null) return {};
-  if (!isObject(value) || SEO_KEYS.some((key) => Object.hasOwn(value, key))) return { reason: say('seo-shape') };
-  const given = {};
-  const placeOf = {};
+  if (value.stale) return { reason: say('seo-shape') };
+  const written = {};
+  let warning;
   for (const [part, keys] of Object.entries(SEO_PARTS)) {
     const inPart = value[part];
     if (inPart === undefined || inPart === null) continue;
-    if (!isObject(inPart)) return { reason: say('seo-shape'), part: `seo.${part}` };
-    for (const key of keys) {
-      given[key] = inPart[key];
-      placeOf[key] = `seo.${part}.${key}`;
+    if (!isObject(inPart)) return { reason: say('seo-shape'), part };
+    for (const [key, as] of Object.entries(keys)) {
+      const one = inPart[key];
+      const place = `${part}.${key}`;
+      if (one === undefined || one === null || one === '' || one === false) continue;
+      if (as === 'noindex' || as === 'nofollow') {
+        if (one !== true) return { reason: say('seo-flag', { key: as }), part: place };
+        written[as] = true;
+      } else if (as === 'socialImage') {
+        const image = isObject(one) ? one : { src: one };
+        if (!image.src) continue;
+        const alt = text(image.alt)?.trim() ?? '';
+        if (alt === '') return { reason: say('seo-image-alt'), part: place };
+        const master = images(image.src, place);
+        if (master.reason) return { ...master, part: place };
+        written.socialImage = master.src;
+        written.socialImageAlt = alt;
+        warning = master.warning;
+      } else {
+        const trimmed = text(one)?.trim();
+        if (!trimmed) return { reason: say('seo-text', { key: as }), part: place };
+        if (as === 'schema' && !SCHEMA_TYPES.includes(trimmed)) return { reason: say('seo-schema', { value: trimmed, types: SCHEMA_TYPES.join(', ') }), part: place };
+        written[as] = trimmed;
+      }
     }
   }
+  const ordered = Object.fromEntries(SEO_KEYS.filter((key) => Object.hasOwn(written, key)).map((key) => [key, written[key]]));
+  return Object.keys(ordered).length === 0 ? {} : { yaml: JSON.stringify(ordered), warning };
+}
+
+// The source's search, sharing and structured data groups, as seoValue() reads them, or
+// nothing when it has none; a source with the single `seo` map these replaced, which
+// would lose what it says without a word, { stale: true }.
+export function seoSource(fields) {
+  if (fields.seo !== undefined && fields.seo !== null) return { stale: true };
+  const parts = Object.keys(SEO_PARTS).filter((part) => fields[part] !== undefined && fields[part] !== null);
+  return parts.length === 0 ? undefined : Object.fromEntries(parts.map((part) => [part, fields[part]]));
+}
+
+// The teaser: its image with its alt text, its headline and its text, each only when given.
+function teaserValue(field, value, images) {
+  if (value === undefined || value === null) return {};
+  if (!isObject(value)) return { reason: say('field-text', { field: field.name }) };
   const written = {};
   let warning;
-  for (const key of SEO_KEYS) {
-    const one = given[key];
-    if (one === undefined || one === null || one === '' || one === false) continue;
-    if (key === 'noindex' || key === 'nofollow') {
-      if (one !== true) return { reason: say('seo-flag', { key }), part: placeOf[key] };
-      written[key] = true;
-    } else if (key === 'socialImage') {
-      const master = images(one, placeOf[key]);
-      if (master.reason) return { ...master, part: placeOf[key] };
-      written[key] = master.src;
-      warning = master.warning;
-    } else {
-      const trimmed = text(one)?.trim();
-      if (!trimmed) return { reason: say('seo-text', { key }), part: placeOf[key] };
-      if (key === 'schema' && !SCHEMA_TYPES.includes(trimmed)) return { reason: say('seo-schema', { value: trimmed, types: SCHEMA_TYPES.join(', ') }), part: placeOf[key] };
-      written[key] = trimmed;
-    }
+  const image = isObject(value.image) ? value.image : value.image ? { src: value.image } : null;
+  if (image?.src) {
+    const alt = text(image.alt)?.trim() ?? '';
+    if (alt === '') return { reason: say('image-alt'), part: `${field.name}.image` };
+    const master = images(image.src, `${field.name}.image`);
+    if (master.reason) return { ...master, part: `${field.name}.image` };
+    written.image = { src: master.src, alt };
+    warning = master.warning;
   }
-  if ((written.socialImage === undefined) !== (written.socialImageAlt === undefined)) return { reason: say('seo-image-alt'), part: 'seo.sharing.socialImageAlt' };
+  for (const key of ['headline', 'text']) {
+    const one = text(value[key]);
+    if (one === null) return { reason: say('field-text', { field: `${field.name}.${key}` }) };
+    const trimmed = one.trim();
+    if (MARKUP.test(trimmed)) return { reason: say('field-markup', { field: `${field.name}.${key}` }) };
+    if (trimmed !== '') written[key] = trimmed;
+  }
   return Object.keys(written).length === 0 ? {} : { yaml: JSON.stringify(written), warning };
 }
 
@@ -169,7 +207,7 @@ export function fieldsOf(post, context, derived = {}) {
       lines.push([field.name, derived.modified ?? '']);
       continue;
     }
-    const value = fieldValue(field, given, context);
+    const value = fieldValue(field, field.kind === 'seo' ? seoSource(post.fields) : given, context);
     if (value.reason) problems.push({ field: value.part ?? field.name, reason: value.reason });
     else if (value.yaml !== undefined) lines.push([field.name, value.yaml]);
     if (value.warning) warnings.push({ field: field.name, reason: value.warning });

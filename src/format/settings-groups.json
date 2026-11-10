@@ -198,6 +198,22 @@
       }
     }
   },
+  "breadcrumbs": {
+    "label": "Breadcrumbs",
+    "description": "Whether a page's breadcrumbs end with the page itself, by type. The structured data always holds the page itself; a page right under the start page has no breadcrumbs without it.",
+    "types": {
+      "only": "address",
+      "settings": {
+        "current": {
+          "label": "The page itself last",
+          "type": "boolean",
+          "control": "toggle",
+          "default": false,
+          "help": "Off, the breadcrumbs end at the level above the page."
+        }
+      }
+    }
+  },
   "ai": {
     "label": "AI visibility",
     "description": "How AI agents find the site's pages and may use them: which pages they get in Markdown, at the page's address with .md, and which of those llms.txt lists and llms-full.txt holds in full, for the start page and by type; the paths left out of all three; and the content signals robots.txt gives.",

@@ -6,7 +6,7 @@
 // empty string.
 
 import { IMAGE_LIBRARY_FOLDER } from '../format/masters.js';
-import { declaredNames, SCHEMA_TYPES, SEO_PARTS } from '../site-description.js';
+import { declaredNames, SCHEMA_TYPES } from '../site-description.js';
 import { inLanguage } from '../texts.js';
 import { BODY_WIDGET } from './body/widget.js';
 import { PUBLISHING_WIDGET } from './publishing/widget.js';
@@ -29,23 +29,27 @@ const TEXTS = {
   body: { en: 'Body', sv: 'Brödtext' },
   name: { en: 'Name', sv: 'Namn' },
   description: { en: 'Description', sv: 'Beskrivning' },
-  seo: { en: 'Search and sharing', sv: 'Sök och delning' },
-  seoPartSearch: { en: 'In search results', sv: 'I sökresultat' },
-  seoPartSharing: { en: 'When shared', sv: 'När det delas' },
-  seoPartAdvanced: { en: 'Advanced', sv: 'Avancerat' },
+  search: { en: 'Search', sv: 'Sök' },
+  sharing: { en: 'Sharing', sv: 'Delning' },
+  structured: { en: 'Structured data', sv: 'Strukturerad data' },
   seoFollows: { en: 'Left empty, the template for this type of post decides.', sv: 'Lämnas den tom bestämmer mallen för den här inläggstypen.' },
-  seoImageAltHint: { en: 'Needed with a sharing image.', sv: 'Krävs när det finns en delningsbild.' },
   seoTitle: { en: 'Title tag', sv: 'Titeltagg' },
-  seoBreadcrumb: { en: 'Name in breadcrumbs', sv: 'Namn i brödsmulor' },
-  seoBreadcrumbHint: { en: 'Instead of the title, when a shorter name fits better. The levels themselves follow from where the post sits.', sv: 'I stället för titeln, när ett kortare namn passar bättre. Själva nivåerna följer av var inlägget ligger.' },
   seoDescription: { en: 'Meta description', sv: 'Metabeskrivning' },
-  seoSocialTitle: { en: 'Sharing title', sv: 'Delningstitel' },
-  seoSocialDescription: { en: 'Sharing description', sv: 'Delningsbeskrivning' },
-  seoSocialImage: { en: 'Sharing image', sv: 'Delningsbild' },
-  seoSocialImageAlt: { en: 'Sharing image alt text', sv: 'Delningsbildens alternativtext' },
-  seoSchema: { en: 'Structured data type', sv: 'Typ av strukturerad data' },
+  seoSocialTitle: { en: 'Title', sv: 'Titel' },
+  seoSocialDescription: { en: 'Description', sv: 'Beskrivning' },
+  seoSocialImage: { en: 'Image', sv: 'Bild' },
+  seoSchema: { en: 'Type', sv: 'Typ' },
   seoNoindex: { en: 'Keep out of search engines', sv: 'Håll borta från sökmotorer' },
   seoNofollow: { en: 'Do not follow links', sv: 'Följ inte länkar' },
+  breadcrumb: { en: 'Breadcrumb', sv: 'Brödsmula' },
+  breadcrumbHint: { en: 'Instead of the title, when a shorter name fits better. The levels themselves follow from where the post sits.', sv: 'I stället för titeln, när ett kortare namn passar bättre. Själva nivåerna följer av var inlägget ligger.' },
+  eyebrow: { en: 'Eyebrow', sv: 'Dårrad' },
+  headline: { en: 'Main headline', sv: 'Huvudrubrik' },
+  subheadline: { en: 'Subheadline', sv: 'Nedryckare' },
+  standfirst: { en: 'Standfirst', sv: 'Ingress' },
+  teaser: { en: 'Teaser', sv: 'Puff' },
+  teaserHeadline: { en: 'Headline', sv: 'Rubrik' },
+  teaserText: { en: 'Text', sv: 'Text' },
   settings: { en: 'Site settings', sv: 'Webbplatsinställningar' },
   siteTitle: { en: 'Site title', sv: 'Webbplatsens titel' },
   logo: { en: 'Logo', sv: 'Logotyp' },
@@ -61,6 +65,9 @@ const TEXTS = {
   labelHint: { en: "The post's title, if left empty.", sv: 'Inläggets titel om du lämnar den tom.' },
   post: { en: 'Post', sv: 'Inlägg' },
   url: { en: 'Address', sv: 'Adress' },
+  otherPath: { en: 'Path', sv: 'Sökväg' },
+  otherPathHint: { en: "The path from the site's root, starting with /, such as /old-page/. Not a whole web address: the site can only answer at addresses of its own.", sv: 'Sökvägen från webbplatsens rot, med / först, till exempel /gammal-sida/. Inte en hel webbadress, eftersom webbplatsen bara kan svara på sina egna adresser.' },
+  otherPathPattern: { en: 'Write a path starting with /, such as /old-page/, not a whole web address.', sv: 'Skriv en sökväg som börjar med /, till exempel /gammal-sida/, inte en hel webbadress.' },
   perType: { en: 'By type of post', sv: 'Per inläggstyp' },
   otherAddresses: { en: 'Other addresses', sv: 'Andra adresser' },
   otherAddress: { en: 'Other address', sv: 'Annan adress' },
@@ -200,47 +207,61 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     return part(group.name, group.label, group.description, parts);
   };
 
-  // Closed, since an editor who sets none of it leaves the type's templates to say it, and in
-  // parts, since all of it open is a lot to take in (ADR 0029).
-  const seoField = (field) => {
-    const keys = {
-      title: { widget: 'string', hint: say('seoFollows') },
-      breadcrumb: { widget: 'string', hint: say('seoBreadcrumbHint') },
-      description: { widget: 'text' },
-      socialTitle: { widget: 'string', hint: say('seoFollows') },
-      socialDescription: { widget: 'text' },
-      socialImage: { widget: 'image' },
-      socialImageAlt: { widget: 'string', hint: say('seoImageAltHint') },
-      schema: { widget: 'select', options: [...SCHEMA_TYPES] },
-      noindex: { widget: 'boolean' },
-      nofollow: { widget: 'boolean' },
-    };
-    const onePart = (name, inPart) => ({
+  // Search, sharing and structured data: three groups of the source's own, beside the
+  // post's fields, closed, since an editor who sets none of it leaves the defaults to say it
+  // (ADR 0029). The content file holds them as one map (the intake's seoValue()).
+  const seoFields = () => {
+    const group = (name, fields) => ({
       name,
-      label: say(`seoPart${name[0].toUpperCase()}${name.slice(1)}`),
+      label: say(name),
       widget: 'object',
       required: false,
       accordion: true,
       collapsed: true,
       ...within(TRANSLATED),
-      fields: inPart.map((key) => ({
-        name: key,
-        label: say(`seo${key[0].toUpperCase()}${key.slice(1)}`),
-        required: false,
-        ...keys[key],
-        ...within(TRANSLATED),
-      })),
+      fields: fields.map((one) => ({ required: false, ...one, ...within(TRANSLATED) })),
     });
-    return {
-      name: field.name,
-      label: say('seo'),
-      widget: 'object',
-      required: false,
-      accordion: true,
-      collapsed: true,
-      ...within(TRANSLATED),
-      fields: Object.entries(SEO_PARTS).map(([name, inPart]) => onePart(name, inPart)),
-    };
+    return [
+      group('search', [
+        { name: 'title', label: say('seoTitle'), widget: 'string', hint: say('seoFollows') },
+        { name: 'description', label: say('seoDescription'), widget: 'text' },
+        { name: 'noindex', label: say('seoNoindex'), widget: 'boolean' },
+        { name: 'nofollow', label: say('seoNofollow'), widget: 'boolean' },
+      ]),
+      group('sharing', [
+        imageField('image', say('seoSocialImage'), { required: false }),
+        { name: 'title', label: say('seoSocialTitle'), widget: 'string', hint: say('seoFollows') },
+        { name: 'description', label: say('seoSocialDescription'), widget: 'text' },
+      ]),
+      group('structured', [
+        { name: 'schema', label: say('seoSchema'), widget: 'select', options: [...SCHEMA_TYPES] },
+      ]),
+    ];
+  };
+
+  // The teaser: what shows the post elsewhere, closed until an editor wants it otherwise.
+  const teaserField = (field) => ({
+    name: field.name,
+    label: say('teaser'),
+    widget: 'object',
+    required: false,
+    accordion: true,
+    collapsed: true,
+    ...within(TRANSLATED),
+    fields: [
+      imageField('image', say('file'), { required: false }),
+      { name: 'headline', label: say('teaserHeadline'), widget: 'string', required: false },
+      { name: 'text', label: say('teaserText'), widget: 'text', required: false },
+    ],
+  });
+
+  // A part of an article that is a text: its label, and its widget, a line or a text.
+  const PARTS = {
+    breadcrumb: { widget: 'string', hint: 'breadcrumbHint' },
+    eyebrow: { widget: 'string' },
+    headline: { widget: 'string' },
+    subheadline: { widget: 'string' },
+    standfirst: { widget: 'text' },
   };
 
   const postField = (field) => {
@@ -254,13 +275,25 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
       case 'image':
         return imageField('image', say('image'), { required: field.required === true, ...within(SAME_IN_EACH) });
       case 'seo':
-        return seoField(field);
+        return seoFields();
+      case 'teaser':
+        return teaserField(field);
+      case 'breadcrumb':
+      case 'eyebrow':
+      case 'headline':
+      case 'subheadline':
+      case 'standfirst': {
+        const { widget, hint } = PARTS[field.kind];
+        return { name: field.name, label: say(field.kind), widget, ...(hint ? { hint: say(hint) } : {}), ...required(field.required), ...within(TRANSLATED) };
+      }
       case 'terms':
+        // A field of one term at most is one choice or none, and its source holds a text.
         return {
           name: field.name,
-          label: field.taxonomy.plural,
+          label: field.most === 1 ? field.taxonomy.label : field.taxonomy.plural,
           ...relation(field.taxonomy.collection, 'name', { allow_add: true }),
-          multiple: true,
+          multiple: field.most !== 1,
+          ...(field.most > 1 ? { max: field.most } : {}),
           ...required(field.required),
           ...within(SAME_IN_EACH),
         };
@@ -280,7 +313,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     collapsed: true,
     ...within(SAME_IN_EACH),
     fields: [
-      { name: 'address', label: say('url'), widget: 'string' },
+      { name: 'address', label: say('otherPath'), widget: 'string', hint: say('otherPathHint'), pattern: ['^/(?!/)\\S*$', say('otherPathPattern')] },
       {
         name: 'answer',
         label: say('answer'),
@@ -322,7 +355,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
       ...(type.hierarchical
         ? [{ name: 'parent', label: say('parent'), ...relation(type.collection, 'title'), required: false, ...within(SAME_IN_EACH) }]
         : []),
-      ...type.fields.map(postField).filter(Boolean),
+      ...type.fields.flatMap((field) => postField(field) ?? []),
       ...(type.address === null ? [] : [otherAddressesField()]),
     ],
   });

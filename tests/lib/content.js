@@ -100,6 +100,7 @@ export function writeSite(folder, declared, posts, { menus = {}, settings = {}, 
       else if (field.kind === 'excerpt' && one.excerpt) front[field.name] = one.excerpt;
       else if (field.kind === 'image' && one.image) front[field.name] = one.image;
       else if (field.kind === 'seo' && one.seo) front[field.name] = one.seo;
+      else if (['breadcrumb', 'eyebrow', 'headline', 'subheadline', 'standfirst', 'teaser'].includes(field.kind) && one[field.kind] !== undefined) front[field.name] = one[field.kind];
       else if (field.kind === 'terms') {
         const terms = one.terms?.[field.taxonomy?.name] ?? [];
         const folder = site.languages.length > 1 ? `${site.languages.find(({ locale }) => locale === localeOf(one)).tag}/` : '';
@@ -198,6 +199,7 @@ export function writeContent(repository, posts, settingsPath = join(repository, 
       type: site.types[one.type] ? one.type : Object.keys(site.types)[0],
       title: decoded(one.title),
       seo: Object.keys(seo).length > 0 ? seo : undefined,
+      breadcrumb: first('breadcrumb') || undefined,
       image: thumbnail ? { src: `../media/${thumbnail}`, alt: first('image_alt') ?? '' } : undefined,
       oldAddresses: old.length > 0 ? old : undefined,
       fields,
