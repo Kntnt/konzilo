@@ -32,6 +32,10 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Site exception**: The additional permission to the license, `SITE-EXCEPTION.md`, that leaves what a site adds to the core, its content and its built pages outside the license. _Avoid_: linking exception.
 
+**Stand-alone work**: Work that adds to Konzilo from a repository or a package of its own, through the site interfaces, and is its author's alone.
+
+**Contributor agreement**: `CONTRIBUTOR-AGREEMENT.md`, by which the author of work that goes into the core keeps its copyright and gives Kntnt Sweden AB a license to release it on any terms. _Avoid_: copyright assignment.
+
 **Site description**: The one file in a site repository, `site-description.json`, that declares the content model. _Avoid_: schema, config.
 
 **Content model**: A site's post types, taxonomies, fields, allowed elements, menus and settings.

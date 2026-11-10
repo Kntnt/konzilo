@@ -5,6 +5,7 @@ Harnesses on this machine run without permission prompts. These gates are the on
 **Stop and ask Thomas first:**
 
 - creating, renaming or publishing a GitHub repository; choosing or changing the license;
+- merging work by anyone outside Kntnt, whose author must first be in `CONTRIBUTORS.md` (`CONTRIBUTING.md`);
 - anything that costs money: a server outside the Hetzner project `kntnt-lab`, a domain, a paid plan, GitHub Actions minutes beyond the included ones;
 - DNS changes outside the test zone, `konzilo.org`;
 - any server, repository or service other than this repository and `kntnt-lab`;
