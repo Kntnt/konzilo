@@ -44,6 +44,8 @@ When a field asks the page to show a block, the page opens the `<details>` the b
 |---|---|---|
 | `.konzilo-preview-part` | What holds a component's mark, with `display: contents` | |
 
+The live preview draws a page again after each change under a view transition across documents, in a browser that has them, which the core asks for in a sheet of its own, `@view-transition { navigation: auto; }` (ADR 0067). A design's styles meet it in the preview alone: an element a design gives a `view-transition-name` moves from its place on the old page to its place on the new, its `::view-transition-*` rules apply, and a name two elements of one page share skips the transition, so that the page is drawn again as a reload draws it. A design that wants the page simply faded from old to new names nothing in the preview.
+
 ### Images and galleries in a body
 
 | Class | On | State |
