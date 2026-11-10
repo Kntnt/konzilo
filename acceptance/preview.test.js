@@ -1,13 +1,14 @@
 // The live preview in a site in Compose, as an editor and a stranger meet it: nothing without
 // a session, the page itself in the pane once signed in, a draft on the page within seconds
-// of a pause, a refusal above the last good page, and none of what the public site offers
-// the world (ADR 0032).
+// of a pause, drawn again in place, a refusal above the last good page, and none of what the
+// public site offers the world (ADR 0032, ADR 0067).
 
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
 
 import { sharp } from '../tests/lib/images.js';
 import { ENGINES, openEditor, signIn } from './lib/editor.js';
+import { framesWhile, isBlank } from './lib/frames.js';
 import { makeSite } from './lib/site.js';
 
 const POST = 'Northern islands and the meadow';
@@ -28,6 +29,35 @@ describe('the live preview', () => {
   const openPost = async (page, title = POST) => {
     await page.getByText(title).first().click();
     await page.locator('.konzilo-body-visual .ProseMirror').waitFor({ timeout: 30_000 });
+  };
+  // A new title typed in the form, with the page scrolled a little, and every frame of the pane
+  // while the page is drawn again with it, until a moment after it shows. The draft the pane sends
+  // on opening reloads the page once, at a moment of its own, so a first change goes before.
+  const drawnAgain = async (page, changed) => {
+    const title = page.getByRole('textbox', { name: 'Title', exact: true });
+    const shown = frameOf(page).locator('html');
+    await title.fill(`${changed}, at first`);
+    await frameOf(page).getByRole('heading', { level: 1, name: `${changed}, at first` }).waitFor({ timeout: ON_THE_PAGE });
+    await shown.evaluate(() => new Promise((resolve) => {
+      if (document.readyState === 'complete') resolve();
+      else window.addEventListener('load', resolve, { once: true });
+    }));
+    await shown.evaluate(() => window.scrollTo(0, 200));
+    const scrolled = await shown.evaluate(() => window.scrollY);
+    const frames = await framesWhile(page, paneOf(page).locator('iframe'), async () => {
+      await title.fill(changed);
+      await frameOf(page).getByRole('heading', { level: 1, name: changed }).waitFor({ timeout: ON_THE_PAGE });
+      await page.waitForTimeout(800);
+    });
+    return { scrolled, frames, now: await shown.evaluate(() => window.scrollY), transitions: await shown.evaluate(() => 'CSSViewTransitionRule' in window) };
+  };
+  // Where the browser has view transitions across documents, no frame is blank; without them, the
+  // page is reloaded on the white behind it, and never goes transparent.
+  const noEmptyFrame = ({ frames, transitions }) => {
+    assert.ok(frames.length > 0, 'frames were caught');
+    const blank = frames.filter(isBlank);
+    if (transitions) assert.deepEqual(blank, []);
+    else assert.deepEqual(blank.filter(({ brightness }) => brightness < 250), []);
   };
 
   describe('to someone without a session', () => {
@@ -86,17 +116,11 @@ describe('the live preview', () => {
       assert.ok(width < 1280 && width > 0, String(width));
     });
 
-    test('shows what is typed, after a pause, and keeps the scroll position', async () => {
-      const title = page.getByRole('textbox', { name: 'Title', exact: true });
-      // The draft the pane sends on opening reloads the page once, at a moment of its own. A first
-      // change shows when that has passed.
-      await title.fill(`${POST}, at first`);
-      await frameOf(page).getByRole('heading', { level: 1, name: `${POST}, at first` }).waitFor({ timeout: ON_THE_PAGE });
-      await frameOf(page).locator('html').evaluate(() => window.scrollTo(0, 200));
-      const scrolled = await frameOf(page).locator('html').evaluate(() => window.scrollY);
-      await title.fill(`${POST}, changed`);
-      await frameOf(page).getByRole('heading', { level: 1, name: `${POST}, changed` }).waitFor({ timeout: ON_THE_PAGE });
-      assert.equal(await frameOf(page).locator('html').evaluate(() => window.scrollY), scrolled);
+    test('shows what is typed, after a pause, drawn again with no empty frame, and keeps the scroll position', async () => {
+      const drawn = await drawnAgain(page, `${POST}, changed`);
+      assert.ok(drawn.scrolled > 0, 'the page could be scrolled');
+      assert.equal(drawn.now, drawn.scrolled);
+      noEmptyFrame(drawn);
     });
 
     test('shows a change in the body', async () => {
@@ -346,6 +370,15 @@ describe('the live preview', () => {
           await page.waitForFunction(() => document.activeElement?.classList.contains('ProseMirror'), null, { timeout: 10_000 });
           const inBlock = await page.evaluate(() => window.getSelection().anchorNode?.parentElement?.closest('p, li, h2, h3, h4, h5, h6')?.textContent ?? '');
           assert.equal(inBlock.trim().slice(0, 40), words.slice(0, 40));
+
+          // A change is drawn again in place, on a page long enough to be scrolled in the pane.
+          await page.goto(`${site.origin.admin}/#/collections/articles`);
+          await openPost(page, 'Every element of body text');
+          await frameOf(page).getByRole('heading', { level: 1, name: 'Every element of body text' }).waitFor({ timeout: ON_THE_PAGE * 2 });
+          const drawn = await drawnAgain(page, 'Every element, drawn again');
+          assert.ok(drawn.scrolled > 0, 'the page could be scrolled');
+          assert.equal(drawn.now, drawn.scrolled);
+          noEmptyFrame(drawn);
         } finally {
           await session.browser.close();
         }

@@ -1,17 +1,19 @@
 // What keeps a page in the live preview's pane where it is, in each browser engine, with the
 // real gate and the real guard, and a site and an editor that are small programs of this test:
 // every way a page can try to load something else, what the pane is told of it, and what a page
-// may still do. preview.test.js has it in a real site.
+// may still do, and how it is drawn again in place. preview.test.js has it in a real site.
 
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { after, before, describe, test } from 'node:test';
 
 import { previewGuard } from '../src/astro/preview-guard.js';
+import { previewRedraw } from '../src/astro/preview-redraw.js';
 import { SESSION_PATH, STOPPED_MESSAGE } from '../src/cms/preview/paths.js';
 import { SANDBOX } from '../src/cms/preview/template.js';
 import { previewGate } from '../src/preview/gate.js';
 import { ENGINES } from './lib/editor.js';
+import { framesWhile, isBlank } from './lib/frames.js';
 
 const listen = (server) => new Promise((resolve) => {
   server.listen(0, '127.0.0.1', () => resolve(server.address().port));
@@ -53,6 +55,21 @@ document.getElementById('handled-form').addEventListener('submit', (event) => {
 </script>
 </body></html>`;
 
+// A page the dev server draws again, with the core's scripts as the live preview has them, which
+// comes a moment after it is asked for, its head before its body, as a dev server's does.
+const later = (ms) => new Promise((resolve) => {
+  setTimeout(resolve, ms);
+});
+const drawnPage = async (outgoing, time) => {
+  await later(150);
+  outgoing.writeHead(200, { 'Content-Type': 'text/html' });
+  outgoing.write(`<!doctype html><html><head><script>(${previewGuard})(${JSON.stringify(STOPPED_MESSAGE)});\n(${previewRedraw})();</script><title>Drawn</title>
+<style>body { margin: 0; font: 20px/1.5 sans-serif; } header { height: 120px; background: #933; color: #fff; } main { height: 3000px; background: linear-gradient(#246, #642); color: #fff; }</style>
+</head><body><header><h1>Drawn ${time}</h1></header>`);
+  await later(100);
+  outgoing.end(`<main>${'Words on a page drawn again. '.repeat(200)}</main></body></html>`);
+};
+
 describe('a page in the preview\'s pane', () => {
   let gate;
   let site;
@@ -76,13 +93,14 @@ describe('a page in the preview\'s pane', () => {
         outgoing.writeHead(301, { Location: '/other/' });
         return outgoing.end();
       }
+      if (pathname === '/drawn/') return drawnPage(outgoing, asked.filter((one) => one === pathname).length);
       outgoing.writeHead(200, { 'Content-Type': 'text/html' });
       const shown = { '/work/': ['This page'], '/refreshing/': ['A page that refreshes', '<meta http-equiv="refresh" content="1;url=/other/">'] }[pathname] ?? ['Another page'];
       return outgoing.end(pageWith(...shown));
     });
     admin = createServer((_incoming, outgoing) => {
       outgoing.writeHead(200, { 'Content-Type': 'text/html' });
-      outgoing.end(`<!doctype html><iframe id="frame" sandbox="${SANDBOX}"></iframe><script>
+      outgoing.end(`<!doctype html><iframe id="frame" sandbox="${SANDBOX}" style="display: block; border: 0; width: 800px; height: 600px; background: #fff"></iframe><script>
         window.told = [];
         addEventListener('message', ({ data, source }) => {
           if (source === document.getElementById('frame').contentWindow && data.type === ${JSON.stringify(STOPPED_MESSAGE)}) told.push({ to: data.to, how: data.how });
@@ -304,6 +322,28 @@ describe('a page in the preview\'s pane', () => {
         assert.equal(await inFrame(() => location.pathname + location.search), '/work/?draft=1');
         assert.deepEqual(await told(), []);
         assert.equal(await page.url(), `${adminOrigin}/`, 'the editor around it has not moved');
+      });
+
+      test('is drawn again in place, at the scroll it had, and with no blank frame where the browser has view transitions across documents', async () => {
+        await open('/drawn/');
+        await frame().locator('main').waitFor();
+        await inFrame(() => window.scrollTo(0, 600));
+        assert.equal(await inFrame(() => window.scrollY), 600);
+        const before = await frame().locator('h1').textContent();
+        const frames = await framesWhile(page, page.locator('#frame'), async () => {
+          // As the dev server's own script has it do to show a change.
+          await inFrame(() => location.reload());
+          await frame().locator('h1').filter({ hasNotText: before }).waitFor();
+          await page.waitForTimeout(800);
+        });
+        assert.equal(await inFrame(() => window.scrollY), 600);
+        assert.deepEqual(await told(), []);
+        assert.ok(frames.length > 0, 'frames were caught');
+        // Without them, the page is reloaded on the white behind it, and never goes transparent.
+        const transitions = await inFrame(() => 'CSSViewTransitionRule' in window);
+        const blank = frames.filter(isBlank);
+        if (transitions) assert.deepEqual(blank, []);
+        else assert.deepEqual(blank.filter(({ brightness }) => brightness < 250), []);
       });
 
       test('stays when a reload would redirect, and follows nothing', async () => {
