@@ -10,12 +10,15 @@
 - **A generated configuration per interface language.** `konzilo-cms` writes `config.json` in the site's interface language, and beside it `config.<language>.json` in each language the interface comes in; `konzilo.language` names the one a file is in. The editor fetches the editor's choice, else `config.json`.
 - **A language chosen while the editor is open** shows in Sveltia at once, and the editor then loads again, so that its own texts follow and one screen never holds two languages. It loads again only when Sveltia's preference has changed since it loaded, so that it never loads again by itself.
 - **A site's own label,** a type's or a taxonomy's `label` and `plural`, a menu's, a setting's, a field's, a presentation's and its options', and a component's and its attributes', is one text for every language, or a text by interface language with British English required: `{ "en": "Article", "sv": "Artikel" }`. The editor shows it in the interface language. Where a visitor reads it, in a feed's title, a search document or `post_type.labels.singular` in a template, it is the page's language's, else British English's; a refusal names it in British English, as the command line writes every refusal. A form's label and its fields' are read by visitors, so each stays one text.
+- **The editor's own code in the browser,** the body field, the image field, the structure field, the preview in its pane and in its window of its own, the publish status and the article parts' fields, takes the interface language from the configuration it fetched, `konzilo.language`, before it draws anything, and never the browser's. It names each text whole, `body.loading`, by its area: `body`, `image`, `structure`, `preview`, `publishing` and `parts`. A test holds each name its code asks for against the source, since a name the source lacks would stop the editor, and each text of those areas against its code. A moment it writes, a scheduled post's among them, is in the interface language too.
+- **The settings groups' texts are the catalogues',** each by a name made from where `settings-groups.json` declares it: a group's `settings.<group>.label` and `settings.<group>.description`; a setting's `settings.<group>.<setting>.label`, and its `….help` where the catalogues have one; a part's `settings.<group>.<part>.label`, its `….description` where they have one, and its settings' below it; the part per post type's settings' below `settings.<group>.types`; and a select's options' `….options.<option>`, the option's value in lower camelCase, `theSummary` for `The summary`. The declaration holds no text an editor reads: the checker refuses one written there, and a setting whose label the catalogues lack, naming the text. The editor shows them in the interface language, while an option's value stays what the settings file holds. A setting's default that visitors read, such as a consent text, is content, and stays in the content's language.
 - **The catalogues come in beside the two-language tables** read through `src/texts.js`, which keep working until their texts have moved to the catalogues, area by area, and then go. The form's labels in the generated configuration move first.
 
 ## Why
 
 - A consultant who reads no Swedish must be able to work on a Swedish site, and a Swedish editor must not meet one screen in two languages.
 - A language is added by translating one file. A table of two languages in code grows with each language.
+- A name made from where a setting is declared cannot drift from it, so a new setting needs nothing but its texts in each catalogue.
 - Sveltia's preference is where an editor already looks for a language, and Sveltia keeps it in the browser.
 - A configuration per language is plain Sveltia configuration, generated and tested whole, and leaves the choice to the browser alone.
 
@@ -23,6 +26,7 @@
 
 - **The browser's language,** as Sveltia and the body field followed it. It is neither the site's choice nor the editor's, and one form mixed it with the site's.
 - **One configuration whose labels the browser translates.** Sveltia would be handed a shape of Konzilo's own, and the labels would leave the configuration that is generated and tested.
+- **A name of its own for each settings text, written beside the setting.** It would say again where the setting is, and could be left behind when a setting moved.
 - **Importing Sveltia once the configuration has been fetched,** which would need no load more: in WebKit it broke Sveltia's own image code (below).
 - **Languages with a region, `en-GB` or `sv-SE`, in the site description.** The interface comes in a language, and its catalogue's name says which; `en` is British English.
 
@@ -39,4 +43,6 @@ Sveltia 0.256.1:
 ## Consequences
 
 - The web image copies `src/catalogues.js` and `src/catalogues/`, which the editor imports.
+- The body field's, the preview's and the publish status's texts are in the catalogues, read through `src/cms/body/texts.js`, so one screen of the editor is in one language. The preview's window of its own needs no language of its own, since the editor draws it.
+- The settings groups' headings, labels, help and options' labels have moved to the catalogues, under `settings.`, in British English and Swedish.
 - The rest of the core's texts move to the catalogues: the body field's, the preview's, the publish status's and what visitors read, from the two-language tables, and the settings groups', in English alone so far. Refusals and warnings, in British English alone so far, come to carry a name and values, which the editor renders in the interface language. This record says when the tables are gone.

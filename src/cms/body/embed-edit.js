@@ -12,7 +12,7 @@ const capitalised = (words) => words.charAt(0).toUpperCase() + words.slice(1);
 
 export function editEmbed({ address = null, root = document.body } = {}) {
   return new Promise((resolve) => {
-    const { dialog, body } = dialogOf(say(address === null ? 'embedAdd' : 'embedEdit'));
+    const { dialog, body } = dialogOf(say(address === null ? 'body.embedAdd' : 'body.embedEdit'));
     dialog.classList.add('konzilo-dialog-narrow');
 
     let done = false;
@@ -27,19 +27,19 @@ export function editEmbed({ address = null, root = document.body } = {}) {
 
     const form = made('form', 'konzilo-dialog-form', body);
     form.noValidate = true;
-    const field = textRow(form, say('embedAddress'), { required: true });
+    const field = textRow(form, say('body.embedAddress'), { required: true });
     field.value = address ?? '';
     field.spellcheck = false;
     const names = Object.values(rules.embeds.services).map(({ name }) => name).join(', ');
-    made('p', 'konzilo-dialog-aside', form).textContent = say('embedServices', { names });
+    made('p', 'konzilo-dialog-aside', form).textContent = say('body.embedServices', { names });
     const note = made('p', 'konzilo-dialog-note', form);
     note.setAttribute('role', 'alert');
     const actions = made('div', 'konzilo-dialog-actions', form);
-    const remove = address === null ? null : button('konzilo-dialog-remove', say('embedRemove'), actions);
-    button('', say('imageCancel'), actions).addEventListener('click', () => finish(null));
+    const remove = address === null ? null : button('konzilo-dialog-remove', say('body.embedRemove'), actions);
+    button('', say('body.cancel'), actions).addEventListener('click', () => finish(null));
     const accept = made('button', 'konzilo-dialog-accept', actions);
     accept.type = 'submit';
-    accept.textContent = say('imageDone');
+    accept.textContent = say('body.done');
 
     field.addEventListener('input', () => {
       note.textContent = '';
@@ -48,7 +48,7 @@ export function editEmbed({ address = null, root = document.body } = {}) {
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       const written = field.value.trim();
-      const refused = written === '' ? say('embedNoAddress') : embedOf(written, rules).reason;
+      const refused = written === '' ? say('body.embedNoAddress') : embedOf(written, rules).reason;
       if (!refused) {
         finish({ address: written });
         return;
@@ -63,7 +63,7 @@ export function editEmbed({ address = null, root = document.body } = {}) {
         question.replaceWith(form);
         remove.focus();
       };
-      const { part: question, keep } = asking({ words: say('embedRemoveAsk'), keepWords: say('embedKeep'), kept: backToForm, removed: () => finish({ remove: true }) });
+      const { part: question, keep } = asking({ words: say('body.embedRemoveAsk'), keepWords: say('body.embedKeep'), kept: backToForm, removed: () => finish({ remove: true }) });
       remove.addEventListener('click', () => {
         form.replaceWith(question);
         keep.focus();

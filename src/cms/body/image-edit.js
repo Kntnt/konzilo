@@ -7,7 +7,7 @@ import { say } from './texts.js';
 
 export function editImage({ alt, address = null, root = document.body }) {
   return new Promise((resolve) => {
-    const { dialog, body } = dialogOf(say('imageEdit'));
+    const { dialog, body } = dialogOf(say('body.imageEdit'));
     dialog.classList.add('konzilo-dialog-narrow');
 
     let done = false;
@@ -28,16 +28,16 @@ export function editImage({ alt, address = null, root = document.body }) {
 
     const form = made('form', 'konzilo-dialog-form', body);
     form.noValidate = true;
-    const field = textRow(form, say('imageAlt'), { required: true });
+    const field = textRow(form, say('body.alt'), { required: true });
     field.value = alt;
     const note = made('p', 'konzilo-dialog-note', form);
     note.setAttribute('role', 'alert');
     const actions = made('div', 'konzilo-dialog-actions', form);
-    const remove = button('konzilo-dialog-remove', say('imageRemove'), actions);
-    button('', say('imageCancel'), actions).addEventListener('click', () => finish(null));
+    const remove = button('konzilo-dialog-remove', say('body.imageRemove'), actions);
+    button('', say('body.cancel'), actions).addEventListener('click', () => finish(null));
     const accept = made('button', 'konzilo-dialog-accept', actions);
     accept.type = 'submit';
-    accept.textContent = say('imageDone');
+    accept.textContent = say('body.done');
 
     field.addEventListener('input', () => {
       note.textContent = '';
@@ -50,7 +50,7 @@ export function editImage({ alt, address = null, root = document.body }) {
         finish({ alt: written });
         return;
       }
-      note.textContent = say('imageNoAlt');
+      note.textContent = say('body.noAlt');
       field.setAttribute('aria-invalid', 'true');
       field.focus();
     });
@@ -59,7 +59,7 @@ export function editImage({ alt, address = null, root = document.body }) {
       question.replaceWith(form);
       remove.focus();
     };
-    const { part: question, keep } = asking({ words: say('imageRemoveAsk'), aside: say('imageRemoveAside'), keepWords: say('imageKeep'), kept: backToForm, removed: () => finish({ remove: true }) });
+    const { part: question, keep } = asking({ words: say('body.imageRemoveAsk'), aside: say('body.imageRemoveAside'), keepWords: say('body.imageKeep'), kept: backToForm, removed: () => finish({ remove: true }) });
     remove.addEventListener('click', () => {
       form.replaceWith(question);
       keep.focus();
