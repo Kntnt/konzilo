@@ -52,7 +52,7 @@ export function metaLineProblems(format, variables) {
 }
 
 // A punctuation mark, which ends the words that belong to the variable after it: any
-// punctuation, and a vertical bar, but a mark inside a word, as in `e-post` or `Kntnt's`.
+// punctuation, and a vertical bar, but a mark inside a word, as in `e-mail` or `harbour's`.
 const MARK = /[\p{P}|]/u;
 const LETTER_OR_DIGIT = /[\p{L}\p{N}]/u;
 
