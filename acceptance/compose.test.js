@@ -863,12 +863,13 @@ describe('a site in Compose', () => {
   });
 
   describe('search and sharing', () => {
-    test('are saved in the groups an editor sees, and the intake publishes them as one map', async () => {
+    // An article whose file holds no search yet, so that the group is made at Save (ADR 0029).
+    test('are saved in the groups an editor sees, also in a post whose file holds none, and the intake publishes them as one map', async () => {
       const session = await openEditor('chromium', site);
       try {
         await signIn(session, site);
         const { page } = session;
-        await page.getByText('Northern islands and the meadow').first().click();
+        await page.getByText('Quiet harbours and the lantern').first().click();
         await page.locator('.konzilo-body-visual .ProseMirror').waitFor({ timeout: 30_000 });
         // What holds something is open already, and a click would close it. A long form
         // renders what is below the window as it comes near, so each group is brought near,
@@ -883,9 +884,9 @@ describe('a site in Compose', () => {
         await page.getByRole('textbox', { name: 'Title tag' }).fill('A title tag in parts');
         await page.getByRole('button', { name: 'Save', exact: true }).click();
 
-        const { path } = await fileNamed('articles', 'Northern islands and the meadow');
+        const { path } = await fileNamed('articles', 'Quiet harbours and the lantern');
         const text = await waitForFile(page, path, (held) => held.includes('A title tag in parts'));
-        assert.match(text, /^search:\n {2}title: A title tag in parts$/m);
+        assert.match(text, /^search:\n {2}title: A title tag in parts\n(?! )/m);
         const taken = await throughIntake();
         assert.deepEqual(taken.refusals.map((refusal) => refusal.message), []);
         assert.ok(taken.files.some(({ contents }) => String(contents).includes('seo: {"title":"A title tag in parts"')), 'and publishes the title tag');
