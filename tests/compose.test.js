@@ -184,8 +184,27 @@ test('lets the service for editors read the forms\' submissions, on the admin ho
   const admin = caddyfile.slice(caddyfile.indexOf(':{$KONZILO_PORT_ADMIN}'), caddyfile.indexOf(':{$KONZILO_PORT_PREVIEW}'));
   const matcher = /@service path (.*)$/m.exec(admin)?.[1].split(' ');
   assert.ok(matcher, 'a matcher of its own');
-  for (const path of ['/_konzilo/submissions', '/_konzilo/submissions/*']) assert.ok(matcher.includes(path), path);
+  for (const path of ['/_konzilo/submissions', '/_konzilo/submissions/*', '/_konzilo/mail']) assert.ok(matcher.includes(path), path);
   assert.match(/handle @service \{\n([\s\S]*?)\n\t\}/.exec(admin)?.[1] ?? '', /reverse_proxy editors:4100 \{/);
+});
+
+// Mail (ADR 0003, ADR 0045): the service in its role for editors mails the forms' submissions, so
+// the role for visitors keeps no way out; a local copy writes each mail to the service's log and
+// sends none; and who is an Admin, which only an Admin may set mail by, the service asks Forgejo
+// by a credential of its own that reads the teams and nothing else.
+test('mails from the service for editors alone, writes a local copy\'s mail to its log, and lets it read who is an Admin', () => {
+  const blocks = servicesOf(compose);
+  assert.match(blocks.editors, /^ {6}KONZILO_MAIL_TO_LOG: "true"$/m);
+  for (const [name, block] of Object.entries(blocks)) {
+    if (name !== 'editors') assert.doesNotMatch(block, /KONZILO_MAIL/, name);
+  }
+  assert.match(blocks.editors, /^ {6}- editors-secret:\/secret:ro$/m);
+  const seed = read('compose/seed/seed.js');
+  assert.match(seed, /const SERVICE_ROLES_TOKEN = '\/editors-secret\/roles-token';/);
+  const made = /if \(!existsSync\(SERVICE_ROLES_TOKEN\)\) \{\n([\s\S]*?)\n {2}\}/.exec(seed)?.[1];
+  assert.ok(made, 'made once, at whichever start finds it missing');
+  assert.match(made, /scopes: \['read:organization'\]/);
+  assert.match(read('bin/konzilo-service.js'), /\/secret\/roles-token/);
 });
 
 // What the web server passes on to the service (ADR 0044): the request's method, path, query and
