@@ -390,7 +390,7 @@ test('every file of the demo source fits the collections, by ID', () => {
   assert.ok(paths.some((path) => /^media\/.+\.webp$/.test(path)));
   assert.equal(paths.includes('consent.json'), false, 'the intake makes that');
   const posts = files.filter((one) => /^(articles|pages)\//.test(one.path));
-  assert.equal(posts.length, 14);
+  assert.equal(posts.length, 15);
   for (const post of posts) assert.match(post.path, /^(articles|pages)\/[0-9a-f]{12}\.md$/);
 
   const terms = new Set(files.filter((one) => one.path.startsWith('categories/')).map((one) => /([0-9a-f]{12})\.json$/.exec(one.path)[1]));
