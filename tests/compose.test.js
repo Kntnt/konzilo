@@ -231,6 +231,33 @@ test('gives a form the service does not answer the release\'s page that says it 
   assert.ok(errors.indexOf('handle @form_down') < errors.lastIndexOf('rewrite * /404.html'), 'before a page not found');
 });
 
+// The web image builds the editor's bundle from the files of the core it copies, so each file the
+// bundle's page imports, at any depth, must be among them, or the image cannot be built.
+test('copies into the web image every file of the core the editor\'s bundle imports', () => {
+  const root = fileURLToPath(new URL('../', import.meta.url));
+  const copied = [...read('compose/web/Dockerfile').matchAll(/^COPY (?!--)(.+) \S+$/gm)].flatMap(([, sources]) => sources.split(' '));
+  const isCopied = (file) => copied.some((source) => file === source || file.startsWith(`${source}/`));
+  const seen = new Set();
+  const missing = [];
+  const walk = (file) => {
+    if (seen.has(file)) return;
+    seen.add(file);
+    const path = file.slice(root.length);
+    if (!isCopied(path)) missing.push(path);
+    if (!file.endsWith('.js')) return;
+    for (const specifier of readFileSync(file, 'utf8').matchAll(/\bfrom\s+['"](\.[^'"]+)['"]|\bimport\s*\(\s*['"](\.[^'"]+)['"]\s*\)|^\s*import\s+['"](\.[^'"]+)['"]/gm).map((match) => match.slice(1)).map((found) => found.find(Boolean))) {
+      const next = resolve(dirname(file), specifier);
+      if (existsSync(next)) walk(next);
+    }
+  };
+  const page = resolve(root, 'src/cms/index.html');
+  const entries = [...readFileSync(page, 'utf8').matchAll(/<script [^>]*src="(\.[^"]+)"/g)].map(([, src]) => resolve(dirname(page), src));
+  assert.ok(entries.length > 0, 'the page\'s scripts');
+  for (const entry of entries) walk(entry);
+  assert.ok(seen.size > 50, `the bundle's files, ${seen.size} of them`);
+  assert.deepEqual(missing, []);
+});
+
 // The builder's image installs the core's dependencies alone, with no peer such as Astro, so
 // whatever a site's Astro must read runs in the site's own dependencies, as a program of its own
 // (the build's Astro and its search documents). Each program the image runs, and all it imports.

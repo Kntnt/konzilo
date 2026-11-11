@@ -13,7 +13,7 @@ RUN npm ci --no-audit --no-fund --ignore-scripts
 COPY scripts/build-editor.js scripts/wasm-reader.js scripts/
 COPY src/cms src/cms
 COPY src/format src/format
-COPY src/catalogues.js src/refusals.js src/
+COPY src/catalogues.js src/refusals.js src/submission-values.js src/
 COPY src/catalogues src/catalogues
 COPY src/astro/reader-features.js src/astro/
 COPY src/intake/words.js src/intake/
