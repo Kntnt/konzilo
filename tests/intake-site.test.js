@@ -133,6 +133,43 @@ describe('the site settings', () => {
   });
 });
 
+// A type's structured data type in the settings is one of those its type offers, its type's
+// default where none is chosen.
+describe('a type\'s structured data type', () => {
+  const offering = {
+    language: 'en_GB',
+    images: { smallestWidth: 400, displayWidth: 1280 },
+    types: {
+      article: { collection: 'articles', address: '/news/{slug}/', elements: ['paragraph'] },
+      page: { collection: 'pages', address: '/{slug}/', elements: ['paragraph'] },
+      event: { label: 'Event', plural: 'Events', collection: 'events', address: '/events/{slug}/', elements: ['paragraph'], structuredDataTypes: ['BlogPosting', 'Article'] },
+    },
+  };
+
+  test('is its type\'s default, the first it offers, where the settings choose none', () => {
+    const result = run({ 'settings.json': {} }, offering);
+    assert.deepEqual(result.refusals, []);
+    const { types } = settingsOf(result).search;
+    assert.deepEqual([types.article.schema, types.page.schema, types.event.schema], ['Article', 'WebPage', 'BlogPosting']);
+  });
+
+  test('takes one its type offers, and leaves out one it does not, with a warning, for its type\'s default', () => {
+    const result = run({ 'settings.json': { search: { types: { article: { schema: 'WebPage' }, page: { schema: 'NewsArticle' }, event: { schema: 'ContactPage' } } } } }, offering);
+    assert.deepEqual(result.refusals, []);
+    const { types } = settingsOf(result).search;
+    assert.deepEqual([types.article.schema, types.page.schema, types.event.schema], ['Article', 'NewsArticle', 'BlogPosting']);
+    assert.deepEqual(result.warnings.filter(({ setting }) => setting?.endsWith('.schema')).map(({ setting, reason }) => [setting, reason]), [
+      ['search.types.article.schema', 'articles cannot have "WebPage" as their structured data type, so it is left out and their default applies; choose one of Article, BlogPosting or NewsArticle'],
+      ['search.types.event.schema', 'events cannot have "ContactPage" as their structured data type, so it is left out and their default applies; choose one of BlogPosting or Article'],
+    ]);
+  });
+
+  test('is refused where the core knows no such type', () => {
+    const refused = run({ 'settings.json': { search: { types: { article: { schema: 'Event' } } } } }, offering);
+    assert.deepEqual(refused.refusals.map((one) => one.setting), ['search.types.article.schema']);
+  });
+});
+
 describe('the meta line\'s format', () => {
   const builtIn = {
     language: 'en_GB',

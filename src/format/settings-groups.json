@@ -157,10 +157,7 @@
             "ContactPage",
             "CollectionPage"
           ],
-          "default": "WebPage",
-          "defaultFor": {
-            "article": "Article"
-          }
+          "structuredDataTypes": true
         }
       }
     }

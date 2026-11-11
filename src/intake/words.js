@@ -93,3 +93,7 @@ export const fieldNamed = (type, name) => ({ name, label: fieldLabel(type, name)
 
 // A field as a value of a refusal's or a warning's reason: its label, which names it.
 export const fieldValued = (type, name) => ({ field: fieldLabel(type, name) });
+
+// Why a structured data type a type does not offer, `value`, is left out, for the type's own:
+// its default in the settings, or the one the settings give it for a post (ADR 0046).
+export const notOffered = (value, type) => say('warning.schema-not-offered', { value, plural: { label: type.plural }, types: { or: [...type.structuredDataTypes] } });

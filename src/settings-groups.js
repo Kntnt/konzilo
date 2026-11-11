@@ -25,7 +25,7 @@ import declaration from './format/settings-groups.json' with { type: 'json' };
 import { metaLineProblems, metaLineVariables } from './meta-line.js';
 import { templateProblems, variablesOf } from './metadata-templates.js';
 import { ARTICLE, BUILT_IN_TYPES, isArticle, PAGE } from './format/built-in-types.js';
-import { fieldName, IDENTITY, IMAGE, ownField, POST, translatedOf } from './site-description.js';
+import { fieldName, IDENTITY, IMAGE, ownField, POST, SCHEMA_TYPES, translatedOf } from './site-description.js';
 
 // The kinds of post type a per-type part may be limited to: those with an
 // address, whose posts have a page, and those with a date.
@@ -180,9 +180,11 @@ export function groupsIn(groups, locale, title) {
 
 // A part per post type's settings for one type: each with a default for
 // the kind of type it is, by the order its `defaultFor` gives them, takes
-// it in place of its `default`.
+// it in place of its `default`, and a structured data type offers the type's
+// own, its default the first of them.
 function forType(settings, type) {
   return settings.map(({ defaultFor, ...setting }) => {
+    if (setting.structuredDataTypes) return { ...setting, options: [...type.structuredDataTypes], default: type.structuredDataTypes[0] };
     if (defaultFor === undefined) return setting;
     const { default: _, ...rest } = setting;
     const given = defaultForType({ ...setting, defaultFor }, type);
@@ -193,7 +195,7 @@ function forType(settings, type) {
 // A setting's default for a post type, as declared or read: the one for the
 // kind of type it is, by the order its `defaultFor` gives them, else its
 // `default`, or none.
-export function defaultForType(setting, type) {
+function defaultForType(setting, type) {
   const kind = Object.keys(setting.defaultFor ?? {}).find((found) => kinds[found](type));
   return kind === undefined ? setting.default : setting.defaultFor[kind];
 }
@@ -407,7 +409,7 @@ function settingOf(name, setting, path, problems, where, named) {
     problems.push(`${path}: must be an object`);
     return null;
   }
-  const { default: given, defaultFor, template, metaLine, requires, patterns, format, published, translated, min, ...declared } = setting;
+  const { default: given, defaultFor, template, metaLine, requires, patterns, format, published, translated, min, structuredDataTypes, ...declared } = setting;
   // A label the catalogues lack is a problem already, so the field is read with its name.
   const label = textsOf(`${named}.label`, path, problems);
   const read = ownField(name, { ...withoutTexts(declared, ['label', 'help'], path, named, problems), label: label ?? name }, path, problems, WHOLE);
@@ -449,6 +451,13 @@ function settingOf(name, setting, path, problems, where, named) {
     else if (where !== 'types') problems.push(`${path}.metaLine: only a setting of a part per post type is a meta line's format`);
     else if (read.type !== 'string' || !textControls.includes(read.control) || read.template) problems.push(`${path}.metaLine: only a text shown as text or a text area, which is no template, is a meta line's format`);
     else read.metaLine = true;
+  }
+  if (structuredDataTypes !== undefined) {
+    if (structuredDataTypes !== true) problems.push(`${path}.structuredDataTypes: must be true, or left out`);
+    else if (where !== 'types') problems.push(`${path}.structuredDataTypes: only a setting of a part per post type is its type's structured data type`);
+    else if (read.control !== 'select' || [...(read.options ?? [])].sort().join() !== [...SCHEMA_TYPES].sort().join()) problems.push(`${path}.structuredDataTypes: only a select of every structured data type the core knows is a type's structured data type`);
+    else if (given !== undefined || defaultFor !== undefined) problems.push(`${path}.structuredDataTypes: a type's structured data type has its type's default, the first it offers, and declares none`);
+    else read.structuredDataTypes = true;
   }
   defaultsOf(read, given, path, problems);
   if (defaultFor !== undefined) read.defaultFor = defaultsFor(read, defaultFor, where, path, problems);
