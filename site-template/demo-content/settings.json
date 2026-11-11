@@ -148,6 +148,11 @@
       "url": "/pages/accessibility-statement/"
     }
   },
+  "forms": {
+    "contact": {
+      "confirmation": "Thank you. Your message has been sent."
+    }
+  },
   "feeds": {
     "item": "The summary",
     "posts": 10
