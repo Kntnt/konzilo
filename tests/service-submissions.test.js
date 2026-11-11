@@ -14,6 +14,7 @@ import { buildControl } from '../src/build/record.js';
 import { editorsService } from '../src/service/editors.js';
 import { openStore } from '../src/service/store.js';
 import { siteDescription } from '../src/site-description.js';
+import { readCsv } from './lib/csv.js';
 
 const contact = {
   label: 'Contact us',
@@ -208,55 +209,16 @@ describe('the submissions, for editors', () => {
       ].join('\r\n'));
     });
 
-    // A file as a spreadsheet reads it by `separator`: a cell that starts with a quote runs to the
-    // next lone quote, with a doubled quote in it one, and a quote anywhere else is a character;
-    // a row ends at a line break outside quotes.
-    const readAs = (text, separator) => {
-      const rows = [];
-      let row = [];
-      let cell = '';
-      let quoted = false;
-      let fresh = true;
-      const endCell = () => {
-        row.push(cell);
-        cell = '';
-        fresh = true;
-      };
-      for (let at = text.startsWith('\uFEFF') ? 1 : 0; at < text.length; at += 1) {
-        const char = text[at];
-        if (quoted) {
-          if (char === '"' && text[at + 1] === '"') {
-            cell += '"';
-            at += 1;
-          } else if (char === '"') quoted = false;
-          else cell += char;
-        } else if (fresh && char === '"') {
-          quoted = true;
-          fresh = false;
-        } else if (char === separator) endCell();
-        else if (char === '\n' || char === '\r') {
-          if (char === '\r' && text[at + 1] === '\n') at += 1;
-          endCell();
-          rows.push(row);
-          row = [];
-        } else {
-          cell += char;
-          fresh = false;
-        }
-      }
-      return rows;
-    };
-
     test('opens with its columns by the separator it was written with, and with no cell that starts a formula by either', async () => {
       store.keep(sent('2026-11-01T10:00:00Z', Object.entries(risky).map(([name, value]) => field(name.toLowerCase(), name, value))));
       for (const [written, separator] of [['comma', ','], ['semicolon', ';']]) {
         const { text } = await csv(`separator=${written}`);
-        const [header, row, ...rest] = readAs(text, separator);
+        const [header, row, ...rest] = readCsv(text, separator);
         assert.deepEqual(rest, []);
         assert.deepEqual(header, ['Sent at', 'Form', ...Object.keys(risky)]);
         assert.deepEqual(row.slice(2).map((cell) => cell.replace(/(^|[,;\r\n])'/g, '$1')), Object.values(risky), written);
         for (const other of [',', ';']) {
-          for (const cell of readAs(text, other).flat()) assert.doesNotMatch(cell, FORMULA, `${written} read by ${other}: ${JSON.stringify(cell)}`);
+          for (const cell of readCsv(text, other).flat()) assert.doesNotMatch(cell, FORMULA, `${written} read by ${other}: ${JSON.stringify(cell)}`);
         }
       }
     });
