@@ -1,0 +1,12 @@
+---
+// A post's meta line, the line between what presents it and the post itself,
+// written by the format an Admin sets for its type in the page's language, by
+// Konzilo's metaLine(): each author and the category linked to its page where
+// its taxonomy has pages, and each date a <time>. Nothing where the type has no
+// format, or the post no value for any of its variables.
+import { metaLine } from '@kntnt/konzilo/astro/helpers';
+
+const { entry } = Astro.props;
+const line = await metaLine(entry, Astro.url);
+---
+{line.length > 0 && <p class="meta-line">{line.map(({ text, url, datetime }) => (url ? <a href={url}>{text}</a> : datetime ? <time datetime={datetime}>{text}</time> : text))}</p>}

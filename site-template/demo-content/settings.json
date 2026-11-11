@@ -55,6 +55,15 @@
       }
     }
   },
+  "metaLine": {
+    "types": {
+      "article": {
+        "format": "Published on {date} in {category} by {authors}"
+      },
+      "page": {},
+      "canvas": {}
+    }
+  },
   "breadcrumbs": {
     "types": {
       "article": {

@@ -6,6 +6,7 @@
 
 import { isObject } from '../checks.js';
 import { ownValue } from '../format/frontmatter.js';
+import { metaLineProblems, metaLineVariables } from '../meta-line.js';
 import { templateProblems, variablesOf } from '../metadata-templates.js';
 import { groupsIn, isSiteTitle, leastProblem, TYPES } from '../settings-groups.js';
 import { IMAGE, POST } from '../site-description.js';
@@ -17,7 +18,8 @@ const NOT_FOUND = 'notFound';
 // `hero-image` for `heroImage`, `search-image` for `search.image`.
 const stemOf = (path) => path.replace(/[A-Z]/g, (capital) => `-${capital.toLowerCase()}`).replaceAll('.', '-');
 
-// What a value of a text setting must also hold to.
+// What a value of a text setting must also hold to. `variables`: those a metadata
+// template and a meta line's format may name where the setting is.
 function textProblem(setting, value, variables) {
   if (setting.format && !new RegExp(setting.format.pattern, 'u').test(value.trim())) return say(setting.format.refusal, { setting: setting.name });
   if (setting.patterns) {
@@ -30,7 +32,11 @@ function textProblem(setting, value, variables) {
     }
   }
   if (setting.template) {
-    const [problem] = templateProblems(value, variables);
+    const [problem] = templateProblems(value, variables.template);
+    if (problem) return problem;
+  }
+  if (setting.metaLine) {
+    const [problem] = metaLineProblems(value, variables.metaLine);
     if (problem) return problem;
   }
   return null;
@@ -125,7 +131,7 @@ function identity(source, into, context) {
 // `title`, the main language's title, for a language without its own.
 export function settingsFor(site, source, language, hands) {
   const main = language === null || language.main;
-  const context = { ...hands, language, several: site.languages.length > 1, problems: [], warnings: [], variables: variablesOf(null) };
+  const context = { ...hands, language, several: site.languages.length > 1, problems: [], warnings: [], variables: { template: variablesOf(null), metaLine: [] } };
   const values = {};
   identity(source, values, context);
   context.title = values.title ?? hands.title;
@@ -149,7 +155,8 @@ export function settingsFor(site, source, language, hands) {
       into[TYPES] = {};
       for (const part of group.types) {
         into[TYPES][part.type] = {};
-        const variables = variablesOf(site.types[part.type]);
+        const type = site.types[part.type];
+        const variables = { template: variablesOf(type), metaLine: metaLineVariables(type) };
         readSettings(part.settings, stored[TYPES]?.[part.type], `${path}${TYPES}.${part.type}.`, into[TYPES][part.type], { ...context, variables });
       }
     }
