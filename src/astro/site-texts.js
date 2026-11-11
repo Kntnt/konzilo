@@ -23,14 +23,14 @@
 // language's to the site's pages through its module `virtual:konzilo/texts`
 // (textsModule()), which the core's components read with textsIn(locale).
 
-import { catalogueFor, SOURCE_LANGUAGE, text, textsOf } from '../catalogues.js';
+import { catalogueFor, languageSubtag, SOURCE_LANGUAGE, text, textsOf } from '../catalogues.js';
 import { LOCALE } from '../site-description.js';
 import { FORM_TEXT_NAMES, formTexts, siteFormTexts } from './forms.js';
 import { SEARCH_TEXT_NAMES, searchTexts } from './search.js';
 
 // Whether the core has a catalogue for a site's language, its locale: British
 // English's serves a site that declares none.
-const hasCatalogue = (locale) => locale === null || catalogueFor(locale) === locale.split('_')[0];
+const hasCatalogue = (locale) => locale === null || catalogueFor(locale) === languageSubtag(locale);
 
 // The names of the texts a site may give per language: each a text, or an
 // object of texts.

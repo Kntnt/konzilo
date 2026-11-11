@@ -10,7 +10,7 @@
 // what the site's language is: startLanguage() sets it as the last load found it, and a
 // load that finds it new to the browser, or changed, loads again (followSite()).
 
-import { catalogueFor, interfaceLanguageTag } from '../catalogues.js';
+import { catalogueFor, interfaceLanguageTag, languageSubtag } from '../catalogues.js';
 
 const PREFERENCES = 'sveltia-cms.prefs';
 const SET = 'konzilo.interface-language';
@@ -25,7 +25,6 @@ const held = (storage) => {
   }
 };
 
-const subtagOf = (tag) => (typeof tag === 'string' ? tag.split(/[_-]/)[0].toLowerCase() : null);
 
 // The interface language an editor has chosen, the catalogue of the language
 // Sveltia's preference names, else British English; null where they have chosen none.
@@ -54,7 +53,7 @@ export function startLanguage(storage = globalThis.localStorage) {
 // browser keeps nothing, which would load it again and again.
 export function followSite(language, storage = globalThis.localStorage, browser = globalThis.navigator?.languages ?? []) {
   const before = held(storage).locale ?? AUTOMATIC;
-  const locale = subtagOf(browser[0]) === language ? AUTOMATIC : interfaceLanguageTag(language);
+  const locale = languageSubtag(browser[0]) === language ? AUTOMATIC : interfaceLanguageTag(language);
   try {
     storage.setItem(PREFERENCES, JSON.stringify({ ...held(storage), locale }));
     storage.setItem(SET, locale);
