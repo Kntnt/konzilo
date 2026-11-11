@@ -21,6 +21,8 @@ const folded = (words) => words.normalize('NFKD').replace(/\p{M}/gu, '').toLocal
 // The authors in the order of their names, as the interface language orders them.
 const byName = (authors) => [...authors].sort((one, other) => one.name.localeCompare(other.name, languageTag()) || one.id.localeCompare(other.id));
 
+const same = (one, other) => one.length === other.length && one.every((id, at) => id === other[at]);
+
 const idsIn = (given) => {
   const plain = given?.toJS ? given.toJS() : given;
   const list = Array.isArray(plain) ? plain : typeof plain === 'string' && plain !== '' ? [plain] : [];
@@ -69,7 +71,7 @@ export function mountAuthorsField(host, { value, changed, authors, label, forID 
   list.setAttribute('role', 'listbox');
   list.setAttribute('aria-label', label);
   const empty = made('p', 'konzilo-authors-empty', popup);
-  const adding = button('konzilo-part-add konzilo-authors-new', `+ ${say('authors.new')}`, pick);
+  const adding = button('konzilo-authors-new', `+ ${say('authors.new')}`, pick);
   adding.hidden = authors === null;
   const note = made('p', 'konzilo-authors-note', root);
   note.setAttribute('role', 'alert');
@@ -193,7 +195,7 @@ export function mountAuthorsField(host, { value, changed, authors, label, forID 
     const next = chosen.filter((one) => one !== moving);
     const at = next.indexOf(landing.chip.dataset.id);
     next.splice(landing.after ? at + 1 : at, 0, moving);
-    emit(next);
+    if (!same(next, chosen)) emit(next);
   });
   chips.addEventListener('dragend', () => {
     clearMark();
@@ -318,7 +320,7 @@ export function mountAuthorsField(host, { value, changed, authors, label, forID 
     ready,
     setValue(next) {
       const ids = idsIn(next);
-      if (ids.length === chosen.length && ids.every((id, at) => id === chosen[at])) return;
+      if (same(ids, chosen)) return;
       chosen = ids;
       drawChips();
       if (!popup.hidden) drawList();
