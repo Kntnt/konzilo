@@ -13,8 +13,10 @@
 // A date's ISO form, `date.toISOString()`, is its data put in place, and
 // needs no helper.
 
+import { writeMetaLine } from '../meta-line.js';
 import { articleAuthors } from './authors.js';
 import { describedSite } from './languages.js';
+import { metaLineValues } from './meta-line.js';
 import { publicSite } from './public-site.js';
 
 // The separator between a term's parents' names and its own in termPath().
@@ -143,4 +145,28 @@ export async function authorsOf(entry, { site = describedSite(), getEntries } = 
   const read = getEntries ?? (await import('astro:content')).getEntries;
   const base = (import.meta.env?.BASE_URL ?? '/').replace(/\/$/, '');
   return (await articleAuthors(entry, type, site, read)).map(({ name, path, slug, entry: term }) => ({ name, url: path === null ? null : `${base}${path}`, slug, entry: term }));
+}
+
+// A post's meta line, the line between its standfirst and its body, written by its type's
+// format in the language of the page: the format an Admin sets per type and language in
+// the settings group `metaLine` (meta-line.js). Its pieces in order, each
+// { text, variable, url, datetime }: `text` what a visitor reads; `variable` the name of
+// the variable it shows, null for the format's own words; `url` the page it links to, an
+// author's or the category's, else null; and `datetime` the moment of a date, else null.
+// None for a type without a format. `language`: the page's address, Astro.url, whose
+// language and settings it takes, or a language tag such as `sv-SE`. `site`: the site
+// description as checked, the site's own by default; `settings`: the site settings of the
+// page's language, by default those of `language`; `getEntries` and `getEntry`: Astro's
+// own from astro:content, by default.
+export async function metaLine(entry, language, { site = describedSite(), settings, getEntries, getEntry } = {}) {
+  const type = Object.values(site.types).find((declared) => declared?.collection === entry?.collection);
+  if (!type) return [];
+  const content = getEntries && getEntry ? { getEntries, getEntry } : await import('astro:content');
+  const given = settings ?? (await (await import('./site-settings.js')).siteSettings(language instanceof URL ? language : null));
+  const format = given?.metaLine?.types?.[type.name]?.format;
+  if (typeof format !== 'string') return [];
+  const base = (import.meta.env?.BASE_URL ?? '/').replace(/\/$/, '');
+  const tag = tagOf(language);
+  const values = await metaLineValues(entry, type, { site, tag, base, getEntries: getEntries ?? content.getEntries, getEntry: getEntry ?? content.getEntry });
+  return writeMetaLine(format, values, tag);
 }

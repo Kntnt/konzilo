@@ -22,8 +22,9 @@ import { freeze, isObject, onlyKeys as checkedKeys, text } from './checks.js';
 import { ownValue } from './format/frontmatter.js';
 import { british } from './refusals.js';
 import declaration from './format/settings-groups.json' with { type: 'json' };
+import { metaLineProblems, metaLineVariables } from './meta-line.js';
 import { templateProblems, variablesOf } from './metadata-templates.js';
-import { isArticle, PAGE } from './format/built-in-types.js';
+import { ARTICLE, BUILT_IN_TYPES, isArticle, PAGE } from './format/built-in-types.js';
 import { fieldName, IDENTITY, IMAGE, ownField, POST, translatedOf } from './site-description.js';
 
 // The kinds of post type a per-type part may be limited to: those with an
@@ -181,12 +182,17 @@ export function groupsIn(groups, locale, title) {
 // the kind of type it is, by the order its `defaultFor` gives them, takes
 // it in place of its `default`.
 function forType(settings, type) {
-  return settings.map(({ defaultFor, ...setting }) => (defaultFor === undefined ? setting : { ...setting, default: defaultForType({ ...setting, defaultFor }, type) }));
+  return settings.map(({ defaultFor, ...setting }) => {
+    if (defaultFor === undefined) return setting;
+    const { default: _, ...rest } = setting;
+    const given = defaultForType({ ...setting, defaultFor }, type);
+    return given === undefined ? rest : { ...rest, default: given };
+  });
 }
 
 // A setting's default for a post type, as declared or read: the one for the
 // kind of type it is, by the order its `defaultFor` gives them, else its
-// `default`.
+// `default`, or none.
 export function defaultForType(setting, type) {
   const kind = Object.keys(setting.defaultFor ?? {}).find((found) => kinds[found](type));
   return kind === undefined ? setting.default : setting.defaultFor[kind];
@@ -374,9 +380,12 @@ function requiredBy(read, before, path, problems) {
 // must be a value of its type that the site publishes as it is declared; and in
 // a part per post type, the default for the types with an address or a
 // date, or for the built-in page or article, `defaultFor`, which such a type takes
-// in place of `default`. A text may be a metadata template (`template`,
+// in place of `default`, a setting without `default` having none for the others. A text
+// may be a metadata template (`template`,
 // metadata-templates.js), whose default names only the variables every site
-// knows, and in a part per post type every type; a text shown as a text area
+// knows, and in a part per post type every type; a text of a part per post type may be a
+// meta line's format (`metaLine`, meta-line.js), whose defaults name only the variables
+// every type of their kind has; a text shown as a text area
 // may hold regular expressions, one per line (`patterns`, ai-visibility.js),
 // and a text shown as text may declare its form (`format`, formatOf()).
 // A number may have a least value (`min`), which its default and every
@@ -398,7 +407,7 @@ function settingOf(name, setting, path, problems, where, named) {
     problems.push(`${path}: must be an object`);
     return null;
   }
-  const { default: given, defaultFor, template, requires, patterns, format, published, translated, min, ...declared } = setting;
+  const { default: given, defaultFor, template, metaLine, requires, patterns, format, published, translated, min, ...declared } = setting;
   // A label the catalogues lack is a problem already, so the field is read with its name.
   const label = textsOf(`${named}.label`, path, problems);
   const read = ownField(name, { ...withoutTexts(declared, ['label', 'help'], path, named, problems), label: label ?? name }, path, problems, WHOLE);
@@ -435,17 +444,43 @@ function settingOf(name, setting, path, problems, where, named) {
     else if (read.type !== 'string' || !textControls.includes(read.control)) problems.push(`${path}.template: only a text shown as text or a text area is a template`);
     else read.template = true;
   }
+  if (metaLine !== undefined) {
+    if (metaLine !== true) problems.push(`${path}.metaLine: must be true, or left out`);
+    else if (where !== 'types') problems.push(`${path}.metaLine: only a setting of a part per post type is a meta line's format`);
+    else if (read.type !== 'string' || !textControls.includes(read.control) || read.template) problems.push(`${path}.metaLine: only a text shown as text or a text area, which is no template, is a meta line's format`);
+    else read.metaLine = true;
+  }
   defaultsOf(read, given, path, problems);
-  if (defaultFor !== undefined) read.defaultFor = defaultsFor(read, defaultFor, given, where, path, problems);
+  if (defaultFor !== undefined) read.defaultFor = defaultsFor(read, defaultFor, where, path, problems);
   if (read.template && read.default !== undefined) {
     const variables = variablesOf(where === 'types' ? ANY_TYPE : null);
-    const defaults = typeof read.default === 'string' ? { '': read.default } : isSiteTitle(read.default) ? {} : inEachCatalogue(read.default);
-    for (const [language, text] of Object.entries(defaults)) {
+    for (const [language, text] of Object.entries(textsByLanguage(read.default))) {
       for (const problem of templateProblems(text, variables)) problems.push(`${path}.default${language ? `.${language}` : ''}: ${british(problem)}`);
+    }
+  }
+  if (read.metaLine) {
+    const defaults = [['default', read.default, ANY_TYPE], ...Object.entries(read.defaultFor ?? {}).map(([kind, value]) => [`defaultFor.${kind}`, value, KIND_TYPES[kind] ?? ANY_TYPE])];
+    for (const [at, value, type] of defaults.filter(([, value]) => value !== undefined)) {
+      for (const [language, text] of Object.entries(textsByLanguage(value))) {
+        for (const problem of metaLineProblems(text, metaLineVariables(type))) problems.push(`${path}.${at}${language ? `.${language}` : ''}: ${british(problem)}`);
+      }
     }
   }
   return read;
 }
+
+// A default's texts by language: one text by no language, a text of the catalogues in
+// each of their languages, and none for the site's title.
+function textsByLanguage(value) {
+  if (typeof value === 'string') return { '': value };
+  return isSiteTitle(value) ? {} : inEachCatalogue(value);
+}
+
+// A post type of each kind a default may be for, as the site description reads one, whose
+// meta line's variables every type of the kind has: a type with a date its date, and the
+// built-in page and article their fields'.
+const builtInLike = (name) => Object.freeze({ builtIn: name, fields: Object.keys(BUILT_IN_TYPES[name].fields).map((kind) => ({ kind })) });
+const KIND_TYPES = Object.freeze({ date: Object.freeze({ fields: [{ kind: 'date' }] }), page: builtInLike(PAGE), article: builtInLike(ARTICLE) });
 
 // Where the catalogues hold the settings groups' texts, as their names begin.
 const TEXTS = 'settings';
@@ -548,27 +583,30 @@ function defaultsOf(read, given, path, problems) {
     }
     return;
   }
-  if (read.type === 'string' && isObject(given)) {
-    // A text of the catalogues, which each of their languages gives.
-    if (!textControls.includes(read.control)) {
-      problems.push(`${path}.default: only a text shown as text or a text area has a text of the catalogues as its default`);
-    } else if (!isCatalogueText(given) || Object.keys(given).length !== 1) {
-      problems.push(`${path}.default: must name a text of the catalogues, as { "text": "site.…" }`);
-    } else if (!Object.hasOwn(CATALOGUES[SOURCE_LANGUAGE], given.text)) {
-      problems.push(`${path}.default: names ${given.text}, which is no text of the catalogues`);
-    } else {
-      const each = Object.entries(inEachCatalogue(given)).map(([language, value]) => defaultOf(value, read, `${path}.default (${given.text} in ${language})`, problems));
-      if (!each.includes(undefined)) read.default = Object.freeze({ text: given.text });
-    }
-    return;
-  }
-  const value = defaultOf(given, read, `${path}.default`, problems);
+  const value = read.type === 'string' && isObject(given) ? catalogueDefault(given, read, `${path}.default`, problems) : defaultOf(given, read, `${path}.default`, problems);
   if (value !== undefined) read.default = value;
 }
 
+// A text's default that is a text of the catalogues, `{ "text": "site.…" }`, which each of
+// their languages gives; undefined, with the problem, where it is not one.
+function catalogueDefault(given, read, path, problems) {
+  if (!textControls.includes(read.control)) {
+    problems.push(`${path}: only a text shown as text or a text area has a text of the catalogues as its default`);
+  } else if (!isCatalogueText(given) || Object.keys(given).length !== 1) {
+    problems.push(`${path}: must name a text of the catalogues, as { "text": "site.…" }`);
+  } else if (!Object.hasOwn(CATALOGUES[SOURCE_LANGUAGE], given.text)) {
+    problems.push(`${path}: names ${given.text}, which is no text of the catalogues`);
+  } else {
+    const each = Object.entries(inEachCatalogue(given)).map(([language, value]) => defaultOf(value, read, `${path} (${given.text} in ${language})`, problems));
+    if (!each.includes(undefined)) return Object.freeze({ text: given.text });
+  }
+  return undefined;
+}
+
 // The defaults of a setting of a part per post type for the types of a kind,
-// by that kind; the others take its `default`.
-function defaultsFor(read, defaultFor, given, where, path, problems) {
+// by that kind, each a value or, for a text, a text of the catalogues; the others take its
+// `default`, or have none.
+function defaultsFor(read, defaultFor, where, path, problems) {
   const at = `${path}.defaultFor`;
   if (where !== 'types') {
     problems.push(`${at}: only a setting of a part per post type has a default for some types`);
@@ -578,17 +616,13 @@ function defaultsFor(read, defaultFor, given, where, path, problems) {
     problems.push(`${at}: must be an object of a default by the types it is for, ${listed(kinds)}`);
     return undefined;
   }
-  if (given === undefined) {
-    problems.push(`${at}: a setting with a default for some types needs a default for the others`);
-    return undefined;
-  }
   const result = {};
   for (const [kind, value] of Object.entries(defaultFor)) {
     if (!Object.hasOwn(kinds, kind)) {
       problems.push(`${at}.${kind}: must be ${listed(kinds)}, the types the default is for`);
       continue;
     }
-    const typed = defaultOf(value, read, `${at}.${kind}`, problems);
+    const typed = read.type === 'string' && isObject(value) ? catalogueDefault(value, read, `${at}.${kind}`, problems) : defaultOf(value, read, `${at}.${kind}`, problems);
     if (typed !== undefined) result[kind] = typed;
   }
   return result;
