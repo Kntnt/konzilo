@@ -16,6 +16,7 @@ import { releases } from '../src/build/release.js';
 import { contentRepository, sourceRepository } from '../src/build/repositories.js';
 import { publishStatus } from '../src/build/status.js';
 import { STOPPED } from '../src/intake/guard.js';
+import { wordsIn } from '../src/refusals.js';
 import { sourcePost } from './lib/intake.js';
 
 const run = promisify(execFile);
@@ -23,7 +24,7 @@ const core = fileURLToPath(new URL('../', import.meta.url));
 const ENV = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' };
 const description = {
   language: 'en_GB',
-  types: { article: { label: 'Article', plural: 'Articles', collection: 'articles', address: '/{slug}/', elements: ['paragraph'], fields: {} } },
+  types: { story: { label: 'Article', plural: 'Articles', collection: 'articles', address: '/{slug}/', elements: ['paragraph'], fields: {} } },
 };
 // Git LFS is the builder's, and no file here needs it.
 const noLfs = async (program, args, options) => (args[0] === 'lfs' ? { stdout: '' } : run(program, args, options));
@@ -179,7 +180,21 @@ describe('a build', () => {
     const later = await site.build()();
     assert.equal(later.next, null);
     assert.equal(statusOf(site, 'articles/aaaaaaaaaaaa.md').status, 'live');
+    assert.deepEqual(statusOf(site, 'articles/aaaaaaaaaaaa.md').warnings, [], 'it went live at the moment it waited for');
     assert.equal(site.seen.astro, 2, 'what the clock has made visible is new content');
+  });
+
+  test('publishes at once a scheduled post whose moment had passed, and its status says so for as long as that version stands', async () => {
+    const site = newSite({ 'articles/aaaaaaaaaaaa.md': post('first', { status: 'scheduled', date: '2026-01-01T12:00:00Z' }) });
+    await site.build()();
+    for (const build of [1, 2]) {
+      const status = statusOf(site, 'articles/aaaaaaaaaaaa.md');
+      assert.equal(status.status, 'live', `build ${build}`);
+      assert.deepEqual(status.warnings.map(({ field, name, values }) => ({ field: field.name, name, values })), [{ field: 'date', name: 'warning.scheduled-passed', values: { moment: { moment: '2026-01-01T12:00:00Z' } } }]);
+      assert.match(status.warnings[0].reason, /^the post is scheduled for 1 January 2026 at \d\d:00 \S+, which had already passed when the site first read it, so it is published at once, with that moment as its date$/);
+      assert.match(wordsIn('sv', status.warnings[0]), /^inlägget är schemalagt till 1 januari 2026 kl\. \d\d:00 \S+, en tidpunkt som redan hade passerat/);
+      await site.build()();
+    }
   });
 
   test('builds nothing again for the same content, code and origin, and still says live', async () => {
@@ -209,7 +224,8 @@ describe('a build', () => {
     const refused = statusOf(site, 'articles/aaaaaaaaaaaa.md');
     assert.equal(refused.status, 'failed');
     assert.equal(refused.stillShown, true);
-    assert.equal(refused.refusals[0].field, 'title');
+    assert.equal(refused.refusals[0].field.name, 'title');
+    assert.equal(refused.refusals[0].name, 'refusal.title-empty', 'by its name, which the publish status shows in the interface language');
     assert.equal(statusOf(site, 'articles/bbbbbbbbbbbb.md').status, 'live');
     assert.match(readFileSync(join(site.siteFolder, 'content/articles/second.md'), 'utf8'), /New words/);
     assert.ok(existsSync(join(site.siteFolder, 'content/articles/first.md')), 'the refused post keeps its file');
@@ -226,11 +242,15 @@ describe('a build', () => {
     site.save({ 'articles/aaaaaaaaaaaa.md': post('first', {}, 'New words.') });
     const record = await site.build({ astro: async () => { throw Object.assign(new Error('no'), { stderr: 'it broke' }); } })();
     assert.equal(record.outcome, 'failed');
-    assert.equal(record.reason, NOT_BUILT);
+    assert.deepEqual(record.reason, NOT_BUILT);
     assert.equal(readlinkSync(join(site.root, 'public/current')), release);
     const status = statusOf(site, 'articles/aaaaaaaaaaaa.md');
     assert.equal(status.status, 'failed');
-    assert.equal(status.reason, NOT_BUILT);
+    assert.deepEqual(status.reason, NOT_BUILT);
+    // By its name, which the publish status shows in the interface language, and in British
+    // English in the build log.
+    assert.equal(wordsIn('sv', status.reason), 'webbplatsen gick inte att bygga av det, så besökare ser fortfarande den senaste versionen');
+    assert.deepEqual(site.logged().at(-1).failures[0], { name: 'failure.not-built', values: {}, reason: 'the site could not be built from it, so visitors still see the last version' });
     assert.equal(status.stillShown, true);
     assert.equal(record.source, execFileSync('git', ['rev-parse', 'main'], { cwd: site.remote.source, encoding: 'utf8', env: ENV }).trim(), 'it has taken its request, and does not start again by itself');
     assert.match(site.seen.warned.at(-1), /it broke/);
@@ -248,7 +268,7 @@ describe('a build', () => {
     mkdirSync(built);
     writeFileSync(join(built, '_headers'), '/*\n  Set-Cookie: nothing=good\n');
     const record = await site.build({ astro: async () => built })();
-    assert.equal(record.reason, NOT_RELEASED);
+    assert.deepEqual(record.reason, NOT_RELEASED);
     assert.equal(readlinkSync(join(site.root, 'public/current')), release);
     assert.match(site.seen.warned.at(-1), /Set-Cookie is no header a release may set/);
     assert.equal(statusOf(site, 'articles/aaaaaaaaaaaa.md').status, 'failed');
@@ -259,7 +279,7 @@ describe('a build', () => {
     const first = await site.build()();
     rmSync(site.remote.source, { recursive: true });
     const record = await site.build()();
-    assert.equal(record.reason, NOT_READ);
+    assert.deepEqual(record.reason, NOT_READ);
     assert.equal(record.source, first.source);
     assert.deepEqual(record.release, first.release);
     assert.deepEqual(record.posts, first.posts);
@@ -272,7 +292,7 @@ describe('a build', () => {
     site.save({ 'articles/aaaaaaaaaaaa.md': post('first', {}, 'New words.') });
     writeFileSync(join(site.siteFolder, 'site-description.json'), '{ not json');
     const record = await site.build()();
-    assert.equal(record.reason, CHECK_BROKE);
+    assert.deepEqual(record.reason, CHECK_BROKE);
     assert.equal(readlinkSync(join(site.root, 'public/current')), release);
     assert.doesNotMatch(readFileSync(join(site.siteFolder, 'content/articles/first.md'), 'utf8'), /New words/);
   });
@@ -287,18 +307,19 @@ describe('a build', () => {
     const release = readlinkSync(join(site.root, 'public/current'));
     site.save({ 'articles/aaaaaaaaaaaa.md': null, 'articles/bbbbbbbbbbbb.md': post('second', { status: 'draft' }) });
     const stopped = await site.build()();
-    assert.equal(stopped.reason, STOPPED);
+    assert.deepEqual(stopped.reason, STOPPED);
     assert.equal(stopped.stopped.count, 2);
     assert.match(stopped.stopped.code, /^[0-9a-f]{8}$/);
     assert.equal(readlinkSync(join(site.root, 'public/current')), release);
     assert.ok(existsSync(join(site.siteFolder, 'content/articles/first.md')));
     const held = statusOf(site, 'articles/bbbbbbbbbbbb.md');
     assert.equal(held.status, 'failed');
-    assert.equal(held.reason, STOPPED);
+    assert.deepEqual(held.reason, STOPPED);
+    assert.equal(wordsIn('en', held.reason), 'the build would take most of the site\'s posts off it, so it waits until the deletion is confirmed');
     assert.equal(held.stillShown, true);
     assert.equal(site.logged().at(-1).outcome, 'failed');
     site.control.confirm('00000000');
-    assert.equal((await site.build()()).reason, STOPPED, 'another code confirms nothing');
+    assert.deepEqual((await site.build()()).reason, STOPPED, 'another code confirms nothing');
     assert.equal(site.control.takeConfirmed(), null, 'and a code holds for one build');
     site.control.confirm(stopped.stopped.code);
     const confirmed = await site.build()();

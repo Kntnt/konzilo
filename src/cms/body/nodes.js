@@ -19,9 +19,9 @@ import { editEmbed } from './embed-edit.js';
 import { CAPTION_NODE, LINE_NODE } from './format.js';
 import { editGallery } from './gallery-edit.js';
 import { editImage } from './image-edit.js';
-import { say } from './texts.js';
+import { say } from '../interface-language.js';
 
-const LABEL_OF = { image: 'keptImage', list: 'keptList', embed: 'keptEmbed', directive: 'keptDirective', html: 'keptHtml', other: 'keptOther' };
+const LABEL_OF = { image: 'body.keptImage', list: 'body.keptList', embed: 'body.keptEmbed', directive: 'body.keptDirective', html: 'body.keptHtml', other: 'body.keptOther' };
 const ANCHOR = new RegExp(rules.elements.heading.anchor);
 const NON_BREAKING = ' ';
 
@@ -335,12 +335,12 @@ function imageControls(initial, view, getPos, picture) {
   img.draggable = false;
   const words = made('span', 'konzilo-image-words', shown);
   const caption = made('figcaption', 'konzilo-image-caption', dom);
-  caption.dataset.placeholder = say('imageCaptionHint');
+  caption.dataset.placeholder = say('body.imageCaptionHint');
 
   const showWords = () => {
     const alt = node.attrs.alt.trim();
     words.toggleAttribute('data-missing', alt === '');
-    words.textContent = alt === '' ? say('imageNoAltYet') : alt;
+    words.textContent = alt === '' ? say('body.imageNoAltYet') : alt;
     words.hidden = alt !== '' && shown.dataset.state !== 'none';
   };
   let asked = null;
@@ -364,7 +364,7 @@ function imageControls(initial, view, getPos, picture) {
   };
 
   if (view.state.doc.resolve(getPos()).parent.type.name !== GALLERY) {
-    penOn(shown, say('imageEdit'), async () => {
+    penOn(shown, say('body.imageEdit'), async () => {
       const answer = await editImage({ alt: node.attrs.alt, address: shown.dataset.state === 'shown' ? img.src : null });
       if (view.isDestroyed) return;
       const pos = getPos();
@@ -401,7 +401,7 @@ function galleryControls(initial, view, getPos, images) {
   let node = initial;
   const dom = made('figure', 'konzilo-gallery-field');
   const contentDOM = made('div', 'konzilo-gallery-images', dom);
-  const pen = penOn(dom, say('galleryEdit'), async () => {
+  const pen = penOn(dom, say('body.galleryEdit'), async () => {
     const held = [];
     node.forEach((child) => {
       if (child.type.name === IMAGE) held.push({ kept: child, src: child.attrs.src, alt: child.attrs.alt });
@@ -448,7 +448,7 @@ function embedControls(initial, view, getPos) {
     name.textContent = embedOf(node.attrs.address, rules).name ?? '';
     where.textContent = node.attrs.address;
   };
-  const pen = penOn(dom, say('embedEdit'), async () => {
+  const pen = penOn(dom, say('body.embedEdit'), async () => {
     const answer = await editEmbed({ address: node.attrs.address });
     if (view.isDestroyed) return;
     const pos = getPos();
@@ -479,7 +479,7 @@ export const galleryView = (images) => $view(galleryNode.node, () => (node, view
 export const galleryCaptionView = $view(galleryCaption.node, () => (initial) => {
   let node = initial;
   const dom = made('figcaption', 'konzilo-gallery-caption');
-  dom.dataset.placeholder = say('galleryCaptionHint');
+  dom.dataset.placeholder = say('body.galleryCaptionHint');
   const showEmpty = () => dom.classList.toggle('is-empty', node.content.size === 0);
   showEmpty();
   return {
@@ -732,16 +732,16 @@ function anchorControl(view, getPos, anchor) {
   badge.type = 'button';
   badge.className = anchor ? 'konzilo-anchor-badge has-anchor' : 'konzilo-anchor-badge';
   badge.textContent = anchor ? `#${anchor}` : '#';
-  badge.title = say('anchorAdd');
-  badge.setAttribute('aria-label', say('anchorAdd'));
+  badge.title = say('body.anchorAdd');
+  badge.setAttribute('aria-label', say('body.anchorAdd'));
   holder.append(badge);
   badge.addEventListener('mousedown', (event) => event.preventDefault());
   badge.addEventListener('click', () => {
     const input = document.createElement('input');
     input.className = 'konzilo-anchor-input';
     input.value = anchor;
-    input.placeholder = say('anchorHint');
-    input.setAttribute('aria-label', say('anchorHint'));
+    input.placeholder = say('body.anchorHint');
+    input.setAttribute('aria-label', say('body.anchorHint'));
     badge.replaceWith(input);
     input.focus();
     // Taking the input away blurs it, so its end comes once.
@@ -764,7 +764,7 @@ function anchorControl(view, getPos, anchor) {
       event.preventDefault();
       event.stopPropagation();
       if (event.key === 'Enter' && !ANCHOR.test(input.value)) {
-        input.setCustomValidity(say('anchorHint'));
+        input.setCustomValidity(say('body.anchorHint'));
         input.reportValidity();
         return;
       }

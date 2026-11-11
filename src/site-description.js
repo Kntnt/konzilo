@@ -7,7 +7,9 @@
 // file; a description with any problem is refused whole.
 
 import { readFileSync } from 'node:fs';
-import { freeze, isObject, onlyKeys as checkedKeys, text } from './checks.js';
+import { catalogueFor, INTERFACE_LANGUAGES, labelIn, SOURCE_LANGUAGE } from './catalogues.js';
+import { freeze, interfaceLanguagesNamed, isObject, label, onlyKeys as checkedKeys, text } from './checks.js';
+import { ARTICLE, BUILT_IN_TAXONOMIES, BUILT_IN_TYPES, catalogueLabel, fieldsWith } from './format/built-in-types.js';
 import { IMAGE_LIBRARY_FOLDER, MEDIA_FOLDER } from './format/masters.js';
 import { suffixTakenIn } from './format/public-suffixes.js';
 import { readComponents, withComponents } from './format/components.js';
@@ -102,13 +104,13 @@ export const TRANSLATION_KEY = 'translationKey';
 // a type's fields, which takes no keys. These are the frontmatter's `seo` map's
 // keys, in the map's order.
 export const SEO_FIELD = 'seo';
-export const SEO_KEYS = Object.freeze(['title', 'description', 'socialTitle', 'socialDescription', 'socialImage', 'socialImageAlt', 'schema', 'noindex', 'nofollow']);
+export const SEO_KEYS = Object.freeze(['title', 'description', 'canonical', 'socialTitle', 'socialDescription', 'socialImage', 'socialImageAlt', 'schema', 'noindex', 'nofollow']);
 // How a source file holds them: in three groups, as an editor sees them, each a key of
 // the source file's own beside the post's fields, and not as the content file's flat
 // map. Each group's keys as the source names them, with the key each is written under;
 // the sharing image is { src, alt }, written as `socialImage` and `socialImageAlt`.
 export const SEO_PARTS = Object.freeze({
-  search: Object.freeze({ title: 'title', description: 'description', noindex: 'noindex', nofollow: 'nofollow' }),
+  search: Object.freeze({ title: 'title', description: 'description', canonical: 'canonical', noindex: 'noindex', nofollow: 'nofollow' }),
   sharing: Object.freeze({ image: 'socialImage', title: 'socialTitle', description: 'socialDescription' }),
   structured: Object.freeze({ schema: 'schema' }),
 });
@@ -149,13 +151,14 @@ const results = new WeakSet();
 //
 //   { language: <locale> or null,
 //     languages: [ { locale, tag, prefix, main } ],
-//     types: { <post type>: { name, label, plural, collection, address, feed, hierarchical, search, elements, fields, editor } },
-//     taxonomies: { <taxonomy>: { name, label, plural, collection, hierarchical, address, feed } },
+//     interfaceLanguage: <interface language>,
+//     types: { <post type>: { name, builtIn, label, plural, collection, address, feed, hierarchical, search, elements, fields, editor } },
+//     taxonomies: { <taxonomy>: { name, builtIn, label, plural, collection, hierarchical, address, feed } },
 //     images: { smallestWidth, displayWidth } or null,
 //     menus: { <menu>: { name, label } },
 //     settings: [ { name, label, type, control, options, required, translated } ],
 //     consent: { departures: [ { departure, service, reason } ], domain },
-//     security: { includeSubDomains, frameAncestors: [ <origin> ] },
+//     security: { includeSubDomains, frameAncestors: [ <origin> ], dataImages },
 //     forms: { <form>: { name, label, fields: [ { name, label, kind, required, maxLength, options, help } ] } },
 //     search: { address } or null,
 //     components: { <component>: { name, element, label, form, body, attributes } },
@@ -171,7 +174,24 @@ const results = new WeakSet();
 // language subtag (`sv`), or the whole tag in lowercase
 // (`en-gb`) where another of the site's locales starts with the same subtag,
 // as two variants of one language do. A site with one language gives it with
-// no prefix (null), and a site that declares none gives none. A type's address is
+// no prefix (null), and a site that declares none gives none. The interface
+// language is the one the editor's interface takes where an editor has chosen
+// none (interfaceLanguageOf()). A type named `canvas`, `page` or `article` is the
+// core's own, built in (format/built-in-types.js), and `builtIn` names it, null on a
+// type of the site's own: the site gives it what it gives any type but its fields, its
+// label and plural where it wants its own, and fields of its own, and the type has the
+// core's fields, with the site's own before the search and sharing fields. An article
+// brings the built-in taxonomies `authors`, `category` and `topics`, first among the
+// taxonomies, to which a site may give an address, a feed and a label of its own; on a
+// site without the article, a taxonomy of one of these names is the site's own. Where a
+// built-in type or taxonomy has no label of the site's, it has the core's, from the
+// catalogues, in the form of a label by language. A label of the site's own, a type's or a
+// taxonomy's `label` and `plural`, a menu's, a setting's, a field's, a
+// presentation's and its options', and a component's and its attributes', is as
+// declared: one text for every language, or an object of a text by interface
+// language, `en` among them (checks.js, label()), which catalogues.js's labelIn()
+// gives in a language. A form's label and its fields' are one text, since
+// visitors read them. A type's address is
 // where visitors reach each of its posts, a path from the site's root with
 // `{slug}` as its last segment, or `{path}` in a hierarchical type, whose
 // posts have parents (format/addresses.js); null for a type whose posts have
@@ -240,7 +260,8 @@ export function siteDescription(declared, groups = coreSettingsGroups()) {
 //                        fields: { <field>: { type, options } } } },
 //     presentations: { <presentation>: { options: [ { name, type, options, required } ] } } }
 //
-// A type's taxonomies are those its fields hold the terms of, in order; its
+// A type's plural and its taxonomies' labels are in British English, as the
+// refusals that name them are. Its taxonomies are those its fields hold the terms of, in order; its
 // fields are those a list filters on and orders by, `date` and `modified`, of
 // the type `date`, and the site's own: `text`, `choice` (a
 // select, with its options), `boolean`, `number`, `integer` or `date`. A
@@ -254,8 +275,8 @@ export function postListModel({ types, presentations }) {
   };
   return {
     types: Object.fromEntries(Object.values(types).filter(Boolean).map((type) => [type.name, {
-      plural: type.plural,
-      taxonomies: type.fields.filter((field) => field.kind === 'terms' && field.taxonomy).map(({ taxonomy }) => ({ name: taxonomy.name, label: taxonomy.label })),
+      plural: labelIn(type.plural, SOURCE_LANGUAGE),
+      taxonomies: type.fields.filter((field) => field.kind === 'terms' && field.taxonomy).map(({ taxonomy }) => ({ name: taxonomy.name, label: labelIn(taxonomy.label, SOURCE_LANGUAGE) })),
       fields: Object.fromEntries(type.fields.filter((field) => ['date', 'modified', 'meta'].includes(field.kind)).map((field) => [field.name, fieldOf(field)])),
     }])),
     presentations: Object.fromEntries(Object.values(presentations ?? {}).filter(Boolean).map((presentation) => [presentation.name, {
@@ -295,23 +316,33 @@ function description(declared, groups, problems) {
     problems.push('the site description must be a JSON object');
     return null;
   }
-  onlyKeys(declared, ['language', 'languages', 'images', 'types', 'taxonomies', 'presentations', 'menus', 'settings', 'consent', 'security', 'forms', 'search', 'components', 'componentChecks'], '', problems);
-  const components = readComponents(declared.components, rules, 'components', problems);
+  onlyKeys(declared, ['language', 'languages', 'interfaceLanguage', 'images', 'types', 'taxonomies', 'presentations', 'menus', 'settings', 'consent', 'security', 'forms', 'search', 'components', 'componentChecks'], '', problems);
+  const components = readComponents(declared.components, rules, 'components', problems, label);
   const known = withComponents(rules, components);
   const componentChecks = componentChecksOf(declared.componentChecks, components, problems);
   const languages = languagesOf(declared, problems);
   const language = languages.length > 0 ? languages[0].locale : null;
+  const interfaceLanguage = interfaceLanguageOf(declared.interfaceLanguage, language, problems);
   const collections = new Map();
   const addresses = { languages, taken: new Map(), told: new Set(), searched: declared.search !== undefined };
   const taxonomies = {};
-  for (const [name, taxonomy] of entries(declared.taxonomies, 'taxonomies', problems, false)) {
-    taxonomies[name] = taxonomyOf(name, taxonomy, `taxonomies.${name}`, { collections, addresses }, problems);
+  const declaredTaxonomies = entries(declared.taxonomies, 'taxonomies', problems, false);
+  // The article's taxonomies come first, as the site gives them or with nothing given.
+  const brought = isObject(declared.types) && Object.hasOwn(declared.types, ARTICLE) ? BUILT_IN_TYPES[ARTICLE].taxonomies : [];
+  for (const name of brought) {
+    const given = declaredTaxonomies.find(([declaredName]) => declaredName === name)?.[1] ?? {};
+    taxonomies[name] = builtInTaxonomyOf(name, given, `taxonomies.${name}`, { collections, addresses }, problems);
+  }
+  // Without the article, a taxonomy of one of their names is the site's own.
+  for (const [name, taxonomy] of declaredTaxonomies) {
+    if (!brought.includes(name)) taxonomies[name] = taxonomyOf(name, taxonomy, `taxonomies.${name}`, { collections, addresses }, problems);
   }
   const types = {};
   for (const [name, type] of entries(declared.types, 'types', problems, true)) {
     types[name] = typeOf(name, type, `types.${name}`, { collections, taxonomies, addresses, rules: known }, problems);
   }
   feedsOf(types, taxonomies, problems);
+  ownFieldsOf(types, problems);
   const presentations = {};
   const optionTypes = new Map();
   for (const [name, presentation] of entries(declared.presentations, 'presentations', problems, false)) {
@@ -334,7 +365,7 @@ function description(declared, groups, problems) {
   for (const [name, form] of entries(declared.forms, 'forms', problems, false)) {
     forms[name] = formOf(name, form, `forms.${name}`, problems);
   }
-  return freeze({ language, languages, types, taxonomies, presentations, images, menus, settings, consent, security, forms, search, components, componentChecks, groups: groupsFor(declared, types, groups, language, forms) });
+  return freeze({ language, languages, interfaceLanguage, types, taxonomies, presentations, images, menus, settings, consent, security, forms, search, components, componentChecks, groups: groupsFor(declared, types, groups, language, forms) });
 }
 
 // The rule data a site's bodies are read against: the core's, with the components the
@@ -363,23 +394,26 @@ function componentChecksOf(given, components, problems) {
 // lowercase, with no port, path or wildcard.
 const FRAMING_ORIGIN = /^https:\/\/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/;
 
-// What the site opts in to of its security headers: HSTS that
+// What the site chooses of its security headers: HSTS that
 // holds for every subdomain of its host too, which would force HTTPS on the
-// customer's every other subdomain, and the origins that may frame its
-// pages beside its own. Nothing else of the headers is the site's.
+// customer's every other subdomain, the origins that may frame its pages
+// beside its own, and whether its pages may show `data:` images, such as a
+// design's icons embedded in its stylesheet, which they may unless
+// `dataImages` is false. Nothing else of the headers is the site's.
 function securityOf(security, problems) {
-  const none = { includeSubDomains: false, frameAncestors: [] };
+  const none = { includeSubDomains: false, frameAncestors: [], dataImages: true };
   if (security === undefined) return none;
   if (!isObject(security)) {
     problems.push('security: must be an object');
     return none;
   }
-  onlyKeys(security, ['includeSubDomains', 'frameAncestors'], 'security', problems);
+  onlyKeys(security, ['includeSubDomains', 'frameAncestors', 'dataImages'], 'security', problems);
   const includeSubDomains = flag(security.includeSubDomains, 'security.includeSubDomains', problems);
+  const dataImages = flag(security.dataImages, 'security.dataImages', problems, true);
   const declared = security.frameAncestors ?? [];
   if (!Array.isArray(declared)) {
     problems.push('security.frameAncestors: must list the origins that may frame the site');
-    return { includeSubDomains, frameAncestors: [] };
+    return { includeSubDomains, frameAncestors: [], dataImages };
   }
   const frameAncestors = [];
   declared.forEach((origin, index) => {
@@ -392,7 +426,7 @@ function securityOf(security, problems) {
       frameAncestors.push(origin);
     }
   });
-  return { includeSubDomains, frameAncestors };
+  return { includeSubDomains, frameAncestors, dataImages };
 }
 
 // The kinds of a form's field, each with the rules it takes beside its
@@ -615,6 +649,17 @@ function languagesOf({ language, languages }, problems) {
   return [];
 }
 
+// The language the editor's interface takes where an editor has chosen none
+// (ADR 0066): the one the site declares, one Konzilo's interface comes in, else
+// the site's main language where the core has a catalogue for it, else British
+// English.
+function interfaceLanguageOf(declared, language, problems) {
+  if (declared === undefined) return catalogueFor(language);
+  if (INTERFACE_LANGUAGES.includes(declared)) return declared;
+  problems.push(`interfaceLanguage: ${JSON.stringify(declared)} is not a language Konzilo's interface comes in, which are ${interfaceLanguagesNamed()}`);
+  return catalogueFor(language);
+}
+
 // Several languages, locales in order, the main language first.
 function severalLanguages(languages, problems) {
   const locales = Array.isArray(languages) ? languages : [];
@@ -657,15 +702,17 @@ function prefixOf(tag, languages) {
 // The widths uploads are checked against, which a site with a featured
 // image, images in body text or a sharing image must give.
 function imagesOf(images, types, problems) {
-  const having = (has) => Object.entries(types).find(([, type]) => type && has(type))?.[0];
+  const having = (has) => Object.values(types).find((type) => type && has(type));
   const featured = having((type) => type.fields.some((field) => field.kind === 'image'));
   const inBody = having((type) => type.elements.includes('image'));
   const sharing = having((type) => type.fields.some((field) => field.kind === 'seo'));
   if (images === undefined) {
     const widths = 'images: must give the smallest width and the display width, since';
-    if (featured) problems.push(`${widths} types.${featured}.fields.image is a featured image`);
-    else if (inBody) problems.push(`${widths} types.${inBody}.elements holds image, images in body text`);
-    else if (sharing) problems.push(`${widths} types.${sharing}.fields.seo holds a sharing image`);
+    // A built-in type's fields are the core's, which the site does not declare.
+    const builtIn = (type, part) => `the built-in ${type.name} has ${part}`;
+    if (featured) problems.push(`${widths} ${featured.builtIn ? builtIn(featured, 'a main image') : `types.${featured.name}.fields.image is a featured image`}`);
+    else if (inBody) problems.push(`${widths} types.${inBody.name}.elements holds image, images in body text`);
+    else if (sharing) problems.push(`${widths} ${sharing.builtIn ? builtIn(sharing, 'the search and sharing fields, with a sharing image') : `types.${sharing.name}.fields.seo holds a sharing image`}`);
     return null;
   }
   if (!isObject(images)) {
@@ -706,7 +753,7 @@ function menuOf(name, menu, path, problems) {
     return null;
   }
   onlyKeys(menu, ['label'], path, problems);
-  return { name, label: text(menu.label, `${path}.label`, problems) };
+  return { name, label: label(menu.label, `${path}.label`, problems) };
 }
 
 // The attributes of every post list, which no option of a
@@ -739,7 +786,7 @@ function presentationOf(name, presentation, path, optionTypes, problems) {
     return null;
   }
   onlyKeys(presentation, ['label', 'options'], path, problems);
-  const result = { name, label: text(presentation.label, `${path}.label`, problems), options: [] };
+  const result = { name, label: label(presentation.label, `${path}.label`, problems), options: [] };
   for (const [option, declared] of entries(presentation.options, `${path}.options`, problems, false)) {
     const where = `${path}.options.${option}`;
     if (!/^[a-z][a-zA-Z0-9]*$/.test(option)) {
@@ -782,7 +829,7 @@ function settingOf(name, setting, path, groups, problems) {
   }
   const group = groups.find((found) => found.name === name);
   if (group) {
-    problems.push(`${path}: ${name} is the name of Konzilo's own settings group ${JSON.stringify(group.label)}; give the setting another name`);
+    problems.push(`${path}: ${name} is the name of Konzilo's own settings group ${JSON.stringify(labelIn(group.label, SOURCE_LANGUAGE))}; give the setting another name`);
     return null;
   }
   if (!isObject(setting)) {
@@ -815,6 +862,9 @@ export function translatedOf(translated, read, path, problems) {
   return true;
 }
 
+// A type, the site's own or a built-in one by its name (format/built-in-types.js): the
+// site gives a built-in type all it gives its own but the core's fields, and its label
+// and plural only where it wants its own.
 function typeOf(name, type, path, site, problems) {
   if (!/^[a-z][a-z0-9_-]{0,19}$/.test(name)) {
     problems.push(`${path}: a post type's name must be lowercase letters, digits, hyphens and underscores, starting with a letter, at most 20`);
@@ -823,14 +873,20 @@ function typeOf(name, type, path, site, problems) {
     problems.push(`${path}: must be an object`);
     return null;
   }
+  const builtIn = Object.hasOwn(BUILT_IN_TYPES, name) ? BUILT_IN_TYPES[name] : null;
   onlyKeys(type, ['label', 'plural', 'collection', 'address', 'feed', 'hierarchical', 'search', 'elements', 'fields', 'editor'], path, problems);
   if (type.editor !== undefined && !EDITORS.includes(type.editor)) problems.push(`${path}.editor: must be ${EDITORS.join(' or ')}, how an editor writes the body`);
-  const hierarchical = flag(type.hierarchical, `${path}.hierarchical`, problems);
+  if (builtIn && !builtIn.hierarchical && type.hierarchical !== undefined) {
+    problems.push(`${path}.hierarchical: an ${name} has no parent; only a page and a canvas may be hierarchical`);
+  }
+  const hierarchical = builtIn && !builtIn.hierarchical ? false : flag(type.hierarchical, `${path}.hierarchical`, problems);
   const address = addressOf(name, type.address, hierarchical, `${path}.address`, site.addresses, problems);
+  const labelOf = (key) => (builtIn && type[key] === undefined ? catalogueLabel(builtIn[key]) : label(type[key], `${path}.${key}`, problems));
   const result = {
     name,
-    label: text(type.label, `${path}.label`, problems),
-    plural: text(type.plural, `${path}.plural`, problems),
+    builtIn: builtIn ? name : null,
+    label: labelOf('label'),
+    plural: labelOf('plural'),
     collection: collectionOf(type.collection, `${path}.collection`, site.collections, problems),
     address,
     feed: feedAddressOf(type.feed, `${path}.feed`, false, problems),
@@ -840,8 +896,10 @@ function typeOf(name, type, path, site, problems) {
     editor: EDITORS.includes(type.editor) ? type.editor : 'text',
     fields: [],
   };
+  const declaredFields = entries(type.fields, `${path}.fields`, problems, false);
+  const own = builtIn ? declaredFields.filter(([field, declared]) => ownOfBuiltIn(name, field, declared, `${path}.fields.${field}`, problems)) : declaredFields;
   const taken = new Set();
-  for (const [field, declared] of entries(type.fields, `${path}.fields`, problems, false)) {
+  for (const [field, declared] of builtIn ? fieldsWith(name, own) : own) {
     const read = fieldOf(field, declared, `${path}.fields.${field}`, site.taxonomies, problems);
     if (!read) continue;
     if (read.kind === 'terms' && read.taxonomy) {
@@ -852,9 +910,45 @@ function typeOf(name, type, path, site, problems) {
   }
   if (result.feed !== null) {
     if (result.address === null) problems.push(`${path}.feed: a feed links each post to its page, and ${name} has no address`);
-    if (!hasDate(result)) problems.push(`${path}.feed: a feed lists posts by their date, and ${name} has none; declare "date": {} among its fields`);
+    if (!hasDate(result)) problems.push(`${path}.feed: a feed lists posts by their date, and ${name} has none${builtIn ? '' : '; declare "date": {} among its fields'}`);
   }
   return result;
+}
+
+// Whether a field a site declares on a built-in type is its own, which it is unless it
+// is one of the type's core fields, declared again or left out, or names a field of the
+// core's that the type does not take.
+function ownOfBuiltIn(type, name, declared, path, problems) {
+  if (Object.hasOwn(BUILT_IN_TYPES[type].fields, name)) {
+    problems.push(declared === false || declared === null
+      ? `${path}: is one of the core's fields of the built-in ${type}, which every ${type} has; a site cannot leave it out`
+      : `${path}: is one of the core's fields of the built-in ${type}, which has it without being declared; leave it out of fields`);
+    return false;
+  }
+  if (Object.hasOwn(CORE_FIELDS, name) || name === SEO_FIELD) {
+    problems.push(`${path}: names a field of the core's, which the built-in ${type} does not take; give a field of the site's own another name`);
+    return false;
+  }
+  return true;
+}
+
+// A field of the site's own on a built-in type, a value, is one the editor keeps in a group of the
+// site's own fields, in every form of a built-in type a field of its name stands in. The editor
+// reads every built-in type's source files in one format, which goes by a field's name alone,
+// since it is told nothing of a file's type (cms/config.js, ADR 0071). A term is a relation, which
+// that group cannot hold, so no term on a built-in type has such a name. A type of the site's own
+// has its files read in a format of their own, which holds no such group.
+function ownFieldsOf(types, problems) {
+  const builtIn = Object.values(types).filter((one) => one?.builtIn);
+  const owners = new Map();
+  for (const type of builtIn) {
+    for (const field of type.fields.filter((one) => one.kind === 'meta')) if (!owners.has(field.name)) owners.set(field.name, type.name);
+  }
+  for (const type of builtIn) {
+    for (const field of type.fields.filter((one) => one.kind === 'terms' && owners.has(one.name))) {
+      problems.push(`types.${type.name}.fields.${field.name}: the built-in ${owners.get(field.name)} has a field of the site's own by this name, which the editor keeps among the site's own fields on every built-in type; give this term another name`);
+    }
+  }
 }
 
 function taxonomyOf(name, taxonomy, path, { collections, addresses }, problems) {
@@ -869,11 +963,38 @@ function taxonomyOf(name, taxonomy, path, { collections, addresses }, problems) 
   const hierarchical = flag(taxonomy.hierarchical, `${path}.hierarchical`, problems);
   return {
     name,
-    label: text(taxonomy.label, `${path}.label`, problems),
-    plural: text(taxonomy.plural, `${path}.plural`, problems),
+    builtIn: null,
+    label: label(taxonomy.label, `${path}.label`, problems),
+    plural: label(taxonomy.plural, `${path}.plural`, problems),
     collection: collectionOf(taxonomy.collection, `${path}.collection`, collections, problems),
     hierarchical,
     address: termAddressOf(name, taxonomy.address, hierarchical, `${path}.address`, addresses, problems),
+    feed: feedAddressOf(taxonomy.feed, `${path}.feed`, true, problems),
+  };
+}
+
+// A built-in taxonomy, which comes with the built-in article (format/built-in-types.js):
+// its shape is the core's, and a site gives it an address and a feed, and its label and
+// plural where it wants its own.
+function builtInTaxonomyOf(name, taxonomy, path, { collections, addresses }, problems) {
+  const builtIn = BUILT_IN_TAXONOMIES[name];
+  if (!isObject(taxonomy)) {
+    problems.push(`${path}: must be an object`);
+    taxonomy = {};
+  }
+  for (const key of Object.keys(taxonomy)) {
+    if (key === 'collection' || key === 'hierarchical') problems.push(`${path}.${key}: the shape of the built-in taxonomy ${name} is the core's; a site gives it an address, a feed and a label of its own, if any`);
+    else if (!['label', 'plural', 'address', 'feed'].includes(key)) problems.push(`${path}.${key}: is not part of the site description`);
+  }
+  const labelOf = (key) => (taxonomy[key] === undefined ? catalogueLabel(builtIn[key]) : label(taxonomy[key], `${path}.${key}`, problems));
+  return {
+    name,
+    builtIn: name,
+    label: labelOf('label'),
+    plural: labelOf('plural'),
+    collection: collectionOf(builtIn.collection, `${path}.collection`, collections, problems),
+    hierarchical: builtIn.hierarchical,
+    address: termAddressOf(name, taxonomy.address, builtIn.hierarchical, `${path}.address`, addresses, problems),
     feed: feedAddressOf(taxonomy.feed, `${path}.feed`, true, problems),
   };
 }
@@ -1039,7 +1160,7 @@ export function ownField(name, field, path, problems, whole, takes = SETTING_TYP
   onlyKeys(field, ['label', 'type', 'control', 'options', 'required'], path, problems, whole);
   const result = {
     name,
-    label: text(field.label, `${path}.label`, problems),
+    label: label(field.label, `${path}.label`, problems),
     type: field.type,
     control: field.control,
     required: flag(field.required, `${path}.required`, problems),
@@ -1249,8 +1370,9 @@ function onlyKeys(object, allowed, path, problems, whole = 'the site description
   checkedKeys(object, allowed, path, problems, whole);
 }
 
-function flag(value, path, problems) {
-  if (value === undefined) return false;
+// A key that is true or false, `fallback` where it is left out.
+function flag(value, path, problems, fallback = false) {
+  if (value === undefined) return fallback;
   if (typeof value !== 'boolean') problems.push(`${path}: must be true or false`);
   return value === true;
 }

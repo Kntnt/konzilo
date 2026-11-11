@@ -51,47 +51,50 @@ export function svgSize(text) {
   return { width: Number.parseFloat(attribute('width')), height: Number.parseFloat(attribute('height')) };
 }
 
+// What an SVG holds that the site cannot show, by its name in the catalogues.
+const part = (name, values = {}) => ({ name: `about.svg-${name}`, values });
+
 // Why the site cannot show this SVG, or null. `bytes` are the original's.
 export function svgProblem(bytes) {
-  if (bytes[0] === 0x1f && bytes[1] === 0x8b) return say('svg', { what: 'compression' });
+  if (bytes[0] === 0x1f && bytes[1] === 0x8b) return say('refusal.svg', { what: part('compression') });
   const text = bytes.toString('utf8');
-  if (!Buffer.from(text, 'utf8').equals(bytes)) return say('svg', { what: 'an encoding other than UTF-8' });
+  if (!Buffer.from(text, 'utf8').equals(bytes)) return say('refusal.svg', { what: part('not-utf8') });
   const declared = /^﻿?<\?xml[^>]*encoding\s*=\s*["']([^"']+)["']/i.exec(text)?.[1];
-  if (declared && declared.toLowerCase() !== 'utf-8') return say('svg', { what: `the encoding ${declared}` });
+  if (declared && declared.toLowerCase() !== 'utf-8') return say('refusal.svg', { what: part('encoding', { encoding: declared }) });
   let problem = null;
   let root = null;
   const stack = [];
   const refuse = (what) => {
-    problem ??= say('svg', { what });
+    problem ??= say('refusal.svg', { what });
   };
   const parser = sax.parser(true, { xmlns: true, position: false });
   parser.onerror = (error) => {
-    refuse(`malformed XML (${error.message.split('\n')[0]})`);
+    refuse(part('malformed', { detail: error.message.split('\n')[0] }));
     parser.error = null;
   };
   parser.ondoctype = (doctype) => {
-    if (/\[|<!ENTITY/i.test(doctype)) refuse('a document type with declarations of its own');
+    if (/\[|<!ENTITY/i.test(doctype)) refuse(part('doctype'));
   };
   parser.onprocessinginstruction = ({ name }) => {
-    if (name.toLowerCase() === 'xml-stylesheet') refuse('a stylesheet from outside the file');
+    if (name.toLowerCase() === 'xml-stylesheet') refuse(part('stylesheet'));
   };
   parser.onopentag = (node) => {
     const local = node.local.toLowerCase();
     root ??= node;
     stack.push(local);
-    if (local === 'script') refuse('a script');
-    if (local === 'foreignobject') refuse('a foreignObject');
-    if (node.uri === XHTML) refuse('an element of XHTML');
+    if (local === 'script') refuse(part('script'));
+    if (local === 'foreignobject') refuse(part('foreign-object'));
+    if (node.uri === XHTML) refuse(part('xhtml'));
     for (const attribute of Object.values(node.attributes)) {
       const name = attribute.local.toLowerCase();
       const { value } = attribute;
-      if (name.startsWith('on')) refuse(`the event handler ${attribute.name}`);
-      if (/^\s*javascript:/i.test(value)) refuse('a javascript: address');
-      if (REFERENCES.has(name) && !isInside(value)) refuse(`the reference ${value.trim().slice(0, 60)} outside the file`);
+      if (name.startsWith('on')) refuse(part('handler', { handler: attribute.name }));
+      if (/^\s*javascript:/i.test(value)) refuse(part('javascript'));
+      if (REFERENCES.has(name) && !isInside(value)) refuse(part('reference', { reference: value.trim().slice(0, 60) }));
       const reference = cssReference(value);
-      if (reference) refuse(`the reference ${reference} outside the file`);
+      if (reference) refuse(part('reference', { reference }));
       if (ANIMATIONS.has(local) && name === 'attributename' && (REFERENCES.has(value.toLowerCase().replace(/^xlink:/, '')) || value.toLowerCase().startsWith('on'))) {
-        refuse('an animation that sets a reference or a handler');
+        refuse(part('animation'));
       }
     }
   };
@@ -99,14 +102,14 @@ export function svgProblem(bytes) {
   const css = (inner) => {
     if (stack.at(-1) !== 'style') return;
     const reference = cssReference(inner);
-    if (reference) refuse(`the reference ${reference} outside the file`);
+    if (reference) refuse(part('reference', { reference }));
   };
   parser.ontext = css;
   parser.oncdata = css;
   parser.write(text.replace(/^﻿/, '')).close();
   if (problem) return problem;
-  if (!root || root.local !== 'svg') return say('svg', { what: 'no <svg> at its root' });
+  if (!root || root.local !== 'svg') return say('refusal.svg', { what: part('root') });
   const given = Object.fromEntries(Object.values(root.attributes).map((attribute) => [attribute.local, attribute.value]));
-  if (!proportioned(given)) return say('svg', { what: 'no proportions: give it a viewBox, or a width and a height' });
+  if (!proportioned(given)) return say('refusal.svg', { what: part('proportions') });
   return null;
 }

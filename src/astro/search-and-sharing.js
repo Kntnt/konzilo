@@ -10,14 +10,16 @@
 // - its title tag: the post's own, else its type's template rendered, else
 //   its title; its meta description: the post's own, else the template
 //   rendered; its sharing title and description: the post's own, else the
-//   templates rendered, else the title tag and the description. A post whose
-//   type has a teaser falls back to what its teaser shows before the
-//   templates, cut as a search result and a shared link show it
-//   (article-parts.js);
-// - its canonical address, the post's public address on the public host,
-//   under its language's prefix on a site in several languages,
-//   or, on a later page of its list with pages of its own, that
-//   page's, `<address>page/<n>/`;
+//   templates rendered, else the title tag and the description. An article,
+//   and a post whose type of the site's own has a teaser, falls back to what
+//   its teaser shows before the templates, cut as a search result and a
+//   shared link show it (article-parts.js, built-in-types.js);
+// - its canonical address, as its canonical link and Open Graph's address:
+//   the one the post names, such as the original's where it was published
+//   elsewhere first, else the post's public address on the public host,
+//   under its language's prefix on a site in several languages;
+//   on a later page of its list with pages of its own, that page's,
+//   `<address>page/<n>/`, which the original has not got;
 // - on a site in several languages, `hreflang` links to the page in each
 //   language it is in, itself included, and `x-default` to the main
 //   language's, where it is in that one, but a translation marked noindex,
@@ -27,14 +29,15 @@
 //   post asks for it, or on a later page of its list, which is noindex;
 // - Open Graph's type, `article` for the Article types, with the post's
 //   date and last change, `website` for any other, and its title,
-//   description, address, the site's title and its language;
+//   description, the site's title and its language;
 // - the sharing image, the post's own, else its featured image, else the
 //   default sharing image, else the site's logo, else none, made 1200 × 630,
 //   cropped to fill, as a JPEG, with its alt text, for Open Graph and X;
 // - X's card, `summary_large_image` with an image and `summary` without;
 // - the alternates other parts of the core add (ALTERNATES);
 // - its structured data, one JSON-LD graph of the same values
-//   (structured-data.js), with the page's breadcrumbs (breadcrumbs.js).
+//   (structured-data.js), with the page's breadcrumbs (breadcrumbs.js) and
+//   an article's authors (authors.js).
 //
 // A term's page, where its taxonomy declares an address, says
 // the same of the term's name and its description as a page of the
@@ -52,14 +55,17 @@
 // Every value is in the page's language: its settings and templates, its
 // dates, `og:locale` and the structured data's `inLanguage`.
 
+import { labelIn } from '../catalogues.js';
 import { listPageAddress, searchPages } from '../format/addresses.js';
 import { searchDescriptionOf, searchTitleOf, SHARING_SIZE, socialDescriptionOf, socialTitleOf } from '../format/article-parts.js';
+import { followsParts, isArticle } from '../format/built-in-types.js';
 import { renderTemplate } from '../metadata-templates.js';
 import { isSiteTitle } from '../settings-groups.js';
+import { articleAuthors } from './authors.js';
 import { feedAlternates } from './feeds.js';
 import { entryAddress } from './languages.js';
 import { markdownLink } from './markdown-alternates.js';
-import { ARTICLES, graphScript, structuredData } from './structured-data.js';
+import { graphScript, structuredData } from './structured-data.js';
 import { summary } from './summary.js';
 import { taxonomyWithPages } from './term-pages.js';
 
@@ -123,6 +129,7 @@ export async function headTags({ entry = null, title, description, path, page: n
   const image = chosen && await sharingImage(chosen, origin, getImage);
   const logo = settings?.logo ? await logoImage(settings.logo, origin, getImage) : null;
   const url = new URL(page.path, origin).href;
+  const canonical = page.canonical ?? url;
   const meta = (key, name, content) => (content ? [{ tag: 'meta', attributes: { [key]: name, content } }] : []);
   const og = (name, content) => meta('property', name, content);
   const twitter = (name, content) => meta('name', name, content);
@@ -137,6 +144,7 @@ export async function headTags({ entry = null, title, description, path, page: n
     image,
     logo,
     breadcrumbs: breadcrumbs.map(({ name, path: at }) => ({ name, url: new URL(at, origin).href })),
+    authors: (page.authors ?? []).map(({ name, slug, path: at }) => ({ name, slug, url: at === null ? null : new URL(at, origin).href })),
   });
   // A later page of a list's pages is in no other language.
   const inLanguages = number > 1 ? [] : languages;
@@ -145,14 +153,14 @@ export async function headTags({ entry = null, title, description, path, page: n
   return [
     { tag: 'title', text: page.title },
     ...meta('name', 'description', page.description),
-    { tag: 'link', attributes: { rel: 'canonical', href: url } },
+    { tag: 'link', attributes: { rel: 'canonical', href: canonical } },
     ...inLanguages.map((one) => hreflang(one.tag, one.path)),
     ...(main ? [hreflang('x-default', main.path)] : []),
     ...meta('name', 'robots', page.robots),
     ...og('og:type', page.article ? 'article' : 'website'),
     ...og('og:title', page.socialTitle),
     ...og('og:description', page.socialDescription),
-    ...og('og:url', url),
+    ...og('og:url', canonical),
     ...og('og:site_name', siteTitle),
     ...og('og:locale', locale),
     ...(image ? [...og('og:image', image.src), ...og('og:image:width', String(image.width)), ...og('og:image:height', String(image.height)), ...og('og:image:alt', image.alt)] : []),
@@ -204,9 +212,9 @@ async function termPage({ entry, taxonomy, number, search, siteTitle }, known, g
 }
 
 // What a post's page says: the post's own values, else its type's templates
-// rendered, at its public address, with its own image or its featured image.
-// Its later page `number` of a list with pages is at its own address,
-// `noindex`.
+// rendered, at its public address, with its own image or its featured image,
+// canonical to the address it names, if any. Its later page `number` of a
+// list with pages is at its own address, canonical to itself, `noindex`.
 async function postPage({ entry, type, path, number, search, site }, known, getEntries) {
   const terms = {};
   for (const field of type.fields.filter((found) => found.kind === 'terms' && found.taxonomy)) {
@@ -218,8 +226,9 @@ async function postPage({ entry, type, path, number, search, site }, known, getE
   const templates = search.types?.[type.name] ?? {};
   const seo = entry.data.seo ?? {};
   const field = (kind) => entry.data[type.fields.find((found) => found.kind === kind)?.name];
-  // What the teaser shows, where the type has one, before the templates.
-  const teaser = type.fields.some((found) => found.kind === 'teaser');
+  // What the teaser shows, in an article and in a type of the site's own that has a
+  // teaser, before the templates.
+  const teaser = followsParts(type);
   const shown = (rule) => (teaser ? rule(entry.data) : '');
   const titleTag = seo.title || shown((data) => searchTitleOf(data, known.settings?.title ?? '')) || render(templates.title) || entry.data.title;
   const metaDescription = seo.description || shown(searchDescriptionOf) || render(templates.description);
@@ -232,13 +241,16 @@ async function postPage({ entry, type, path, number, search, site }, known, getE
     socialTitle: seo.socialTitle || shown(socialTitleOf) || render(templates.socialTitle) || titleTag,
     socialDescription: seo.socialDescription || shown(socialDescriptionOf) || render(templates.socialDescription) || metaDescription,
     path: address === null ? path : listPageAddress(address, number),
+    canonical: !later && seo.canonical ? seo.canonical : null,
     robots: [(seo.noindex || later) && 'noindex', seo.nofollow && 'nofollow'].filter(Boolean).join(', '),
     schema,
-    article: ARTICLES.has(schema),
+    // Whether the post is an article, which its type says, whatever its structured data type.
+    article: isArticle(type),
     headline: field('headline') || entry.data.title,
     published: field('date'),
     modified: field('modified'),
     image: seo.socialImage ? { src: seo.socialImage, alt: seo.socialImageAlt } : field('image') ?? null,
+    authors: await articleAuthors(entry, type, site, getEntries),
   };
 }
 
@@ -304,7 +316,8 @@ export function templateValues({ settings = {}, post = null, languageTag, now = 
     'post.excerpt': typeof data.excerpt === 'string' ? data.excerpt : '',
     'post.date': day(data.date),
     'post.modified_date': day(data.modified),
-    'post_type.labels.singular': type.label,
+    // A label the site gives by language is the page's language's, as all a visitor reads is.
+    'post_type.labels.singular': labelIn(type.label, languageTag),
   });
   for (const field of type.fields) {
     if (field.kind === 'meta') values[`post.custom_field.${field.name}`] = asKept(data[field.name]);

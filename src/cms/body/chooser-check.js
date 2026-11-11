@@ -20,15 +20,15 @@ const measured = async (file) => {
 // Why the site would not take this file, or null. Only what can be told here: an SVG's own check
 // has a parser this page does not carry, so that one is the intake's.
 export async function uploadProblem(file, { smallestWidth = null } = {}, measure = measured) {
-  if (file.size > MOST_BYTES) return say('image-large');
+  if (file.size > MOST_BYTES) return say('refusal.image-large');
   const head = new Uint8Array(await file.slice(0, HEAD).arrayBuffer());
   const kind = kindOf(head);
-  if (NOT_TAKEN.has(kind)) return say('image-kind', { kind: `a ${kind}` });
-  if (kind === 'unknown' || kind === 'pointer') return say('image-kind', { kind: 'this file' });
+  if (NOT_TAKEN.has(kind)) return say('refusal.image-kind', { kind: say('about.image-format', { format: kind }) });
+  if (kind === 'unknown' || kind === 'pointer') return say('refusal.image-kind', { kind: say('about.this-file') });
   if (kind === 'svg') return null;
-  if (kind === 'webp' && movesAsWebp(head)) return say('image-moving');
+  if (kind === 'webp' && movesAsWebp(head)) return say('refusal.image-moving');
   const size = await measure(file).catch(() => null);
-  if (size === null) return say('image-kind', { kind: 'this file' });
+  if (size === null) return say('refusal.image-kind', { kind: say('about.this-file') });
   const width = masterWidth(size);
-  return smallestWidth !== null && width < smallestWidth ? say('image-small', { width, smallest: smallestWidth }) : null;
+  return smallestWidth !== null && width < smallestWidth ? say('refusal.image-small', { width, smallest: smallestWidth }) : null;
 }

@@ -6,8 +6,8 @@
 // the embeds, the tag manager, the cookie declaration and the security policy
 // all read this one file.
 
+import { inCatalogue } from '../catalogues.js';
 import { CATEGORIES, CONSENT_STORAGE, HOST_KINDS, registryRevision } from '../consent/registry.js';
-import { inLanguage } from '../texts.js';
 
 import { tagManagerIds, tagManagerOf, tagManagerServices, trackerOf, WITHOUT_STORAGE } from './tag-manager.js';
 import rules from './rules.json' with { type: 'json' };
@@ -35,28 +35,17 @@ function consentStorage({ site }) {
   const lifetime = `P${CONSENT_STORAGE.months}M`;
   return [{
     id: 'consent',
-    name: { en: 'Consent', sv: 'Samtycke' },
+    name: { text: 'site.service.consent.name' },
     category: 'necessary',
     provider: null,
-    purpose: domain
-      ? {
-          en: `Remembers which categories and services you allowed, and when, so that this site and every other site below ${domain} respect your choice.`,
-          sv: `Kommer ihåg vilka kategorier och tjänster du har tillåtit, och när, så att den här webbplatsen och varje annan webbplats under ${domain} respekterar ditt val.`,
-        }
-      : {
-          en: 'Remembers which categories and services you allowed, and when, so that the site respects your choice.',
-          sv: 'Kommer ihåg vilka kategorier och tjänster du har tillåtit, och när, så att webbplatsen respekterar ditt val.',
-        },
+    purpose: domain ? { text: 'site.service.consent.purposeShared', values: { domain } } : { text: 'site.service.consent.purpose' },
     storage: domain
       ? [
           { name: CONSENT_STORAGE.name, kind: 'cookie', lifetime, party: 'first', domain },
           { name: CONSENT_STORAGE.name, kind: 'localStorage', lifetime, party: 'first' },
         ]
       : [{ name: CONSENT_STORAGE.name, kind: 'localStorage', lifetime, party: 'first' }],
-    necessity: {
-      en: 'Without it the site could not keep to your choice, and would ask you on every page.',
-      sv: 'Utan den kunde webbplatsen inte hålla sig till ditt val, och skulle fråga dig på varje sida.',
-    },
+    necessity: { text: 'site.service.consent.necessity' },
   }];
 }
 
@@ -100,9 +89,10 @@ export function coreServiceIds() {
 // what the build knows to the services it adds: { site, settings, embeds,
 // facts }, the site as checked, the values of settings.json, the ids of the
 // embed services the site's pages show and the core's facts of them. A
-// service is given as docs/agents/consent.md describes it; a text visitors
-// read may be given in each language ({ en, sv }), and the registry takes
-// the site's. A feature adds its function here, before the last, which
+// service is given as the registry holds it (content-format.md, "The
+// service registry"), save that a text visitors read may be a text of the
+// catalogues by its name, `{ text, values }` (catalogues.js, inCatalogue()),
+// of which the registry takes the site's language's. A feature adds its function here, before the last, which
 // gives the services an Admin declares (`declared`, from
 // declared-services.js), as the tag manager (tag-manager.js) does.
 const FEATURES = [consentStorage, embedServices, tagManagerServices, ({ declared }) => declared];
@@ -134,7 +124,7 @@ export function registryFile({ site, settings, embeds, facts = coreFacts, previo
     if (departure.departure !== 'necessaryService') return;
     const service = services.find((found) => found.id === departure.service);
     if (!service) {
-      warnings.push({ consent: `consent.departures.${index + 1}`, reason: `the departure names the service ${departure.service}, which no page of the site lets a visitor reach` });
+      warnings.push({ consent: `consent.departures.${index + 1}`, reason: { name: 'warning.departure-service', values: { service: departure.service } } });
       return;
     }
     service.category = 'necessary';
@@ -143,7 +133,7 @@ export function registryFile({ site, settings, embeds, facts = coreFacts, previo
   // Counting without storage is a mode of Matomo's own tracker alone.
   const withoutStorage = site.consent.departures.findIndex((departure) => departure.departure === WITHOUT_STORAGE);
   if (withoutStorage !== -1 && (tagManagerOf(settings) !== null || trackerOf(settings) === null)) {
-    warnings.push({ consent: `consent.departures.${withoutStorage + 1}`, reason: 'the departure counts without storage only with Matomo\'s own tracker, which the site settings do not choose, so nothing counts before consent' });
+    warnings.push({ consent: `consent.departures.${withoutStorage + 1}`, reason: { name: 'warning.departure-tracker', values: {} } });
   }
   services.sort((a, b) => CATEGORIES.indexOf(a.category) - CATEGORIES.indexOf(b.category) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const categories = CATEGORIES
@@ -163,19 +153,19 @@ export function registryFile({ site, settings, embeds, facts = coreFacts, previo
   return { file: { path: CONSENT_FILE, contents: `${JSON.stringify(registry, null, 2)}\n` }, warnings, asksConsent };
 }
 
-// A service as the registry holds it: its facts in the site's language,
+// A service as the registry holds it: its facts in the site's language (ADR 0066),
 // with every kind of request's hosts, sorted.
 function serviceOf(service, language) {
   return {
     id: service.id,
-    name: inLanguage(service.name, language),
+    name: inCatalogue(service.name, language),
     category: service.category,
     provider: service.provider ? { ...service.provider } : null,
-    purpose: inLanguage(service.purpose, language),
+    purpose: inCatalogue(service.purpose, language),
     storage: (service.storage ?? []).map((item) => ({ name: item.name, kind: item.kind, lifetime: item.lifetime, party: item.party, domain: domainOf(item, service) })),
     hosts: Object.fromEntries(HOST_KINDS.map((kind) => [kind, [...new Set(service.hosts?.[kind] ?? [])].sort()])),
     transfers: (service.transfers ?? []).map((transfer) => ({ country: transfer.country, safeguards: [...transfer.safeguards] })),
-    necessity: service.category === 'necessary' ? inLanguage(service.necessity, language) : null,
+    necessity: service.category === 'necessary' ? inCatalogue(service.necessity, language) : null,
   };
 }
 

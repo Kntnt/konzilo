@@ -34,7 +34,7 @@ export function componentElement(name, rules) {
 
 const fitsType = (type, value) => (type === 'string' ? typeof value === 'string' : type === 'integer' ? Number.isInteger(value) : typeof value === 'boolean');
 
-function readAttribute(name, setting, path, problems) {
+function readAttribute(name, setting, path, problems, readLabel) {
   if (!ATTRIBUTE.test(name) || RESERVED.has(name)) problems.push(`${path}: an attribute's name is in camelCase, and not id, class or content`);
   if (!isObject(setting)) {
     problems.push(`${path}: must be an object`);
@@ -45,8 +45,9 @@ function readAttribute(name, setting, path, problems) {
   if (!TYPES.includes(setting.type)) problems.push(`${path}.type: must be ${TYPES.join(', ')}`);
   else read.type = setting.type;
   if (setting.label !== undefined) {
-    if (typeof setting.label !== 'string' || setting.label.trim() === '') problems.push(`${path}.label: must be a text`);
-    else read.label = setting.label;
+    const before = problems.length;
+    const label = readLabel(setting.label, `${path}.label`, problems);
+    if (problems.length === before) read.label = label;
   }
   if (setting.values !== undefined) {
     if (!Array.isArray(setting.values) || setting.values.length === 0 || !setting.values.every((value) => fitsType(setting.type, value))) problems.push(`${path}.values: must list the values of its type`);
@@ -86,7 +87,10 @@ function readAttribute(name, setting, path, problems) {
 // The components a site declares, as read: { <name>: { name, element, label, form, body,
 // attributes } } in the order declared, each attribute as declared, its keys checked.
 // `rules` is the core's rule data, whose directives no component may be named as.
-export function readComponents(declared, rules, path, problems) {
+// `readLabel` checks a label, a component's and an attribute's, as the site
+// description's checker checks every label of the site's own (checks.js, label()):
+// one text for every language, or one by interface language.
+export function readComponents(declared, rules, path, problems, readLabel) {
   if (declared === undefined) return {};
   if (!isObject(declared)) {
     problems.push(`${path}: must be an object of the site's components, by name`);
@@ -108,7 +112,7 @@ export function readComponents(declared, rules, path, problems) {
       continue;
     }
     for (const key of Object.keys(component)) if (!COMPONENT_KEYS.includes(key)) problems.push(`${at}.${key}: is no key of a component; it takes ${COMPONENT_KEYS.join(', ')}`);
-    if (typeof component.label !== 'string' || component.label.trim() === '') problems.push(`${at}.label: must be a text, the component's name as an editor reads it`);
+    readLabel(component.label, `${at}.label`, problems);
     const form = Object.hasOwn(BODIES, component.form) ? component.form : null;
     if (form === null) problems.push(`${at}.form: must be leaf or container`);
     else if (!BODIES[form].includes(component.body)) problems.push(`${at}.body: a ${form}'s body is ${BODIES[form].join(' or ')}`);
@@ -116,7 +120,7 @@ export function readComponents(declared, rules, path, problems) {
     if (component.attributes !== undefined && !isObject(component.attributes)) problems.push(`${at}.attributes: must be an object of attributes, by name`);
     else {
       for (const [attribute, setting] of Object.entries(component.attributes ?? {})) {
-        const one = readAttribute(attribute, setting, `${at}.attributes.${attribute}`, problems);
+        const one = readAttribute(attribute, setting, `${at}.attributes.${attribute}`, problems, readLabel);
         if (one) attributes[attribute] = one;
       }
     }
@@ -141,6 +145,7 @@ export function withComponents(rules, components) {
   for (const component of list) {
     const attributes = Object.fromEntries(Object.entries(component.attributes).map(([name, { label, ...setting }]) => [name, setting]));
     elements[component.element] = {
+      // As a reason names it, in the language it is shown in (refusals.js).
       label: component.label,
       ...(component.form === 'container' ? { inner: blocks } : {}),
       ...(component.body === 'text' ? { inline: [...rules.elements.heading.inline] } : {}),

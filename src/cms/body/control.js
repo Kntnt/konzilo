@@ -4,12 +4,11 @@
 // Crossing Sveltia's responsive breakpoint remounts a control. The field is kept across that,
 // by its entry and name, so that a remount changes nothing and the editor keeps its undo.
 
-import { say } from './texts.js';
+import { say } from '../interface-language.js';
+import { plain } from '../plain.js';
 
 const KEEP_FOR = 2000;
 const kept = new Map();
-
-const plain = (value) => (value?.toJS ? value.toJS() : value);
 
 const loadField = () => import('./field.js');
 
@@ -58,7 +57,7 @@ export function bodyControl({ adminHost, library = null, load = loadField }) {
         }, (error) => {
           // A build replaced while the page was open, or a dropped connection.
           console.warn(`The body field did not load: ${error.message}`);
-          if (host.current !== null) host.current.textContent = say('fieldOff');
+          if (host.current !== null) host.current.textContent = say('body.off');
         });
       }
       return () => {

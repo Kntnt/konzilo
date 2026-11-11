@@ -17,12 +17,12 @@ import { emptyLedger, ledgerFile, nextLedger, normalLedger } from './ledger.js';
 import { bodyProblems, fieldsOf, fileText, momentOf, otherAddressesIn, publishedHash, slugOf, writtenBody } from './post-file.js';
 import { reader as siteReader } from './reader.js';
 import { readRules } from './rules-file.js';
-import { aboutPost, groupBy, inBody, refuse } from './run.js';
+import { aboutPost, groupBy, inBody, ofPost, refuse } from './run.js';
 import { chosenIn } from './settings.js';
 import { consentFile, menuFiles, notFoundFiles, redirectsFile, settingsFiles } from './site-files.js';
 import { readSource, sha256 } from './source.js';
 import { readTerms, termFiles } from './terms.js';
-import { named, say } from './words.js';
+import { fieldValued, named, say } from './words.js';
 
 const MARKUP = /<\/?[a-zA-Z!?][^<>]*>/;
 
@@ -82,7 +82,7 @@ function adminProblem(run, path) {
   const change = run.changes?.[path];
   if (!change || change.admin !== false) return null;
   if (run.source.hashes.get(path) === run.ledger.files[path]) return null;
-  return say('admin-file', { by: change.by ?? 'this person', file: path });
+  return say('refusal.admin-file', { by: change.by ?? say('about.someone'), file: path });
 }
 
 function readAdminFiles(run) {
@@ -98,7 +98,7 @@ function readAdminFiles(run) {
   }
   run.settingsSource = source.settings?.value ?? {};
   const unusable = source.settings?.refused || run.gated.has('settings.json') || !isObject(run.settingsSource);
-  if (source.settings && !source.settings.refused && !isObject(run.settingsSource)) run.refusals.push(named({ file: 'settings.json', reason: say('setting-shape') }));
+  if (source.settings && !source.settings.refused && !isObject(run.settingsSource)) run.refusals.push(named({ file: 'settings.json', reason: say('refusal.setting-shape') }));
   run.settingsRefused = Boolean(unusable);
   run.chosen = unusable ? run.ledger.chosen : chosenIn(run.settingsSource);
   // A file an Admin has not accepted says nothing here: the rules go on as they were.
@@ -155,14 +155,14 @@ function stateOf(post, run) {
   if (taking) {
     post.on = true;
     post.notFound = run.chosen.notFound === post.id;
-    refuse(run, post, { reason: say(post.gone ? 'admin-legal-gone' : 'admin-legal', { by: taking.by ?? 'this person' }) });
+    refuse(run, post, { reason: say(post.gone ? 'refusal.admin-legal-gone' : 'refusal.admin-legal', { by: taking.by ?? say('about.someone') }) });
     return;
   }
   if (run.preview.has(post.path)) {
     post.on = true;
     post.notFound = run.chosen.notFound === post.id;
     if (run.several && post.language === null) {
-      refuse(run, post, { reason: say('language-folder', { folder: post.tag ?? 'the collection\'s own folder' }) });
+      refuse(run, post, { reason: say('refusal.language-folder', { folder: post.tag ?? say('about.collection-folder') }) });
       post.keepsNothing = true;
     }
     return;
@@ -170,35 +170,40 @@ function stateOf(post, run) {
   if (status === 'draft' || status === null) return;
   if (status !== 'published' && status !== 'scheduled') {
     post.on = true;
-    refuse(run, post, { field: 'status', reason: say('status', { status: String(status) }) });
+    refuse(run, post, { field: 'status', reason: say('refusal.status', { status: String(status) }) });
     return;
   }
   const date = post.fields.date === undefined || post.fields.date === null || post.fields.date === '' ? undefined : momentOf(post.fields.date);
   if (status === 'scheduled' && !date) {
     post.on = true;
-    refuse(run, post, { field: date === null ? 'date' : 'status', reason: date === null ? say('field-moment', { field: 'date', value: String(post.fields.date) }) : say('scheduled-date') });
+    refuse(run, post, { field: date === null ? 'date' : 'status', reason: date === null ? say('refusal.field-moment', { field: fieldValued(post.type, 'date'), value: String(post.fields.date) }) : say('refusal.scheduled-date') });
     return;
   }
+  // A scheduled post seen waiting for its moment is remembered with it, so that it goes
+  // live at it with nothing to say. One whose moment had passed when it was first read
+  // goes live at once, with that moment as its date, and says so (ADR 0069).
+  if (status === 'scheduled' && (new Date(date) > run.now || run.ledger.awaited[post.key] === date)) post.awaited = date;
   if (date && new Date(date) > run.now) {
     post.waiting = date;
     return;
   }
   post.on = true;
+  if (status === 'scheduled' && !post.awaited) post.passed = date;
   if (run.several && post.language === null) {
-    refuse(run, post, { reason: say('language-folder', { folder: post.tag ?? 'the collection\'s own folder' }) });
+    refuse(run, post, { reason: say('refusal.language-folder', { folder: post.tag ?? say('about.collection-folder') }) });
     post.keepsNothing = true;
     return;
   }
   post.notFound = run.chosen.notFound === post.id;
   const change = legalChangedBy(post, run);
-  if (change) refuse(run, post, { reason: say('admin-legal', { by: change.by ?? 'this person' }) });
+  if (change) refuse(run, post, { reason: say('refusal.admin-legal', { by: change.by ?? say('about.someone') }) });
 }
 
 // A post's own problems, what no other post can change.
 function checkPost(post, run) {
   if (post.unreadable || post.keepsNothing || post.gone) return;
-  if (post.title === null) refuse(run, post, { field: 'title', reason: say('title-empty') });
-  else if (MARKUP.test(post.title)) refuse(run, post, { field: 'title', reason: say('title-markup') });
+  if (post.title === null) refuse(run, post, { field: 'title', reason: say('refusal.title-empty') });
+  else if (MARKUP.test(post.title)) refuse(run, post, { field: 'title', reason: say('refusal.title-markup') });
   const slug = slugOf(post);
   if (slug.reason) refuse(run, post, { field: 'slug', reason: slug.reason });
   const other = otherAddressesIn(post);
@@ -247,7 +252,11 @@ function writePost(post, run) {
     modified,
     taken,
     embeds,
-    warnings: [...warnings.map((warning) => inBody(warning, post)), ...fields.warnings],
+    warnings: [
+      ...(post.passed ? [{ field: 'date', reason: say('warning.scheduled-passed', { moment: { moment: post.passed } }) }] : []),
+      ...warnings.map((warning) => inBody(warning, post)),
+      ...fields.warnings,
+    ],
     terms: [...post.termIds],
     masters: post.masters,
   };
@@ -275,7 +284,7 @@ function checkSets(run) {
   const groups = groupBy(live, (post) => `${setOf(post)}\n${post.tag}`);
   for (const group of groups.values()) {
     const [first, ...rest] = [...group].sort((a, b) => earlier(run, a, b));
-    for (const post of rest) refuse(run, post, { field: 'translationKey', reason: say('set-twice', { holder: first.title ?? first.id }) });
+    for (const post of rest) refuse(run, post, { reason: say('refusal.set-twice', { holder: first.title ?? first.id }) });
   }
   return run.refused.size !== before;
 }
@@ -331,7 +340,7 @@ function assemble(run) {
   // Warnings of a post that is live, in the order of its blocks.
   for (const post of source.posts) {
     if (run.refused.has(post.key) || !post.written) continue;
-    for (const warning of post.written.warnings) run.warnings.push(named({ post: aboutPost(post), file: post.path, ...warning }));
+    for (const warning of post.written.warnings) run.warnings.push(ofPost(post, warning));
   }
   const next = source.posts.map((post) => post.waiting).filter(Boolean).sort()[0] ?? null;
   const updated = nextLedger(run, settings);

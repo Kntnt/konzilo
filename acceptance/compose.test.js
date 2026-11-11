@@ -113,6 +113,19 @@ describe('a site in Compose', () => {
     await page.getByText(title).first().click();
   };
 
+  // Sveltia puts a long form's fields on the page only as a person scrolls near them, so this
+  // turns the wheel over the form until the field at `key` is there, and brings it into view.
+  const bringNear = async (page, key) => {
+    const field = page.locator(`section.field[data-key-path="${key}"]`);
+    const box = await page.locator('section.field[data-key-path="group-name"]').boundingBox();
+    await page.mouse.move(box.x + box.width / 2, Math.min(Math.max(box.y + 5, 10), page.viewportSize().height - 10));
+    for (let tries = 0; await field.count() === 0 && tries < 40; tries += 1) {
+      await page.mouse.wheel(0, 600);
+      await page.waitForTimeout(250);
+    }
+    await field.scrollIntoViewIfNeeded();
+  };
+
   const openChooser = async (page, row = 'image', title = 'Choose an image', name = 'Image') => {
     const editor = page.locator('.konzilo-body-visual .ProseMirror');
     await editor.waitFor({ timeout: 30_000 });
@@ -333,9 +346,11 @@ describe('a site in Compose', () => {
         const { page } = session;
         const before = await fileNamed('articles', POST_OF[engine]);
         await page.getByText(POST_OF[engine]).first().click();
-        const field = page.getByRole('textbox', { name: 'Title' });
+        // An article's working name, and its main headline, which its page shows.
+        const field = page.getByRole('textbox', { name: 'Working name' });
         await field.waitFor();
         await field.fill(title);
+        await page.getByRole('textbox', { name: 'Main headline' }).fill(title);
         await page.getByRole('button', { name: 'Save', exact: true }).click();
 
         // "Saved" on screen is no proof, so ask Forgejo.
@@ -356,10 +371,15 @@ describe('a site in Compose', () => {
         const saved = await fileNamed('articles', title);
         assert.match(await onTheSite(addressOf(saved.text), title), new RegExp(title));
         const { page } = session;
+        // An article's form has no publishing row (ADR 0071): the Publishing page says how it
+        // stands, and its page opens from beside its slug.
+        await page.goto(`${site.origin.admin}/#/collections/articles`);
+        await page.getByRole('radio', { name: 'Publishing' }).click();
+        await page.getByRole('row', { name: new RegExp(title) }).getByText('Live on the site.').waitFor({ timeout: 30_000 });
         await openArticle(page, title);
-        await page.getByText('Live on the site.').waitFor({ timeout: 30_000 });
-        const link = page.getByRole('link', { name: 'Show the page', exact: true });
+        const link = page.getByRole('link', { name: 'Show the page ↗', exact: true });
         assert.equal(await link.getAttribute('href'), `${site.origin.site}${addressOf(saved.text)}`);
+        assert.equal(await page.locator('section.field[data-key-path="publishing"]').count(), 0, 'with no publishing row in its form');
         assert.doesNotMatch((await fileNamed('articles', title)).text, /publishing/, 'and nothing of it in the file');
         await page.goBack();
       });
@@ -373,7 +393,7 @@ describe('a site in Compose', () => {
         assert.equal(await page.locator('.konzilo-body-note:visible').count(), 0, 'the early check is on');
         await page.getByRole('button', { name: 'Save', exact: true }).waitFor();
         await editor.click();
-        await page.getByRole('textbox', { name: 'Title' }).click();
+        await page.getByRole('textbox', { name: 'Working name' }).click();
         await page.waitForTimeout(300);
         assert.equal(await page.getByRole('button', { name: 'Save', exact: true }).isDisabled(), true, 'nothing to save');
       });
@@ -603,6 +623,72 @@ describe('a site in Compose', () => {
         await large.waitFor({ state: 'hidden' });
       });
 
+      test('chooses authors by name, adds a new one without leaving the form, puts them in order by dragging, and publishes them in that order', async () => {
+        const { page } = session;
+        const title = `A title saved in ${engine}`;
+        const newName = `Author from ${engine}`;
+        await openArticle(page, title);
+        await bringNear(page, 'group-terms.authors');
+        const field = page.locator('section.field[data-key-path="group-terms.authors"]');
+        const chips = () => field.locator('.konzilo-authors-name').allTextContents();
+        await field.locator('.konzilo-authors-name', { hasText: 'Ines Holm' }).waitFor({ timeout: 30_000 });
+        if ((await chips()).includes('Rafael Berg')) {
+          await field.getByRole('button', { name: 'Remove Rafael Berg' }).click();
+        }
+        assert.deepEqual(await chips(), ['Ines Holm']);
+
+        const box = field.getByRole('combobox', { name: 'Authors' });
+        await box.click();
+        await page.keyboard.type('berg', { delay: 20 });
+        await field.getByRole('option', { name: 'Rafael Berg' }).waitFor();
+        await page.keyboard.press('Enter');
+        assert.deepEqual(await chips(), ['Ines Holm', 'Rafael Berg']);
+
+        await field.getByRole('button', { name: 'Add a new author' }).click();
+        const dialog = page.getByRole('dialog', { name: 'A new author' });
+        await dialog.getByRole('textbox', { name: 'Name' }).fill(newName);
+        await dialog.getByRole('textbox', { name: 'Biography' }).fill(`Writes of ${engine}.`);
+        await dialog.getByRole('button', { name: 'Add the author' }).click();
+        await dialog.waitFor({ state: 'detached', timeout: 30_000 });
+        assert.deepEqual(await chips(), ['Ines Holm', 'Rafael Berg', newName]);
+        assert.match(page.url(), /\/entries\//, 'still in the form');
+
+        // Each author by the ID its file is named by, the new one's committed at once.
+        const ids = {};
+        for (const { path: place, name } of await api(`${repository()}/contents/authors`)) {
+          const { content } = await api(`${repository()}/contents/${place}`);
+          ids[JSON.parse(Buffer.from(content, 'base64').toString()).name] = name.replace(/\.json$/, '');
+        }
+        assert.match(ids[newName] ?? '', /^[0-9a-f]{12}$/);
+        const made = await lastCommit(`authors/${ids[newName]}.json`);
+        assert.equal(made.author?.login ?? made.commit.author.name, 'anna');
+
+        // Clear of the form's toolbar, which stays at the top of the pane as it scrolls.
+        await field.locator('.konzilo-authors-chip').first().evaluate((chip) => chip.scrollIntoView({ block: 'center' }));
+        const from = await field.locator('.konzilo-authors-chip', { hasText: newName }).boundingBox();
+        const to = await field.locator('.konzilo-authors-chip', { hasText: 'Ines Holm' }).boundingBox();
+        await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(from.x + from.width / 2 - 8, from.y + from.height / 2 + 2, { steps: 3 });
+        await page.mouse.move(to.x + 6, to.y + to.height / 2, { steps: 8 });
+        await field.locator('.konzilo-authors-chip[data-drop="before"]').waitFor();
+        await page.mouse.up();
+        assert.deepEqual(await chips(), [newName, 'Ines Holm', 'Rafael Berg']);
+        await page.getByRole('button', { name: 'Save', exact: true }).click();
+
+        const saved = await fileNamed('articles', title);
+        const order = [ids[newName], ids['Ines Holm'], ids['Rafael Berg']];
+        const inOrder = (text) => order.every((id, at) => text.indexOf(id) !== -1 && (at === 0 || text.indexOf(order[at - 1]) < text.indexOf(id)));
+        const text = await waitForFile(page, saved.path, inOrder);
+        assert.ok(inOrder(text), `${order.join(', ')} in that order in\n${text}`);
+        const taken = await throughIntake();
+        assert.deepEqual(taken.refusals.map((refusal) => refusal.message), [], 'the intake refuses nothing');
+        const slugs = `authors: ["author-from-${engine}","ines-holm","rafael-berg"]`;
+        assert.ok(taken.files.some(({ contents }) => String(contents).includes(`title: "${title}"`) && String(contents).includes(slugs)), `a content file with ${slugs}`);
+        const shown = await onTheSite(addressOf(saved.text), newName);
+        assert.match(shown, new RegExp(`<ul class="byline">.*${newName}.*Ines Holm.*Rafael Berg.*</ul>`, 's'));
+      });
+
       test('asks nothing outside this copy of the site, and breaks no policy', () => {
         assert.deepEqual(session.seen.outside, []);
         assert.deepEqual(session.seen.refused, []);
@@ -714,9 +800,12 @@ describe('a site in Compose', () => {
   });
 
   describe('in Swedish', () => {
-    test('speaks the browser\'s language, on files it holds itself', async () => {
+    test('speaks the site\'s interface language in a browser in another, and the editor\'s own once chosen, on files it holds itself', async () => {
       const session = await openEditor('chromium', site, { locale: 'sv-SE' });
       try {
+        await session.page.getByRole('button', { name: /Sign In with/ }).waitFor();
+        await session.page.evaluate(() => localStorage.setItem('sveltia-cms.prefs', JSON.stringify({ locale: 'sv' })));
+        await session.page.reload();
         await session.page.getByRole('button', { name: /Logga in med/ }).waitFor();
         assert.deepEqual(session.seen.outside, []);
       } finally {
@@ -772,8 +861,10 @@ describe('a site in Compose', () => {
         await page.getByText('Northern islands and the meadow').first().click();
         await page.locator('.konzilo-body-visual .ProseMirror').waitFor({ timeout: 30_000 });
         // What holds something is open already, and a click would close it. A long form
-        // renders what is below the window as it comes near, so each bar goes to the top.
+        // renders what is below the window as it comes near, so each group is brought near,
+        // and each bar goes to the top.
         const open = async (name) => {
+          await bringNear(page, name.toLowerCase());
           const bar = page.locator('button[aria-expanded]', { hasText: name }).first();
           if (await bar.getAttribute('aria-expanded') === 'false') await bar.click();
           await bar.evaluate((element) => element.scrollIntoView({ block: 'start' }));
@@ -801,8 +892,11 @@ describe('a site in Compose', () => {
         await signIn(session, site);
         const { page } = session;
         await page.getByRole('button', { name: 'Create New Entry' }).click();
-        await page.getByRole('textbox', { name: 'Title' }).fill('A new post');
-        await page.getByRole('checkbox', { name: 'Kitchens' }).first().click();
+        await page.getByRole('textbox', { name: 'Working name' }).fill('A new post');
+        await page.getByRole('textbox', { name: 'Main headline' }).fill('A new post');
+        // An article's one category, in a field Sveltia renders as it comes near.
+        await bringNear(page, 'group-terms.category');
+        await page.getByRole('radio', { name: 'Kitchens' }).first().click();
         await page.getByRole('button', { name: 'Save', exact: true }).click();
         const deadline = Date.now() + 30_000;
         let saved = null;
@@ -813,7 +907,7 @@ describe('a site in Compose', () => {
         assert.ok(saved, 'the post reached the repository');
         assert.match(saved.path, /^articles\/[0-9a-f]{12}\.md$/);
         assert.match(saved.text, /^status: draft$/m);
-        assert.match(saved.text, /^categories:\n\s+- [0-9a-f]{12}$/m);
+        assert.match(saved.text, /^category: "?[0-9a-f]{12}"?$/m);
         assert.doesNotMatch(saved.text, /^seo:/m, 'closed parts leave nothing in the file');
       } finally {
         await session.browser.close();
@@ -824,7 +918,7 @@ describe('a site in Compose', () => {
   describe('publishing', () => {
     let category;
     const file = (id) => `articles/${id}.md`;
-    const published = (slug, fields = {}, body = 'Plain words.') => sourcePost({ title: slug, slug, status: 'published', date: '2026-01-01T10:00:00Z', categories: [category], ...fields }, body);
+    const published = (slug, fields = {}, body = 'Plain words.') => sourcePost({ title: slug, slug, status: 'published', date: '2026-01-01T10:00:00Z', headline: slug, category: [category], ...fields }, body);
 
     before(async () => {
       category = (await api(`${repository()}/contents/categories`))[0].name.replace(/\.json$/, '');
@@ -935,7 +1029,7 @@ describe('a site in Compose', () => {
     test('keeps a refused post\'s last version, publishes the rest, and says why', async () => {
       await saveFile(file('cccccccccccc'), published('keeps-its-page', {}, 'The last good words.'), 'anna');
       await onTheSite('/keeps-its-page/', 'The last good words.');
-      await saveFile(file('cccccccccccc'), published('keeps-its-page', { categories: ['nosuchtermxxx'] }, 'Words that are refused.'), 'anna');
+      await saveFile(file('cccccccccccc'), published('keeps-its-page', { category: ['nosuchtermxxx'] }, 'Words that are refused.'), 'anna');
       await saveFile(file('dddddddddddd'), published('saved-after-it', {}, 'Words beside it.'), 'anna');
       await onTheSite('/saved-after-it/', 'Words beside it.');
       const refused = await statusBecomes(file('cccccccccccc'), 'failed');

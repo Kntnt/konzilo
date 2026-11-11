@@ -6,9 +6,12 @@
 // sharing tags in its head, with the links to the site's icons;
 // its footer shows the publisher's details after the footer text, or none of
 // them without a publisher's name. Its 404 page, 404.html, shows
-// the page an Admin chose in the site's frame, or the template's own plain
-// text in the site's language. An article shows its categories,
-// each after its parents, and its tags. On a site in several
+// the page an Admin chose in the site's frame, or the core's plain text in
+// the site's language. An article shows its headline, its byline, its authors
+// in the order the editor gave them, each linked to its page where the authors
+// have pages, its category after its parents, and its topics, and a canvas has
+// neither header nor footer. On a
+// site in several
 // languages its frame shows the menu, the settings and the title of the
 // page's language.
 
@@ -28,7 +31,8 @@ const core = fileURLToPath(new URL('../', import.meta.url));
 const astro = join(core, 'node_modules/astro/bin/astro.mjs');
 
 // The demo model's posts, as a build hands them out: an article
-// in a category below another, with two tags, and a page.
+// by two authors, the one first who is not first by name, in a category below
+// another, with two topics, and a page.
 const posts = [
   post({
     ID: 1,
@@ -37,8 +41,9 @@ const posts = [
     modified: '2026-10-02 09:00:00',
     body: paragraphs('The lantern keeps the harbour.'),
     terms: {
+      authors: [term('rafael-berg', 'Rafael Berg', { taxonomy: 'authors' }), term('ines-holm', 'Ines Holm', { taxonomy: 'authors', description: 'Writes of the northern harbours.' })],
       category: [term('local', 'Local news', { taxonomy: 'category', parent: 'news' })],
-      tag: [term('lanterns', 'Lanterns', { taxonomy: 'tag' }), term('harbours', 'Harbours', { taxonomy: 'tag' })],
+      topics: [term('lanterns', 'Lanterns', { taxonomy: 'topics' }), term('harbours', 'Harbours', { taxonomy: 'topics' })],
     },
     term_parents: { category: [term('news', 'News', { taxonomy: 'category', description: 'What happened.' })] },
   }),
@@ -106,7 +111,8 @@ describe('the site template, built by Astro', () => {
     const link = /<a [^>]*href="\/"[^>]*>(.*?)<\/a>/s.exec(header(page('index.html')))?.[1];
     assert.match(link, new RegExp(`^<img src="/_astro/logo-${shortHash(drawing({ width: 240, height: 60 }))}\\.[^"]+\\.svg" alt="A lantern by the harbour"[^>]* width="240" height="60"[^>]*>$`));
     assert.equal(title(page('index.html')), 'Lantern &amp; Co');
-    assert.equal(title(page('harbour-lights/index.html')), 'Harbour lights – Lantern &amp; Co');
+    // An article's title tag is what its teaser shows, its main headline, with the site's name.
+    assert.equal(title(page('harbour-lights/index.html')), 'Harbour lights | Lantern &amp; Co');
     assert.equal(title(page('pages/about/index.html')), 'About – Lantern &amp; Co');
   });
 
@@ -155,13 +161,60 @@ describe('the site template, built by Astro', () => {
     assert.match(page('index.html'), /<main[^>]*>\s*<ul class="post-list"/);
   });
 
-  test('shows an article\'s categories, each after its parents, and its tags, outside its body text\'s own lists', () => {
+  test('shows an article\'s headline, its category after its parents, and its topics, outside its body text\'s own lists', () => {
     const page = build(repository, { title: 'Lantern', logo: null, icon: null })('harbour-lights/index.html');
     const list = (name) => [...page.matchAll(new RegExp(`<ul class="${name}"[^>]*>(.*?)</ul>`, 'gs'))]
       .flatMap(([, items]) => [...items.matchAll(/<li[^>]*>(.*?)<\/li>/gs)].map(([, item]) => item));
     assert.deepEqual(list('categories'), ['News › Local news']);
-    assert.deepEqual(list('tags'), ['Harbours', 'Lanterns']);
+    assert.deepEqual(list('topics'), ['Harbours', 'Lanterns']);
     assert.match(page, /<div class="terms"[^>]*>\s*<ul class="categories"/);
+    assert.match(page, /<h1[^>]*>Harbour lights<\/h1>/);
+  });
+
+  test('shows an article\'s byline, its authors in the order the editor gave them, as its structured data names them', () => {
+    const page = build(repository, { title: 'Lantern', logo: null, icon: null })('harbour-lights/index.html');
+    const byline = /<ul class="byline"[^>]*>(.*?)<\/ul>/s.exec(main(page))?.[1];
+    assert.deepEqual([...byline.matchAll(/<li[^>]*>(.*?)<\/li>/gs)].map(([, item]) => item), ['Rafael Berg', 'Ines Holm'], 'no links while the authors have no pages');
+    assert.match(main(page), /<\/h1>\s*<ul class="byline"[^>]*>.*?<\/ul>\s*<time/s, 'after the headline, before the date');
+    const graph = JSON.parse(/<script type="application\/ld\+json">(.*?)<\/script>/s.exec(page)[1])['@graph'];
+    const people = graph.find((node) => node['@type'] === 'Article').author.map(({ '@id': id }) => graph.find((node) => node['@id'] === id));
+    assert.deepEqual(people, [
+      { '@type': 'Person', '@id': 'https://www.example.com/#author-rafael-berg', name: 'Rafael Berg' },
+      { '@type': 'Person', '@id': 'https://www.example.com/#author-ines-holm', name: 'Ines Holm' },
+    ]);
+  });
+
+  test('links each author in the byline to the author\'s page once the authors declare an address, which shows the biography and what the author wrote', () => {
+    const description = join(repository, 'site-description.json');
+    const declared = readFileSync(description, 'utf8');
+    try {
+      const read = JSON.parse(declared);
+      writeFileSync(description, JSON.stringify({ ...read, taxonomies: { ...read.taxonomies, authors: { address: '/authors/{slug}/' } } }));
+      const page = build(repository, { title: 'Lantern', logo: null, icon: null });
+      const byline = /<ul class="byline"[^>]*>(.*?)<\/ul>/s.exec(main(page('harbour-lights/index.html')))?.[1];
+      assert.deepEqual([...byline.matchAll(/<li[^>]*>(.*?)<\/li>/gs)].map(([, item]) => item), ['<a href="/authors/rafael-berg/">Rafael Berg</a>', '<a href="/authors/ines-holm/">Ines Holm</a>']);
+      const author = /<main class="term-page"[^>]*>(.*?)<\/main>/s.exec(page('authors/ines-holm/index.html'))?.[1];
+      assert.match(author, /<h1>Ines Holm<\/h1>\s*<p class="term-description">Writes of the northern harbours\.<\/p>/);
+      assert.match(author, /<li><a href="\/harbour-lights\/">Harbour lights<\/a>/);
+      const graph = JSON.parse(/<script type="application\/ld\+json">(.*?)<\/script>/s.exec(page('harbour-lights/index.html'))[1])['@graph'];
+      assert.equal(graph.find((node) => node['@id'] === 'https://www.example.com/#author-ines-holm').url, 'https://www.example.com/authors/ines-holm/');
+    } finally {
+      writeFileSync(description, declared);
+    }
+  });
+
+  test('draws a canvas without the header and the footer, which an article and a page have', () => {
+    const landing = post({ ID: 3, type: 'canvas', slug: 'spring', title: 'Spring', modified: '2026-10-02 09:00:00', body: paragraphs('A landing page alone.') });
+    const page = build(repository, { title: 'Lantern', logo: null, icon: null }, { given: [...posts, landing] });
+    const shown = page('landing/spring/index.html');
+    assert.match(shown, /A landing page alone\./);
+    assert.equal(header(shown), undefined);
+    assert.equal(footer(shown), undefined);
+    assert.match(shown, /<title>Spring – Lantern<\/title>/, 'with Konzilo\'s head still');
+    for (const path of ['harbour-lights/index.html', 'pages/about/index.html']) {
+      assert.ok(header(page(path)), path);
+      assert.ok(footer(page(path)), path);
+    }
   });
 
   test('puts Konzilo\'s search and sharing tags in each page\'s head, the post\'s for a post\'s page and the start page\'s for the start page', () => {
@@ -231,6 +284,23 @@ describe('the site template, built by Astro', () => {
     assert.deepEqual(details(footer(titled('index.html'))), ['Lantern', 'Lantern Bay']);
   });
 
+  // What names the frame's menus and labels the details is in the site's language.
+  test('labels the publisher\'s details and names the menus in the site\'s language', () => {
+    const description = join(repository, 'site-description.json');
+    const declared = readFileSync(description, 'utf8');
+    const publisher = { name: 'Lantern Bay AB', organisationNumber: '556677-8899', vatNumber: 'SE556677889901', tradeRegister: 'Bolagsverket', supervisoryAuthority: 'Finansinspektionen' };
+    try {
+      writeFileSync(description, JSON.stringify({ ...JSON.parse(declared), language: 'sv_SE' }));
+      const page = build(repository, { title: 'Lantern', logo: null, icon: null }, { settings: { search: { publisher }, legalPages: { privacyPolicy: '2' } }, menu: [{ ID: 11, type: 'custom', url: '/pages/about/', title: 'Om oss', menu_item_parent: '0', menu_order: '1' }] });
+      const shown = page('index.html');
+      assert.deepEqual(details(footer(shown)), ['Lantern Bay AB', 'Organisationsnummer 556677-8899', 'Momsregistreringsnummer SE556677889901', 'Handelsregister Bolagsverket', 'Tillsynsmyndighet Finansinspektionen']);
+      assert.match(header(shown), /<nav aria-label="Huvudmeny"/);
+      assert.match(footer(shown), /<nav aria-label="Juridiska sidor"/);
+    } finally {
+      writeFileSync(description, declared);
+    }
+  });
+
   test('shows none of the publisher\'s details without a publisher\'s name', () => {
     const page = build(repository, { title: null, logo: null, icon: null }, { settings: { search: { publisher: { organisationNumber: '556677-8899', email: 'hello@example.com' } } } });
 
@@ -263,7 +333,7 @@ describe('the site template, built by Astro', () => {
 
   // Its file lies at the content folder's root, not in a collection's
   // folder, so its images' addresses climb no folder.
-  test('builds the template\'s plain text as 404.html where no page is chosen, in the site\'s language', () => {
+  test('builds the core\'s plain text as 404.html where no page is chosen, in the site\'s language, whatever language its editors work in', () => {
     const english = build(repository, { title: 'Lantern', logo: null, icon: null })('404.html');
     assert.equal(title(english), 'Page not found – Lantern');
     assert.match(english, /<html lang="en-GB">/);
@@ -272,10 +342,12 @@ describe('the site template, built by Astro', () => {
     const description = join(repository, 'site-description.json');
     const declared = readFileSync(description, 'utf8');
     try {
-      writeFileSync(description, JSON.stringify({ ...JSON.parse(declared), language: 'sv_SE' }));
+      writeFileSync(description, JSON.stringify({ ...JSON.parse(declared), language: 'sv_SE', interfaceLanguage: 'en' }));
       const swedish = build(repository, { title: 'Lantern', logo: null, icon: null })('404.html');
       assert.equal(title(swedish), 'Sidan finns inte – Lantern');
       assert.match(swedish, /<p>Det finns ingen sida på den här adressen\./);
+      assert.match(swedish, /<label for="konzilo-search-box-query">Sök<\/label>/, 'search');
+      assert.match(swedish, /"name":"Startsida"/, 'the breadcrumbs');
     } finally {
       writeFileSync(description, declared);
     }
@@ -325,11 +397,40 @@ describe('the site template, built by Astro', () => {
     assert.doesNotMatch(page('sitemap.xml'), /\/page\/\d/);
   });
 
+  // "Read more" under an article: up to three articles that share its topics or its category,
+  // ranked by Konzilo's relatedPosts(), as cards under a heading in the page's language, and
+  // neither heading nor list where none shares a term (ADR 0068, ADR 0070).
+  test('shows up to three related articles under an article as cards, ranked, under a heading, and nothing where none shares its terms', () => {
+    const modified = '2026-10-02 09:00:00';
+    const topic = (slug, name) => term(slug, name, { taxonomy: 'topics' });
+    const story = (ID, slug, title, date, topics) => post({ ID, slug, title, date, modified, body: paragraphs('A story.'), terms: { topics } });
+    const given = [
+      ...posts,
+      story(60, 'two-topics', 'Two topics', '2026-09-20 08:00:00', [topic('lanterns', 'Lanterns'), topic('harbours', 'Harbours')]),
+      story(61, 'one-topic', 'One topic', '2026-09-25 08:00:00', [topic('lanterns', 'Lanterns')]),
+      story(62, 'older-one-topic', 'An older one', '2026-08-01 08:00:00', [topic('harbours', 'Harbours')]),
+      story(63, 'oldest-one-topic', 'The oldest one', '2026-01-01 08:00:00', [topic('harbours', 'Harbours')]),
+      story(64, 'apart', 'Apart', '2026-09-28 08:00:00', [topic('meadows', 'Meadows')]),
+    ];
+    const page = build(repository, { title: 'Lantern', logo: null, icon: null }, { given });
+    const readMore = (html) => /<aside class="read-more"[^>]*>(.*?)<\/aside>/s.exec(html)?.[1] ?? null;
+    const cards = (html) => [...readMore(html).matchAll(/<p class="post-card-title"[^>]*><a href="([^"]*)"[^>]*>([^<]*)<\/a>/g)].map(([, href, name]) => [href, name]);
+
+    const shown = readMore(page('harbour-lights/index.html'));
+    assert.match(shown, /<h2 id="read-more"[^>]*>Read more<\/h2>/);
+    assert.match(shown, /<ul class="post-cards post-cards-3"/);
+    assert.deepEqual(cards(page('harbour-lights/index.html')), [['/two-topics/', 'Two topics'], ['/one-topic/', 'One topic'], ['/older-one-topic/', 'An older one']]);
+    assert.doesNotMatch(main(page('harbour-lights/index.html')), /read-more/, 'outside the article\'s main content');
+    assert.match(readMore(page('older-one-topic/index.html')), /<ul class="post-cards post-cards-3"/);
+    assert.equal(readMore(page('apart/index.html')), null, 'none shares its terms');
+    assert.doesNotMatch(page('apart/index.html'), /Read more/);
+  });
+
   // Term pages: with the categories at /category/{slug}/, News
   // has its page, with its description, Harbour lights from its child Local
-  // news, and eleven stories of its own, newest first, ten a page; the tags
+  // news, and eleven stories of its own, newest first, ten a page; the topics
   // still have none.
-  test('builds a page for each category once the categories declare an address, its posts newest first with pages, and none for a tag', () => {
+  test('builds a page for each category once the categories declare an address, its posts newest first with pages, and none for a topic', () => {
     const description = join(repository, 'site-description.json');
     const declared = readFileSync(description, 'utf8');
     const modified = '2026-10-02 09:00:00';
@@ -354,7 +455,7 @@ describe('the site template, built by Astro', () => {
       assert.deepEqual(titles('category/news/page/2/index.html'), ['Story 2', 'Story 1']);
       assert.deepEqual(titles('category/local/index.html'), ['Harbour lights']);
       assert.equal(title(page('category/news/index.html')), 'News – Lantern');
-      assert.equal(page('tag/lanterns/index.html'), null);
+      assert.equal(page('topic/lanterns/index.html'), null);
       assert.match(page('sitemap.xml'), /<loc>https:\/\/www\.example\.com\/category\/news\/<\/loc>/);
     } finally {
       writeFileSync(description, declared);
@@ -546,18 +647,30 @@ describe('the site template in Swedish and English, built by Astro', () => {
     assert.match(page('en/index.html'), /<link rel="canonical" href="https:\/\/www\.example\.com\/en\/">/);
   });
 
-  test('shows each page\'s frame in its language: the main menu, the footer text and the title, and the 404 page the main language\'s', () => {
+  test('shows each page\'s frame in its language: the main menu, its name, the footer text and the title, and the 404 page the main language\'s', () => {
     for (const [path, shown] of [
-      ['sv/index.html', { link: '<a href="/sv/verkstaden/">Verkstaden</a>', footer: 'Öppet varje dag.', title: 'Lyktan' }],
-      ['en/index.html', { link: '<a href="/en/workshop/">The workshop</a>', footer: 'Open every day.', title: 'The Lantern' }],
-      ['en/harbour-lights/index.html', { link: '<a href="/en/workshop/">The workshop</a>', footer: 'Open every day.', title: 'Harbour lights – The Lantern' }],
-      ['404.html', { link: '<a href="/sv/verkstaden/">Verkstaden</a>', footer: 'Öppet varje dag.', title: 'Sidan finns inte – Lyktan' }],
+      ['sv/index.html', { link: '<a href="/sv/verkstaden/">Verkstaden</a>', footer: 'Öppet varje dag.', title: 'Lyktan', menu: 'Huvudmeny' }],
+      ['en/index.html', { link: '<a href="/en/workshop/">The workshop</a>', footer: 'Open every day.', title: 'The Lantern', menu: 'Main menu' }],
+      ['en/harbour-lights/index.html', { link: '<a href="/en/workshop/">The workshop</a>', footer: 'Open every day.', title: 'Harbour lights | The Lantern', menu: 'Main menu' }],
+      ['404.html', { link: '<a href="/sv/verkstaden/">Verkstaden</a>', footer: 'Öppet varje dag.', title: 'Sidan finns inte – Lyktan', menu: 'Huvudmeny' }],
     ]) {
       assert.ok(header(page(path)).includes(shown.link), `${path}: ${header(page(path))}`);
+      assert.match(header(page(path)), new RegExp(`<nav aria-label="${shown.menu}"`), path);
       assert.match(footer(page(path)), new RegExp(`<p class="footer-text"[^>]*>${shown.footer}</p>`), path);
       assert.equal(title(page(path)), shown.title, path);
     }
     assert.equal(languageTag(page('404.html')), 'sv-SE');
+  });
+
+  // Each article's related articles are those of its language, under a heading in it.
+  test('shows the related articles under an article in its language, under a heading in it', () => {
+    const readMore = (html) => /<aside class="read-more"[^>]*>(.*?)<\/aside>/s.exec(html)?.[1] ?? '';
+    assert.match(readMore(page('sv/hamnljus/index.html')), /<h2 id="read-more"[^>]*>Läs mer<\/h2>/);
+    assert.match(readMore(page('sv/hamnljus/index.html')), /href="\/sv\/bara-svenska\/"/);
+    assert.doesNotMatch(readMore(page('sv/hamnljus/index.html')), /english-only|harbour-lights/);
+    assert.match(readMore(page('en/harbour-lights/index.html')), /<h2 id="read-more"[^>]*>Read more<\/h2>/);
+    assert.match(readMore(page('en/harbour-lights/index.html')), /href="\/en\/english-only\/"/);
+    assert.doesNotMatch(readMore(page('en/harbour-lights/index.html')), /bara-svenska|hamnljus/);
   });
 
   test('takes the theme colour from the main language\'s start page', () => {
@@ -635,7 +748,7 @@ describe('the site template in Swedish and English, built by Astro', () => {
   });
 
   // An unknown address below a language's prefix gets the 404
-  // page in that language; without a chosen page, the template's plain text
+  // page in that language; without a chosen page, the core's plain text
   // in that language, as the root's is in the main language.
   test('builds a 404 page for each language below its prefix, in its language and its frame, beside the root\'s in the main language', () => {
     assert.equal(languageTag(page('sv/404.html')), 'sv-SE');

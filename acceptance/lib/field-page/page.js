@@ -5,9 +5,13 @@ import { toggleMark } from '@milkdown/kit/prose/commands';
 import { undo } from '@milkdown/kit/prose/history';
 import { Selection, TextSelection } from '@milkdown/kit/prose/state';
 
+import { mountAuthorsField } from '../../../src/cms/authors/field.js';
 import { handsFor, loadReader } from '../../../src/cms/body/check.js';
-import { selectionAt } from '../../../src/cms/body/place.js';
+import { blockAt } from '../../../src/cms/body/place.js';
 import { mountBodyField } from '../../../src/cms/body/field.js';
+import { useInterfaceLanguage } from '../../../src/cms/interface-language.js';
+import { PLACE_EVENT } from '../../../src/cms/preview/paths.js';
+import { wordsShown } from '../../../src/cms/refusals.js';
 import { checkBody } from '../../../src/format/body.js';
 
 const EVERY_ELEMENT = ['paragraph', 'heading', 'list', 'quote', 'code', 'table', 'footnotes', 'embed', 'image', 'gallery', 'post-list', 'form'];
@@ -46,8 +50,10 @@ const settled = () => new Promise((resolve) => {
 });
 
 // `answering` keeps what the field writes, as an owner would hold it on its way back, until
-// the test lets the answers come.
-const mount = (value, { elements = EVERY_ELEMENT, forms = ['contact', 'newsletter'], answering = false, library = null, smallestWidth = null } = {}) => {
+// the test lets the answers come. `language` is the interface language, which the editor
+// names from its configuration.
+const mount = (value, { elements = EVERY_ELEMENT, forms = ['contact', 'newsletter'], answering = false, library = null, smallestWidth = null, language = 'en' } = {}) => {
+  useInterfaceLanguage(language);
   const changes = [];
   const answers = [];
   const host = document.createElement('div');
@@ -200,10 +206,10 @@ globalThis.fieldPage = {
     if (html && !text) data.setData('text/plain', html.replace(/<[^>]*>/g, ''));
     view.dom.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
   },
-  // The early check's verdict, as the browser gives it.
+  // The early check's verdict, as the browser gives it, each reason in the interface language.
   async check(body, forms) {
     const { body: written, problems } = checkBody(body, handsFor(await loadReader(), { elements: EVERY_ELEMENT, forms }));
-    return { written, reasons: problems.map(({ reason }) => reason) };
+    return { written, reasons: problems.map(({ reason }) => wordsShown(reason)) };
   },
   added: () => current().library.added,
   stopThrowing() {
@@ -219,10 +225,29 @@ globalThis.fieldPage = {
   },
   // The block a place from the preview leads to, or null.
   placeIndex(place) {
-    const selection = selectionAt(viewOf().state.doc, place);
-    return selection ? selection.$from.index(0) : null;
+    const found = blockAt(viewOf().state.doc, place);
+    return found ? viewOf().state.doc.resolve(found.pos).index(0) : null;
   },
-  goTo: (place) => current().field.goTo(place),
+  // A click on the preview's page, as the pane tells it, and what the field then frames: the text
+  // of the block within the frame, and whether the frame is in sight, or null where it frames none.
+  place(detail) {
+    for (const ring of document.querySelectorAll('.konzilo-body-ring')) ring.remove();
+    globalThis.dispatchEvent(new CustomEvent(PLACE_EVENT, { detail }));
+    const ring = current().field.frame.querySelector('.konzilo-body-ring');
+    if (!ring) return null;
+    const around = ring.getBoundingClientRect();
+    const within = ({ left, top, right, bottom }) => left >= around.left && top >= around.top && right <= around.right && bottom <= around.bottom;
+    const area = ({ width, height }) => width * height;
+    const framed = [...viewOf().dom.querySelectorAll('*')].filter((one) => within(one.getBoundingClientRect())).sort((one, other) => area(other.getBoundingClientRect()) - area(one.getBoundingClientRect()))[0];
+    return { text: framed?.textContent ?? null, inSight: around.top >= 0 && around.bottom <= globalThis.innerHeight };
+  },
+  // Where the cursor is, and whether the field has the focus.
+  selection: () => ({ from: viewOf().state.selection.from, to: viewOf().state.selection.to }),
+  focused: () => current().field.frame.contains(document.activeElement),
+  // Focus elsewhere, as a click in the preview's frame takes it.
+  blur() {
+    document.activeElement?.blur();
+  },
   embeds() {
     const found = [];
     viewOf().state.doc.forEach((node) => {
@@ -286,4 +311,48 @@ globalThis.fieldPage = {
     return [count.table, count.table_header + count.table_cell];
   },
   notes: () => [...current().field.frame.querySelectorAll('.konzilo-body-note')].filter((note) => !note.hidden).map((note) => note.textContent),
+};
+
+// The authors field alone, on authors with nothing behind them: `authors`, each { id, name }, and
+// `throwing`, what they fail at. It records what it told its owner and what it was asked to add.
+let authorsField = null;
+const failing = {};
+globalThis.authorsPage = {
+  open(value, { authors = [], throwing = {}, language = 'en' } = {}) {
+    authorsField?.field.destroy();
+    authorsField?.host.remove();
+    useInterfaceLanguage(language);
+    Object.assign(failing, { list: false, add: false }, throwing);
+    const known = [...authors];
+    const added = [];
+    const source = {
+      async list() {
+        if (failing.list) throw new Error('the list failed');
+        return [...known];
+      },
+      async add({ name, biography }) {
+        if (failing.add) throw new Error('the commit failed');
+        added.push({ name, biography });
+        const made = { id: `new${added.length}`, name: name.trim() };
+        known.push(made);
+        return made;
+      },
+    };
+    const host = document.createElement('div');
+    const before = Object.assign(document.createElement('input'), { type: 'text', className: 'before-the-field' });
+    before.setAttribute('aria-label', 'Before the field');
+    host.append(before);
+    document.body.append(host);
+    const changes = [];
+    const field = mountAuthorsField(host, { value, changed: (next) => changes.push(next), authors: source, label: 'Authors', forID: 'the-authors' });
+    authorsField = { field, host, changes, added };
+    return field.ready;
+  },
+  value: () => authorsField.changes.at(-1) ?? null,
+  changes: () => authorsField.changes.length,
+  added: () => authorsField.added,
+  setValue: (value) => authorsField.field.setValue(value),
+  stopThrowing() {
+    Object.assign(failing, { list: false, add: false });
+  },
 };

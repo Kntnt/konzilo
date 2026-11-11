@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { consentScriptFiles } from '../src/astro/consent.js';
+import { CATALOGUES } from '../src/catalogues.js';
 import { CONSENT_SCRIPTS, consentScriptPath, registryRevision } from '../src/consent/registry.js';
 import { consentScript } from '../src/consent/script.js';
 
@@ -218,7 +219,7 @@ test('a site in several languages has a script for each, by its prefix, in its t
 });
 
 test('a site that is not Konzilo\'s makes the same script from its own registry with the shared functions', async () => {
-  const script = consentScript({ registry, legalPages: { privacyPolicy: { title: 'Privacy', href: 'https://www.example.com/privacy/' }, cookiePolicy: null }, language: 'en-GB', host: null }, { domain: 'example.com' });
+  const script = consentScript({ registry, legalPages: { privacyPolicy: { title: 'Privacy', href: 'https://www.example.com/privacy/' }, cookiePolicy: null }, language: 'en-GB', catalogues: CATALOGUES, host: null }, { domain: 'example.com' });
   const page = await otherPage(script);
   assert.equal(page.document.querySelector('.konzilo-consent-banner').hidden, false);
   assert.equal(page.document.querySelector('[data-konzilo-consent-declaration] .konzilo-declaration-revised time').getAttribute('datetime'), '2026-11-01');
@@ -226,7 +227,7 @@ test('a site that is not Konzilo\'s makes the same script from its own registry 
 });
 
 test('a page that names its own privacy policy and cookie policy has the consent link to them, by its titles where it gives them; one that names neither keeps the site\'s', async () => {
-  const script = consentScript({ registry, legalPages: { privacyPolicy: { title: 'Privacy', href: 'https://www.example.com/privacy/' }, cookiePolicy: { title: 'Cookies', href: 'https://www.example.com/cookies/' } }, language: 'en-GB', host: null }, { domain: 'example.com' });
+  const script = consentScript({ registry, legalPages: { privacyPolicy: { title: 'Privacy', href: 'https://www.example.com/privacy/' }, cookiePolicy: { title: 'Cookies', href: 'https://www.example.com/cookies/' } }, language: 'en-GB', catalogues: CATALOGUES, host: null }, { domain: 'example.com' });
   const head = '<link rel="privacy-policy" href="/legal/privacy/" title="How we handle your data"><link rel="Cookie-Policy" href="https://investors.example.com/legal/cookies/">';
   const own = (await otherPage(script, { head })).document;
   assert.deepEqual([...own.querySelectorAll('.konzilo-consent-banner a')].map((link) => [text(link), link.href]), [
@@ -253,7 +254,7 @@ test('where the site counts visits without storage before consent, a page of its
     services: [registry.services[0], counter, registry.services[1]],
     departures: [{ departure: 'statisticsWithoutStorageBeforeConsent', reason: 'We count every visit.', privacySignals: 'ignore' }],
   };
-  const script = consentScript({ registry: counting, legalPages: {}, language: 'en-GB', host: null }, { domain: 'example.com' });
+  const script = consentScript({ registry: counting, legalPages: {}, language: 'en-GB', catalogues: CATALOGUES, host: null }, { domain: 'example.com' });
   const body = '<section><h2>Your right to object</h2><div data-konzilo-consent-objection hidden>\n</div></section>';
   const jar = new CookieJar();
   const page = await otherPage(script, { body, jar, head: '<meta name="konzilo-consent" content="legal-page">' });
@@ -284,7 +285,7 @@ test('where the site counts visits without storage before consent, a page of its
   assert.equal(other.document.querySelector('.konzilo-consent-objection').hidden, true, 'and hides it');
 
   // A site that does not count so offers none: the page's place stays empty and hidden.
-  const uncounted = await otherPage(consentScript({ registry, legalPages: {}, language: 'en-GB', host: null }, { domain: 'example.com' }), { body });
+  const uncounted = await otherPage(consentScript({ registry, legalPages: {}, language: 'en-GB', catalogues: CATALOGUES, host: null }, { domain: 'example.com' }), { body });
   const empty = uncounted.document.querySelector('section [data-konzilo-consent-objection]');
   assert.deepEqual([empty.hidden, empty.children.length], [true, 0]);
   assert.equal(uncounted.document.querySelector('#konzilo-consent-objection'), null);

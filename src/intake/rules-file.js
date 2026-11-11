@@ -19,7 +19,7 @@ export function readRules(given) {
   const patterns = [];
   const list = isObject(given) ? given.rules : given;
   if (list !== undefined && list !== null && !Array.isArray(list)) {
-    problems.push({ reason: say('rule-shape') });
+    problems.push({ reason: say('refusal.rule-shape') });
     return { exact, patterns, problems, warnings };
   }
   const seen = new Set();
@@ -33,35 +33,35 @@ export function readRules(given) {
 
 // One rule into `exact` or `patterns`, or why the site cannot publish it.
 function readRule(rule, { exact, patterns, seen }) {
-  if (!isObject(rule)) return say('rule-shape');
+  if (!isObject(rule)) return say('refusal.rule-shape');
   const status = /^\d+$/.test(String(rule.status)) ? Number(rule.status) : rule.status ?? 301;
   const pattern = rule.pattern ?? (typeof rule.from === 'string' && rule.from.startsWith('^') ? rule.from : undefined);
   if (pattern !== undefined) {
-    if (rule.post || rule.term) return say('rule-pattern-post', { pattern });
-    const problem = typeof pattern !== 'string' || pattern.length > PATTERN_LENGTH ? say('rule-pattern-long', { most: PATTERN_LENGTH }) : patternProblem({ from: pattern, to: rule.to, status });
+    if (rule.post || rule.term) return say('refusal.rule-pattern-post', { pattern });
+    const problem = typeof pattern !== 'string' || pattern.length > PATTERN_LENGTH ? say('refusal.rule-pattern-long', { most: PATTERN_LENGTH }) : patternProblem({ from: pattern, to: rule.to, status });
     if (problem) return problem;
-    if (seen.has(pattern)) return say('rule-twice', { source: pattern });
+    if (seen.has(pattern)) return say('refusal.rule-twice', { source: pattern });
     seen.add(pattern);
-    if (patterns.length >= PATTERNS) return say('rule-patterns', { most: PATTERNS });
+    if (patterns.length >= PATTERNS) return say('refusal.rule-patterns', { most: PATTERNS });
     patterns.push({ pattern, ...(rule.to === undefined ? {} : { to: rule.to }), status });
     return null;
   }
   const { from } = rule;
-  if (!isSource(from)) return say('rule-source', { source: String(from) });
-  if (reservedBy(from) !== null) return say('rule-reserved', { source: from });
-  if (from.includes('?') && from.slice(from.indexOf('?') + 1).split('&').length > MOST_PARAMETERS) return say('rule-parameters', { source: from, most: MOST_PARAMETERS });
-  if (!STATUSES.includes(status)) return say('rule-status', { source: from, status: String(status), statuses: STATUSES.join(', ') });
+  if (!isSource(from)) return say('refusal.rule-source', { source: String(from) });
+  if (reservedBy(from) !== null) return say('refusal.rule-reserved', { source: from });
+  if (from.includes('?') && from.slice(from.indexOf('?') + 1).split('&').length > MOST_PARAMETERS) return say('refusal.rule-parameters', { source: from, most: MOST_PARAMETERS });
+  if (!STATUSES.includes(status)) return say('refusal.rule-status', { source: from, status: String(status), statuses: STATUSES.join(', ') });
   const key = keyOf(from);
-  if (seen.has(key)) return say('rule-twice', { source: from });
+  if (seen.has(key)) return say('refusal.rule-twice', { source: from });
   seen.add(key);
   const redirect = REDIRECT_STATUSES.includes(status);
   if (rule.post || rule.term) {
-    if (!redirect) return say('rule-target', { source: from, reason: `a ${status} answers without a target` });
+    if (!redirect) return say('refusal.rule-target', { source: from, reason: say('about.no-target', { status }) });
     exact.push({ from, status, post: rule.post ? String(rule.post) : undefined, term: rule.term ? String(rule.term) : undefined });
     return null;
   }
-  const problem = redirect ? targetProblem(rule.to) : rule.to === undefined ? null : `a ${status} answers without a target`;
-  if (problem) return say('rule-target', { source: from, reason: problem });
+  const problem = redirect ? targetProblem(rule.to) : rule.to === undefined ? null : say('about.no-target', { status });
+  if (problem) return say('refusal.rule-target', { source: from, reason: problem });
   exact.push({ from, status, ...(redirect ? { to: rule.to } : {}) });
   return null;
 }
@@ -82,7 +82,7 @@ function loopsAndChains(exact, problems, warnings) {
       const key = targetKey(next);
       if (key === null) break;
       if (seen.has(key)) {
-        problems.push({ entry, reason: say('rule-loop', { source: rule.from }) });
+        problems.push({ entry, reason: say('refusal.rule-loop', { source: rule.from }) });
         return;
       }
       seen.add(key);
@@ -90,8 +90,8 @@ function loopsAndChains(exact, problems, warnings) {
       if (!after) break;
       next = after;
     }
-    if (seen.size > 2) warnings.push({ entry, reason: say('rule-chain', { source: rule.from }) });
-    if (rule.to === '/') warnings.push({ entry, reason: say('rule-start', { source: rule.from }) });
+    if (seen.size > 2) warnings.push({ entry, reason: say('warning.rule-chain', { source: rule.from }) });
+    if (rule.to === '/') warnings.push({ entry, reason: say('warning.rule-start', { source: rule.from }) });
   });
 }
 

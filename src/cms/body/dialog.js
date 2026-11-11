@@ -1,7 +1,7 @@
 // What the field's dialogs are made of. A dialog stands over the whole page, outside the editor,
 // so that what happens in it is no change to the text until it closes with an answer.
 
-import { say } from './texts.js';
+import { say } from '../interface-language.js';
 
 export const made = (tag, className, parent) => {
   const element = document.createElement(tag);
@@ -43,6 +43,6 @@ export function asking({ words, aside = null, keepWords, kept, removed }) {
   const answers = made('div', 'konzilo-dialog-actions', part);
   const keep = button('', keepWords, answers);
   keep.addEventListener('click', kept);
-  button('konzilo-dialog-remove-now', say('imageRemoveNow'), answers).addEventListener('click', removed);
+  button('konzilo-dialog-remove-now', say('body.removeNow'), answers).addEventListener('click', removed);
   return { part, keep };
 }

@@ -12,6 +12,7 @@ import { siteDescription } from '../src/site-description.js';
 
 const site = siteDescription({
   language: 'en_GB',
+  images: { smallestWidth: 400, displayWidth: 1280 },
   components: { section: { label: 'Section', form: 'container', body: 'blocks' } },
   types: { page: { label: 'Page', plural: 'Pages', collection: 'pages', address: '/{slug}/', elements: ['paragraph', 'heading', 'list', 'section'] } },
 });

@@ -28,7 +28,7 @@ export function notFoundFiles(run, files) {
   const main = run.several ? run.site.languages[0].tag : null;
   const usable = posts.filter((post) => post.on && !run.refused.has(post.key));
   if (!usable.some((post) => post.tag === main)) {
-    run.warnings.push(named({ file: 'settings.json', setting: 'notFound.page', reason: say('not-found-none') }));
+    run.warnings.push(named({ file: 'settings.json', setting: 'notFound.page', reason: say('warning.not-found-none') }));
   }
   for (const post of usable) {
     const path = post.tag === main || !post.tag ? 'not-found.md' : `not-found/${post.tag}.md`;
@@ -71,8 +71,8 @@ export function settingsFiles(run, files) {
       choice(id, path) {
         const target = leadsTo(run, String(id), language);
         if (target.reason) return { reason: target.reason };
-        if (target.none !== undefined) return { warning: say('setting-no-page', { title: target.none ?? String(id), setting: path }) };
-        const translated = run.several && target.otherLanguage ? say('setting-translation', { title: target.title, language: language.tag }) : undefined;
+        if (target.none !== undefined) return { warning: say('warning.setting-no-page', { title: target.none ?? String(id), setting: path }) };
+        const translated = run.several && target.otherLanguage ? say('warning.setting-translation', { title: target.title, language: language.tag }) : undefined;
         return { value: { title: target.title, url: target.address }, warning: translated };
       },
       image(value, stem, options = {}) {
@@ -126,7 +126,7 @@ export function redirectsFile(run, files) {
   for (const rule of run.held.exact.values()) {
     const key = keyOf(rule.from);
     if (run.held.byAddress.has(key) || [...run.termPages.values()].some((page) => keyOf(page) === key)) {
-      run.warnings.push(named({ file: REDIRECTS_FILE, reason: say('rule-shadowed', { source: rule.from }) }));
+      run.warnings.push(named({ file: REDIRECTS_FILE, reason: say('warning.rule-shadowed', { source: rule.from }) }));
     } else exact.push(ruleForFile(rule));
   }
   // A term's page answers its old addresses, the site's rules, with its current address.
@@ -141,13 +141,21 @@ export function redirectsFile(run, files) {
   files.set(REDIRECTS_FILE, json({ rules: [...exact, ...run.rules.patterns] }));
 }
 
+// Where in services.json a declared service's problem is: the setting by the service's id
+// or name and the field, else its entry in the list.
+function servicePlace({ id, name, number }, field) {
+  const own = id ?? name;
+  if (own !== null) return { setting: `${own}.${field}` };
+  return field === null ? { entry: String(number) } : { entry: String(number), setting: field };
+}
+
 export function consentFile(run, files, settings, embeds) {
   if (settings.refused || run.gated.has('services.json') || run.source.services?.refused) return;
   const given = run.source.services?.value;
   const list = isObject(given) ? given.services ?? [] : Array.isArray(given) ? given : [];
   const { services, problems } = declaredServices(list, { adminHost: run.adminHost });
   if (problems.length > 0) {
-    for (const { service, field, reason } of problems) run.refusals.push(named({ file: 'services.json', setting: `${service.id ?? service.name ?? 'a service'}.${field}`, reason }));
+    for (const { service, field, reason } of problems) run.refusals.push(named({ file: 'services.json', ...servicePlace(service, field), reason }));
     return;
   }
   const previous = run.ledger.consent;
@@ -156,8 +164,8 @@ export function consentFile(run, files, settings, embeds) {
   files.set(file.path, file.contents);
   const registry = JSON.parse(file.contents);
   run.consentRecord = { revision: registry.revision, revised: registry.revised };
-  if (!settings.values.search?.publisher?.name) run.warnings.push(named({ file: 'settings.json', setting: 'search.publisher.name', reason: say('publisher-missing') }));
+  if (!settings.values.search?.publisher?.name) run.warnings.push(named({ file: 'settings.json', setting: 'search.publisher.name', reason: say('warning.publisher-missing') }));
   const legal = settings.values.legalPages ?? {};
-  if (asksConsent && !legal.privacyPolicy) run.warnings.push(named({ file: 'settings.json', setting: 'legalPages.privacyPolicy', reason: say('legal-missing', { page: 'privacy policy' }) }));
-  if (asksConsent && !legal.cookiePolicy) run.warnings.push(named({ file: 'settings.json', setting: 'legalPages.cookiePolicy', reason: say('legal-missing', { page: 'cookie policy' }) }));
+  if (asksConsent && !legal.privacyPolicy) run.warnings.push(named({ file: 'settings.json', setting: 'legalPages.privacyPolicy', reason: say('warning.legal-missing', { page: say('about.privacy-policy') }) }));
+  if (asksConsent && !legal.cookiePolicy) run.warnings.push(named({ file: 'settings.json', setting: 'legalPages.cookiePolicy', reason: say('warning.legal-missing', { page: say('about.cookie-policy') }) }));
 }

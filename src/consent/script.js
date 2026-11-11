@@ -48,9 +48,10 @@ import { consentMarkup, cookieDeclarationMarkup } from './markup.js';
 // The source of the consent script for pages in one language.
 //
 // `input`: what the markup functions take (markup.js), `{ registry, texts,
-// legalPages, language, host }`, the legal pages as absolute addresses, since
-// the page that links to them is on another host, and `host` null, so that
-// an item stored on the page's own host is named from the page's address.
+// legalPages, language, catalogues, host }`, the legal pages as absolute
+// addresses, since the page that links to them is on another host, and
+// `host` null, so that an item stored on the page's own host is named from
+// the page's address.
 // `options`, the client's (client.js): `domain`, the shared domain the
 // choice is kept on, or null; `records`, the absolute address of an
 // endpoint for consent records that takes them from these pages, or null,

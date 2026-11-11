@@ -6,17 +6,18 @@
 import { withComponents } from '../../format/components.js';
 import rules from '../../format/rules.json' with { type: 'json' };
 import { siteComponents } from '../body/components.js';
-import { say } from '../body/texts.js';
+import { labelInPhrase } from '../../catalogues.js';
+import { interfaceLanguage, say } from '../interface-language.js';
 import { PLACE_EVENT, SHOW_EVENT } from '../preview/paths.js';
 import { everyNode, nodeAt, parentOf, parseBody, pathTo, summaryOf, writeBody } from './model.js';
 import './field.css';
 
-const KINDS = { heading: 'treeHeading', paragraph: 'treeParagraph', list: 'treeList', item: 'treeItem', image: 'treeImage', gallery: 'treeGallery', embed: 'treeEmbed', quote: 'treeQuote', other: 'treeOther' };
+const KINDS = { heading: 'structure.heading', paragraph: 'structure.paragraph', list: 'structure.list', item: 'structure.item', image: 'structure.image', gallery: 'structure.gallery', embed: 'structure.embed', quote: 'structure.quote', other: 'structure.other' };
 // What a block the tree adds begins with.
 const NEW_BLOCKS = {
-  paragraph: () => ({ kind: 'paragraph', text: say('treeNewText') }),
-  heading: () => ({ kind: 'heading', level: 3, text: say('treeNewHeading') }),
-  list: () => ({ kind: 'list', ordered: false, children: [{ kind: 'item', text: say('treeNewItem'), id: `new${Date.now()}` }] }),
+  paragraph: () => ({ kind: 'paragraph', text: say('structure.newText') }),
+  heading: () => ({ kind: 'heading', level: 3, text: say('structure.newHeading') }),
+  list: () => ({ kind: 'list', ordered: false, children: [{ kind: 'item', text: say('structure.newItem'), id: `new${Date.now()}` }] }),
 };
 // The blocks the tree adds, by the element a type takes for each.
 const BLOCK_ELEMENTS = { paragraph: 'paragraph', heading: 'heading', list: 'list' };
@@ -32,7 +33,7 @@ const el = (tag, attrs = {}, ...kids) => {
   return node;
 };
 
-const counted = (kind, n) => say(kind === 'images' ? 'treeImages' : 'treeItems', { n });
+const counted = (kind, n) => say(kind === 'images' ? 'structure.images' : 'structure.items', { n });
 const summary = (node) => summaryOf(node, counted);
 
 // What is open and selected lives on while the same entry is opened again.
@@ -45,11 +46,11 @@ export function mountStructureField(host, { value: given, changed, key, forms = 
   const own = siteComponents();
   const labelOf = (node) => {
     if (node.kind === 'container' || node.kind === 'leaf') {
-      if (node.name === 'post-list') return say('treePostList');
-      if (node.name === 'form') return say('treeForm');
+      if (node.name === 'post-list') return say('structure.postList');
+      if (node.name === 'form') return say('structure.form');
       return own[node.name]?.label ?? node.name;
     }
-    return say(KINDS[node.kind] ?? 'treeOther');
+    return say(KINDS[node.kind] ?? 'structure.other');
   };
 
   const frame = el('div', { class: 'konzilo-tree' });
@@ -70,11 +71,11 @@ export function mountStructureField(host, { value: given, changed, key, forms = 
   const loadTree = (text) => {
     try {
       root = parseBody(text);
-      problem = writeBody(root) === text.trim() ? null : say('treeRewrites');
+      problem = writeBody(root) === text.trim() ? null : say('structure.rewrites');
     } catch (error) {
       root = parseBody('');
       mode = 'markdown';
-      problem = say('treeUnreadable', { reason: error.message });
+      problem = say('structure.unreadable', { reason: error.message });
     }
   };
 
@@ -174,7 +175,7 @@ export function mountStructureField(host, { value: given, changed, key, forms = 
       return el('label', { class: 'konzilo-tree-check' }, input, label);
     }
     if (setting.values) {
-      const choice = el('select', {}, setting.values.map((one) => el('option', { value: String(one) }, one === '' ? say('treeNone') : String(one))));
+      const choice = el('select', {}, setting.values.map((one) => el('option', { value: String(one) }, one === '' ? say('structure.none') : String(one))));
       choice.value = String(current);
       choice.addEventListener('change', () => write(choice.value));
       return el('label', {}, label, choice);
@@ -200,8 +201,8 @@ export function mountStructureField(host, { value: given, changed, key, forms = 
         edited();
         render();
       },
-    }, say('treeOtherImage'));
-    return [picture, library ? choose : null, textField(say('imageAlt'), () => node.alt, (next) => {
+    }, say('structure.otherImage'));
+    return [picture, library ? choose : null, textField(say('structure.alt'), () => node.alt, (next) => {
       node.alt = next;
     })];
   };
@@ -238,7 +239,7 @@ export function mountStructureField(host, { value: given, changed, key, forms = 
     const note = (words) => fields.push(el('p', { class: 'konzilo-tree-note' }, words));
     switch (node.kind) {
       case 'heading':
-        fields.push(textField(say('treeHeading'), () => node.text, (next) => {
+        fields.push(textField(say('structure.heading'), () => node.text, (next) => {
           node.text = next.replace(/\n/g, ' ');
         }));
         break;
@@ -248,7 +249,7 @@ export function mountStructureField(host, { value: given, changed, key, forms = 
         fields.push(bodyField(node));
         break;
       case 'item':
-        fields.push(textField(say('treeItem'), () => node.text, (next) => {
+        fields.push(textField(say('structure.item'), () => node.text, (next) => {
           node.text = next.replace(/\n/g, ' ');
         }));
         break;
@@ -262,14 +263,14 @@ export function mountStructureField(host, { value: given, changed, key, forms = 
         fields.push(...imageFields(node));
         break;
       case 'list':
-        note(say('treeListNote', { n: node.children.length }));
+        note(say('structure.listNote', { n: node.children.length }));
         break;
       case 'leaf':
       case 'container': {
         const [, rule] = directiveRule(node.name) ?? [];
         const declared = rule?.directive;
         if (node.kind === 'leaf' && node.label !== null) {
-          fields.push(textField(say('treeText'), () => node.label, (next) => {
+          fields.push(textField(say('structure.text'), () => node.label, (next) => {
             node.label = next.replace(/\n/g, ' ');
           }));
         }
@@ -280,16 +281,16 @@ export function mountStructureField(host, { value: given, changed, key, forms = 
             node.attrs.name = choice.value;
             edited();
           });
-          fields.push(el('label', {}, say('treeWhichForm'), choice));
-          note(say('treeFormNote'));
+          fields.push(el('label', {}, say('structure.whichForm'), choice));
+          note(say('structure.formNote'));
         } else if (node.name === 'post-list') {
-          note(say('treePostListNote'));
-          fields.push(textField(say('treeNumber'), () => node.attrs.number ?? '10', (next) => {
+          note(say('structure.postListNote'));
+          fields.push(textField(say('structure.number'), () => node.attrs.number ?? '10', (next) => {
             node.attrs.number = next.trim();
           }));
         } else {
           for (const [name, setting] of Object.entries(declared?.attributes ?? {})) fields.push(attributeField(node, name, setting, own[node.name]?.attributes?.[name]?.label ?? name));
-          if (fields.length === 0) note(node.kind === 'container' ? say('treeNothingHere') : say('treeNothingToSet'));
+          if (fields.length === 0) note(node.kind === 'container' ? say('structure.nothingHere') : say('structure.nothingToSet'));
         }
         break;
       }
@@ -301,7 +302,7 @@ export function mountStructureField(host, { value: given, changed, key, forms = 
   // What may be added where: a list takes items, and anything else the blocks and components the
   // type takes, but the core's own directives, which are added in the body field.
   const addChoices = (parent) => {
-    if (parent.kind === 'list') return [['item', say('treeItem')]];
+    if (parent.kind === 'list') return [['item', say('structure.item')]];
     const blocks = Object.entries(BLOCK_ELEMENTS).filter(([, element]) => elements.includes(element)).map(([kind]) => [kind, say(KINDS[kind])]);
     const components = Object.values(own).filter((component) => elements.includes(component.element)).map((component) => [`c:${component.name}`, component.label]);
     return [...blocks, ...components];
@@ -309,10 +310,10 @@ export function mountStructureField(host, { value: given, changed, key, forms = 
 
   const add = (parent, choice) => {
     let node;
-    if (choice === 'item') node = { kind: 'item', text: say('treeNewItem'), id: `new${Date.now()}` };
+    if (choice === 'item') node = { kind: 'item', text: say('structure.newItem'), id: `new${Date.now()}` };
     else if (choice.startsWith('c:')) {
       const component = own[choice.slice(2)];
-      const text = component.form === 'container' ? `:::${component.name}\n\n${say('treeNewText')}\n\n:::` : component.body === 'text' ? `::${component.name}[${say('treeNewText')}]` : `::${component.name}`;
+      const text = component.form === 'container' ? `:::${component.name}\n\n${say('structure.newText')}\n\n:::` : component.body === 'text' ? `::${component.name}[${say('structure.newText')}]` : `::${component.name}`;
       [node] = parseBody(text).children;
     } else node = { ...NEW_BLOCKS[choice](), id: `new${Date.now()}` };
     parent.children.push(node);
@@ -353,7 +354,7 @@ export function mountStructureField(host, { value: given, changed, key, forms = 
       else open.add(node);
     };
     const row = el('div', { class: 'konzilo-tree-row', 'data-selected': String(isSelected) },
-      box ? el('button', { class: 'konzilo-tree-caret', type: 'button', disabled: !hasKids, 'aria-label': say(isOpen ? 'treeClose' : 'treeOpen'), 'aria-expanded': hasKids ? String(isOpen) : undefined, onclick: () => {
+      box ? el('button', { class: 'konzilo-tree-caret', type: 'button', disabled: !hasKids, 'aria-label': say(isOpen ? 'structure.close' : 'structure.open'), 'aria-expanded': hasKids ? String(isOpen) : undefined, onclick: () => {
         toggle();
         remember();
         render();
@@ -363,10 +364,11 @@ export function mountStructureField(host, { value: given, changed, key, forms = 
         select(node);
       } }, el('span', { class: 'konzilo-tree-type' }, labelOf(node)), text),
       el('span', { class: 'konzilo-tree-actions' },
-        el('button', { type: 'button', title: say('treeUp'), 'aria-label': say('treeUp'), onclick: () => move(node, -1) }, '↑'),
-        el('button', { type: 'button', title: say('treeDown'), 'aria-label': say('treeDown'), onclick: () => move(node, 1) }, '↓'),
-        el('button', { type: 'button', title: say('treeRemove'), 'aria-label': say('treeRemove'), onclick: () => {
-          if (globalThis.confirm(say('treeRemoveAsk', { what: labelOf(node) }))) remove(node);
+        el('button', { type: 'button', title: say('structure.up'), 'aria-label': say('structure.up'), onclick: () => move(node, -1) }, '↑'),
+        el('button', { type: 'button', title: say('structure.down'), 'aria-label': say('structure.down'), onclick: () => move(node, 1) }, '↓'),
+        el('button', { type: 'button', title: say('structure.remove'), 'aria-label': say('structure.remove'), onclick: () => {
+          // The kind in the middle of the question, with a small letter, but in an abbreviation.
+          if (globalThis.confirm(say('structure.removeAsk', { what: labelInPhrase(labelOf(node), interfaceLanguage()) }))) remove(node);
         } }, '✕')));
     const item = el('li', {
       class: box ? 'konzilo-tree-box' : 'konzilo-tree-leaf',
@@ -385,29 +387,29 @@ export function mountStructureField(host, { value: given, changed, key, forms = 
   function addRow(parent) {
     const choices = addChoices(parent);
     if (choices.length === 0) return el('div');
-    const choice = el('select', { 'aria-label': say('treeAdd'), onchange: (event) => {
+    const choice = el('select', { 'aria-label': say('structure.add'), onchange: (event) => {
       if (event.target.value) add(parent, event.target.value);
     } },
-    el('option', { value: '' }, say('treeAddHere')),
+    el('option', { value: '' }, say('structure.addHere')),
     choices.map(([one, words]) => el('option', { value: one }, words)));
     return el('div', { class: 'konzilo-tree-add' }, choice);
   }
 
   // The page's way down to what is selected.
   function crumbs() {
-    if (!selected) return el('p', { class: 'konzilo-tree-crumbs' }, say('treeStart'));
+    if (!selected) return el('p', { class: 'konzilo-tree-crumbs' }, say('structure.start'));
     const chain = [...ancestors(selected), selected];
     const out = [el('button', { type: 'button', onclick: () => {
       selected = null;
       remember();
       render();
-    } }, say('treePage'))];
+    } }, say('structure.page'))];
     for (const node of chain) {
       out.push(' › ');
       if (node === selected) out.push(el('span', { 'aria-current': 'true' }, labelOf(node)));
       else out.push(el('button', { type: 'button', title: summary(node), onclick: () => select(node) }, labelOf(node)));
     }
-    return el('nav', { class: 'konzilo-tree-crumbs', 'aria-label': say('treeWhere') }, out);
+    return el('nav', { class: 'konzilo-tree-crumbs', 'aria-label': say('structure.where') }, out);
   }
 
   function hits() {
@@ -420,7 +422,7 @@ export function mountStructureField(host, { value: given, changed, key, forms = 
       if (text.toLocaleLowerCase().includes(wanted)) found.push(node);
       if (found.length === 12) break;
     }
-    if (found.length === 0) return el('p', { class: 'konzilo-tree-hint' }, say('treeNoHits'));
+    if (found.length === 0) return el('p', { class: 'konzilo-tree-hint' }, say('structure.noHits'));
     return el('ul', { class: 'konzilo-tree-hits' }, found.map((node) => el('li', {}, el('button', { type: 'button', onclick: () => {
       query = '';
       select(node);
@@ -447,19 +449,19 @@ export function mountStructureField(host, { value: given, changed, key, forms = 
     for (const clean of cleanups.splice(0)) clean();
     settle(root);
     summaries.clear();
-    const search = el('input', { class: 'konzilo-tree-search', type: 'search', placeholder: say('treeFind'), 'aria-label': say('treeFind'), value: query, oninput: (event) => {
+    const search = el('input', { class: 'konzilo-tree-search', type: 'search', placeholder: say('structure.find'), 'aria-label': say('structure.find'), value: query, oninput: (event) => {
       query = event.target.value;
       searchFocus = true;
       render();
     } });
-    const modes = el('div', { class: 'konzilo-tree-modes', role: 'group', 'aria-label': say('treeShowAs') },
+    const modes = el('div', { class: 'konzilo-tree-modes', role: 'group', 'aria-label': say('structure.showAs') },
       el('button', { type: 'button', 'aria-pressed': String(mode === 'tree'), onclick: () => {
         if (mode === 'tree') return;
         loadTree(value);
         restore();
         mode = 'tree';
         render();
-      } }, say('treeStructure')),
+      } }, say('structure.structure')),
       el('button', { type: 'button', 'aria-pressed': String(mode === 'markdown'), onclick: () => {
         flush();
         remember();
@@ -470,7 +472,7 @@ export function mountStructureField(host, { value: given, changed, key, forms = 
     const body = mode === 'tree'
       ? [el('ul', { class: 'konzilo-tree-tree' }, root.children.map((node) => rowOf(node))), el('div', {}, addRow(root))]
       : [(() => {
-        const source = el('textarea', { class: 'konzilo-tree-source', spellcheck: 'false', 'aria-label': say('markdownLabel') });
+        const source = el('textarea', { class: 'konzilo-tree-source', spellcheck: 'false', 'aria-label': say('structure.markdownLabel') });
         source.value = value;
         source.addEventListener('input', () => {
           value = source.value;
@@ -478,7 +480,7 @@ export function mountStructureField(host, { value: given, changed, key, forms = 
           changed(value);
         });
         return source;
-      })(), el('p', { class: 'konzilo-tree-hint' }, say('treeMarkdownHint'))];
+      })(), el('p', { class: 'konzilo-tree-hint' }, say('structure.markdownHint'))];
     frame.replaceChildren(top, problem ? el('p', { class: 'konzilo-tree-problem' }, problem) : '', ...body);
     if (searchFocus) {
       search.focus();
@@ -493,7 +495,8 @@ export function mountStructureField(host, { value: given, changed, key, forms = 
     }
   }
 
-  // From the preview: a click on the page, by the block's path.
+  // From the preview: a click on the page, by the block's path, opens its row and brings it into
+  // sight, and leaves the focus on the page, so that a key pressed there never lands in a field.
   const picked = ({ detail }) => {
     if (!frame.isConnected) return;
     // The page counts blocks by what is written, so the tree splits what a text holds first.
@@ -502,7 +505,8 @@ export function mountStructureField(host, { value: given, changed, key, forms = 
     const node = nodeAt(root, String(detail.path ?? detail.block).split('.').map(Number));
     if (!node) return;
     mode = 'tree';
-    select(node, { tell: false });
+    select(node, { focus: false, tell: false });
+    frame.querySelector('.konzilo-tree-row[data-selected="true"]')?.scrollIntoView({ block: 'center' });
   };
   globalThis.addEventListener(PLACE_EVENT, picked);
 

@@ -38,7 +38,7 @@ const site = {
   types: {
     post: { label: 'Article', plural: 'Articles', collection: 'articles', address: '/{slug}/', elements: ['paragraph'], fields: { date: {}, modified: {}, seo: {} } },
     news: { label: 'News item', plural: 'News', collection: 'news', address: '/news/{slug}/', elements: ['paragraph'], fields: { date: {} } },
-    page: { label: 'Page', plural: 'Pages', collection: 'pages', hierarchical: true, address: '/pages/{path}/', elements: ['paragraph'], fields: { seo: {} } },
+    page: { label: 'Page', plural: 'Pages', collection: 'pages', hierarchical: true, address: '/pages/{path}/', elements: ['paragraph'] },
     snippet: { label: 'Snippet', plural: 'Snippets', collection: 'snippets', elements: ['paragraph'] },
   },
 };
@@ -206,7 +206,7 @@ test('on a site in several languages, every page carries its alternates, in each
   const { types, languages } = siteDescription({
     languages: ['sv_SE', 'en_GB'],
     images: site.images,
-    types: { page: { label: 'Page', plural: 'Pages', collection: 'pages', hierarchical: true, address: '/pages/{path}/', elements: ['paragraph', 'post-list'], fields: { seo: {} } } },
+    types: { page: { label: 'Page', plural: 'Pages', collection: 'pages', hierarchical: true, address: '/pages/{path}/', elements: ['paragraph', 'post-list'] } },
   });
   const key = (letter) => ({ translationKey: letter.repeat(16) });
   const entry = (id, data = {}, body = 'Body.\n') => ({ id, data: { title: id, ...data }, body });
@@ -249,6 +249,28 @@ ${urls.join('')}</urlset>
       url('/sv/pages/lista/', link('sv-SE', '/sv/pages/lista/'), link('x-default', '/sv/pages/lista/')),
     ),
   });
+});
+
+test('on a site in several languages, a post whose canonical address is elsewhere is neither listed nor an alternate, and one whose canonical address is its own is both', async () => {
+  const { types, languages } = siteDescription({
+    languages: ['sv_SE', 'en_GB'],
+    images: site.images,
+    types: { page: { label: 'Page', plural: 'Pages', collection: 'pages', address: '/pages/{slug}/', elements: ['paragraph'] } },
+  });
+  const key = (letter) => ({ translationKey: letter.repeat(16) });
+  const entry = (id, data = {}) => ({ id, data: { title: id, ...data }, body: 'Body.\n' });
+  const pages = [
+    entry('sv-SE/hamnen', { ...key('a'), seo: { canonical: 'https://elsewhere.example.org/hamnen/' } }),
+    entry('en-GB/harbour', key('a')),
+    entry('sv-SE/kajen', { ...key('b'), seo: { canonical: `${ORIGIN}/sv/pages/kajen/` } }),
+    entry('en-GB/quay', key('b')),
+  ];
+  const addresses = await sitemapAddresses(types, async (collection) => (collection === 'pages' ? pages : []), {}, languages, ORIGIN);
+  assert.deepEqual(addresses.filter(({ path }) => path.includes('/pages/')).map(({ path, alternates }) => [path, alternates.map(({ hreflang, path: at }) => `${hreflang} ${at}`)]), [
+    ['/en/pages/harbour/', ['en-GB /en/pages/harbour/']],
+    ['/en/pages/quay/', ['sv-SE /sv/pages/kajen/', 'en-GB /en/pages/quay/', 'x-default /sv/pages/kajen/']],
+    ['/sv/pages/kajen/', ['sv-SE /sv/pages/kajen/', 'en-GB /en/pages/quay/', 'x-default /sv/pages/kajen/']],
+  ]);
 });
 
 describe('a build of a site with more addresses than one file of a sitemap may hold', () => {

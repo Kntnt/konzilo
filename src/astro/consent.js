@@ -14,6 +14,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { CATALOGUES } from '../catalogues.js';
 import { CONSENT_SCRIPT_LIFETIME, CONSENT_SCRIPTS, CONSENT_STYLESHEET, consentScriptPath } from '../consent/registry.js';
 import { consentScript } from '../consent/script.js';
 import { CATEGORIES, categoryDescription, CONSENT_FILE, CONSENT_GROUP, textsOf } from '../format/consent.js';
@@ -49,7 +50,8 @@ export function consentDomain({ command, base, domain, environment = process.env
 // the main language's, where the settings have none. `site`:
 // { languageTag, base, origin }, the page's language tag, the base its
 // pages are below and the origin of the public host the build is for,
-// whose host an item stored on it is named by.
+// whose host an item stored on it is named by. The core's own words come
+// from its catalogues, in the page's language (ADR 0066).
 export function consentInput(registry, settings, { languageTag, base = '/', origin = null }) {
   const own = settings?.[CONSENT_GROUP];
   const texts = own
@@ -64,6 +66,7 @@ export function consentInput(registry, settings, { languageTag, base = '/', orig
       cookiePolicy: cookiePolicy ? linkTo(cookiePolicy, base) : null,
     },
     language: languageTag,
+    catalogues: CATALOGUES,
     host: origin ? new URL(origin).hostname : null,
   };
 }

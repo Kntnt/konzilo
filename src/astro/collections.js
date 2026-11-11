@@ -35,6 +35,7 @@ import { defineCollection } from 'astro/content/config';
 import { createReference } from 'astro/content/runtime';
 import { glob } from 'astro/loaders';
 import { z } from 'astro/zod';
+import { canonicalAddress } from '../format/addresses.js';
 import { CATEGORIES, CONSENT_FILE, CONSENT_GROUP, HOST_KINDS, LIFETIME, SAFEGUARDS, STORAGE_KINDS } from '../format/consent.js';
 import { NOT_FOUND, NOT_FOUND_FILE, NOT_FOUND_FOLDER } from '../format/not-found.js';
 import { isSource, OTHER_ANSWERS } from '../format/redirects.js';
@@ -228,6 +229,7 @@ function seoSchema(image) {
   return z.strictObject({
     title: text,
     description: text,
+    canonical: z.string().refine((address) => canonicalAddress(address) === address, { message: 'a canonical address is a whole http:// or https:// address, as a browser sends it' }).optional(),
     socialTitle: text,
     socialDescription: text,
     socialImage: image().optional(),

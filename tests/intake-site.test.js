@@ -16,7 +16,7 @@ const site = {
   language: 'en_GB',
   images: { smallestWidth: 400, displayWidth: 1280 },
   types: {
-    article: {
+    story: {
       label: 'Article',
       plural: 'Articles',
       collection: 'articles',
@@ -24,7 +24,7 @@ const site = {
       elements: ['paragraph', 'embed'],
       fields: { categories: { taxonomy: 'category' }, tags: { taxonomy: 'tag' }, image: {}, seo: {}, featured: { label: 'Featured', type: 'boolean', control: 'toggle' }, eventDay: { label: 'Day', type: 'date', control: 'date' }, rating: { label: 'Rating', type: 'number', control: 'number' } },
     },
-    page: { label: 'Page', plural: 'Pages', collection: 'pages', hierarchical: true, address: '/pages/{path}/', elements: ['paragraph', 'image'], fields: { seo: {} } },
+    page: { label: 'Page', plural: 'Pages', collection: 'pages', hierarchical: true, address: '/pages/{path}/', elements: ['paragraph', 'image'] },
     note: { label: 'Note', plural: 'Notes', collection: 'notes', elements: ['paragraph'] },
   },
   taxonomies: {
@@ -63,8 +63,8 @@ describe('the site settings', () => {
       size: 'large',
       contact: 'contactpage0',
       heroImage: { src: '/media/hero-3333333333.jpg', alt: 'The harbour' },
-      search: { separator: '|', publisher: { kind: 'Person' }, types: { article: { schema: 'NewsArticle' } } },
-      ai: { types: { article: { markdown: false } } },
+      search: { separator: '|', publisher: { kind: 'Person' }, types: { story: { schema: 'NewsArticle' } } },
+      ai: { types: { story: { markdown: false } } },
       legalPages: { privacyPolicy: 'contactpage0', cookiePolicy: 'contactpage0' },
     },
     'pages/contactpage0.md': page('contact'),
@@ -92,20 +92,20 @@ describe('the site settings', () => {
     assert.equal(values.search.separator, '|');
     assert.equal(values.search.publisher.kind, 'Person');
     assert.equal(values.search.publisher.name, 'The Lantern', 'the site\'s title by default');
-    assert.equal(values.search.types.article.schema, 'NewsArticle');
+    assert.equal(values.search.types.story.schema, 'NewsArticle');
     assert.equal(values.search.types.page.schema, 'WebPage');
     assert.equal(values.search.home.title, '{{ site.title }}');
     assert.equal(values.consent.bannerAccept, 'Accept all');
     assert.equal(values.forms.contact.confirmation, 'Thank you. Your message has been sent.');
     assert.equal(values.forms.contact.recipients, undefined, 'what stays out of the published files');
-    assert.equal(values.ai.types.article.markdown, false);
+    assert.equal(values.ai.types.story.markdown, false);
     assert.equal(values.ai.types.page.markdown, true);
     assert.equal(values.notFound, undefined);
   });
 
   test('a yes-or-no that requires another is off wherever that is off', () => {
-    const on = run({ 'settings.json': { ai: { types: { article: { markdown: false, llmsFull: true } } } } }, site);
-    assert.equal(settingsOf(on).ai.types.article.llmsFull, false);
+    const on = run({ 'settings.json': { ai: { types: { story: { markdown: false, llmsFull: true } } } } }, site);
+    assert.equal(settingsOf(on).ai.types.story.llmsFull, false);
   });
 
   test('writes in two spaces with one final newline', () => {
@@ -113,8 +113,8 @@ describe('the site settings', () => {
   });
 
   test('is refused whole, naming each setting by its path, and keeps its last file', () => {
-    const refused = run({ 'settings.json': { seats: 'many', search: { types: { article: { title: '{{ post.nope }}' } } }, tagManager: { container: 'nope' } } }, site);
-    assert.deepEqual(refused.refusals.map((one) => one.setting), ['seats', 'search.types.article.title', 'tagManager.container']);
+    const refused = run({ 'settings.json': { seats: 'many', search: { types: { story: { title: '{{ post.nope }}' } } }, tagManager: { container: 'nope' } } }, site);
+    assert.deepEqual(refused.refusals.map((one) => one.setting), ['seats', 'search.types.story.title', 'tagManager.container']);
     assert.equal(refused.refusals[0].file, 'settings.json');
     assert.equal(refused.refusals[0].reason, 'the site cannot publish "many" as a whole number');
     assert.equal(written(refused)['settings.json'], undefined);
@@ -228,6 +228,12 @@ Text.
 `);
   });
 
+  test('a canonical address under search is written among the search and sharing fields, as a browser sends it', () => {
+    const given = run({ 'articles/aaaaaaaaaaaa.md': article({ search: { title: 'A title', canonical: ' https://Elsewhere.example.org/the-original?from=lantern ' } }) }, site);
+    assert.deepEqual(given.refusals, []);
+    assert.match(written(given)['articles/an-article.md'], /\nseo: \{"title":"A title","canonical":"https:\/\/elsewhere\.example\.org\/the-original\?from=lantern"\}\n/);
+  });
+
   test('a yes-or-no is always there, and a value that is empty is left out', () => {
     const bare = written(run({ 'articles/aaaaaaaaaaaa.md': article({ rating: '', eventDay: null }) }, site))['articles/an-article.md'];
     assert.match(bare, /\nfeatured: false\n/);
@@ -236,7 +242,7 @@ Text.
 
   test('a wrong value says so, naming the field', () => {
     const { refusals } = run({ 'articles/aaaaaaaaaaaa.md': article({ rating: 'high', eventDay: '2026-13-45' }) }, site);
-    assert.deepEqual(refusals.map(({ field, reason }) => [field, reason]), [
+    assert.deepEqual(refusals.map(({ field, reason }) => [field.name, reason]), [
       ['eventDay', 'the site cannot publish "2026-13-45" as a date'],
       ['rating', 'the site cannot publish "high" as a number'],
     ]);
@@ -342,6 +348,25 @@ describe('the service registry', () => {
     assert.deepEqual(domains.consent, [['konzilo-consent', null]]);
     assert.deepEqual(domains.pixel, [['own', null], ['theirs', 'cdn.example.com']]);
     assert.ok(domains.vimeo.every(([, domain]) => domain === 'player.vimeo.com'));
+  });
+
+  test('on a Swedish site whose editors work in English, holds what visitors read in Swedish, as the settings\' defaults are', () => {
+    const swedish = { ...site, language: 'sv_SE', interfaceLanguage: 'en', consent: { domain: 'example.com' } };
+    const result = run({ 'articles/aaaaaaaaaaaa.md': article({}, 'https://vimeo.com/76979871') }, swedish);
+    const registry = JSON.parse(written(result)['consent.json']);
+    const service = (id) => registry.services.find((one) => one.id === id);
+    assert.equal(service('consent').name, 'Samtycke');
+    assert.equal(service('consent').purpose, 'Kommer ihåg vilka kategorier och tjänster du har tillåtit, och när, så att den här webbplatsen och varje annan webbplats under example.com respekterar ditt val.');
+    assert.equal(service('consent').necessity, 'Utan den kunde webbplatsen inte hålla sig till ditt val, och skulle fråga dig på varje sida.');
+    assert.equal(service('vimeo').purpose, 'Spelar upp videor från Vimeo på sidan.');
+    assert.equal(registry.texts.banner.title, 'Din integritet');
+    assert.equal(registry.categories.find((one) => one.id === 'necessary').name, 'Nödvändiga');
+    const settings = settingsOf(result);
+    assert.equal(settings.consent.bannerTitle, 'Din integritet');
+    assert.equal(settings.forms.contact.confirmation, 'Tack! Ditt meddelande är skickat.');
+    const english = JSON.parse(written(run({ 'articles/aaaaaaaaaaaa.md': article({}, 'https://vimeo.com/76979871') }, { ...site, interfaceLanguage: 'sv' }))['consent.json']);
+    assert.equal(english.services.find((one) => one.id === 'vimeo').purpose, 'Plays videos from Vimeo in the page.');
+    assert.equal(english.texts.banner.title, 'Your privacy');
   });
 
   test('on a site that keeps the choice on a domain, declares the consent\'s cookie on it, and the local storage item the records wait in', () => {
@@ -525,6 +550,7 @@ describe('what is an Admin\'s alone', () => {
   test('holds a legal page in the language an Editor took it away in, and in that alone', () => {
     const inTwo = {
       languages: ['sv_SE', 'en_GB'],
+      images: { smallestWidth: 400, displayWidth: 1280 },
       types: { page: { label: 'P', plural: 'Ps', collection: 'pages', address: { sv_SE: '/sidor/{slug}/', en_GB: '/pages/{slug}/' }, elements: ['paragraph'] } },
     };
     const source = {
@@ -551,8 +577,9 @@ describe('what is an Admin\'s alone', () => {
 describe('a site in several languages', () => {
   const several = {
     languages: ['sv_SE', 'en_GB'],
+    images: { smallestWidth: 400, displayWidth: 1280 },
     types: {
-      article: { label: 'A', plural: 'As', collection: 'articles', address: '/{slug}/', elements: ['paragraph'], fields: { categories: { taxonomy: 'category' } } },
+      story: { label: 'A', plural: 'As', collection: 'articles', address: '/{slug}/', elements: ['paragraph'], fields: { categories: { taxonomy: 'category' } } },
       page: { label: 'P', plural: 'Ps', collection: 'pages', hierarchical: true, address: { sv_SE: '/sidor/{path}/', en_GB: '/pages/{path}/' }, elements: ['paragraph'] },
     },
     taxonomies: { category: { label: 'C', plural: 'Cs', collection: 'categories', hierarchical: true } },
@@ -673,7 +700,7 @@ describe('source files as the editing tool writes them', () => {
     const settings = config.collections.find((one) => one.name === 'settings').files[0];
     const search = settings.fields.find((one) => one.name === 'search');
     const types = search.fields.find((one) => one.name === 'types');
-    assert.deepEqual(types.fields.map((one) => one.name), ['article', 'page']);
+    assert.deepEqual(types.fields.map((one) => one.name), ['article', 'page', 'canvas']);
     const articles = config.collections.find((one) => one.name === 'articles');
     const other = articles.fields.find((one) => one.name === 'otherAddresses');
     assert.deepEqual(other.fields.map((one) => one.name), ['address', 'answer']);

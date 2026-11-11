@@ -5,11 +5,11 @@
 // or null when it was left. `choose` gives more images, or null where there is no library.
 
 import { asking, button, dialogOf, made } from './dialog.js';
-import { say } from './texts.js';
+import { say } from '../interface-language.js';
 
 export function editGallery({ images, choose = null, picture = null, root = document.body }) {
   return new Promise((resolve) => {
-    const { dialog, body } = dialogOf(say('galleryEdit'));
+    const { dialog, body } = dialogOf(say('body.galleryEdit'));
     dialog.classList.add('konzilo-gallery-editing');
     let done = false;
     const finish = (answer) => {
@@ -43,7 +43,7 @@ export function editGallery({ images, choose = null, picture = null, root = docu
       // Only the handle drags: Firefox lets no field in something draggable take the mouse.
       const handle = made('span', 'konzilo-gallery-handle', row);
       handle.textContent = '≡';
-      handle.title = say('galleryDrag');
+      handle.title = say('body.galleryDrag');
       handle.setAttribute('aria-hidden', 'true');
       handle.draggable = true;
       handle.addEventListener('dragstart', (event) => {
@@ -60,7 +60,7 @@ export function editGallery({ images, choose = null, picture = null, root = docu
       });
 
       const label = made('label', 'konzilo-gallery-alt', row);
-      made('span', '', label).textContent = say('imageAlt');
+      made('span', '', label).textContent = say('body.alt');
       const input = made('input', '', label);
       input.type = 'text';
       input.value = entry.alt;
@@ -77,12 +77,12 @@ export function editGallery({ images, choose = null, picture = null, root = docu
           if (document.activeElement !== control) row.querySelector(className === 'konzilo-gallery-up' ? '.konzilo-gallery-down' : '.konzilo-gallery-up').focus();
         });
       };
-      move('konzilo-gallery-up', say('imageEarlier'), '↑', () => row.previousElementSibling?.before(row));
-      move('konzilo-gallery-down', say('imageLater'), '↓', () => row.nextElementSibling?.after(row));
+      move('konzilo-gallery-up', say('body.imageEarlier'), '↑', () => row.previousElementSibling?.before(row));
+      move('konzilo-gallery-down', say('body.imageLater'), '↓', () => row.nextElementSibling?.after(row));
 
       const remove = button('konzilo-gallery-row-remove', '✕', row);
-      remove.title = say('imageRemove');
-      remove.setAttribute('aria-label', say('imageRemove'));
+      remove.title = say('body.imageRemove');
+      remove.setAttribute('aria-label', say('body.imageRemove'));
       remove.addEventListener('click', () => {
         rows.delete(row);
         row.remove();
@@ -122,7 +122,7 @@ export function editGallery({ images, choose = null, picture = null, root = docu
     });
 
     if (choose) {
-      button('konzilo-gallery-add', say('galleryAdd'), form).addEventListener('click', async () => {
+      button('konzilo-gallery-add', say('body.galleryAdd'), form).addEventListener('click', async () => {
         const chosen = await choose();
         for (const entry of chosen ?? []) addRow(entry);
       });
@@ -130,11 +130,11 @@ export function editGallery({ images, choose = null, picture = null, root = docu
     const note = made('p', 'konzilo-dialog-note', form);
     note.setAttribute('role', 'alert');
     const actions = made('div', 'konzilo-dialog-actions', form);
-    const removeAll = button('konzilo-dialog-remove', say('galleryRemove'), actions);
-    button('', say('imageCancel'), actions).addEventListener('click', () => finish(null));
+    const removeAll = button('konzilo-dialog-remove', say('body.galleryRemove'), actions);
+    button('', say('body.cancel'), actions).addEventListener('click', () => finish(null));
     const accept = made('button', 'konzilo-dialog-accept', actions);
     accept.type = 'submit';
-    accept.textContent = say('imageDone');
+    accept.textContent = say('body.done');
 
     form.addEventListener('submit', (event) => {
       event.preventDefault();
@@ -142,7 +142,7 @@ export function editGallery({ images, choose = null, picture = null, root = docu
       const blank = ordered.filter(({ input }) => input.value.trim() === '');
       for (const { input } of blank) input.setAttribute('aria-invalid', 'true');
       if (blank.length > 0) {
-        note.textContent = say('imageNoAlt');
+        note.textContent = say('body.noAlt');
         blank[0].input.focus();
         return;
       }
@@ -153,7 +153,7 @@ export function editGallery({ images, choose = null, picture = null, root = docu
       question.replaceWith(form);
       removeAll.focus();
     };
-    const { part: question, keep } = asking({ words: say('galleryRemoveAsk'), aside: say('imageRemoveAside'), keepWords: say('galleryKeep'), kept: backToForm, removed: () => finish({ remove: true }) });
+    const { part: question, keep } = asking({ words: say('body.galleryRemoveAsk'), aside: say('body.imageRemoveAside'), keepWords: say('body.galleryKeep'), kept: backToForm, removed: () => finish({ remove: true }) });
     removeAll.addEventListener('click', () => {
       form.replaceWith(question);
       keep.focus();

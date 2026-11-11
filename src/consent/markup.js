@@ -8,7 +8,7 @@
 // classes and the attributes.
 //
 // Every function takes the same input, `{ registry, texts, legalPages,
-// language, host, locales }`:
+// language, catalogues, host, locales }`:
 //
 // - `registry`: the service registry, as consent.json holds it
 //   (content-format.md, "The service registry"): `revision`, `revised`,
@@ -18,23 +18,28 @@
 //   `categories`, the name and description of a category by its id, where
 //   the page's differ from the registry's; the registry's own `texts` by
 //   default. Texts without `objection`, or without some of its texts, take
-//   the core's defaults for it (words.js). In its `text` and `objected`,
-//   the words in square brackets are the link (linked()).
+//   the consent texts' defaults for it from the catalogues (words.js). In
+//   its `text` and `objected`, the words in square brackets are the link
+//   (linked()).
 // - `legalPages`: `{ privacyPolicy, cookiePolicy }`, each `{ title, href }`
 //   or null, the address as the page links to it.
 // - `language`: the page's language tag, such as en-GB; the core's own
-//   words are Swedish for Swedish and English for any other.
+//   words are in its language's catalogue, else British English's.
+// - `catalogues`: the core's catalogues by language, `{ en, sv }`, as
+//   src/catalogues/<language>.json holds them (ADR 0066), whose texts
+//   `site.consent.…` are the core's own words (words.js).
 // - `host`: the host of the page, such as www.example.com, which an item
 //   stored on it is named by, or null where the markup serves pages on
 //   more than one host; the client then names it from the page's address.
 // - `locales`: the locale dates, times, numbers and countries are formatted
 //   in, by the language of the core's words, `{ en, sv }`; en-GB and sv-SE
-//   by default (words.js, LOCALES). The client formats the visitor's choice
-//   in the same one.
+//   by default, and the language itself for another catalogue (words.js,
+//   LOCALES). The client formats the visitor's choice in the same one.
 //
 // Every text is escaped, so a registry from anywhere is safe to render.
 //
-// This folder imports nothing outside itself (words.js).
+// This folder imports nothing outside itself; the catalogues come in with
+// the input (words.js).
 
 import { factWords, fill, formatLocale, wordsFor } from './words.js';
 
@@ -117,12 +122,12 @@ function categoryWords(category, texts) {
 // texts of the right to object (objectionOf()), where the registry offers
 // it, else null, the core's words, and
 // what the client reads from the page, as JSON.
-export function consentView({ registry, texts = registry.texts, legalPages = {}, language = 'en', locales }) {
-  const words = wordsFor(language);
+export function consentView({ registry, texts = registry.texts, legalPages = {}, language = 'en', catalogues, locales }) {
+  const words = wordsFor(language, catalogues);
   const services = new Map(registry.services.map((service) => [service.id, service]));
-  const plural = new Intl.PluralRules(formatLocale(language, locales));
-  const count = (number) => `${number} ${words.service[plural.select(number) === 'one' ? 0 : 1]}`;
-  const { country, kind, lifetime } = factWords(language, locales);
+  const plural = new Intl.PluralRules(formatLocale(language, catalogues, locales));
+  const count = (number) => fill(words.serviceCount[plural.select(number) === 'one' ? 'one' : 'other'], { count: String(number) });
+  const { country, kind, lifetime } = factWords(language, catalogues, locales);
   const describe = (service) => ({
     id: service.id,
     name: service.name,
@@ -133,7 +138,7 @@ export function consentView({ registry, texts = registry.texts, legalPages = {},
     storage: service.storage.map((item) => ({ name: item.name, kind: kind(item.kind), lifetime: lifetime(item.lifetime), where: { party: item.party, domain: item.domain ?? null } })),
   });
   const optional = registry.services.filter((service) => !isNecessary(service));
-  const [alone, provided, transferred] = words.placeholder;
+  const { alone, provided, transferred } = words.placeholder;
   const sentence = (service) => {
     const shape = !service.provider ? alone : service.transfers.length > 0 ? transferred : provided;
     return fill(shape, { service: service.name, provider: service.provider?.name, country: service.provider && country(service.provider.country) });
@@ -370,10 +375,10 @@ export function consentControlsMarkup(input, { links = true, buttons = true, obj
 // name the buttons; and the texts of the right to object where the registry
 // offers it, else null. A service of the site's own links to the privacy
 // policy.
-export function declarationView({ registry, texts = registry.texts, legalPages = {}, language = 'en', locales }) {
-  const words = wordsFor(language).declaration;
-  const locale = formatLocale(language, locales);
-  const { country, kind, lifetime } = factWords(language, locales);
+export function declarationView({ registry, texts = registry.texts, legalPages = {}, language = 'en', catalogues, locales }) {
+  const words = wordsFor(language, catalogues).declaration;
+  const locale = formatLocale(language, catalogues, locales);
+  const { country, kind, lifetime } = factWords(language, catalogues, locales);
   const services = new Map(registry.services.map((service) => [service.id, service]));
   const either = new Intl.ListFormat(locale, { type: 'disjunction' });
   const privacy = legalPages.privacyPolicy ?? null;
@@ -413,7 +418,7 @@ export function declarationView({ registry, texts = registry.texts, legalPages =
       reason: departure.reason,
     })),
     footer: texts.footer,
-    objection: objectionOf(registry, texts, wordsFor(language)),
+    objection: objectionOf(registry, texts, wordsFor(language, catalogues)),
   };
 }
 
@@ -434,7 +439,7 @@ export function cookieDeclarationMarkup(input, { level = 2, records = null } = {
   const view = declarationView(input);
   const { words } = view;
   // A table's cell begins with a capital.
-  const domainWords = wordsFor(input.language ?? 'en');
+  const domainWords = wordsFor(input.language ?? 'en', input.catalogues);
   const cellWords = { ...domainWords, thisHost: capital(domainWords.thisHost), unnamedDomain: capital(domainWords.unnamedDomain) };
   const domain = (where) => domainMarkup(where, cellWords, input.host ?? null);
   const [top, category, service] = [0, 1, 2].map((below) => `h${Math.min(level + below, 6)}`);

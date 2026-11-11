@@ -12,10 +12,9 @@ import { signedInCredential } from '../credential.js';
 import { imageLibrary } from '../body/library.js';
 
 import { IMAGE_WIDGET } from './widget.js';
+import { plain } from '../plain.js';
 
 export { IMAGE_WIDGET };
-
-const plainValue = (value) => (value?.toJS ? value.toJS() : value);
 
 export function registerImageField(CMS, config) {
   const { api_root: api, repo: repository, branch = 'main' } = config.backend;
@@ -34,8 +33,8 @@ export function registerImageField(CMS, config) {
   CMS.registerFieldType(IMAGE_WIDGET, function KonziloImage(props) {
     const React = window.__SVELTIA_CMS_REACT__;
     const { value, onChange, addFile, field, forID, entry } = props;
-    const standIn = plainValue(field.get('fallback')) === true ? plainValue(entry?.getIn?.(['data', 'image', 'src'])) ?? '' : '';
-    const sized = (key) => { const pair = plainValue(field.get(key)); return Array.isArray(pair) ? { width: pair[0], height: pair[1] } : null; };
+    const standIn = plain(field.get('fallback')) === true ? plain(entry?.getIn?.(['data', 'image', 'src'])) ?? '' : '';
+    const sized = (key) => { const pair = plain(field.get(key)); return Array.isArray(pair) ? { width: pair[0], height: pair[1] } : null; };
     const host = React.useRef(null);
     const live = React.useRef(null);
     const latest = React.useRef({ onChange, addFile, value, standIn });
@@ -46,16 +45,16 @@ export function registerImageField(CMS, config) {
         if (gone) return;
         // The field takes a moment to load, and the value may have changed meanwhile.
         live.current = mountImageField(host.current, {
-          value: plainValue(latest.current.value),
+          value: plain(latest.current.value),
           changed: (next) => latest.current.onChange(next),
           addFile: (...given) => latest.current.addFile(...given),
           library,
           exists,
-          alt: plainValue(field.get('alt')) !== false,
-          text: plainValue(field.get('text')) === true,
-          upload: plainValue(field.get('upload')) === true,
-          smallestWidth: plainValue(field.get('smallestWidth')) ?? null,
-          fallback: plainValue(field.get('fallback')) === true,
+          alt: plain(field.get('alt')) !== false,
+          text: plain(field.get('text')) === true,
+          upload: plain(field.get('upload')) === true,
+          smallestWidth: plain(field.get('smallestWidth')) ?? null,
+          fallback: plain(field.get('fallback')) === true,
           crop: sized('crop'),
           safe: sized('safe'),
         });
@@ -67,7 +66,7 @@ export function registerImageField(CMS, config) {
       };
     }, []);
     React.useEffect(() => {
-      live.current?.setValue(plainValue(value));
+      live.current?.setValue(plain(value));
     }, [value]);
     React.useEffect(() => {
       live.current?.setStandIn(standIn);

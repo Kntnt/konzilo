@@ -4,8 +4,11 @@
 // the site registers for it (`konzilo({ presentations })`). Body.astro
 // evaluates a body's lists in the body's order, so that a list can leave out
 // the posts the lists above it showed. A site's template may call
-// listedPosts() too, for related posts in an article's template, from
-// `@kntnt/konzilo/astro/post-lists`.
+// listedPosts() too, for the posts a list's settings name, and
+// relatedPosts(), for "Read more" under an article, from
+// `@kntnt/konzilo/astro/post-lists`. A list ordered as related and
+// relatedPosts() rank alike, by the score and the freshness of
+// ../post-lists.js, with the half-life of the settings group `related`.
 //
 // One list in a post may have pages of its own: page 1 is the post's own
 // address, and page `n` from 2 `<address>page/<n>/`. The site's route for a
@@ -25,24 +28,25 @@
 import { getCollection } from 'astro:content';
 import { presentations, site } from 'virtual:konzilo/post-lists';
 import { textsIn } from 'virtual:konzilo/texts';
+import { textsOf } from '../catalogues.js';
 import { listPageAddress } from '../format/addresses.js';
 import { readPostList, SECOND_PAGED_LIST } from '../format/post-list.js';
+import { british } from '../refusals.js';
+import { relatedPoints } from '../format/built-in-types.js';
 import rules from '../format/rules.json' with { type: 'json' };
 import { evaluate, pageCount } from '../post-lists.js';
-import { textLanguage } from '../texts.js';
+import { coreSettingsGroups } from '../settings-groups.js';
 import { describedSite, entryAddress, entryLanguage, entryName, siteLanguages } from './languages.js';
 import { postListsIn } from './reader.js';
+import { siteSettings } from './site-settings.js';
 import { termRoute, termsBelow, termsWithPages } from './term-pages.js';
 
 const { attributes } = rules.elements['post-list'].directive;
 
-// The pager's texts, in the site's language: the label of its `nav`, a
-// page's link's name, `{n}` its number, and the links to the page before
-// and after.
-export const PAGER_TEXTS = Object.freeze({
-  en: Object.freeze({ label: 'Pages', page: 'Page {n}', previous: 'Previous page', next: 'Next page' }),
-  sv: Object.freeze({ label: 'Sidor', page: 'Sida {n}', previous: 'Föregående sida', next: 'Nästa sida' }),
-});
+// The pager's texts, in the catalogues (ADR 0066) under `site.pager.`: the
+// label of its `nav`, a page's link's name, `{n}` its number, and the links to
+// the page before and after.
+const PAGER_TEXTS = 'site.pager.';
 
 // The posts each list on a page has shown, by type: one for a page, which
 // each list of its body adds to.
@@ -67,7 +71,7 @@ export async function postList(given, { post, shown = shownOnPage(), page = 1 } 
   let at = 1;
   let address = null;
   if (read.settings.pages === true) {
-    if (paged.has(shown)) throw new Error(`a post list${post ? ` in ${post.collection}/${post.id}` : ''}: ${SECOND_PAGED_LIST}`);
+    if (paged.has(shown)) throw new Error(`a post list${post ? ` in ${post.collection}/${post.id}` : ''}: ${british(SECOND_PAGED_LIST)}`);
     paged.add(shown);
     address = post ? addressOf(post) : null;
     if (address !== null) at = page;
@@ -82,8 +86,8 @@ export async function postList(given, { post, shown = shownOnPage(), page = 1 } 
 }
 
 // The posts a list with these settings shows, as a template may ask for
-// them, for related posts in an article's template: the settings are a post
-// list's attributes, typed (`{ type: 'post', order: 'related', number: 3 }`),
+// them: the settings are a post list's attributes, typed (`{ type:
+// 'article', include: 'category:news', number: 3 }`),
 // with no presentation needed. Each is { entry, url }, the post's entry of
 // its collection and its address on the site, below the site's base, or
 // null for a type without one. Throws, naming why, for settings the site
@@ -91,6 +95,29 @@ export async function postList(given, { post, shown = shownOnPage(), page = 1 } 
 export async function listedPosts(settings, { post, shown = shownOnPage() } = {}) {
   const [first] = Object.keys(site.lists.presentations);
   return (await listed(settingsOf({ presentation: first, ...settings }, post).query, { post, shown })).posts;
+}
+
+// The number of related posts relatedPosts() gives, by default.
+export const RELATED_POSTS = 3;
+
+// The posts related to a post, as "Read more" under it shows them, in an
+// article's template:
+//
+//   const related = await relatedPosts(article);
+//
+// The posts of its own type that share its terms, ranked as a list ordered
+// as related ranks them, without the post itself: at most `number`, fewer
+// where fewer share a term, and none where none does. Related to an
+// article, a post scores a point for each topic it shares and half a point
+// for the same category; related to a post of another type, a point for
+// each term it shares, of any taxonomy; and each score is multiplied by the
+// post's freshness, by the half-life of the settings group `related`. Each is { entry, url }, as
+// listedPosts() gives them. Throws, naming why, for a post of a type
+// without terms.
+export async function relatedPosts(post, { number = RELATED_POSTS } = {}) {
+  const [name] = typeOf(post);
+  if (!name) throw new Error('Konzilo: relatedPosts() takes the entry of a post, from the collection of one of the site\'s types');
+  return (await listed(settingsOf({ type: name, order: 'related', number }, post).query, { post, shown: shownOnPage() })).posts;
 }
 
 // The pages a site's route for a type builds from its entries,
@@ -141,7 +168,7 @@ async function pagesOf(entry) {
   const lists = postListsIn(entry.body);
   const withPages = lists.filter((given) => given.pages === true);
   if (withPages.length === 0 || addressOf(entry) === null) return null;
-  if (withPages.length > 1) throw new Error(`a post list in ${entry.collection}/${entry.id}: ${SECOND_PAGED_LIST}`);
+  if (withPages.length > 1) throw new Error(`a post list in ${entry.collection}/${entry.id}: ${british(SECOND_PAGED_LIST)}`);
   const shown = shownOnPage();
   for (const given of lists) {
     const { query, settings } = settingsOf(given, entry);
@@ -161,7 +188,7 @@ async function pagesOf(entry) {
 // language (PAGER_TEXTS), or in `locale`, the post's language's locale, on a
 // site in several.
 export function pagerOf(address, current, count, locale = site.locale?.replace('-', '_') ?? null) {
-  const texts = PAGER_TEXTS[textLanguage(locale)];
+  const texts = textsOf(locale, PAGER_TEXTS);
   const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   const url = (n) => `${base}${listPageAddress(address, n)}`;
   const shown = Array.from({ length: count }, (_, i) => i + 1)
@@ -266,7 +293,7 @@ function settingsOf(given, post) {
     if (!allowed) problems.push(`the site cannot list by the setting ${JSON.stringify(name)} with the value ${JSON.stringify(value)}`);
   }
   const read = problems.length > 0 ? { problems } : readPostList(given, site.lists, { attributes, side: 'file' });
-  if (read.problems.length > 0) throw new Error(`a post list${post ? ` in ${post.collection}/${post.id}` : ''}: ${read.problems.join('; ')}`);
+  if (read.problems.length > 0) throw new Error(`a post list${post ? ` in ${post.collection}/${post.id}` : ''}: ${read.problems.map(british).join('; ')}`);
   return read;
 }
 
@@ -282,7 +309,9 @@ async function listed(query, { post, shown, page = 1, counting = false }) {
   if (!shown.has(query.type)) shown.set(query.type, new Set());
   const seen = shown.get(query.type);
   const listable = entries.map((entry) => listablePost(entry, type));
-  const options = { current, shown: seen, locale: site.locale };
+  const declared = describedSite().types[query.type];
+  const related = query.order === 'related' ? { points: relatedPoints(declared), halfLife: await halfLife() } : {};
+  const options = { current, shown: seen, locale: site.locale, ...related };
   const pages = counting ? pageCount(query, listable, options) : 1;
   const posts = evaluate(query, listable, { ...options, page });
   for (const one of posts) seen.add(one.id);
@@ -290,7 +319,6 @@ async function listed(query, { post, shown, page = 1, counting = false }) {
   // An entry's id is its path in the collection, which a hierarchical type's
   // address takes as `{path}`, in its language's folder on a site
   // in several languages, whose prefix its address takes.
-  const declared = describedSite().types[query.type];
   return {
     posts: posts.map(({ id }) => {
       const address = entryAddress(declared, id, languages);
@@ -298,6 +326,20 @@ async function listed(query, { post, shown, page = 1, counting = false }) {
     }),
     pages,
   };
+}
+
+// The settings group of related posts (format/settings-groups.json).
+const RELATED = 'related';
+
+// The days in which a related post's freshness halves, as the site settings
+// give them, the main language's, which every language shares: null with
+// freshness switched off, and the group's defaults where the settings have
+// none.
+async function halfLife() {
+  const group = coreSettingsGroups().find(({ name }) => name === RELATED);
+  const defaults = Object.fromEntries(group.settings.map((setting) => [setting.name, setting.default]));
+  const { freshness, halfLife: days } = { ...defaults, ...(await siteSettings())?.[RELATED] };
+  return freshness ? days : null;
 }
 
 // The type of an entry's collection, as [name, type], or [].

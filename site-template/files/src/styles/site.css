@@ -254,16 +254,48 @@ main h1 {
   line-height: 1.15;
 }
 
-/* A post's head: its date, its terms and its image. */
+/* "Read more" under an article, in the column of its main content. */
+.read-more {
+  inline-size: min(100% - 2 * var(--site-gutter), var(--site-text-width));
+  margin-inline: auto;
+  padding-block-end: clamp(2rem, 5vw, 3.5rem);
+}
+
+.read-more > h2 {
+  margin-block: 0 1rem;
+  font-family: var(--heading-font);
+  font-size: 1.375rem;
+  font-weight: 600;
+}
+
+/* A post's head: its byline, its date, its terms and its image. */
 article > time {
   display: block;
   font-size: 0.9375rem;
   color: var(--body-muted);
 }
 
+.body-text > .byline,
 .body-text > time,
 .body-text > .terms {
   margin-block-start: 0.75rem;
+}
+
+/* The byline's authors on one line, in their order, a comma between, outside
+   the body text's own lists. */
+.body-text > .byline {
+  margin-block-end: 0;
+  padding: 0;
+  list-style: none;
+  font-weight: 600;
+}
+
+.byline li {
+  display: inline;
+}
+
+.byline li + li::before {
+  content: ", ";
 }
 
 .terms,

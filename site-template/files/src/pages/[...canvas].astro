@@ -1,0 +1,28 @@
+---
+// A canvas, the core's blank page, at its address: /landing/<slug>/, as the
+// type's address in site-description.json has it, under its language's prefix
+// on a site in several languages. The layout gives it neither header nor
+// footer, so its body, built of what the type's elements allow, is the whole
+// page, wrapped in the class the body styles name (astro.config.mjs). Its body
+// goes through Konzilo's Body, which renders each post list in it with its
+// presentation, and a form with the site's form component.
+//
+// A canvas whose post list has pages of its own has them at <address>page/2/
+// and on, as a page has.
+import Body from '@kntnt/konzilo/astro/Body.astro';
+import { entryPages } from '@kntnt/konzilo/astro/languages';
+import { render } from 'astro:content';
+import Site from '../layouts/Site.astro';
+
+export function getStaticPaths() {
+  return entryPages('canvases', 'canvas');
+}
+
+const { entry: canvas, page } = Astro.props;
+const { Content } = await render(canvas);
+---
+<Site entry={canvas} page={page}>
+  <main class="body-text">
+    <Body post={canvas} page={page}><Content /></Body>
+  </main>
+</Site>

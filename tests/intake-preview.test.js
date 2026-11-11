@@ -44,7 +44,7 @@ test('refuses a draft as it would a published post, and leaves its last good fil
   const good = run({ 'pages/one.md': draft('One') }, site, { preview: ['pages/one.md'] });
   const bad = sourcePost({ title: '', status: 'draft' }, 'Words.');
   const result = run({ 'pages/one.md': bad }, site, { preview: ['pages/one.md'], ledger: good.ledger });
-  assert.ok(result.refusals.some((one) => one.file === 'pages/one.md' && one.field === 'title'), JSON.stringify(result.refusals));
+  assert.ok(result.refusals.some((one) => one.file === 'pages/one.md' && one.field?.name === 'title'), JSON.stringify(result.refusals));
   assert.ok(result.keep.includes('pages/one.md'));
   assert.equal(written(result)['pages/one.md'], undefined);
 });

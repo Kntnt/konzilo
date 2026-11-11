@@ -17,6 +17,7 @@ import { dirname, join } from 'node:path';
 import { after, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { CACHE_DIR, astroEnvironment } from './lib/astro.js';
+import { settingsFile } from './lib/content.js';
 
 const core = fileURLToPath(new URL('../', import.meta.url));
 const astro = join(core, 'node_modules/astro/bin/astro.mjs');
@@ -30,6 +31,7 @@ after(() => {
 
 const site = {
   language: 'en_GB',
+  images: { smallestWidth: 400, displayWidth: 1280 },
   types: {
     post: {
       label: 'Article', plural: 'Articles', collection: 'articles', address: '/{slug}/', elements: ['paragraph', 'post-list'],
@@ -72,13 +74,14 @@ const presentations = { list: './src/components/List.astro', cards: './src/compo
 
 // A page per post of a collection, and one per later page of a list with
 // pages, from a route with a rest parameter in place of the address's slug
-// or path: its head through Head, its body through Body, and the two posts
-// most related to it, which the template asks the evaluator for.
-const template = (collection) => [
+// or path: its head through Head, its body through Body, and the posts
+// `related` gives, by default the two most related to it, which the
+// template asks the evaluator for.
+const template = (collection, related = collection === 'articles' ? "await listedPosts({ type: 'post', order: 'related', number: 2 }, { post: entry })" : '[]') => [
   '---',
   "import { getCollection, render } from 'astro:content';",
   // As `@kntnt/konzilo/astro/post-lists`, which this site has not installed.
-  `import { listedPosts, postPages } from ${JSON.stringify(join(core, 'src/astro/post-lists.js'))};`,
+  `import { listedPosts, postPages, relatedPosts } from ${JSON.stringify(join(core, 'src/astro/post-lists.js'))};`,
   `import Body from ${JSON.stringify(join(core, 'src/astro/Body.astro'))};`,
   `import Head from ${JSON.stringify(join(core, 'src/astro/Head.astro'))};`,
   'export async function getStaticPaths() {',
@@ -86,7 +89,7 @@ const template = (collection) => [
   '}',
   'const { entry, page } = Astro.props;',
   'const { Content } = await render(entry);',
-  `const related = ${collection === 'articles' ? "await listedPosts({ type: 'post', order: 'related', number: 2 }, { post: entry })" : '[]'};`,
+  `const related = ${related};`,
   '---',
   '<html><head><Head entry={entry} page={page} /></head><body>',
   '<main><Body post={entry} page={page}><Content /></Body></main>',
@@ -143,8 +146,10 @@ const content = {
   ].join('\n'),
 };
 
-// A site repository with `files`, built; { status, output, main(path) }.
-function build(files, options) {
+// A site repository with `files`, built, its content `base` with `files` over
+// it, in the environment `env` adds to the suite's; { status, output,
+// main(path) }.
+function build(files, options, { base = content, env = {} } = {}) {
   const repository = mkdtempSync(join(tmpdir(), 'konzilo-post-lists-'));
   repositories.push(repository);
   // The core's dependencies, each on its own, for a package of the site's to stand among them.
@@ -161,8 +166,8 @@ function build(files, options) {
   write('site-description.json', JSON.stringify(site));
   write('src/pages/[...slug].astro', template('articles'));
   write('src/pages/pages/[...slug].astro', template('pages'));
-  for (const [path, contents] of Object.entries({ ...components, ...content, ...files })) write(path, contents);
-  const built = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
+  for (const [path, contents] of Object.entries({ ...components, ...base, ...files })) write(path, contents);
+  const built = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: { ...astroEnvironment, ...env } });
   const file = (path) => join(repository, 'dist', path);
   const part = (tag) => (path) => new RegExp(`<${tag}>(.*)</${tag}>`, 's').exec(readFileSync(file(join(path, 'index.html')), 'utf8'))?.[1].replaceAll('\n', '');
   const has = (path) => existsSync(file(path));
@@ -224,6 +229,93 @@ describe('Astro', () => {
     const failed = build({ 'content/pages/other.md': '---\ntitle: "Other"\n---\n\n::post-list{type="post" presentation="slides"}\n' }, { presentations });
     assert.notEqual(failed.status, 0);
     assert.match(failed.output, /content\/pages\/other\.md: line 5: the site has no presentation "slides" for a list; it has list and cards/);
+  });
+});
+
+// "Read more" and a list ordered as related, on a site with the built-in
+// article: fictional articles related to Lantern, which has the topics
+// harbour and light, the category stories and the author Ines. Each article's
+// template shows what relatedPosts() gives it, and Lantern's body holds a list
+// ordered as related, which shows them all.
+describe('related posts of an article', () => {
+  const described = {
+    language: 'en_GB',
+    images: { smallestWidth: 400, displayWidth: 1280 },
+    types: {
+      article: { collection: 'articles', address: '/{slug}/', elements: ['paragraph', 'post-list'] },
+      page: { collection: 'pages', hierarchical: true, address: '/pages/{path}/', elements: ['paragraph'] },
+    },
+    presentations: site.presentations,
+  };
+  const piece = (title, day, { topics = [], category = [], authors = [] }, body = 'Text.') => [
+    '---',
+    `title: ${JSON.stringify(title)}`,
+    `date: ${day}T08:00:00Z`,
+    `modified: ${day}T08:00:00Z`,
+    `headline: ${JSON.stringify(title)}`,
+    `authors: ${JSON.stringify(authors)}`,
+    `category: ${JSON.stringify(category)}`,
+    `topics: ${JSON.stringify(topics)}`,
+    '---',
+    '',
+    body,
+    '',
+  ].join('\n');
+  const files = {
+    'site-description.json': JSON.stringify(described),
+    'src/pages/[...slug].astro': template('articles', 'await relatedPosts(entry)'),
+    'content/authors/ines.json': term('Ines Holm'),
+    'content/categories/stories.json': term('Stories'),
+    'content/categories/essays.json': term('Essays'),
+    'content/categories/travel.json': term('Travel'),
+    ...Object.fromEntries(['harbour', 'light', 'sand', 'ice'].map((slug) => [`content/topics/${slug}.json`, term(slug)])),
+    'content/articles/lantern.md': piece('Lantern', '2026-10-15', { topics: ['harbour', 'light'], category: ['stories'], authors: ['ines'] }, '::post-list{type="article" order="related" presentation="list"}'),
+    // Scored by hand: a point for each topic shared, half a point for the
+    // same category, and none for an author.
+    'content/articles/anchor.md': piece('Anchor', '2025-01-01', { topics: ['harbour', 'light'], category: ['stories'] }), // 2.5
+    'content/articles/beacon.md': piece('Beacon', '2026-09-01', { topics: ['harbour'], category: ['stories'] }), // 1.5
+    'content/articles/cove.md': piece('Cove', '2026-06-01', { topics: ['harbour', 'light'], category: ['essays'] }), // 2
+    'content/articles/dune.md': piece('Dune', '2026-10-01', { topics: ['sand'], category: ['stories'] }), // 0.5
+    'content/articles/ember.md': piece('Ember', '2026-10-10', { topics: ['sand'], category: ['essays'], authors: ['ines'] }), // 0
+    'content/articles/fjord.md': piece('Fjord', '2026-10-12', { topics: ['ice'], category: ['travel'] }), // 0
+  };
+  const settings = (related) => ({ 'content/settings.json': settingsFile(described, { groups: { related } }) });
+  const listed = (...titles) => `<ul class="list" data-date="false">${titles.map((title) => `<li><a href="/${title.toLowerCase()}/">${title}</a></li>`).join('')}</ul>`;
+  const read = (...titles) => titles.map((title) => `${title} /${title.toLowerCase()}/`).join(', ');
+
+  // By hand, each score times 2^(-days before Dune / half-life), Dune's day as
+  // good as any, since every article ages alike: at 90 days Beacon 1.19, Cove
+  // 0.78, Dune 0.5, Anchor 0.02; at 365 days Cove 1.59, Beacon 1.42, Anchor
+  // 0.74, Dune 0.5.
+  test('gives a template the three most related, and ranks a list ordered as related the same, with freshness halving every 90 days by default', () => {
+    const built = build(files, { presentations }, { base: {} });
+    assert.equal(built.status, 0, built.output);
+    assert.equal(built.main('lantern'), listed('Beacon', 'Cove', 'Dune', 'Anchor'));
+    assert.equal(built.aside('lantern'), read('Beacon', 'Cove', 'Dune'));
+    // Fewer than three where fewer share a topic or the category, and none
+    // where none does.
+    assert.equal(built.aside('ember'), read('Dune', 'Cove'));
+    assert.equal(built.aside('fjord'), '');
+  });
+
+  test('ranks the same at a build ten years later', () => {
+    // The build's clock, set ten years ahead.
+    const later = `data:text/javascript,${encodeURIComponent('const now = Date.now; Date.now = () => now() + 3652 * 86400000;')}`;
+    const built = build(files, { presentations }, { base: {}, env: { NODE_OPTIONS: `--import=${later}` } });
+    assert.equal(built.status, 0, built.output);
+    assert.equal(built.main('lantern'), listed('Beacon', 'Cove', 'Dune', 'Anchor'));
+    assert.equal(built.aside('lantern'), read('Beacon', 'Cove', 'Dune'));
+  });
+
+  test('takes the half-life from the settings, and with freshness switched off lets only the score, then the date, decide', () => {
+    const slower = build({ ...files, ...settings({ halfLife: 365 }) }, { presentations }, { base: {} });
+    assert.equal(slower.status, 0, slower.output);
+    assert.equal(slower.main('lantern'), listed('Cove', 'Beacon', 'Anchor', 'Dune'));
+    assert.equal(slower.aside('lantern'), read('Cove', 'Beacon', 'Anchor'));
+    const off = build({ ...files, ...settings({ freshness: false }) }, { presentations }, { base: {} });
+    assert.equal(off.status, 0, off.output);
+    assert.equal(off.main('lantern'), listed('Anchor', 'Cove', 'Beacon', 'Dune'));
+    assert.equal(off.aside('lantern'), read('Anchor', 'Cove', 'Beacon'));
   });
 });
 

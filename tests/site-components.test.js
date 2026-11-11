@@ -66,7 +66,7 @@ describe('the site description', () => {
     ['a component named as the core\'s own directive', { form: { label: 'Form', form: 'leaf', body: 'none' } }, /components\.form: form is the core's own directive/],
     ['a name that is no directive\'s', { Big: { label: 'Big', form: 'leaf', body: 'none' } }, /components\.Big: a component's name is lowercase letters/],
     ['a container with a text body', { box: { label: 'Box', form: 'container', body: 'text' } }, /components\.box\.body: a container's body is blocks/],
-    ['a component without a label', { box: { form: 'container', body: 'blocks' } }, /components\.box\.label: must be a text/],
+    ['a component without a label', { box: { form: 'container', body: 'blocks' } }, /components\.box\.label: must be a non-empty string, or one by interface language/],
     ['an attribute required and with a default', { box: { label: 'Box', form: 'container', body: 'blocks', attributes: { tone: { type: 'string', required: true, default: 'x' } } } }, /components\.box\.attributes\.tone: is required, or has a default, not both/],
     ['a default that is none of the values', { box: { label: 'Box', form: 'container', body: 'blocks', attributes: { tone: { type: 'string', values: ['a'], default: 'b' } } } }, /components\.box\.attributes\.tone\.default: must be one of its values/],
     ['a pattern that is no regular expression', { box: { label: 'Box', form: 'container', body: 'blocks', attributes: { tone: { type: 'string', pattern: '(' } } } }, /components\.box\.attributes\.tone\.pattern: must be a regular expression/],
@@ -90,7 +90,7 @@ describe('the site description', () => {
     const config = cmsConfig(siteDescription(own()), { site: 'https://example.com', forgejo: 'https://git.example.com', repository: 'site/source', clientId: 'id' });
     assert.deepEqual(config.konzilo.components, siteDescription(own()).components);
     const bare = cmsConfig(siteDescription(everyElement), { site: 'https://example.com', forgejo: 'https://git.example.com', repository: 'site/source', clientId: 'id' });
-    assert.equal(bare.konzilo, undefined);
+    assert.equal(bare.konzilo.components, undefined);
   });
 
   test('leaves the core\'s rule data as it is', () => {
@@ -143,7 +143,7 @@ describe('a body', () => {
     const site = own();
     site.types = { page: { ...site.types.page, elements: everyElement.types.page.elements.concat('section') } };
     const { refusals } = out('::eyebrow[Hello]', site);
-    assert.ok(refusals.some((one) => /Eyebrow/.test(one)), refusals.join('\n'));
+    assert.ok(refusals.some((one) => /cannot hold eyebrow;/.test(one)), refusals.join('\n'));
   });
 });
 

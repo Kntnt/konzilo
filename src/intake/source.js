@@ -23,16 +23,16 @@ function placeOf(rest, extension, several) {
 function postParts(contents) {
   const text = contents.replace(/\r\n/g, '\n').replace(/^﻿/, '');
   const match = /^---\n(?:([\s\S]*?)\n)?---(?:\n|$)([\s\S]*)$/.exec(text);
-  if (!match) return { problem: say('source-frontmatter'), line: 1 };
+  if (!match) return { problem: say('refusal.source-frontmatter'), line: 1 };
   const head = match[1] ?? '';
   let fields;
   try {
     fields = head.trim() === '' ? {} : parse(head);
   } catch (error) {
-    if (error instanceof YAMLParseError) return { problem: say('source-yaml', { detail: error.code }), line: (error.linePos?.[0]?.line ?? 0) + 1 };
+    if (error instanceof YAMLParseError) return { problem: say('refusal.source-yaml', { detail: error.code }), line: (error.linePos?.[0]?.line ?? 0) + 1 };
     throw error;
   }
-  if (!isObject(fields)) return { problem: say('source-frontmatter'), line: 1 };
+  if (!isObject(fields)) return { problem: say('refusal.source-frontmatter'), line: 1 };
   return { fields, body: match[2], bodyLine: head === '' ? 3 : head.split('\n').length + 3 };
 }
 
@@ -44,7 +44,7 @@ function jsonFile(file) {
   try {
     return { value: JSON.parse(file.contents) };
   } catch (error) {
-    return { refusal: named({ file: file.path, reason: say('source-json', { detail: error.message }) }) };
+    return { refusal: named({ file: file.path, reason: say('refusal.source-json', { detail: error.message }) }) };
   }
 }
 

@@ -19,7 +19,7 @@ const site = {
   language: 'en_GB',
   images: { smallestWidth: 1, displayWidth: 1 },
   types: {
-    page: { label: 'Page', plural: 'Pages', collection: 'pages', hierarchical: true, address: '/pages/{path}/', elements: ['paragraph'], fields: { image: {} } },
+    post: { label: 'Page', plural: 'Pages', collection: 'pages', hierarchical: true, address: '/pages/{path}/', elements: ['paragraph'], fields: { image: {} } },
     note: { label: 'Note', plural: 'Notes', collection: 'notes', elements: ['paragraph'] },
   },
 };
@@ -145,8 +145,14 @@ describe('the runs', () => {
     await preview.take({ path: 'pages/new-one.md', fields: { title: 'New one', body: 'Words of mine.' } });
     const before = read('pages/new-one.md');
     const shown = await preview.take({ path: 'pages/new-one.md', fields: { slug: 'new-one', body: 'Other words.' } });
-    assert.ok(shown.refusals.some(({ field, reason }) => field === 'title' && /title/.test(reason)), JSON.stringify(shown));
+    assert.ok(shown.refusals.some(({ field, reason }) => field.name === 'title' && /title/.test(reason)), JSON.stringify(shown));
     assert.equal(shown.address, '/pages/new-one/');
+    // By its name and values, which the pane shows in the interface language.
+    const title = shown.refusals.find(({ field }) => field.name === 'title');
+    assert.deepEqual({ name: title.name, values: title.values }, { name: 'refusal.title-empty', values: {} });
+
+    const body = await preview.take({ path: 'pages/new-one.md', fields: { title: 'New one', body: '# A title in the body' } });
+    assert.deepEqual(body.refusals.map(({ block, name }) => [block?.path, name]), [['1', 'refusal.element-not-taken']]);
     assert.equal(read('pages/new-one.md'), before);
   });
 

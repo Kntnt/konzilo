@@ -39,9 +39,9 @@ async function rasterFacts(bytes, hash, existing) {
   try {
     meta = await sharp(bytes).metadata();
   } catch {
-    return { reason: say('image-kind', { kind: 'this file' }) };
+    return { reason: say('refusal.image-kind', { kind: say('about.this-file') }) };
   }
-  if ((meta.pages ?? 1) > 1) return { reason: say('image-moving') };
+  if ((meta.pages ?? 1) > 1) return { reason: say('refusal.image-moving') };
   const master = existing ?? await rasterMaster(bytes);
   const { width, height } = await sharp(master).metadata();
   return { hash, extension: 'webp', width, height, contents: master };
@@ -58,11 +58,11 @@ function svgFacts(bytes, hash, existing) {
 // measured as the master's, or { reason }. `existing`, the master already made of this
 // hash, if any.
 export async function originalFacts(bytes, existing = null) {
-  if (bytes.length > MOST_BYTES) return { reason: say('image-large') };
+  if (bytes.length > MOST_BYTES) return { reason: say('refusal.image-large') };
   const kind = kindOf(bytes);
-  if (['GIF', 'HEIC', 'TIFF', 'BMP'].includes(kind)) return { reason: say('image-kind', { kind: `a ${kind}` }) };
-  if (kind === 'pointer') return { reason: say('image-pointer') };
-  if (kind === 'unknown') return { reason: say('image-kind', { kind: 'this file' }) };
+  if (['GIF', 'HEIC', 'TIFF', 'BMP'].includes(kind)) return { reason: say('refusal.image-kind', { kind: say('about.image-format', { format: kind }) }) };
+  if (kind === 'pointer') return { reason: say('refusal.image-pointer') };
+  if (kind === 'unknown') return { reason: say('refusal.image-kind', { kind: say('about.this-file') }) };
   const hash = createHash('sha256').update(bytes).digest('hex');
   return kind === 'svg' ? svgFacts(bytes, hash, existing) : rasterFacts(bytes, hash, existing);
 }

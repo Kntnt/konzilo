@@ -15,70 +15,21 @@
 
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { inCatalogue, SOURCE_LANGUAGE, textsOf } from '../catalogues.js';
 import groups from '../format/settings-groups.json' with { type: 'json' };
-import { inLanguage, textLanguage } from '../texts.js';
 import { isPublicBuild } from './public-site.js';
 
 // Where a form is taken on the site's own host.
 export const FORMS_PATH = '/_konzilo/forms/';
 
-// The core's texts of a form, in each of its languages. A site gives its
-// own in its language, by the same keys, as `konzilo({ formTexts })`.
-// `{max}`, `{time}`, `{email}` and `{contact}` stand for what each says.
-export const FORM_TEXTS = Object.freeze({
-  en: Object.freeze({
-    required: '(required)',
-    choose: 'Choose…',
-    send: 'Send',
-    sending: 'Sending…',
-    trap: 'Leave this field empty',
-    preview: 'This is a preview: the form sends nothing.',
-    invalid: 'Your message was not sent. Check the fields and send it again.',
-    tooMany: 'Your message was not sent, since many messages have come from here just now. Try again later.',
-    tooManyIn: 'Your message was not sent, since many messages have come from here just now. Try again in {time}.',
-    refused: 'Your message could not be sent from here. Reload the page and try again, or {contact}.',
-    unavailable: 'Your message could not be sent just now. Try again later, or {contact}.',
-    contactBy: 'write to us at {email}',
-    contactOther: 'reach us another way',
-    notSent: 'Your message was not sent',
-    back: 'Go back with your browser\'s back button: what you wrote is usually still there.',
-    startPage: 'Go to the start page',
-    missing: 'Fill in this field.',
-    missingChoice: 'Choose an option.',
-    missingBox: 'Tick this box to send the form.',
-    tooLong: 'Shorten this to at most {max} characters.',
-    notEmail: 'Give an email address, such as name@example.com.',
-    notTel: 'Give a phone number in digits, such as +46 8 123 45 67.',
-    notAnOption: 'Choose one of the options.',
-    malformed: 'Check this field.',
-  }),
-  sv: Object.freeze({
-    required: '(obligatoriskt)',
-    choose: 'Välj…',
-    send: 'Skicka',
-    sending: 'Skickar…',
-    trap: 'Lämna det här fältet tomt',
-    preview: 'Det här är en förhandsvisning: formuläret skickar ingenting.',
-    invalid: 'Ditt meddelande skickades inte. Kontrollera fälten och skicka igen.',
-    tooMany: 'Ditt meddelande skickades inte, eftersom många meddelanden har kommit härifrån just nu. Försök igen senare.',
-    tooManyIn: 'Ditt meddelande skickades inte, eftersom många meddelanden har kommit härifrån just nu. Försök igen om {time}.',
-    refused: 'Ditt meddelande kunde inte skickas härifrån. Ladda om sidan och försök igen, eller {contact}.',
-    unavailable: 'Ditt meddelande kunde inte skickas just nu. Försök igen senare, eller {contact}.',
-    contactBy: 'skriv till oss på {email}',
-    contactOther: 'kontakta oss på annat sätt',
-    notSent: 'Ditt meddelande skickades inte',
-    back: 'Gå tillbaka med webbläsarens bakåtknapp: det du skrev finns oftast kvar.',
-    startPage: 'Till startsidan',
-    missing: 'Fyll i det här fältet.',
-    missingChoice: 'Välj ett alternativ.',
-    missingBox: 'Kryssa i rutan för att skicka formuläret.',
-    tooLong: 'Korta texten till högst {max} tecken.',
-    notEmail: 'Ange en e-postadress, till exempel namn@exempel.se.',
-    notTel: 'Ange ett telefonnummer med siffror, till exempel 08-123 45 67.',
-    notAnOption: 'Välj ett av alternativen.',
-    malformed: 'Kontrollera det här fältet.',
-  }),
-});
+// The core's texts of a form, in the catalogues (ADR 0066) under `site.form.`, in the
+// page's language. A site gives its own in its language, by the same names, as
+// `konzilo({ formTexts })`. `{max}`, `{time}`, `{email}` and `{contact}` stand for what
+// each says.
+const FORM_TEXTS = 'site.form.';
+
+// The names of a form's texts, which a site may give its own of.
+export const FORM_TEXT_NAMES = Object.freeze(Object.keys(textsOf(SOURCE_LANGUAGE, FORM_TEXTS)));
 
 // The texts a site may give, checked as konzilo() is called: a key the core
 // has not got, or a text that is no text, names itself.
@@ -86,7 +37,7 @@ export function siteFormTexts(given = {}) {
   if (given === null || typeof given !== 'object' || Array.isArray(given)) {
     throw new Error('Konzilo: formTexts must be an object of the form\'s texts by their keys');
   }
-  const known = Object.keys(FORM_TEXTS.en);
+  const known = FORM_TEXT_NAMES;
   for (const [key, value] of Object.entries(given)) {
     if (!known.includes(key)) throw new Error(`Konzilo: formTexts.${key} is not one of the form's texts, which are ${known.join(', ')}`);
     if (typeof value !== 'string' || value.trim() === '') throw new Error(`Konzilo: formTexts.${key} must be a text`);
@@ -94,10 +45,10 @@ export function siteFormTexts(given = {}) {
   return { ...given };
 }
 
-// The texts of a form in the site's language, the site's own in place of
-// the core's.
+// The texts of a form in the language of a page in `locale`, null for a site that declares
+// none, the site's own in place of the core's.
 export function formTexts(locale, own = {}) {
-  return { ...FORM_TEXTS[textLanguage(locale)], ...own };
+  return { ...textsOf(locale, FORM_TEXTS), ...own };
 }
 
 // The HTML input type of each kind of field that is one input.
@@ -163,7 +114,7 @@ export function formView(name, { forms, settings, locale, languageTag, base = '/
   });
   // The Admin's confirmation text, as the site settings hold it, or the core's
   // default in the site's language.
-  const confirmation = settings?.forms?.[name]?.confirmation ?? inLanguage(groups.forms.settings.confirmation.default, locale);
+  const confirmation = settings?.forms?.[name]?.confirmation ?? inCatalogue(groups.forms.settings.confirmation.default, locale);
   const outcomes = [
     ['sent', [confirmation]],
     ['invalid', [texts.invalid]],

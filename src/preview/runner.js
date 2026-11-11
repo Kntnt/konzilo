@@ -90,12 +90,13 @@ export function previewRunner({ site: described, source, content, adminHost = nu
     refresh: () => inTurn(once),
 
     // Takes one draft, and gives what its pane shows: { address, refusals }, its page's
-    // address, or null while it has none, and each reason it cannot be published, by its field.
+    // address, or null while it has none, and each reason it cannot be published, by its field
+    // or its block, with its name and values, which the pane shows in the interface language.
     take({ path, fields, images: given = [] }) {
       return inTurn(async () => {
         drafts.set(path, { contents: draftFile(fields), images: given.map(unsavedImage), touched: now() });
         const result = await once();
-        const refusals = result.refusals.filter(({ file }) => file === path).map(({ field = null, reason }) => ({ field, reason }));
+        const refusals = result.refusals.filter(({ file }) => file === path).map(({ field = null, block, name, values, reason }) => ({ field, ...(block ? { block } : {}), ...(name ? { name, values } : {}), reason }));
         return { address: result.ledger.posts[keyOfPath(path)]?.address ?? null, refusals };
       });
     },

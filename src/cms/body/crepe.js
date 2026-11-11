@@ -118,8 +118,8 @@ import {
   toggleSuperscript,
 } from './nodes.js';
 import { captionLine, inCell, oneLine, reducedText, reducePasted } from './paste.js';
-import { selectionAt } from './place.js';
-import { say } from './texts.js';
+import { blockAt } from './place.js';
+import { say } from '../interface-language.js';
 
 const ICON = (body) => `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">${body}</svg>`;
 const ICONS = {
@@ -150,30 +150,30 @@ const menu = (takes, images) => {
   const headings = takes('heading') ? {} : null;
   const withImages = takes('image') && images !== null;
   const withGalleries = withImages && takes('gallery');
-  const item = (key) => ({ label: say(key) });
+  const item = (name) => ({ label: say(name) });
   return {
     // Close to its block, so that the field's left margin need not be wider than it is.
     blockHandle: { getOffset: () => 6 },
     textGroup: {
-      label: say('textGroup'),
-      text: item('text'),
+      label: say('body.textGroup'),
+      text: item('body.text'),
       h1: null,
-      h2: headings && item('heading2'),
-      h3: headings && item('heading3'),
-      h4: headings && item('heading4'),
-      h5: headings && item('heading5'),
-      h6: headings && item('heading6'),
-      quote: takes('quote') ? item('quote') : null,
+      h2: headings && item('body.heading2'),
+      h3: headings && item('body.heading3'),
+      h4: headings && item('body.heading4'),
+      h5: headings && item('body.heading5'),
+      h6: headings && item('body.heading6'),
+      quote: takes('quote') ? item('body.quote') : null,
       divider: null,
     },
-    listGroup: takes('list') ? { label: say('listGroup'), bulletList: item('bulletList'), orderedList: item('orderedList'), taskList: null } : null,
+    listGroup: takes('list') ? { label: say('body.listGroup'), bulletList: item('body.bulletList'), orderedList: item('body.orderedList'), taskList: null } : null,
     advancedGroup: takes('code') || takes('table') || withImages || takes('embed')
-      ? { label: say('moreGroup'), image: null, math: null, codeBlock: takes('code') ? item('code') : null, table: takes('table') ? item('table') : null }
+      ? { label: say('body.moreGroup'), image: null, math: null, codeBlock: takes('code') ? item('body.code') : null, table: takes('table') ? item('body.table') : null }
       : null,
     buildMenu(builder) {
       if (takes('quote')) {
         builder.getGroup('text').addItem('citation', {
-          label: say('citation'),
+          label: say('body.citation'),
           icon: ICONS.citation,
           onRun: (ctx) => {
             const commands = ctx.get(commandsCtx);
@@ -184,7 +184,7 @@ const menu = (takes, images) => {
       }
       if (takes('embed')) {
         builder.getGroup('advanced').addItem('embed', {
-          label: say('embed'),
+          label: say('body.embed'),
           icon: ICONS.embed,
           onRun: (ctx) => {
             const commands = ctx.get(commandsCtx);
@@ -198,7 +198,7 @@ const menu = (takes, images) => {
       }
       if (withImages) {
         builder.getGroup('advanced').addItem('image', {
-          label: say('image'),
+          label: say('body.image'),
           icon: ICONS.image,
           onRun: (ctx) => {
             const commands = ctx.get(commandsCtx);
@@ -212,7 +212,7 @@ const menu = (takes, images) => {
       }
       if (withGalleries) {
         builder.getGroup('advanced').addItem('gallery', {
-          label: say('gallery'),
+          label: say('body.gallery'),
           icon: ICONS.gallery,
           onRun: (ctx) => {
             const commands = ctx.get(commandsCtx);
@@ -229,25 +229,25 @@ const menu = (takes, images) => {
 };
 
 const toolbarOptions = (takes) => ({
-  boldLabel: say('bold'),
-  italicLabel: say('italic'),
-  strikethroughLabel: say('strikethrough'),
-  codeLabel: say('inlineCode'),
-  linkLabel: say('link'),
+  boldLabel: say('body.bold'),
+  italicLabel: say('body.italic'),
+  strikethroughLabel: say('body.strikethrough'),
+  codeLabel: say('body.inlineCode'),
+  linkLabel: say('body.link'),
   buildToolbar(builder) {
     const group = builder.getGroup('formatting');
-    const mark = (key, schema, command) => group.addItem(key, {
+    const mark = (key, name, schema, command) => group.addItem(key, {
       icon: ICONS[key],
-      label: say(key),
+      label: say(name),
       active: (ctx) => ctx.get(commandsCtx).call(isMarkSelectedCommand.key, schema.type(ctx)),
       onRun: (ctx) => ctx.get(commandsCtx).call(command.key),
     });
-    mark('superscript', superscript, toggleSuperscript);
-    mark('subscript', subscript, toggleSubscript);
+    mark('superscript', 'body.superscript', superscript, toggleSuperscript);
+    mark('subscript', 'body.subscript', subscript, toggleSubscript);
     if (takes('footnotes')) {
       group.addItem('footnote', {
         icon: ICONS.footnote,
-        label: say('footnote'),
+        label: say('body.footnote'),
         active: () => false,
         onRun: (ctx) => {
           if (canMarkFootnote(ctx.get(editorViewCtx).state)) ctx.get(commandsCtx).call(insertFootnote.key);
@@ -257,7 +257,7 @@ const toolbarOptions = (takes) => ({
     if (takes('quote')) {
       group.addItem('citation', {
         icon: ICONS.citation,
-        label: say('citation'),
+        label: say('body.citation'),
         active: (ctx) => ctx.get(editorViewCtx).state.selection.$from.parent.type.name === 'konzilo_citation',
         onRun: (ctx) => ctx.get(commandsCtx).call(toggleCitation.key),
       });
@@ -348,8 +348,8 @@ export async function makeEditor({ root, value, elements, changed, images = null
 
   crepe
     .addFeature(cursor, {})
-    .addFeature(linkTooltip, { inputPlaceholder: say('linkPlaceholder') })
-    .addFeature(placeholder, { text: say('placeholder'), mode: 'block' })
+    .addFeature(linkTooltip, { inputPlaceholder: say('body.linkPlaceholder') })
+    .addFeature(placeholder, { text: say('body.placeholder'), mode: 'block' })
     .addFeature(toolbar, toolbarOptions(takes))
     .addFeature(blockEdit, menu(takes, images));
   if (takes('list')) crepe.addFeature(listItem, {});
@@ -367,15 +367,13 @@ export async function makeEditor({ root, value, elements, changed, images = null
     write: () => editor.action((ctx) => ctx.get(serializerCtx)(ctx.get(editorViewCtx).state.doc)).replace(/\n+$/, ''),
     view: editor.action((ctx) => ctx.get(editorViewCtx)),
     run: (command) => editor.action((ctx) => ctx.get(commandsCtx).call(command)),
-    // The cursor where a click in the preview's page was (place.js): false where it is no block of
-    // this editor's.
-    goTo(place) {
+    // The element of the block a click in the preview's page was on (place.js), or null where it
+    // is no block of this editor's.
+    blockElement(place) {
       const view = editor.action((ctx) => ctx.get(editorViewCtx));
-      const selection = selectionAt(view.state.doc, place);
-      if (!selection) return false;
-      view.focus();
-      view.dispatch(view.state.tr.setSelection(selection).scrollIntoView());
-      return true;
+      const found = blockAt(view.state.doc, place);
+      const shown = found && view.nodeDOM(found.pos);
+      return shown?.nodeType === Node.ELEMENT_NODE ? shown : null;
     },
     destroy: () => crepe.destroy(),
   };

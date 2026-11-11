@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
 import { uploadProblem } from '../src/cms/body/chooser-check.js';
+import { wordsIn } from '../src/refusals.js';
 import { imageLibrary, mediaNameOf, stemOf } from '../src/cms/body/library.js';
 
 const encoded = (text) => Buffer.from(text).toString('base64');
@@ -183,22 +184,32 @@ describe('what the chooser turns away, before anything is sent', () => {
   const size = (width, height) => async () => ({ width, height });
   const named = (bytes) => new File([bytes], 'whatever.png');
   const header = (...text) => Buffer.from(text.join(''), 'latin1');
+  // In British English, and in the interface language the chooser shows it in.
+  const problem = async (file, site, measure, language = 'en') => {
+    const found = await uploadProblem(file, site, measure);
+    return found === null ? null : wordsIn(language, found);
+  };
 
   test('a file too large for the site', async () => {
     const huge = { size: 30 * 1024 * 1024 + 1, slice: () => named(PNG) };
-    assert.match(await uploadProblem(huge, {}, size(2000, 1000)), /30 MB/);
+    assert.match(await problem(huge, {}, size(2000, 1000)), /30 MB/);
   });
 
   test('what the site cannot use, by what it is', async () => {
-    assert.match(await uploadProblem(named(header('GIF89a')), {}), /a GIF/);
-    assert.match(await uploadProblem(named(header('\0\0\0\x18ftypheic')), {}), /a HEIC/);
-    assert.match(await uploadProblem(named(header('II*\0')), {}), /a TIFF/);
-    assert.match(await uploadProblem(named(header('BM')), {}), /a BMP/);
-    assert.match(await uploadProblem(named(header('words')), {}), /this file/);
-    assert.match(await uploadProblem(named(header('version https://git-lfs.github.com/spec/v1\n')), {}), /this file/);
-    assert.match(await uploadProblem(named(PNG), {}, async () => {
+    assert.match(await problem(named(header('GIF89a')), {}), /a GIF/);
+    assert.match(await problem(named(header('\0\0\0\x18ftypheic')), {}), /a HEIC/);
+    assert.match(await problem(named(header('II*\0')), {}), /a TIFF/);
+    assert.match(await problem(named(header('BM')), {}), /a BMP/);
+    assert.match(await problem(named(header('words')), {}), /this file/);
+    assert.match(await problem(named(header('version https://git-lfs.github.com/spec/v1\n')), {}), /this file/);
+    assert.match(await problem(named(PNG), {}, async () => {
       throw new Error('cannot be read');
     }), /this file/);
+  });
+
+  test('says so in the interface language', async () => {
+    assert.equal(await problem(named(header('GIF89a')), {}, undefined, 'sv'), 'webbplatsen kan inte använda en GIF som bild; spara den som JPEG, PNG eller WebP, och ladda upp den');
+    assert.match(await problem(named(PNG), { smallestWidth: 400 }, size(399, 300), 'sv'), /^den här bilden är 399 pixlar bred/);
   });
 
   test('a WebP that moves', async () => {
@@ -207,17 +218,17 @@ describe('what the chooser turns away, before anything is sent', () => {
     moving.write('WEBP', 8, 'latin1');
     moving.write('VP8X', 12, 'latin1');
     moving[20] = 0x02;
-    assert.match(await uploadProblem(named(moving), {}, size(2000, 1000)), /moving image/);
+    assert.match(await problem(named(moving), {}, size(2000, 1000)), /moving image/);
     moving[20] = 0;
-    assert.equal(await uploadProblem(named(moving), {}, size(2000, 1000)), null);
+    assert.equal(await problem(named(moving), {}, size(2000, 1000)), null);
   });
 
   test('what is narrower than the site takes, measured as its master', async () => {
-    assert.match(await uploadProblem(named(PNG), { smallestWidth: 400 }, size(399, 300)), /399 pixels wide/);
-    assert.equal(await uploadProblem(named(PNG), { smallestWidth: 400 }, size(400, 300)), null);
+    assert.match(await problem(named(PNG), { smallestWidth: 400 }, size(399, 300)), /399 pixels wide/);
+    assert.equal(await problem(named(PNG), { smallestWidth: 400 }, size(400, 300)), null);
     // Its longest side comes down to 2520, and its width with it.
-    assert.match(await uploadProblem(named(PNG), { smallestWidth: 400 }, size(500, 5040)), /250 pixels wide/);
-    assert.equal(await uploadProblem(named(PNG), {}, size(1, 1)), null);
+    assert.match(await problem(named(PNG), { smallestWidth: 400 }, size(500, 5040)), /250 pixels wide/);
+    assert.equal(await problem(named(PNG), {}, size(1, 1)), null);
   });
 
   test('and an SVG goes on to the check that can read it', async () => {

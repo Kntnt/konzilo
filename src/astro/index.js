@@ -82,6 +82,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { PLACE_MESSAGE, SHOW_MESSAGE, STOPPED_MESSAGE } from '../cms/preview/paths.js';
 import { searchPages } from '../format/addresses.js';
 import { declaredProblem, readPostList } from '../format/post-list.js';
+import { british } from '../refusals.js';
 import { CONSENT_STORAGE } from '../format/consent.js';
 import { keyOf } from '../format/redirects.js';
 import rules from '../format/rules.json' with { type: 'json' };
@@ -96,6 +97,7 @@ import { resolvedColors, tokensOf } from './theme-tokens.js';
 import { blockMarks } from './block-marks.js';
 import { previewGuard } from './preview-guard.js';
 import { previewLink } from './preview-link.js';
+import { previewRedraw } from './preview-redraw.js';
 import { isLivePreview, isPublicBuild, origin } from './public-site.js';
 import { pageTagManager, pageTracker, tagManagerClient } from './tag-manager.js';
 import { registryOf } from './directives.js';
@@ -124,7 +126,7 @@ export { contentSecurityPolicy, policyText, releaseCode } from './content-securi
 export { markdownFeatures, markdownHastPlugins, markdownHastPluginsIn, markdownMdastPlugins, readContentFile } from './reader.js';
 export { renderTemplate } from '../metadata-templates.js';
 export { templateValues } from './search-and-sharing.js';
-export { summary } from './summary.js';
+export { ownSummary, summary } from './summary.js';
 
 // Astro's own image service, which a site has unless it names another, and
 // Konzilo's in its place.
@@ -368,14 +370,15 @@ function checkPresentations(described, components) {
 // in several; by default the core's (site-texts.js).
 // `formTexts`: the site's own texts for its forms, in the site's language,
 // its main language on a site in several, in place of the core's, by the
-// keys of FORM_TEXTS in forms.js (`{ send: 'Send message' }`); a key the
+// names of FORM_TEXT_NAMES in forms.js (`{ send: 'Send message' }`); a name the
 // core has not got fails at once. The confirmation text once a form is sent
 // is the Admin's, among the site settings.
 // `texts`: the site's own texts in each language, by locale, over
 // those above and the core's: the language switcher's label, a post list's
-// text where it matches nothing, a form's texts and search's
-// (site-texts.js says which). On a site in a language the core writes no
-// texts in, the build warns of each the site does not give.
+// text where it matches nothing, a form's texts, search's and the plain text
+// of a page not found (site-texts.js says which). On a site in a language
+// the core has no catalogue for, the build warns of each the site does not
+// give.
 // `searchPage`: the site's search page, a page of its design as
 // a path from the site's root (`./src/components/SearchPage.astro`), which
 // places Konzilo's Search and which the integration puts at the address the
@@ -473,7 +476,7 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
         }
         const lists = described ? postListModel(described) : null;
         const leaveOut = lists ? declaredChecks(declaredNames(described), known) : {};
-        const checks = lists ? { [LIST.name]: (values) => readPostList(values, lists, { attributes: LIST.attributes }).problems } : {};
+        const checks = lists ? { [LIST.name]: (values) => readPostList(values, lists, { attributes: LIST.attributes }).problems.map(british) } : {};
         Object.assign(processor.options.features, markdownFeatures);
         processor.options.mdastPlugins.push(...markdownMdastPlugins({ checks, leaveOut, known, warn: (message) => logger.warn(message) }));
         // An embed's panel says in the site's language, its post's on a site
@@ -514,6 +517,9 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
         if (config.image.service.entrypoint === ASTROS_IMAGE_SERVICE) {
           updateConfig({ image: { service: { entrypoint: IMAGE_SERVICE, config: config.image.service.config } } });
         }
+
+        // A page in the live preview is drawn again in place, with no empty frame between.
+        if (isLivePreview()) injectScript('head-inline', `(${previewRedraw})();`);
 
         // A page in the live preview's pane stays there, whatever it tries.
         if (isLivePreview()) injectScript('head-inline', `(${previewGuard})(${JSON.stringify(STOPPED_MESSAGE)});\n(${previewLink})(${JSON.stringify(PLACE_MESSAGE)}, ${JSON.stringify(SHOW_MESSAGE)});`);

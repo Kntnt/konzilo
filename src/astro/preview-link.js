@@ -1,7 +1,7 @@
 // What leads from the live preview's page to the body field and back: a click on a block of the
 // body tells the pane which block, by its place among the body's blocks and its path within them,
-// how far into its text, and what its text is, so that the field can put the cursor there, and see
-// for itself that it is the block meant, as the page may be a moment behind what is typed. A block
+// and what its text is, so that the field can frame it, and see for itself that it is the block
+// meant, as the page may be a moment behind what is typed. The focus stays on the page. A block
 // shows what a click reaches. What a visitor would use, a link, a button or a form's field, does
 // as it does on the site. The other way, the pane asks the page to show a block a field shows:
 // the page scrolls to it and marks it, opens the `<details>` it stands in, and tells the design,
@@ -29,27 +29,6 @@ export function previewLink(kind, showKind) {
     return texts;
   };
   const solid = (words) => words.replace(/\s+/g, '');
-  const caretAt = (x, y) => {
-    if (document.caretPositionFromPoint) {
-      const point = document.caretPositionFromPoint(x, y);
-      return point && { node: point.offsetNode, offset: point.offset };
-    }
-    const range = document.caretRangeFromPoint?.(x, y);
-    return range && { node: range.startContainer, offset: range.startOffset };
-  };
-  // How many characters of the block's text, spaces aside, come before the caret.
-  const countBefore = (texts, caret) => {
-    if (!caret) return 0;
-    const range = document.createRange();
-    range.setStart(caret.node, caret.offset);
-    let count = 0;
-    for (const text of texts) {
-      if (text === caret.node) return count + solid(text.data.slice(0, caret.offset)).length;
-      if (range.comparePoint(text, text.length) > 0) return count;
-      count += solid(text.data).length;
-    }
-    return count;
-  };
 
   let lit = null;
   const light = (block) => {
@@ -74,11 +53,9 @@ export function previewLink(kind, showKind) {
     if (!event.isTrusted) return;
     const block = blockAt(event.target);
     if (!block || event.button !== 0 || !window.getSelection().isCollapsed) return;
-    const texts = textsOf(block);
-    const text = solid(texts.map(({ data }) => data).join('')).slice(0, LONGEST);
-    const count = countBefore(texts, caretAt(event.clientX, event.clientY));
+    const text = solid(textsOf(block).map(({ data }) => data).join('')).slice(0, LONGEST);
     const path = block.dataset.konziloBlock;
-    window.parent.postMessage({ type: kind, block: Number(path.split('.')[0]), path, count, text }, '*');
+    window.parent.postMessage({ type: kind, block: Number(path.split('.')[0]), path, text }, '*');
   });
 
   // The block a field shows: the one at its path, or, where a level has no element of its own,

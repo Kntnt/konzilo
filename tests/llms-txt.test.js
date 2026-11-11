@@ -27,6 +27,8 @@ import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { astroConfig, astroEnvironment } from './lib/astro.js';
 import { paragraphs, post, writeContent } from './lib/content.js';
+import { typesInOrder } from '../src/astro/llms-txt.js';
+import { siteDescription } from '../src/site-description.js';
 
 const core = fileURLToPath(new URL('../', import.meta.url));
 const astro = join(core, 'node_modules/astro/bin/astro.mjs');
@@ -42,7 +44,7 @@ const site = {
     post: { label: 'Article', plural: 'Articles', collection: 'articles', address: '/{slug}/', elements: ['paragraph'], fields: { date: {}, excerpt: {}, seo: {} } },
     note: { label: 'Note', plural: 'Notes', collection: 'notes', address: '/notes/{slug}/', elements: ['paragraph'], fields: { date: {} } },
     guide: { label: 'Guide', plural: 'Guides', collection: 'guides', address: '/guides/{slug}/', elements: ['paragraph'], fields: { date: {} } },
-    page: { label: 'Page', plural: 'Pages', collection: 'pages', hierarchical: true, address: '/pages/{path}/', elements: ['paragraph'], fields: { seo: {} } },
+    page: { label: 'Page', plural: 'Pages', collection: 'pages', hierarchical: true, address: '/pages/{path}/', elements: ['paragraph'] },
   },
 };
 
@@ -230,6 +232,20 @@ function writeInto(repository, ai = DEFAULTS, description = DESCRIPTION) {
 function build(repository) {
   return spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
 }
+
+test('orders the types of both files: the built-in page, then the built-in article, then the rest as declared', () => {
+  const declared = siteDescription({
+    language: 'en_GB',
+    images: { smallestWidth: 400, displayWidth: 1280 },
+    types: {
+      post: { label: 'Post', plural: 'Posts', collection: 'posts', address: '/posts/{slug}/', elements: ['paragraph'] },
+      note: { label: 'Note', plural: 'Notes', collection: 'notes', address: '/notes/{slug}/', elements: ['paragraph'] },
+      article: { collection: 'articles', address: '/articles/{slug}/', elements: ['paragraph'] },
+      page: { collection: 'pages', address: '/{slug}/', elements: ['paragraph'] },
+    },
+  });
+  assert.deepEqual(typesInOrder(declared).map((type) => type.name), ['page', 'article', 'post', 'note']);
+});
 
 describe('a site built with astro build for https://www.example.com', () => {
   let repository;

@@ -18,6 +18,7 @@ import { dirname, join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { registryOf } from '../src/astro/directives.js';
+import { BUILT_IN_TAXONOMIES, BUILT_IN_TYPES } from '../src/format/built-in-types.js';
 import { readContentFile } from '../src/astro/reader.js';
 import { CORE_FIELDS, FIELD_TYPES, IDENTITY, OLD_ADDRESSES, OTHER_ADDRESSES, SEO_FIELD, SEO_KEYS, SETTING_TYPES, siteDescription, TRANSLATION_KEY } from '../src/site-description.js';
 import { astroEnvironment } from './lib/astro.js';
@@ -38,6 +39,8 @@ const known = {
   fieldTypes: FIELD_TYPES,
   settingTypes: SETTING_TYPES,
   identity: IDENTITY,
+  builtInTypes: BUILT_IN_TYPES,
+  builtInTaxonomies: BUILT_IN_TAXONOMIES,
 };
 
 // What shows each element of the rule data on the tour's page, as Astro builds
@@ -74,7 +77,7 @@ describe('the content format document', () => {
   const document = contentFormat();
   const marked = markedExamples(document);
 
-  test('names every element, inline element and embed service of the rule data, and every field and type', () => {
+  test('names every element, inline element and embed service of the rule data, every field and type, and every built-in type and taxonomy', () => {
     assert.deepEqual(unnamed(document, known), []);
   });
 

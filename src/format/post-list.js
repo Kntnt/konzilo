@@ -1,9 +1,15 @@
 // A post list's and a directive's settings as a content file gives them,
-// checked against what the site declares.
-//
+// checked against what the site declares. Each problem is a reason by its name
+// in the core's catalogues and the values that fill it (refusals.js), which the
+// intake gives the editor and the build writes in British English.
+
+import { british } from '../refusals.js';
+
+const said = (name, values = {}) => ({ name, values });
+
 // A post's later pages follow one list, so a post holds at most one list with
 // pages of its own.
-export const SECOND_PAGED_LIST = 'the site cannot publish a second list with pages of its own; turn off Pages in one of them';
+export const SECOND_PAGED_LIST = said('refusal.list-paged-twice');
 
 // Why the site cannot publish an attribute that names something the site
 // description declares (its `declared`, such as a form) with this value, or
@@ -14,7 +20,7 @@ export const SECOND_PAGED_LIST = 'the site cannot publish a second list with pag
 export function declaredProblem(attribute, value, declared) {
   const names = declared[attribute.declared] ?? [];
   if (names.includes(value)) return null;
-  return attribute.refusal.replaceAll('{value}', String(value)).replaceAll('{declared}', names.length === 0 ? 'none' : listed(names));
+  return british({ name: attribute.refusal.name, values: { value: String(value), declared: names.length === 0 ? { name: 'about.none' } : { and: names } } });
 }
 
 // The post list: its settings, the directive's attributes as the content file
@@ -49,7 +55,7 @@ export function readPostList(given, lists, { attributes } = {}) {
   };
 
   const type = typeof values.type === 'string' && Object.hasOwn(lists.types, values.type) ? lists.types[values.type] : null;
-  if (values.type !== undefined && !type) problems.push(`the site has no post type ${JSON.stringify(values.type)} to list`);
+  if (values.type !== undefined && !type) problems.push(said('refusal.list-type', { type: JSON.stringify(values.type) }));
   if (type) {
     for (const key of ['include', 'exclude']) {
       if (values[key] === undefined) continue;
@@ -67,8 +73,8 @@ export function readPostList(given, lists, { attributes } = {}) {
   const known = Object.keys(lists.presentations);
   const presentation = typeof values.presentation === 'string' && Object.hasOwn(lists.presentations, values.presentation) ? lists.presentations[values.presentation] : null;
   if (values.presentation !== undefined && !presentation) {
-    const offered = known.length === 0 ? 'it declares none' : `it has ${listed(known)}`;
-    problems.push(`the site has no presentation ${JSON.stringify(values.presentation)} for a list; ${offered}`);
+    const offered = known.length === 0 ? said('about.presentations-none') : said('about.presentations', { presentations: { and: known } });
+    problems.push(said('refusal.list-presentation', { presentation: JSON.stringify(values.presentation), offered }));
   }
   if (presentation) {
     const options = new Map(presentation.options.map((option) => [option.name, option]));
@@ -76,41 +82,36 @@ export function readPostList(given, lists, { attributes } = {}) {
       if (Object.hasOwn(attributes, name)) continue;
       const option = options.get(name);
       if (!option) {
-        if (value !== false) problems.push(`the presentation ${JSON.stringify(values.presentation)} has no option ${JSON.stringify(name)}`);
+        if (value !== false) problems.push(said('refusal.list-option', { presentation: JSON.stringify(values.presentation), option: JSON.stringify(name) }));
         continue;
       }
       // A file holds each value as text, which the option's type reads.
       if (typeof value === 'string' && option.type !== 'string') {
         const typed = option.type === 'integer' ? (/^-?(0|[1-9][0-9]*)$/.test(value) ? Number(value) : undefined) : { true: true, false: false }[value];
         if (typed === undefined) {
-          problems.push(`the site cannot publish the setting ${JSON.stringify(name)} with the value ${JSON.stringify(value)}`);
+          problems.push(said('refusal.list-option-value', { option: JSON.stringify(name), value: JSON.stringify(value) }));
           continue;
         }
         settings[name] = typed;
       }
       if (option.options && !option.options.includes(value)) {
-        problems.push(`the option ${JSON.stringify(name)} is one of ${listed(option.options.map((one) => JSON.stringify(one)))}, not ${JSON.stringify(value)}`);
+        problems.push(said('refusal.list-option-choice', { option: JSON.stringify(name), choices: { or: option.options.map((one) => JSON.stringify(one)) }, value: JSON.stringify(value) }));
       }
     }
     for (const option of presentation.options) {
       if (option.required && (given[option.name] === undefined || given[option.name] === '')) {
-        problems.push(`the presentation ${JSON.stringify(values.presentation)} needs the option ${JSON.stringify(option.name)}`);
+        problems.push(said('refusal.list-option-required', { presentation: JSON.stringify(values.presentation), option: JSON.stringify(option.name) }));
       }
     }
   }
   return { problems, settings, query };
 }
 
-// A list of words as a sentence gives them: `a`, `a and b`, `a, b and c`.
-function listed(words) {
-  return words.length < 2 ? words.join('') : `${words.slice(0, -1).join(', ')} and ${words.at(-1)}`;
-}
-
 // A list's terms to include or to exclude: { groups, text }, the slugs by
 // taxonomy and the setting as the file holds it, or null after a problem.
 function listTerms(key, value, type, problems) {
   const malformed = () => {
-    problems.push(`the setting ${JSON.stringify(key)} names terms as taxonomy:term,term, one taxonomy after another, not as ${JSON.stringify(value)}`);
+    problems.push(said('refusal.list-terms', { setting: JSON.stringify(key), value: JSON.stringify(value) }));
     return null;
   };
   if (typeof value !== 'string') return malformed();
@@ -122,11 +123,11 @@ function listTerms(key, value, type, problems) {
     const [, name, list] = parts;
     const taxonomy = type.taxonomies.find((one) => one.name === name);
     if (!taxonomy) {
-      problems.push(`${type.plural} take no terms of the taxonomy ${JSON.stringify(name)}`);
+      problems.push(said('refusal.list-taxonomy', { plural: { label: type.plural }, taxonomy: JSON.stringify(name) }));
       return null;
     }
     if (Object.hasOwn(groups, name)) {
-      problems.push(`the setting ${JSON.stringify(key)} names the taxonomy ${JSON.stringify(name)} twice`);
+      problems.push(said('refusal.list-taxonomy-twice', { setting: JSON.stringify(key), taxonomy: JSON.stringify(name) }));
       return null;
     }
     const slugs = [];
@@ -150,17 +151,17 @@ function listConditions(value, type, problems) {
   for (const written of value.split(';')) {
     const parts = /^([a-zA-Z][a-zA-Z0-9_]*)(!=|<=|>=|=|<|>)(.*)$/s.exec(written);
     if (!parts) {
-      problems.push(`the setting "where" holds conditions as field=value, one after another with ";" between them, not as ${JSON.stringify(written)}`);
+      problems.push(said('refusal.list-where', { value: JSON.stringify(written) }));
       continue;
     }
     const [, field, op, text] = parts;
     if (!Object.hasOwn(type.fields, field)) {
-      problems.push(`${type.plural} have no field ${JSON.stringify(field)} to filter on`);
+      problems.push(said('refusal.list-where-field', { plural: { label: type.plural }, field: JSON.stringify(field) }));
       continue;
     }
     const declared = type.fields[field];
     if (!ORDERED_FIELDS.includes(declared.type) && !['=', '!='].includes(op)) {
-      problems.push(`the field ${JSON.stringify(field)} is compared only with = and !=, not ${op}`);
+      problems.push(said('refusal.list-where-operator', { field: JSON.stringify(field), operator: op }));
       continue;
     }
     const typed = conditionValue(field, declared, text);
@@ -172,22 +173,22 @@ function listConditions(value, type, problems) {
 
 // A condition's value, as its field's type reads it: { value } or { reason }.
 function conditionValue(field, { type, options }, text) {
-  const not = (what) => ({ reason: `the field ${JSON.stringify(field)} is ${what}, not ${JSON.stringify(text)}` });
+  const not = (what) => ({ reason: said('refusal.list-where-value', { field: JSON.stringify(field), kind: said(`about.kind-${what}`), value: JSON.stringify(text) }) });
   switch (type) {
     case 'number':
-      return /^-?(0|[1-9][0-9]*)(\.[0-9]+)?$/.test(text) ? { value: Number(text) } : not('a number');
+      return /^-?(0|[1-9][0-9]*)(\.[0-9]+)?$/.test(text) ? { value: Number(text) } : not('number');
     case 'integer':
-      return /^-?(0|[1-9][0-9]*)$/.test(text) ? { value: Number(text) } : not('a whole number');
+      return /^-?(0|[1-9][0-9]*)$/.test(text) ? { value: Number(text) } : not('integer');
     case 'boolean':
-      return text === 'true' || text === 'false' ? { value: text === 'true' } : not('yes or no, true or false');
+      return text === 'true' || text === 'false' ? { value: text === 'true' } : not('boolean');
     case 'date': {
       const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
       const valid = day && new Date(`${text}T00:00:00Z`).toISOString().slice(0, 10) === text;
-      return valid ? { value: text } : not('a day, YYYY-MM-DD');
+      return valid ? { value: text } : not('date');
     }
     case 'choice': {
       const value = conditionText(text);
-      return options.includes(value) ? { value } : { reason: `the field ${JSON.stringify(field)} is one of ${listed(options.map((one) => JSON.stringify(one)))}, not ${JSON.stringify(value)}` };
+      return options.includes(value) ? { value } : { reason: said('refusal.list-where-choice', { field: JSON.stringify(field), choices: { or: options.map((one) => JSON.stringify(one)) }, value: JSON.stringify(value) }) };
     }
     default:
       return { value: conditionText(text) };
@@ -205,12 +206,12 @@ function conditionText(text) {
 function listOrder(values, type, problems) {
   const order = values.order ?? (Object.hasOwn(type.fields, 'date') ? 'date' : 'title');
   if (order === 'related') {
-    if (type.taxonomies.length === 0) problems.push(`${type.plural} have no terms to relate by`);
-    if (values.direction !== undefined) problems.push('a related list is ranked by the terms its posts share, so it takes no direction');
+    if (type.taxonomies.length === 0) problems.push(said('refusal.list-related', { plural: { label: type.plural } }));
+    if (values.direction !== undefined) problems.push(said('refusal.list-related-direction'));
     return { order, direction: 'descending', orderType: undefined };
   }
   if (order !== 'title' && !Object.hasOwn(type.fields, order)) {
-    problems.push(`${type.plural} have no field ${JSON.stringify(order)} to order by`);
+    problems.push(said('refusal.list-order', { plural: { label: type.plural }, field: JSON.stringify(order) }));
     return {};
   }
   const direction = values.direction ?? (order === 'date' || order === 'modified' ? 'descending' : 'ascending');

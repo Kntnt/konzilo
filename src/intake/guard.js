@@ -4,12 +4,15 @@
 
 import { createHash } from 'node:crypto';
 
-// What a stop says, which each post it holds back shows as its reason.
-export const STOPPED = 'the build would take most of the site\'s posts off it, so it waits until the deletion is confirmed';
+import { failure } from './words.js';
+
+// What a stop says, which each post it holds back shows as its reason, by its name.
+export const STOPPED = failure('failure.stopped');
 
 // `present`: the paths of the posts' files the content folder holds now. `result`: the
 // intake's. `confirmed`: the code an operator gives, which holds only for exactly that
-// deletion. Returns { stop, count, total, paths, code, reason }: what would go, not
+// deletion. Returns { stop, count, total, paths, code, reason }, its reason in British
+// English, as the command line writes it: what would go, not
 // counting a post whose file moves, by the ledger; an unusually large share is more
 // than half of the posts the site shows, when that is more than one post.
 export function deletion(present, result, { confirmed = null } = {}) {
@@ -23,5 +26,5 @@ export function deletion(present, result, { confirmed = null } = {}) {
   const code = createHash('sha256').update(paths.join('\n')).digest('hex').slice(0, 8);
   const large = paths.length > 1 && paths.length * 2 > present.length;
   const stop = large && confirmed !== code;
-  return { stop, count: paths.length, total: present.length, paths, code, reason: stop ? STOPPED : null };
+  return { stop, count: paths.length, total: present.length, paths, code, reason: stop ? STOPPED.reason : null };
 }

@@ -18,6 +18,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { feedTitle, siteFeeds } from '../src/astro/feeds.js';
 import { renderTemplate } from '../src/metadata-templates.js';
 import { ALTERNATES, headTags, templateValues } from '../src/astro/search-and-sharing.js';
 import { siteDescription } from '../src/site-description.js';
@@ -117,6 +118,23 @@ test('a date is written in the site\'s language, and the summary is the body\'s 
   assert.equal(rendered('{{ post.excerpt }}|{{ post.custom_field.featured }}', { post: plain }), '|');
 });
 
+test('a type\'s label given by language renders in the page\'s language, else in British English', () => {
+  const byLanguage = { ...post, type: { ...model.types.post, label: { en: 'Article', sv: 'Artikel' } } };
+  assert.equal(rendered('{{ post_type.labels.singular }}', { post: byLanguage, languageTag: 'sv-SE' }), 'Artikel');
+  assert.equal(rendered('{{ post_type.labels.singular }}', { post: byLanguage, languageTag: 'en-GB' }), 'Article');
+  assert.equal(rendered('{{ post_type.labels.singular }}', { post: byLanguage, languageTag: 'fi' }), 'Article');
+});
+
+test('a type\'s feed among others takes the type\'s plural given by language in the feed\'s language', () => {
+  const type = (plural, collection, feed) => ({ label: 'x', plural, collection, address: `/${collection}/{slug}/`, feed, elements: ['paragraph'], fields: { date: {} } });
+  const site = siteDescription({
+    languages: ['sv_SE', 'en_GB'],
+    types: { news: type({ en: 'News', sv: 'Nyheter' }, 'news', '/news/feed/'), notes: type('Notes', 'notes', '/notes/feed/') },
+  });
+  const titles = siteFeeds(site).filter((feed) => feed.type.name === 'news').map((feed) => [feed.language.locale, feedTitle(site, feed, { title: 'Lyktan' })]);
+  assert.deepEqual(titles, [['sv_SE', 'Lyktan – Nyheter'], ['en_GB', 'Lyktan – News']]);
+});
+
 test('the start page\'s part renders the site\'s variables', () => {
   assert.equal(rendered('{{ site.title }} {{ sep }} {{ site.description }} {{ current.year }}', { post: null }), 'The Quiet Lantern – Light for the harbour. 2026');
 });
@@ -147,13 +165,11 @@ test('a page with no image to share has X\'s small card, and the alternates of t
   assert.deepEqual(tags.map(({ tag, attributes, text }) => (tag === 'title' ? text : Object.values(attributes).join(' '))), [
     'Harbour lights',
     'canonical https://www.example.com/harbour-lights/',
-    'og:type article',
+    'og:type website',
     'og:title Harbour lights',
     'og:url https://www.example.com/harbour-lights/',
     'og:site_name Lantern',
     'og:locale en_GB',
-    'article:published_time 2026-10-01T08:00:00Z',
-    'article:modified_time 2026-10-20T14:05:09Z',
     'twitter:card summary',
     'twitter:title Harbour lights',
     'alternate text/markdown https://www.example.com/harbour-lights.md',
@@ -274,6 +290,26 @@ describe('a site built with astro build for https://www.example.com', () => {
       },
       attachments: { 14: { original: join(disk, 'own.png') } },
     }),
+    // Published first elsewhere, which its canonical address names.
+    sitePost({
+      ID: 4,
+      slug: 'ferry-times',
+      title: 'Ferry times',
+      date: '2026-10-04 07:00:00',
+      modified: '2026-10-04 07:00:00',
+      body: paragraphs('The first ferry leaves at dawn.'),
+      meta: { seo_canonical: ['https://ferries.example.org/timetable/ferry-times'] },
+    }),
+    // Its canonical address is its own.
+    sitePost({
+      ID: 5,
+      slug: 'quay-walk',
+      title: 'A walk on the quay',
+      date: '2026-10-05 07:00:00',
+      modified: '2026-10-05 07:00:00',
+      body: paragraphs('The quay is long.'),
+      meta: { seo_canonical: ['https://www.example.com/quay-walk/'] },
+    }),
   ];
 
   // The site settings as a build hands them out: the
@@ -368,7 +404,7 @@ describe('a site built with astro build for https://www.example.com', () => {
       ['title', 'Harbour lights – The Quiet Lantern'],
       ['description', 'Where the lantern stands, and why.'],
       ['canonical', 'https://www.example.com/harbour-lights/'],
-      ['og:type', 'article'],
+      ['og:type', 'website'],
       ['og:title', 'Harbour lights'],
       ['og:description', 'Where the lantern stands, and why.'],
       ['og:url', 'https://www.example.com/harbour-lights/'],
@@ -378,8 +414,6 @@ describe('a site built with astro build for https://www.example.com', () => {
       ['og:image:width', '1200'],
       ['og:image:height', '630'],
       ['og:image:alt', 'The lantern at dusk'],
-      ['article:published_time', '2026-10-01T08:00:00Z'],
-      ['article:modified_time', '2026-10-20T14:05:09Z'],
       ['twitter:card', 'summary_large_image'],
       ['twitter:title', 'Harbour lights'],
       ['twitter:description', 'Where the lantern stands, and why.'],
@@ -461,6 +495,23 @@ describe('a site built with astro build for https://www.example.com', () => {
       'og:description': 'How to reach the keeper.',
       'og:url': 'https://www.example.com/contact/',
     });
+  });
+
+  test('a post with a canonical address elsewhere names it as its canonical link and its og:url, and is not in the sitemap, as one that names its own is', () => {
+    const head = build({});
+    const ferry = new Map(head('ferry-times'));
+    assert.equal(ferry.get('canonical'), 'https://ferries.example.org/timetable/ferry-times');
+    assert.equal(ferry.get('og:url'), 'https://ferries.example.org/timetable/ferry-times');
+    const quay = new Map(head('quay-walk'));
+    assert.equal(quay.get('canonical'), 'https://www.example.com/quay-walk/');
+    assert.equal(quay.get('og:url'), 'https://www.example.com/quay-walk/');
+    const sitemap = readFileSync(join(repository, 'dist/sitemap.xml'), 'utf8');
+    assert.deepEqual([...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(([, loc]) => loc), [
+      'https://www.example.com/',
+      'https://www.example.com/harbour-lights/',
+      'https://www.example.com/night-watch/',
+      'https://www.example.com/quay-walk/',
+    ]);
   });
 
   test('a changed template changes the title, and without a default sharing image an article without an image of its own shares the logo, drawn as a JPEG', async () => {

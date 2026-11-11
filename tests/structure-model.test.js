@@ -12,6 +12,7 @@ import { siteDescription } from '../src/site-description.js';
 
 const site = siteDescription({
   language: 'en_GB',
+  images: { smallestWidth: 400, displayWidth: 1280 },
   components: {
     section: { label: 'Section', form: 'container', body: 'blocks', attributes: { surface: { type: 'string', values: ['page', 'raised'], default: 'page' } } },
     eyebrow: { label: 'Eyebrow', form: 'leaf', body: 'text' },

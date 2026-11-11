@@ -59,6 +59,23 @@ async function freshCode(site) {
   }
 }
 
+// A new post of `collection` in Sveltia, once its own form is shown, with `ready` in it. Sveltia
+// changes its view inside a view transition, a frame or more after the address changes, and
+// until then the form it leaves is still there and takes what is typed. So the fields shown are
+// marked first, and the new form is the one shown once none of them is left. A new post of the
+// collection that is already shown stays, with what it holds: Playwright's goto to the address
+// shown would open it anew a moment later, or in WebKit load the page again.
+export async function openNew(page, collection, ready = '.konzilo-body-visual .ProseMirror') {
+  const left = await page.evaluate((hash) => {
+    if (window.location.hash === hash) return false;
+    for (const field of document.querySelectorAll('section.field')) field.dataset.left = '';
+    window.location.hash = hash;
+    return true;
+  }, `#/collections/${collection}/new`);
+  if (left) await page.locator('section.field[data-left]').first().waitFor({ state: 'detached' });
+  await page.locator(ready).first().waitFor();
+}
+
 export async function signIn({ context, page, watch }, site) {
   const button = page.getByRole('button', { name: /Forgejo/ });
   await button.waitFor();

@@ -27,7 +27,25 @@ import { chooseImage } from './chooser.js';
 import { makeEditor } from './crepe.js';
 import './field.css';
 import { fieldClosed, fieldOpened } from './open-fields.js';
-import { elementName, say } from './texts.js';
+import { say } from '../interface-language.js';
+
+const ELEMENTS = {
+  paragraph: 'body.element.paragraph',
+  heading: 'body.element.heading',
+  list: 'body.element.list',
+  quote: 'body.element.quote',
+  code: 'body.element.code',
+  table: 'body.element.table',
+  footnotes: 'body.element.footnotes',
+  embed: 'body.element.embed',
+  image: 'body.element.image',
+  gallery: 'body.element.gallery',
+  'post-list': 'body.element.post-list',
+  form: 'body.element.form',
+};
+
+// An element of the rule data by name, as it stands in a sentence: "a paragraph".
+const elementName = (element) => say(Object.hasOwn(ELEMENTS, element) ? ELEMENTS[element] : ELEMENTS.paragraph);
 
 // A short wait, so that a burst of keys is written once. Blur and Mod-S write at once.
 const WRITE_AFTER = 50;
@@ -58,10 +76,10 @@ export function mountBodyField(host, { value: given, changed, elements, forms, a
   const toggle = element('button', 'konzilo-body-toggle', bar);
   toggle.type = 'button';
   const loading = element('p', 'konzilo-body-loading', frame);
-  loading.textContent = say('loading');
+  loading.textContent = say('body.loading');
   const visual = element('div', 'konzilo-body-visual', frame);
   const source = element('textarea', 'konzilo-body-source', frame);
-  source.setAttribute('aria-label', say('markdownLabel'));
+  source.setAttribute('aria-label', say('body.markdownLabel'));
   source.spellcheck = true;
   visual.hidden = true;
   source.hidden = true;
@@ -127,7 +145,7 @@ export function mountBodyField(host, { value: given, changed, elements, forms, a
     visual.hidden = true;
     loading.hidden = true;
     toggle.hidden = false;
-    toggle.textContent = say('showEditor');
+    toggle.textContent = say('body.showEditor');
     showNote(wayOutNote, reason);
     frame.dataset.mode = 'markdown';
   };
@@ -138,23 +156,23 @@ export function mountBodyField(host, { value: given, changed, elements, forms, a
     source.hidden = true;
     loading.hidden = true;
     toggle.hidden = false;
-    toggle.textContent = say('showMarkdown');
+    toggle.textContent = say('body.showMarkdown');
     showNote(wayOutNote, null);
     frame.dataset.mode = 'editor';
   };
 
   // Why the editor must not hold this value, or null.
   const reasonAgainst = (written) => {
-    if (!hands) return sameBytes(value, written) ? null : say('wayOutOff');
+    if (!hands) return sameBytes(value, written) ? null : say('body.wayOutOff');
     let change;
     try {
       change = changeBetween(value, written, hands);
     } catch (error) {
       console.warn(`The body field could not compare a value: ${error.message}`);
-      return say('wayOutLost');
+      return say('body.wayOutLost');
     }
     if (change === null) return null;
-    return change.path ? say('wayOutBlock', { element: elementName(change.element), path: change.path }) : say('wayOutLost');
+    return change.path ? say('body.wayOutBlock', { element: elementName(change.element), path: change.path }) : say('body.wayOutLost');
   };
 
   const openEditor = async () => {
@@ -166,13 +184,13 @@ export function mountBodyField(host, { value: given, changed, elements, forms, a
     try {
       const reader = await loadReader();
       hands = reader ? handsFor(reader, { elements, forms, adminHost }) : null;
-      showNote(offNote, reader ? null : say('checkOff'));
+      showNote(offNote, reader ? null : say('body.checkOff'));
       made = await makeEditor({ root: visual, value: opening, elements, changed: () => schedule(), images });
     } catch (error) {
       console.warn(`The body field could not read a value: ${error.message}`);
       if (mine === generation && !gone) {
         visual.replaceChildren();
-        showMarkdown(say('wayOutRead'));
+        showMarkdown(say('body.wayOutRead'));
       }
       return;
     }
@@ -250,7 +268,6 @@ export function mountBodyField(host, { value: given, changed, elements, forms, a
       return editor?.view ?? null;
     },
     command: (name) => editor?.run(name),
-    goTo: (place) => mode === 'editor' && editor !== null && editor.goTo(place),
     frame,
     destroy() {
       flush();
@@ -264,14 +281,15 @@ export function mountBodyField(host, { value: given, changed, elements, forms, a
     },
   };
   // A click on the preview's page, for whichever field holds that block: on a site in several
-  // languages, the one whose text it is. The block is framed for a moment, outside the editor's
-  // own document, so that the editor sees no change.
+  // languages, the one whose text it is. The field scrolls to the block and frames it for a
+  // moment, outside the editor's own document, and leaves the focus and the cursor where they
+  // were, so that a key pressed while looking around the page never lands in the text.
   const placed = ({ detail }) => {
-    if (!frame.isConnected || !field.goTo(detail)) return;
-    const view = editor?.view;
-    const { node } = view?.domAtPos(view.state.selection.from) ?? {};
-    const block = (node?.nodeType === Node.ELEMENT_NODE ? node : node?.parentElement)?.closest('li, p, h2, h3, h4, h5, h6, blockquote, pre, table, [data-type], .konzilo-kept') ?? null;
-    if (block && frame.contains(block)) ring(frame, block);
+    if (!frame.isConnected || mode !== 'editor' || editor === null) return;
+    const block = editor.blockElement(detail);
+    if (!block) return;
+    block.scrollIntoView({ block: 'center' });
+    ring(frame, block);
   };
   // A click in the field, or the arrows moving to another block, shows that block in the preview.
   const told = (event) => {

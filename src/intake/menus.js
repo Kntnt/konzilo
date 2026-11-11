@@ -19,14 +19,14 @@ export function menuItems(given, leadsTo) {
   const entries = (list, path) => {
     if (list === undefined || list === null) return [];
     if (!Array.isArray(list)) {
-      problems.push({ entry: path || 'the menu', reason: say('menu-shape') });
+      problems.push({ entry: path || undefined, reason: say('refusal.menu-shape') });
       return [];
     }
     const out = [];
     list.forEach((entry, index) => {
       const place = path ? `${path}.${index + 1}` : String(index + 1);
       if (!isObject(entry)) {
-        problems.push({ entry: place, reason: say('menu-shape') });
+        problems.push({ entry: place, reason: say('refusal.menu-shape') });
         return;
       }
       const label = typeof entry.title === 'string' ? entry.title.trim() : '';
@@ -39,25 +39,25 @@ export function menuItems(given, leadsTo) {
           return;
         }
         if (target.none !== undefined) {
-          warnings.push({ entry: place, reason: say('menu-no-page', { title: label || target.none || String(entry.post) }) });
+          warnings.push({ entry: place, reason: say('warning.menu-no-page', { title: label || target.none || String(entry.post) }) });
           return;
         }
         url = target.address;
         title = label || target.title;
       } else if (entry.url) {
         if (!validUrl(entry.url)) {
-          problems.push({ entry: place, reason: say('menu-url', { url: String(entry.url) }) });
+          problems.push({ entry: place, reason: say('refusal.menu-url', { url: String(entry.url) }) });
           return;
         }
         url = entry.url;
       }
       const items = entries(entry.items, place);
       if (title === '') {
-        problems.push({ entry: place, reason: say('menu-title') });
+        problems.push({ entry: place, reason: say('refusal.menu-title') });
         return;
       }
       if (url === undefined && items.length === 0 && (entry.items ?? []).length === 0) {
-        problems.push({ entry: place, reason: say('menu-nowhere', { title }) });
+        problems.push({ entry: place, reason: say('refusal.menu-nowhere', { title }) });
         return;
       }
       out.push({ title, ...(url === undefined ? {} : { url }), ...(items.length > 0 ? { items } : {}) });

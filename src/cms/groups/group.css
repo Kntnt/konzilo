@@ -1,0 +1,41 @@
+/* A field group of the core's own (register.js): one section, its fields one under another, in
+   Sveltia's colours, so that it follows light and dark mode, and its one menu at the top right,
+   where Sveltia has a field's. Sveltia's own heading and menu of the field are left out. */
+section.field[data-field-type='konzilo-group'] > header { display: none; }
+.konzilo-group { position: relative; display: flex; flex-direction: column; gap: 16px; }
+.konzilo-group-heading { margin: 0; font-size: var(--sui-font-size-small); font-weight: var(--sui-font-weight-bold); color: var(--sui-secondary-foreground-color); }
+.konzilo-group-label { display: flex; align-items: center; min-height: var(--sui-button-small-height, 24px); margin-block-end: 8px; padding-inline-end: 32px; font-size: var(--sui-font-size-small); font-weight: var(--sui-font-weight-bold); color: var(--sui-secondary-foreground-color); }
+.konzilo-group-required { margin-inline-start: 2px; color: var(--sui-error-foreground-color); font-size: var(--sui-font-size-large); }
+.konzilo-group-hint { margin: 4px 0 0; font-size: var(--sui-font-size-small); line-height: var(--sui-line-height-compact); color: var(--sui-tertiary-foreground-color); }
+.konzilo-group-field :is(input[type='text'], textarea) { width: 100%; }
+/* A field with no label of its own first in its group leaves the label's line to the menu. */
+.konzilo-group-menu + .konzilo-group-unlabelled { padding-inline-end: 32px; }
+.konzilo-group-menu { position: absolute; inset-block-start: 0; inset-inline-end: 0; z-index: 2; }
+.konzilo-group-options { display: inline-flex; align-items: center; justify-content: center; width: var(--sui-button-small-height, 24px); height: var(--sui-button-small-height, 24px); padding: 0; border: 0; border-radius: var(--sui-control-medium-border-radius, 4px); background: transparent; color: var(--sui-secondary-foreground-color); font: inherit; font-size: 16px; cursor: pointer; }
+.konzilo-group-options:hover, .konzilo-group-options[aria-expanded='true'] { background: var(--sui-hover-background-color); }
+.konzilo-group-popup { position: absolute; inset-block-start: calc(100% + 4px); inset-inline-end: 0; display: flex; flex-direction: column; min-width: 200px; padding: 4px; border: 1px solid var(--sui-secondary-border-color); border-radius: var(--sui-control-medium-border-radius, 4px); background: var(--sui-secondary-background-color, var(--sui-primary-background-color)); box-shadow: 0 8px 16px rgb(0 0 0 / 20%); }
+.konzilo-group-action { display: block; width: 100%; padding: 6px 12px; border: 0; border-radius: 4px; background: transparent; color: var(--sui-primary-foreground-color); font: inherit; font-size: var(--sui-font-size-default, 14px); text-align: start; white-space: nowrap; cursor: pointer; }
+.konzilo-group-action:is(:hover, :focus) { background: var(--sui-hover-background-color); outline: none; }
+.konzilo-group-action[aria-disabled='true'] { opacity: 0.4; cursor: default; }
+.konzilo-group-action[aria-disabled='true']:is(:hover, :focus) { background: transparent; outline: 1px dotted var(--sui-secondary-border-color); }
+/* Shown on hover, and while the keyboard is in the group, as Sveltia shows a field's buttons. */
+@media (hover: hover) {
+  section.field:not(:hover, :focus-within) .konzilo-group-options[aria-expanded='false'] { opacity: 0; }
+}
+
+/* The groups that are a field of Sveltia's, an object, whose own menu covers what it holds: the
+   terms, and the closed bars of the teaser, search, sharing and structured data (form.css). The
+   menu of each field inside is left out, since the group's is the one menu. */
+section.field:is([data-key-path='group-terms'], [data-key-path='teaser'], [data-key-path='search'], [data-key-path='sharing'], [data-key-path='structured']) section.field > header > button[aria-haspopup='menu'] { display: none; }
+
+/* The terms: its fields one under another, as in a group of the core's, with no bar or frame of
+   their own, and its menu at the top right, on the line of its first field's label. */
+section.field[data-key-path='group-terms'] > header { position: absolute; inset-block-start: var(--field-editor-padding); inset-inline: var(--field-editor-padding); z-index: 2; margin-block: 0; pointer-events: none; }
+section.field[data-key-path='group-terms'] > header > :is(h4, .required) { display: none; }
+section.field[data-key-path='group-terms'] > header button { pointer-events: auto; }
+section.field[data-key-path='group-terms'] > .field-wrapper > .wrapper { border: 0; }
+section.field[data-key-path='group-terms'] > .field-wrapper > .wrapper > .header { display: none; }
+section.field[data-key-path='group-terms'] > .field-wrapper > .wrapper > .item-list { display: flex; flex-direction: column; gap: 16px; }
+section.field[data-key-path='group-terms'] .item-list > section.field { padding: 0; }
+section.field[data-key-path='group-terms'] .item-list > section.field::after { display: none; }
+section.field[data-key-path='group-terms'] .item-list > section.field > header { padding-inline-end: 32px; }
