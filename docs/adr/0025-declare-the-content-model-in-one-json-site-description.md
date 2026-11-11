@@ -1,6 +1,6 @@
 # ADR 0025: Declare the content model in one JSON site description
 
-**Date:** 2026-11-03 · **Status:** Accepted as a technical choice; Thomas may veto.
+**Date:** 2026-11-03, amended 2026-11-11 · **Status:** Accepted as a technical choice; Thomas may veto. So are the choices for a site's own demo content, which a demo site shows itself with: that it is kept in `demo-content/` at the site repository's root, that it takes the core's place whole, and that Compose's seed reads it from the site repository, mounted read-only.
 
 ## Decision
 
@@ -25,7 +25,8 @@
 - **Nothing else is accepted.** An unknown key, an element the rules do not know, two collections with one name: the checker names every problem by its path, and the description is refused whole.
 - **One checker, in the npm package.** The intake and Astro's `collections()` both run it, so every build and every start of the dev server checks the description. A deploy checks it before it switches.
 - **Astro makes one collection per type and per taxonomy,** each with a strict schema, so a template meets exactly the declared fields, typed. A changed description gives a build first and then a restart of the dev server, since a file of the old one fails the new schema and Astro stops watching a collection that fails to load.
-- **Demo content is files,** fictional, in the core, copied into a local copy alone, so that no live site can run it: the command that copies it refuses a public host.
+- **Demo content is files,** fictional, copied into a local copy alone, so that no live site can run it: the command that copies it refuses a public host, with no content folder, whichever demo content it would copy.
+- **A site repository may keep its own,** in `demo-content/` at its root, published content files of its own description, in the shape of the core's `site-template/demo-content/`. Where it has one, a local copy starts from it in place of the core's, whole, never with both: `npm run dev` and `npm run build` copy it into `content/`, and Compose's seed fills a new Forgejo's source repository with it as source files, its media in LFS. Both ask one function, `demoContentOf()` in `src/demo-content.js`, so that they cannot start from different stories. The seed reads the site repository, read-only, as the builder does; the builder and the live preview leave `demo-content/` out of their copies of the site's code, since they build from the source repository alone.
 
 ## Why
 
@@ -38,6 +39,8 @@
 
 - **YAML or TOML, a JavaScript file, or Astro's own schemas.** JSON reads everywhere without a library, and Astro's dev server can watch it.
 - **A field plugin or schema of the editing tool as the source.** A second place where fields are declared.
+- **A site's demo content laid over the core's.** A site whose description differs from the template's would get posts it refuses, and one that matches would show the core's fiction beside its own.
+- **The folder named in the site description or in the environment.** One fixed place is all a site needs, and a setting would be one more thing to check and to get wrong.
 
 ## Consequences
 

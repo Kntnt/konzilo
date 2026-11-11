@@ -1,5 +1,5 @@
 # A site's content is its own repository's, never this one's. A local copy holds
-# the core's fictional demo content here.
+# fictional demo content here: the site's own, from demo-content/, else the core's.
 /content/
 
 /node_modules/
