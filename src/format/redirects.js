@@ -217,10 +217,10 @@ export function patternProblem({ from, to, status }) {
   const { problem, groups } = readPattern(from);
   if (problem) return problem;
   if (!STATUSES.includes(status)) return said('refusal.rule-status', { source: from, status: String(status), statuses: STATUSES.join(', ') });
-  const target = !REDIRECT_STATUSES.includes(status) ? (to === undefined ? null : said('about.no-target', { status }))
-    : typeof to !== 'string' || to === '' ? said('about.target-missing')
-      : patternTargetProblem(from, to, groups, { targetProblem, onSite });
-  return target === null ? null : said('refusal.rule-target', { source: from, reason: target });
+  const unanswered = (reason) => said('refusal.rule-target', { source: from, reason });
+  if (!REDIRECT_STATUSES.includes(status)) return to === undefined ? null : unanswered(said('about.no-target', { status }));
+  const target = typeof to !== 'string' || to === '' ? said('about.target-missing') : patternTargetProblem(from, to, groups, { targetProblem, onSite });
+  return target === null ? null : unanswered(target);
 }
 
 // The words that say what a rule of content/redirects.json looks like, an
