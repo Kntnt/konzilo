@@ -1,5 +1,6 @@
 // The live preview in a site in Compose, as an editor and a stranger meet it: nothing without
-// a session, the page itself in the pane once signed in, a draft on the page within seconds
+// a session but the way to Forgejo's sign-in, the site as a visitor browses it in a tab of its
+// own once signed in there, the page itself in the pane, a draft on the page within seconds
 // of a pause, drawn again in place, in the pane and in the window of its own alike, a refusal
 // above the last good page, and none of what the public site offers the world (ADR 0032,
 // ADR 0067).
@@ -8,12 +9,15 @@ import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
 
 import { sharp } from '../tests/lib/images.js';
-import { ENGINES, openEditor, openNew, signIn } from './lib/editor.js';
+import { ENGINES, openEditor, openNew, signIn, throughForgejo } from './lib/editor.js';
 import { framesWhile, isBlank } from './lib/frames.js';
 import { makeSite } from './lib/site.js';
 
 const POST = 'Northern islands and the meadow';
 const ON_THE_PAGE = 30_000;
+// An article of the demo content, as a tab of its own is opened at it.
+const ARTICLE = '/golden-harbours-and-the-harbour/';
+const ARTICLE_TITLE = 'Golden harbours and the harbour';
 
 describe('the live preview', () => {
   let site;
@@ -71,9 +75,21 @@ describe('the live preview', () => {
     else assert.deepEqual(blank.filter(({ brightness }) => brightness < 250), []);
   };
 
+  // Forgejo's sign-in in a tab, in place, until the tab is back on the preview's host.
+  const signInInTab = (page) => throughForgejo(page, site, page.waitForURL((url) => url.origin === site.origin.preview, { timeout: 120_000 }));
+
   describe('to someone without a session', () => {
-    test('stands, and shows nothing', async () => {
+    test('stands, and shows nothing but the way to sign in', async () => {
       assert.equal((await fetch(`${site.origin.preview}/_konzilo/preview/health`)).status, 200);
+      const visit = await fetch(`${site.origin.preview}${ARTICLE}`, { redirect: 'manual', headers: { 'sec-fetch-dest': 'document', accept: 'text/html' } });
+      assert.equal(visit.status, 303);
+      const to = visit.headers.get('location');
+      assert.ok(to.startsWith(`${site.origin.git}/login/oauth/authorize?`), to);
+      assert.equal(visit.headers.get('x-robots-tag'), 'noindex, nofollow');
+      // The proxy lets the way through, and Forgejo asks for a sign-in.
+      const forgejo = await fetch(to, { redirect: 'manual' });
+      assert.ok([302, 303].includes(forgejo.status), String(forgejo.status));
+      assert.match(forgejo.headers.get('location'), /\/user\/login/);
       for (const path of ['/', '/robots.txt', '/@fs/secret/read-token', '/site-description.json']) {
         const answer = await fetch(`${site.origin.preview}${path}`);
         assert.equal(answer.status, 403, path);
@@ -98,6 +114,104 @@ describe('the live preview', () => {
       assert.equal(permissions.push, false);
       const writing = await api(`/repos/${site.name}/source/contents/pages/not-allowed.md`, { method: 'POST', body: JSON.stringify({ content: 'eA==', message: 'no' }) });
       assert.ok(writing.status === 403 || writing.status === 404, String(writing.status));
+    });
+  });
+
+  describe('in a tab of its own', () => {
+    let browser;
+    let context;
+    let page;
+    // Every address the tab has been at, in order.
+    const went = [];
+
+    before(async () => {
+      browser = await ENGINES.chromium.launch();
+      context = await browser.newContext({ locale: 'en-GB' });
+      page = await context.newPage();
+      page.on('framenavigated', (frame) => {
+        if (frame === page.mainFrame()) went.push(frame.url());
+      });
+    });
+
+    after(() => browser?.close());
+
+    const noSession = () => context.clearCookies({ name: `${site.name}_preview` });
+
+    test('leads a visit through Forgejo\'s sign-in and back to the address asked for, starting the preview with a notice until the page is ready', async () => {
+      const notices = [];
+      page.on('response', (answer) => {
+        if (answer.status() === 503 && answer.url().startsWith(site.origin.preview)) notices.push(answer.url());
+      });
+      await page.goto(`${site.origin.preview}${ARTICLE}?from=a-tab`);
+      assert.ok(page.url().startsWith(`${site.origin.git}/user/login`), page.url());
+      await signInInTab(page);
+      await page.getByRole('heading', { level: 1, name: ARTICLE_TITLE }).waitFor({ timeout: 240_000 });
+      assert.equal(page.url(), `${site.origin.preview}${ARTICLE}?from=a-tab`);
+      assert.ok(notices.length > 0, 'a notice while the preview started');
+    });
+
+    test('keeps noindex, private caching and its framing rule, and holds no token where a page could read it', async () => {
+      const answer = await page.goto(`${site.origin.preview}${ARTICLE}`);
+      assert.equal(answer.status(), 200);
+      const headers = answer.headers();
+      assert.equal(headers['x-robots-tag'], 'noindex, nofollow');
+      assert.match(headers['cache-control'], /^private/);
+      assert.equal(headers['content-security-policy'], `frame-ancestors ${site.origin.admin}`);
+      const held = (await context.cookies(site.origin.preview)).find(({ name }) => name === `${site.name}_preview`);
+      assert.equal(held.httpOnly, true);
+      const readable = await page.evaluate(() => JSON.stringify([document.cookie, { ...localStorage }, { ...sessionStorage }]));
+      assert.doesNotMatch(readable, new RegExp(`${site.name}_preview|eyJ|token`, 'i'));
+    });
+
+    test('leads on by its links and the browser\'s history, as the public site does', async () => {
+      await page.goto(`${site.origin.preview}${ARTICLE}`);
+      const to = await page.evaluate((here) => [...document.querySelectorAll('main a[href^="/"], header a[href^="/"]')]
+        .map((link) => new URL(link.href))
+        .find((url) => url.pathname !== here && url.hash === '')?.pathname, ARTICLE);
+      assert.ok(to, 'a link to follow');
+      await page.locator(`a[href="${to}"]`).first().click();
+      await page.waitForURL(`${site.origin.preview}${to}`);
+      await page.goBack();
+      await page.waitForURL(`${site.origin.preview}${ARTICLE}`);
+      await page.getByRole('heading', { level: 1, name: ARTICLE_TITLE }).waitFor({ timeout: ON_THE_PAGE });
+      await page.goForward();
+      await page.waitForURL(`${site.origin.preview}${to}`);
+    });
+
+    test('still says that a form cannot send', async () => {
+      await page.goto(`${site.origin.preview}/pages/contact/`);
+      await page.getByText('This is a preview: the form sends nothing.').waitFor({ timeout: ON_THE_PAGE });
+    });
+
+    test('lets someone already signed in to Forgejo in without typing anything', async () => {
+      await noSession();
+      const from = went.length;
+      await page.goto(`${site.origin.preview}${ARTICLE}`, { waitUntil: 'commit' });
+      await page.getByRole('heading', { level: 1, name: ARTICLE_TITLE }).waitFor({ timeout: ON_THE_PAGE });
+      assert.equal(page.url(), `${site.origin.preview}${ARTICLE}`);
+      const since = went.slice(from);
+      assert.ok(since.some((url) => url.startsWith(`${site.origin.git}/login/oauth/authorize`)), since.join('\n'));
+      assert.ok(!since.some((url) => url.startsWith(`${site.origin.git}/user/`)), since.join('\n'));
+    });
+
+    test('refuses someone removed from the site\'s teams with a page that says who can give access, and nothing of the site', async () => {
+      const token = site.state('instance-token');
+      const api = (method, path) => fetch(`${site.origin.git}/api/v1${path}`, { method, headers: { authorization: `token ${token}` } });
+      const teams = await (await api('GET', `/orgs/${site.name}/teams`)).json();
+      const { id } = teams.find(({ name }) => name === 'admins');
+      assert.equal((await api('DELETE', `/teams/${id}/members/anna`)).status, 204);
+      try {
+        await noSession();
+        const back = page.waitForResponse((answer) => answer.url().startsWith(`${site.origin.preview}/_konzilo/preview/sign-in`));
+        await page.goto(`${site.origin.preview}${ARTICLE}`, { waitUntil: 'commit' });
+        assert.equal((await back).status(), 403);
+        await page.getByRole('heading', { level: 1, name: 'This account may not see the preview' }).waitFor({ timeout: ON_THE_PAGE });
+        assert.match(await page.locator('body').textContent(), /The site's Admins can give it access\./);
+        assert.equal(await page.getByText(ARTICLE_TITLE).count(), 0);
+        assert.equal((await context.cookies(site.origin.preview)).some(({ name }) => name === `${site.name}_preview`), false, 'no session');
+      } finally {
+        assert.equal((await api('PUT', `/teams/${id}/members/anna`)).status, 204);
+      }
     });
   });
 
@@ -406,6 +520,24 @@ describe('the live preview', () => {
           noEmptyFrame(drawn);
         } finally {
           await session.browser.close();
+        }
+      });
+    });
+  }
+
+  // A tab of its own signs in through Forgejo in every engine, with its cookies.
+  for (const engine of Object.keys(ENGINES).filter((name) => name !== 'chromium')) {
+    describe(`in a tab of its own, in ${engine}`, () => {
+      test('signs in through Forgejo and shows the page asked for', async () => {
+        const browser = await ENGINES[engine].launch();
+        try {
+          const page = await (await browser.newContext({ locale: 'en-GB' })).newPage();
+          await page.goto(`${site.origin.preview}${ARTICLE}`);
+          await signInInTab(page);
+          await page.getByRole('heading', { level: 1, name: ARTICLE_TITLE }).waitFor({ timeout: ON_THE_PAGE * 2 });
+          assert.equal(page.url(), `${site.origin.preview}${ARTICLE}`);
+        } finally {
+          await browser.close();
         }
       });
     });

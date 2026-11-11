@@ -76,6 +76,27 @@ export async function openNew(page, collection, ready = '.konzilo-body-visual .P
   await page.locator(ready).first().waitFor();
 }
 
+// Forgejo's sign-in on `page`, as a person goes through it, with both factors. `through` settles
+// once it has gone through, which is all that says a code was taken.
+export async function throughForgejo(page, site, through) {
+  let done = false;
+  through.then(() => {
+    done = true;
+  }, () => {});
+  await page.locator('#user_name').waitFor();
+  await page.locator('#user_name').fill('anna');
+  await page.locator('#password').fill('local-only-account-password');
+  await page.locator('#password').press('Enter');
+  await page.waitForURL(/two_factor/);
+  // A code from the seconds around a change of period can miss, so it may take two.
+  for (let attempt = 0; attempt < 3 && !done; attempt += 1) {
+    await page.locator('input[name=passcode]').fill(await freshCode(site));
+    await page.locator('input[name=passcode]').press('Enter');
+    await Promise.race([through, new Promise((resolve) => setTimeout(resolve, 8000))]);
+  }
+  await through;
+}
+
 export async function signIn({ context, page, watch }, site) {
   const button = page.getByRole('button', { name: /Forgejo/ });
   await button.waitFor();
@@ -83,18 +104,5 @@ export async function signIn({ context, page, watch }, site) {
   await page.waitForTimeout(1000);
   const [popup] = await Promise.all([context.waitForEvent('page'), button.click()]);
   watch(popup);
-  await popup.locator('#user_name').waitFor();
-  await popup.locator('#user_name').fill('anna');
-  await popup.locator('#password').fill('local-only-account-password');
-  await popup.locator('#password').press('Enter');
-  await popup.waitForURL(/two_factor/);
-
-  const closed = popup.waitForEvent('close', { timeout: 120_000 });
-  // A code from the seconds around a change of period can miss, so it may take two.
-  for (let attempt = 0; attempt < 3 && !popup.isClosed(); attempt += 1) {
-    await popup.locator('input[name=passcode]').fill(await freshCode(site));
-    await popup.locator('input[name=passcode]').press('Enter');
-    await Promise.race([closed, new Promise((resolve) => setTimeout(resolve, 8000))]);
-  }
-  await closed;
+  await throughForgejo(popup, site, popup.waitForEvent('close', { timeout: 120_000 }));
 }
