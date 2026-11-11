@@ -164,6 +164,11 @@ describe('the meta line\'s format', () => {
     assert.deepEqual(formats(settings, several, 'settings/en-GB.json').article, { format: 'Published on {date} in {category} by {authors}' }, 'the default in a language the Admin left');
   });
 
+  // A page has a date and a last change, as every post of a built-in type has.
+  test('takes a page\'s date and last change', () => {
+    assert.deepEqual(formats({ metaLine: { types: { page: { format: 'Published {date}, updated {modified}' } } } }).page, { format: 'Published {date}, updated {modified}' });
+  });
+
   test('is refused with a variable the type has not got, naming the setting and the variable', () => {
     const refused = run({ 'settings.json': { metaLine: { types: { article: { format: 'On {dat}' }, page: { format: 'In {category}' }, event: { format: 'Held {date}, updated {modified}' } } } } }, builtIn);
     assert.deepEqual(refused.refusals.map(({ setting, reason }) => [setting, reason]), [

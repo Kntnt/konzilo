@@ -36,7 +36,7 @@
 - The meta line is what the page itself shows, and the group Search and sharing what search engines and social networks show of it, so the format is a group of its own beside it rather than one of its templates.
 - In most formats the words before a variable lead into it, "in {category}", "by {authors}", so they drop with it; a format is written as the sentence it is with every value there, so the punctuation a dropped part leaves is tidied rather than left to the Admin. Thomas's Swedish default opens with its authors, so a line whose first words dropped takes the capital they had.
 - A last change on the day the post was published tells a reader nothing the date does not.
-- A page or a canvas is often a page such as *About us* or a landing page, which a date or a byline would date or sign wrongly, so neither has a meta line by default; the setting is there for each, so that an Admin who wants "Updated {modified}" on pages writes it, and every type with a date has its `{date}` and `{modified}`, the page and the canvas once they have them.
+- A page or a canvas is often a page such as *About us* or a landing page, which a date or a byline would date or sign wrongly, so neither has a meta line by default; the setting is there for each, so that an Admin who wants "Updated {modified}" on pages writes it, and every type with a date has its `{date}` and `{modified}`, the page and the canvas among them.
 - An order an editor gives needs a field that shows it and changes it, by the mouse and by the keyboard alike. A field of Sveltia's cannot list another collection's entries or make one, so the core's own asks Forgejo, and an author committed at once can be named from the first moment, with nothing more to save.
 
 ## Considered and rejected
