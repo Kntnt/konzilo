@@ -37,7 +37,7 @@ export function metaLineVariables(type) {
 }
 
 // The variables a format names, each once, in the order it first names them.
-export function variablesInFormat(format) {
+function variablesInFormat(format) {
   return [...new Set(tokensOf(format).filter((token) => token.variable !== undefined).map((token) => token.variable))];
 }
 

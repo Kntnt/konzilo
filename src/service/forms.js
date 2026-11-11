@@ -14,7 +14,7 @@ export const FORMS_PATH = '/_konzilo/forms';
 // The most a submission's body takes: a form's text fields take 20 000 characters together
 // (FORM_CHARACTERS), which a browser writes in at most twelve bytes each, as JSON or as a form's
 // own encoding, and the rest is names and choices.
-export const BODY_LIMIT = 512 * 1024;
+const BODY_LIMIT = 512 * 1024;
 
 // The site's own fields of a submission, beside the form's.
 const PAGE = '_page';
@@ -26,12 +26,12 @@ const JSON_TYPE = 'application/json';
 // A submission this soon after its timing token was given came from no person, and is held as
 // spam; a token this old is no longer taken, and the page's script asks for a new one when the
 // page is loaded again. In seconds.
-export const TOO_SOON = 3;
-export const TOKEN_LIFE = 24 * 60 * 60;
+const TOO_SOON = 3;
+const TOKEN_LIFE = 24 * 60 * 60;
 
 // The most forms one client sends in a window of ten minutes (visitors.js), spam among them; a
 // form refused or with a field wrong is no send.
-export const SENDS_IN_A_WINDOW = 10;
+const SENDS_IN_A_WINDOW = 10;
 
 // A token: when it was given, in seconds since 1970, a nonce, and its signature.
 const TOKEN_SHAPE = /^([0-9]{1,12})\.([A-Za-z0-9_-]{16})\.([A-Za-z0-9_-]{43})$/;

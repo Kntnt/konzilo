@@ -20,9 +20,7 @@ const CLIENT = 'x-konzilo-client';
 const HOST = 'x-konzilo-host';
 
 // A client is counted in windows of ten minutes.
-export const WINDOW = 10 * 60 * 1000;
-
-const METHODS_WITH_A_BODY = ['POST', 'PUT', 'PATCH'];
+const WINDOW = 10 * 60 * 1000;
 
 // A header as the web server passes it on, where one it was not sent is empty: null for none.
 const header = (headers, name) => {
@@ -117,7 +115,8 @@ export function visitorsService({ site, store, hosts = [], now = () => new Date(
       }
       let type = null;
       let body = null;
-      if (METHODS_WITH_A_BODY.includes(incoming.method)) {
+      // A body comes with a POST, the one method with a body that any kind takes.
+      if (incoming.method === 'POST') {
         type = (header(incoming.headers, 'content-type') ?? '').split(';')[0].trim().toLowerCase();
         if (!kind.types.includes(type)) {
           incoming.resume();
@@ -139,7 +138,6 @@ export function visitorsService({ site, store, hosts = [], now = () => new Date(
       const answer = await kind.take({
         method: incoming.method,
         below: url.pathname.slice(kind.path.length),
-        query: url.searchParams,
         type,
         body,
         fromSite: fromSite(incoming.headers, hosts),

@@ -15,7 +15,7 @@ const answerJson = (outgoing, status, body) => {
 
 const SUBMISSIONS = '/_konzilo/submissions';
 // A form's submissions are shown this many at a time, newest first.
-export const SUBMISSIONS_AT_ONCE = 50;
+const SUBMISSIONS_AT_ONCE = 50;
 
 export const nextMinute = (at) => 60_000 - (at % 60_000);
 
