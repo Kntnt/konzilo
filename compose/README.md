@@ -4,7 +4,7 @@ A site repository includes `compose.yaml` from here, with its own ports in `.env
 
 - `web/`: Caddy with the editor's static files, the one container with ports. Its `Caddyfile` holds the allow-list that closes Forgejo ([ADR 0007](../docs/adr/0007-sign-in-through-the-customers-own-forgejo-with-two-factors-and-close-the-rest-at-the-proxy.md)).
 - `forgejo/`: what the vendor's image is given: the first account's script, and the template that answers the consent page.
-- `seed/`: fills a new Forgejo: accounts with a second factor, the organisation and its teams, the source and content repositories, the webhook and the OAuth client.
+- `seed/`: fills a new Forgejo: accounts with a second factor, the organisation and its teams, the source repository with the demo content as source files, the site repository's own in its `demo-content/` where it has any, else the core's, the content repository, the webhook and the OAuth client.
 - `builder/`: Node, Git and the core, for the seed, a site's build, the live preview and the service.
 - `typesense/`: Typesense, the vendor's image, with a folder for its data that a user other than root owns ([ADR 0053](../docs/adr/0053-search-with-typesense-indexed-from-the-published-files.md)). It is in a network of its own, which only the web server shares, with no port and no way out.
 

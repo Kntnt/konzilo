@@ -48,7 +48,7 @@ const access = { user: ACCOUNT, token, home: HOME };
 // leaves files of its own.
 function codeOf(site, core) {
   const hash = createHash('sha256');
-  const own = readdirSync(site).filter((name) => !['node_modules', 'dist', 'content', 'local-secrets'].includes(name) && !name.startsWith('.'));
+  const own = readdirSync(site).filter((name) => !['node_modules', 'dist', 'content', 'demo-content', 'local-secrets'].includes(name) && !name.startsWith('.'));
   const files = [
     ...own.flatMap((name) => (statSync(join(site, name)).isDirectory() ? walk(join(site, name)) : [join(site, name)])),
     ...walk(core).filter((path) => !relative(core, path).includes('node_modules')),
@@ -57,7 +57,7 @@ function codeOf(site, core) {
   return hash.digest('hex');
 }
 
-await run('sh', ['/konzilo/compose/builder/prepare-site.sh', '--exclude=./content'], { maxBuffer: 1024 * 1024 * 64 });
+await run('sh', ['/konzilo/compose/builder/prepare-site.sh', '--exclude=./content', '--exclude=./demo-content'], { maxBuffer: 1024 * 1024 * 64 });
 
 await run(process.execPath, ['/konzilo/bin/konzilo-cms.js', SITE_FOLDER, '/admin-config/config.json'], {
   env: { ...process.env, KONZILO_OAUTH_CLIENT: secret('oauth-client') },

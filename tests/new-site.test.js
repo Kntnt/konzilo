@@ -1,8 +1,8 @@
 // What a developer does from a fresh clone: bin/new-site makes a site
 // repository, `npm install` installs the core and Astro, `npm run build` builds
-// the demo content into a static site, and `npm run dev` serves it, following
-// every change of the site's content and code. It needs no PHP, no database and
-// no container.
+// the demo content into a static site, the core's or the site's own, and
+// `npm run dev` serves it, following every change of the site's content and
+// code. It needs no PHP, no database and no container.
 
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { OWN_DEMO, writeOwnDemoContent } from './lib/demo-content.js';
 
 const core = fileURLToPath(new URL('../', import.meta.url));
 const environment = { ...process.env, ASTRO_TELEMETRY_DISABLED: '1' };
@@ -40,6 +41,30 @@ async function until(check, timeout = 90_000) {
     if (Date.now() > end) throw new Error(`still not so after ${timeout / 1000} seconds`);
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
+}
+
+// `npm run dev` in a site, once its start page holds `words`: its origin, and how to stop it.
+async function startDev(site, words) {
+  const port = await freePort();
+  // An address, not `localhost`: in a Linux container the server binds that name
+  // to ::1 alone, while Node's fetch reaches for 127.0.0.1 and is refused.
+  const origin = `http://127.0.0.1:${port}`;
+  const server = spawn('npm', ['run', 'dev', '--', '--host', '127.0.0.1', '--port', String(port), '--ignore-lock'], { cwd: site, env: environment, stdio: 'ignore', detached: true });
+  const stop = () => {
+    // The dev server and what it started, as one process group.
+    try {
+      process.kill(-server.pid);
+    } catch {
+      // It has ended already.
+    }
+  };
+  try {
+    await until(async () => (await (await fetch(`${origin}/`)).text()).includes(words));
+  } catch (error) {
+    stop();
+    throw error;
+  }
+  return { origin, stop, text: async (path) => (await fetch(`${origin}${path}`)).text() };
 }
 
 describe('new-site', () => {
@@ -157,27 +182,14 @@ describe('new-site', () => {
 
     describe('npm run dev', () => {
       let server;
-      let origin;
 
       before(async () => {
-        const port = await freePort();
-        // An address, not `localhost`: in a Linux container the server binds that name
-        // to ::1 alone, while Node's fetch reaches for 127.0.0.1 and is refused.
-        origin = `http://127.0.0.1:${port}`;
-        server = spawn('npm', ['run', 'dev', '--', '--host', '127.0.0.1', '--port', String(port), '--ignore-lock'], { cwd: site, env: environment, stdio: 'ignore', detached: true });
-        await until(async () => (await (await fetch(`${origin}/`)).text()).includes('The Gentle Garden'));
+        server = await startDev(site, 'The Gentle Garden');
       });
 
-      after(() => {
-        // The dev server and what it started, as one process group.
-        try {
-          process.kill(-server.pid);
-        } catch {
-          // It has ended already.
-        }
-      });
+      after(() => server?.stop());
 
-      const text = async (path) => (await fetch(`${origin}${path}`)).text();
+      const text = (path) => server.text(path);
 
       test('serves the pages, with the alternates and the sitemap', async () => {
         assert.match(await text('/quiet-harbours-and-the-lantern/'), /<h1>Quiet harbours and the lantern<\/h1>/);
@@ -195,6 +207,54 @@ describe('new-site', () => {
         const file = join(site, 'src/pages/[...article].astro');
         writeFileSync(file, readFileSync(file, 'utf8').replaceAll('<main>', '<main data-changed="yes">'));
         await until(async () => (await text('/quiet-harbours-and-the-lantern/')).includes('data-changed="yes"'));
+      });
+    });
+
+    // A site that shows itself with posts of its own keeps them in its demo-content/, which
+    // Git tracks, and a local copy with no content folder starts from them in place of the core's.
+    describe('with demo content of its own', () => {
+      const withoutContent = () => rmSync(join(site, 'content'), { recursive: true, force: true });
+
+      before(async () => {
+        await writeOwnDemoContent(join(site, 'demo-content'));
+      });
+
+      test('builds it when the site has no content folder, and nothing of the core\'s', () => {
+        withoutContent();
+        rmSync(dist, { recursive: true, force: true });
+        const built = run('npm', ['run', 'build'], site);
+        assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
+        assert.match(read('index.html'), new RegExp(OWN_DEMO.title));
+        assert.doesNotMatch(read('index.html'), /The Gentle Garden/);
+        assert.match(read(`${OWN_DEMO.article.address}index.html`), new RegExp(`<h1>${OWN_DEMO.article.title}</h1>`));
+        assert.match(read(`${OWN_DEMO.page.address}index.html`), new RegExp(OWN_DEMO.page.words));
+        assert.equal(existsSync(join(dist, 'quiet-harbours-and-the-lantern')), false, 'no article of the core\'s');
+        assert.match(run('git', ['-C', site, 'status', '--porcelain'], folder).stdout, /^\?\? demo-content\/$/m, 'Git does not ignore it: it is the site\'s own to commit');
+      });
+
+      test('refuses a build for a public host with no content', () => {
+        withoutContent();
+        const built = run('npm', ['run', 'build'], site, { ...environment, KONZILO_ORIGIN: 'https://www.example.com' });
+        assert.notEqual(built.status, 0);
+        assert.match(built.stderr, /demo content is not for a public host/);
+        assert.equal(existsSync(join(site, 'content')), false);
+      });
+
+      describe('npm run dev', () => {
+        let server;
+
+        before(async () => {
+          withoutContent();
+          server = await startDev(site, OWN_DEMO.title);
+        });
+
+        after(() => server?.stop());
+
+        test('serves it from a site with no content folder, and nothing of the core\'s', async () => {
+          assert.match(await server.text(OWN_DEMO.article.address), new RegExp(OWN_DEMO.article.words));
+          assert.doesNotMatch(await server.text('/'), /The Gentle Garden/);
+          assert.equal((await fetch(`${server.origin}/quiet-harbours-and-the-lantern/`)).status, 404);
+        });
       });
     });
   });

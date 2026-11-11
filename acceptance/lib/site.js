@@ -19,8 +19,8 @@ const freePort = () => new Promise((resolve, reject) => {
   probe.on('error', reject);
 });
 
-export async function makeSite() {
-  const name = `accept-${process.pid}`;
+// `name`: the site's, which names its Compose project and its images, one per site at once.
+export async function makeSite({ name = `accept-${process.pid}` } = {}) {
   const folder = realpathSync(mkdtempSync(join(tmpdir(), 'konzilo-acceptance-')));
   execFileSync(join(core, 'bin/new-site'), [name], { cwd: folder, stdio: 'pipe' });
   const directory = join(folder, name);
