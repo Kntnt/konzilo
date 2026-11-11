@@ -870,6 +870,8 @@ describe('the canonical address in Sveltia, on a site in two languages', () => {
     for (const pane of ['sv-SE', 'en-GB']) {
       const inPane = page.locator(`.pane[data-locale="${pane}"]`);
       await inPane.getByRole('textbox', { name: 'Title tag' }).waitFor();
+      // Sveltia mounts a field as it comes into view, the one before it first.
+      await inPane.locator('.field[data-key-path="search.description"]').scrollIntoViewIfNeeded();
       await inPane.locator('.field[data-key-path="search.canonical"]').scrollIntoViewIfNeeded();
       await inPane.getByRole('textbox', { name: 'Canonical address' }).waitFor();
     }
