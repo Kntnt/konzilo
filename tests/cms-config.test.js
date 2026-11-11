@@ -274,10 +274,10 @@ describe('the interface language', () => {
       const group = field(made.collections.find((one) => one.name === 'settings').files[0].fields, 'metaLine');
       const format = (type) => field(field(field(group.fields, 'types').fields, type).fields, 'format');
       assert.equal(group.label, heading, language);
-      const { label, widget, default: given } = format('article');
-      assert.deepEqual({ label, widget, default: given }, { label: 'Format', widget: 'string', default: 'Av {authors}, publicerad den {date} under {category}' }, language);
-      assert.equal(format('page').default, undefined, language);
-      assert.equal(format('canvas').default, undefined, language);
+      // The article's, which has a default, in the core's field for a setting, which shows Sveltia's.
+      const { label, field: shown } = format('article');
+      assert.deepEqual({ label, widget: shown.widget, default: shown.default }, { label: 'Format', widget: 'string', default: 'Av {authors}, publicerad den {date} under {category}' }, language);
+      for (const type of ['page', 'canvas']) assert.deepEqual([format(type).widget, format(type).default], ['string', undefined], `${language}: ${type}`);
     }
   });
 
