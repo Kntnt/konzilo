@@ -455,7 +455,7 @@ export const FORM_CHARACTERS = 20000;
 
 // A form's name is the last segment of its address on the endpoint,
 // /_konzilo/forms/<form>, and its key in the forms' settings group.
-const FORM_NAME = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+export const FORM_NAME = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 
 // A field's name is its name in the form's HTML and in a submission. The
 // endpoint's own fields, such as the page a submission came from, start with

@@ -3,6 +3,7 @@
 // Forgejo who is asking, so each request carries what Sveltia signed in with, and an answer it may
 // not have is no answer. It holds no React.
 
+import { momentIn, valueText } from '../../submission-values.js';
 import { interfaceLanguage, languageTag, say } from '../interface-language.js';
 
 const SUBMISSIONS_PATH = '/_konzilo/submissions';
@@ -39,12 +40,7 @@ export function offeredSeparator() {
 }
 
 // A field's value as the page shows it: a text as it came, a box ticked or not, or the boxes ticked.
-export function valueShown(value) {
-  if (value === true) return say('submissions.yes');
-  if (value === false) return say('submissions.no');
-  if (Array.isArray(value)) return value.join(', ');
-  return String(value ?? '');
-}
+export const valueShown = (value) => valueText(value, { yes: say('submissions.yes'), no: say('submissions.no') });
 
 // A moment as the page shows it, in the interface language's own form and the browser's time zone.
 export const momentShown = (at) => new Date(at).toLocaleString(languageTag(), { dateStyle: 'long', timeStyle: 'short' });
@@ -53,10 +49,7 @@ export const momentShown = (at) => new Date(at).toLocaleString(languageTag(), { 
 export const browserTimeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 // A day as `YYYY-MM-DD` in a time zone.
-const dayIn = (at, timeZone) => {
-  const part = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(at).map(({ type, value }) => [type, value]));
-  return `${part.year}-${part.month}-${part.day}`;
-};
+const dayIn = (at, timeZone) => momentIn(timeZone)(at).slice(0, 10);
 
 // What the browser does with a file it is given: it saves it under its name.
 function saveInBrowser(blob, name) {

@@ -5,6 +5,9 @@
 
 const isEmpty = (value) => value === undefined || value === null || value === '';
 
+// Whether two values a setting may hold are the same, an empty one the same as any other.
+export const sameValue = (one, other) => (isEmpty(one) && isEmpty(other)) || one === other;
+
 // What the field shows, from what the setting holds, `held`, and its default, `preset`.
 export function shownValue(held, preset) {
   return isEmpty(held) ? preset : held;

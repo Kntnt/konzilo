@@ -5,6 +5,7 @@
 
 import { publishStatus } from '../build/status.js';
 import { mayWrite } from '../forgejo.js';
+import { FORM_NAME } from '../site-description.js';
 import { SEPARATORS, submissionsCsv, timeZoneOf } from './submissions-csv.js';
 
 const answerJson = (outgoing, status, body) => {
@@ -77,8 +78,8 @@ export function editorsService({ forgejo, repository, token, control, pictures =
       const named = [...Object.keys(declared), ...Object.keys(counts).filter((name) => !Object.hasOwn(declared, name))];
       return answerJson(outgoing, 200, { forms: named.map((name) => ({ name, label: declared[name]?.label ?? name, count: counts[name] ?? 0 })) });
     }
-    const [, name, asCsv] = /^\/([a-z][a-z0-9-]*)(\.csv)?$/.exec(below) ?? [];
-    if (name === undefined || !(Object.hasOwn(declared, name) || Object.hasOwn(counts, name))) return answerJson(outgoing, 404, {});
+    const [, name, asCsv] = /^\/([^/]+?)(\.csv)?$/.exec(below) ?? [];
+    if (name === undefined || !FORM_NAME.test(name) || !(Object.hasOwn(declared, name) || Object.hasOwn(counts, name))) return answerJson(outgoing, 404, {});
     if (asCsv) {
       const separator = searchParams.get('separator');
       if (!Object.hasOwn(SEPARATORS, separator ?? '')) return answerJson(outgoing, 400, {});

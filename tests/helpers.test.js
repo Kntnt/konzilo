@@ -138,6 +138,7 @@ describe('metaLine writes a post\'s meta line by its type\'s format in the page\
   };
   const getEntry = async ({ collection, id }) => terms[`${collection}/${id}`];
   const getEntries = async (references) => Promise.all(references.map(getEntry));
+  const getCollection = async (collection) => Object.values(terms).filter((term) => term.collection === collection);
   const article = (data = {}) => ({
     id: 'harbour-lights',
     collection: 'articles',
@@ -153,7 +154,7 @@ describe('metaLine writes a post\'s meta line by its type\'s format in the page\
   const formats = (article, event) => ({ metaLine: { types: { article: { format: article }, ...(event ? { event: { format: event } } : {}) } } });
   // The line as a visitor reads it, each link and each moment marked.
   const read = (pieces) => pieces.map(({ text, url, datetime }) => (url ? `[${text}](${url})` : datetime ? `<${text}|${datetime}>` : text)).join('');
-  const line = async (format, { entry = article(), site = siteDescription(declared), language = 'en-GB', event } = {}) => read(await metaLine(entry, language, { site, settings: formats(format, event), getEntries, getEntry }));
+  const line = async (format, { entry = article(), site = siteDescription(declared), language = 'en-GB', event } = {}) => read(await metaLine(entry, language, { site, settings: formats(format, event), getEntries, getEntry, getCollection }));
 
   test('gives the format\'s words, the date in the page\'s language, the category\'s name and the authors after each other, by a comma', async () => {
     assert.equal(await line('Published on {date} in {category} by {authors}'), 'Published on <1 October 2026|2026-10-01T08:00:00.000Z> in Local news by Rafael Berg, Ines Holm');
@@ -191,7 +192,25 @@ describe('metaLine writes a post\'s meta line by its type\'s format in the page\
     assert.equal(await line('Published {date}, in {category}, by {authors}', { entry: without.category }), `Published ${date}, by Rafael Berg, Ines Holm`);
     assert.equal(await line('Published {date} ({category}).', { entry: without.category }), `Published ${date}.`);
     assert.equal(await line('{category}: {authors}', { entry: without.both }), '');
-    assert.deepEqual(await metaLine(without.both, 'en-GB', { site: siteDescription(declared), settings: formats('By {authors}'), getEntries, getEntry }), [], 'nothing to draw');
+    assert.deepEqual(await metaLine(without.both, 'en-GB', { site: siteDescription(declared), settings: formats('By {authors}'), getEntries, getEntry, getCollection }), [], 'nothing to draw');
+  });
+
+  // A site's settings are by language, each language's entry by its tag on a site in several.
+  test('reads the settings of the language it is given by its tag, and of the main language for a tag of no language of the site\'s', async () => {
+    const { language: _, ...inOne } = declared;
+    const several = siteDescription({ ...inOne, languages: ['en_GB', 'sv_SE'] });
+    const settings = { 'settings/en-GB': { data: formats('By {authors}') }, 'settings/sv-SE': { data: formats('Av {authors}') }, 'settings/site': { data: formats('Written by {authors}') } };
+    const reading = async ({ collection, id }) => settings[`${collection}/${id}`] ?? getEntry({ collection, id });
+    const shown = async (site, language) => read(await metaLine(article(), language, { site, getEntries, getEntry: reading, getCollection }));
+    assert.equal(await shown(several, 'sv-SE'), 'Av Rafael Berg, Ines Holm');
+    assert.equal(await shown(several, 'en-GB'), 'By Rafael Berg, Ines Holm');
+    assert.equal(await shown(several, 'de-DE'), 'By Rafael Berg, Ines Holm', 'the main language\'s');
+    assert.equal(await shown(siteDescription(declared), 'sv-SE'), 'Written by Rafael Berg, Ines Holm', 'the one entry of a site in one language');
+  });
+
+  test('says what it takes for the page\'s language, naming itself, when it is given none', async () => {
+    await assert.rejects(metaLine(article(), undefined, { site: siteDescription(declared), settings: formats('By {authors}'), getEntries, getEntry, getCollection }), /metaLine\(\) take/);
+    assert.throws(() => longDate(new Date(), undefined), /longDate\(\), ordered\(\) and metaLine\(\) take the page's language/);
   });
 
   test('gives the last change only where it is on a later day than the date', async () => {

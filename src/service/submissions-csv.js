@@ -5,6 +5,7 @@
 // apostrophe.
 
 import { catalogueFor, text } from '../catalogues.js';
+import { momentIn, valueText } from '../submission-values.js';
 
 // The separators a reader may choose, by the name the request gives.
 export const SEPARATORS = Object.freeze({ comma: ',', semicolon: ';' });
@@ -40,15 +41,6 @@ export function timeZoneOf(named) {
   }
 }
 
-// A moment as `YYYY-MM-DD HH:MM:SS` in a time zone.
-const momentIn = (timeZone) => {
-  const format = new Intl.DateTimeFormat('en-GB', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
-  return (at) => {
-    const part = Object.fromEntries(format.formatToParts(new Date(at)).map(({ type, value }) => [type, value]));
-    return `${part.year}-${part.month}-${part.day} ${part.hour}:${part.minute}:${part.second}`;
-  };
-};
-
 // Each field of a submission by its column: its label, and which of the fields of that label in
 // the submission it is, so that two fields with one label take a column each.
 function* columnsOf({ fields }) {
@@ -78,12 +70,8 @@ export function* submissionsCsv({ label, each, separator, timeZone, language }) 
   yield `${BYTE_ORDER_MARK}${row([words('sentAt'), words('form'), ...columns.values()], by)}`;
 
   const moment = momentIn(timeZone);
-  const shown = (value) => {
-    if (value === true) return words('yes');
-    if (value === false) return words('no');
-    if (Array.isArray(value)) return value.join(', ');
-    return String(value ?? '');
-  };
+  const box = { yes: words('yes'), no: words('no') };
+  const shown = (value) => valueText(value, box);
   for (const submission of each()) {
     const values = new Map([...columnsOf(submission)].map(({ column, value }) => [column, shown(value)]));
     yield row([moment(submission.sentAt), label, ...[...columns.keys()].map((column) => values.get(column) ?? '')], by);

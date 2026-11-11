@@ -12,11 +12,8 @@
 // with nothing else in it stays closed.
 
 import { plain } from '../plain.js';
-import { keptValue, shownValue } from './value.js';
+import { keptValue, sameValue, shownValue } from './value.js';
 import { SETTING_WIDGET } from './widget.js';
-
-const isEmpty = (value) => value === undefined || value === null || value === '';
-const same = (one, other) => (isEmpty(one) && isEmpty(other)) || one === other;
 
 export function registerSettings(CMS) {
   const React = globalThis.__SVELTIA_CMS_REACT__;
@@ -36,7 +33,7 @@ export function registerSettings(CMS) {
     // A value from elsewhere, Sveltia's menu of the field among them, shows as it is, with the
     // default where it is none.
     React.useEffect(() => {
-      if (!same(held, written.current)) {
+      if (!sameValue(held, written.current)) {
         written.current = held;
         setChosen(null);
       }
