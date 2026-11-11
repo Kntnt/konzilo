@@ -12,7 +12,7 @@ import { formValues, sourceFormat } from '../src/cms/groups/source.js';
 import { siteDescription } from '../src/site-description.js';
 
 const description = siteDescription(JSON.parse(readFileSync(fileURLToPath(new URL('../site-template/files/site-description.json', import.meta.url)), 'utf8')));
-const { groups } = cmsConfig(description, { forgejo: 'http://git', repository: 'a/b', clientId: 'c', site: 'http://site' }).konzilo;
+const { groups: { 'yaml-frontmatter': groups } } = cmsConfig(description, { forgejo: 'http://git', repository: 'a/b', clientId: 'c', site: 'http://site' }).konzilo;
 const format = sourceFormat(groups);
 
 const SOURCE = `---
@@ -103,20 +103,32 @@ test('shows the rest of the editor a post\'s values flat, as they are now', () =
   assert.equal(Object.keys(values).some((key) => key.startsWith('group-')), false);
 });
 
-// A site's own fields on a built-in type are a group of their own in the form, and a field of that
-// name on a type of the site's own is in it too, so a file of either is read alike (ADR 0071).
-test('reads a site\'s own fields into their group, in an article\'s file and in a file of the site\'s own type alike, and writes them flat', async () => {
+// A site's own fields on a built-in type are a group of their own in the form. The built-in types'
+// files are read in one format and a type of the site's own's in another, so a field of that name
+// on a type of the site's own stays where it is (ADR 0071).
+test('reads a site\'s own fields into their group in an article\'s file, leaves a field of that name in a file of the site\'s own type where it is, and writes both flat', async () => {
   const declared = JSON.parse(readFileSync(fileURLToPath(new URL('../site-template/files/site-description.json', import.meta.url)), 'utf8'));
   declared.types.article.fields = { rating: { label: 'Rating', type: 'integer', control: 'number' } };
   declared.types.review = { label: 'Review', plural: 'Reviews', collection: 'reviews', address: '/reviews/{slug}/', elements: ['paragraph'], fields: { rating: { label: 'Stars', type: 'integer', control: 'number' }, verdict: { label: 'Verdict', type: 'string', control: 'text' } } };
-  const own = sourceFormat(cmsConfig(siteDescription(declared), { forgejo: 'http://git', repository: 'a/b', clientId: 'c', site: 'http://site' }).konzilo.groups);
-  for (const text of [SOURCE.replace('headline:', 'rating: 4\nheadline:'), '---\ntitle: A fair\nslug: a-fair\nstatus: draft\nrating: 4\nverdict: Worth the trip\n---\n\nThe fair.\n']) {
-    const data = own.fromFile(text);
-    assert.deepEqual(data['group-own'], { rating: 4 });
-    assert.equal(Object.hasOwn(data, 'rating'), false);
+  const made = cmsConfig(siteDescription(declared), { forgejo: 'http://git', repository: 'a/b', clientId: 'c', site: 'http://site' });
+  const formatOf = (collection) => sourceFormat(made.konzilo.groups[made.collections.find((one) => one.name === collection).format]);
+  const written = async (format, data) => {
     let given = null;
-    await own.toFile({ ...data, 'group-own': { rating: 5 } }, { serialize: async (fields) => { given = fields; return ''; } });
-    assert.equal(given.rating, 5);
-    assert.equal(Object.hasOwn(given, 'group-own'), false);
-  }
+    await format.toFile(data, { serialize: async (fields) => { given = fields; return ''; } });
+    return given;
+  };
+
+  const article = formatOf('articles').fromFile(SOURCE.replace('headline:', 'rating: 4\nheadline:'));
+  assert.deepEqual(article['group-own'], { rating: 4 });
+  assert.equal(Object.hasOwn(article, 'rating'), false);
+  const fromArticle = await written(formatOf('articles'), { ...article, 'group-own': { rating: 5 } });
+  assert.equal(fromArticle.rating, 5);
+  assert.equal(Object.hasOwn(fromArticle, 'group-own'), false);
+
+  const review = formatOf('reviews').fromFile('---\ntitle: A fair\nslug: a-fair\nstatus: draft\nrating: 4\nverdict: Worth the trip\n---\n\nThe fair.\n');
+  assert.equal(review.rating, 4);
+  assert.equal(Object.hasOwn(review, 'group-own'), false);
+  assert.deepEqual(review['group-name'], { title: 'A fair', slug: 'a-fair' });
+  const fromReview = await written(formatOf('reviews'), { ...review, rating: 5 });
+  assert.deepEqual([fromReview.rating, fromReview.title, fromReview.verdict], [5, 'A fair', 'Worth the trip']);
 });

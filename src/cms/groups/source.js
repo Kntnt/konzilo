@@ -4,9 +4,10 @@
 // format of its own: Sveltia's YAML front matter, with each group made from the fields it holds
 // as read, and written back as fields again.
 //
-// `groups` is the configuration's `konzilo.groups`: each group's name, and the fields it holds
-// in every form it is in. A field is in the same group in every form (config.js), so a file is
-// read alike whatever collection it is of, which is all the format is told.
+// `groups` is what the configuration's `konzilo.groups` gives for one format: each group's name,
+// and the fields it holds in every form of that format. A field is in the same group in every
+// form of a format (config.js), so a file is read alike whatever collection it is of, which the
+// format is not told.
 
 import { parse } from 'yaml';
 

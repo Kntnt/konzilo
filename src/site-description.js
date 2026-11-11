@@ -933,17 +933,20 @@ function ownOfBuiltIn(type, name, declared, path, problems) {
 }
 
 // A field of the site's own on a built-in type, a value, is one the editor keeps in a group of the
-// site's own fields, in every form a field of its name stands in, which is all the editor goes by
-// when it reads a source file (cms/config.js, ADR 0071). A term is a relation, which that group
-// cannot hold, so no term has such a name.
+// site's own fields, in every form of a built-in type a field of its name stands in. The editor
+// reads every built-in type's source files in one format, which goes by a field's name alone,
+// since it is told nothing of a file's type (cms/config.js, ADR 0071). A term is a relation, which
+// that group cannot hold, so no term on a built-in type has such a name. A type of the site's own
+// has its files read in a format of their own, which holds no such group.
 function ownFieldsOf(types, problems) {
+  const builtIn = Object.values(types).filter((one) => one?.builtIn);
   const owners = new Map();
-  for (const type of Object.values(types).filter((one) => one?.builtIn)) {
+  for (const type of builtIn) {
     for (const field of type.fields.filter((one) => one.kind === 'meta')) if (!owners.has(field.name)) owners.set(field.name, type.name);
   }
-  for (const type of Object.values(types).filter(Boolean)) {
+  for (const type of builtIn) {
     for (const field of type.fields.filter((one) => one.kind === 'terms' && owners.has(one.name))) {
-      problems.push(`types.${type.name}.fields.${field.name}: the built-in ${owners.get(field.name)} has a field of the site's own by this name, which the editor keeps among the site's own fields wherever it stands; give this term another name`);
+      problems.push(`types.${type.name}.fields.${field.name}: the built-in ${owners.get(field.name)} has a field of the site's own by this name, which the editor keeps among the site's own fields on every built-in type; give this term another name`);
     }
   }
 }

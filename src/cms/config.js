@@ -20,7 +20,7 @@ import { SCHEMA_WIDGET, SLUG_WIDGET, TEXT_WIDGET } from './parts/widgets.js';
 import { inCatalogue, labelIn, labelInPhrase, text } from '../catalogues.js';
 import { BODY_WIDGET } from './body/widget.js';
 import { PUBLISHING_WIDGET } from './publishing/widget.js';
-import { GROUP_PREFIX, GROUP_WIDGET } from './groups/widget.js';
+import { BUILT_IN_FORMAT, GROUP_PREFIX, GROUP_WIDGET, OWN_FORMAT } from './groups/widget.js';
 
 // How deep a menu's entries go in the form. Sveltia has no recursive field.
 const MENU_DEPTH = 3;
@@ -335,8 +335,9 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
   // A group of the core's fields is the core's own field, which draws them and its menu; the
   // terms, which only Sveltia's relation draws, are an object, whose own menu covers them. Each
   // is a field of Sveltia's whose value holds its fields', and the editor keeps a source file
-  // flat, by the fields each group holds (`konzilo.groups`). On a site in several languages, a
-  // group's fields are all alike in each language, and so is the group, or all per language.
+  // flat, by the fields each group holds in the format the file is read in (`konzilo.groups`).
+  // On a site in several languages, a group's fields are all alike in each language, and so is
+  // the group, or all per language.
   // A group of fields that declare no language, as a site's own fields do, is in the first language
   // alone, as each of them is.
   const languageOf = (fields) => {
@@ -365,16 +366,23 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     fields,
   });
 
+  // A group of the core's of one field, which would otherwise stand alone with Sveltia's menu: its
+  // value is the field's own, under the field's name, so that no source file is read into it.
+  const groupOfOne = (field) => ({ name: field.name, label: field.label, widget: GROUP_WIDGET, required: false, ...languageOf([field]), field });
+  // What a group of the core's draws, through `CMS.getFieldType`: Sveltia's controls that may be
+  // reused, and the core's own. Sveltia's relation is not among them.
+  const DRAWN = ['string', 'text', 'number', 'select', 'datetime', IMAGE_WIDGET, TEXT_WIDGET, AUTHORS_WIDGET];
+  // Sveltia's menu restores a field without a default to nothing, required or not, so a required
+  // field without one that would stand alone stands in a group of the core's by itself, whose menu
+  // keeps it at Restore Default. A required relation keeps Sveltia's menu.
+  const standing = (made) => (made.required === true && !('default' in made) && DRAWN.includes(made.widget ?? 'string') ? groupOfOne(made) : made);
+
   // The fields that only a group holds, by the names the core gives them: wherever a post has
   // one, it is in the same group, so that a source file is read alike whatever its type.
   const NAME_FIELDS = ['title', 'breadcrumb', 'slug'];
   const STATUS_FIELDS = ['status', 'date'];
   const HEADLINE_FIELDS = ['eyebrow', 'headline', 'subheadline'];
   const TERMS_FIELDS = [AUTHORS, CATEGORY, TOPICS];
-  // A site's own fields on a built-in type, those the core's group draws: a value of the site's own,
-  // which is never a post or an image. A term of a taxonomy of the site's own is Sveltia's relation,
-  // and stands alone.
-  const OWN_FIELDS = [...new Set(Object.values(description.types).filter(builtInOf).flatMap((type) => type.fields.filter((one) => one.kind === 'meta').map((one) => one.name)))];
 
   // The order of a form, by its parts: `declared` is where the fields the site declares go, on a
   // built-in type its own after the body and before the closed bars.
@@ -411,7 +419,11 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     const date = fieldOf('date');
     const headline = HEADLINE_FIELDS.map(fieldOf).filter(Boolean);
     const terms = type.fields.filter((one) => TERMS_FIELDS.includes(one.name)).map((one) => postField(one, type));
-    const isOwn = (one) => one.kind === 'meta' && OWN_FIELDS.includes(one.name);
+    // A site's own fields on a built-in type, which the core's group draws: a value of the site's
+    // own, which is never a post or an image. A term of a taxonomy of the site's own is Sveltia's
+    // relation, and stands alone. A type of the site's own has its files read in a format of its
+    // own, which holds no such group, so its fields stand as declared.
+    const isOwn = (one) => built !== null && one.kind === 'meta';
     const mine = type.fields.filter(isOwn).map((one) => postField(one, type));
     // Fields in the order declared, with the core's in their groups, each where its first field
     // is: a type of the site's own, and the site's own fields on a built-in type.
@@ -448,7 +460,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     };
     const part = (name) => (Object.hasOwn(parts, name) ? parts[name]() : fieldOf(name));
     const form = built ? (built === ARTICLE ? ARTICLE_FORM : PAGE_FORM) : OWN_FORM;
-    return form.flatMap((name) => part(name) ?? []);
+    return form.flatMap((name) => part(name) ?? []).map(standing);
   };
 
   const typeCollection = (type) => ({
@@ -457,7 +469,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     label_singular: inPhrase(type.label),
     folder: type.collection,
     extension: 'md',
-    format: 'yaml-frontmatter',
+    format: builtInOf(type) ? BUILT_IN_FORMAT : OWN_FORMAT,
     create: true,
     identifier_field: POST_TITLE,
     summary: `{{${POST_TITLE}}}`,
@@ -466,12 +478,15 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     fields: typeFields(type),
   });
 
-  // Which fields each group holds, in every form it is in, so that the editor reads a source
-  // file's fields into it and writes them back flat.
+  // Which fields each group holds, in every form of a format it is in, by the format, so that the
+  // editor reads a source file's fields into it and writes them back flat.
   const groupsOf = (collections) => {
     const groups = {};
-    for (const one of collections.flatMap((made) => made.fields).filter((made) => made.name.startsWith(GROUP_PREFIX))) {
-      groups[one.name] = [...new Set([...(groups[one.name] ?? []), ...one.fields.map((member) => member.name)])];
+    for (const made of collections) {
+      const held = (groups[made.format] ??= {});
+      for (const one of made.fields.filter((field) => field.name.startsWith(GROUP_PREFIX))) {
+        held[one.name] = [...new Set([...(held[one.name] ?? []), ...one.fields.map((member) => member.name)])];
+      }
     }
     return groups;
   };
@@ -553,7 +568,8 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     // Konzilo's own, which the editor takes out before Sveltia sees the rest: the interface
     // language this configuration is in, where this copy of the site has its live preview,
     // and which collections have pages to show there, the site's own components, which
-    // its bodies may hold beside the core's elements, and the fields of each field group.
+    // its bodies may hold beside the core's elements, and the fields of each field group, by the
+    // format a post's files are read in.
     konzilo: {
       language: interfaceLanguage,
       ...(preview === null ? {} : { preview: { origin: preview, collections: Object.values(description.types).filter((type) => type.address).map((type) => type.collection) } }),

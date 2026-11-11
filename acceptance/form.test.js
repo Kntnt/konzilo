@@ -844,7 +844,8 @@ describe('the canonical address in Sveltia, on a site in two languages', () => {
 // A label in the middle of a phrase starts with a small letter, as in "Lägg till annan adress", but
 // for an abbreviation, and begins with a capital where Sveltia shows the same text alone (ADR
 // 0066); and a site's own fields on the built-in article stand in a group of their own, while a
-// type of the site's own keeps its order (ADR 0071). Each engine draws a first letter itself.
+// type of the site's own keeps its order, and a required field standing alone has the core's menu
+// (ADR 0071). Each engine draws a first letter itself.
 for (const [engineName, engine] of Object.entries(ENGINES)) {
   describe(`labels in phrases and a site's own fields in Sveltia, in ${engineName}`, () => {
     let site;
@@ -866,7 +867,7 @@ for (const [engineName, engine] of Object.entries(ENGINES)) {
     const sections = () => page.evaluate(() => [...document.querySelectorAll('section.field[data-key-path]')].map((one) => one.dataset.keyPath).filter((key) => !key.includes('.')));
 
     // A Swedish site, with fields of its own on the article, and a type of its own called FAQ,
-    // which has one of those fields too.
+    // which has a field of one of their names too, and a required question.
     before(async () => {
       const declared = JSON.parse(readFileSync(`${core}site-template/files/site-description.json`, 'utf8'));
       declared.language = 'sv_SE';
@@ -880,7 +881,7 @@ for (const [engineName, engine] of Object.entries(ENGINES)) {
         collection: 'faqs',
         address: '/faq/{slug}/',
         elements: ['paragraph'],
-        fields: { question: { label: { en: 'Question', sv: 'Fråga' }, type: 'string', control: 'text' }, headline: { required: true }, rating: { label: { en: 'Stars', sv: 'Stjärnor' }, type: 'integer', control: 'number' }, seo: {} },
+        fields: { question: { label: { en: 'Question', sv: 'Fråga' }, type: 'string', control: 'text', required: true }, headline: { required: true }, rating: { label: { en: 'Stars', sv: 'Stjärnor' }, type: 'integer', control: 'number' }, seo: {} },
       };
       const config = { ...cmsConfig(siteDescription(declared), { forgejo: 'http://localhost:1', repository: 'a/b', clientId: 'c', site: 'http://localhost:2' }), backend: { name: 'test-repo' } };
       site = await openFieldPage({ engine, configs: { 'config.json': config, 'config.sv.json': config } });
@@ -953,11 +954,47 @@ for (const [engineName, engine] of Object.entries(ENGINES)) {
       assert.equal(await group('group-own').getByRole('radio', { name: 'calm' }).isChecked(), true);
     });
 
-    test('keep a type of the site\'s own in the order it declares, with the core\'s fields in their groups, and its field named as the article\'s own in that group', async () => {
+    test('keep a type of the site\'s own in the order it declares, with the core\'s fields in their groups and its field named as the article\'s own where it is, and save it', async () => {
       await open('faqs', 'question');
-      assert.deepEqual(await sections(), ['group-name', 'group-status', 'publishing', 'body', 'question', 'group-headline', 'group-own', 'search', 'sharing', 'structured', 'otherAddresses']);
-      await group('group-own').scrollIntoViewIfNeeded();
-      await group('group-own').getByRole('spinbutton', { name: 'Stjärnor' }).waitFor();
+      assert.deepEqual(await sections(), ['group-name', 'group-status', 'publishing', 'body', 'question', 'group-headline', 'rating', 'search', 'sharing', 'structured', 'otherAddresses']);
+      await group('rating').scrollIntoViewIfNeeded();
+      await group('rating').getByRole('spinbutton', { name: 'Stjärnor' }).fill('3');
+      await group('question').getByRole('textbox', { name: 'Fråga', exact: true }).fill('Var ligger hamnen?');
+      await page.getByRole('textbox', { name: 'Arbetsnamn', exact: true }).fill(`Harbour in ${engineName}`);
+      await page.getByRole('textbox', { name: 'Huvudrubrik', exact: true }).fill('Where the harbour is');
+      await page.getByRole('button', { name: 'Spara', exact: true }).click();
+      await page.waitForFunction(() => /\/entries\//.test(window.location.hash));
+      await page.goto(`${origin()}/#/collections/faqs`);
+      await page.getByText(`Harbour in ${engineName}`, { exact: true }).first().click();
+      await group('rating').scrollIntoViewIfNeeded();
+      assert.equal(await group('rating').getByRole('spinbutton', { name: 'Stjärnor' }).inputValue(), '3', 'read back where it stands');
+      assert.equal(await group('question').getByRole('textbox', { name: 'Fråga', exact: true }).inputValue(), 'Var ligger hamnen?');
+    });
+
+    // Sveltia's own menu would restore it to nothing, so it stands in a group of the core's alone.
+    test('give a required field standing alone one menu, which greys Restore Default and keeps what it holds, and stop a save without it, naming it', async () => {
+      await open('faqs', 'question');
+      const question = group('question');
+      const box = question.getByRole('textbox', { name: 'Fråga', exact: true });
+      await box.fill('Var ligger hamnen?');
+      await question.hover();
+      const options = question.getByRole('button', { name: 'Visa fältalternativ' }).filter({ visible: true });
+      assert.equal(await options.count(), 1);
+      await options.click();
+      const items = page.getByRole('menu').getByRole('menuitem');
+      const offered = Object.fromEntries(await items.evaluateAll((all) => all.map((one) => [one.textContent, one.getAttribute('aria-disabled') !== 'true'])));
+      assert.deepEqual(offered, { 'Återställ ändringar': true, 'Återställ standardvärde': false, Rensa: true });
+      await page.getByRole('menu').getByRole('menuitem', { name: 'Återställ standardvärde' }).click({ force: true });
+      assert.equal(await box.inputValue(), 'Var ligger hamnen?', 'greyed, and does nothing');
+      await page.getByRole('menu').getByRole('menuitem', { name: 'Rensa' }).click();
+      await page.getByRole('menu').waitFor({ state: 'detached' });
+      assert.equal(await box.inputValue(), '');
+
+      await page.getByRole('textbox', { name: 'Arbetsnamn', exact: true }).fill(`No question in ${engineName}`);
+      await page.getByRole('textbox', { name: 'Huvudrubrik', exact: true }).fill('No question');
+      await page.getByRole('button', { name: 'Spara', exact: true }).click();
+      await page.getByText('Fråga behöver fyllas i.').first().waitFor();
+      assert.match(await page.evaluate(() => window.location.hash), /\/new/);
     });
 
     test('has asked nothing outside, and broken no policy', () => {

@@ -596,13 +596,18 @@ describe('the form\'s field groups', () => {
     assert.deepEqual(field(fields, 'group-status').default, { status: 'draft' }, 'a new post is a draft');
   });
 
-  test('tell the editor which fields each group holds, so that a source file keeps them flat', () => {
+  // Sveltia tells a format nothing of a file's collection, so the built-in types' files are read
+  // in one of its two names for YAML front matter, and a type of the site's own in the other.
+  test('tell the editor which fields each group holds, by the format a type\'s files are read in, so that a source file keeps them flat', () => {
     assert.deepEqual(config.konzilo.groups, {
-      'group-name': ['title', 'breadcrumb', 'slug'],
-      'group-status': ['status', 'date'],
-      'group-terms': ['authors', 'category', 'topics'],
-      'group-headline': ['eyebrow', 'headline', 'subheadline'],
+      'yaml-frontmatter': {
+        'group-name': ['title', 'breadcrumb', 'slug'],
+        'group-status': ['status', 'date'],
+        'group-terms': ['authors', 'category', 'topics'],
+        'group-headline': ['eyebrow', 'headline', 'subheadline'],
+      },
     });
+    for (const name of ['articles', 'pages', 'canvases']) assert.equal(collection(name).format, 'yaml-frontmatter', name);
   });
 
   test('keep each field\'s language on a site in several: a group of fields alike in each is alike, and one with a text per language is per language', () => {
@@ -632,7 +637,9 @@ describe('the form\'s field groups', () => {
       },
     }), place);
     assert.deepEqual(shape('stories', made), [['group-name', ['title', 'slug']], ['group-status', ['status', 'date']], 'publishing', 'body', 'mood', ['group-headline', ['headline']], ['group-terms', ['topics']], 'otherAddresses']);
-    assert.deepEqual(made.konzilo.groups['group-status'], ['status', 'date']);
+    assert.equal(made.collections.find((one) => one.name === 'stories').format, 'frontmatter');
+    assert.deepEqual(made.konzilo.groups.frontmatter['group-status'], ['status', 'date']);
+    assert.deepEqual(made.konzilo.groups['yaml-frontmatter']['group-status'], ['status', 'date']);
   });
 });
 
@@ -725,8 +732,8 @@ describe('a site\'s own fields in a group of their own', () => {
   });
 
   test('tell the editor the group\'s fields in every form, so that a source file keeps them flat', () => {
-    assert.deepEqual(cmsConfig(siteDescription(withOwn()), place).konzilo.groups['group-own'], ['rating', 'mood', 'sidebar']);
-    assert.equal(config.konzilo.groups['group-own'], undefined, 'and no group where the site has no fields of its own');
+    assert.deepEqual(cmsConfig(siteDescription(withOwn()), place).konzilo.groups['yaml-frontmatter']['group-own'], ['rating', 'mood', 'sidebar']);
+    assert.equal(config.konzilo.groups['yaml-frontmatter']['group-own'], undefined, 'and no group where the site has no fields of its own');
   });
 
   // A site's own field declares no language, and is in the first language alone (Sveltia's
@@ -754,11 +761,80 @@ describe('a site\'s own fields in a group of their own', () => {
     assert.deepEqual(shape(made, 'pages').slice(4, 8), ['body', ['group-own', ['sidebar']], ['group-terms', ['topics']], 'search']);
   });
 
-  test('keep a site\'s own type\'s fields in the order declared, with the core\'s in their groups, and a field named as one of the site\'s own on a built-in type in that group', () => {
+  // A type of the site's own has its files read in a format of its own, which holds no group of
+  // the site's own fields, so a field named as one of them on a built-in type stands where it is
+  // declared, and so does a term of that name.
+  test('keep a site\'s own type\'s fields in the order declared, with the core\'s in their groups, a field named as one of the site\'s own on a built-in type among them', () => {
     const given = withOwn();
-    given.types.review = { label: 'Review', plural: 'Reviews', collection: 'reviews', address: '/reviews/{slug}/', elements: ['paragraph'], fields: { verdict: { label: 'Verdict', type: 'string', control: 'text' }, eyebrow: {}, rating: { label: 'Stars', type: 'number', control: 'number' }, headline: { required: true }, price: { label: 'Price', type: 'number', control: 'number' }, mood: { label: 'Mood', type: 'string', control: 'text' }, topics: { taxonomy: 'topics' } } };
+    given.taxonomies.regions = { label: 'Region', plural: 'Regions', collection: 'regions' };
+    given.types.review = { label: 'Review', plural: 'Reviews', collection: 'reviews', address: '/reviews/{slug}/', elements: ['paragraph'], fields: { verdict: { label: 'Verdict', type: 'string', control: 'text' }, eyebrow: {}, rating: { label: 'Stars', type: 'number', control: 'number' }, headline: { required: true }, price: { label: 'Price', type: 'number', control: 'number' }, mood: { taxonomy: 'regions' }, topics: { taxonomy: 'topics' } } };
     const made = cmsConfig(siteDescription(given), place);
-    assert.deepEqual(shape(made, 'reviews'), [['group-name', ['title', 'slug']], ['group-status', ['status']], 'publishing', 'body', 'verdict', ['group-headline', ['eyebrow', 'headline']], ['group-own', ['rating', 'mood']], 'price', ['group-terms', ['topics']], 'otherAddresses']);
+    assert.deepEqual(shape(made, 'reviews'), [['group-name', ['title', 'slug']], ['group-status', ['status']], 'publishing', 'body', 'verdict', ['group-headline', ['eyebrow', 'headline']], 'rating', 'price', 'mood', ['group-terms', ['topics']], 'otherAddresses']);
     assert.equal(field(made.collections.find((one) => one.name === 'reviews').fields, 'rating').label, 'Stars', 'with its own label');
+    assert.equal(made.konzilo.groups.frontmatter['group-own'], undefined);
+    assert.deepEqual(made.konzilo.groups['yaml-frontmatter']['group-own'], ['rating', 'mood', 'sidebar']);
+  });
+});
+
+// Sveltia's own menu restores a field without a default to nothing, required or not, so a required
+// field that would stand alone with it stands in a group of the core's by itself, whose menu
+// greys Restore Default there, and which holds the field's value under the field's own name
+// (ADR 0071).
+describe('a required field that stands alone', () => {
+  const declared = () => JSON.parse(readFileSync(file('site-template/files/site-description.json'), 'utf8'));
+  const withReview = () => {
+    const given = declared();
+    given.taxonomies.regions = { label: 'Region', plural: 'Regions', collection: 'regions' };
+    given.types.review = {
+      label: 'Review', plural: 'Reviews', collection: 'reviews', address: '/reviews/{slug}/', elements: ['paragraph'],
+      fields: {
+        excerpt: { required: true },
+        image: { required: true },
+        verdict: { label: { en: 'Verdict', sv: 'Omdöme' }, type: 'string', control: 'text', required: true },
+        stars: { label: 'Stars', type: 'integer', control: 'number', required: true },
+        price: { label: 'Price', type: 'number', control: 'number' },
+        standfirst: { required: true },
+        region: { taxonomy: 'regions', required: true },
+      },
+    };
+    return given;
+  };
+  const reviews = (made) => made.collections.find((one) => one.name === 'reviews').fields;
+
+  test('is a group of the core\'s by itself, under its own name, with its label, language and hint', () => {
+    const fields = reviews(cmsConfig(siteDescription(withReview()), place));
+    for (const [name, widget] of [['excerpt', 'text'], ['image', 'konzilo-image'], ['verdict', 'string'], ['stars', 'number'], ['standfirst', 'text']]) {
+      const alone = fields.find((one) => one.name === name);
+      assert.equal(alone.widget, 'konzilo-group', name);
+      assert.equal(alone.required, false, `${name}: the group's own check stops a save without it`);
+      assert.equal(alone.label, alone.field.label, name);
+      assert.deepEqual([alone.field.name, alone.field.widget, alone.field.required, 'default' in alone.field], [name, widget, true, false], name);
+      assert.equal(alone.fields, undefined, `${name}: one field, whose value is the group's`);
+    }
+    assert.equal(fields.find((one) => one.name === 'verdict').label, 'Verdict');
+    assert.equal(reviews(cmsConfig(siteDescription(withReview()), { ...place, language: 'sv' })).find((one) => one.name === 'verdict').label, 'Omdöme');
+  });
+
+  test('keeps its place, and an optional field and a term stay as they are', () => {
+    const fields = reviews(cmsConfig(siteDescription(withReview()), place));
+    assert.deepEqual(fields.map((one) => one.name).slice(4, 12), ['excerpt', 'image', 'verdict', 'stars', 'price', 'standfirst', 'region', 'otherAddresses']);
+    assert.equal(fields.find((one) => one.name === 'price').widget, 'number');
+    const region = fields.find((one) => one.name === 'region');
+    assert.deepEqual([region.widget, region.required], ['relation', true], 'only Sveltia draws a relation');
+  });
+
+  test('keeps its language on a site in several', () => {
+    const { language: _one, ...given } = withReview();
+    given.languages = ['sv_SE', 'en_GB'];
+    for (const type of Object.values(given.types)) {
+      if (typeof type.address === 'string') type.address = { sv_SE: type.address, en_GB: type.address.replace(/^\/(?=[a-z]+\/)/, '/en-') };
+    }
+    const fields = reviews(cmsConfig(siteDescription(given), place));
+    assert.deepEqual(['excerpt', 'image', 'verdict'].map((name) => fields.find((one) => one.name === name).i18n), [true, true, undefined]);
+  });
+
+  test('is in no group a source file is read into, since it holds its field under the field\'s own name', () => {
+    const { groups } = cmsConfig(siteDescription(withReview()), place).konzilo;
+    assert.deepEqual(Object.keys(groups.frontmatter).sort(), ['group-name', 'group-status']);
   });
 });

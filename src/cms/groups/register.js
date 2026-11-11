@@ -9,6 +9,8 @@
 //                     computed: <rule>, a default made from the post's other values (menu.js)
 //                     labelled: false, no label shown, which still names the field for a
 //                     screen reader and in a refusal
+//   field: {...}      in place of `fields`, the one field of a group of one, whose value is the
+//                     group's own, under the field's name
 //   heading: true     the group's label shows above its fields; otherwise it names the section
 //                     for a screen reader alone
 // Sveltia's own heading and menu of the field are left out (group.css), since the group's are
@@ -25,13 +27,14 @@ const plain = (value) => (value?.toJS ? value.toJS() : value);
 
 const ACTIONS = [['revert', 'groups.revert'], ['restore', 'groups.restore'], ['clear', 'groups.clear']];
 
+// `groups`: the fields of each group, by the format a post's source file is read in (config.js).
 export function registerGroups(CMS, config, groups = {}) {
-  useGroups(groups);
+  useGroups(Object.assign({}, ...Object.values(groups)));
   const React = globalThis.__SVELTIA_CMS_REACT__;
   const h = React.createElement;
   const defaultLocale = config.i18n?.default_locale ?? null;
 
-  CMS.registerCustomFormat('yaml-frontmatter', 'md', sourceFormat(groups));
+  for (const [format, held] of Object.entries(groups)) CMS.registerCustomFormat(format, 'md', sourceFormat(held));
 
   // Escape closes an open menu alone, as Sveltia's own menus do, and not the entry, which Sveltia
   // closes on Escape from a listener on the window. This one is the window's first, since it is
@@ -138,19 +141,23 @@ export function registerGroups(CMS, config, groups = {}) {
     const { value, onChange, field, forID, entry } = props;
     const name = field.get('name');
     const label = plain(field.get('label')) ?? '';
+    // A group of one holds its field's value as its own.
+    const one = field.get('field') ?? null;
     const members = field.get('fields');
-    const fields = plain(members) ?? [];
+    const memberAt = (index) => one ?? members.get(index);
+    const fields = one ? [plain(one)] : plain(members) ?? [];
+    const asGroup = (held) => (one ? { [fields[0].name]: held } : held);
     const host = React.useRef(null);
     const [locale, setLocale] = React.useState(undefined);
 
     // What each field holds now. Two fields may change before Sveltia's value comes round, the
     // slug as the name is typed, so each change is made on the newest.
-    const now = holding(fields, plain(value));
+    const now = holding(fields, asGroup(plain(value)));
     const latest = React.useRef(now);
     latest.current = now;
     const write = (next) => {
       latest.current = next;
-      onChange(next);
+      onChange(one ? next[fields[0].name] : next);
     };
     const change = (member) => (next) => write({ ...latest.current, [member]: plain(next) ?? '' });
 
@@ -171,42 +178,42 @@ export function registerGroups(CMS, config, groups = {}) {
     React.useImperativeHandle(ref, () => ({
       isValid: () => {
         const empty = followed ? [] : missing(fields, latest.current);
-        return empty.length === 0 ? true : { error: { message: empty.map((one) => say('groups.required', { field: one.label })).join(' ') } };
+        return empty.length === 0 ? true : { error: { message: empty.map((each) => say('groups.required', { field: each.label })).join(' ') } };
       },
     }));
 
     return h('div', { ref: host, className: 'konzilo-group', 'data-group': name },
       followed ? null : h(GroupMenu, { id: forID, label, actionsNow, act: write }),
       plain(field.get('heading')) === true ? h('h3', { className: 'konzilo-group-heading' }, label) : null,
-      fields.map((one, index) => {
-        const id = `${forID}-${one.name}`;
-        const control = CMS.getFieldType(one.widget ?? 'string')?.control;
+      fields.map((member, index) => {
+        const id = `${forID}-${member.name}`;
+        const control = CMS.getFieldType(member.widget ?? 'string')?.control;
         const shown = followed
-          ? h('input', { id, className: `${props.classNameWrapper ?? ''} konzilo-part-input`, type: 'text', readOnly: true, value: String(now[one.name] ?? ''), 'aria-labelledby': `${id}-label` })
+          ? h('input', { id, className: `${props.classNameWrapper ?? ''} konzilo-part-input`, type: 'text', readOnly: true, value: String(now[member.name] ?? ''), 'aria-labelledby': `${id}-label` })
           : control ? h(control, {
-            value: now[one.name],
-            onChange: change(one.name),
-            field: members.get(index),
+            value: now[member.name],
+            onChange: change(member.name),
+            field: memberAt(index),
             forID: id,
             classNameWrapper: props.classNameWrapper,
             entry,
             getAsset: props.getAsset,
             addFile: props.addFile,
             pickFile: props.pickFile,
-            keyPath: `${name}.${one.name}`,
-            required: one.required === true,
+            keyPath: one ? name : `${name}.${member.name}`,
+            required: member.required === true,
             readonly: false,
             invalid: false,
           }) : null;
         // A field with no label of its own keeps it, hidden, for the controls that name themselves
         // by it, which a screen reader still reads.
-        const unlabelled = one.labelled === false;
-        return h('div', { key: one.name, className: `konzilo-group-field${unlabelled ? ' konzilo-group-unlabelled' : ''}`, 'data-key-path': `${name}.${one.name}`, 'data-field-type': one.widget ?? 'string' },
-          unlabelled ? h('span', { id: `${id}-label`, hidden: true }, one.label) : h('div', { className: 'konzilo-group-label' },
-            h('span', { id: `${id}-label` }, one.label),
-            one.required === true && !followed ? h('span', { className: 'konzilo-group-required', 'aria-hidden': true }, '*') : null),
+        const unlabelled = member.labelled === false;
+        return h('div', { key: member.name, className: `konzilo-group-field${unlabelled ? ' konzilo-group-unlabelled' : ''}`, 'data-key-path': one ? name : `${name}.${member.name}`, 'data-field-type': member.widget ?? 'string' },
+          unlabelled ? h('span', { id: `${id}-label`, hidden: true }, member.label) : h('div', { className: 'konzilo-group-label' },
+            h('span', { id: `${id}-label` }, member.label),
+            member.required === true && !followed ? h('span', { className: 'konzilo-group-required', 'aria-hidden': true }, '*') : null),
           shown,
-          one.hint && !followed ? h('p', { className: 'konzilo-group-hint' }, one.hint) : null);
+          member.hint && !followed ? h('p', { className: 'konzilo-group-hint' }, member.hint) : null);
       }));
   }));
 
@@ -225,7 +232,10 @@ export function registerGroups(CMS, config, groups = {}) {
       const places = [['data'], ...[...(entry.get('i18n')?.keys() ?? [])].map((language) => ['i18n', language, 'data'])];
       const empty = places.flatMap((place, index) => coreGroups
         .filter((group) => index === 0 || group.i18n === true)
-        .flatMap((group) => missing(group.fields, plain(entry.getIn([...place, group.name])))));
+        .flatMap((group) => {
+          const held = plain(entry.getIn([...place, group.name]));
+          return group.field ? missing([group.field], { [group.field.name]: held }) : missing(group.fields, held);
+        }));
       if (empty.length === 0) return;
       refusal = [...new Set(empty.map((one) => say('groups.required', { field: one.label })))].join(' ');
       throw new Error(refusal);

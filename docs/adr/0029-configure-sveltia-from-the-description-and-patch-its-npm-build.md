@@ -1,6 +1,6 @@
 # ADR 0029: Configure Sveltia from the description, and patch its npm build
 
-**Date:** 2026-11-03, amended 2026-11-10 · **Status:** Accepted as a technical choice, within Thomas's decision of Sveltia (ADR 0001); Thomas may veto.
+**Date:** 2026-11-03, amended 2026-11-10 and 2026-11-11 · **Status:** Accepted as a technical choice, within Thomas's decision of Sveltia (ADR 0001); Thomas may veto.
 
 ## Decision
 
@@ -11,7 +11,7 @@
 - **Backend.** The `forgejo` backend with PKCE only (`auth_methods`), no token sign-in, and the Simple Workflow.
 - **Sveltia lives on the admin host,** `<site>.konzilo.app`, as static files, with a Content Security Policy of its own and without a cross-origin opener policy, since its sign-in uses a popup. That host never shows editor-written HTML.
 - **What an editor rarely needs is a closed bar.** Search and sharing and the settings groups are accordions: a bar with its label, closed, with no box to tick and no star, holding nothing until something is written in it. One that holds something opens by itself, since a closed bar must not hide that a post is kept out of search engines. A long hint waits until its bar is open. Sveltia has none of this, so it is a patch for the option `accordion: true`, and `form.css`.
-- **A post's form is in field groups** ([ADR 0071](0071-draw-a-posts-form-in-field-groups-each-with-one-menu-and-keep-the-source-flat.md)), each one field of Sveltia's with one menu, the core's own or an object's. A closed bar of a post's teaser, search, sharing or structured data shows its menu at its end, over all it holds. A post's file is read and written through a format of the editor's own, under Sveltia's name `yaml-frontmatter`, which keeps its fields flat; with no new patch.
+- **A post's form is in field groups** ([ADR 0071](0071-draw-a-posts-form-in-field-groups-each-with-one-menu-and-keep-the-source-flat.md)), each one field of Sveltia's with one menu, the core's own or an object's. A closed bar of a post's teaser, search, sharing or structured data shows its menu at its end, over all it holds. A post's file is read and written through a format of the editor's own, under Sveltia's names for YAML front matter, `yaml-frontmatter` for the built-in types and `frontmatter` for a type of the site's own, which keeps its fields flat; with no new patch.
 - **`preSave` refuses.** A handler sends the draft to the service's check, and throwing stops the save with the reason. An address another post holds, a required field left empty, or a change only an Admin may make is stopped at that moment, naming where it is. The intake remains the check that counts.
 - **Pages in Sveltia,** through `CMS.registerCustomPage`: Publishing, Submissions, Consent records, Policy violations, Addresses not found, Redirects with CSV, Recipients lists, Privacy texts and Users. Everything else an Admin edits is plain forms. A custom page gets no props, so it reads the user's token from Sveltia's storage (`sveltia-cms.user`), which is undocumented, and is pinned and tested at each raise.
 
