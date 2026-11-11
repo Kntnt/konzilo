@@ -23,7 +23,7 @@ import { ownValue } from './format/frontmatter.js';
 import { british } from './refusals.js';
 import declaration from './format/settings-groups.json' with { type: 'json' };
 import { templateProblems, variablesOf } from './metadata-templates.js';
-import { builtInOf, isArticle, PAGE } from './format/built-in-types.js';
+import { isArticle, PAGE } from './format/built-in-types.js';
 import { fieldName, IDENTITY, IMAGE, ownField, POST, translatedOf } from './site-description.js';
 
 // The kinds of post type a per-type part may be limited to: those with an
@@ -38,7 +38,7 @@ const limits = {
 // built-in article.
 const kinds = {
   ...limits,
-  page: (type) => builtInOf(type) === PAGE,
+  page: (type) => type.builtIn === PAGE,
   article: isArticle,
 };
 

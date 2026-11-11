@@ -70,13 +70,24 @@ export const BUILT_IN_TYPES = Object.freeze({
 });
 
 // Each built-in taxonomy: its label and plural, by their names in the catalogues, its
-// collection and whether its terms have parents. An author is a term of `authors`, its
-// name and its biography the term's name and description.
+// collection, whether its terms have parents, whether a post keeps its terms in the order
+// the editor gives them, and the label of a term's description, by its name in the
+// catalogues. An author is a term of `authors`, its name and its biography the term's
+// name and description, and an article's authors keep their order, which says who wrote
+// it first; a post's other terms are sorted.
 export const BUILT_IN_TAXONOMIES = Object.freeze({
-  [AUTHORS]: Object.freeze({ label: 'form.author', plural: 'form.authors', collection: 'authors', hierarchical: false }),
-  [CATEGORY]: Object.freeze({ label: 'form.category', plural: 'form.categories', collection: 'categories', hierarchical: true }),
-  [TOPICS]: Object.freeze({ label: 'form.topic', plural: 'form.topics', collection: 'topics', hierarchical: false }),
+  [AUTHORS]: Object.freeze({ label: 'form.author', plural: 'form.authors', collection: 'authors', hierarchical: false, ordered: true, description: 'form.biography' }),
+  [CATEGORY]: Object.freeze({ label: 'form.category', plural: 'form.categories', collection: 'categories', hierarchical: true, ordered: false, description: 'form.description' }),
+  [TOPICS]: Object.freeze({ label: 'form.topic', plural: 'form.topics', collection: 'topics', hierarchical: false, ordered: false, description: 'form.description' }),
 });
+
+// Whether a post keeps a taxonomy's terms in the order the editor gives them, as the
+// site description reads the taxonomy: a built-in one's, as it says; a site's own's are sorted.
+export const keepsOrder = (taxonomy) => Object.hasOwn(BUILT_IN_TAXONOMIES, taxonomy?.builtIn ?? '') && BUILT_IN_TAXONOMIES[taxonomy.builtIn].ordered;
+
+// The label of a term's description, by its name in the catalogues: a built-in taxonomy's
+// own, else a description's.
+export const descriptionLabel = (taxonomy) => (Object.hasOwn(BUILT_IN_TAXONOMIES, taxonomy?.builtIn ?? '') ? BUILT_IN_TAXONOMIES[taxonomy.builtIn].description : 'form.description');
 
 // A built-in type's or taxonomy's label, by its name in the catalogues, as a site's own
 // label by language is given: a text in each language the core's interface comes in.
@@ -91,16 +102,17 @@ export function fieldsWith(builtIn, own) {
   return [...core.filter(([name]) => name !== SEO), ...own, ...core.filter(([name]) => name === SEO)];
 }
 
-// The built-in type a type is, as the site description reads it, or null for a type of
-// the site's own.
-export function builtInOf(type) {
-  return type?.builtIn ?? null;
-}
-
 // Whether a post's type is the built-in article: the answer wherever the head, the
 // structured data, the summary or search ask whether a post is an article.
 export function isArticle(type) {
-  return builtInOf(type) === ARTICLE;
+  return type?.builtIn === ARTICLE;
+}
+
+// The type a choice of one post is among, where the site must have one: the built-in page
+// among the types with an address, else the first type with one; null where none has one.
+export function pageTypeOf(types) {
+  const withPages = Object.values(types).filter((type) => type.address !== null);
+  return withPages.find((type) => type.builtIn === PAGE) ?? withPages[0] ?? null;
 }
 
 // What a term an article shares with another scores, by taxonomy, where related posts

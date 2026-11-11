@@ -13,7 +13,6 @@
 // A date's ISO form, `date.toISOString()`, is its data put in place, and
 // needs no helper.
 
-import { builtInOf } from '../format/built-in-types.js';
 import { articleAuthors } from './authors.js';
 import { describedSite } from './languages.js';
 import { publicSite } from './public-site.js';
@@ -128,7 +127,7 @@ export function ordered(items, by, { language, descending = false } = {}) {
 // `site`: the site description as checked, the site's own by default.
 export function builtInType(entry, { site = describedSite() } = {}) {
   if (!entry) return null;
-  return builtInOf(Object.values(site.types).find((type) => type?.collection === entry.collection));
+  return Object.values(site.types).find((type) => type?.collection === entry.collection)?.builtIn ?? null;
 }
 
 // An article's authors, for its byline, in the order its editor gave them, the first

@@ -34,7 +34,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ARTICLE, builtInOf, PAGE } from '../format/built-in-types.js';
+import { ARTICLE, PAGE } from '../format/built-in-types.js';
 import { languageTag } from '../site-description.js';
 import { pageMarkdown } from './html-to-markdown.js';
 import { aiSettings, markdownPages, marksOf, pageOfMarkdown, renderedPage } from './markdown-alternates.js';
@@ -72,7 +72,7 @@ function label(text) {
 // article, then the others in the site description's order.
 export function typesInOrder(site) {
   const types = Object.values(site.types);
-  const first = [PAGE, ARTICLE].map((builtIn) => types.find((type) => builtInOf(type) === builtIn)).filter(Boolean);
+  const first = [PAGE, ARTICLE].map((builtIn) => types.find((type) => type.builtIn === builtIn)).filter(Boolean);
   return [...first, ...types.filter((type) => !first.includes(type))];
 }
 

@@ -1,7 +1,7 @@
 // What a post's fields and its body take of the site: a master for each image, terms by
 // their IDs, and where a link leads.
 
-import { AUTHORS } from '../format/built-in-types.js';
+import { keepsOrder } from '../format/built-in-types.js';
 import { bodyHands, slugOf } from './post-file.js';
 import { linkTarget } from './resolve.js';
 import { fieldValued, say } from './words.js';
@@ -79,7 +79,7 @@ function termField(field, value, post, run) {
     slugs.push(`${folder}${term.slug}`);
   }
   const once = [...new Set(slugs)];
-  return { yaml: JSON.stringify(field.taxonomy.builtIn === AUTHORS ? once : once.sort()) };
+  return { yaml: JSON.stringify(keepsOrder(field.taxonomy) ? once : once.sort()) };
 }
 
 // A post list's terms, kept by ID in source and written as slugs. One no longer there is

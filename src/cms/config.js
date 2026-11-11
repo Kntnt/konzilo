@@ -7,7 +7,7 @@
 // ID. Empty optional fields are left out, since the intake's schemas refuse an
 // empty string.
 
-import { ARTICLE, AUTHORS, BUILT_IN_TYPES, builtInOf, CATEGORY, followsParts, PAGE, TOPICS } from '../format/built-in-types.js';
+import { ARTICLE, AUTHORS, BUILT_IN_TYPES, CATEGORY, descriptionLabel, followsParts, keepsOrder, pageTypeOf, TOPICS } from '../format/built-in-types.js';
 import { CANONICAL_PATTERN, publicAddress } from '../format/addresses.js';
 import { IMAGE_LIBRARY_FOLDER } from '../format/masters.js';
 import { declaredNames, SCHEMA_TYPES } from '../site-description.js';
@@ -76,10 +76,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
   // The post a choice of one leads to. A relation names one collection, so a choice
   // of a post is among the built-in pages where the site has them, and otherwise among
   // the first type with an address.
-  const chooseAmong = () => {
-    const types = Object.values(description.types).filter((type) => type.address !== null);
-    return types.find((type) => builtInOf(type) === PAGE) ?? types[0] ?? null;
-  };
+  const chooseAmong = () => pageTypeOf(description.types);
 
   // Nothing is made from inside another's form, but for a post's terms, where a new one is
   // what the choice is for.
@@ -283,9 +280,9 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
         return { name: field.name, label: say(field.kind), ...PARTS[field.kind], ...required(field.required), ...within(TRANSLATED) };
       }
       case 'terms':
-        // An article's authors, in the order the editor gives them, in the core's own field, which
-        // reads and adds to the authors' files where every author has one, in the main language.
-        if (field.taxonomy.builtIn === AUTHORS) {
+        // Terms that keep the order the editor gives them, an article's authors, in the core's own
+        // field, which reads and adds to their files where every term has one, in the main language.
+        if (keepsOrder(field.taxonomy)) {
           const folder = several ? `${field.taxonomy.collection}/${description.languages.find((language) => language.main).tag}` : field.taxonomy.collection;
           return { name: field.name, label: own(field.taxonomy.plural), widget: AUTHORS_WIDGET, folder, ...required(field.required), ...within(SAME_IN_EACH) };
         }
@@ -387,7 +384,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
   const OWN_FORM = ['name', 'status', 'publishing', 'parent', 'body', 'declared', 'otherAddresses'];
 
   const typeFields = (type) => {
-    const built = builtInOf(type);
+    const built = type.builtIn;
     const declared = (name) => type.fields.find((one) => one.name === name);
     const fieldOf = (name) => {
       const one = declared(name);
@@ -465,7 +462,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     label_singular: inPhrase(type.label),
     folder: type.collection,
     extension: 'md',
-    format: builtInOf(type) ? BUILT_IN_FORMAT : OWN_FORMAT,
+    format: type.builtIn ? BUILT_IN_FORMAT : OWN_FORMAT,
     create: true,
     identifier_field: POST_TITLE,
     summary: `{{${POST_TITLE}}}`,
@@ -507,7 +504,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
         ? [{ name: 'parent', label: say('parent'), ...relation(taxonomy.collection, 'name'), required: false, ...within(SAME_IN_EACH) }]
         : []),
       // An author's description is the biography an author page shows.
-      { name: 'description', label: say(taxonomy.builtIn === AUTHORS ? 'biography' : 'description'), widget: 'text', required: false, ...within(TRANSLATED) },
+      { name: 'description', label: text(interfaceLanguage, descriptionLabel(taxonomy)), widget: 'text', required: false, ...within(TRANSLATED) },
     ],
   });
 
