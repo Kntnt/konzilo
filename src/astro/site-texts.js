@@ -2,12 +2,14 @@
 // in the page's language: the language switcher's label, the text
 // of a post list that matches nothing, a form's texts, search's and the
 // plain text of a page not found, which the site template's 404 page shows
-// where the site settings choose no page of its own. The core
+// where the site settings choose no page of its own; and the site template's
+// own words, its frame's, which name its menus and label the publisher's
+// details, and the heading over the related posts under an article. The core
 // gives each in the catalogues (ADR 0066), under `site.`, in the content's
 // language, never the editor's interface language; a site gives its own per
 // language in `konzilo({ texts })`, by locale:
 //
-//   texts: { de_DE: { languageSwitcher: 'Sprachen', emptyList: 'Noch nichts.', forms: { send: 'Senden' }, search: { label: 'Suche' }, notFound: { title: 'Seite nicht gefunden' } } }
+//   texts: { de_DE: { languageSwitcher: 'Sprachen', emptyList: 'Noch nichts.', readMore: 'Mehr dazu', forms: { send: 'Senden' }, search: { label: 'Suche' }, notFound: { title: 'Seite nicht gefunden' }, frame: { mainMenu: 'Hauptmenü' } } }
 //
 // and its main language's, as before languages, in `konzilo({ emptyList,
 // formTexts })`. A page takes the site's text in its language, else the
@@ -30,13 +32,20 @@ import { SEARCH_TEXT_NAMES, searchTexts } from './search.js';
 // English's serves a site that declares none.
 const hasCatalogue = (locale) => locale === null || catalogueFor(locale) === locale.split('_')[0];
 
-// The names of the texts a site may give per language.
-const NAMES = ['languageSwitcher', 'emptyList', 'forms', 'search', 'notFound'];
+// The names of the texts a site may give per language: each a text, or an
+// object of texts.
+const TEXT_NAMES = ['languageSwitcher', 'emptyList', 'readMore'];
+const NAMES = [...TEXT_NAMES, 'forms', 'search', 'notFound', 'frame'];
 
-// The plain text of a page not found, in the catalogues under `site.notFound.`:
-// its title and heading, its sentence and its link to the start page.
-const NOT_FOUND = 'site.notFound.';
-const NOT_FOUND_NAMES = Object.keys(textsOf(SOURCE_LANGUAGE, NOT_FOUND));
+// The texts of an area of the catalogues a site may give by their names in it,
+// each area by the name of its object in `texts`, with what a problem calls it:
+// the plain text of a page not found, its title and heading, its sentence and
+// its link to the start page; and the site template's frame's.
+const AREAS = {
+  notFound: { prefix: 'site.notFound.', called: 'the texts of a page not found' },
+  frame: { prefix: 'site.frame.', called: 'the texts of the site template\'s frame' },
+};
+const namesIn = (area) => Object.keys(textsOf(SOURCE_LANGUAGE, AREAS[area].prefix));
 
 // The texts a site gives in `konzilo({ texts })`, checked as konzilo() is
 // called: an object of each language's, by its locale, each an
@@ -52,7 +61,7 @@ export function givenTexts(given = {}) {
     if (!object(texts)) throw new Error(`Konzilo: texts.${locale} must be an object of the texts in ${locale}, by name`);
     for (const [name, text] of Object.entries(texts)) {
       if (!NAMES.includes(name)) throw new Error(`Konzilo: texts.${locale}.${name} is not one of the texts a site gives, which are ${NAMES.join(', ')}`);
-      if (['languageSwitcher', 'emptyList'].includes(name) && (typeof text !== 'string' || text.trim() === '')) throw new Error(`Konzilo: texts.${locale}.${name} must be a text`);
+      if (TEXT_NAMES.includes(name) && (typeof text !== 'string' || text.trim() === '')) throw new Error(`Konzilo: texts.${locale}.${name} must be a text`);
     }
     const forms = rename(() => siteFormTexts(texts.forms ?? {}), 'formTexts', `texts.${locale}.forms`);
     const search = texts.search ?? {};
@@ -61,13 +70,17 @@ export function givenTexts(given = {}) {
       if (!SEARCH_TEXT_NAMES.includes(name)) throw new Error(`Konzilo: texts.${locale}.search.${name} is not one of search's texts, which are ${SEARCH_TEXT_NAMES.join(', ')}`);
       if (typeof text !== 'string' || text.trim() === '') throw new Error(`Konzilo: texts.${locale}.search.${name} must be a text`);
     }
-    const notFound = texts.notFound ?? {};
-    if (!object(notFound)) throw new Error(`Konzilo: texts.${locale}.notFound must be an object of the texts of a page not found by name`);
-    for (const [name, text] of Object.entries(notFound)) {
-      if (!NOT_FOUND_NAMES.includes(name)) throw new Error(`Konzilo: texts.${locale}.notFound.${name} is not one of the texts of a page not found, which are ${NOT_FOUND_NAMES.join(', ')}`);
-      if (typeof text !== 'string' || text.trim() === '') throw new Error(`Konzilo: texts.${locale}.notFound.${name} must be a text`);
+    const areas = {};
+    for (const [area, { called }] of Object.entries(AREAS)) {
+      const own = texts[area] ?? {};
+      if (!object(own)) throw new Error(`Konzilo: texts.${locale}.${area} must be an object of ${called} by name`);
+      for (const [name, text] of Object.entries(own)) {
+        if (!namesIn(area).includes(name)) throw new Error(`Konzilo: texts.${locale}.${area}.${name} is not one of ${called}, which are ${namesIn(area).join(', ')}`);
+        if (typeof text !== 'string' || text.trim() === '') throw new Error(`Konzilo: texts.${locale}.${area}.${name} must be a text`);
+      }
+      areas[area] = { ...own };
     }
-    checked[locale] = { ...texts, forms, search: { ...search }, notFound: { ...notFound } };
+    checked[locale] = { ...texts, forms, search: { ...search }, ...areas };
   }
   return checked;
 }
@@ -86,7 +99,8 @@ function rename(check, from, to) {
 // site's per language, as givenTexts() checked them, over `main`, the
 // site's in its main language, { emptyList, forms }, over the core's in
 // each language. Returns { texts, warnings }: the texts, each language's
-// { languageSwitcher, emptyList, forms, search, notFound }, and a warning
+// { languageSwitcher, emptyList, readMore, forms, search, notFound, frame },
+// and a warning
 // for each language the core has no catalogue for, naming the texts the
 // site has not given in it.
 export function siteTexts(languages, given = {}, main = {}) {
@@ -99,16 +113,17 @@ export function siteTexts(languages, given = {}, main = {}) {
     texts[locale ?? ''] = {
       languageSwitcher: own.languageSwitcher ?? text(catalogueFor(locale), 'site.languageSwitcher'),
       emptyList: own.emptyList ?? mains.emptyList ?? text(catalogueFor(locale), 'site.emptyList'),
+      readMore: own.readMore ?? text(catalogueFor(locale), 'site.readMore'),
       forms: formTexts(locale, { ...mains.forms, ...own.forms }),
       search: searchTexts(locale, own.search),
-      notFound: { ...textsOf(locale, NOT_FOUND), ...own.notFound },
+      ...Object.fromEntries(Object.entries(AREAS).map(([area, { prefix }]) => [area, { ...textsOf(locale, prefix), ...own[area] }])),
     };
     if (hasCatalogue(locale)) continue;
     const missing = [
-      ...['languageSwitcher', 'emptyList'].filter((name) => own[name] === undefined && mains[name] === undefined),
+      ...TEXT_NAMES.filter((name) => own[name] === undefined && mains[name] === undefined),
       ...FORM_TEXT_NAMES.filter((key) => own.forms?.[key] === undefined && mains.forms?.[key] === undefined).map((key) => `forms.${key}`),
       ...SEARCH_TEXT_NAMES.filter((name) => own.search?.[name] === undefined).map((name) => `search.${name}`),
-      ...NOT_FOUND_NAMES.filter((name) => own.notFound?.[name] === undefined).map((name) => `notFound.${name}`),
+      ...Object.keys(AREAS).flatMap((area) => namesIn(area).filter((name) => own[area]?.[name] === undefined).map((name) => `${area}.${name}`)),
     ];
     const these = missing.length === 0 ? '' : `, and these the site may give in konzilo({ texts: { ${locale}: { … } } }) in astro.config.mjs: ${missing.join(', ')}`;
     warnings.push(`Konzilo writes no texts of its own in ${locale}, so the pages in ${locale} show its own words in English: the consent dialog's and the cookie declaration's labels, an embed's sentence that the site's script has not run${these}`);

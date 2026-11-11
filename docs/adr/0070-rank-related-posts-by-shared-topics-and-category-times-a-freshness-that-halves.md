@@ -1,6 +1,6 @@
 # ADR 0070: Rank related posts by shared topics and category, times a freshness that halves
 
-**Date:** 2026-11-11 · **Status:** Accepted. Settled by Thomas on 2026-11-10: "Read more" is chosen by the core, three by default; a point for each shared topic and half a point for the same category, times a freshness of 2^(-age / half-life); the half-life a setting, 90 days by default, which can be switched off; the newest first at a tie, and a score of zero never shown; and a ranking that does not change by itself between builds. The rest is a technical choice; Thomas may veto.
+**Date:** 2026-11-11, amended 2026-11-11 · **Status:** Accepted. Settled by Thomas on 2026-11-10: "Read more" is chosen by the core, three by default; a point for each shared topic and half a point for the same category, times a freshness of 2^(-age / half-life); the half-life a setting, 90 days by default, which can be switched off; the newest first at a tie, and a score of zero never shown; and a ranking that does not change by itself between builds. The rest is a technical choice; Thomas may veto.
 
 ## Decision
 
@@ -30,3 +30,4 @@
 - It replaces ADR 0039's related order, by the number of terms shared, which ADR 0039 now says.
 - A type's posts either all have a date or none has one, since a post of a type with a date always has one ([`content-format.md`](../../content-format.md)), so a list never weighs a candidate that decays against one that does not, and its order never changes by itself.
 - Every settings file of a site with articles or a taxonomy holds the group `related`, at its defaults where an Admin has set nothing.
+- The site template's article shows "Read more" after its main content, through `relatedPosts()`: the cards by the rule of [ADR 0068](0068-render-a-sites-lists-layout-and-text-roles-in-the-design-system-and-check-them-in-the-core.md), under a heading in the page's language, `pageTexts().readMore` ([ADR 0066](0066-translate-the-editors-texts-through-catalogues-in-an-interface-language-of-its-own.md)), and neither with none. `tests/site-template.test.js` holds it.

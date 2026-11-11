@@ -18,7 +18,9 @@
 // its name, the site's title by default, then, where filled, its organisation
 // number, postal address, email, VAT number, trade register and supervisory
 // authority, the last, a text of lines, on one line; without a name, none of
-// them.
+// them. What names the menus and labels the details is in the page's language,
+// Konzilo's texts of the frame, which the site may give its own of in
+// konzilo({ texts }) (astro.config.mjs), as it may the 404 page's.
 // The logo links to the start page below the site's base, so that it stays
 // in a preview, which is served below a base of its own. Each page's head holds
 // Konzilo's Head: the search and sharing tags, the title tag among them, from the
@@ -52,7 +54,7 @@ import Head from '@kntnt/konzilo/astro/Head.astro';
 import ConsentBanner from '@kntnt/konzilo/astro/ConsentBanner.astro';
 import ConsentControls from '@kntnt/konzilo/astro/ConsentControls.astro';
 import SearchBox from '@kntnt/konzilo/astro/SearchBox.astro';
-import { pageLanguage, startPage } from '@kntnt/konzilo/astro/languages';
+import { pageLanguage, pageTexts, startPage } from '@kntnt/konzilo/astro/languages';
 import { siteMenu, siteSettings } from '@kntnt/konzilo/astro/site-settings';
 import { builtInType, legalPages as chosenLegalPages, oneLine, postalAddress as postalAddressOf } from '@kntnt/konzilo/astro/helpers';
 import { Image } from 'astro:assets';
@@ -71,6 +73,7 @@ const publisher = settings.search?.publisher ?? {};
 const postalAddress = postalAddressOf(publisher);
 const supervisoryAuthority = oneLine(publisher.supervisoryAuthority);
 const legalPages = chosenLegalPages(settings).map((page) => ({ ...page, items: [] }));
+const { frame } = pageTexts(Astro.url);
 ---
 <html lang={languageTag}>
   <head>
@@ -84,7 +87,7 @@ const legalPages = chosenLegalPages(settings).map((page) => ({ ...page, items: [
     {framed && (
       <header>
         {(settings.logo || siteTitle) && <a class="site-name" href={startPage(pageLanguage(Astro.url))}>{settings.logo ? <Image class="site-logo" src={settings.logo.src} alt={settings.logo.alt ?? siteTitle} /> : siteTitle}</a>}
-        {main.length > 0 && <nav aria-label="Main menu"><MenuEntries items={main} /></nav>}
+        {main.length > 0 && <nav aria-label={frame.mainMenu}><MenuEntries items={main} /></nav>}
         <LanguageSwitcher entry={entry} />
         <SearchBox />
       </header>
@@ -96,15 +99,15 @@ const legalPages = chosenLegalPages(settings).map((page) => ({ ...page, items: [
         {publisher.name && (
           <address class="publisher">
             <p>{publisher.name}</p>
-            {publisher.organisationNumber && <p>Organisation number {publisher.organisationNumber}</p>}
+            {publisher.organisationNumber && <p>{frame.organisationNumber} {publisher.organisationNumber}</p>}
             {postalAddress && <p>{postalAddress}</p>}
             {publisher.email && <p><a href={`mailto:${publisher.email}`}>{publisher.email}</a></p>}
-            {publisher.vatNumber && <p>VAT number {publisher.vatNumber}</p>}
-            {publisher.tradeRegister && <p>Trade register {publisher.tradeRegister}</p>}
-            {supervisoryAuthority && <p>Supervisory authority {supervisoryAuthority}</p>}
+            {publisher.vatNumber && <p>{frame.vatNumber} {publisher.vatNumber}</p>}
+            {publisher.tradeRegister && <p>{frame.tradeRegister} {publisher.tradeRegister}</p>}
+            {supervisoryAuthority && <p>{frame.supervisoryAuthority} {supervisoryAuthority}</p>}
           </address>
         )}
-        {legalPages.length > 0 && <nav aria-label="Legal pages"><MenuEntries items={legalPages} /></nav>}
+        {legalPages.length > 0 && <nav aria-label={frame.legalPages}><MenuEntries items={legalPages} /></nav>}
         <ConsentControls links={false} />
       </footer>
     )}

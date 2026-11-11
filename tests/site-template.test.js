@@ -284,6 +284,23 @@ describe('the site template, built by Astro', () => {
     assert.deepEqual(details(footer(titled('index.html'))), ['Lantern', 'Lantern Bay']);
   });
 
+  // What names the frame's menus and labels the details is in the site's language.
+  test('labels the publisher\'s details and names the menus in the site\'s language', () => {
+    const description = join(repository, 'site-description.json');
+    const declared = readFileSync(description, 'utf8');
+    const publisher = { name: 'Lantern Bay AB', organisationNumber: '556677-8899', vatNumber: 'SE556677889901', tradeRegister: 'Bolagsverket', supervisoryAuthority: 'Finansinspektionen' };
+    try {
+      writeFileSync(description, JSON.stringify({ ...JSON.parse(declared), language: 'sv_SE' }));
+      const page = build(repository, { title: 'Lantern', logo: null, icon: null }, { settings: { search: { publisher }, legalPages: { privacyPolicy: '2' } }, menu: [{ ID: 11, type: 'custom', url: '/pages/about/', title: 'Om oss', menu_item_parent: '0', menu_order: '1' }] });
+      const shown = page('index.html');
+      assert.deepEqual(details(footer(shown)), ['Lantern Bay AB', 'Organisationsnummer 556677-8899', 'Momsregistreringsnummer SE556677889901', 'Handelsregister Bolagsverket', 'Tillsynsmyndighet Finansinspektionen']);
+      assert.match(header(shown), /<nav aria-label="Huvudmeny"/);
+      assert.match(footer(shown), /<nav aria-label="Juridiska sidor"/);
+    } finally {
+      writeFileSync(description, declared);
+    }
+  });
+
   test('shows none of the publisher\'s details without a publisher\'s name', () => {
     const page = build(repository, { title: null, logo: null, icon: null }, { settings: { search: { publisher: { organisationNumber: '556677-8899', email: 'hello@example.com' } } } });
 
@@ -378,6 +395,35 @@ describe('the site template, built by Astro', () => {
     assert.equal(robots(page('pages/news/page/2/index.html')), 'noindex');
     assert.match(page('_redirects'), /^\/pages\/news\/page\/1\/ \/pages\/news\/ 301$/m);
     assert.doesNotMatch(page('sitemap.xml'), /\/page\/\d/);
+  });
+
+  // "Read more" under an article: up to three articles that share its topics or its category,
+  // ranked by Konzilo's relatedPosts(), as cards under a heading in the page's language, and
+  // neither heading nor list where none shares a term (ADR 0068, ADR 0070).
+  test('shows up to three related articles under an article as cards, ranked, under a heading, and nothing where none shares its terms', () => {
+    const modified = '2026-10-02 09:00:00';
+    const topic = (slug, name) => term(slug, name, { taxonomy: 'topics' });
+    const story = (ID, slug, title, date, topics) => post({ ID, slug, title, date, modified, body: paragraphs('A story.'), terms: { topics } });
+    const given = [
+      ...posts,
+      story(60, 'two-topics', 'Two topics', '2026-09-20 08:00:00', [topic('lanterns', 'Lanterns'), topic('harbours', 'Harbours')]),
+      story(61, 'one-topic', 'One topic', '2026-09-25 08:00:00', [topic('lanterns', 'Lanterns')]),
+      story(62, 'older-one-topic', 'An older one', '2026-08-01 08:00:00', [topic('harbours', 'Harbours')]),
+      story(63, 'oldest-one-topic', 'The oldest one', '2026-01-01 08:00:00', [topic('harbours', 'Harbours')]),
+      story(64, 'apart', 'Apart', '2026-09-28 08:00:00', [topic('meadows', 'Meadows')]),
+    ];
+    const page = build(repository, { title: 'Lantern', logo: null, icon: null }, { given });
+    const readMore = (html) => /<aside class="read-more"[^>]*>(.*?)<\/aside>/s.exec(html)?.[1] ?? null;
+    const cards = (html) => [...readMore(html).matchAll(/<p class="post-card-title"[^>]*><a href="([^"]*)"[^>]*>([^<]*)<\/a>/g)].map(([, href, name]) => [href, name]);
+
+    const shown = readMore(page('harbour-lights/index.html'));
+    assert.match(shown, /<h2 id="read-more"[^>]*>Read more<\/h2>/);
+    assert.match(shown, /<ul class="post-cards post-cards-3"/);
+    assert.deepEqual(cards(page('harbour-lights/index.html')), [['/two-topics/', 'Two topics'], ['/one-topic/', 'One topic'], ['/older-one-topic/', 'An older one']]);
+    assert.doesNotMatch(main(page('harbour-lights/index.html')), /read-more/, 'outside the article\'s main content');
+    assert.match(readMore(page('older-one-topic/index.html')), /<ul class="post-cards post-cards-3"/);
+    assert.equal(readMore(page('apart/index.html')), null, 'none shares its terms');
+    assert.doesNotMatch(page('apart/index.html'), /Read more/);
   });
 
   // Term pages: with the categories at /category/{slug}/, News
@@ -601,18 +647,30 @@ describe('the site template in Swedish and English, built by Astro', () => {
     assert.match(page('en/index.html'), /<link rel="canonical" href="https:\/\/www\.example\.com\/en\/">/);
   });
 
-  test('shows each page\'s frame in its language: the main menu, the footer text and the title, and the 404 page the main language\'s', () => {
+  test('shows each page\'s frame in its language: the main menu, its name, the footer text and the title, and the 404 page the main language\'s', () => {
     for (const [path, shown] of [
-      ['sv/index.html', { link: '<a href="/sv/verkstaden/">Verkstaden</a>', footer: 'Öppet varje dag.', title: 'Lyktan' }],
-      ['en/index.html', { link: '<a href="/en/workshop/">The workshop</a>', footer: 'Open every day.', title: 'The Lantern' }],
-      ['en/harbour-lights/index.html', { link: '<a href="/en/workshop/">The workshop</a>', footer: 'Open every day.', title: 'Harbour lights | The Lantern' }],
-      ['404.html', { link: '<a href="/sv/verkstaden/">Verkstaden</a>', footer: 'Öppet varje dag.', title: 'Sidan finns inte – Lyktan' }],
+      ['sv/index.html', { link: '<a href="/sv/verkstaden/">Verkstaden</a>', footer: 'Öppet varje dag.', title: 'Lyktan', menu: 'Huvudmeny' }],
+      ['en/index.html', { link: '<a href="/en/workshop/">The workshop</a>', footer: 'Open every day.', title: 'The Lantern', menu: 'Main menu' }],
+      ['en/harbour-lights/index.html', { link: '<a href="/en/workshop/">The workshop</a>', footer: 'Open every day.', title: 'Harbour lights | The Lantern', menu: 'Main menu' }],
+      ['404.html', { link: '<a href="/sv/verkstaden/">Verkstaden</a>', footer: 'Öppet varje dag.', title: 'Sidan finns inte – Lyktan', menu: 'Huvudmeny' }],
     ]) {
       assert.ok(header(page(path)).includes(shown.link), `${path}: ${header(page(path))}`);
+      assert.match(header(page(path)), new RegExp(`<nav aria-label="${shown.menu}"`), path);
       assert.match(footer(page(path)), new RegExp(`<p class="footer-text"[^>]*>${shown.footer}</p>`), path);
       assert.equal(title(page(path)), shown.title, path);
     }
     assert.equal(languageTag(page('404.html')), 'sv-SE');
+  });
+
+  // Each article's related articles are those of its language, under a heading in it.
+  test('shows the related articles under an article in its language, under a heading in it', () => {
+    const readMore = (html) => /<aside class="read-more"[^>]*>(.*?)<\/aside>/s.exec(html)?.[1] ?? '';
+    assert.match(readMore(page('sv/hamnljus/index.html')), /<h2 id="read-more"[^>]*>Läs mer<\/h2>/);
+    assert.match(readMore(page('sv/hamnljus/index.html')), /href="\/sv\/bara-svenska\/"/);
+    assert.doesNotMatch(readMore(page('sv/hamnljus/index.html')), /english-only|harbour-lights/);
+    assert.match(readMore(page('en/harbour-lights/index.html')), /<h2 id="read-more"[^>]*>Read more<\/h2>/);
+    assert.match(readMore(page('en/harbour-lights/index.html')), /href="\/en\/english-only\/"/);
+    assert.doesNotMatch(readMore(page('en/harbour-lights/index.html')), /bara-svenska|hamnljus/);
   });
 
   test('takes the theme colour from the main language\'s start page', () => {
