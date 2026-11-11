@@ -11,6 +11,7 @@ import { CREDENTIAL, mayWrite } from '../forgejo.js';
 import { FORM_NAME } from '../site-description.js';
 import { FAILURE_SETTING, MAIL_SETTING } from './mail.js';
 import { checkMailSettings, mailSettingsShown } from './mail-settings.js';
+import { bodyOf } from './request-body.js';
 import { SEPARATORS, submissionsCsv, timeZoneOf } from './submissions-csv.js';
 
 const answerJson = (outgoing, status, body) => {
@@ -44,26 +45,6 @@ const ANSWER_HOLDS = 30_000;
 const ANSWERS_AT_MOST = 256;
 // A picture changes only with its file, which is seldom, and is looked at again within the hour.
 const PICTURE_HOLDS = 3600;
-
-// A body up to `limit` bytes, or null when it is longer.
-function bodyOf(incoming, limit) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    let length = 0;
-    incoming.on('data', (chunk) => {
-      length += chunk.length;
-      if (length > limit) {
-        incoming.removeAllListeners('data');
-        incoming.resume();
-        resolve(null);
-        return;
-      }
-      chunks.push(chunk);
-    });
-    incoming.on('end', () => resolve(Buffer.concat(chunks)));
-    incoming.on('error', reject);
-  });
-}
 
 // `forgejo`: where to ask. `repository`: the source repository. `token`: a credential that can
 // read it. `rolesToken`: one that can read the organisation's teams, and so who is an Admin.

@@ -44,9 +44,10 @@ const STEPS = [
 // Gives { key, keep(submission), submissions(form), snapshot(form), counts(), mailDue(now),
 // mailDone(id, outcome), mailLater(id, at), mailSoon(now), formSettings(), setFormSettings(form,
 // settings), setting(name), setSetting(name, value), close() }:
-// `key`, 32 bytes, the same from the first opening on; `keep` takes { form, sentAt, language, spam, fields }, `sentAt` a Date,
-// `spam` null or why it was held as spam, and `fields` each { name, label, value }, and gives its
-// number, its mail pending unless it is spam; `submissions` gives a form's, newest first, each as kept with its `id` and `sentAt` in
+// `key`, 32 bytes, the same from the first opening on; `keep` takes { form, sentAt, language,
+// spam, fields }, `sentAt` a Date, `spam` null or why it was held as spam, and `fields` each
+// { name, label, value }, and gives its number, its mail pending unless it is spam;
+// `submissions` gives a form's, newest first, each as kept with its `id` and `sentAt` in
 // ISO 8601, UTC, spam among them unless `spam` is false, from after the submission numbered
 // `before` where it is given, and at most `limit`; `counts` gives how many each form holds that
 // are not spam, by the form's name, of each form that holds one; and `snapshot` gives a form's as

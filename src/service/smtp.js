@@ -18,8 +18,9 @@ const SAID_AT_MOST = 200;
 // An answer refused, with what the server said.
 class Refused extends Error {}
 
-// The server's answers on a socket, each whole, its lines joined: { code, text }.
-function answers(socket, timeout) {
+// The server's answers on a socket, each whole, its lines joined: { code, text }. Whatever ends the
+// socket, an error, a close or the time running out, rejects the answer waited for, and each after.
+function answers(socket) {
   let buffer = '';
   let lines = [];
   const ready = [];
@@ -51,11 +52,7 @@ function answers(socket, timeout) {
   };
   socket.on('data', onData);
   socket.on('error', onEnd);
-  socket.on('close', () => onEnd());
-  socket.setTimeout(timeout, () => {
-    onEnd(new Error('the server did not answer in time'));
-    socket.destroy();
-  });
+  socket.on('close', onEnd);
   return {
     next: () => new Promise((resolve, reject) => {
       waiting.push({ resolve, reject });
@@ -65,16 +62,20 @@ function answers(socket, timeout) {
     release() {
       socket.off('data', onData);
       socket.off('error', onEnd);
-      socket.removeAllListeners('close');
-      socket.setTimeout(0);
+      socket.off('close', onEnd);
     },
   };
 }
 
-const opened = (socket, event) => new Promise((resolve, reject) => {
-  socket.once(event, resolve);
-  socket.once('error', reject);
-});
+// A socket that ends with an error where the server takes longer than `timeout` over anything,
+// connecting among it, opened: once it is connected, or encrypted where it is to be.
+function opening(socket, event, timeout) {
+  socket.setTimeout(timeout, () => socket.destroy(new Error('the server did not answer in time')));
+  return new Promise((resolve, reject) => {
+    socket.once(event, resolve);
+    socket.once('error', reject);
+  });
+}
 
 // Sends `data`, a message whole, its lines ended by CRLF, from `from` to each of `to`, through the
 // server `host` at `port`: `security` one of SECURITIES, and `username` and `password` where it
@@ -85,8 +86,7 @@ export async function sendBySmtp({ host, port, security, username = '', password
   const servername = isIP(host) ? undefined : host;
   const encrypt = (options) => connectTls({ ...tls, ...options, servername });
   let socket = security === 'tls' ? encrypt({ host, port }) : connectPlain({ host, port });
-  await opened(socket, security === 'tls' ? 'secureConnect' : 'connect');
-  let read = answers(socket, timeout);
+  let read = null;
   const said = ({ code, text }) => `${code} ${text}`.slice(0, SAID_AT_MOST);
   const expect = async (what, ...codes) => {
     const answer = await read.next();
@@ -102,15 +102,18 @@ export async function sendBySmtp({ host, port, security, username = '', password
   const offers = ({ text }) => text.toUpperCase().split(' ');
 
   try {
+    await opening(socket, security === 'tls' ? 'secureConnect' : 'connect', timeout);
+    read = answers(socket);
     await expect('the connection', 220);
     let offered = offers(await ask(greeting, 'the greeting', 250));
     if (security === 'starttls') {
       if (!offered.includes('STARTTLS')) throw new Refused(`${host} offers no STARTTLS`);
       await ask('STARTTLS', 'STARTTLS', 220);
       read.release();
+      socket.setTimeout(0);
       socket = encrypt({ socket });
-      await opened(socket, 'secureConnect');
-      read = answers(socket, timeout);
+      await opening(socket, 'secureConnect', timeout);
+      read = answers(socket);
       offered = offers(await ask(greeting, 'the greeting', 250));
     }
     if (username !== '') {

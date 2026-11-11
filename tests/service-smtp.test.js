@@ -3,6 +3,7 @@
 // against a server of the test's own on this machine, which keeps what it is given.
 
 import assert from 'node:assert/strict';
+import { createServer } from 'node:net';
 import { afterEach, describe, test } from 'node:test';
 
 import { mailDelivery } from '../src/service/mail-delivery.js';
@@ -88,6 +89,18 @@ describe('sending by SMTP', () => {
     await server.close();
     server = null;
     await assert.rejects(sendBySmtp({ host: '127.0.0.1', port, security: 'none' }, envelope), /ECONNREFUSED/);
+
+    // One that takes the connection and never greets, as a port that leads nowhere would.
+    const sockets = [];
+    const silent = createServer((socket) => sockets.push(socket));
+    await new Promise((go) => silent.listen(0, '127.0.0.1', go));
+    try {
+      await assert.rejects(sendBySmtp({ host: '127.0.0.1', port: silent.address().port, security: 'tls' }, envelope, { timeout: 200 }), /did not answer in time/);
+      await assert.rejects(sendBySmtp({ host: '127.0.0.1', port: silent.address().port, security: 'none' }, envelope, { timeout: 200 }), /did not answer in time/);
+    } finally {
+      for (const socket of sockets) socket.destroy();
+      await new Promise((go) => silent.close(go));
+    }
   });
 });
 
