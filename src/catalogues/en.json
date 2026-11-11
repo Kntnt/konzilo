@@ -62,6 +62,8 @@
   "site.frame.vatNumber": "VAT number",
   "site.frame.tradeRegister": "Trade register",
   "site.frame.supervisoryAuthority": "Supervisory authority",
+  "site.redirect.title": "Redirecting to {to}",
+  "site.redirect.link": "Redirecting from {from} to {to}",
   "site.settings.consent.bannerTitle": "Your privacy",
   "site.settings.consent.bannerText": "This site uses only what it needs to work, unless you allow more. With your consent it also loads content from other services, such as videos, which may store data in your browser and use what they learn for their own purposes. You can change or withdraw your consent at any time, from the bottom of every page.",
   "site.settings.consent.bannerAccept": "Accept all",

@@ -40,9 +40,10 @@ import { PATTERNS, patternMatcher } from '../format/patterns.js';
 import {
   feedHolding, feedReason, fileRuleProblem, inOrder, isSource, keyOf, location, matcher, OTHER_ANSWERS, REDIRECT_STATUSES, REDIRECTS_FILE, reservedBy, SHOW,
 } from '../format/redirects.js';
-import { OLD_ADDRESSES, OTHER_ADDRESSES, readSiteDescription, SITE_DESCRIPTION_FILE } from '../site-description.js';
+import { textsOf } from '../catalogues.js';
+import { languageTag, OLD_ADDRESSES, OTHER_ADDRESSES, readSiteDescription, SITE_DESCRIPTION_FILE } from '../site-description.js';
 import { contentFolder } from './collections.js';
-import { startAddress } from './languages.js';
+import { pageLanguage, startAddress } from './languages.js';
 import { postListsIn } from './reader.js';
 import { termsWithPages } from './term-pages.js';
 
@@ -137,6 +138,7 @@ export function siteRules(root, { pages = new Set() } = {}) {
     warnings,
     listPages: [...withPages].sort(),
     prefixes: several ? languages.map(({ prefix }) => prefix) : [],
+    languages,
   };
 }
 
@@ -283,7 +285,8 @@ function fileAt(dir, from) {
 // What `astro build` leaves for the rules, once its pages are written into
 // `dir`: each rule whose source a file of the release has is left out, each
 // redirect from a path gets a page that sends a browser on, its meta
-// refresh at once, `noindex` and the target as canonical, and each other
+// refresh at once, `noindex` and the target as canonical, in the language of
+// the section its address lies in, else the site's main language, and each other
 // address that shows its post gets the post's page, a copy of the file the
 // build wrote at the post's own address. `based` places the rules below the
 // build's base. Returns { list, warnings }: `_redirects`, which holds no
@@ -293,7 +296,7 @@ function fileAt(dir, from) {
 // before list pages leaves it.
 export function buildRedirects(root, { dir, pages, based }) {
   const built = new Set(pages.map(({ pathname }) => keyOf(`/${pathname}`)));
-  const { answering, patterns, warnings, listPages } = siteRules(root, { pages: built });
+  const { answering, patterns, warnings, listPages, languages } = siteRules(root, { pages: built });
   for (const address of listPages) {
     const first = fileAt(dir, address);
     const second = fileAt(dir, `${address}page/2/`);
@@ -322,7 +325,7 @@ export function buildRedirects(root, { dir, pages, based }) {
     answers.push(shown);
     if (file !== null && shown.to !== undefined) {
       mkdirSync(dirname(file), { recursive: true });
-      writeFileSync(file, redirectPage(shown));
+      writeFileSync(file, redirectPage(shown, pageLanguage(rule.from, languages)?.locale ?? null));
     }
   }
   // A pattern answers where no file of the release does, which the web
@@ -330,15 +333,22 @@ export function buildRedirects(root, { dir, pages, based }) {
   return { list: redirectsList(answers, patterns.map(based)), warnings };
 }
 
-function redirectPage({ from, to }) {
+// A page that sends a browser on, which only a static host shows, since
+// Konzilo's own web server answers a rule before any file: its words, the
+// core's (ADR 0066), in `locale`, the language of the section its source
+// lies in, or British English on a site that declares none.
+function redirectPage({ from, to }, locale) {
   const html = (text) => text.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+  const words = textsOf(locale, 'site.redirect.');
+  const filled = (template, values) => html(template).replace(/\{(\w+)\}/g, (_, name) => values[name] ?? '');
   return [
     '<!doctype html>',
-    `<title>Redirecting to: ${html(to)}</title>`,
+    `<html lang="${languageTag(locale)}">`,
+    `<title>${filled(words.title, { to: html(to) })}</title>`,
     `<meta http-equiv="refresh" content="0;url=${html(to)}">`,
     '<meta name="robots" content="noindex">',
     `<link rel="canonical" href="${html(to)}">`,
-    `<body><a href="${html(to)}">Redirecting from <code>${html(from)}</code> to <code>${html(to)}</code></a></body>`,
+    `<body><a href="${html(to)}">${filled(words.link, { from: `<code>${html(from)}</code>`, to: `<code>${html(to)}</code>` })}</a></body>`,
     '',
   ].join('\n');
 }

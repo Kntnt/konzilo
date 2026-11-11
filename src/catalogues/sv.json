@@ -62,6 +62,8 @@
   "site.frame.vatNumber": "Momsregistreringsnummer",
   "site.frame.tradeRegister": "Handelsregister",
   "site.frame.supervisoryAuthority": "Tillsynsmyndighet",
+  "site.redirect.title": "Skickar vidare till {to}",
+  "site.redirect.link": "Skickar vidare från {from} till {to}",
   "site.settings.consent.bannerTitle": "Din integritet",
   "site.settings.consent.bannerText": "Webbplatsen använder bara det den behöver för att fungera, om du inte tillåter mer. Med ditt samtycke laddar den också innehåll från andra tjänster, till exempel videor, som kan lagra uppgifter i din webbläsare och använda det de får veta för egna syften. Du kan ändra eller återkalla ditt samtycke när som helst, längst ned på varje sida.",
   "site.settings.consent.bannerAccept": "Acceptera alla",

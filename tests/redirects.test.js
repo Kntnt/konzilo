@@ -395,7 +395,7 @@ const languagesSite = {
 
 const inLanguage = (ID, slug, locale) => post({ ID, slug: slug, title: `Post ${ID}`, body: paragraphs('Body.'), meta: { _locale: [locale] } });
 
-function languagesRepository(own = {}) {
+function languagesRepository(own = {}, redirects = []) {
   const repository = mkdtempSync(join(tmpdir(), 'konzilo-redirects-languages-'));
   symlinkSync(join(core, 'node_modules'), join(repository, 'node_modules'));
   const integration = JSON.stringify(join(core, 'src/astro/index.js'));
@@ -410,7 +410,7 @@ function languagesRepository(own = {}) {
     ...own,
   };
   for (const [path, contents] of Object.entries(sources)) write(repository, path, contents);
-  writeInto(repository, [inLanguage(1, 'hamnljus', 'sv_SE'), inLanguage(2, 'harbour-lights', 'en_GB')], []);
+  writeInto(repository, [inLanguage(1, 'hamnljus', 'sv_SE'), inLanguage(2, 'harbour-lights', 'en_GB')], redirects);
   return repository;
 }
 
@@ -458,6 +458,30 @@ describe('a site in several languages', () => {
     assert.deepEqual(await answer('/hamnljus/'), { status: 301, location: '/sv/hamnljus/' });
     assert.equal((await answer('/en/hamnljus/')).status, 404);
     assert.equal((await answer('/harbour-lights/')).status, 404);
+  });
+
+  // Only a static host shows such a page, since Konzilo's own web server answers a rule before any
+  // file; a visitor there reads it in the language of the section the address lies in.
+  test('a build writes each redirect page in the language of the section its address lies in, else the main language', () => {
+    const own = languagesRepository({}, [
+      { id: 50, from: '/en/old/', to: '/en/harbour-lights/', status: 301 },
+      { id: 51, from: '/gammal/', to: '/sv/hamnljus/', status: 301 },
+    ]);
+    try {
+      const built = spawnSync(process.execPath, [astro, 'build'], { cwd: own, encoding: 'utf8', env: astroEnvironment });
+      assert.equal(built.status, 0, built.stderr + built.stdout);
+      const page = (path) => readFileSync(join(own, 'dist', path), 'utf8');
+      assert.match(page('en/old/index.html'), /<html lang="en-GB">/);
+      assert.match(page('en/old/index.html'), /<title>Redirecting to \/en\/harbour-lights\/<\/title>/);
+      assert.match(page('en/old/index.html'), /<a href="\/en\/harbour-lights\/">Redirecting from <code>\/en\/old\/<\/code> to <code>\/en\/harbour-lights\/<\/code><\/a>/);
+      for (const [path, target] of [['gammal/index.html', '/sv/hamnljus/'], ['index.html', '/sv/']]) {
+        assert.match(page(path), /<html lang="sv-SE">/, path);
+        assert.match(page(path), new RegExp(`<title>Skickar vidare till ${target.replaceAll('/', '\\/')}</title>`), path);
+        assert.match(page(path), /Skickar vidare från <code>/, path);
+      }
+    } finally {
+      rmSync(own, { recursive: true, force: true });
+    }
   });
 
   test('a build whose design has a page of its own at the root keeps it there, and warns that the root does not lead to the main language\'s start page', () => {
