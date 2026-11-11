@@ -130,6 +130,40 @@ test('shows the site\'s settings and groups in one file, and a menu in its own',
   }
 });
 
+// Sveltia gives a field's default to a setting the settings file lacks only where the file holds
+// its group, and then writes it into the file at the next save; where the file lacks the group it
+// shows a switch off and a number empty. So a setting with a default is the core's field, which
+// shows Sveltia's own field with the default while the file holds nothing (ADR 0033).
+test('gives each setting with a default the core\'s field for a setting, which shows Sveltia\'s own field with that default, and leaves Sveltia no default to write', () => {
+  const [settings] = collection('settings').files;
+  const setting = (group, ...path) => path.reduce((fields, name, at) => (at === path.length - 1 ? field(fields, name) : field(fields, name).fields), field(settings.fields, group).fields);
+  const shown = (one) => ({ widget: one.widget, shows: one.field.widget, default: one.field.default });
+  assert.deepEqual(shown(setting('related', 'freshness')), { widget: 'konzilo-setting', shows: 'boolean', default: true });
+  assert.deepEqual(shown(setting('related', 'halfLife')), { widget: 'konzilo-setting', shows: 'number', default: 90 });
+  assert.equal(setting('related', 'halfLife').field.value_type, 'int');
+  assert.deepEqual(shown(setting('ai', 'home', 'markdown')), { widget: 'konzilo-setting', shows: 'boolean', default: true });
+  assert.deepEqual(shown(setting('ai', 'types', 'page', 'llmsFull')), { widget: 'konzilo-setting', shows: 'boolean', default: true }, 'the default for its type');
+  assert.deepEqual(shown(setting('feeds', 'item')), { widget: 'konzilo-setting', shows: 'select', default: 'The summary' });
+  assert.deepEqual(shown(setting('search', 'separator')), { widget: 'konzilo-setting', shows: 'string', default: '–' });
+  // Its label and help are where Sveltia shows a field's, and it is never required.
+  const freshness = setting('related', 'freshness');
+  assert.deepEqual([freshness.label, freshness.hint, freshness.required], ['Freshness', freshness.field.hint, false]);
+  assert.ok(freshness.hint);
+  // A setting without a default is Sveltia's own field, as before.
+  assert.equal(setting('search', 'description').widget, 'text');
+  assert.equal(setting('tagManager', 'site').widget, 'number');
+  // Nothing in the settings file has a default that Sveltia would write into it.
+  const defaults = [];
+  const walk = (fields, at) => {
+    for (const one of fields) {
+      if ('default' in one) defaults.push(`${at}${one.name}`);
+      if (one.fields) walk(one.fields, `${at}${one.name}.`);
+    }
+  };
+  walk(settings.fields, '');
+  assert.deepEqual(defaults, []);
+});
+
 test('keeps what the published files never hold out of the form', () => {
   assert.doesNotMatch(JSON.stringify(config), /"recipients"|"retention"/);
 });
@@ -202,14 +236,14 @@ describe('the interface language', () => {
     const consentOf = (made) => field(made.collections.find((one) => one.name === 'settings').files[0].fields, 'consent').fields;
     for (const language of ['sv', 'en']) {
       const one = consentOf(cmsConfig(siteDescription({ ...declared(), language: 'sv_SE', interfaceLanguage: 'en' }), { ...place, language }));
-      assert.equal(field(one, 'bannerTitle').default, 'Din integritet', language);
-      assert.equal(field(one, 'placeholderQuestion').default, 'Vill du låta {service} spela upp det här innehållet?', language);
+      assert.equal(field(one, 'bannerTitle').field.default, 'Din integritet', language);
+      assert.equal(field(one, 'placeholderQuestion').field.default, 'Vill du låta {service} spela upp det här innehållet?', language);
       const { language: _, ...inOne } = declared();
       const several = consentOf(cmsConfig(siteDescription({ ...inOne, languages: ['sv_SE', 'en_GB'] }), { ...place, language }));
-      assert.deepEqual(field(several, 'bannerTitle').fields.map((each) => [each.name, each.default]), [['sv_SE', 'Din integritet'], ['en_GB', 'Your privacy']], language);
+      assert.deepEqual(field(several, 'bannerTitle').fields.map((each) => [each.name, each.field.default]), [['sv_SE', 'Din integritet'], ['en_GB', 'Your privacy']], language);
     }
     const english = consentOf(cmsConfig(siteDescription({ ...declared(), language: 'en_GB', interfaceLanguage: 'sv' }), place));
-    assert.equal(field(english, 'bannerTitle').default, 'Your privacy');
+    assert.equal(field(english, 'bannerTitle').field.default, 'Your privacy');
   });
 
   test('shows the core\'s settings groups in the interface language, Breadcrumbs among them, with their headings, labels and help', () => {
@@ -238,9 +272,10 @@ describe('the interface language', () => {
     const related = (language) => {
       const made = cmsConfig(swedish, { ...place, language });
       const group = field(made.collections.find((one) => one.name === 'settings').files[0].fields, 'related');
+      // Each in the core's field for a setting, which shows Sveltia's own field with its default.
       const setting = (name) => {
-        const { label, widget, default: given } = field(group.fields, name);
-        return { label, widget, default: given };
+        const { label, field: shown } = field(group.fields, name);
+        return { label, widget: shown.widget, default: shown.default };
       };
       return { heading: group.label, freshness: setting('freshness'), halfLife: setting('halfLife') };
     };
@@ -274,6 +309,7 @@ describe('the interface language', () => {
         if (one.hint) texts.add(one.hint);
         for (const option of one.options ?? []) texts.add(option.label);
         if (one.fields) shown(one.fields, texts);
+        if (one.field) shown([one.field], texts);
       }
       return texts;
     };
@@ -290,10 +326,10 @@ describe('the interface language', () => {
   test('labels a select\'s options in the interface language and keeps their values, and keeps each default visitors read in the content\'s language', () => {
     for (const [language, labels] of [['sv', ['Sammanfattningen', 'Hela texten']], ['en', ['The summary', 'The whole text']]]) {
       const groups = cmsConfig(description, { ...place, language }).collections.find((one) => one.name === 'settings').files[0].fields;
-      const item = field(field(groups, 'feeds').fields, 'item');
+      const item = field(field(groups, 'feeds').fields, 'item').field;
       assert.deepEqual(item.options, [{ value: 'The summary', label: labels[0] }, { value: 'The whole text', label: labels[1] }], language);
       assert.equal(item.default, 'The summary', language);
-      assert.equal(field(field(groups, 'consent').fields, 'bannerTitle').default, 'Your privacy', language);
+      assert.equal(field(field(groups, 'consent').fields, 'bannerTitle').field.default, 'Your privacy', language);
     }
   });
 

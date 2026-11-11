@@ -18,6 +18,7 @@ import { registerAuthorsField } from './authors/register.js';
 import { registerParts } from './parts/register.js';
 import { registerStructureField } from './structure/register.js';
 import { registerPublishing } from './publishing/register.js';
+import { registerSettings } from './settings/register.js';
 import { chosenLanguage, followSite, languageChanged, loadedWith, say, useInterfaceLanguage } from './interface-language.js';
 import './form.css';
 // The preview's window hides its pane by these; template.js, which shows it, is read by tests too.
@@ -51,6 +52,7 @@ function start() {
   registerImageField(CMS, config);
   registerAuthorsField(CMS, config);
   registerStructureField(CMS, config);
+  registerSettings(CMS);
   if (konzilo.preview) registerPreview(CMS, config, konzilo.preview);
   CMS.init({ config });
 
