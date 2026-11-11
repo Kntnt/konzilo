@@ -7,7 +7,7 @@
 import { uploadProblem } from './chooser-check.js';
 import { button, dialogOf, made, textRow } from './dialog.js';
 import { wordsShown } from '../refusals.js';
-import { say } from './texts.js';
+import { say } from '../interface-language.js';
 
 const same = (one, other) => one.src === other.src && one.alt === other.alt && (one.caption ?? '') === (other.caption ?? '');
 

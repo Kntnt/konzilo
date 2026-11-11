@@ -14,7 +14,7 @@ import { chooseImage } from '../body/chooser.js';
 import { uploadProblem } from '../body/chooser-check.js';
 import { button, made } from '../body/dialog.js';
 import { stemOf } from '../body/library.js';
-import { say } from '../body/texts.js';
+import { say } from '../interface-language.js';
 import { MEDIA_FOLDER } from '../../format/masters.js';
 import { kindOf } from '../../format/originals.js';
 import { wordsShown } from '../refusals.js';

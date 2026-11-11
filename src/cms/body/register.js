@@ -2,17 +2,12 @@
 // with the editor's first paint, so it holds neither Crepe, nor Sätteri, nor the rule data.
 
 import { signedInCredential } from '../credential.js';
+import { refuseAtSave } from '../refusals.js';
 import { bodyControl } from './control.js';
 import { imageLibrary } from './library.js';
 import './open-fields.js';
-import { say } from './texts.js';
 import { STRUCTURE_WIDGET } from '../structure/widget.js';
 import { BODY_WIDGET } from './widget.js';
-
-// Sveltia's dialog shows these words above a refusal. It tells a refusal from a failure by
-// the reason itself, which only the handler below made (patches.json).
-let lastRefusal = null;
-globalThis.__KONZILO_REFUSAL_WORDS__ = (shown) => (lastRefusal !== null && shown === lastRefusal ? say('body.refused') : undefined);
 
 export function registerBodyField(CMS, config) {
   // The host no link may lead to is this one, unless the site's address has the same name,
@@ -39,8 +34,7 @@ export function registerBodyField(CMS, config) {
         return null;
       });
       if (refusal === null) return;
-      lastRefusal = refusal;
-      throw new Error(refusal);
+      refuseAtSave(refusal);
     },
   });
 }

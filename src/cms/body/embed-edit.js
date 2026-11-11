@@ -7,7 +7,7 @@ import { embedOf } from '../../format/embeds.js';
 import rules from '../../format/rules.json' with { type: 'json' };
 import { asking, button, dialogOf, made, textRow } from './dialog.js';
 import { wordsShown } from '../refusals.js';
-import { say } from './texts.js';
+import { say } from '../interface-language.js';
 
 const capitalised = (words) => words.charAt(0).toUpperCase() + words.slice(1);
 

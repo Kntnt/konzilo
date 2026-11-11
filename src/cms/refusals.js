@@ -4,7 +4,7 @@
 // whose names these catalogues lack; such a reason is shown in the British English it carries.
 
 import { messageIn, placeIn, reasonIn, wordsIn } from '../refusals.js';
-import { interfaceLanguage } from './body/texts.js';
+import { interfaceLanguage, say } from './interface-language.js';
 
 const known = (show, about) => {
   try {
@@ -28,3 +28,16 @@ export function refusalShown(refusal) {
 
 // A refusal or a warning of a file, which nothing else names: the file too.
 export const fileRefusalShown = (refusal) => known(() => messageIn(interfaceLanguage(), { ...refusal, line: undefined }), { reason: refusal?.message ?? refusal?.reason });
+
+// A refusal at Save, from a check before Sveltia saves, a `preSave` handler: thrown, so that the
+// save stops, and shown in Sveltia's dialog under the editor's own words, since nothing failed.
+// The patched dialog asks for those words by the reason it shows, and tells a refusal from a
+// failure by it, so only the latest reason thrown here has them (patches.json).
+let refusedAtSave = null;
+const wordsAbove = (shown) => (refusedAtSave !== null && shown === refusedAtSave ? say('body.refused') : undefined);
+
+export function refuseAtSave(reason) {
+  refusedAtSave = reason;
+  globalThis.__KONZILO_REFUSAL_WORDS__ = wordsAbove;
+  throw new Error(reason);
+}

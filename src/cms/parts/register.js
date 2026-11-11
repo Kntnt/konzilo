@@ -20,14 +20,15 @@
 // say another.
 
 import { breadcrumbOf, searchDescriptionOf, searchTitleOf, slugFrom, socialDescriptionOf, socialTitleOf, teaserHeadlineOf, teaserTextOf } from '../../format/article-parts.js';
-import { say } from '../body/texts.js';
+import { say } from '../interface-language.js';
 import { computedDefault } from '../groups/menu.js';
 import { postValues } from '../groups/values.js';
 import { signedInCredential } from '../credential.js';
 import { SCHEMA_WIDGET, SLUG_WIDGET, TEXT_WIDGET } from './widgets.js';
 import './form.css';
+import { plain } from '../plain.js';
+import { refuseAtSave } from '../refusals.js';
 
-const plain = (value) => (value?.toJS ? value.toJS() : value);
 // A post's values, flat, with its field groups' as they are now (ADR 0071).
 const dataOf = (entry) => postValues(entry?.get?.('data'));
 
@@ -217,11 +218,7 @@ export function registerParts(CMS, config) {
         : h('option', { key: one, value: one }, one))));
   });
 
-  // A scheduled post is published at its moment, which must lie ahead. The words above the
-  // reason are the early check's, since nothing failed.
-  let refusal = null;
-  const earlier = globalThis.__KONZILO_REFUSAL_WORDS__;
-  globalThis.__KONZILO_REFUSAL_WORDS__ = (shown) => (refusal !== null && shown === refusal ? say('body.refused') : earlier?.(shown));
+  // A scheduled post is published at its moment, which must lie ahead.
   CMS.registerEventListener({
     name: 'preSave',
     handler: ({ entry }) => {
@@ -229,8 +226,7 @@ export function registerParts(CMS, config) {
       if (data.status !== 'scheduled') return;
       const moment = Date.parse(data.date ?? '');
       if (Number.isFinite(moment) && moment > Date.now()) return;
-      refusal = say('parts.scheduledAhead');
-      throw new Error(refusal);
+      refuseAtSave(say('parts.scheduledAhead'));
     },
   });
 }

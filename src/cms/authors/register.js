@@ -6,12 +6,11 @@
 // language's folder on a site in several.
 
 import { signedInCredential } from '../credential.js';
+import { plain } from '../plain.js';
 import { authorsIn } from './terms.js';
 import { AUTHORS_WIDGET, ESCAPE_EVENT } from './widget.js';
 
 export { AUTHORS_WIDGET };
-
-const plainValue = (value) => (value?.toJS ? value.toJS() : value);
 
 export function registerAuthorsField(CMS, config) {
   const { api_root: api, repo: repository, branch = 'main' } = config.backend;
@@ -47,10 +46,10 @@ export function registerAuthorsField(CMS, config) {
         if (gone) return;
         // The field takes a moment to load, and the value may have changed meanwhile.
         live.current = mountAuthorsField(host.current, {
-          value: plainValue(latest.current.value),
+          value: plain(latest.current.value),
           changed: (next) => latest.current.onChange(next),
-          authors: readerOf(plainValue(field.get('folder'))),
-          label: plainValue(field.get('label')) ?? '',
+          authors: readerOf(plain(field.get('folder'))),
+          label: plain(field.get('label')) ?? '',
           forID,
         });
       });
@@ -60,7 +59,7 @@ export function registerAuthorsField(CMS, config) {
       };
     }, []);
     React.useEffect(() => {
-      live.current?.setValue(plainValue(value));
+      live.current?.setValue(plain(value));
     }, [value]);
     return React.createElement('div', { ref: host, className: 'konzilo-authors-host' });
   });

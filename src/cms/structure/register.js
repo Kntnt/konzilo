@@ -4,8 +4,7 @@
 import { signedInCredential } from '../credential.js';
 import { imageLibrary } from '../body/library.js';
 import { STRUCTURE_WIDGET } from './widget.js';
-
-const plainValue = (value) => (value?.toJS ? value.toJS() : value);
+import { plain } from '../plain.js';
 
 export function registerStructureField(CMS, config) {
   const { api_root: api, repo: repository, branch } = config.backend;
@@ -26,8 +25,8 @@ export function registerStructureField(CMS, config) {
           value,
           changed: (next) => latest.current(next),
           key: `${entry?.get?.('collection')}/${entry?.get?.('slug')}`,
-          forms: plainValue(field.get('forms')) ?? [],
-          elements: plainValue(field.get('elements')) ?? [],
+          forms: plain(field.get('forms')) ?? [],
+          elements: plain(field.get('elements')) ?? [],
           adminHost,
           library,
         });

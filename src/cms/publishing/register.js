@@ -1,7 +1,7 @@
 // Publishing in Sveltia: a field in each post's form, a page that lists every post, and a look at
 // how things stand as soon as a save has been made.
 
-import { say } from '../body/texts.js';
+import { say } from '../interface-language.js';
 import { lookNow } from './status.js';
 import { publishingField, publishingPage } from './view.js';
 import { PUBLISHING_WIDGET } from './widget.js';

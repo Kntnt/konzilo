@@ -3,7 +3,7 @@
 // left, with nothing changed. `address` is the picture to describe, when there is one to show.
 
 import { asking, button, dialogOf, made, textRow } from './dialog.js';
-import { say } from './texts.js';
+import { say } from '../interface-language.js';
 
 export function editImage({ alt, address = null, root = document.body }) {
   return new Promise((resolve) => {

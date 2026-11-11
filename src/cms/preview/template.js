@@ -4,7 +4,7 @@
 // would have gone when it tried to leave. It is a React component, since that is what Sveltia
 // takes, with its styles on the elements, since the pane is a document of Sveltia's own.
 
-import { say } from '../body/texts.js';
+import { say } from '../interface-language.js';
 import { signedInCredential } from '../credential.js';
 import { postValues } from '../groups/values.js';
 import { refusalShown } from '../refusals.js';

@@ -10,7 +10,7 @@
 // is kept among Sveltia's own settings, as previewWindow, and the menu says so with the event
 // konzilo-view when it changes (patches.json).
 
-import { say } from '../body/texts.js';
+import { say } from '../interface-language.js';
 
 const NAME = 'konzilo-preview';
 const SIZE = 'popup,width=1280,height=900';

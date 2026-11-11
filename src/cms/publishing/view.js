@@ -3,7 +3,7 @@
 // elements, and both write nothing: the field never calls its owner's `onChange`, so it leaves
 // nothing in a post's file.
 
-import { say } from '../body/texts.js';
+import { say } from '../interface-language.js';
 import { signedInCredential } from '../credential.js';
 import { fileRefusalShown, wordsShown } from '../refusals.js';
 import { filesOf, languageOf, readStatus, statusWords, watchedStatus } from './status.js';

@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import { useInterfaceLanguage } from '../src/cms/body/texts.js';
+import { useInterfaceLanguage } from '../src/cms/interface-language.js';
 import { filesOf, languageOf, readStatus, statusWords, watchStatus } from '../src/cms/publishing/status.js';
 
 describe('what a status says', () => {

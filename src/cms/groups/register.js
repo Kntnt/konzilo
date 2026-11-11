@@ -16,14 +16,14 @@
 // Sveltia's own heading and menu of the field are left out (group.css), since the group's are
 // the core's: Revert Changes, Restore Default and Clear, over every field it covers (menu.js).
 
-import { say } from '../body/texts.js';
+import { say } from '../interface-language.js';
+import { plain } from '../plain.js';
+import { refuseAtSave } from '../refusals.js';
 import { actionsOf, holding, missing } from './menu.js';
 import { sourceFormat } from './source.js';
 import { postValues, useGroups } from './values.js';
 import { GROUP_WIDGET } from './widget.js';
 import './group.css';
-
-const plain = (value) => (value?.toJS ? value.toJS() : value);
 
 const ACTIONS = [['revert', 'groups.revert'], ['restore', 'groups.restore'], ['clear', 'groups.clear']];
 
@@ -221,9 +221,6 @@ export function registerGroups(CMS, config, groups = {}) {
   // where the group's own check did not run because the form never showed the group. It changes
   // nothing: an entry given back from here is written as Sveltia reads it back, which loses what
   // a closed bar holds.
-  let refusal = null;
-  const earlier = globalThis.__KONZILO_REFUSAL_WORDS__;
-  globalThis.__KONZILO_REFUSAL_WORDS__ = (shown) => (refusal !== null && shown === refusal ? say('body.refused') : earlier?.(shown));
   const collections = Object.fromEntries((config.collections ?? []).filter((one) => one.fields).map((one) => [one.name, one.fields.filter((made) => made.widget === GROUP_WIDGET)]));
   CMS.registerEventListener({
     name: 'preSave',
@@ -237,8 +234,7 @@ export function registerGroups(CMS, config, groups = {}) {
           return group.field ? missing([group.field], { [group.field.name]: held }) : missing(group.fields, held);
         }));
       if (empty.length === 0) return;
-      refusal = [...new Set(empty.map((one) => say('groups.required', { field: one.label })))].join(' ');
-      throw new Error(refusal);
+      refuseAtSave([...new Set(empty.map((one) => say('groups.required', { field: one.label })))].join(' '));
     },
   });
 }

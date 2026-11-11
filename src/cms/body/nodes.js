@@ -19,7 +19,7 @@ import { editEmbed } from './embed-edit.js';
 import { CAPTION_NODE, LINE_NODE } from './format.js';
 import { editGallery } from './gallery-edit.js';
 import { editImage } from './image-edit.js';
-import { say } from './texts.js';
+import { say } from '../interface-language.js';
 
 const LABEL_OF = { image: 'body.keptImage', list: 'body.keptList', embed: 'body.keptEmbed', directive: 'body.keptDirective', html: 'body.keptHtml', other: 'body.keptOther' };
 const ANCHOR = new RegExp(rules.elements.heading.anchor);

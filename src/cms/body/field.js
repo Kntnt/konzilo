@@ -27,7 +27,25 @@ import { chooseImage } from './chooser.js';
 import { makeEditor } from './crepe.js';
 import './field.css';
 import { fieldClosed, fieldOpened } from './open-fields.js';
-import { elementName, say } from './texts.js';
+import { say } from '../interface-language.js';
+
+const ELEMENTS = {
+  paragraph: 'body.element.paragraph',
+  heading: 'body.element.heading',
+  list: 'body.element.list',
+  quote: 'body.element.quote',
+  code: 'body.element.code',
+  table: 'body.element.table',
+  footnotes: 'body.element.footnotes',
+  embed: 'body.element.embed',
+  image: 'body.element.image',
+  gallery: 'body.element.gallery',
+  'post-list': 'body.element.post-list',
+  form: 'body.element.form',
+};
+
+// An element of the rule data by name, as it stands in a sentence: "a paragraph".
+const elementName = (element) => say(Object.hasOwn(ELEMENTS, element) ? ELEMENTS[element] : ELEMENTS.paragraph);
 
 // A short wait, so that a burst of keys is written once. Blur and Mod-S write at once.
 const WRITE_AFTER = 50;

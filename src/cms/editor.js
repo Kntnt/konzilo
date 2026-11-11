@@ -18,11 +18,10 @@ import { registerAuthorsField } from './authors/register.js';
 import { registerParts } from './parts/register.js';
 import { registerStructureField } from './structure/register.js';
 import { registerPublishing } from './publishing/register.js';
-import { chosenLanguage, followSite, languageChanged, loadedWith } from './interface-language.js';
+import { chosenLanguage, followSite, languageChanged, loadedWith, say, useInterfaceLanguage } from './interface-language.js';
 import './form.css';
 // The preview's window hides its pane by these; template.js, which shows it, is read by tests too.
 import './preview-window/window.css';
-import { say, useInterfaceLanguage } from './body/texts.js';
 
 // The configuration in the language the editor has chosen, else in the site's
 // (interface-language.js).

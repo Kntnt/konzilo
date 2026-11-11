@@ -5,7 +5,7 @@
 
 import { handsFor, loadReader, refusalsOf } from './check.js';
 import { wordsShown } from '../refusals.js';
-import { say } from './texts.js';
+import { say } from '../interface-language.js';
 
 const bodiesOf = (entry) => {
   const bodies = [{ locale: null, body: entry.getIn(['data', 'body']) }];

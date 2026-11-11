@@ -5,7 +5,7 @@
 // or null when it was left. `choose` gives more images, or null where there is no library.
 
 import { asking, button, dialogOf, made } from './dialog.js';
-import { say } from './texts.js';
+import { say } from '../interface-language.js';
 
 export function editGallery({ images, choose = null, picture = null, root = document.body }) {
   return new Promise((resolve) => {

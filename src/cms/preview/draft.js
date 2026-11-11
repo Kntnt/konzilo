@@ -2,8 +2,7 @@
 // image not saved yet read from the browser, since its address means nothing elsewhere.
 
 import { base64 } from '../base64.js';
-
-const plain = (value) => (value?.toJS ? value.toJS() : value);
+import { plain } from '../plain.js';
 
 const EXTENSIONS = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/svg+xml': 'svg', 'image/gif': 'gif' };
 

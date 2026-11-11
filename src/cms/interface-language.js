@@ -9,8 +9,33 @@
 // Sveltia reads its preferences as it loads, which is before the configuration has said
 // what the site's language is: startLanguage() sets it as the last load found it, and a
 // load that finds it new to the browser, or changed, loads again (followSite()).
+//
+// Once loaded, the editor holds its interface language here, and everything the editor's
+// own code says, the body field's, the image field's, the structure field's, the preview's,
+// the publish status's, the article parts' fields' and the field groups', is in it (say()):
+// each text by its whole name in the catalogues, such as `body.loading`, so that
+// tests/catalogues.test.js can hold the names asked for against the source. The editor names
+// the language once it has fetched its configuration, before anything is drawn; until then,
+// and in a test, it is British English. A refusal or a warning is shown by its own name and
+// values, in the same language (cms/refusals.js).
 
-import { catalogueFor, interfaceLanguageTag, languageSubtag } from '../catalogues.js';
+import { catalogueFor, interfaceLanguageTag, languageSubtag, SOURCE_LANGUAGE, text } from '../catalogues.js';
+
+let language = SOURCE_LANGUAGE;
+
+// The interface language the editor was loaded in, which every text takes from then on.
+export function useInterfaceLanguage(next) {
+  language = next;
+}
+
+export const say = (name, values = {}) => text(language, name, values);
+
+// The interface language the editor was loaded in, by its catalogue's name.
+export const interfaceLanguage = () => language;
+
+// The interface language's tag, for what the browser writes in a language of its own, such as
+// a moment.
+export const languageTag = () => interfaceLanguageTag(language);
 
 const PREFERENCES = 'sveltia-cms.prefs';
 const SET = 'konzilo.interface-language';

@@ -119,7 +119,7 @@ import {
 } from './nodes.js';
 import { captionLine, inCell, oneLine, reducedText, reducePasted } from './paste.js';
 import { blockAt } from './place.js';
-import { say } from './texts.js';
+import { say } from '../interface-language.js';
 
 const ICON = (body) => `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">${body}</svg>`;
 const ICONS = {

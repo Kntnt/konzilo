@@ -1,7 +1,7 @@
 // What the field's dialogs are made of. A dialog stands over the whole page, outside the editor,
 // so that what happens in it is no change to the text until it closes with an answer.
 
-import { say } from './texts.js';
+import { say } from '../interface-language.js';
 
 export const made = (tag, className, parent) => {
   const element = document.createElement(tag);

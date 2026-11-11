@@ -1,7 +1,7 @@
 // How publishing stands, as the service says (ADR 0031): reading it, keeping it up to date while
 // someone looks, and what a status means in words. It holds no React.
 
-import { languageTag, say } from '../body/texts.js';
+import { languageTag, say } from '../interface-language.js';
 import { refusalShown, wordsShown } from '../refusals.js';
 
 const STATUS_PATH = '/_konzilo/status';

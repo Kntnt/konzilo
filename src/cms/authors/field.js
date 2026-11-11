@@ -9,7 +9,8 @@
 
 import '../body/field.css';
 import { button, dialogOf, made, textRow } from '../body/dialog.js';
-import { languageTag, say } from '../body/texts.js';
+import { languageTag, say } from '../interface-language.js';
+import { plain } from '../plain.js';
 import { ESCAPE_EVENT } from './widget.js';
 import './field.css';
 
@@ -24,8 +25,8 @@ const byName = (authors) => [...authors].sort((one, other) => one.name.localeCom
 const same = (one, other) => one.length === other.length && one.every((id, at) => id === other[at]);
 
 const idsIn = (given) => {
-  const plain = given?.toJS ? given.toJS() : given;
-  const list = Array.isArray(plain) ? plain : typeof plain === 'string' && plain !== '' ? [plain] : [];
+  const held = plain(given);
+  const list = Array.isArray(held) ? held : typeof held === 'string' && held !== '' ? [held] : [];
   return [...new Set(list.filter((one) => typeof one === 'string' && one !== ''))];
 };
 

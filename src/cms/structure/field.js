@@ -7,7 +7,7 @@ import { withComponents } from '../../format/components.js';
 import rules from '../../format/rules.json' with { type: 'json' };
 import { siteComponents } from '../body/components.js';
 import { labelInPhrase } from '../../catalogues.js';
-import { interfaceLanguage, say } from '../body/texts.js';
+import { interfaceLanguage, say } from '../interface-language.js';
 import { PLACE_EVENT, SHOW_EVENT } from '../preview/paths.js';
 import { everyNode, nodeAt, parentOf, parseBody, pathTo, summaryOf, writeBody } from './model.js';
 import './field.css';

@@ -3,9 +3,8 @@
 // The editor names its configuration's groups once it has fetched it; until then, and in a
 // test, there are none.
 
+import { plain } from '../plain.js';
 import { formValues } from './source.js';
-
-const plain = (value) => (value?.toJS ? value.toJS() : value);
 
 let known = {};
 

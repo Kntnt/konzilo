@@ -9,7 +9,7 @@ import { mountAuthorsField } from '../../../src/cms/authors/field.js';
 import { handsFor, loadReader } from '../../../src/cms/body/check.js';
 import { blockAt } from '../../../src/cms/body/place.js';
 import { mountBodyField } from '../../../src/cms/body/field.js';
-import { useInterfaceLanguage } from '../../../src/cms/body/texts.js';
+import { useInterfaceLanguage } from '../../../src/cms/interface-language.js';
 import { PLACE_EVENT } from '../../../src/cms/preview/paths.js';
 import { wordsShown } from '../../../src/cms/refusals.js';
 import { checkBody } from '../../../src/format/body.js';
