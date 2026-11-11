@@ -29,8 +29,10 @@
 //   later page of a list has none;
 // - `<meta name="robots">` with noindex, nofollow or both, only when the
 //   post asks for it, or on a later page of its list, which is noindex;
-// - Open Graph's type, `article` for the Article types, with the post's
-//   date and last change, `website` for any other, and its title,
+// - Open Graph's type, `article` for a post whose structured data type is a
+//   kind of article, its own, else its type's, among those its type offers
+//   (built-in-types.js), with the post's date and last change, `website` for
+//   any other, and its title,
 //   description, the site's title and its language;
 // - the sharing image, the post's own, else its featured image, else the
 //   default sharing image, else the site's logo, else none, made 1200 × 630,
@@ -60,7 +62,7 @@
 import { labelIn } from '../catalogues.js';
 import { listPageAddress, searchPages } from '../format/addresses.js';
 import { searchDescriptionOf, searchTitleOf, SHARING_SIZE, socialDescriptionOf, socialTitleOf } from '../format/article-parts.js';
-import { followsParts, isArticle } from '../format/built-in-types.js';
+import { followsParts, isKindOfArticle, structuredDataTypeOf } from '../format/built-in-types.js';
 import { renderTemplate } from '../metadata-templates.js';
 import { isSiteTitle } from '../settings-groups.js';
 import { articleAuthors } from './authors.js';
@@ -236,7 +238,7 @@ async function postPage({ entry, type, path, number, search, site }, known, getE
   const metaDescription = seo.description || shown(searchDescriptionOf) || render(templates.description);
   const address = entryAddress(type, entry.id, site.languages);
   const later = number > 1;
-  const schema = seo.schema ?? templates.schema ?? 'WebPage';
+  const schema = structuredDataTypeOf(type, seo.schema, templates.schema);
   return {
     title: titleTag,
     description: metaDescription,
@@ -246,8 +248,8 @@ async function postPage({ entry, type, path, number, search, site }, known, getE
     canonical: !later && seo.canonical ? seo.canonical : null,
     robots: [(seo.noindex || later) && 'noindex', seo.nofollow && 'nofollow'].filter(Boolean).join(', '),
     schema,
-    // Whether the post is an article, which its type says, whatever its structured data type.
-    article: isArticle(type),
+    // Whether the post is an article, which its structured data type says.
+    article: isKindOfArticle(schema),
     headline: field('headline') || entry.data.title,
     published: field('date'),
     modified: field('modified'),

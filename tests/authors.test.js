@@ -105,9 +105,9 @@ describe('the structured data', () => {
     assert.equal(named[0]['@id'], PUBLISHER['@id']);
   });
 
-  // Whether a post is an article is whether its type is the built-in article, whatever its
-  // structured data type, which names the kind of its article node, or of its page's.
-  test('keeps an article\'s article node and its authors when its type is given a kind of web page, and its og:type', async () => {
+  // Whether a post is an article is whether its structured data type is a kind of article, and
+  // an article offers only those: a kind of web page given its type is passed over.
+  test('keeps an article\'s article node and its authors when its type is given a kind of web page, which an article does not offer, and its og:type', async () => {
     const { article, named, nodes } = await authorsInGraph(['ben-holm'], site, 'WebPage');
     assert.equal(article['@type'], 'Article');
     assert.deepEqual(named, [{ '@type': 'Person', '@id': `${ORIGIN}/#author-ben-holm`, name: 'Ben Holm' }]);
@@ -118,7 +118,7 @@ describe('the structured data', () => {
     assert.equal(tags['article:published_time'], '2026-10-20T08:00:00Z');
   });
 
-  test('gives a type of the site\'s own with a date no article node and og:type website, unless an Admin gives it a kind of article, with the publisher as its author', async () => {
+  test('gives a type of the site\'s own with a date no article node and og:type website, unless an Admin gives it a kind of article, which makes it one, with the publisher as its author', async () => {
     const own = siteDescription({ ...declared, types: { story: { label: 'Story', plural: 'Stories', collection: 'stories', address: '/stories/{slug}/', elements: ['paragraph'], fields: { date: {}, seo: {} } } } });
     const story = { id: 'night-watch', collection: 'stories', body: 'The keeper watches.', data: { title: 'Night watch', date: new Date('2026-10-02T20:00:00Z') } };
     const head = (types) => headTags(
@@ -131,7 +131,7 @@ describe('the structured data', () => {
     assert.equal(typed(plain), 'website');
     assert.equal(graph(plain).some((node) => node['@id'].endsWith('#article')), false);
     const chosen = await head({ story: { schema: 'BlogPosting' } });
-    assert.equal(typed(chosen), 'website');
+    assert.equal(typed(chosen), 'article');
     assert.deepEqual(graph(chosen).find((node) => node['@id'].endsWith('#article')).author, PUBLISHER);
   });
 });

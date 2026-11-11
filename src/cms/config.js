@@ -10,9 +10,7 @@
 import { ARTICLE, AUTHORS, BUILT_IN_TYPES, CATEGORY, descriptionLabel, followsParts, keepsOrder, pageTypeOf, TOPICS } from '../format/built-in-types.js';
 import { CANONICAL_PATTERN, publicAddress } from '../format/addresses.js';
 import { IMAGE_LIBRARY_FOLDER } from '../format/masters.js';
-import { declaredNames, SCHEMA_TYPES } from '../site-description.js';
-import { defaultForType } from '../settings-groups.js';
-import settingsGroups from '../format/settings-groups.json' with { type: 'json' };
+import { declaredNames } from '../site-description.js';
 import { SHARING_SAFE, SHARING_SIZE } from '../format/article-parts.js';
 import { IMAGE_WIDGET } from './image/widget.js';
 import { STRUCTURE_WIDGET } from './structure/widget.js';
@@ -184,8 +182,6 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
   // Search, sharing and structured data: three groups of the source's own, beside the
   // post's fields, closed, since an editor who sets none of it leaves the defaults to say it
   // (ADR 0029). The content file holds them as one map (the intake's seoValue()).
-  // The type's structured data type as the settings give it before a site sets its own.
-  const schemaPreset = (type) => defaultForType(settingsGroups.search.types.settings.schema, type);
 
   // A post of a type with a teaser, every built-in type and a type of the site's own that
   // declares one, shows in its search and sharing fields what its teaser shows, as its head
@@ -236,7 +232,9 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
         { name: 'description', label: say('seoSocialDescription'), widget: 'text', ...(teaser ? { widget: TEXT_WIDGET, multiline: true, fallback: 'socialDescription' } : {}) },
       ]),
       group('structured', [
-        { name: 'schema', label: say('seoSchema'), widget: SCHEMA_WIDGET, options: [...SCHEMA_TYPES], type: type.name, typeLabel: inPhrase(type.plural), preset: schemaPreset(type) },
+        // The structured data types the post's type offers, and its type's own, as the settings
+        // give it before a site sets one: the first of them.
+        { name: 'schema', label: say('seoSchema'), widget: SCHEMA_WIDGET, options: [...type.structuredDataTypes], type: type.name, typeLabel: inPhrase(type.plural), preset: type.structuredDataTypes[0] },
       ]),
     ];
   };

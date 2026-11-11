@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import { siteDescription } from '../src/site-description.js';
+import { SCHEMA_TYPES, siteDescription } from '../src/site-description.js';
 
 for (const language of ['Swedish', 'sv-SE', '', 42, null, ['sv_SE']]) {
   test(`names a language of ${JSON.stringify(language)} as a problem, among the others`, () => {
@@ -230,6 +230,32 @@ describe('the built-in types', () => {
     refused(site({ article: article({ fields: { tags: { taxonomy: 'topics' } } }) }), 'types.article.fields.tags: a second field for the taxonomy topics');
   });
 
+  // A type offers the structured data types its posts may have, its default first.
+  test('offer an article\'s kinds of article, a page and a canvas every structured data type, and a site\'s own type what it declares, else what a page offers', () => {
+    const read = siteDescription(site({
+      article: article(),
+      page: { collection: 'pages', address: '/pages/{slug}/', elements: ['paragraph'] },
+      canvas: { collection: 'canvases', address: '/landing/{slug}/', elements: ['paragraph'] },
+      event: article({ label: 'Event', plural: 'Events', collection: 'events', address: '/events/{slug}/', structuredDataTypes: ['BlogPosting', 'Article'] }),
+      place: article({ label: 'Place', plural: 'Places', collection: 'places', address: '/places/{slug}/' }),
+    }));
+    const every = ['WebPage', 'AboutPage', 'ContactPage', 'CollectionPage', 'Article', 'BlogPosting', 'NewsArticle'];
+    assert.deepEqual(read.types.article.structuredDataTypes, ['Article', 'BlogPosting', 'NewsArticle']);
+    assert.deepEqual(read.types.page.structuredDataTypes, every);
+    assert.deepEqual(read.types.canvas.structuredDataTypes, every);
+    assert.deepEqual(read.types.event.structuredDataTypes, ['BlogPosting', 'Article']);
+    assert.deepEqual(read.types.place.structuredDataTypes, every);
+    assert.deepEqual([...every].sort(), [...SCHEMA_TYPES].sort(), 'every one the rule data knows');
+  });
+
+  test('refuse a list of structured data types on a built-in type, and one that is empty, repeats a type or names one the core does not know', () => {
+    refused(site({ article: article({ structuredDataTypes: ['Article'] }) }), 'types.article.structuredDataTypes: the built-in article offers the core\'s structured data types; leave it out');
+    const own = (structuredDataTypes) => site({ event: article({ label: 'Event', plural: 'Events', structuredDataTypes }) });
+    for (const given of [[], 'Article', ['Article', 'Article'], ['Event'], [42]]) {
+      refused(own(given), 'types.event.structuredDataTypes: must list the structured data types the type offers, each once, its default first, among Article, BlogPosting, NewsArticle, WebPage, AboutPage, ContactPage and CollectionPage');
+    }
+  });
+
   test('let only a page and a canvas be hierarchical', () => {
     refused(site({ article: article({ hierarchical: true, address: '/{path}/' }) }), 'types.article.hierarchical: an article has no parent; only a page and a canvas may be hierarchical');
     assert.equal(siteDescription(site({ canvas: { collection: 'canvases', hierarchical: true, address: '/{path}/', elements: ['paragraph'] } })).types.canvas.hierarchical, true);
@@ -247,6 +273,18 @@ describe('the built-in types', () => {
     const value = siteDescription(site({ article: article({ fields: { rating } }), event: article({ label: 'Event', plural: 'Events', collection: 'events', address: '/events/{slug}/', fields: { rating: { label: 'Stars', type: 'integer', control: 'number' } } }) }, regions));
     assert.equal(value.types.event.fields.find((field) => field.name === 'rating').label, 'Stars', 'and so is a value');
   });
+});
+
+// A type's structured data type in the settings offers each type its own, so its declaration
+// lists every one the core knows, and has its default from the type.
+test('refuses a structured data type in the settings groups declared elsewhere than by type, with a default of its own, or without every type the core knows', () => {
+  const site = { language: 'en_GB', types: { post: { label: 'Post', plural: 'Posts', collection: 'posts', address: '/{slug}/', elements: ['paragraph'] } } };
+  const schema = { type: 'string', control: 'select', options: ['Article', 'BlogPosting', 'NewsArticle', 'WebPage', 'AboutPage', 'ContactPage', 'CollectionPage'], structuredDataTypes: true };
+  const refused = (settings, problem) => assert.throws(() => siteDescription(site, { search: settings }), (error) => error.message.includes(problem) || assert.fail(error.message));
+  assert.equal(siteDescription(site, { search: { types: { settings: { schema } } } }).groups[0].types[0].settings[0].default, 'WebPage');
+  refused({ types: { settings: { schema: { ...schema, default: 'Article' } } } }, 'search.types.settings.schema.structuredDataTypes: a type\'s structured data type has its type\'s default, the first it offers, and declares none');
+  refused({ types: { settings: { schema: { ...schema, options: ['Article', 'WebPage'] } } } }, 'search.types.settings.schema.structuredDataTypes: only a select of every structured data type the core knows is a type\'s structured data type');
+  refused({ settings: { schema } }, 'search.settings.schema.structuredDataTypes: only a setting of a part per post type is its type\'s structured data type');
 });
 
 describe('the settings groups\' texts', () => {

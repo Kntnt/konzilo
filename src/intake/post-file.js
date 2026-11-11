@@ -12,7 +12,7 @@ import { isSource, OTHER_ANSWERS, SHOW } from '../format/redirects.js';
 import rules from '../format/rules.json' with { type: 'json' };
 import { declaredNames, postListModel, SCHEMA_TYPES, SEO_KEYS, SEO_PARTS, siteRules, TEXT_FIELDS } from '../site-description.js';
 import { sha256 } from './source.js';
-import { fieldValued, say } from './words.js';
+import { fieldValued, notOffered, say } from './words.js';
 
 // A title or a plain text holding what reads as HTML.
 const MARKUP = /<\/?[a-zA-Z!?][^<>]*>/;
@@ -55,9 +55,10 @@ export function momentOf(value) {
 const text = (value) => (value === undefined || value === null ? '' : typeof value === 'object' ? null : String(value));
 
 // One frontmatter field's value: { yaml } to write it, {} to leave it out, or
-// { reason }. `images(address, field)` gives a master's address, or { reason }. A field is
-// named in a reason by its label, `named(name)`, as the form shows it.
-function fieldValue(field, value, { images, terms }, named) {
+// { reason }, each with any `warnings`, { part, reason }. `images(address, field)` gives a
+// master's address, or { reason }. A field is named in a reason by its label, `named(name)`,
+// as the form shows it. `type` is the post's.
+function fieldValue(field, value, { images, terms }, named, type) {
   if (TEXT_FIELDS.includes(field.kind)) {
     const written = text(value)?.trim();
     if (written === undefined || written === null) return { reason: say('refusal.field-text', { field: named(field.name) }) };
@@ -71,7 +72,7 @@ function fieldValue(field, value, { images, terms }, named) {
     case 'teaser':
       return teaserValue(field, value, images, named);
     case 'seo':
-      return seoValue(field, value, images);
+      return seoValue(value, images, type);
     case 'terms':
       return terms(field, value);
     case 'meta':
@@ -101,12 +102,14 @@ function featuredImage(field, value, images) {
 }
 
 // The search and sharing fields, from the source's three groups (seoSource()), as the
-// content file's flat map, in SEO_KEYS's order. A sharing image comes with its alt text.
-function seoValue(field, value, images) {
+// content file's flat map, in SEO_KEYS's order. A sharing image comes with its alt text. A
+// structured data type the post's type `type` does not offer is left out, with a warning, so
+// that its type's own applies.
+function seoValue(value, images, type) {
   if (value === undefined || value === null) return {};
   if (value.stale) return { reason: say('refusal.seo-shape') };
   const written = {};
-  let warning;
+  const warnings = [];
   for (const [part, keys] of Object.entries(SEO_PARTS)) {
     const inPart = value[part];
     if (inPart === undefined || inPart === null) continue;
@@ -127,7 +130,7 @@ function seoValue(field, value, images) {
         if (master.reason) return { ...master, part: place };
         written.socialImage = master.src;
         written.socialImageAlt = alt;
-        warning = master.warning;
+        if (master.warning) warnings.push({ reason: master.warning });
       } else if (as === 'canonical') {
         const given = typeof one === 'string' ? one.trim() : one;
         const address = canonicalAddress(given);
@@ -137,12 +140,16 @@ function seoValue(field, value, images) {
         const trimmed = text(one)?.trim();
         if (!trimmed) return { reason: say('refusal.seo-text', { key: as }), part: place };
         if (as === 'schema' && !SCHEMA_TYPES.includes(trimmed)) return { reason: say('refusal.seo-schema', { value: trimmed, types: SCHEMA_TYPES.join(', ') }), part: place };
+        if (as === 'schema' && !type.structuredDataTypes.includes(trimmed)) {
+          warnings.push({ part: place, reason: notOffered(trimmed, type) });
+          continue;
+        }
         written[as] = trimmed;
       }
     }
   }
   const ordered = Object.fromEntries(SEO_KEYS.filter((key) => Object.hasOwn(written, key)).map((key) => [key, written[key]]));
-  return Object.keys(ordered).length === 0 ? {} : { yaml: JSON.stringify(ordered), warning };
+  return Object.keys(ordered).length === 0 ? { warnings } : { yaml: JSON.stringify(ordered), warnings };
 }
 
 // The source's search, sharing and structured data groups, as seoValue() reads them, or
@@ -215,10 +222,11 @@ export function fieldsOf(post, context, derived = {}) {
       lines.push([field.name, derived.modified ?? '']);
       continue;
     }
-    const value = fieldValue(field, field.kind === 'seo' ? seoSource(post.fields) : given, context, named);
+    const value = fieldValue(field, field.kind === 'seo' ? seoSource(post.fields) : given, context, named, post.type);
     if (value.reason) problems.push({ field: value.part ?? field.name, reason: value.reason });
     else if (value.yaml !== undefined) lines.push([field.name, value.yaml]);
     if (value.warning) warnings.push({ field: field.name, reason: value.warning });
+    for (const { part, reason } of value.warnings ?? []) warnings.push({ field: part ?? field.name, reason });
   }
   return { lines, problems, warnings };
 }
