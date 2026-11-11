@@ -24,7 +24,7 @@ import { british } from './refusals.js';
 import declaration from './format/settings-groups.json' with { type: 'json' };
 import { metaLineProblems, metaLineVariables } from './meta-line.js';
 import { templateProblems, variablesOf } from './metadata-templates.js';
-import { ARTICLE, BUILT_IN_TYPES, isArticle, PAGE } from './format/built-in-types.js';
+import { ARTICLE, BUILT_IN_TYPES, CANVAS, followsParts, isArticle, PAGE } from './format/built-in-types.js';
 import { fieldName, IDENTITY, IMAGE, ownField, POST, SCHEMA_TYPES, translatedOf } from './site-description.js';
 
 // The kinds of post type a per-type part may be limited to: those with an
@@ -41,6 +41,15 @@ const kinds = {
   ...limits,
   page: (type) => type.builtIn === PAGE,
   article: isArticle,
+};
+
+// The kinds of post type a setting of a part per post type may be left out
+// for, as it would say nothing for them: the built-in canvas, which is its
+// body alone, and a type with a teaser, whose head follows its parts
+// (followsParts()).
+const exceptions = {
+  canvas: (type) => type.builtIn === CANVAS,
+  teaser: followsParts,
 };
 
 // The key a group's per-type part is kept and written under, which no
@@ -119,8 +128,9 @@ export function settingsGroups(declared) {
 // `types`, one part for each post type it is repeated for, in the order the
 // site declares them: [ { type, label, settings } ], `label` the type's
 // plural, each setting with the default for the kind of type it is
-// (`defaultFor`), and a structured data type with the options and the default
-// of the type's own (forType()). A default that is a text of the catalogues, `{ text }`,
+// (`defaultFor`), but one left out for the kind of type it is (`except`), and
+// a structured data type with the options and the default of the type's own
+// (forType()); a type whose every setting is left out has no part. A default that is a text of the catalogues, `{ text }`,
 // which visitors read, is the one in the site's language (ADR 0066), never
 // the interface language's; a translated setting's keeps the text's name
 // beside it, as `defaults`, from which each of a site's languages takes its
@@ -150,7 +160,8 @@ export function groupsFor(declared, types, groups, language = null, forms = {}) 
     parts: group.parts.map((part) => ({ name: part.name, label: part.label, description: part.description, settings: inSite(part.settings) })),
     types: group.types === null ? null : Object.values(types)
       .filter((type) => type !== null && (group.types.only === null || limits[group.types.only](type)))
-      .map((type) => ({ type: type.name, label: type.plural, settings: inSite(forType(group.types.settings, type)) })),
+      .map((type) => ({ type: type.name, label: type.plural, settings: inSite(forType(group.types.settings, type)) }))
+      .filter((part) => part.settings.length > 0),
     table: group.table,
     each: group.each === null ? null : each[group.each].map((item) => ({ name: item.name, label: item.label, settings: inSite(group.settings) })),
   }));
@@ -179,12 +190,13 @@ export function groupsIn(groups, locale, title) {
   }));
 }
 
-// A part per post type's settings for one type: each with a default for
-// the kind of type it is, by the order its `defaultFor` gives them, takes
-// it in place of its `default`, and a structured data type offers the type's
-// own, its default the first of them.
+// A part per post type's settings for one type: those left out for the kind
+// of type it is (`except`) are not there; each with a default for the kind of
+// type it is, by the order its `defaultFor` gives them, takes it in place of
+// its `default`; and a structured data type offers the type's own, its
+// default the first of them.
 function forType(settings, type) {
-  return settings.map(({ defaultFor, ...setting }) => {
+  return settings.filter((setting) => setting.except === undefined || !exceptions[setting.except](type)).map(({ defaultFor, except: _except, ...setting }) => {
     if (setting.structuredDataTypes) return { ...setting, options: [...type.structuredDataTypes], default: type.structuredDataTypes[0] };
     if (defaultFor === undefined) return setting;
     const { default: _, ...rest } = setting;
@@ -389,7 +401,9 @@ function requiredBy(read, before, path, problems) {
 // knows, and in a part per post type every type; a text of a part per post type may be a
 // meta line's format (`metaLine`, meta-line.js), whose defaults name only the variables
 // every type of their kind has; a text shown as a text area
-// may hold regular expressions, one per line (`patterns`, ai-visibility.js),
+// may hold regular expressions, one per line (`patterns`, ai-visibility.js), a setting of a
+// part per post type may be left out for a kind of type, for which it would say nothing
+// (`except`, the built-in `canvas` or a type with a `teaser`),
 // and a text shown as text may declare its form (`format`, formatOf()). A select
 // of a part per post type of every structured data type the core knows may be
 // its type's (`structuredDataTypes`), which offers each type those it offers,
@@ -413,7 +427,7 @@ function settingOf(name, setting, path, problems, where, named) {
     problems.push(`${path}: must be an object`);
     return null;
   }
-  const { default: given, defaultFor, template, metaLine, requires, patterns, format, published, translated, min, structuredDataTypes, ...declared } = setting;
+  const { default: given, defaultFor, except, template, metaLine, requires, patterns, format, published, translated, min, structuredDataTypes, ...declared } = setting;
   // A label the catalogues lack is a problem already, so the field is read with its name.
   const label = textsOf(`${named}.label`, path, problems);
   const read = ownField(name, { ...withoutTexts(declared, ['label', 'help'], path, named, problems), label: label ?? name }, path, problems, WHOLE);
@@ -455,6 +469,11 @@ function settingOf(name, setting, path, problems, where, named) {
     else if (where !== 'types') problems.push(`${path}.metaLine: only a setting of a part per post type is a meta line's format`);
     else if (read.type !== 'string' || !textControls.includes(read.control) || read.template) problems.push(`${path}.metaLine: only a text shown as text or a text area, which is no template, is a meta line's format`);
     else read.metaLine = true;
+  }
+  if (except !== undefined) {
+    if (where !== 'types') problems.push(`${path}.except: only a setting of a part per post type is left out for a kind of type`);
+    else if (!Object.hasOwn(exceptions, except)) problems.push(`${path}.except: must be ${Object.keys(exceptions).join(' or ')}, the post types the setting is left out for`);
+    else read.except = except;
   }
   if (structuredDataTypes !== undefined) {
     if (structuredDataTypes !== true) problems.push(`${path}.structuredDataTypes: must be true, or left out`);

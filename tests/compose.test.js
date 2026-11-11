@@ -157,7 +157,12 @@ test('runs the service for visitors in a container of its own, which the web ser
   assert.doesNotMatch(visitors, /^ {4}ports:/m);
   assert.match(visitors, /^ {4}command: \["node", "\/konzilo\/bin\/konzilo-service\.js", "visitors"\]$/m);
   assert.match(visitors, /^ {6}- service-data:\/service-data$/m);
-  assert.match(visitors, /site-description\.json:\/site\/site-description\.json:ro$/m);
+  // The site's folder, not its description alone: a mount of one file holds on to the file it was
+  // made with, and a description replaced, as Git writes one, would never reach the service.
+  for (const role of ['visitors', 'editors']) {
+    assert.match(blocks[role], /^ {6}- \$\{KONZILO_SITE_DIR:-\.\}:\/site:ro$/m, role);
+  }
+  assert.doesNotMatch(compose, /site-description\.json:\/site\//, 'no file of the site\'s mounted alone');
   assert.match(visitors, /KONZILO_SITE_ORIGIN: http:\/\/localhost:\$\{KONZILO_PORT_SITE\}/);
   assert.match(blocks.editors, /^ {4}command: \["node", "\/konzilo\/bin\/konzilo-service\.js", "editors"\]$/m);
   assert.match(compose, /^ {2}visitors:\n {4}internal: true$/m);
@@ -224,6 +229,33 @@ test('gives a form the service does not answer the release\'s page that says it 
   assert.match(handled, /header Cache-Control no-store/);
   assert.match(handled, /file_server/);
   assert.ok(errors.indexOf('handle @form_down') < errors.lastIndexOf('rewrite * /404.html'), 'before a page not found');
+});
+
+// The web image builds the editor's bundle from the files of the core it copies, so each file the
+// bundle's page imports, at any depth, must be among them, or the image cannot be built.
+test('copies into the web image every file of the core the editor\'s bundle imports', () => {
+  const root = fileURLToPath(new URL('../', import.meta.url));
+  const copied = [...read('compose/web/Dockerfile').matchAll(/^COPY (?!--)(.+) \S+$/gm)].flatMap(([, sources]) => sources.split(' '));
+  const isCopied = (file) => copied.some((source) => file === source || file.startsWith(`${source}/`));
+  const seen = new Set();
+  const missing = [];
+  const walk = (file) => {
+    if (seen.has(file)) return;
+    seen.add(file);
+    const path = file.slice(root.length);
+    if (!isCopied(path)) missing.push(path);
+    if (!file.endsWith('.js')) return;
+    for (const specifier of readFileSync(file, 'utf8').matchAll(/\bfrom\s+['"](\.[^'"]+)['"]|\bimport\s*\(\s*['"](\.[^'"]+)['"]\s*\)|^\s*import\s+['"](\.[^'"]+)['"]/gm).map((match) => match.slice(1)).map((found) => found.find(Boolean))) {
+      const next = resolve(dirname(file), specifier);
+      if (existsSync(next)) walk(next);
+    }
+  };
+  const page = resolve(root, 'src/cms/index.html');
+  const entries = [...readFileSync(page, 'utf8').matchAll(/<script [^>]*src="(\.[^"]+)"/g)].map(([, src]) => resolve(dirname(page), src));
+  assert.ok(entries.length > 0, 'the page\'s scripts');
+  for (const entry of entries) walk(entry);
+  assert.ok(seen.size > 50, `the bundle's files, ${seen.size} of them`);
+  assert.deepEqual(missing, []);
 });
 
 // The builder's image installs the core's dependencies alone, with no peer such as Astro, so

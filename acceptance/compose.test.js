@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { request as httpRequest } from 'node:http';
 import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
@@ -1085,7 +1085,10 @@ describe('a site in Compose', () => {
           const text = bytes.toString('utf8');
           assert.doesNotMatch(text, /[^\r]\n/, 'every row ended by CRLF');
           const [header, ...rows] = readCsv(text, by);
-          assert.deepEqual(header, [sentAt, formColumn, 'Name', 'Email', 'Message', 'I have read the privacy policy']);
+          // The moments are in the browser's time zone, which the page and the file both name.
+          const zone = await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
+          await page.getByText(`${sentAt} (${zone})`, { exact: true }).first().waitFor();
+          assert.deepEqual(header, [`${sentAt} (${zone})`, formColumn, 'Name', 'Email', 'Message', 'I have read the privacy policy']);
           assert.deepEqual(rows.map((row) => row[4]), sentWords, 'newest first, spam left out');
           for (const row of rows) {
             assert.match(row[0], /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/);
@@ -1103,6 +1106,40 @@ describe('a site in Compose', () => {
         await session.browser.close();
       }
     }, { timeout: 300_000 });
+
+    // The service mounts the site's folder whole, so that a site description replaced, as Git
+    // writes one, reaches both its roles without a restart (ADR 0044).
+    test('takes a form its site description declares once the file is replaced, in both of the service\'s roles, without a restart', async () => {
+      const file = join(site.directory, 'site-description.json');
+      const held = readFileSync(file, 'utf8');
+      const replace = (text) => {
+        const next = `${file}.next`;
+        writeFileSync(next, text);
+        renameSync(next, file);
+      };
+      const declared = JSON.parse(held);
+      declared.forms.note = { label: 'A note', fields: [{ name: 'note', label: 'Note', kind: 'textarea', required: true }] };
+      const now = async () => ({
+        token: (await toTheSite('GET', '/_konzilo/forms/note/token', { headers: fromThePage() })).status,
+        listed: (await (await get(`${site.origin.admin}/_konzilo/submissions`, { headers: { authorization: `token ${token}` } })).json()).forms.map(({ name }) => name),
+      });
+      // What the service says within a few seconds, as the file system tells the container.
+      const becomes = async (wanted) => {
+        const deadline = Date.now() + 10_000;
+        for (let said = await now(); ; said = await now()) {
+          if (JSON.stringify(said) === JSON.stringify(wanted) || Date.now() > deadline) return said;
+          await wait(250);
+        }
+      };
+      assert.deepEqual(await now(), { token: 404, listed: ['contact'] }, 'no such form yet');
+      try {
+        replace(`${JSON.stringify(declared, null, 2)}\n`);
+        assert.deepEqual(await becomes({ token: 200, listed: ['contact', 'note'] }), { token: 200, listed: ['contact', 'note'] });
+      } finally {
+        replace(held);
+      }
+      assert.deepEqual(await becomes({ token: 404, listed: ['contact'] }), { token: 404, listed: ['contact'] }, 'gone with the file put back');
+    });
 
     test('is passed on by the web server with what ADR 0044 lists alone, and nothing kept holds the visitor\'s address or browser', async () => {
       const standIn = `${site.name}-visitors-stand-in`;

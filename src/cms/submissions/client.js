@@ -3,6 +3,7 @@
 // Forgejo who is asking, so each request carries what Sveltia signed in with, and an answer it may
 // not have is no answer. It holds no React.
 
+import { momentIn, valueText } from '../../submission-values.js';
 import { interfaceLanguage, languageTag, say } from '../interface-language.js';
 
 const SUBMISSIONS_PATH = '/_konzilo/submissions';
@@ -31,6 +32,33 @@ export function readSubmissions({ credential, form, before = null, get = fetchin
   return answered(`${SUBMISSIONS_PATH}/${encodeURIComponent(form)}${query}`, { credential, get });
 }
 
+// A form's submissions as the page shows them, a page at a time, newest first, each answer
+// { submissions, more }, all those it holds so far, or null where the service cannot be told:
+// `first()` the newest, and `older()` those it holds with the page after the last of them. The
+// older ones are asked for once while they are on their way, however often `older()` is called
+// meanwhile, as by two quick clicks, and from the last one it holds, so that none comes twice.
+export function submissionPages({ credential, form, get = fetching() }) {
+  let held = null;
+  let asking = null;
+  // The page after `before`, after those `shown`.
+  const read = async (before, shown) => {
+    const next = await readSubmissions({ credential, form, before, get });
+    if (!next) return null;
+    held = { submissions: [...shown, ...next.submissions], more: next.more };
+    return held;
+  };
+  return {
+    first: () => read(null, []),
+    older() {
+      if (!held?.more) return Promise.resolve(null);
+      asking ??= read(held.submissions.at(-1).id, held.submissions).finally(() => {
+        asking = null;
+      });
+      return asking;
+    },
+  };
+}
+
 // The separator offered first: the semicolon where the interface language writes a decimal
 // comma, which a spreadsheet in that language would otherwise not split by, else the comma.
 export function offeredSeparator() {
@@ -39,24 +67,17 @@ export function offeredSeparator() {
 }
 
 // A field's value as the page shows it: a text as it came, a box ticked or not, or the boxes ticked.
-export function valueShown(value) {
-  if (value === true) return say('submissions.yes');
-  if (value === false) return say('submissions.no');
-  if (Array.isArray(value)) return value.join(', ');
-  return String(value ?? '');
-}
-
-// A moment as the page shows it, in the interface language's own form and the browser's time zone.
-export const momentShown = (at) => new Date(at).toLocaleString(languageTag(), { dateStyle: 'long', timeStyle: 'short' });
+export const valueShown = (value) => valueText(value, { yes: say('submissions.yes'), no: say('submissions.no') });
 
 // The browser's own time zone, which the file's moments are in, as the page's are.
 export const browserTimeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
 
+// A moment as the page shows it, in the interface language's own form, in a time zone, the
+// browser's by default, which the page names beside it, as the file's heading does.
+export const momentShown = (at, timeZone = browserTimeZone()) => new Date(at).toLocaleString(languageTag(), { dateStyle: 'long', timeStyle: 'short', timeZone });
+
 // A day as `YYYY-MM-DD` in a time zone.
-const dayIn = (at, timeZone) => {
-  const part = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(at).map(({ type, value }) => [type, value]));
-  return `${part.year}-${part.month}-${part.day}`;
-};
+const dayIn = (at, timeZone) => momentIn(timeZone)(at).slice(0, 10);
 
 // What the browser does with a file it is given: it saves it under its name.
 function saveInBrowser(blob, name) {

@@ -10,10 +10,11 @@
 // What a built-in type is, its fields, and which of them hold an article's authors, its
 // category and its topics, are here and nowhere else. Code asks a post's type here too.
 //
-// This module imports nothing but the catalogues, so that the editor's code in the
-// browser reads it as the intake and the build do.
+// This module imports nothing but the catalogues and the rule data, so that the editor's
+// code in the browser reads it as the intake and the build do.
 
 import { CATALOGUES, text } from '../catalogues.js';
+import rules from './rules.json' with { type: 'json' };
 
 export const CANVAS = 'canvas';
 export const PAGE = 'page';
@@ -29,15 +30,21 @@ export const TOPICS = 'topics';
 // field of the site's own.
 const SEO = 'seo';
 
+// The structured data types the core knows are the rule data's `structuredDataTypes`, each
+// a kind of article or else a kind of web page.
+
 // The structured data types that are kinds of article, as an article offers them, Article
 // its default.
-export const ARTICLE_KINDS = Object.freeze(['Article', 'BlogPosting', 'NewsArticle']);
+const ARTICLE_KINDS = Object.freeze(['Article', 'BlogPosting', 'NewsArticle']);
 
-// The structured data types the core knows (the rule data's `structuredDataTypes`), as a page
-// offers them: the kinds of web page, WebPage its default, then the kinds of article. A page
-// and a canvas may be any of them, an about page, a press release or a one-off post, and so
-// may a type of the site's own that declares none of its own.
-export const EVERY_STRUCTURED_DATA_TYPE = Object.freeze(['WebPage', 'AboutPage', 'ContactPage', 'CollectionPage', ...ARTICLE_KINDS]);
+// The rest of the rule data's, the kinds of web page, in its order.
+const WEB_PAGE_KINDS = Object.freeze(rules.structuredDataTypes.filter((one) => !ARTICLE_KINDS.includes(one)));
+
+// Every structured data type the core knows, as a page offers them: the kinds of web page,
+// WebPage its default, then the kinds of article. A page and a canvas may be any of them, an
+// about page, a press release or a one-off post, and so may a type of the site's own that
+// declares none of its own.
+export const EVERY_STRUCTURED_DATA_TYPE = Object.freeze([...WEB_PAGE_KINDS, ...ARTICLE_KINDS]);
 
 // Each built-in type: its label and plural, by their names in the catalogues; whether
 // a site may make it hierarchical; the built-in taxonomies it brings; the structured data
@@ -128,6 +135,10 @@ export function isArticle(type) {
 // Whether a structured data type is a kind of article, which makes a post that has it an
 // article, in its head's og:type and its structured data's article node, whatever its type.
 export const isKindOfArticle = (schema) => ARTICLE_KINDS.includes(schema);
+
+// Whether a structured data type is a kind of web page, which a page's own node in its
+// structured data takes.
+export const isKindOfWebPage = (schema) => WEB_PAGE_KINDS.includes(schema);
 
 // The structured data type a post of the type `type` has, among those its type offers: the
 // post's own choice, `own`, else its type's from the settings, `chosen`, else its type's

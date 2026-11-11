@@ -170,6 +170,30 @@ describe('a type\'s structured data type', () => {
   });
 });
 
+// The title tag and the sharing title of a type with a teaser are what its teaser shows, so
+// its templates for them would say nothing (ADR 0046).
+describe('a type\'s metadata templates', () => {
+  const site = {
+    language: 'en_GB',
+    images: { smallestWidth: 400, displayWidth: 1280 },
+    types: {
+      article: { collection: 'articles', address: '/news/{slug}/', elements: ['paragraph'] },
+      page: { collection: 'pages', address: '/{slug}/', elements: ['paragraph'] },
+      canvas: { collection: 'canvases', address: '/start/{slug}/', elements: ['paragraph'] },
+      story: { label: 'Story', plural: 'Stories', collection: 'stories', address: '/stories/{slug}/', elements: ['paragraph'], fields: { teaser: {}, seo: {} } },
+      event: { label: 'Event', plural: 'Events', collection: 'events', address: '/events/{slug}/', elements: ['paragraph'], fields: { seo: {} } },
+    },
+  };
+
+  test('give a type with a teaser no title tag or sharing title, and every other type both', () => {
+    const result = run({ 'settings.json': { search: { types: { page: { title: '{{ post.title }}' } } } } }, site);
+    assert.deepEqual(result.refusals, []);
+    const { types } = settingsOf(result).search;
+    for (const name of ['article', 'page', 'canvas', 'story']) assert.deepEqual(Object.keys(types[name]), ['description', 'socialDescription', 'schema'], name);
+    assert.deepEqual(Object.keys(types.event), ['title', 'description', 'socialTitle', 'socialDescription', 'schema']);
+  });
+});
+
 describe('the meta line\'s format', () => {
   const builtIn = {
     language: 'en_GB',
@@ -177,6 +201,7 @@ describe('the meta line\'s format', () => {
     types: {
       article: { collection: 'articles', address: '/{slug}/', elements: ['paragraph'] },
       page: { collection: 'pages', address: '/pages/{slug}/', elements: ['paragraph'] },
+      canvas: { collection: 'canvases', address: '/start/{slug}/', elements: ['paragraph'] },
       event: { label: 'Event', plural: 'Events', collection: 'events', address: '/events/{slug}/', elements: ['paragraph'], fields: { date: {} } },
       note: { label: 'Note', plural: 'Notes', collection: 'notes', elements: ['paragraph'] },
     },
@@ -187,13 +212,14 @@ describe('the meta line\'s format', () => {
     return settingsOf(result, path).metaLine.types;
   };
 
-  test('is the article\'s by default, in the site\'s language, and no other type\'s, for each type with an address', () => {
+  // A canvas is its body alone, which no meta line goes with.
+  test('is the article\'s by default, in the site\'s language, and no other type\'s, for each type with an address but the canvas', () => {
     assert.deepEqual(formats({}), { article: { format: 'Published on {date} in {category} by {authors}' }, page: {}, event: {} });
     assert.deepEqual(formats({}, { ...builtIn, language: 'sv_SE' }).article, { format: 'Av {authors}, publicerad den {date} under {category}' });
   });
 
   test('is what an Admin sets for a type, in each language on a site in several', () => {
-    assert.deepEqual(formats({ metaLine: { types: { article: { format: 'By {authors}' }, event: { format: 'Held {date}' } } } }), { article: { format: 'By {authors}' }, page: {}, event: { format: 'Held {date}' } });
+    assert.deepEqual(formats({ metaLine: { types: { article: { format: 'By {authors}' }, event: { format: 'Held {date}' }, canvas: { format: 'Held {date}' } } } }), { article: { format: 'By {authors}' }, page: {}, event: { format: 'Held {date}' } }, 'a canvas\'s left as it is, unread');
     const { language: _, ...inOne } = builtIn;
     const several = { ...inOne, languages: ['sv_SE', 'en_GB'] };
     const settings = { metaLine: { types: { article: { format: { sv_SE: 'Av {authors}' } } } } };

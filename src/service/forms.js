@@ -14,7 +14,7 @@ export const FORMS_PATH = '/_konzilo/forms';
 // The most a submission's body takes: a form's text fields take 20 000 characters together
 // (FORM_CHARACTERS), which a browser writes in at most twelve bytes each, as JSON or as a form's
 // own encoding, and the rest is names and choices.
-export const BODY_LIMIT = 512 * 1024;
+const BODY_LIMIT = 512 * 1024;
 
 // The site's own fields of a submission, beside the form's.
 const PAGE = '_page';
@@ -26,15 +26,18 @@ const JSON_TYPE = 'application/json';
 // A submission this soon after its timing token was given came from no person, and is held as
 // spam; a token this old is no longer taken, and the page's script asks for a new one when the
 // page is loaded again. In seconds.
-export const TOO_SOON = 3;
-export const TOKEN_LIFE = 24 * 60 * 60;
+const TOO_SOON = 3;
+const TOKEN_LIFE = 24 * 60 * 60;
 
 // The most forms one client sends in a window of ten minutes (visitors.js), spam among them; a
 // form refused or with a field wrong is no send.
-export const SENDS_IN_A_WINDOW = 10;
+const SENDS_IN_A_WINDOW = 10;
 
 // A token: when it was given, in seconds since 1970, a nonce, and its signature.
 const TOKEN_SHAPE = /^([0-9]{1,12})\.([A-Za-z0-9_-]{16})\.([A-Za-z0-9_-]{43})$/;
+
+const CHOICES = ['select', 'radio'];
+const BOXES = ['checkbox', 'acceptance'];
 
 // A body as JSON, an object of fields, or null.
 const parsed = (body) => {
@@ -45,6 +48,25 @@ const parsed = (body) => {
     return null;
   }
 };
+
+// A body in a form's own encoding as the object of fields the page's script would send as JSON,
+// by the form's `declared` fields: a field of boxes as the boxes ticked, a box that is there as
+// ticked, and any other field as its text, but a field the form declares sent more than once, as
+// its texts, which no field but one of boxes takes; a field the form does not declare as its
+// first text.
+function encodedFields(body, declared) {
+  const params = new URLSearchParams(body.toString('utf8'));
+  const kinds = new Map(declared.map((field) => [field.name, field.kind]));
+  const fields = Object.create(null);
+  for (const name of new Set(params.keys())) {
+    const values = params.getAll(name);
+    const kind = kinds.get(name);
+    if (kind === 'checkboxes' || (kind !== undefined && values.length > 1)) fields[name] = values;
+    else if (BOXES.includes(kind)) fields[name] = true;
+    else fields[name] = values[0];
+  }
+  return fields;
+}
 
 // Whether a submission filled in its trap field, which no person sees.
 const trapped = (value) => value !== undefined && value !== null && value !== false && String(value).trim() !== '';
@@ -64,21 +86,10 @@ const pageOf = (given) => {
 const EMAIL = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
 const TEL = /^\+?[0-9 ().\/-]*[0-9][0-9 ().\/-]*$/;
 
-const CHOICES = ['select', 'radio'];
-const BOXES = ['checkbox', 'acceptance'];
-
-// A field's value as a submission gives it, as JSON, or as a form's own encoding, where a box
-// ticked is there and one left is not: a text, its lines ended alike and nothing around it; a box
-// ticked or not; or the boxes ticked. Gives { value } or, for a value the page's script would not
-// send, { problem }, as the page names it beside the field.
-function given(field, fields, encoded) {
-  if (encoded) {
-    const values = fields.getAll(field.name);
-    if (field.kind === 'checkboxes') return { value: values };
-    if (values.length > 1) return { problem: 'malformed' };
-    if (BOXES.includes(field.kind)) return { value: values.length > 0 };
-    return { value: (values[0] ?? '').replace(/\r\n?/g, '\n') };
-  }
+// A field's value as a submission's fields give it: a text, its lines ended alike; a box ticked
+// or not; or the boxes ticked. Gives { value } or, for a value the page's script would not send,
+// { problem }, as the page names it beside the field.
+function given(field, fields) {
   const value = Object.hasOwn(fields, field.name) ? fields[field.name] : undefined;
   if (field.kind === 'checkboxes') {
     if (value === undefined) return { value: [] };
@@ -94,8 +105,8 @@ function given(field, fields, encoded) {
 
 // A field's value as it is kept, or the problem the page names beside the field, as the page's
 // script checks it: { value } or { problem }.
-function checked(field, fields, encoded) {
-  const read = given(field, fields, encoded);
+function checked(field, fields) {
+  const read = given(field, fields);
   if (read.problem) return read;
   const { value } = read;
   if (field.kind === 'checkbox') return read;
@@ -114,12 +125,12 @@ function checked(field, fields, encoded) {
   return { value: text };
 }
 
-// An outcome as the page shows it (src/astro/forms.js): to the page's script, as JSON with the
-// status given; to a browser without JavaScript, by leading it back to the page it came from,
-// with the outcome's id in the fragment, `konzilo-form-<form>-<outcome>`.
-function outcome(name, { status, outcome: said, ...more }, { encoded, page }) {
-  if (encoded) return { status: 303, location: `${page}#konzilo-form-${name}-${said}` };
-  return { status, json: { outcome: said, ...more } };
+// The answer that tells an outcome as the page shows it (src/astro/forms.js): to the page's
+// script, as JSON with the status given; to a browser without JavaScript, by leading it back to
+// the page it came from, with the outcome's id in the fragment, `konzilo-form-<form>-<outcome>`.
+function answerOf(name, { status, outcome, ...more }, { encoded, page }) {
+  if (encoded) return { status: 303, location: `${page}#konzilo-form-${name}-${outcome}` };
+  return { status, json: { outcome, ...more } };
 }
 
 // `site()`: the site description in use. `store`: as store.js opens it. `now()`: the moment.
@@ -160,11 +171,12 @@ export function formsKind({ site, store, now }) {
       if (method === 'GET') return form && rest === '/token' ? { status: 200, json: { token: token(name) } } : { status: 404 };
       if (name === undefined || rest !== undefined) return { status: 404 };
 
+      // The body in one shape, whichever way it came.
       const encoded = type !== JSON_TYPE;
-      const fields = encoded ? new URLSearchParams(body.toString('utf8')) : parsed(body);
-      const own = (field) => (encoded ? fields.get(field) ?? undefined : fields !== null && Object.hasOwn(fields, field) ? fields[field] : undefined);
-      const page = pageOf(fields === null ? null : own(PAGE));
-      const answer = (status, said, more = {}) => outcome(name, { status, outcome: said, ...more }, { encoded, page });
+      const fields = encoded ? encodedFields(body, form?.fields ?? []) : parsed(body);
+      const own = (field) => (fields !== null && Object.hasOwn(fields, field) ? fields[field] : undefined);
+      const page = pageOf(own(PAGE));
+      const answer = (status, outcome, more = {}) => answerOf(name, { status, outcome, ...more }, { encoded, page });
       if (fields === null) return answer(400, 'refused');
       if (form === null) return answer(404, 'refused');
       if (!fromSite) return answer(403, 'refused');
@@ -178,14 +190,14 @@ export function formsKind({ site, store, now }) {
         return refused.status === 429 ? { ...refused, retryAfter } : refused;
       }
       const known = new Set([PAGE, TRAP, TOKEN, ...form.fields.map((field) => field.name)]);
-      if ((encoded ? [...fields.keys()] : Object.keys(fields)).some((key) => !known.has(key))) return answer(400, 'refused');
+      if (Object.keys(fields).some((key) => !known.has(key))) return answer(400, 'refused');
 
       // The page's script asks for a token, and a browser without JavaScript cannot.
       const sentToken = own(TOKEN);
       const age = sentToken === undefined && encoded ? null : ageOf(name, sentToken);
       if ((sentToken !== undefined || !encoded) && age === null) return answer(403, 'refused');
 
-      const read = form.fields.map((field) => ({ field, ...checked(field, fields, encoded) }));
+      const read = form.fields.map((field) => ({ field, ...checked(field, fields) }));
       const wrong = read.filter(({ problem }) => problem !== undefined);
       if (wrong.length > 0) return answer(400, 'invalid', { fields: Object.fromEntries(wrong.map(({ field, problem }) => [field.name, problem])) });
 

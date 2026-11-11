@@ -261,7 +261,9 @@ services:
       - build-control:/control
       - thumbnails:/thumbnails
       - service-data:/service-data
-      - ${KONZILO_SITE_DIR:-.}/site-description.json:/site/site-description.json:ro
+      # The site's folder, for its site description: a mount of the file alone would hold on to the
+      # file it was made with, and never show one replaced, as Git and an editor write one.
+      - ${KONZILO_SITE_DIR:-.}:/site:ro
 
   # The service, in its role for visitors (ADR 0044): what visitors' browsers send below
   # /_konzilo/, which the web server passes on, such as a site's forms (ADR 0045), kept in the
@@ -286,7 +288,8 @@ services:
       KONZILO_SITE_ORIGIN: http://localhost:${KONZILO_PORT_SITE}
     volumes:
       - service-data:/service-data
-      - ${KONZILO_SITE_DIR:-.}/site-description.json:/site/site-description.json:ro
+      # The site's folder, for its site description, as for the role for editors.
+      - ${KONZILO_SITE_DIR:-.}:/site:ro
 
   # The live preview (ADR 0032): its gate stands from the first moment, and starts the dev
   # server when an editor opens an entry. It shares the web server's network, so that the

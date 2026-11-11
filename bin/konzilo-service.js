@@ -9,17 +9,19 @@
 //   passes on, such as a site's forms (ADR 0045), and keeps it in the service's data. It reaches
 //   nothing.
 
-import { readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 
 import { buildControl } from '../src/build/record.js';
 import { editorsService, nextMinute } from '../src/service/editors.js';
+import { liveDescription } from '../src/service/live-description.js';
 import { openStore, STORE_FILE } from '../src/service/store.js';
 import { thumbnails } from '../src/service/thumbnails.js';
 import { visitorsService } from '../src/service/visitors.js';
 import { readSiteDescription, SITE_DESCRIPTION_FILE } from '../src/site-description.js';
 
+// In the site's folder, which Compose mounts whole, so that a description replaced is seen.
 const DESCRIPTION = `/site/${SITE_DESCRIPTION_FILE}`;
 // The service's data, which both roles open: the role for visitors keeps the forms' submissions
 // there, and the role for editors shows them.
@@ -39,7 +41,7 @@ const serve = (service, port, options = {}) => {
   return server;
 };
 
-function editors() {
+function editors(store) {
   const PORT = 4100;
   const FORGEJO = 'http://forgejo:3000';
   const { KONZILO_REPOSITORY: repository } = process.env;
@@ -47,7 +49,6 @@ function editors() {
   const site = readSiteDescription(DESCRIPTION);
   const collections = Object.values(site.types).map(({ collection }) => collection);
   const described = liveDescription(DESCRIPTION);
-  const store = openStore(join(SERVICE_DATA, STORE_FILE));
 
   const token = readFileSync('/secret/read-token', 'utf8').trim();
 
@@ -62,10 +63,6 @@ function editors() {
     isPost: (file) => file.endsWith('.md') && collections.includes(file.split('/')[0]),
   });
   serve(service, PORT);
-  process.on('SIGTERM', () => {
-    store.close();
-    process.exit(0);
-  });
 
   const atEachMinute = () => {
     setTimeout(async () => {
@@ -76,41 +73,13 @@ function editors() {
   atEachMinute();
 }
 
-// The site description of the code in use, read again when its file changes: a description that
-// cannot be read leaves the last one that could in use, and says so.
-function liveDescription(file) {
-  let held = { at: null, site: readSiteDescription(file) };
-  return () => {
-    let at = null;
-    try {
-      const { mtimeMs, size } = statSync(file);
-      at = `${mtimeMs}:${size}`;
-    } catch {
-      return held.site;
-    }
-    if (at === held.at) return held.site;
-    try {
-      held = { at, site: readSiteDescription(file) };
-    } catch (error) {
-      console.error(`The service goes on with the site description it read before: ${error.message}`);
-      held = { ...held, at };
-    }
-    return held.site;
-  };
-}
-
-function visitors() {
+function visitors(store) {
   const PORT = 4200;
   // The public site's origin, whose host a form's page is on.
   const hosts = process.env.KONZILO_SITE_ORIGIN ? [new URL(process.env.KONZILO_SITE_ORIGIN).host] : [];
-  const store = openStore(join(SERVICE_DATA, STORE_FILE));
   const service = visitorsService({ site: liveDescription(DESCRIPTION), store, hosts });
   // Each request within ten seconds (ADR 0044).
   serve(service, PORT, { requestTimeout: 10_000, headersTimeout: 10_000 });
-  process.on('SIGTERM', () => {
-    store.close();
-    process.exit(0);
-  });
 }
 
 const roles = { editors, visitors };
@@ -119,6 +88,10 @@ if (!Object.hasOwn(roles, role)) {
   console.error(`konzilo-service: name its role, ${Object.keys(roles).join(' or ')}`);
   process.exit(2);
 }
-roles[role]();
-
-process.on('SIGTERM', () => process.exit(0));
+// Either role opens the service's data once, and stops one way, its data closed first.
+const store = openStore(join(SERVICE_DATA, STORE_FILE));
+process.on('SIGTERM', () => {
+  store.close();
+  process.exit(0);
+});
+roles[role](store);

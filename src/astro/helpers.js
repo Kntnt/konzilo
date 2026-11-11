@@ -17,7 +17,7 @@
 
 import { writeMetaLine } from '../meta-line.js';
 import { articleAuthors } from './authors.js';
-import { describedSite } from './languages.js';
+import { describedSite, pageLanguage, settingsEntry } from './languages.js';
 import { metaLineValues } from './meta-line.js';
 import { publicSite } from './public-site.js';
 
@@ -36,7 +36,7 @@ export function longDate(date, language) {
 function tagOf(language) {
   if (language instanceof URL) return publicSite(language).languageTag;
   if (typeof language === 'string' && language !== '') return language;
-  throw new Error('longDate() and ordered() take the page\'s language as its address, Astro.url, or a language tag, such as sv-SE');
+  throw new Error('longDate(), ordered() and metaLine() take the page\'s language as its address, Astro.url, or a language tag, such as sv-SE');
 }
 
 // A term's name after its parents' names, the topmost first, each after
@@ -156,19 +156,28 @@ export async function authorsOf(entry, { site = describedSite(), getEntries } = 
 // the variable it shows, null for the format's own words; `url` the page it links to, an
 // author's or the category's, else null; and `datetime` the moment of a date, else null.
 // None for a type without a format. `language`: the page's address, Astro.url, whose
-// language and settings it takes, or a language tag such as `sv-SE`. `site`: the site
-// description as checked, the site's own by default; `settings`: the site settings of the
-// page's language, by default those of `language`; `getEntries` and `getEntry`: Astro's
-// own from astro:content, by default.
-export async function metaLine(entry, language, { site = describedSite(), settings, getEntries, getEntry } = {}) {
+// language and settings it takes, or a language tag such as `sv-SE`, whose language's
+// settings it takes, the main language's for a tag of no language of the site's. `site`:
+// the site description as checked, the site's own by default; `settings`: the site
+// settings of the page's language, by default those of `language`; `getEntries`,
+// `getEntry` and `getCollection`: Astro's own from astro:content, by default.
+export async function metaLine(entry, language, { site = describedSite(), settings, getEntries, getEntry, getCollection } = {}) {
+  const tag = tagOf(language);
   const type = Object.values(site.types).find((declared) => declared?.collection === entry?.collection);
   if (!type) return [];
-  const content = getEntries && getEntry ? { getEntries, getEntry } : await import('astro:content');
-  const given = settings ?? (await (await import('./site-settings.js')).siteSettings(language instanceof URL ? language : null));
+  const astro = getEntries && getEntry && getCollection ? null : await import('astro:content');
+  const content = { getEntries: getEntries ?? astro.getEntries, getEntry: getEntry ?? astro.getEntry, getCollection: getCollection ?? astro.getCollection };
+  const base = import.meta.env?.BASE_URL ?? '/';
+  const given = settings ?? (await content.getEntry({ collection: 'settings', id: settingsEntry(languageIn(language, site.languages, base), site.languages) }))?.data;
   const format = given?.metaLine?.types?.[type.name]?.format;
   if (typeof format !== 'string') return [];
-  const base = (import.meta.env?.BASE_URL ?? '/').replace(/\/$/, '');
-  const tag = tagOf(language);
-  const values = await metaLineValues(entry, type, { site, tag, base, getEntries: getEntries ?? content.getEntries, getEntry: getEntry ?? content.getEntry });
+  const values = await metaLineValues(entry, type, { site, base: base.replace(/\/$/, ''), day: (date) => longDate(date, tag), ...content });
   return writeMetaLine(format, values, tag);
+}
+
+// The language among the site's `languages` of a page's address, Astro.url, below the site's
+// `base`, or of a language tag; the main language for a tag of no language of the site's.
+function languageIn(language, languages, base) {
+  if (language instanceof URL) return pageLanguage(language.pathname, languages, base);
+  return languages.find((one) => one.tag.toLowerCase() === language.toLowerCase()) ?? languages[0] ?? null;
 }

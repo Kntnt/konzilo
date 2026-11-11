@@ -5,6 +5,7 @@
 // apostrophe.
 
 import { catalogueFor, text } from '../catalogues.js';
+import { momentIn, valueText } from '../submission-values.js';
 
 // The separators a reader may choose, by the name the request gives.
 export const SEPARATORS = Object.freeze({ comma: ',', semicolon: ';' });
@@ -40,15 +41,6 @@ export function timeZoneOf(named) {
   }
 }
 
-// A moment as `YYYY-MM-DD HH:MM:SS` in a time zone.
-const momentIn = (timeZone) => {
-  const format = new Intl.DateTimeFormat('en-GB', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
-  return (at) => {
-    const part = Object.fromEntries(format.formatToParts(new Date(at)).map(({ type, value }) => [type, value]));
-    return `${part.year}-${part.month}-${part.day} ${part.hour}:${part.minute}:${part.second}`;
-  };
-};
-
 // Each field of a submission by its column: its label, and which of the fields of that label in
 // the submission it is, so that two fields with one label take a column each.
 function* columnsOf({ fields }) {
@@ -66,24 +58,22 @@ function* columnsOf({ fields }) {
 // for the rows. `separator`: a name of SEPARATORS. `timeZone`: the one the moments are in.
 // `language`: the reader's interface language, which the column names and a box's words are in.
 //
-// Columns: when it was sent, the form, then each field's label, the newest submission's in its
-// order, then each label only older ones hold.
+// Columns: when it was sent, in the time zone its heading names by its IANA name, since a
+// spreadsheet takes `YYYY-MM-DD HH:MM:SS` as a moment and the same with an offset as text; the
+// form; then each field's label, the newest submission's in its order, then each label only older
+// ones hold.
 export function* submissionsCsv({ label, each, separator, timeZone, language }) {
   const by = SEPARATORS[separator];
-  const words = (name) => text(catalogueFor(language), `submissions.${name}`);
+  const words = (name, values) => text(catalogueFor(language), `submissions.${name}`, values);
   const columns = new Map();
   for (const submission of each()) {
     for (const { column, label: named } of columnsOf(submission)) if (!columns.has(column)) columns.set(column, named);
   }
-  yield `${BYTE_ORDER_MARK}${row([words('sentAt'), words('form'), ...columns.values()], by)}`;
+  yield `${BYTE_ORDER_MARK}${row([words('sentAt', { timeZone }), words('form'), ...columns.values()], by)}`;
 
   const moment = momentIn(timeZone);
-  const shown = (value) => {
-    if (value === true) return words('yes');
-    if (value === false) return words('no');
-    if (Array.isArray(value)) return value.join(', ');
-    return String(value ?? '');
-  };
+  const box = { yes: words('yes'), no: words('no') };
+  const shown = (value) => valueText(value, box);
   for (const submission of each()) {
     const values = new Map([...columnsOf(submission)].map(({ column, value }) => [column, shown(value)]));
     yield row([moment(submission.sentAt), label, ...[...columns.keys()].map((column) => values.get(column) ?? '')], by);

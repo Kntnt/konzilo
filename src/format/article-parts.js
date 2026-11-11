@@ -26,8 +26,6 @@ export const SEARCH_DESCRIPTION = Object.freeze({ width: 920, size: 14, weight: 
 // What a shared link shows, in characters.
 export const SOCIAL_TITLE_LENGTH = 55;
 export const SOCIAL_DESCRIPTION_LENGTH = 100;
-// The separator between a title and the site's name in a title tag.
-export const TITLE_SEPARATOR = ' | ';
 const ELLIPSIS = '…';
 
 // Text without its Markdown: a link as its words, emphasis as its letters.
@@ -107,10 +105,12 @@ export const teaserTextOf = (data) => given(data.teaser?.text) || given(data.sta
 // The teaser's image, { src, alt }: its own, else the main image.
 export const teaserImageOf = (data) => (data.teaser?.image?.src ? data.teaser.image : data.image ?? null);
 
-// The title tag: the teaser's headline, cut so that it, the separator and the site's name stay
-// within what a search result shows.
-export function searchTitleOf(data, siteName = '') {
-  const tail = given(siteName) ? `${TITLE_SEPARATOR}${given(siteName)}` : '';
+// The title tag: the teaser's headline, cut so that it, the site's separator and the site's name
+// stay within what a search result shows. The separator is the site's (the Search and sharing
+// settings' `separator`), between single spaces, as a metadata template writes `{{ sep }}`
+// between the title and the site's name; without one, a space alone.
+export function searchTitleOf(data, siteName = '', separator = '') {
+  const tail = given(siteName) ? ` ${given(separator) ? `${given(separator)} ` : ''}${given(siteName)}` : '';
   const room = SEARCH_TITLE.width - textWidth(tail, SEARCH_TITLE);
   const headline = teaserHeadlineOf(data);
   return headline ? `${fitWidth(headline, room, SEARCH_TITLE)}${tail}` : given(siteName);

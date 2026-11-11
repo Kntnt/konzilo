@@ -114,10 +114,10 @@ describe('the site template, built by Astro', () => {
     const link = /<a [^>]*href="\/"[^>]*>(.*?)<\/a>/s.exec(header(page('index.html')))?.[1];
     assert.match(link, new RegExp(`^<img src="/_astro/logo-${shortHash(drawing({ width: 240, height: 60 }))}\\.[^"]+\\.svg" alt="A lantern by the harbour"[^>]* width="240" height="60"[^>]*>$`));
     assert.equal(title(page('index.html')), 'Lantern &amp; Co');
-    // An article's title tag is what its teaser shows, its main headline, with the site's name,
-    // and a page's what its teaser shows, its title.
-    assert.equal(title(page('harbour-lights/index.html')), 'Harbour lights | Lantern &amp; Co');
-    assert.equal(title(page('pages/about/index.html')), 'About | Lantern &amp; Co');
+    // An article's title tag is what its teaser shows, its main headline, with the site's
+    // separator and its name, and a page's what its teaser shows, its title.
+    assert.equal(title(page('harbour-lights/index.html')), 'Harbour lights – Lantern &amp; Co');
+    assert.equal(title(page('pages/about/index.html')), 'About – Lantern &amp; Co');
   });
 
   test('takes the title as the logo\'s alt text where the logo has none, and shows the title in the header where there is no logo', () => {
@@ -220,7 +220,7 @@ describe('the site template, built by Astro', () => {
     assert.match(shown, /A landing page alone\./);
     assert.equal(header(shown), undefined);
     assert.equal(footer(shown), undefined);
-    assert.match(shown, /<title>Spring \| Lantern<\/title>/, 'with Konzilo\'s head still');
+    assert.match(shown, /<title>Spring – Lantern<\/title>/, 'with Konzilo\'s head still');
     for (const path of ['harbour-lights/index.html', 'pages/about/index.html']) {
       assert.ok(header(page(path)), path);
       assert.ok(footer(page(path)), path);
@@ -668,7 +668,7 @@ describe('the site template in Swedish and English, built by Astro', () => {
     for (const [path, shown] of [
       ['sv/index.html', { link: '<a href="/sv/verkstaden/">Verkstaden</a>', footer: 'Öppet varje dag.', title: 'Lyktan', menu: 'Huvudmeny' }],
       ['en/index.html', { link: '<a href="/en/workshop/">The workshop</a>', footer: 'Open every day.', title: 'The Lantern', menu: 'Main menu' }],
-      ['en/harbour-lights/index.html', { link: '<a href="/en/workshop/">The workshop</a>', footer: 'Open every day.', title: 'Harbour lights | The Lantern', menu: 'Main menu' }],
+      ['en/harbour-lights/index.html', { link: '<a href="/en/workshop/">The workshop</a>', footer: 'Open every day.', title: 'Harbour lights – The Lantern', menu: 'Main menu' }],
       ['404.html', { link: '<a href="/sv/verkstaden/">Verkstaden</a>', footer: 'Öppet varje dag.', title: 'Sidan finns inte – Lyktan', menu: 'Huvudmeny' }],
     ]) {
       assert.ok(header(page(path)).includes(shown.link), `${path}: ${header(page(path))}`);

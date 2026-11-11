@@ -196,9 +196,13 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     return Object.fromEntries(description.languages.map((language) => [language.tag, publicAddress(type, '{slug}', language)]));
   };
 
+  // The separator a title tag takes until the site's settings give another: the Search and
+  // sharing settings' default (parts/register.js).
+  const separator = description.groups.find((group) => group.name === 'search')?.settings.find((setting) => setting.name === 'separator')?.default ?? '';
+
   const seoFields = (type) => {
     const teaser = followsParts(type);
-    const shown = (rule) => (teaser ? { widget: TEXT_WIDGET, fallback: rule } : { hint: say('seoFollows') });
+    const shown = (rule, more = {}) => (teaser ? { widget: TEXT_WIDGET, fallback: rule, ...more } : { hint: say('seoFollows') });
     const group = (name, fields) => ({
       name,
       label: say(name),
@@ -211,7 +215,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     });
     return [
       group('search', [
-        { name: 'title', label: say('seoTitle'), widget: 'string', ...shown('searchTitle') },
+        { name: 'title', label: say('seoTitle'), widget: 'string', ...shown('searchTitle', { separator }) },
         { name: 'description', label: say('seoDescription'), widget: 'text', ...(teaser ? { widget: TEXT_WIDGET, multiline: true, fallback: 'searchDescription' } : {}) },
         {
           name: 'canonical',

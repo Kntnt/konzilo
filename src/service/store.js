@@ -29,15 +29,19 @@ const STEPS = [
 // The store in `file`, made where there is none, and brought up to the last step. Two programs may
 // hold it open at once, the service's two roles, each waiting a moment for the other's write.
 //
-// Gives { key, keep(submission), submissions(form), eachSubmission(form), counts(), close() }:
+// Gives { key, keep(submission), submissions(form), snapshot(form), counts(), close() }:
 // `key`, 32 bytes, the same from the first opening on; `keep` takes { form, sentAt, language, spam, fields }, `sentAt` a Date,
 // `spam` null or why it was held as spam, and `fields` each { name, label, value }, and gives its
 // number; `submissions` gives a form's, newest first, each as kept with its `id` and `sentAt` in
 // ISO 8601, UTC, spam among them unless `spam` is false, from after the submission numbered
 // `before` where it is given, and at most `limit`; `counts` gives how many each form holds that
-// are not spam, by the form's name, of each form that holds one; and `eachSubmission` gives a
-// form's as `submissions` does with `spam` false, one at a time as they are read, for what writes
-// them out as it reads them, while anything else is asked of the store meanwhile.
+// are not spam, by the form's name, of each form that holds one; and `snapshot` gives a form's as
+// `submissions` does with `spam` false, from the data as it stood when they were first read,
+// whatever is kept meanwhile: { each(), close() }, `each()` them one at a time as they are read,
+// the same each time it is called, for what reads them twice and writes them out as it reads
+// them, such as a file's columns and then its rows, and `close()` once they are read. It reads on
+// a connection of its own, so that anything else asked of the store meanwhile is answered as the
+// data stands.
 export function openStore(file) {
   const database = new DatabaseSync(file);
   database.exec('PRAGMA busy_timeout = 5000');
@@ -81,9 +85,31 @@ export function openStore(file) {
     submissions(form, { spam = true, before = null, limit = null } = {}) {
       return byForm.all({ form, spam: spam ? 1 : 0, before, limit: limit ?? -1 }).map(submissionOf);
     },
-    // A statement of its own, which nothing else asked meanwhile resets.
-    * eachSubmission(form) {
-      for (const row of database.prepare(BY_FORM).iterate({ form, spam: 0, before: null, limit: -1 })) yield submissionOf(row);
+    // A read transaction holds the data as it stood at its first read until it ends.
+    snapshot(form) {
+      const reading = new DatabaseSync(file, { readOnly: true });
+      let open = true;
+      try {
+        reading.exec('PRAGMA busy_timeout = 5000');
+        reading.exec('BEGIN');
+      } catch (error) {
+        reading.close();
+        throw error;
+      }
+      return {
+        * each() {
+          for (const row of reading.prepare(BY_FORM).iterate({ form, spam: 0, before: null, limit: -1 })) yield submissionOf(row);
+        },
+        close() {
+          if (!open) return;
+          open = false;
+          try {
+            reading.exec('ROLLBACK');
+          } finally {
+            reading.close();
+          }
+        },
+      };
     },
     counts() {
       return Object.fromEntries(counted.all().map(({ form, count }) => [form, Number(count)]));

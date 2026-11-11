@@ -37,7 +37,7 @@ export function metaLineVariables(type) {
 }
 
 // The variables a format names, each once, in the order it first names them.
-export function variablesInFormat(format) {
+function variablesInFormat(format) {
   return [...new Set(tokensOf(format).filter((token) => token.variable !== undefined).map((token) => token.variable))];
 }
 
@@ -52,7 +52,7 @@ export function metaLineProblems(format, variables) {
 }
 
 // A punctuation mark, which ends the words that belong to the variable after it: any
-// punctuation, and a vertical bar, but a mark inside a word, as in `e-post` or `Kntnt's`.
+// punctuation, and a vertical bar, but a mark inside a word, as in `e-mail` or `harbour's`.
 const MARK = /[\p{P}|]/u;
 const LETTER_OR_DIGIT = /[\p{L}\p{N}]/u;
 

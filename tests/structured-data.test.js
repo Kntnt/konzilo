@@ -21,7 +21,9 @@ import { dirname, join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { headTags } from '../src/astro/search-and-sharing.js';
-import { siteDescription } from '../src/site-description.js';
+import { EVERY_STRUCTURED_DATA_TYPE, isKindOfArticle, isKindOfWebPage } from '../src/format/built-in-types.js';
+import settingsGroups from '../src/format/settings-groups.json' with { type: 'json' };
+import { SCHEMA_TYPES, siteDescription } from '../src/site-description.js';
 import { astroConfig, astroEnvironment } from './lib/astro.js';
 import { paragraphs, post as sitePost, writeContent } from './lib/content.js';
 import { drawing, plainImage, sharp, shortHash } from './lib/images.js';
@@ -29,6 +31,16 @@ import { drawing, plainImage, sharp, shortHash } from './lib/images.js';
 const ORIGIN = 'https://www.example.com';
 const WEBSITE = { '@id': `${ORIGIN}/#website` };
 const PUBLISHER = { '@id': `${ORIGIN}/#publisher` };
+
+// The structured data types the core knows are the rule data's, and every other list of them
+// follows: each a kind of web page or a kind of article, and never both, which the page's node
+// and its article node take; a page's and a canvas's list, every one of them; and the settings'
+// choice for a type, among them all before its type narrows it.
+test('knows the rule data\'s structured data types alone, each a kind of web page or of article', () => {
+  assert.deepEqual([...EVERY_STRUCTURED_DATA_TYPE].sort(), [...SCHEMA_TYPES].sort());
+  for (const one of SCHEMA_TYPES) assert.notEqual(isKindOfArticle(one), isKindOfWebPage(one), one);
+  assert.deepEqual([...settingsGroups.search.types.settings.schema.options].sort(), [...SCHEMA_TYPES].sort());
+});
 
 // Notes with a date but no last change, whose structured data type the
 // Admin has made BlogPosting.
@@ -468,7 +480,7 @@ describe('a site built with astro build for https://www.example.com', () => {
           '@type': 'AboutPage',
           '@id': `${aboutPage}#webpage`,
           url: aboutPage,
-          name: 'About the lantern | The Quiet Lantern',
+          name: 'About the lantern – The Quiet Lantern',
           description: 'Who keeps the lantern.',
           isPartOf: WEBSITE,
           breadcrumb: { '@id': `${aboutPage}#breadcrumb` },

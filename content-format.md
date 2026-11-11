@@ -787,7 +787,7 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
 
 1. **The site's identity**, each only when it is set: `title`, the site's title; `logo`, `{ "src": "media/<name>", "alt": "…" }`, its alt text only when it has one; and `icon`, the site icon, `{ "src": "media/<name>" }`, square, from which every build makes the site's icons.
 2. **The site's own settings**, each by its name in the order the site description declares them, by its `type`: a `string` as a string, a `number` and an `integer` as a number, a `boolean` as `true` or `false`, always there, a `date` as a day, `"YYYY-MM-DD"`, quoted; a `post`, the choice of a post, as `{ "title": "…", "url": "…" }`, the post's title and current address, left out while the post has no page; and an `image`, the choice of an image, as `{ "src": "media/<name>", "alt": "…" }`, as the logo. A setting without a value is left out.
-3. **Konzilo's own settings groups** that apply to the site, each an object under its name: `search`, the search and sharing settings, with each type's structured data type, `schema`, under `types`, one its type offers, else its type's default; `metaLine`, the format of each type's meta line, `format`, by type, the article's by default, text with variables in braces, `{authors}`, `{date}`, `{modified}` and `{category}`, each a type has, and none where the type has no format; `breadcrumbs`, whether a page's breadcrumbs end with the page itself, `current`, by type; `ai`, AI visibility; `consent`, the consent texts; `tagManager`, what the public site loads to measure visits, `None`, `Matomo Tag Manager` or `Matomo`, Matomo's own tracker, with the instance's `address`, the `container`'s ID, the `site`'s ID in Matomo, the tracker's `cookieDomain` and `timeZone`, the site's time zone in Matomo by its IANA name, and who runs the instance, `provider`, each only once given; `legalPages`, the legal pages, each a choice of a post; `forms`, each declared form's confirmation text, by the form's name; `feeds`, what the site's feeds hold, `item`, `"The summary"` or `"The whole text"`, and `posts`, a whole number from 1; and `related`, on a site with articles or a taxonomy of its own, how related posts rank ([Post lists](#post-lists)): `freshness`, `true` or `false`, and `halfLife`, the days in which a post's freshness halves, a whole number from 1. The 404 page an Admin chooses is no setting here: it is `not-found.md`. A group holds its settings, then its named parts, each an object under its name, then `types`, a part for each post type, by the type's name. A setting with a default is always there. [`src/format/settings-groups.json`](src/format/settings-groups.json) describes each group's settings.
+3. **Konzilo's own settings groups** that apply to the site, each an object under its name: `search`, the search and sharing settings, with each type's templates and its structured data type, `schema`, under `types`, one its type offers, else its type's default, and no title tag or sharing title template, `title` and `socialTitle`, for a type with a teaser, whose teaser gives both; `metaLine`, the format of each type's meta line, `format`, by type, the article's by default, text with variables in braces, `{authors}`, `{date}`, `{modified}` and `{category}`, each a type has, and none where the type has no format, nor any part for the canvas; `breadcrumbs`, whether a page's breadcrumbs end with the page itself, `current`, by type; `ai`, AI visibility; `consent`, the consent texts; `tagManager`, what the public site loads to measure visits, `None`, `Matomo Tag Manager` or `Matomo`, Matomo's own tracker, with the instance's `address`, the `container`'s ID, the `site`'s ID in Matomo, the tracker's `cookieDomain` and `timeZone`, the site's time zone in Matomo by its IANA name, and who runs the instance, `provider`, each only once given; `legalPages`, the legal pages, each a choice of a post; `forms`, each declared form's confirmation text, by the form's name; `feeds`, what the site's feeds hold, `item`, `"The summary"` or `"The whole text"`, and `posts`, a whole number from 1; and `related`, on a site with articles or a taxonomy of its own, how related posts rank ([Post lists](#post-lists)): `freshness`, `true` or `false`, and `halfLife`, the days in which a post's freshness halves, a whole number from 1. The 404 page an Admin chooses is no setting here: it is `not-found.md`. A group holds its settings, then its named parts, each an object under its name, then `types`, a part for each post type it applies to, by the type's name, which leaves out a setting that says nothing for the type, and the part of a type left with none. A setting with a default is always there. [`src/format/settings-groups.json`](src/format/settings-groups.json) describes each group's settings.
 
 ```json file=settings.json
 {
@@ -827,23 +827,17 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
     },
     "types": {
       "article": {
-        "title": "{{ post.title }} {{ sep }} {{ site.title }}",
         "description": "{{ post.auto_description }}",
-        "socialTitle": "{{ post.title }}",
         "socialDescription": "{{ post.auto_description }}",
         "schema": "Article"
       },
       "page": {
-        "title": "{{ post.title }} {{ sep }} {{ site.title }}",
         "description": "{{ post.auto_description }}",
-        "socialTitle": "{{ post.title }}",
         "socialDescription": "{{ post.auto_description }}",
         "schema": "WebPage"
       },
       "canvas": {
-        "title": "{{ post.title }} {{ sep }} {{ site.title }}",
         "description": "{{ post.auto_description }}",
-        "socialTitle": "{{ post.title }}",
         "socialDescription": "{{ post.auto_description }}",
         "schema": "WebPage"
       }
@@ -854,8 +848,7 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
       "article": {
         "format": "Published on {date} in {category} by {authors}"
       },
-      "page": {},
-      "canvas": {}
+      "page": {}
     }
   },
   "breadcrumbs": {

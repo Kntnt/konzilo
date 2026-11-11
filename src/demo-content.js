@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // The folder, in a site repository, that holds its own demo content.
-export const SITE_DEMO_CONTENT = 'demo-content';
+const SITE_DEMO_CONTENT = 'demo-content';
 
 const CORE_DEMO_CONTENT = fileURLToPath(new URL('../site-template/demo-content', import.meta.url));
 
