@@ -30,11 +30,12 @@ const givenOf = ({ adapter, smtp, recipients }) => ({
   forms: Object.fromEntries(Object.entries(recipients).map(([name, written]) => [name, { recipients: recipientsOf(written) }])),
 });
 
-// A text field with its label, and its problem beside it.
+// A text field with its label, and its problem beside it. The label names the field by `for`
+// rather than around it, since a label around a field that holds text takes the text into its name.
 function Field({ id, label, value, problem, onChange, ...rest }) {
   const { createElement: h } = react();
-  return h('label', { style: FIELD },
-    label,
+  return h('div', { style: FIELD },
+    h('label', { htmlFor: id }, label),
     h('input', { id, value, onChange: (event) => onChange(event.target.value), 'aria-invalid': problem ? 'true' : undefined, 'aria-describedby': problem ? `${id}-problem` : undefined, ...rest }),
     problem ? h('p', { id: `${id}-problem`, style: PROBLEM }, problem) : null);
 }
@@ -73,10 +74,14 @@ function Recipients({ forms, recipients, problems, onChange }) {
   return h('fieldset', { style: SET },
     h('legend', { style: LEGEND }, say('mail.recipients')),
     h('p', { style: { ...LINE, margin: 0 } }, say('mail.recipientsHelp')),
-    forms.map(({ name, label }) => h('label', { key: name, style: FIELD },
-      label,
-      h('textarea', { rows: 3, value: recipients[name] ?? '', onChange: (event) => onChange({ ...recipients, [name]: event.target.value }), 'aria-invalid': problems[name] ? 'true' : undefined }),
-      (problems[name] ?? []).map((problem) => h('p', { key: problem, style: PROBLEM }, problem)))));
+    forms.map(({ name, label }) => {
+      const id = `konzilo-mail-recipients-${name}`;
+      const wrong = problems[name] ?? [];
+      return h('div', { key: name, style: FIELD },
+        h('label', { htmlFor: id }, label),
+        h('textarea', { id, rows: 3, value: recipients[name] ?? '', onChange: (event) => onChange({ ...recipients, [name]: event.target.value }), 'aria-invalid': wrong.length > 0 ? 'true' : undefined, 'aria-describedby': wrong.length > 0 ? `${id}-problem` : undefined }),
+        wrong.length > 0 ? h('div', { id: `${id}-problem` }, wrong.map((problem) => h('p', { key: problem, style: PROBLEM }, problem))) : null);
+    }));
 }
 
 export function mailPage({ credential = signedInCredential } = {}) {
