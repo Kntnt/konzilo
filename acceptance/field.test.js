@@ -2183,7 +2183,7 @@ describe('the body field in Sveltia, on a site in two languages', () => {
 });
 
 describe('an entry in Sveltia', () => {
-  test('has its title, status and body first, and stays open at a save', async () => {
+  test('has its name and slug, its status and its body first, and stays open at a save', async () => {
     const config = cmsConfig(readSiteDescription(join(core, 'site-template/files/site-description.json')), { forgejo: 'http://localhost:1', repository: 'a/b', clientId: 'c', site: 'http://localhost:2' });
     const site = await openFieldPage({ config: { ...config, backend: { name: 'test-repo' } } });
     try {
@@ -2195,7 +2195,8 @@ describe('an entry in Sveltia', () => {
       await editor.waitFor();
       const title = page.getByRole('textbox', { name: 'Title', exact: true });
       assert.ok((await title.boundingBox()).y < (await editor.boundingBox()).y, 'the title above the body');
-      assert.ok((await editor.boundingBox()).y < (await page.getByRole('textbox', { name: 'Slug', exact: true }).boundingBox()).y, 'the body above the slug');
+      // The slug with the title, in their field group (ADR 0071).
+      assert.ok((await page.getByRole('textbox', { name: 'Slug', exact: true }).boundingBox()).y < (await editor.boundingBox()).y, 'the slug above the body');
       assert.ok((await editor.boundingBox()).y < 900, 'and the body in sight as it opens');
       await title.fill('Stays open');
       await editor.click();
