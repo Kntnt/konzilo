@@ -1,12 +1,12 @@
 # ADR 0067: Draw the live preview's page again under a view transition, and keep its scroll
 
-**Date:** 2026-11-10 · **Status:** Accepted. Settled by Thomas: the preview draws a page again without an empty frame, keeping the scroll, on every site with no script of its own, and a browser without view transitions reloads it on a white frame, with the scroll kept (2026-11-10). The rest is a technical choice; Thomas may veto.
+**Date:** 2026-11-10, amended 2026-11-11 · **Status:** Accepted. Settled by Thomas: the preview draws a page again without an empty frame, keeping the scroll, on every site with no script of its own, and a browser without view transitions reloads it on a white frame, with the scroll kept (2026-11-10). The rest is a technical choice; Thomas may veto.
 
 ## Decision
 
 - **The page holds the dev server's reload.** Astro's dev server shows a change by having its script in the page reload it. In the live preview alone, a script the core writes into each page (`src/astro/preview-redraw.js`) meets that reload at the Navigation API's `navigate` event, stops it, and replaces the page's history entry with its own address instead: the same path and query, with no fragment. A reload by the page's own script is met the same way.
 - **Under a view transition across documents.** The script asks for one, `@view-transition { navigation: auto; }`, in a sheet of its own that the document adopts, on the page that goes and on the page that comes. A reload never has one, and a replace within the origin does: the browser keeps the old page in view until the new one is drawn, and fades from one to the other.
-- **The scroll is kept** in the frame's session storage, with the address, as the page goes. The new page goes back to it when it is revealed, and again when it is read and when it has loaded, until it is there, since it may be shorter when first drawn than when it is whole.
+- **The scroll is kept** in the frame's session storage, with the address, as the page goes. The new page, the next in the frame, reads it once, and where the browser says the page came by a replace, or does not say, goes back to it when it is revealed, and again when it is read and when it has loaded, until it is there, since it may be shorter when first drawn than when it is whole.
 - **The guard lets a page replace itself with its own address,** the same path and query, sent by no form, and nothing else it stopped before ([ADR 0032](0032-preview-live-beside-the-form-and-share-a-draft-through-a-secret-link.md)).
 - **A browser without view transitions across documents,** or whose session storage is closed to the frame, reloads, as before, on the white behind the frame ([ADR 0064](0064-let-the-preview-stand-where-an-editor-wants-it-and-show-a-field-its-block-and-back.md)), and a reload keeps the scroll.
 - **Every site has it,** with no script of its own, in the pane and in a window of its own alike, since both frame the same page.
@@ -28,7 +28,9 @@
 
 - Chromium 156 and WebKit 27.2 draw the transition in the preview's sandboxed frame. Firefox 157 has none across documents, and reloads, keeping the scroll.
 - A picture the new page shows may not be decoded when the transition begins, and fades in with it.
+- WebKit 27.2 does not say how a page came (`navigation.activation`) in the frame of the window of its own, a page another window opened, though it does in the pane's. A page that waited for it there lost its scroll.
 
 ## Consequences
 
 - A design's `view-transition-name`s and `::view-transition-*` rules take part in the redraw in the preview, which `docs/site-design.md` notes.
+- `acceptance/preview.test.js` measures the frames of a redraw and the scroll kept, in the pane and in the window of its own, in each engine.

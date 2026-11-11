@@ -1,7 +1,8 @@
 // The live preview in a site in Compose, as an editor and a stranger meet it: nothing without
 // a session, the page itself in the pane once signed in, a draft on the page within seconds
-// of a pause, drawn again in place, a refusal above the last good page, and none of what the
-// public site offers the world (ADR 0032, ADR 0067).
+// of a pause, drawn again in place, in the pane and in the window of its own alike, a refusal
+// above the last good page, and none of what the public site offers the world (ADR 0032,
+// ADR 0067).
 
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
@@ -30,24 +31,33 @@ describe('the live preview', () => {
     await page.getByText(title).first().click();
     await page.locator('.konzilo-body-visual .ProseMirror').waitFor({ timeout: 30_000 });
   };
+  // Where the page is shown: in the pane, in the editor's page, or in the preview's window of its
+  // own, a page of its own with the page in a frame.
+  const inPane = (page) => ({ on: page, frame: frameOf(page), element: paneOf(page).locator('iframe') });
+  const inWindow = (popup) => ({ on: popup, frame: popup.frameLocator('iframe'), element: popup.locator('iframe') });
+  // The editor's choice of where the preview stands, from its menu.
+  const viewIn = async (page, words) => {
+    await page.getByRole('button', { name: 'Show Editor Options' }).click();
+    await page.getByRole('menuitemradio', { name: words }).click();
+  };
   // A new main headline typed in an article's form, which its page's heading shows, with the page
-  // scrolled a little, and every frame of the pane
+  // scrolled a little, and every frame of where it is shown
   // while the page is drawn again with it, until a moment after it shows. The draft the pane sends
   // on opening reloads the page once, at a moment of its own, so a first change goes before.
-  const drawnAgain = async (page, changed) => {
+  const drawnAgain = async (page, changed, view = inPane(page)) => {
     const title = page.getByRole('textbox', { name: 'Main headline', exact: true });
-    const shown = frameOf(page).locator('html');
+    const shown = view.frame.locator('html');
     await title.fill(`${changed}, at first`);
-    await frameOf(page).getByRole('heading', { level: 1, name: `${changed}, at first` }).waitFor({ timeout: ON_THE_PAGE });
+    await view.frame.getByRole('heading', { level: 1, name: `${changed}, at first` }).waitFor({ timeout: ON_THE_PAGE });
     await shown.evaluate(() => new Promise((resolve) => {
       if (document.readyState === 'complete') resolve();
       else window.addEventListener('load', resolve, { once: true });
     }));
     await shown.evaluate(() => window.scrollTo(0, 200));
     const scrolled = await shown.evaluate(() => window.scrollY);
-    const frames = await framesWhile(page, paneOf(page).locator('iframe'), async () => {
+    const frames = await framesWhile(view.on, view.element, async () => {
       await title.fill(changed);
-      await frameOf(page).getByRole('heading', { level: 1, name: changed }).waitFor({ timeout: ON_THE_PAGE });
+      await view.frame.getByRole('heading', { level: 1, name: changed }).waitFor({ timeout: ON_THE_PAGE });
       await page.waitForTimeout(800);
     });
     return { scrolled, frames, now: await shown.evaluate(() => window.scrollY), transitions: await shown.evaluate(() => 'CSSViewTransitionRule' in window) };
@@ -397,6 +407,33 @@ describe('the live preview', () => {
           assert.ok(drawn.scrolled > 0, 'the page could be scrolled');
           assert.equal(drawn.now, drawn.scrolled);
           noEmptyFrame(drawn);
+        } finally {
+          await session.browser.close();
+        }
+      });
+    });
+  }
+
+  // The preview's window of its own draws a page again as the pane does (ADR 0064, ADR 0067).
+  for (const engine of Object.keys(ENGINES)) {
+    describe(`in its window of its own, in ${engine}`, () => {
+      test('draws the page again with no empty frame, at the scroll it had', async () => {
+        const session = await openEditor(engine, site);
+        try {
+          await signIn(session, site);
+          const { page } = session;
+          await openPost(page, 'Every element of body text');
+          const [popup] = await Promise.all([page.context().waitForEvent('page'), viewIn(page, /own window/)]);
+          try {
+            await inWindow(popup).frame.getByRole('heading', { level: 1, name: 'Every element of body text' }).waitFor({ timeout: ON_THE_PAGE * 2 });
+            const drawn = await drawnAgain(page, 'Every element, drawn again in its window', inWindow(popup));
+            assert.ok(drawn.scrolled > 0, 'the page could be scrolled');
+            assert.equal(drawn.now, drawn.scrolled);
+            noEmptyFrame(drawn);
+          } finally {
+            await viewIn(page, /beside/);
+            if (!popup.isClosed()) await popup.waitForEvent('close');
+          }
         } finally {
           await session.browser.close();
         }

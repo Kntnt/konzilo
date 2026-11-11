@@ -21,6 +21,9 @@ export function previewRedraw() {
 
   // The page drawn again goes back to where the page it replaced was scrolled to. It may be
   // shorter when it is first drawn than when it is all there, so it goes there again until it is.
+  // What was kept is read once, by the next page in the frame, which is the one that replaced it.
+  // WebKit does not say how a page came in a frame of a window another window opened, such as the
+  // preview's window of its own, so where the browser does not say, it is taken to be so.
   let kept = null;
   try {
     kept = JSON.parse(sessionStorage.getItem(KEPT));
@@ -28,7 +31,7 @@ export function previewRedraw() {
   } catch {
     kept = null;
   }
-  if (kept?.at === address() && navigation.activation?.navigationType === 'replace') {
+  if (kept?.at === address() && (navigation.activation?.navigationType ?? 'replace') === 'replace') {
     const back = () => {
       if (!kept) return;
       window.scrollTo({ left: kept.x, top: kept.y, behavior: 'instant' });
