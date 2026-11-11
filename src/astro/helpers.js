@@ -1,10 +1,12 @@
 // The helpers, reached as `@kntnt/konzilo/astro/helpers`: the common ways a
 // site's templates work on their data.
 //
-//   import { longDate, termPath, postalAddress, oneLine, legalPages, summary, ordered, countOf, builtInType, authorsOf } from '@kntnt/konzilo/astro/helpers';
+//   import { longDate, termPath, postalAddress, oneLine, legalPages, summary, ordered, countOf, builtInType, authorsOf, metaLine } from '@kntnt/konzilo/astro/helpers';
 //   <time datetime={article.data.date.toISOString()}>{longDate(article.data.date, Astro.url)}</time>
 //   const authors = await authorsOf(article);
 //   {authors.map((author) => <li>{author.url ? <a href={author.url}>{author.name}</a> : author.name}</li>)}
+//   const line = await metaLine(article, Astro.url);
+//   {line.map(({ text, url, datetime }) => (url ? <a href={url}>{text}</a> : datetime ? <time datetime={datetime}>{text}</time> : text))}
 //   {builtInType(entry) !== 'canvas' && <header>…</header>}
 //   <p>{summary(article.data.excerpt, 20)}</p>
 //   <p>{countOf(categories)} categories</p>
