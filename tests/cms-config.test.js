@@ -19,7 +19,8 @@ const place = { forgejo: 'http://localhost:4403', repository: 'lantern/source', 
 const description = siteDescription(JSON.parse(readFileSync(file('site-template/files/site-description.json'), 'utf8')));
 const config = cmsConfig(description, place);
 const collection = (name) => config.collections.find((one) => one.name === name);
-const field = (fields, name) => fields.find((one) => one.name === name);
+// A field of a form, where it stands alone or in one of the form's field groups (ADR 0071).
+const field = (fields, name) => fields.find((one) => one.name === name) ?? fields.filter((one) => one.name.startsWith('group-')).flatMap((one) => one.fields).find((one) => one.name === name);
 
 test('signs in through Forgejo alone, with no token option', () => {
   assert.deepEqual(config.backend, {
@@ -121,10 +122,12 @@ test('keeps what the published files never hold out of the form', () => {
   assert.doesNotMatch(JSON.stringify(config), /"recipients"|"retention"/);
 });
 
-test('gives a field only a plain value as its default, which is all Sveltia takes', () => {
+test('gives a field only a plain value as its default, which is all Sveltia takes, and a field group its fields\' defaults', () => {
+  const plainValue = (value) => ['string', 'number', 'boolean'].includes(typeof value);
   const walk = (fields) => {
     for (const one of fields) {
-      if ('default' in one) assert.ok(['string', 'number', 'boolean'].includes(typeof one.default), one.name);
+      if ('default' in one && one.widget === 'konzilo-group') assert.deepEqual(one.default, Object.fromEntries(one.fields.filter((member) => 'default' in member).map((member) => [member.name, member.default])), one.name);
+      else if ('default' in one) assert.ok(plainValue(one.default), one.name);
       if (one.fields) walk(one.fields);
     }
   };
@@ -415,9 +418,11 @@ describe('the canonical address', () => {
 test('says where the live preview is, and which collections have pages to show there', () => {
   const given = cmsConfig(description, { forgejo: 'http://localhost:1', repository: 'a/b', clientId: 'c', site: 'http://localhost:2', preview: 'http://localhost:3' });
   const withPages = Object.values(description.types).filter((type) => type.address).map((type) => type.collection);
-  assert.deepEqual(given.konzilo, { language: 'en', preview: { origin: 'http://localhost:3', collections: withPages } });
+  const { groups: _groups, ...konzilo } = given.konzilo;
+  assert.deepEqual(konzilo, { language: 'en', preview: { origin: 'http://localhost:3', collections: withPages } });
   assert.ok(withPages.length > 0);
-  assert.deepEqual(cmsConfig(description, { forgejo: 'http://localhost:1', repository: 'a/b', clientId: 'c', site: 'http://localhost:2' }).konzilo, { language: 'en' });
+  const { groups: _none, ...without } = cmsConfig(description, { forgejo: 'http://localhost:1', repository: 'a/b', clientId: 'c', site: 'http://localhost:2' }).konzilo;
+  assert.deepEqual(without, { language: 'en' });
 });
 
 test('holds search and sharing per language on a site in several', () => {
@@ -472,5 +477,101 @@ describe('the image library', () => {
       language: 'en_GB',
       types: { picture: { label: 'Picture', plural: 'Pictures', collection: 'image-library', address: '/{slug}/', elements: ['paragraph'] } },
     }), /image-library is the collection of the image library/);
+  });
+});
+
+// A post's form in field groups: each one section with one menu over every field it covers. A
+// group of several fields is one field of Sveltia's, of the core's own type or an object, which
+// the editor reads from and writes to a source file whose fields stay flat (ADR 0071).
+describe('the form\'s field groups', () => {
+  const shape = (name, made = config) => made.collections.find((one) => one.name === name).fields.map((one) => (one.name.startsWith('group-') ? [one.name, one.fields.map((member) => member.name)] : one.name));
+
+  test('give the article its form in story 23\'s order, with no publishing row', () => {
+    assert.deepEqual(shape('articles'), [
+      ['group-name', ['title', 'breadcrumb', 'slug']],
+      ['group-status', ['status', 'date']],
+      'image',
+      ['group-terms', ['authors', 'category', 'topics']],
+      ['group-headline', ['eyebrow', 'headline', 'subheadline']],
+      'standfirst',
+      'body',
+      'teaser',
+      'search',
+      'sharing',
+      'structured',
+      'otherAddresses',
+    ]);
+  });
+
+  test('keep a page\'s and a canvas\'s publishing row, after their status', () => {
+    assert.deepEqual(shape('pages'), [['group-name', ['title', 'breadcrumb', 'slug']], ['group-status', ['status']], 'publishing', 'parent', 'body', 'search', 'sharing', 'structured', 'otherAddresses']);
+    assert.deepEqual(shape('canvases'), [['group-name', ['title', 'slug']], ['group-status', ['status']], 'publishing', 'body', 'search', 'sharing', 'structured', 'otherAddresses']);
+  });
+
+  test('draw a group of the core\'s fields in the core\'s own field, and the terms, which only Sveltia draws, in an object', () => {
+    const fields = collection('articles').fields;
+    for (const name of ['group-name', 'group-status', 'group-headline']) {
+      assert.equal(field(fields, name).widget, 'konzilo-group', name);
+      assert.equal(field(fields, name).required, false, name);
+    }
+    const terms = field(fields, 'group-terms');
+    assert.equal(terms.widget, 'object');
+    assert.equal(terms.required, true, 'its fields show, with no box to tick');
+    assert.equal(terms.collapsed, false);
+    // Each has a name for the section, which a heading shows only where the group asks for one.
+    for (const name of ['group-name', 'group-status', 'group-terms', 'group-headline']) assert.equal(typeof field(fields, name).label, 'string', name);
+    assert.equal(field(fields, 'group-headline').label, 'Headline');
+    assert.equal(field(cmsConfig(description, { ...place, language: 'sv' }).collections[0].fields, 'group-headline').label, 'Rubrik');
+  });
+
+  test('give the slug its default from the name in breadcrumbs, and leave the required working name and main headline without one', () => {
+    const fields = collection('articles').fields;
+    assert.equal(field(fields, 'slug').computed, 'slug');
+    assert.equal(field(fields, 'title').label, 'Working name');
+    for (const name of ['title', 'headline']) {
+      assert.equal(field(fields, name).required, true, name);
+      assert.equal(field(fields, name).default, undefined, name);
+    }
+    assert.equal(field(fields, 'status').default, 'draft');
+    assert.deepEqual(field(fields, 'group-status').default, { status: 'draft' }, 'a new post is a draft');
+  });
+
+  test('tell the editor which fields each group holds, so that a source file keeps them flat', () => {
+    assert.deepEqual(config.konzilo.groups, {
+      'group-name': ['title', 'breadcrumb', 'slug'],
+      'group-status': ['status', 'date'],
+      'group-terms': ['authors', 'category', 'topics'],
+      'group-headline': ['eyebrow', 'headline', 'subheadline'],
+    });
+  });
+
+  test('keep each field\'s language on a site in several: a group of fields alike in each is alike, and one with a text per language is per language', () => {
+    const { language: _one, ...declared } = JSON.parse(readFileSync(file('site-template/files/site-description.json'), 'utf8'));
+    declared.languages = ['sv_SE', 'en_GB'];
+    for (const type of Object.values(declared.types)) {
+      if (typeof type.address === 'string') type.address = { sv_SE: type.address, en_GB: type.address.replace(/^\/(?=[a-z]+\/)/, '/en-') };
+    }
+    const { fields } = cmsConfig(siteDescription(declared), place).collections[0];
+    // Sveltia keeps a field's language as a whole, so the slug, alike in each, is a group apart.
+    assert.deepEqual(fields.slice(0, 3).map((one) => one.name), ['group-name', 'group-slug', 'group-status']);
+    assert.equal(field(fields, 'group-name').i18n, true);
+    assert.deepEqual(field(fields, 'group-name').fields.map((one) => [one.name, one.i18n]), [['title', true], ['breadcrumb', true]]);
+    assert.equal(field(fields, 'group-slug').i18n, 'duplicate');
+    assert.equal(field(fields, 'group-status').i18n, 'duplicate');
+    assert.equal(field(fields, 'group-terms').i18n, 'duplicate');
+    assert.equal(field(fields, 'group-headline').i18n, true);
+  });
+
+  test('group the core\'s fields of a site\'s own type as the built-in types group them, so that a field is in the same group in every form', () => {
+    const made = cmsConfig(siteDescription({
+      language: 'en_GB',
+      images: { smallestWidth: 400, displayWidth: 1280 },
+      types: {
+        article: { collection: 'articles', address: '/{slug}/', elements: ['paragraph'] },
+        story: { label: 'Story', plural: 'Stories', collection: 'stories', address: '/stories/{slug}/', elements: ['paragraph'], fields: { date: {}, mood: { label: 'Mood', type: 'string', control: 'text' }, headline: { required: true }, topics: { taxonomy: 'topics' } } },
+      },
+    }), place);
+    assert.deepEqual(shape('stories', made), [['group-name', ['title', 'slug']], ['group-status', ['status', 'date']], 'publishing', 'body', 'mood', ['group-headline', ['headline']], ['group-terms', ['topics']], 'otherAddresses']);
+    assert.deepEqual(made.konzilo.groups['group-status'], ['status', 'date']);
   });
 });

@@ -5,6 +5,25 @@ section[data-accordion] > header {
   display: none !important;
 }
 
+/* A field group's that is a closed bar keeps its menu, over every field it holds, at the bar's
+   end (ADR 0071); its label is still in the bar alone. */
+section[data-accordion]:is([data-key-path='teaser'], [data-key-path='search'], [data-key-path='sharing'], [data-key-path='structured']) > header {
+  display: flex !important;
+  position: absolute;
+  inset-block-start: var(--field-editor-padding);
+  inset-inline: var(--field-editor-padding);
+  z-index: 1;
+  height: 28px;
+  margin-block: 0;
+  pointer-events: none;
+}
+section[data-accordion]:is([data-key-path='teaser'], [data-key-path='search'], [data-key-path='sharing'], [data-key-path='structured']) > header > :is(h4, .required) {
+  display: none;
+}
+section[data-accordion]:is([data-key-path='teaser'], [data-key-path='search'], [data-key-path='sharing'], [data-key-path='structured']) > header button {
+  pointer-events: auto;
+}
+
 /* A closed bar's hint can be long, and a form of closed bars is there to be read at a glance. */
 section[data-accordion]:has(> .field-wrapper > .wrapper > .header button[aria-expanded='false']) > .footer {
   display: none;

@@ -892,5 +892,15 @@
   "failure.check-broke": "kontrollen av det som sparades gick sönder, så besökare ser fortfarande den senaste versionen",
   "failure.not-built": "webbplatsen gick inte att bygga av det, så besökare ser fortfarande den senaste versionen",
   "failure.not-released": "den nya versionen av webbplatsen gick inte att sätta på plats, så besökare ser fortfarande den senaste versionen",
-  "failure.stopped": "bygget skulle ta bort de flesta av webbplatsens inlägg, så det väntar tills borttagningen har bekräftats"
+  "failure.stopped": "bygget skulle ta bort de flesta av webbplatsens inlägg, så det väntar tills borttagningen har bekräftats",
+  "form.groupName": "Namn och adress",
+  "form.groupStatus": "Status och datum",
+  "form.groupTerms": "Författare, kategori och ämnen",
+  "form.groupHeadline": "Rubrik",
+  "groups.options": "Visa fältalternativ",
+  "groups.menu": "Fältalternativ",
+  "groups.revert": "Återställ ändringar",
+  "groups.restore": "Återställ standardvärde",
+  "groups.clear": "Rensa",
+  "groups.required": "{field} behöver fyllas i."
 }

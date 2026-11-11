@@ -53,7 +53,7 @@ describe('the form in Sveltia', () => {
   test('search, sharing and structured data are closed bars, with no box to tick', async () => {
     await newEntry('pages');
     assert.equal(await page.getByRole('checkbox', { name: /^Search$/ }).count(), 0);
-    assert.equal(await page.locator('section[data-accordion][data-key-path="search"] > header').isVisible(), false, 'its label is in the bar');
+    assert.equal(await page.locator('section[data-accordion][data-key-path="search"] > header > h4').isVisible(), false, 'its label is in the bar');
     assert.equal(await page.getByRole('textbox', { name: 'Title tag' }).count(), 0);
     await bar('Search').click();
     await page.getByRole('textbox', { name: 'Title tag' }).waitFor();
@@ -123,6 +123,169 @@ describe('the form in Sveltia', () => {
   });
 });
 
+// A post's form in field groups, each one section with one menu over every field it covers,
+// which reverts, restores the defaults and clears them all, and greys what would change nothing
+// (ADR 0071).
+describe('field groups in Sveltia', () => {
+  let site;
+  let page;
+  let seen;
+
+  const origin = () => new URL(page.url()).origin;
+  const open = async (path) => {
+    await page.goto(`${origin()}/#/collections/${path}`);
+    await page.locator('.konzilo-body-visual .ProseMirror').waitFor();
+  };
+  const group = (name) => page.locator(`section.field[data-key-path="${name}"]`);
+  const textbox = (name) => page.getByRole('textbox', { name, exact: true });
+  // A group's menu, opened, as an editor opens it: what it offers, and whether each is greyed.
+  const menu = async (name) => {
+    await group(name).scrollIntoViewIfNeeded();
+    await group(name).hover();
+    await group(name).getByRole('button', { name: 'Show Field Options' }).first().click();
+    const items = page.getByRole('menu').getByRole('menuitem');
+    return Object.fromEntries(await items.evaluateAll((all) => all.map((one) => [one.textContent, one.getAttribute('aria-disabled') !== 'true'])));
+  };
+  const choose = async (action) => {
+    await page.getByRole('menu').getByRole('menuitem', { name: action }).click();
+    await page.getByRole('menu').waitFor({ state: 'detached' });
+  };
+
+  before(async () => {
+    const declared = JSON.parse(readFileSync(`${core}site-template/files/site-description.json`, 'utf8'));
+    const config = cmsConfig(siteDescription(declared), { forgejo: 'http://localhost:1', repository: 'a/b', clientId: 'c', site: 'http://localhost:2' });
+    site = await openFieldPage({ config: { ...config, backend: { name: 'test-repo' } } });
+    ({ page, seen } = await site.newPage({ viewport: { width: 1400, height: 1200 } }));
+    await page.getByRole('button', { name: 'Work with Test Repository' }).click();
+    await page.getByText('Articles', { exact: true }).first().waitFor();
+  }, { timeout: 120_000 });
+
+  after(() => site?.close());
+
+  test('give the article its form in story 23\'s order, each group one section with one menu, and no publishing row', async () => {
+    await open('articles/new');
+    const sections = await page.evaluate(() => [...document.querySelectorAll('section.field[data-key-path]')].map((one) => one.dataset.keyPath).filter((key) => !key.includes('.')));
+    assert.deepEqual(sections, ['group-name', 'group-status', 'image', 'group-terms', 'group-headline', 'standfirst', 'body', 'teaser', 'search', 'sharing', 'structured', 'otherAddresses']);
+    const holds = async (name, labels) => {
+      for (const label of labels) assert.equal(await group(name).getByText(label, { exact: true }).count() > 0, true, `${name} holds ${label}`);
+      await group(name).hover();
+      assert.equal(await group(name).getByRole('button', { name: 'Show Field Options' }).filter({ visible: true }).count(), 1, `${name} has one menu`);
+    };
+    await holds('group-name', ['Working name', 'Breadcrumb', 'Slug']);
+    await holds('group-status', ['Status', 'Date']);
+    await holds('group-terms', ['Authors', 'Category', 'Topics']);
+    await holds('group-headline', ['Eyebrow', 'Main headline', 'Subheadline']);
+    await group('search').scrollIntoViewIfNeeded();
+    await holds('search', []);
+    assert.equal(await group('publishing').count(), 0);
+  });
+
+  test('keep a page\'s publishing row', async () => {
+    await open('pages/new');
+    await group('publishing').waitFor();
+    const sections = await page.evaluate(() => [...document.querySelectorAll('section.field[data-key-path]')].map((one) => one.dataset.keyPath).filter((key) => !key.includes('.')));
+    assert.deepEqual(sections.slice(0, 3), ['group-name', 'group-status', 'publishing']);
+  });
+
+  test('revert, restore and clear every field a group covers, and never restore a required field without a default to nothing', async () => {
+    await open('articles/new');
+    await textbox('Working name').fill('Harbour lights');
+    await page.getByRole('button', { name: '+ Add an eyebrow' }).click();
+    await textbox('Eyebrow').fill('Coast');
+    await textbox('Main headline').fill('Harbour lights at dusk');
+    await page.getByRole('button', { name: '+ Add a subheadline' }).click();
+    await textbox('Subheadline').fill('A walk along the quay');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.waitForFunction(() => /\/entries\//.test(window.location.hash));
+    await page.getByRole('button', { name: 'Cancel Editing' }).click();
+    // Sveltia's list names the post by its working name, which its group holds.
+    await page.getByText('Harbour lights', { exact: true }).first().click();
+    await textbox('Main headline').waitFor();
+    assert.equal(await textbox('Eyebrow').inputValue(), 'Coast', 'the source file read back into the group');
+
+    assert.deepEqual(await menu('group-headline'), { 'Revert Changes': false, 'Restore Default': true, Clear: true }, 'nothing to revert yet');
+    await page.keyboard.press('Escape');
+    await textbox('Main headline').fill('Lights out');
+    await textbox('Eyebrow').fill('Inland');
+    assert.equal((await menu('group-headline'))['Revert Changes'], true);
+    await choose('Revert Changes');
+    assert.equal(await textbox('Main headline').inputValue(), 'Harbour lights at dusk');
+    assert.equal(await textbox('Eyebrow').inputValue(), 'Coast');
+
+    // The main headline is required and has no default, so restoring keeps it, and the optional
+    // parts, emptied, are their buttons again.
+    await menu('group-headline');
+    await choose('Restore Default');
+    assert.equal(await textbox('Main headline').inputValue(), 'Harbour lights at dusk');
+    await page.getByRole('button', { name: '+ Add an eyebrow' }).waitFor();
+    await page.getByRole('button', { name: '+ Add a subheadline' }).waitFor();
+    assert.deepEqual(await menu('group-headline'), { 'Revert Changes': true, 'Restore Default': false, Clear: true }, 'restored, so greyed');
+    await choose('Clear');
+    assert.equal(await textbox('Main headline').inputValue(), '');
+    assert.equal((await menu('group-headline')).Clear, false);
+    await page.keyboard.press('Escape');
+
+    // Saving with the main headline empty is stopped, naming it.
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.getByText('Main headline needs to be filled in.').first().waitFor();
+    assert.match(await page.evaluate(() => window.location.hash), /\/entries\//);
+  });
+
+  test('give the slug made from the name as its default, from Restore Default and Clear, and grey Restore Default while it is that', async () => {
+    await open('articles/new');
+    await textbox('Working name').fill('Quiet quay');
+    const slug = group('group-name').locator('[data-key-path="group-name.slug"] input');
+    await page.waitForFunction(() => document.querySelector('[data-key-path="group-name.slug"] input')?.value === 'quiet-quay');
+    assert.equal((await menu('group-name'))['Restore Default'], false, 'the slug is the name\'s, and the working name is required');
+    await page.keyboard.press('Escape');
+
+    await group('group-name').getByRole('button', { name: 'Change' }).click();
+    await slug.fill('a-quay-of-my-own');
+    await group('group-name').getByRole('button', { name: 'Save' }).click();
+    await textbox('Breadcrumb').fill('Quay');
+    assert.equal(await slug.inputValue(), 'a-quay-of-my-own', 'changed on purpose, it follows nothing');
+    assert.equal((await menu('group-name'))['Restore Default'], true);
+    await choose('Restore Default');
+    assert.equal(await textbox('Working name').inputValue(), 'Quiet quay', 'required, with no default, so kept');
+    assert.equal(await textbox('Breadcrumb').inputValue(), '');
+    assert.equal(await slug.inputValue(), 'quiet-quay', 'the slug made from the name');
+    assert.equal((await menu('group-name'))['Restore Default'], false);
+
+    // Clear empties the name too, and the slug is then the one made from the name as it is
+    // written again.
+    await choose('Clear');
+    assert.equal(await textbox('Working name').inputValue(), '');
+    assert.equal(await slug.inputValue(), '');
+    assert.equal((await menu('group-name')).Clear, false);
+    await page.keyboard.press('Escape');
+    await textbox('Working name').fill('Harbour wall');
+    await page.waitForFunction(() => document.querySelector('[data-key-path="group-name.slug"] input')?.value === 'harbour-wall');
+  });
+
+  test('work with the keyboard alone', async () => {
+    await open('articles/new');
+    await textbox('Working name').fill('Keys');
+    await group('group-name').getByRole('button', { name: 'Show Field Options' }).focus();
+    await page.keyboard.press('Enter');
+    assert.equal(await page.evaluate(() => document.activeElement?.textContent), 'Revert Changes');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('ArrowDown');
+    assert.equal(await page.evaluate(() => document.activeElement?.textContent), 'Clear');
+    await page.keyboard.press('Enter');
+    assert.equal(await textbox('Working name').inputValue(), '');
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Escape');
+    await page.getByRole('menu').waitFor({ state: 'detached' });
+    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Show Field Options', 'Escape leaves the focus on the menu\'s button');
+  });
+
+  test('has asked nothing outside, and broken no policy', () => {
+    assert.deepEqual(seen.outside, []);
+    assert.deepEqual(seen.refused, []);
+    assert.deepEqual(seen.errors, []);
+  });
+});
+
 // The editor's own check at Save, which stops a scheduled post whose moment is not ahead, so
 // that a slip of the year publishes nothing early. The intake publishes such a post at once,
 // with a warning, which is for a file saved some other way (ADR 0069).
@@ -149,7 +312,7 @@ describe('a scheduled post at Save in Sveltia', () => {
     await page.getByRole('textbox', { name: 'Working name', exact: true }).fill('Out on time');
     await page.getByRole('textbox', { name: 'Main headline', exact: true }).fill('Out on time');
     await page.getByRole('radio', { name: 'Scheduled' }).click();
-    const date = page.locator('.field[data-key-path="date"] input[type="datetime-local"]');
+    const date = page.locator('[data-key-path="group-status.date"] input[type="datetime-local"]');
     await date.scrollIntoViewIfNeeded();
     await date.fill('2020-01-01T09:00');
     await page.getByRole('button', { name: 'Save', exact: true }).click();

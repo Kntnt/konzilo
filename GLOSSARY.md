@@ -60,6 +60,8 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Field**: A value a post type declares beside its title and body: one of the core's own, the search and sharing fields, a post's terms, or one of the site's own. _Avoid_: custom field, property.
 
+**Field group**: One section of a post's form, with an optional heading and one menu, *Revert Changes*, *Restore Default* and *Clear*, over every field it covers, such as the working name, the name in breadcrumbs and the slug. Only the form has it; a source file holds the fields flat. _Avoid_: group (alone, for search, sharing and structured data in the source, or a settings group), fieldset, panel.
+
 **Article parts**: The fields of the core's that name the parts of an article: the eyebrow, the main headline and the subheadline, the standfirst, the teaser with its image, headline and text, and the name in breadcrumbs, beside the main image, which is the featured image. A part left empty falls back to another by one set of rules, which the editor and the site share. _Avoid_: deck, kicker, lead (for the standfirst).
 
 **Working name**: A post's title where the post has a main headline of its own: the name lists, menus and breadcrumbs show, and the one a new slug is made from. _Avoid_: internal title.

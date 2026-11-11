@@ -7,7 +7,7 @@
 // ID. Empty optional fields are left out, since the intake's schemas refuse an
 // empty string.
 
-import { AUTHORS, builtInOf, followsParts, PAGE } from '../format/built-in-types.js';
+import { ARTICLE, AUTHORS, BUILT_IN_TYPES, builtInOf, CATEGORY, followsParts, PAGE, TOPICS } from '../format/built-in-types.js';
 import { CANONICAL_PATTERN, publicAddress } from '../format/addresses.js';
 import { IMAGE_LIBRARY_FOLDER } from '../format/masters.js';
 import { declaredNames, SCHEMA_TYPES } from '../site-description.js';
@@ -19,11 +19,16 @@ import { SCHEMA_WIDGET, SLUG_WIDGET, TEXT_WIDGET } from './parts/widgets.js';
 import { inCatalogue, labelIn, text } from '../catalogues.js';
 import { BODY_WIDGET } from './body/widget.js';
 import { PUBLISHING_WIDGET } from './publishing/widget.js';
+import { GROUP_PREFIX, GROUP_WIDGET } from './groups/widget.js';
 
 // How deep a menu's entries go in the form. Sveltia has no recursive field.
 const MENU_DEPTH = 3;
 
 const SLUG = { template: '{{uuid_short}}', editable: false };
+
+// A post's title, which its form holds in its first field group, and which Sveltia names a post
+// by, in its lists and in a choice of a post (ADR 0071).
+const POST_TITLE = `${GROUP_PREFIX}name.title`;
 
 // A field on a site in several languages: written per language, or kept alike.
 const TRANSLATED = { i18n: true };
@@ -109,7 +114,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
         const among = chooseAmong();
         return among === null
           ? { ...common, widget: 'string' }
-          : { ...common, ...relation(among.collection, 'title'), required: false };
+          : { ...common, ...relation(among.collection, POST_TITLE), required: false };
       }
       case 'image':
         return imageField(setting.name, setting.label, { required: false });
@@ -313,6 +318,113 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     ],
   });
 
+  // A field group (ADR 0071): one section of the form, with one menu over every field it covers.
+  // A group of the core's fields is the core's own field, which draws them and its menu; the
+  // terms, which only Sveltia's relation draws, are an object, whose own menu covers them. Each
+  // is a field of Sveltia's whose value holds its fields', and the editor keeps a source file
+  // flat, by the fields each group holds (`konzilo.groups`). On a site in several languages, a
+  // group's fields are all alike in each language, and so is the group, or all per language.
+  const languageOf = (fields) => {
+    if (!several) return {};
+    return fields.every((one) => one.i18n === 'duplicate') ? SAME_IN_EACH : TRANSLATED;
+  };
+  const coreGroup = (name, label, fields) => ({
+    name: `${GROUP_PREFIX}${name}`,
+    label,
+    widget: GROUP_WIDGET,
+    required: false,
+    // A new post's, from its fields' own; Sveltia gives a field's default to a new entry only.
+    ...(fields.some((one) => 'default' in one) ? { default: Object.fromEntries(fields.filter((one) => 'default' in one).map((one) => [one.name, one.default])) } : {}),
+    ...languageOf(fields),
+    fields,
+  });
+  // Required, so that Sveltia shows its fields rather than a box to tick; each of them is as
+  // required as it is declared.
+  const termsGroup = (fields) => ({
+    name: `${GROUP_PREFIX}terms`,
+    label: fields.length === 1 ? fields[0].label : say('groupTerms'),
+    widget: 'object',
+    required: true,
+    collapsed: false,
+    ...languageOf(fields),
+    fields,
+  });
+
+  // The fields that only a group holds, by the names the core gives them: wherever a post has
+  // one, it is in the same group, so that a source file is read alike whatever its type.
+  const NAME_FIELDS = ['title', 'breadcrumb', 'slug'];
+  const STATUS_FIELDS = ['status', 'date'];
+  const HEADLINE_FIELDS = ['eyebrow', 'headline', 'subheadline'];
+  const TERMS_FIELDS = [AUTHORS, CATEGORY, TOPICS];
+
+  // The order of a built-in type's form, by its parts: `own` is where the site's own fields go.
+  const ARTICLE_FORM = ['name', 'status', 'image', 'terms', 'headline', 'standfirst', 'body', 'own', 'teaser', 'seo', 'otherAddresses'];
+  const PAGE_FORM = ['name', 'status', 'publishing', 'parent', 'body', 'own', 'seo', 'otherAddresses'];
+
+  const typeFields = (type) => {
+    const built = builtInOf(type);
+    const declared = (name) => type.fields.find((one) => one.name === name);
+    const fieldOf = (name) => {
+      const one = declared(name);
+      return one ? postField(one, type) : null;
+    };
+    const head = type.fields.some((field) => field.kind === 'headline');
+    // What an editor is here for first, and in sight when the entry opens, as Sveltia mounts
+    // what lies further down only as it comes into view.
+    // Where the type has a main headline of its own, the title is the post's working name.
+    const title = head
+      ? { name: 'title', label: say('workingName'), hint: say('workingNameHint'), widget: 'string', required: true, ...within(TRANSLATED) }
+      : { name: 'title', label: say('title'), widget: 'string', required: true, ...within(TRANSLATED) };
+    // Shown, and changed on purpose; a new post's follows its name in breadcrumbs, which is its
+    // default too.
+    const slug = { name: 'slug', label: say('slug'), widget: SLUG_WIDGET, address: typeof type.address === 'string' ? type.address : null, computed: 'slug', required: false, ...within(SAME_IN_EACH) };
+    const status = {
+      name: 'status',
+      label: say('status'),
+      widget: 'select',
+      default: 'draft',
+      required: true,
+      options: ['draft', 'scheduled', 'published'].map((value) => ({ value, label: say(value) })),
+      ...within(SAME_IN_EACH),
+    };
+    const date = fieldOf('date');
+    const headline = HEADLINE_FIELDS.map(fieldOf).filter(Boolean);
+    const terms = type.fields.filter((one) => TERMS_FIELDS.includes(one.name)).map((one) => postField(one, type));
+    // Fields in the order declared, with the core's in their groups, each where its first field
+    // is: a type of the site's own, and the site's own fields on a built-in type.
+    const inOrder = (fields) => {
+      const placed = new Set();
+      return fields.flatMap((one) => {
+        if ([...NAME_FIELDS, ...STATUS_FIELDS].includes(one.name)) return [];
+        const at = HEADLINE_FIELDS.includes(one.name) ? 'headline' : TERMS_FIELDS.includes(one.name) ? 'terms' : null;
+        if (at === null) return postField(one, type) ?? [];
+        if (placed.has(at)) return [];
+        placed.add(at);
+        return part(at) ?? [];
+      });
+    };
+    const parts = {
+      // On a site in several languages the name is each language's and the slug alike in each,
+      // which Sveltia keeps of a field as a whole, so the slug is a group of its own there.
+      name: () => (several
+        ? [coreGroup('name', say('groupName'), [title, fieldOf('breadcrumb')].filter(Boolean)), coreGroup('slug', say('slug'), [slug])]
+        : coreGroup('name', say('groupName'), [title, fieldOf('breadcrumb'), slug].filter(Boolean))),
+      status: () => coreGroup('status', date ? say('groupStatus') : say('status'), [status, date].filter(Boolean)),
+      // How it stands on the site, which is nothing the file holds (ADR 0031). An article's
+      // status says whether it is published, and its page opens from beside the slug.
+      publishing: () => ({ name: 'publishing', label: say('publishing'), widget: PUBLISHING_WIDGET, required: false, ...within(SAME_IN_EACH) }),
+      parent: () => (type.hierarchical ? { name: 'parent', label: say('parent'), ...relation(type.collection, POST_TITLE), required: false, ...within(SAME_IN_EACH) } : null),
+      body: () => ({ name: 'body', label: say('body'), widget: type.editor === 'structure' ? STRUCTURE_WIDGET : BODY_WIDGET, required: false, elements: type.elements, forms, ...(description.images?.smallestWidth ? { smallestWidth: description.images.smallestWidth } : {}), ...within(TRANSLATED) }),
+      headline: () => (headline.length === 0 ? null : coreGroup('headline', say('groupHeadline'), headline)),
+      terms: () => (terms.length === 0 ? null : termsGroup(terms)),
+      own: () => inOrder(type.fields.filter((one) => !Object.hasOwn(BUILT_IN_TYPES[built].fields, one.name))),
+      otherAddresses: () => (type.address === null ? null : otherAddressesField()),
+    };
+    const part = (name) => (Object.hasOwn(parts, name) ? parts[name]() : fieldOf(name));
+    const form = built ? (built === ARTICLE ? ARTICLE_FORM : PAGE_FORM) : ['name', 'status', 'publishing', 'parent', 'body', 'declared', 'otherAddresses'];
+    return form.flatMap((name) => (name === 'declared' ? inOrder(type.fields) : part(name) ?? []));
+  };
+
   const typeCollection = (type) => ({
     name: type.collection,
     label: own(type.plural),
@@ -321,37 +433,23 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     extension: 'md',
     format: 'yaml-frontmatter',
     create: true,
-    identifier_field: 'title',
-    summary: '{{title}}',
+    identifier_field: POST_TITLE,
+    summary: `{{${POST_TITLE}}}`,
     slug: SLUG,
     ...within(TRANSLATED),
-    fields: [
-      // What an editor is here for first, and in sight when the entry opens, as Sveltia mounts
-      // what lies further down only as it comes into view.
-      // Where the type has a main headline of its own, the title is the post's working name.
-      type.fields.some((field) => field.kind === 'headline')
-        ? { name: 'title', label: say('workingName'), hint: say('workingNameHint'), widget: 'string', ...within(TRANSLATED) }
-        : { name: 'title', label: say('title'), widget: 'string', ...within(TRANSLATED) },
-      {
-        name: 'status',
-        label: say('status'),
-        widget: 'select',
-        default: 'draft',
-        options: ['draft', 'scheduled', 'published'].map((value) => ({ value, label: say(value) })),
-        ...within(SAME_IN_EACH),
-      },
-      // How it stands on the site, which is nothing the file holds (ADR 0031).
-      { name: 'publishing', label: say('publishing'), widget: PUBLISHING_WIDGET, required: false, ...within(SAME_IN_EACH) },
-      { name: 'body', label: say('body'), widget: type.editor === 'structure' ? STRUCTURE_WIDGET : BODY_WIDGET, required: false, elements: type.elements, forms, ...(description.images?.smallestWidth ? { smallestWidth: description.images.smallestWidth } : {}), ...within(TRANSLATED) },
-      // Shown, and changed on purpose; a new post's follows its name in breadcrumbs.
-      { name: 'slug', label: say('slug'), widget: SLUG_WIDGET, address: typeof type.address === 'string' ? type.address : null, required: false, ...within(SAME_IN_EACH) },
-      ...(type.hierarchical
-        ? [{ name: 'parent', label: say('parent'), ...relation(type.collection, 'title'), required: false, ...within(SAME_IN_EACH) }]
-        : []),
-      ...type.fields.flatMap((field) => postField(field, type) ?? []),
-      ...(type.address === null ? [] : [otherAddressesField()]),
-    ],
+    fields: typeFields(type),
   });
+
+  // Which fields each group holds, in every form it is in, so that the editor reads a source
+  // file's fields into it and writes them back flat.
+  const groupsOf = (collections) => {
+    const groups = {};
+    for (const one of collections.flatMap((made) => made.fields).filter((made) => made.name.startsWith(GROUP_PREFIX))) {
+      groups[one.name] = [...new Set([...(groups[one.name] ?? []), ...one.fields.map((member) => member.name)])];
+    }
+    return groups;
+  };
+  const postCollections = Object.values(description.types).map(typeCollection);
 
   const taxonomyCollection = (taxonomy) => ({
     name: taxonomy.collection,
@@ -401,7 +499,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
   const among = chooseAmong();
   const entryFields = (depth) => [
     { name: 'title', label: say('label'), widget: 'string', required: false, hint: say('labelHint') },
-    ...(among === null ? [] : [{ name: 'post', label: say('post'), ...relation(among.collection, 'title'), required: false }]),
+    ...(among === null ? [] : [{ name: 'post', label: say('post'), ...relation(among.collection, POST_TITLE), required: false }]),
     { name: 'url', label: say('url'), widget: 'string', required: false, hint: say('urlHint') },
     ...(depth > 1 ? [entriesField(depth - 1)] : []),
   ];
@@ -428,12 +526,13 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     load_config_file: false,
     // Konzilo's own, which the editor takes out before Sveltia sees the rest: the interface
     // language this configuration is in, where this copy of the site has its live preview,
-    // and which collections have pages to show there, and the site's own components, which
-    // its bodies may hold beside the core's elements.
+    // and which collections have pages to show there, the site's own components, which
+    // its bodies may hold beside the core's elements, and the fields of each field group.
     konzilo: {
       language: interfaceLanguage,
       ...(preview === null ? {} : { preview: { origin: preview, collections: Object.values(description.types).filter((type) => type.address).map((type) => type.collection) } }),
       ...(Object.keys(components).length === 0 ? {} : { components }),
+      groups: groupsOf(postCollections),
     },
     app_title: 'Konzilo',
     site_url: site,
@@ -463,7 +562,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
         }
       : {}),
     collections: [
-      ...Object.values(description.types).map(typeCollection),
+      ...postCollections,
       ...Object.values(description.taxonomies).map(taxonomyCollection),
       // Every image field chooses from it, the site's logo among them.
       imageLibraryCollection(),

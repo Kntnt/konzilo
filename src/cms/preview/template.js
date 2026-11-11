@@ -6,6 +6,7 @@
 
 import { say } from '../body/texts.js';
 import { signedInCredential } from '../credential.js';
+import { postValues } from '../groups/values.js';
 import { refusalShown } from '../refusals.js';
 import { previewClient } from './client.js';
 import { draftOf } from './draft.js';
@@ -82,8 +83,8 @@ export function previewTemplate({ origin, several, credential = signedInCredenti
       };
     }, []);
 
-    const data = entry.get('data');
-    const plainData = data?.toJS ? data.toJS() : data;
+    // Flat, as the source file holds it, with the field groups' fields as they are now.
+    const plainData = postValues(entry.get('data'));
     const written = JSON.stringify(plainData);
     const collection = entry.get('collection');
     const id = entry.get('slug') || unsavedId.current;

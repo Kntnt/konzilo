@@ -892,5 +892,15 @@
   "failure.check-broke": "the check of what was saved broke, so visitors still see the last version",
   "failure.not-built": "the site could not be built from it, so visitors still see the last version",
   "failure.not-released": "the new version of the site could not be put in place, so visitors still see the last version",
-  "failure.stopped": "the build would take most of the site's posts off it, so it waits until the deletion is confirmed"
+  "failure.stopped": "the build would take most of the site's posts off it, so it waits until the deletion is confirmed",
+  "form.groupName": "Name and address",
+  "form.groupStatus": "Status and date",
+  "form.groupTerms": "Authors, category and topics",
+  "form.groupHeadline": "Headline",
+  "groups.options": "Show Field Options",
+  "groups.menu": "Field Options",
+  "groups.revert": "Revert Changes",
+  "groups.restore": "Restore Default",
+  "groups.clear": "Clear",
+  "groups.required": "{field} needs to be filled in."
 }
