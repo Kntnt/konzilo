@@ -2,9 +2,9 @@
 // a template places by the form's name, rendered from the site description
 // into a small site's static build, in the site's language; and the form's
 // script, part of the integration's script file of that build, run on the
-// built page under jsdom with the endpoint stood in for. The acceptance
-// suite sends the form to the real endpoint in a browser
-// (tests/acceptance/tests/form-page.spec.js).
+// built page under jsdom with the endpoint stood in for. The service's side
+// is in service-visitors.test.js, and the Compose acceptance suite sends the
+// form to the real service in a browser (acceptance/compose.test.js).
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';

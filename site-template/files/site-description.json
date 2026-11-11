@@ -48,5 +48,16 @@
   },
   "settings": {
     "footerText": { "label": "Footer text", "type": "string", "control": "textarea", "translated": true }
+  },
+  "forms": {
+    "contact": {
+      "label": "Contact us",
+      "fields": [
+        { "name": "name", "label": "Name", "kind": "text", "required": true },
+        { "name": "email", "label": "Email", "kind": "email", "required": true },
+        { "name": "message", "label": "Message", "kind": "textarea", "required": true },
+        { "name": "privacy", "label": "I have read the privacy policy", "kind": "acceptance" }
+      ]
+    }
   }
 }

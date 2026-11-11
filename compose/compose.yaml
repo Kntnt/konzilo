@@ -89,9 +89,9 @@ services:
         CADDY: ${CADDY}
         CADDY_DIGEST: ${CADDY_DIGEST}
     image: konzilo-web:${KONZILO_SITE}
-    # The site's own network, and search's, where it alone, and what shares its network, reaches
-    # Typesense.
-    networks: [default, search]
+    # The site's own network; search's, where it alone, and what shares its network, reaches
+    # Typesense; and the visitors' service's, which it alone reaches.
+    networks: [default, search, visitors]
     # Takes a new release's headers and redirects, and the route to search, by itself, since
     # nothing else may reach it.
     command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile", "--watch"]
@@ -252,13 +252,38 @@ services:
       interval: 2s
       timeout: 3s
       retries: 60
-    command: ["node", "/konzilo/bin/konzilo-service.js"]
+    command: ["node", "/konzilo/bin/konzilo-service.js", "editors"]
     environment:
       KONZILO_REPOSITORY: ${KONZILO_SITE}/source
     volumes:
       - editors-secret:/secret:ro
       - build-control:/control
       - thumbnails:/thumbnails
+      - ${KONZILO_SITE_DIR:-.}/site-description.json:/site/site-description.json:ro
+
+  # The service, in its role for visitors (ADR 0044): what visitors' browsers send below
+  # /_konzilo/, which the web server passes on, such as a site's forms (ADR 0045), kept in the
+  # service's data. It is in a network of its own, which only the web server shares, with no port
+  # and no way out, and it reads the forms from the site description.
+  visitors:
+    <<: *hardened
+    build: *builder
+    image: konzilo-builder:${KONZILO_SITE}
+    init: true
+    networks: [visitors]
+    restart: unless-stopped
+    stop_grace_period: 1s
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4200/health').then((a) => process.exit(a.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+    command: ["node", "/konzilo/bin/konzilo-service.js", "visitors"]
+    environment:
+      KONZILO_SITE_ORIGIN: http://localhost:${KONZILO_PORT_SITE}
+    volumes:
+      - service-data:/service-data
       - ${KONZILO_SITE_DIR:-.}/site-description.json:/site/site-description.json:ro
 
   # The live preview (ADR 0032): its gate stands from the first moment, and starts the dev
@@ -319,6 +344,9 @@ networks:
   # Typesense's own, with no way out: the web server, and what shares its network, reach it.
   search:
     internal: true
+  # The visitors' service's own, with no way out: the web server alone reaches it.
+  visitors:
+    internal: true
 
 volumes:
   forgejo-data:
@@ -337,3 +365,4 @@ volumes:
   typesense-data:
   typesense-secret:
   search-route:
+  service-data:

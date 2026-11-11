@@ -4,7 +4,8 @@
 // the integration is proved below this, in the suite proper (ADR 0014).
 
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { request as httpRequest } from 'node:http';
 import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 
@@ -95,6 +96,14 @@ describe('a site in Compose', () => {
     }
   };
   const addressOf = (text) => `/${/^slug: "?([^"\n]+)"?$/m.exec(text)[1]}/`;
+
+  // Until a service started again says it is healthy, for at most a minute.
+  const healthy = async (service) => {
+    const deadline = Date.now() + 60_000;
+    while (!site.compose('ps', '--format', 'json', service).includes('"Health":"healthy"') && Date.now() < deadline) {
+      await new Promise((go) => setTimeout(go, 500));
+    }
+  };
 
   // What the repository holds of an entry of the image library, by the file it names.
   const libraryEntries = async () => {
@@ -916,6 +925,241 @@ describe('a site in Compose', () => {
     });
   });
 
+  // A visitor sends the demo's contact form (ADR 0044, ADR 0045): the web server passes it to the
+  // service in its role for visitors, which keeps it in the service's data.
+  describe('a visitor\'s form', () => {
+    const CONTACT = '/pages/contact/';
+    const OUTCOME = '#konzilo-form-contact-sent';
+    // The address the service is told the visitor has, as the web server saw it.
+    let visitor = null;
+
+    // What the service keeps of the contact form, newest first, read through its store in its
+    // own container.
+    const kept = () => JSON.parse(site.compose('exec', '-T', 'visitors', 'node', '--no-warnings', '--input-type=module', '-e', [
+      "import { openStore } from '/konzilo/src/service/store.js';",
+      "const store = openStore('/service-data/service.sqlite');",
+      "console.log(JSON.stringify(store.submissions('contact')));",
+      'store.close();',
+    ].join('\n')));
+    const message = (submission) => submission.fields.find(({ name }) => name === 'message').value;
+
+    // A request through the web server, every header as given: { status, headers, body, json }.
+    const toTheSite = (method, path, { headers = {}, body } = {}) => new Promise((resolve, reject) => {
+      const asked = httpRequest(new URL(path, site.origin.site), { method, headers, agent: false }, (answer) => {
+        const chunks = [];
+        answer.on('data', (chunk) => chunks.push(chunk));
+        answer.on('end', () => {
+          const text = Buffer.concat(chunks).toString();
+          let json = null;
+          try {
+            json = JSON.parse(text);
+          } catch {
+            // Not JSON.
+          }
+          resolve({ status: answer.statusCode, headers: answer.headers, body: text, json });
+        });
+      });
+      asked.on('error', reject);
+      asked.end(body);
+    });
+    // As the page's script sends from a page of the site's own.
+    const fromThePage = () => ({ 'Sec-Fetch-Site': 'same-origin', Origin: site.origin.site, Accept: 'application/json' });
+    const tokenOf = async () => (await toTheSite('GET', '/_konzilo/forms/contact/token', { headers: fromThePage() })).json.token;
+    const sendJson = (fields, headers = fromThePage()) => toTheSite('POST', '/_konzilo/forms/contact', {
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ _page: CONTACT, _website: '', ...fields }),
+    });
+    const filledIn = { name: 'Ada Lovelace', email: 'ada@example.com', privacy: true };
+    const wait = (ms) => new Promise((go) => setTimeout(go, ms));
+
+    // The contact page in a browser of `engine`, with JavaScript or without, its form filled in
+    // as a visitor fills it, with `words` for a message, and sent.
+    const sendInBrowser = async (engine, { javaScript, words }) => {
+      const browser = await ENGINES[engine].launch();
+      try {
+        const context = await browser.newContext({ javaScriptEnabled: javaScript, locale: 'en-GB', viewport: { width: 1280, height: 1600 } });
+        const page = await context.newPage();
+        const refused = [];
+        page.on('console', (line) => {
+          if (/content.security.policy|refused to/i.test(line.text())) refused.push(line.text());
+        });
+        await page.goto(`${site.origin.site}${CONTACT}`);
+        // The form comes into use, and its script asks for its token; a person takes a while.
+        await page.locator('[name="name"]').fill(`Ada in ${engine}`);
+        await page.locator('[name="email"]').fill('ada@example.com');
+        await page.locator('[name="message"]').fill(words);
+        await page.locator('[name="privacy"]').check();
+        if (javaScript) await page.waitForTimeout(3500);
+        await page.getByRole('button', { name: 'Send' }).click();
+        if (!javaScript) await page.waitForURL(`**${CONTACT}${OUTCOME}`);
+        const outcome = page.locator(OUTCOME);
+        await outcome.waitFor({ state: 'visible' });
+        assert.equal((await outcome.textContent()).trim(), 'Thank you. Your message has been sent.', `${engine}: ${words}`);
+        if (javaScript) assert.equal(new URL(page.url()).hash, '', 'sent in place');
+        assert.deepEqual(refused, [], `${engine}: ${words}`);
+      } finally {
+        await browser.close();
+      }
+    };
+
+    test('is sent with JavaScript and without in every engine, says each time that it was sent, and is kept with its labels and language', async () => {
+      const sent = [];
+      for (const engine of Object.keys(ENGINES)) {
+        for (const javaScript of [true, false]) {
+          const words = `Sent from ${engine} ${javaScript ? 'with' : 'without'} JavaScript.`;
+          await sendInBrowser(engine, { javaScript, words });
+          sent.push(words);
+        }
+      }
+      const submissions = kept();
+      assert.deepEqual(submissions.map(message).reverse(), sent);
+      for (const submission of submissions) {
+        assert.equal(submission.spam, null, message(submission));
+        assert.equal(submission.language, 'en-GB');
+        assert.deepEqual(submission.fields.map(({ label }) => label), ['Name', 'Email', 'Message', 'I have read the privacy policy']);
+        assert.equal(submission.fields.at(-1).value, true);
+      }
+    }, { timeout: 300_000 });
+
+    test('refuses a field left out, a field it does not declare, a value too long, a missing token and another site\'s page, and holds the trap and a token too fresh as spam', async () => {
+      const token = await tokenOf();
+      assert.match(token, /^[0-9]+\.[A-Za-z0-9_-]{16}\.[A-Za-z0-9_-]{43}$/);
+      await wait(3500);
+      const answers = {
+        missing: await sendJson({ ...filledIn, _token: token, message: '' }),
+        unknown: await sendJson({ ...filledIn, _token: token, message: 'Hello', company: 'Lovelace AB' }),
+        long: await sendJson({ ...filledIn, _token: token, message: 'Hello', name: 'A'.repeat(201) }),
+        tokenless: await sendJson({ ...filledIn, message: 'Without a token' }),
+        elsewhere: await sendJson({ ...filledIn, _token: token, message: 'From elsewhere' }, { 'Sec-Fetch-Site': 'cross-site', Origin: 'https://elsewhere.example' }),
+        trap: await sendJson({ ...filledIn, _token: token, message: 'Caught in the trap', _website: 'https://spam.example' }),
+      };
+      // A token given a moment ago.
+      const tooFresh = await sendJson({ ...filledIn, _token: await tokenOf(), message: 'Too fresh' });
+      const said = Object.fromEntries(Object.entries({ ...answers, tooFresh }).map(([why, { status, json }]) => [why, [status, json]]));
+      assert.deepEqual(said, {
+        missing: [400, { outcome: 'invalid', fields: { message: 'missing' } }],
+        unknown: [400, { outcome: 'refused' }],
+        long: [400, { outcome: 'invalid', fields: { name: 'too-long' } }],
+        tokenless: [403, { outcome: 'refused' }],
+        elsewhere: [403, { outcome: 'refused' }],
+        trap: [200, { outcome: 'sent' }],
+        tooFresh: [200, { outcome: 'sent' }],
+      });
+      const [last, before] = kept();
+      assert.deepEqual([[message(last), last.spam], [message(before), before.spam]], [['Too fresh', 'too-soon'], ['Caught in the trap', 'trap']]);
+    });
+
+    test('is passed on by the web server with what ADR 0044 lists alone, and nothing kept holds the visitor\'s address or browser', async () => {
+      const standIn = `${site.name}-visitors-stand-in`;
+      const echo = "require('node:http').createServer((asked, answer) => { asked.resume(); asked.on('end', () => answer.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(asked.headers))); }).listen(4200);";
+      site.compose('stop', 'visitors');
+      try {
+        site.compose('run', '-d', '--use-aliases', '--name', standIn, '--entrypoint', 'node', 'visitors', '-e', echo);
+        const theVisitors = {
+          Cookie: 'session=someone',
+          'User-Agent': 'Mozilla/5.0 (a visitor\'s browser)',
+          Authorization: 'Basic c2l0ZTpwYXNzd29yZA==',
+          'Accept-Language': 'sv-SE',
+          'X-Forwarded-For': '192.0.2.7',
+          Forwarded: 'for=192.0.2.7',
+          'X-Real-IP': '192.0.2.7',
+          'X-Konzilo-Client': '192.0.2.7',
+          'X-Konzilo-Host': 'forged.example',
+          'Sec-CH-UA': '"Chromium";v="141"',
+          DNT: '1',
+        };
+        let told = null;
+        for (let tries = 0; told === null && tries < 40; tries += 1) {
+          const answer = await toTheSite('POST', '/_konzilo/forms/contact?from=menu', {
+            headers: { ...theVisitors, 'Sec-Fetch-Site': 'same-origin', Origin: site.origin.site, Referer: `${site.origin.site}${CONTACT}`, 'Content-Type': 'application/json' },
+            body: '{}',
+          });
+          if (answer.status === 200 && answer.json) told = answer.json;
+          else await wait(250);
+        }
+        assert.ok(told, 'the stand-in answers');
+        assert.equal(told['content-type'], 'application/json');
+        assert.equal(told.origin, site.origin.site);
+        assert.equal(told.referer, `${site.origin.site}${CONTACT}`);
+        assert.equal(told['sec-fetch-site'], 'same-origin');
+        assert.equal(told['x-konzilo-host'], new URL(site.origin.site).host);
+        assert.match(told['x-konzilo-client'], /^[0-9a-f.:]+$/);
+        visitor = told['x-konzilo-client'];
+        const own = ['host', 'content-length', 'content-type', 'origin', 'referer', 'sec-fetch-site', 'x-konzilo-client', 'x-konzilo-host', 'accept-encoding'];
+        assert.deepEqual(Object.keys(told).filter((name) => !own.includes(name)), []);
+        for (const [name, value] of Object.entries(told)) {
+          if (!['origin', 'referer'].includes(name)) assert.doesNotMatch(value, /192\.0\.2\.7|someone|a visitor's browser|sv-SE|forged|c2l0ZTpw/, name);
+        }
+      } finally {
+        spawnSync('docker', ['rm', '-f', standIn], { encoding: 'utf8' });
+        site.compose('start', 'visitors');
+        await healthy('visitors');
+      }
+      const held = site.compose('exec', '-T', 'visitors', 'sh', '-c', 'cat /service-data/*');
+      assert.ok(held.includes('Sent from chromium with JavaScript.'), 'what was sent is there');
+      for (const words of [visitor, 'Mozilla', 'HeadlessChrome', 'Firefox', 'AppleWebKit', '/pages/contact/']) assert.ok(!held.includes(words), words);
+    });
+
+    test('refuses a client that sends too many in a window, and says when to try again', async () => {
+      const token = await tokenOf();
+      await wait(3500);
+      let refused = null;
+      // Within two windows' worth, should the window turn.
+      for (let sends = 0; refused === null && sends < 22; sends += 1) {
+        const answer = await sendJson({ ...filledIn, _token: token, message: `Number ${sends}` });
+        if (answer.status === 429) refused = answer;
+        else assert.equal(answer.json.outcome, 'sent');
+      }
+      assert.ok(refused, 'a send is refused');
+      assert.equal(refused.json.outcome, 'too-many');
+      const seconds = Number(refused.headers['retry-after']);
+      assert.ok(seconds > 0 && seconds <= 600, String(seconds));
+      assert.equal(refused.json.retryAfter, seconds);
+    });
+
+    test('shows the release\'s page that says the message was not sent while the service is stopped, and the page\'s own message with JavaScript', async () => {
+      site.compose('stop', 'visitors');
+      try {
+        const down = await toTheSite('POST', '/_konzilo/forms/contact', { headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...fromThePage() }, body: `_page=${encodeURIComponent(CONTACT)}&message=Hello` });
+        assert.equal(down.status, 502);
+        assert.match(down.headers['content-type'], /^text\/html/);
+        assert.equal(down.headers['cache-control'], 'no-store');
+        assert.match(down.body, /<h1>Your message was not sent<\/h1>/);
+        assert.match(down.body, /valley@example\.com/);
+        assert.equal((await toTheSite('GET', '/_konzilo/form-not-sent.html')).status, 502, 'served in place of the service alone');
+        assert.equal((await toTheSite('GET', '/')).status, 200);
+
+        const browser = await ENGINES.chromium.launch();
+        try {
+          for (const javaScript of [false, true]) {
+            const context = await browser.newContext({ javaScriptEnabled: javaScript, viewport: { width: 1280, height: 1600 } });
+            const page = await context.newPage();
+            await page.goto(`${site.origin.site}${CONTACT}`);
+            await page.locator('[name="name"]').fill('Ada');
+            await page.locator('[name="email"]').fill('ada@example.com');
+            await page.locator('[name="message"]').fill('Nobody is there.');
+            await page.locator('[name="privacy"]').check();
+            const [answer] = await Promise.all([javaScript ? null : page.waitForNavigation(), page.getByRole('button', { name: 'Send' }).click()]);
+            if (javaScript) {
+              await page.locator('#konzilo-form-contact-unavailable').waitFor({ state: 'visible' });
+            } else {
+              assert.equal(answer.status(), 502);
+              await page.getByRole('heading', { name: 'Your message was not sent' }).waitFor();
+            }
+            await context.close();
+          }
+        } finally {
+          await browser.close();
+        }
+      } finally {
+        site.compose('start', 'visitors');
+        await healthy('visitors');
+      }
+      const token = await tokenOf();
+      assert.ok(token, 'and it answers again once started');
+    });
+  });
+
   describe('publishing', () => {
     let category;
     const file = (id) => `articles/${id}.md`;
@@ -1028,12 +1272,6 @@ describe('a site in Compose', () => {
         const line = JSON.parse(site.compose('exec', '-T', 'builder', 'tail', '-n', '1', '/control/build-log.jsonl'));
         if (holds(line) || Date.now() > deadline) return line;
         await new Promise((go) => setTimeout(go, 250));
-      }
-    };
-    const healthy = async (service) => {
-      const deadline = Date.now() + 60_000;
-      while (!site.compose('ps', '--format', 'json', service).includes('"Health":"healthy"') && Date.now() < deadline) {
-        await new Promise((go) => setTimeout(go, 500));
       }
     };
 
