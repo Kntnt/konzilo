@@ -177,9 +177,9 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
   // The type's structured data type as the settings give it before a site sets its own.
   const schemaPreset = (type) => defaultForType(settingsGroups.search.types.settings.schema, type);
 
-  // An article, and a post of the site's own type that has a teaser, shows in its search
-  // and sharing fields what its teaser shows, as its head does (article-parts.js); another
-  // type's leave it to its templates.
+  // A post of a type with a teaser, every built-in type and a type of the site's own that
+  // declares one, shows in its search and sharing fields what its teaser shows, as its head
+  // does (article-parts.js); another type's leave it to its templates.
 
   // A post's own address, from which the canonical address field shows it while the post names
   // none: its type's address with `{slug}`, and on a site in several languages one for the
