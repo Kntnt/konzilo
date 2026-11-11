@@ -51,7 +51,7 @@
 // default, one point for a shared term of any taxonomy. A post that scores
 // nothing is never listed. `halfLife`: the days in which a post's freshness
 // halves, or null, by default, for no freshness: with one, each score is
-// multiplied by 2^(-age / halfLife), the age its post's from its date to
+// multiplied by 2^(-age / halfLife), a post's age the time from its date to
 // `now`, by default the moment it runs, and a post without a date is not
 // decayed. Highest first, then newest, then by title. Every post ages
 // alike, so the order of posts with a date is the same whatever `now` is.
@@ -194,8 +194,8 @@ const DAY = 86_400_000;
 
 // A related post's rank, by which it is ordered, highest first: its score,
 // or, with a half-life in days, its score times its freshness, 2^(-age /
-// half-life), its age from `now` to its date, and no age for a post without
-// one. Every post ages alike, so the rank is taken as log2(score) + date /
+// half-life), its age the time from its date to `now`, and no age for a post
+// without one. Every post ages alike, so the rank is taken as log2(score) + date /
 // half-life, which orders as the score times its freshness does and leaves
 // `now` out for each post with a date: the order of such posts is the same
 // at every build moment, to the last bit. It is rounded to a billionth of a

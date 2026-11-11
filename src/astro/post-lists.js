@@ -107,11 +107,11 @@ export const RELATED_POSTS = 3;
 //
 // The posts of its own type that share its terms, ranked as a list ordered
 // as related ranks them, without the post itself: at most `number`, fewer
-// where fewer share a term, and none where none does. An article's score a
-// point for each topic they share with it and half a point for its
-// category, another type's a point for each term they share, of any
-// taxonomy, and each score is multiplied by its post's freshness, by the
-// half-life of the settings group `related`. Each is { entry, url }, as
+// where fewer share a term, and none where none does. Related to an
+// article, a post scores a point for each topic it shares and half a point
+// for the same category; related to a post of another type, a point for
+// each term it shares, of any taxonomy; and each score is multiplied by the
+// post's freshness, by the half-life of the settings group `related`. Each is { entry, url }, as
 // listedPosts() gives them. Throws, naming why, for a post of a type
 // without terms.
 export async function relatedPosts(post, { number = RELATED_POSTS } = {}) {
