@@ -336,8 +336,10 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
   // is a field of Sveltia's whose value holds its fields', and the editor keeps a source file
   // flat, by the fields each group holds (`konzilo.groups`). On a site in several languages, a
   // group's fields are all alike in each language, and so is the group, or all per language.
+  // A group of fields that declare no language, as a site's own fields do, is in the first language
+  // alone, as each of them is.
   const languageOf = (fields) => {
-    if (!several) return {};
+    if (!several || fields.every((one) => one.i18n === undefined)) return {};
     return fields.every((one) => one.i18n === 'duplicate') ? SAME_IN_EACH : TRANSLATED;
   };
   const coreGroup = (name, label, fields) => ({
@@ -368,10 +370,16 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
   const STATUS_FIELDS = ['status', 'date'];
   const HEADLINE_FIELDS = ['eyebrow', 'headline', 'subheadline'];
   const TERMS_FIELDS = [AUTHORS, CATEGORY, TOPICS];
+  // A site's own fields on a built-in type, those the core's group draws: a value of the site's own,
+  // which is never a post or an image. A term of a taxonomy of the site's own is Sveltia's relation,
+  // and stands alone.
+  const OWN_FIELDS = [...new Set(Object.values(description.types).filter(builtInOf).flatMap((type) => type.fields.filter((one) => one.kind === 'meta').map((one) => one.name)))];
 
-  // The order of a built-in type's form, by its parts: `own` is where the site's own fields go.
-  const ARTICLE_FORM = ['name', 'status', 'image', 'terms', 'headline', 'standfirst', 'body', 'own', 'teaser', 'seo', 'otherAddresses'];
-  const PAGE_FORM = ['name', 'status', 'publishing', 'parent', 'body', 'own', 'seo', 'otherAddresses'];
+  // The order of a form, by its parts: `declared` is where the fields the site declares go, on a
+  // built-in type its own after the body and before the closed bars.
+  const ARTICLE_FORM = ['name', 'status', 'image', 'terms', 'headline', 'standfirst', 'body', 'declared', 'teaser', 'seo', 'otherAddresses'];
+  const PAGE_FORM = ['name', 'status', 'publishing', 'parent', 'body', 'declared', 'seo', 'otherAddresses'];
+  const OWN_FORM = ['name', 'status', 'publishing', 'parent', 'body', 'declared', 'otherAddresses'];
 
   const typeFields = (type) => {
     const built = builtInOf(type);
@@ -402,13 +410,15 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     const date = fieldOf('date');
     const headline = HEADLINE_FIELDS.map(fieldOf).filter(Boolean);
     const terms = type.fields.filter((one) => TERMS_FIELDS.includes(one.name)).map((one) => postField(one, type));
+    const isOwn = (one) => one.kind === 'meta' && OWN_FIELDS.includes(one.name);
+    const mine = type.fields.filter(isOwn).map((one) => postField(one, type));
     // Fields in the order declared, with the core's in their groups, each where its first field
     // is: a type of the site's own, and the site's own fields on a built-in type.
     const inOrder = (fields) => {
       const placed = new Set();
       return fields.flatMap((one) => {
         if ([...NAME_FIELDS, ...STATUS_FIELDS].includes(one.name)) return [];
-        const at = HEADLINE_FIELDS.includes(one.name) ? 'headline' : TERMS_FIELDS.includes(one.name) ? 'terms' : null;
+        const at = HEADLINE_FIELDS.includes(one.name) ? 'headline' : TERMS_FIELDS.includes(one.name) ? 'terms' : isOwn(one) ? 'own' : null;
         if (at === null) return postField(one, type) ?? [];
         if (placed.has(at)) return [];
         placed.add(at);
@@ -429,12 +439,13 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
       body: () => ({ name: 'body', label: say('body'), widget: type.editor === 'structure' ? STRUCTURE_WIDGET : BODY_WIDGET, required: false, elements: type.elements, forms, ...(description.images?.smallestWidth ? { smallestWidth: description.images.smallestWidth } : {}), ...within(TRANSLATED) }),
       headline: () => (headline.length === 0 ? null : coreGroup('headline', say('groupHeadline'), headline)),
       terms: () => (terms.length === 0 ? null : termsGroup(terms)),
-      own: () => inOrder(type.fields.filter((one) => !Object.hasOwn(BUILT_IN_TYPES[built].fields, one.name))),
+      own: () => (mine.length === 0 ? null : coreGroup('own', say('groupOwn'), mine)),
+      declared: () => inOrder(built ? type.fields.filter((one) => !Object.hasOwn(BUILT_IN_TYPES[built].fields, one.name)) : type.fields),
       otherAddresses: () => (type.address === null ? null : otherAddressesField()),
     };
     const part = (name) => (Object.hasOwn(parts, name) ? parts[name]() : fieldOf(name));
-    const form = built ? (built === ARTICLE ? ARTICLE_FORM : PAGE_FORM) : ['name', 'status', 'publishing', 'parent', 'body', 'declared', 'otherAddresses'];
-    return form.flatMap((name) => (name === 'declared' ? inOrder(type.fields) : part(name) ?? []));
+    const form = built ? (built === ARTICLE ? ARTICLE_FORM : PAGE_FORM) : OWN_FORM;
+    return form.flatMap((name) => part(name) ?? []);
   };
 
   const typeCollection = (type) => ({

@@ -102,3 +102,21 @@ test('shows the rest of the editor a post\'s values flat, as they are now', () =
   assert.equal(values.headline, 'Quiet harbours and the lantern');
   assert.equal(Object.keys(values).some((key) => key.startsWith('group-')), false);
 });
+
+// A site's own fields on a built-in type are a group of their own in the form, and a field of that
+// name on a type of the site's own is in it too, so a file of either is read alike (ADR 0071).
+test('reads a site\'s own fields into their group, in an article\'s file and in a file of the site\'s own type alike, and writes them flat', async () => {
+  const declared = JSON.parse(readFileSync(fileURLToPath(new URL('../site-template/files/site-description.json', import.meta.url)), 'utf8'));
+  declared.types.article.fields = { rating: { label: 'Rating', type: 'integer', control: 'number' } };
+  declared.types.review = { label: 'Review', plural: 'Reviews', collection: 'reviews', address: '/reviews/{slug}/', elements: ['paragraph'], fields: { rating: { label: 'Stars', type: 'integer', control: 'number' }, verdict: { label: 'Verdict', type: 'string', control: 'text' } } };
+  const own = sourceFormat(cmsConfig(siteDescription(declared), { forgejo: 'http://git', repository: 'a/b', clientId: 'c', site: 'http://site' }).konzilo.groups);
+  for (const text of [SOURCE.replace('headline:', 'rating: 4\nheadline:'), '---\ntitle: A fair\nslug: a-fair\nstatus: draft\nrating: 4\nverdict: Worth the trip\n---\n\nThe fair.\n']) {
+    const data = own.fromFile(text);
+    assert.deepEqual(data['group-own'], { rating: 4 });
+    assert.equal(Object.hasOwn(data, 'rating'), false);
+    let given = null;
+    await own.toFile({ ...data, 'group-own': { rating: 5 } }, { serialize: async (fields) => { given = fields; return ''; } });
+    assert.equal(given.rating, 5);
+    assert.equal(Object.hasOwn(given, 'group-own'), false);
+  }
+});

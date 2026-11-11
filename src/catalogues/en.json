@@ -653,6 +653,7 @@
   "form.inPhrase.entries": "entries",
   "form.inPhrase.entry": "entry",
   "form.inPhrase.libraryImage": "image",
+  "form.groupOwn": "Other fields",
   "refusal.element-not-taken": "this kind of post cannot hold {element}; take it out, or ask the site's developer to allow it",
   "refusal.inline-element": "the site cannot publish {inline} in {element}; take it out",
   "refusal.soft-break": "the site cannot keep a line break made by a plain new line; join the lines, or make it a line break of its own",

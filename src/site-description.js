@@ -342,6 +342,7 @@ function description(declared, groups, problems) {
     types[name] = typeOf(name, type, `types.${name}`, { collections, taxonomies, addresses, rules: known }, problems);
   }
   feedsOf(types, taxonomies, problems);
+  ownFieldsOf(types, problems);
   const presentations = {};
   const optionTypes = new Map();
   for (const [name, presentation] of entries(declared.presentations, 'presentations', problems, false)) {
@@ -929,6 +930,22 @@ function ownOfBuiltIn(type, name, declared, path, problems) {
     return false;
   }
   return true;
+}
+
+// A field of the site's own on a built-in type, a value, is one the editor keeps in a group of the
+// site's own fields, in every form a field of its name stands in, which is all the editor goes by
+// when it reads a source file (cms/config.js, ADR 0071). A term is a relation, which that group
+// cannot hold, so no term has such a name.
+function ownFieldsOf(types, problems) {
+  const owners = new Map();
+  for (const type of Object.values(types).filter((one) => one?.builtIn)) {
+    for (const field of type.fields.filter((one) => one.kind === 'meta')) if (!owners.has(field.name)) owners.set(field.name, type.name);
+  }
+  for (const type of Object.values(types).filter(Boolean)) {
+    for (const field of type.fields.filter((one) => one.kind === 'terms' && owners.has(one.name))) {
+      problems.push(`types.${type.name}.fields.${field.name}: the built-in ${owners.get(field.name)} has a field of the site's own by this name, which the editor keeps among the site's own fields wherever it stands; give this term another name`);
+    }
+  }
 }
 
 function taxonomyOf(name, taxonomy, path, { collections, addresses }, problems) {

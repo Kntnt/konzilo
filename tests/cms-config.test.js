@@ -670,3 +670,69 @@ describe('labels in phrases', () => {
     assert.equal(schema(cmsConfig(siteDescription(given), place), 'faqs').typeLabel, 'FAQs');
   });
 });
+
+// A site's own fields on a built-in type stand in a group of their own, after the body and before
+// the closed bars, so that they keep out of the core's order; and since a field is in the same
+// group in every form, a field of that name on a type of the site's own is in it too (ADR 0071).
+describe('a site\'s own fields in a group of their own', () => {
+  const declared = () => JSON.parse(readFileSync(file('site-template/files/site-description.json'), 'utf8'));
+  const shape = (made, name) => made.collections.find((one) => one.name === name).fields.map((one) => (one.name.startsWith('group-') ? [one.name, one.fields.map((member) => member.name)] : one.name));
+  const withOwn = () => {
+    const given = declared();
+    given.types.article.fields = { rating: { label: 'Rating', type: 'number', control: 'number', required: true }, mood: { label: 'Mood', type: 'string', control: 'select', options: ['calm', 'stormy'] } };
+    given.types.page.fields = { sidebar: { label: 'Sidebar', type: 'boolean', control: 'toggle' } };
+    return given;
+  };
+
+  test('put a site\'s own fields on the built-in article in one group, after the body and before the teaser', () => {
+    const made = cmsConfig(siteDescription(withOwn()), place);
+    assert.deepEqual(shape(made, 'articles').slice(6, 9), ['body', ['group-own', ['rating', 'mood']], 'teaser']);
+    const own = field(made.collections[0].fields, 'group-own');
+    assert.equal(own.widget, 'konzilo-group', 'with the core\'s menu, which never restores a required field to nothing');
+    assert.equal(own.label, 'Other fields');
+    assert.equal(field(cmsConfig(siteDescription(withOwn()), { ...place, language: 'sv' }).collections[0].fields, 'group-own').label, 'Övriga fält');
+    assert.deepEqual(own.fields.map((one) => [one.name, one.label, one.widget, one.required]), [['rating', 'Rating', 'number', true], ['mood', 'Mood', 'select', false]]);
+  });
+
+  test('put a page\'s after its body and before search', () => {
+    assert.deepEqual(shape(cmsConfig(siteDescription(withOwn()), place), 'pages'), [['group-name', ['title', 'breadcrumb', 'slug']], ['group-status', ['status']], 'publishing', 'parent', 'body', ['group-own', ['sidebar']], 'search', 'sharing', 'structured', 'otherAddresses']);
+  });
+
+  test('tell the editor the group\'s fields in every form, so that a source file keeps them flat', () => {
+    assert.deepEqual(cmsConfig(siteDescription(withOwn()), place).konzilo.groups['group-own'], ['rating', 'mood', 'sidebar']);
+    assert.equal(config.konzilo.groups['group-own'], undefined, 'and no group where the site has no fields of its own');
+  });
+
+  // A site's own field declares no language, and is in the first language alone (Sveltia's
+  // default), and so is its group.
+  test('keep the group in the first language alone on a site in several, as each of its fields is', () => {
+    const { language: _one, ...given } = withOwn();
+    given.languages = ['sv_SE', 'en_GB'];
+    for (const type of Object.values(given.types)) {
+      if (typeof type.address === 'string') type.address = { sv_SE: type.address, en_GB: type.address.replace(/^\/(?=[a-z]+\/)/, '/en-') };
+    }
+    const own = field(cmsConfig(siteDescription(given), place).collections[0].fields, 'group-own');
+    assert.equal(Object.hasOwn(own, 'i18n'), false);
+    assert.deepEqual(own.fields.map((one) => one.i18n), [undefined, undefined]);
+  });
+
+  // A term is Sveltia's relation, which only Sveltia's own field draws, with its dialog that adds
+  // a term (ADR 0071).
+  test('leave a term of a taxonomy of the site\'s own alone, where it is declared, and put a term of a built-in taxonomy among the terms', () => {
+    const given = withOwn();
+    given.taxonomies.tags = { label: 'Tag', plural: 'Tags', collection: 'tags' };
+    given.types.article.fields = { tags: { taxonomy: 'tags' }, ...given.types.article.fields };
+    given.types.page.fields = { ...given.types.page.fields, topics: { taxonomy: 'topics' } };
+    const made = cmsConfig(siteDescription(given), place);
+    assert.deepEqual(shape(made, 'articles').slice(6, 10), ['body', 'tags', ['group-own', ['rating', 'mood']], 'teaser']);
+    assert.deepEqual(shape(made, 'pages').slice(4, 8), ['body', ['group-own', ['sidebar']], ['group-terms', ['topics']], 'search']);
+  });
+
+  test('keep a site\'s own type\'s fields in the order declared, with the core\'s in their groups, and a field named as one of the site\'s own on a built-in type in that group', () => {
+    const given = withOwn();
+    given.types.review = { label: 'Review', plural: 'Reviews', collection: 'reviews', address: '/reviews/{slug}/', elements: ['paragraph'], fields: { verdict: { label: 'Verdict', type: 'string', control: 'text' }, eyebrow: {}, rating: { label: 'Stars', type: 'number', control: 'number' }, headline: { required: true }, price: { label: 'Price', type: 'number', control: 'number' }, mood: { label: 'Mood', type: 'string', control: 'text' }, topics: { taxonomy: 'topics' } } };
+    const made = cmsConfig(siteDescription(given), place);
+    assert.deepEqual(shape(made, 'reviews'), [['group-name', ['title', 'slug']], ['group-status', ['status']], 'publishing', 'body', 'verdict', ['group-headline', ['eyebrow', 'headline']], ['group-own', ['rating', 'mood']], 'price', ['group-terms', ['topics']], 'otherAddresses']);
+    assert.equal(field(made.collections.find((one) => one.name === 'reviews').fields, 'rating').label, 'Stars', 'with its own label');
+  });
+});

@@ -229,6 +229,17 @@ describe('the built-in types', () => {
     refused(site({ article: article({ hierarchical: true, address: '/{path}/' }) }), 'types.article.hierarchical: an article has no parent; only a page and a canvas may be hierarchical');
     assert.equal(siteDescription(site({ canvas: { collection: 'canvases', hierarchical: true, address: '/{path}/', elements: ['paragraph'] } })).types.canvas.hierarchical, true);
   });
+
+  // The editor keeps a site's own fields on a built-in type in a group of their own, in every form
+  // a field of that name is in, and a term is a relation, which that group cannot hold (ADR 0071).
+  test('refuse a term named as a field of the site\'s own on a built-in type', () => {
+    const regions = { taxonomies: { region: { label: 'Region', plural: 'Regions', collection: 'regions' } } };
+    const rating = { label: 'Rating', type: 'integer', control: 'number' };
+    refused(site({ article: article({ fields: { rating } }), event: article({ label: 'Event', plural: 'Events', collection: 'events', address: '/events/{slug}/', fields: { rating: { taxonomy: 'region' } } }) }, regions), 'types.event.fields.rating: the built-in article has a field of the site\'s own by this name, which the editor keeps among the site\'s own fields wherever it stands; give this term another name');
+    refused(site({ article: article({ fields: { rating } }), page: { collection: 'pages', address: '/pages/{slug}/', elements: ['paragraph'], fields: { rating: { taxonomy: 'region' } } } }, regions), 'types.page.fields.rating: the built-in article has a field of the site\'s own by this name');
+    const read = siteDescription(site({ article: article({ fields: { rating } }), event: article({ label: 'Event', plural: 'Events', collection: 'events', address: '/events/{slug}/', fields: { rating: { label: 'Stars', type: 'integer', control: 'number' } } }) }, regions));
+    assert.equal(read.types.event.fields.find((field) => field.name === 'rating').label, 'Stars', 'a value of the site\'s own by that name is taken');
+  });
 });
 
 describe('the settings groups\' texts', () => {
