@@ -8,8 +8,9 @@
 // `/llms.txt` is an index: the site's title as a heading, its description
 // as a quote, a line naming llms-full.txt while it holds a page, the start
 // page while its row has llms.txt on, and a section per post type whose row
-// has it on and that has a page, named by the type's plural label: `page`
-// first, then `post`, then the rest in the site description's order. Each
+// has it on and that has a page, named by the type's plural label: the
+// built-in page first, then the built-in article, then the rest in the site
+// description's order (typesInOrder()). Each
 // page is an item that links its alternate, with the post's title and its
 // summary (summary.js) on one line, cut to 200 code points
 // cuts it. A type's posts come newest first, by its date; a type without
@@ -33,7 +34,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { builtInOf, PAGE } from '../format/built-in-types.js';
+import { ARTICLE, builtInOf, PAGE } from '../format/built-in-types.js';
 import { languageTag } from '../site-description.js';
 import { pageMarkdown } from './html-to-markdown.js';
 import { aiSettings, markdownPages, marksOf, pageOfMarkdown, renderedPage } from './markdown-alternates.js';
@@ -67,11 +68,11 @@ function label(text) {
   return oneLine(text).replace(/[\\`[\]]/g, (character) => `\\${character}`);
 }
 
-// The site's types in the files' order: the built-in page, then a type named
-// `post`, then the others in the site description's order.
-function inOrder(site) {
+// The site's types in the files' order: the built-in page, then the built-in
+// article, then the others in the site description's order.
+export function typesInOrder(site) {
   const types = Object.values(site.types);
-  const first = [types.find((type) => builtInOf(type) === PAGE), types.find((type) => type.name === 'post')].filter(Boolean);
+  const first = [PAGE, ARTICLE].map((builtIn) => types.find((type) => builtInOf(type) === builtIn)).filter(Boolean);
   return [...first, ...types.filter((type) => !first.includes(type))];
 }
 
@@ -93,7 +94,7 @@ async function filePages({ settings, site }, { getCollection }) {
   const ai = aiSettings(settings, site);
   const pages = await markdownPages({ settings, site }, { getCollection });
   const home = pages.find((page) => page.entry === null) ?? null;
-  const sections = inOrder(site)
+  const sections = typesInOrder(site)
     .map((type) => ({ type, pages: pages.filter((page) => page.type?.name === type.name).sort(order(type, site.language)) }))
     .filter((section) => section.pages.length > 0);
   return { home, sections, ai };

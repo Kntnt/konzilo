@@ -11,6 +11,7 @@ import { ARTICLE, AUTHORS, BUILT_IN_TYPES, builtInOf, CATEGORY, followsParts, PA
 import { CANONICAL_PATTERN, publicAddress } from '../format/addresses.js';
 import { IMAGE_LIBRARY_FOLDER } from '../format/masters.js';
 import { declaredNames, SCHEMA_TYPES } from '../site-description.js';
+import { defaultForType } from '../settings-groups.js';
 import settingsGroups from '../format/settings-groups.json' with { type: 'json' };
 import { SHARING_SAFE, SHARING_SIZE } from '../format/article-parts.js';
 import { IMAGE_WIDGET } from './image/widget.js';
@@ -177,12 +178,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
   // post's fields, closed, since an editor who sets none of it leaves the defaults to say it
   // (ADR 0029). The content file holds them as one map (the intake's seoValue()).
   // The type's structured data type as the settings give it before a site sets its own.
-  const schemaPreset = (type) => {
-    const { default: preset, defaultFor = {} } = settingsGroups.search.types.settings.schema;
-    const kinds = { address: type.address !== null, date: type.fields.some((field) => field.kind === 'date'), page: builtInOf(type) === PAGE };
-    const kind = Object.keys(defaultFor).find((one) => kinds[one]);
-    return kind === undefined ? preset : defaultFor[kind];
-  };
+  const schemaPreset = (type) => defaultForType(settingsGroups.search.types.settings.schema, type);
 
   // An article, and a post of the site's own type that has a teaser, shows in its search
   // and sharing fields what its teaser shows, as its head does (article-parts.js); another

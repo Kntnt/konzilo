@@ -58,14 +58,14 @@
 import { labelIn } from '../catalogues.js';
 import { listPageAddress, searchPages } from '../format/addresses.js';
 import { searchDescriptionOf, searchTitleOf, SHARING_SIZE, socialDescriptionOf, socialTitleOf } from '../format/article-parts.js';
-import { followsParts } from '../format/built-in-types.js';
+import { followsParts, isArticle } from '../format/built-in-types.js';
 import { renderTemplate } from '../metadata-templates.js';
 import { isSiteTitle } from '../settings-groups.js';
 import { articleAuthors } from './authors.js';
 import { feedAlternates } from './feeds.js';
 import { entryAddress } from './languages.js';
 import { markdownLink } from './markdown-alternates.js';
-import { ARTICLES, graphScript, structuredData } from './structured-data.js';
+import { graphScript, structuredData } from './structured-data.js';
 import { summary } from './summary.js';
 import { taxonomyWithPages } from './term-pages.js';
 
@@ -244,7 +244,8 @@ async function postPage({ entry, type, path, number, search, site }, known, getE
     canonical: !later && seo.canonical ? seo.canonical : null,
     robots: [(seo.noindex || later) && 'noindex', seo.nofollow && 'nofollow'].filter(Boolean).join(', '),
     schema,
-    article: ARTICLES.has(schema),
+    // Whether the post is an article, which its type says, whatever its structured data type.
+    article: isArticle(type),
     headline: field('headline') || entry.data.title,
     published: field('date'),
     modified: field('modified'),

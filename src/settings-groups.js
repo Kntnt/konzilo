@@ -23,7 +23,7 @@ import { ownValue } from './format/frontmatter.js';
 import { british } from './refusals.js';
 import declaration from './format/settings-groups.json' with { type: 'json' };
 import { templateProblems, variablesOf } from './metadata-templates.js';
-import { builtInOf, PAGE } from './format/built-in-types.js';
+import { builtInOf, isArticle, PAGE } from './format/built-in-types.js';
 import { fieldName, IDENTITY, IMAGE, ownField, POST, translatedOf } from './site-description.js';
 
 // The kinds of post type a per-type part may be limited to: those with an
@@ -34,10 +34,12 @@ const limits = {
 };
 
 // The kinds of post type a setting of a part per post type may have a
-// default for: those a part may be limited to, and the built-in page.
+// default for: those a part may be limited to, the built-in page and the
+// built-in article.
 const kinds = {
   ...limits,
   page: (type) => builtInOf(type) === PAGE,
+  article: isArticle,
 };
 
 // The key a group's per-type part is kept and written under, which no
@@ -179,10 +181,15 @@ export function groupsIn(groups, locale, title) {
 // the kind of type it is, by the order its `defaultFor` gives them, takes
 // it in place of its `default`.
 function forType(settings, type) {
-  return settings.map(({ defaultFor, ...setting }) => {
-    const kind = Object.keys(defaultFor ?? {}).find((found) => kinds[found](type));
-    return kind === undefined ? setting : { ...setting, default: defaultFor[kind] };
-  });
+  return settings.map(({ defaultFor, ...setting }) => (defaultFor === undefined ? setting : { ...setting, default: defaultForType({ ...setting, defaultFor }, type) }));
+}
+
+// A setting's default for a post type, as declared or read: the one for the
+// kind of type it is, by the order its `defaultFor` gives them, else its
+// `default`.
+export function defaultForType(setting, type) {
+  const kind = Object.keys(setting.defaultFor ?? {}).find((found) => kinds[found](type));
+  return kind === undefined ? setting.default : setting.defaultFor[kind];
 }
 
 // Whether a path leads to a value in the description as declared: `*`
@@ -366,7 +373,7 @@ function requiredBy(read, before, path, problems) {
 // A group's setting: in the form of a site's own, with its default, which
 // must be a value of its type that the site publishes as it is declared; and in
 // a part per post type, the default for the types with an address or a
-// date, or for a type named `page`, `defaultFor`, which such a type takes
+// date, or for the built-in page or article, `defaultFor`, which such a type takes
 // in place of `default`. A text may be a metadata template (`template`,
 // metadata-templates.js), whose default names only the variables every site
 // knows, and in a part per post type every type; a text shown as a text area
@@ -559,8 +566,8 @@ function defaultsOf(read, given, path, problems) {
   if (value !== undefined) read.default = value;
 }
 
-// The defaults of a setting of a part per post type for the types with an
-// address or a date, by that kind; the others take its `default`.
+// The defaults of a setting of a part per post type for the types of a kind,
+// by that kind; the others take its `default`.
 function defaultsFor(read, defaultFor, given, where, path, problems) {
   const at = `${path}.defaultFor`;
   if (where !== 'types') {

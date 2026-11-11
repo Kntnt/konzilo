@@ -694,6 +694,16 @@ describe('labels in phrases', () => {
     assert.equal(field(field(settings, 'consent').fields, 'bannerTitle').label, 'banner: titel', 'and the core\'s, in Swedish');
   });
 
+  // Whether a post is an article is whether its type is the built-in article, so the structured
+  // data type a type has before a site sets its own is Article for the built-in article alone.
+  test('preset the built-in article\'s structured data type as Article, and any other type\'s, one of the site\'s own with a date too, as WebPage', () => {
+    const given = declared();
+    given.types.story = { label: 'Story', plural: 'Stories', collection: 'stories', address: '/stories/{slug}/', elements: ['paragraph'], fields: { date: {}, seo: {} } };
+    const made = cmsConfig(siteDescription(given), place);
+    const preset = (name) => field(one(made, name).fields.find((each) => each.name === 'structured').fields, 'schema').preset;
+    assert.deepEqual(['articles', 'pages', 'canvases', 'stories'].map(preset), ['Article', 'WebPage', 'WebPage', 'WebPage']);
+  });
+
   // The structured data type's own, while a post has none, is "{type} (förvald för {plural})".
   test('give the type\'s plural to the structured data type as it stands in a phrase', () => {
     const schema = (made, name) => field(one(made, name).fields.find((each) => each.name === 'structured').fields, 'schema');

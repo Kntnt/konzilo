@@ -58,17 +58,19 @@ const authorEntries = {
 };
 const getEntries = async (references) => references.map(({ collection, id }) => (collection === 'authors' ? authorEntries[id] : undefined));
 
+// The head of an article on the site `of`, its type's structured data type `schema`.
+const headOf = (authors, of = site, schema = 'Article') => headTags(
+  { entry: entry(authors), path: '/harbour-lights/', settings: { title: 'The Quiet Lantern', search: { separator: '–', types: { article: { schema } } } }, site: of, origin: ORIGIN, locale: 'en_GB', languageTag: 'en-GB' },
+  { getImage: () => assert.fail('no image to make'), getEntries },
+);
+
 // The article node of an article's graph and the nodes it names as its authors, in order,
 // on the site `of`.
-async function authorsInGraph(authors, of = site) {
-  const tags = await headTags(
-    { entry: entry(authors), path: '/harbour-lights/', settings: { title: 'The Quiet Lantern', search: { separator: '–', types: { article: { schema: 'Article' } } } }, site: of, origin: ORIGIN, locale: 'en_GB', languageTag: 'en-GB' },
-    { getImage: () => assert.fail('no image to make'), getEntries },
-  );
-  const nodes = JSON.parse(tags.at(-1).text)['@graph'];
-  const article = nodes.find((node) => node['@type'] === 'Article');
+async function authorsInGraph(authors, of = site, schema = 'Article') {
+  const nodes = JSON.parse((await headOf(authors, of, schema)).at(-1).text)['@graph'];
+  const article = nodes.find((node) => node['@id'] === `${ORIGIN}/harbour-lights/#article`);
   const named = [article.author].flat().map(({ '@id': id }) => nodes.find((node) => node['@id'] === id));
-  return { article, named };
+  return { article, named, nodes };
 }
 
 describe('the structured data', () => {
@@ -101,5 +103,35 @@ describe('the structured data', () => {
     const { article, named } = await authorsInGraph([]);
     assert.deepEqual(article.author, PUBLISHER);
     assert.equal(named[0]['@id'], PUBLISHER['@id']);
+  });
+
+  // Whether a post is an article is whether its type is the built-in article, whatever its
+  // structured data type, which names the kind of its article node, or of its page's.
+  test('keeps an article\'s article node and its authors when its type is given a kind of web page, and its og:type', async () => {
+    const { article, named, nodes } = await authorsInGraph(['ben-holm'], site, 'WebPage');
+    assert.equal(article['@type'], 'Article');
+    assert.deepEqual(named, [{ '@type': 'Person', '@id': `${ORIGIN}/#author-ben-holm`, name: 'Ben Holm' }]);
+    assert.equal(nodes.find((node) => node['@id'] === `${ORIGIN}/harbour-lights/#webpage`)['@type'], 'WebPage');
+    assert.equal((await authorsInGraph(['ben-holm'], site, 'NewsArticle')).article['@type'], 'NewsArticle');
+    const tags = Object.fromEntries((await headOf(['ben-holm'], site, 'WebPage')).filter(({ attributes }) => attributes?.property).map(({ attributes }) => [attributes.property, attributes.content]));
+    assert.equal(tags['og:type'], 'article');
+    assert.equal(tags['article:published_time'], '2026-10-20T08:00:00Z');
+  });
+
+  test('gives a type of the site\'s own with a date no article node and og:type website, unless an Admin gives it a kind of article, with the publisher as its author', async () => {
+    const own = siteDescription({ ...declared, types: { story: { label: 'Story', plural: 'Stories', collection: 'stories', address: '/stories/{slug}/', elements: ['paragraph'], fields: { date: {}, seo: {} } } } });
+    const story = { id: 'night-watch', collection: 'stories', body: 'The keeper watches.', data: { title: 'Night watch', date: new Date('2026-10-02T20:00:00Z') } };
+    const head = (types) => headTags(
+      { entry: story, path: '/stories/night-watch/', settings: { title: 'The Quiet Lantern', search: { separator: '–', types } }, site: own, origin: ORIGIN, locale: 'en_GB', languageTag: 'en-GB' },
+      { getImage: () => assert.fail('no image to make'), getEntries },
+    );
+    const typed = (tags) => tags.find(({ attributes }) => attributes?.property === 'og:type').attributes.content;
+    const graph = (tags) => JSON.parse(tags.at(-1).text)['@graph'];
+    const plain = await head({ story: { schema: 'WebPage' } });
+    assert.equal(typed(plain), 'website');
+    assert.equal(graph(plain).some((node) => node['@id'].endsWith('#article')), false);
+    const chosen = await head({ story: { schema: 'BlogPosting' } });
+    assert.equal(typed(chosen), 'website');
+    assert.deepEqual(graph(chosen).find((node) => node['@id'].endsWith('#article')).author, PUBLISHER);
   });
 });

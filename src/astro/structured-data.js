@@ -40,10 +40,10 @@ export const ARTICLES = new Set(['Article', 'BlogPosting', 'NewsArticle']);
 const WEB_PAGES = new Set(['WebPage', 'AboutPage', 'ContactPage', 'CollectionPage']);
 
 // The graph of a page, as JSON-LD: `page`, { title, description, schema,
-// headline, published, modified }, its title tag, meta description,
-// structured data type, the post's title (none on a page of the site's own)
-// and its date and last change as Open Graph writes them, each '' where
-// the page has none; `url`, its canonical address; `origin`, the public
+// article, headline, published, modified }, its title tag, meta description,
+// structured data type, whether it is an article's, the post's title (none on
+// a page of the site's own) and its date and last change as Open Graph writes
+// them, each '' where the page has none; `url`, its canonical address; `origin`, the public
 // host's; `languageTag`, the site's language tag; `siteTitle`, the site's title;
 // `search`, the Search and sharing settings; `image`, the image it shares,
 // { src, width, height, alt }, or null; `logo`, the site's logo in the same
@@ -58,7 +58,9 @@ export function structuredData({ page, url, origin, languageTag, siteTitle, sear
   const webpage = { '@id': `${url}#webpage` };
   const primaryImage = image && { '@id': `${url}#primaryimage` };
   const breadcrumb = breadcrumbs.length > 0 && { '@id': `${url}#breadcrumb` };
-  const article = ARTICLES.has(page.schema);
+  // An article has an article node, of its structured data type where that is a kind of
+  // article, else Article; another post has one where an Admin gave its type a kind of article.
+  const article = page.article === true || ARTICLES.has(page.schema);
   const people = article ? authors.map((author) => ({ ...author, '@id': `${home}#author-${author.slug}` })) : [];
   const nodes = [
     present({
@@ -85,7 +87,7 @@ export function structuredData({ page, url, origin, languageTag, siteTitle, sear
       dateModified: page.modified,
     }),
     article && present({
-      '@type': page.schema,
+      '@type': ARTICLES.has(page.schema) ? page.schema : 'Article',
       '@id': `${url}#article`,
       headline: page.headline,
       description: page.description,

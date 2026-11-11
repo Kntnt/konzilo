@@ -318,8 +318,11 @@ describe('a site built with astro build for https://www.example.com', () => {
     }
   }
 
+  // The articles are a type of the site's own, which an Admin gives the structured data type
+  // Article, as the built-in article has by default.
   test('an article, a page whose type is AboutPage and the start page name the organisation that publishes the site, with its logo, and the image each shares', () => {
     const graphOf = build({
+      types: { post: { schema: 'Article' } },
       description: 'Light for the harbour.',
       publisher: {
         kind: 'Organization',
@@ -431,7 +434,7 @@ describe('a site built with astro build for https://www.example.com', () => {
   });
 
   test('a site whose publisher is a person, without a logo, names the person as each article\'s author, and a page that shares no image has none', () => {
-    const graphOf = build({ publisher: { kind: 'Person', name: 'Ada Lindqvist', email: 'ada@example.com' } }, false);
+    const graphOf = build({ types: { post: { schema: 'Article' } }, publisher: { kind: 'Person', name: 'Ada Lindqvist', email: 'ada@example.com' } }, false);
 
     const person = { '@type': 'Person', '@id': `${ORIGIN}/#publisher`, name: 'Ada Lindqvist', url: `${ORIGIN}/`, email: 'ada@example.com' };
     const article = graphOf('news/harbour-lights');
