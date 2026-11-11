@@ -5,6 +5,7 @@ import { toggleMark } from '@milkdown/kit/prose/commands';
 import { undo } from '@milkdown/kit/prose/history';
 import { Selection, TextSelection } from '@milkdown/kit/prose/state';
 
+import { mountAuthorsField } from '../../../src/cms/authors/field.js';
 import { handsFor, loadReader } from '../../../src/cms/body/check.js';
 import { blockAt } from '../../../src/cms/body/place.js';
 import { mountBodyField } from '../../../src/cms/body/field.js';
@@ -310,4 +311,48 @@ globalThis.fieldPage = {
     return [count.table, count.table_header + count.table_cell];
   },
   notes: () => [...current().field.frame.querySelectorAll('.konzilo-body-note')].filter((note) => !note.hidden).map((note) => note.textContent),
+};
+
+// The authors field alone, on authors with nothing behind them: `authors`, each { id, name }, and
+// `throwing`, what they fail at. It records what it told its owner and what it was asked to add.
+let authorsField = null;
+const failing = {};
+globalThis.authorsPage = {
+  open(value, { authors = [], throwing = {}, language = 'en' } = {}) {
+    authorsField?.field.destroy();
+    authorsField?.host.remove();
+    useInterfaceLanguage(language);
+    Object.assign(failing, { list: false, add: false }, throwing);
+    const known = [...authors];
+    const added = [];
+    const source = {
+      async list() {
+        if (failing.list) throw new Error('the list failed');
+        return [...known];
+      },
+      async add({ name, biography }) {
+        if (failing.add) throw new Error('the commit failed');
+        added.push({ name, biography });
+        const made = { id: `new${added.length}`, name: name.trim() };
+        known.push(made);
+        return made;
+      },
+    };
+    const host = document.createElement('div');
+    const before = Object.assign(document.createElement('input'), { type: 'text', className: 'before-the-field' });
+    before.setAttribute('aria-label', 'Before the field');
+    host.append(before);
+    document.body.append(host);
+    const changes = [];
+    const field = mountAuthorsField(host, { value, changed: (next) => changes.push(next), authors: source, label: 'Authors', forID: 'the-authors' });
+    authorsField = { field, host, changes, added };
+    return field.ready;
+  },
+  value: () => authorsField.changes.at(-1) ?? null,
+  changes: () => authorsField.changes.length,
+  added: () => authorsField.added,
+  setValue: (value) => authorsField.field.setValue(value),
+  stopThrowing() {
+    Object.assign(failing, { list: false, add: false });
+  },
 };

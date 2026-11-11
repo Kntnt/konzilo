@@ -42,12 +42,14 @@ describe('the form in Sveltia', () => {
 
   after(() => site?.close());
 
-  test('a page cannot be made from another page, but an article can make an author, a category and a topic', async () => {
+  test('a page cannot be made from another page, but an article can make a category and a topic, and has its authors in a field of the core\'s own', async () => {
     await newEntry('pages');
     assert.equal(await page.getByRole('button', { name: /Add.*Page/ }).count(), 0);
     await newEntry('articles');
-    for (const name of [/Add.*Author/, /Add.*Category/, /Add.*Topic/]) await page.getByRole('button', { name }).first().waitFor();
+    for (const name of [/Add.*Category/, /Add.*Topic/]) await page.getByRole('button', { name }).first().waitFor();
     assert.equal(await page.getByRole('button', { name: /Add.*Article/ }).count(), 0);
+    // A test repository has no Forgejo to read the authors from, or add one to (Compose has).
+    await page.locator('section.field[data-key-path="authors"]').getByRole('combobox', { name: 'Authors' }).waitFor({ state: 'attached' });
   });
 
   test('search, sharing and structured data are closed bars, with no box to tick', async () => {

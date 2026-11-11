@@ -35,11 +35,11 @@ function forgejo({ files = {}, failing = {} } = {}) {
   return { asked, get, files };
 }
 
-const authorsOf = (stand, { folder = 'authors', credential = () => 'token mine', id = '0123456789ab', language = 'en' } = {}) => authorsIn({ api: 'http://git/api/v1', repository: 'org/source', folder, credential, language, get: stand.get, id: () => id });
+const authorsOf = (stand, { folder = 'authors', credential = () => 'token mine', id = '0123456789ab' } = {}) => authorsIn({ api: 'http://git/api/v1', repository: 'org/source', folder, credential, get: stand.get, id: () => id });
 const term = (values, sha) => ({ sha, text: `${JSON.stringify(values, null, 2)}\n` });
 
 describe('the authors', () => {
-  test('are the terms in their folder, in the order of their names, each with its ID, asked for with the credential of whoever is signed in', async () => {
+  test('are the terms in their folder, each with its name and ID, asked for with the credential of whoever is signed in', async () => {
     const stand = forgejo({
       files: {
         'authors/rafael-berg.json': term({ name: 'Rafael Berg', description: 'A librarian.' }, 'r1'),
@@ -51,12 +51,12 @@ describe('the authors', () => {
         'categories/harbours.json': term({ name: 'Harbours' }, 'c1'),
       },
     });
-    assert.deepEqual(await authorsOf(stand).list(), [
+    const byId = (authors) => authors.sort((one, other) => one.id.localeCompare(other.id));
+    assert.deepEqual(byId(await authorsOf(stand).list()), [
       { id: '0a1b2c3d4e5f', name: 'Åsa Lind' },
       { id: 'ines-holm', name: 'Ines Holm' },
       { id: 'rafael-berg', name: 'Rafael Berg' },
     ]);
-    assert.deepEqual((await authorsOf(stand, { language: 'sv' }).list()).map(({ name }) => name), ['Ines Holm', 'Rafael Berg', 'Åsa Lind'], 'in the order of the interface language');
     assert.ok(stand.asked.every(({ authorization }) => authorization === 'token mine'));
     assert.deepEqual(stand.asked.find(({ pathname }) => pathname.endsWith('/git/blobs')).query.shas.split(',').sort(), ['a1', 'b1', 'i1', 'n1', 'r1'], 'nothing but terms is read');
   });
@@ -85,7 +85,7 @@ describe('the authors', () => {
     assert.equal(commit.body.message, 'Add the author Ada Lind');
     assert.deepEqual(commit.body.files.map(({ operation, path }) => ({ operation, path })), [{ operation: 'create', path: 'authors/0123456789ab.json' }]);
     assert.deepEqual(JSON.parse(stand.files['authors/0123456789ab.json'].text), { name: 'Ada Lind', description: 'Writes of lighthouses.' });
-    assert.deepEqual(await authors.list(), [{ id: '0123456789ab', name: 'Ada Lind' }, { id: 'ines-holm', name: 'Ines Holm' }]);
+    assert.deepEqual((await authors.list()).map(({ id }) => id).sort(), ['0123456789ab', 'ines-holm']);
 
     await authorsOf(stand, { id: 'ba9876543210' }).add({ name: 'Ben Holm', biography: '   ' });
     assert.deepEqual(JSON.parse(stand.files['authors/ba9876543210.json'].text), { name: 'Ben Holm' }, 'with no biography where none is written');

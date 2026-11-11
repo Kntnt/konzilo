@@ -23,9 +23,8 @@ function nameIn(text) {
 }
 
 // `api`: Forgejo's. `folder`: the authors' files, `authors` or `authors/<tag>`. `credential()`: the
-// signed-in editor's. `language`: the interface language's tag, whose order names are listed in.
-// An ID is made as Sveltia makes one, the last part of a random UUID.
-export function authorsIn({ api, repository, branch = 'main', folder, credential, language = 'en', get = (...args) => globalThis.fetch(...args), id = () => globalThis.crypto.randomUUID().split('-').pop() }) {
+// signed-in editor's. An ID is made as Sveltia makes one, the last part of a random UUID.
+export function authorsIn({ api, repository, branch = 'main', folder, credential, get = (...args) => globalThis.fetch(...args), id = () => globalThis.crypto.randomUUID().split('-').pop() }) {
   const ask = async (path, options = {}) => {
     const held = credential();
     if (!held) throw new Error('nobody is signed in');
@@ -39,7 +38,7 @@ export function authorsIn({ api, repository, branch = 'main', folder, credential
   const known = new Map();
 
   return {
-    // Each author, as { id, name }, in the order of their names in the interface language.
+    // Each author, as { id, name }.
     async list() {
       const listed = await ask(where).catch((error) => {
         if (error.status === 404) return [];
@@ -51,10 +50,7 @@ export function authorsIn({ api, repository, branch = 'main', folder, credential
         const blobs = await ask(`/git/blobs?shas=${unknown.slice(at, at + BLOBS_AT_ONCE).join(',')}`);
         for (const blob of blobs ?? []) if (blob) known.set(blob.sha, nameIn(decoded(blob.content)));
       }
-      return files
-        .map(({ name, sha }) => ({ id: name.slice(0, -'.json'.length), name: known.get(sha) }))
-        .filter(({ name }) => name)
-        .sort((one, other) => one.name.localeCompare(other.name, language) || one.id.localeCompare(other.id));
+      return files.map(({ name, sha }) => ({ id: name.slice(0, -'.json'.length), name: known.get(sha) })).filter(({ name }) => name);
     },
 
     // A new author, as `list` gives one, with its biography where one is written.
