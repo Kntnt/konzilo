@@ -284,8 +284,14 @@ describe('the interface language', () => {
   test('offers each type\'s structured data types in the settings, its default first and chosen', () => {
     const made = cmsConfig(swedish, { ...place, language: 'en' });
     const group = field(made.collections.find((one) => one.name === 'settings').files[0].fields, 'search');
-    const schema = (type) => field(field(field(group.fields, 'types').fields, type).fields, 'schema');
+    // Each has a default, so it is the core's field for a setting, which shows Sveltia's select.
+    const schema = (type) => {
+      const one = field(field(field(group.fields, 'types').fields, type).fields, 'schema');
+      assert.equal(one.widget, 'konzilo-setting', type);
+      return one.field;
+    };
     const every = ['WebPage', 'AboutPage', 'ContactPage', 'CollectionPage', 'Article', 'BlogPosting', 'NewsArticle'];
+    assert.equal(schema('article').widget, 'select');
     assert.deepEqual(schema('article').options.map(({ value }) => value), ['Article', 'BlogPosting', 'NewsArticle']);
     assert.equal(schema('article').default, 'Article');
     for (const type of ['page', 'canvas']) {
