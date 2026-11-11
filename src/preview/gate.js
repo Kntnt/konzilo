@@ -1,8 +1,9 @@
 // The live preview's gate (ADR 0032): the one thing the web server reaches on the preview's
 // host, and it stands before anything else does. Only a browser that has shown write access
-// through Forgejo gets past it, with a cookie for this host alone; nothing here holds the
-// token it was shown. Its answers frame for the admin host alone and are never indexed
-// or shared by a cache, whatever the dev server behind it would have said.
+// through Forgejo gets past it, the pane's by the editor's credential and a tab's by Forgejo's
+// sign-in, with a cookie for this host alone, and is asked again at intervals; nothing here
+// holds the token it was shown. Its answers frame for the admin host alone and are never
+// indexed or shared by a cache, whatever the dev server behind it would have said.
 
 import { createHash, randomBytes } from 'node:crypto';
 import { request } from 'node:http';
