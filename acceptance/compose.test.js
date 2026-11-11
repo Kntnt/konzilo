@@ -371,10 +371,15 @@ describe('a site in Compose', () => {
         const saved = await fileNamed('articles', title);
         assert.match(await onTheSite(addressOf(saved.text), title), new RegExp(title));
         const { page } = session;
+        // An article's form has no publishing row (ADR 0071): the Publishing page says how it
+        // stands, and its page opens from beside its slug.
+        await page.goto(`${site.origin.admin}/#/collections/articles`);
+        await page.getByRole('radio', { name: 'Publishing' }).click();
+        await page.getByRole('row', { name: new RegExp(title) }).getByText('Live on the site.').waitFor({ timeout: 30_000 });
         await openArticle(page, title);
-        await page.getByText('Live on the site.').waitFor({ timeout: 30_000 });
-        const link = page.getByRole('link', { name: 'Show the page', exact: true });
+        const link = page.getByRole('link', { name: 'Show the page ↗', exact: true });
         assert.equal(await link.getAttribute('href'), `${site.origin.site}${addressOf(saved.text)}`);
+        assert.equal(await page.locator('section.field[data-key-path="publishing"]').count(), 0, 'with no publishing row in its form');
         assert.doesNotMatch((await fileNamed('articles', title)).text, /publishing/, 'and nothing of it in the file');
         await page.goBack();
       });
@@ -658,6 +663,8 @@ describe('a site in Compose', () => {
         const made = await lastCommit(`authors/${ids[newName]}.json`);
         assert.equal(made.author?.login ?? made.commit.author.name, 'anna');
 
+        // Clear of the form's toolbar, which stays at the top of the pane as it scrolls.
+        await field.locator('.konzilo-authors-chip').first().evaluate((chip) => chip.scrollIntoView({ block: 'center' }));
         const from = await field.locator('.konzilo-authors-chip', { hasText: newName }).boundingBox();
         const to = await field.locator('.konzilo-authors-chip', { hasText: 'Ines Holm' }).boundingBox();
         await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
