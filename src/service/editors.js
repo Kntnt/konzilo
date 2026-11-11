@@ -19,6 +19,17 @@ export const SUBMISSIONS_AT_ONCE = 50;
 
 export const nextMinute = (at) => 60_000 - (at % 60_000);
 
+// Until an answer has room for more, or is gone.
+const drained = (outgoing) => new Promise((go) => {
+  const goOn = () => {
+    outgoing.off('drain', goOn);
+    outgoing.off('close', goOn);
+    go();
+  };
+  outgoing.on('drain', goOn);
+  outgoing.on('close', goOn);
+});
+
 // A page of pictures would ask Forgejo once for each, about the same person, so an answer holds a
 // moment: long enough for that page, and short enough that a person taken off the site is told no.
 const ANSWER_HOLDS = 30_000;
@@ -83,13 +94,20 @@ export function editorsService({ forgejo, repository, token, control, pictures =
     if (asCsv) {
       const separator = searchParams.get('separator');
       if (!Object.hasOwn(SEPARATORS, separator ?? '')) return answerJson(outgoing, 400, {});
-      return answerCsv(outgoing, name, submissionsCsv({
-        label: declared[name]?.label ?? name,
-        each: () => store.eachSubmission(name),
-        separator,
-        timeZone: timeZoneOf(searchParams.get('timeZone')),
-        language: searchParams.get('language'),
-      }));
+      // The columns and the rows from one moment's data, which a submission kept between them
+      // would otherwise leave without its label's column.
+      const reading = store.snapshot(name);
+      try {
+        return await answerCsv(outgoing, name, submissionsCsv({
+          label: declared[name]?.label ?? name,
+          each: () => reading.each(),
+          separator,
+          timeZone: timeZoneOf(searchParams.get('timeZone')),
+          language: searchParams.get('language'),
+        }));
+      } finally {
+        reading.close();
+      }
     }
     const before = searchParams.get('before');
     if (before !== null && !/^[1-9][0-9]{0,15}$/.test(before)) return answerJson(outgoing, 400, {});
@@ -100,29 +118,37 @@ export function editorsService({ forgejo, repository, token, control, pictures =
     });
   };
 
-  // A file written a piece at a time, as its pieces are read, never held whole.
+  // A file written a piece at a time, as its pieces are read, never held whole. Its first piece is
+  // read before anything is answered, so that what breaks while the store is first read is a 500;
+  // what breaks after it ends the answer unfinished, which a browser reports as a failed download
+  // rather than keep a file cut short. Either is said in the service's log.
   const answerCsv = async (outgoing, name, pieces) => {
+    const broke = (error) => warn(`The service could not write the submissions of ${name}: ${error.stack ?? error.message}`);
+    let piece;
+    try {
+      piece = pieces.next();
+    } catch (error) {
+      broke(error);
+      return answerJson(outgoing, 500, {});
+    }
     outgoing.writeHead(200, {
       'content-type': 'text/csv; charset=utf-8; header=present',
       'content-disposition': `attachment; filename="${name}.csv"`,
       'cache-control': 'no-store',
       'x-content-type-options': 'nosniff',
     });
-    for (const piece of pieces) {
-      if (outgoing.destroyed) return;
-      if (!outgoing.write(piece)) {
-        await new Promise((go) => {
-          const goOn = () => {
-            outgoing.off('drain', goOn);
-            outgoing.off('close', goOn);
-            go();
-          };
-          outgoing.on('drain', goOn);
-          outgoing.on('close', goOn);
-        });
+    try {
+      for (; !piece.done; piece = pieces.next()) {
+        if (outgoing.destroyed) return;
+        if (!outgoing.write(piece.value)) await drained(outgoing);
       }
+      outgoing.end();
+    } catch (error) {
+      broke(error);
+      outgoing.destroy();
+    } finally {
+      pieces.return();
     }
-    outgoing.end();
   };
 
   // Each file in the source as it stands, with its version.

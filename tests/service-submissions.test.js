@@ -13,6 +13,7 @@ import { after, afterEach, before, beforeEach, describe, test } from 'node:test'
 import { buildControl } from '../src/build/record.js';
 import { editorsService } from '../src/service/editors.js';
 import { openStore } from '../src/service/store.js';
+import { submissionsCsv } from '../src/service/submissions-csv.js';
 import { siteDescription } from '../src/site-description.js';
 import { readCsv } from './lib/csv.js';
 
@@ -49,22 +50,31 @@ describe('the submissions, for editors', () => {
   });
   after(() => rmSync(folder, { recursive: true, force: true }));
 
+  // A service for editors on `given`, a store as store.js opens one, at its own origin.
+  const serving = async (given, warn = () => {}) => {
+    const service = editorsService({ forgejo: 'http://forgejo', repository: 'org/source', token: 'read-token', control: buildControl(join(folder, 'control')), store: given, forms: () => site.forms, get: forgejo, warn });
+    const made = createServer((incoming, outgoing) => service.request(incoming, outgoing));
+    await new Promise((go) => made.listen(0, '127.0.0.1', go));
+    return { server: made, origin: `http://127.0.0.1:${made.address().port}` };
+  };
+  const forgejo = async (url, { headers }) => {
+    const { pathname } = new URL(url);
+    asked.push({ path: pathname, authorization: headers.authorization });
+    if (pathname !== '/api/v1/repos/org/source') throw new Error(`nothing to say of ${pathname}`);
+    const known = ['token may-write', 'token may-read'].includes(headers.authorization);
+    return { ok: known, status: known ? 200 : 401, json: async () => ({ permissions: { push: headers.authorization === 'token may-write' } }) };
+  };
+
   beforeEach(async () => {
     rmSync(join(folder, 'service.sqlite'), { force: true });
     store = openStore(join(folder, 'service.sqlite'));
     asked = [];
-    const forgejo = async (url, { headers }) => {
-      const { pathname } = new URL(url);
-      asked.push({ path: pathname, authorization: headers.authorization });
-      if (pathname !== '/api/v1/repos/org/source') throw new Error(`nothing to say of ${pathname}`);
-      const known = ['token may-write', 'token may-read'].includes(headers.authorization);
-      return { ok: known, status: known ? 200 : 401, json: async () => ({ permissions: { push: headers.authorization === 'token may-write' } }) };
-    };
-    const service = editorsService({ forgejo: 'http://forgejo', repository: 'org/source', token: 'read-token', control: buildControl(join(folder, 'control')), store, forms: () => site.forms, get: forgejo });
-    server = createServer((incoming, outgoing) => service.request(incoming, outgoing));
-    await new Promise((go) => server.listen(0, '127.0.0.1', go));
-    origin = `http://127.0.0.1:${server.address().port}`;
   });
+
+  beforeEach(async () => {
+    ({ server, origin } = await serving(store));
+  });
+
 
   afterEach(async () => {
     server.closeAllConnections();
@@ -234,6 +244,92 @@ describe('the submissions, for editors', () => {
       assert.deepEqual(warned, []);
     });
 
+    // A submission kept while the file is written, between its columns and its rows, is in neither.
+    test('takes its columns and its rows from one moment\'s data, whatever is kept while it is written', () => {
+      store.keep(sent('2026-11-01T10:00:00Z', [field('name', 'Name', 'Ada')]));
+      const reading = store.snapshot('contact');
+      try {
+        const pieces = submissionsCsv({ label: 'Contact us', each: () => reading.each(), separator: 'comma', timeZone: 'UTC', language: 'en' });
+        const header = pieces.next().value;
+        store.keep(sent('2026-11-02T10:00:00Z', [field('name', 'Name', 'Bea'), field('phone', 'Phone', '+46 70 123')]));
+        assert.equal([header, ...pieces].join(''), '\uFEFFSent at (UTC),Form,Name\r\n2026-11-01 10:00:00,Contact us,Ada\r\n');
+      } finally {
+        reading.close();
+      }
+      assert.equal(store.submissions('contact').length, 2, 'what was kept meanwhile is kept');
+    });
+
+    // A store that breaks while it is read, at the submission numbered `at` of the reading
+    // numbered `pass`, its first for the columns and its second for the rows.
+    const breaking = (pass, at) => {
+      const closed = [];
+      const given = {
+        ...store,
+        snapshot(form) {
+          const real = store.snapshot(form);
+          let passes = 0;
+          return {
+            * each() {
+              passes += 1;
+              let read = 0;
+              for (const one of real.each()) {
+                if (passes === pass && read === at) throw new Error('the disk is gone');
+                read += 1;
+                yield one;
+              }
+            },
+            close() {
+              closed.push(form);
+              real.close();
+            },
+          };
+        },
+      };
+      return { given, closed };
+    };
+
+    test('fails before its first byte where the store breaks while its columns are read, and says why in the service\'s log', async () => {
+      keepTwoAndSpam();
+      const { given, closed } = breaking(1, 1);
+      const warned = [];
+      const other = await serving(given, (warning) => warned.push(warning));
+      try {
+        const answer = await fetch(`${other.origin}/_konzilo/submissions/contact.csv?separator=comma`, { headers: MAY_WRITE });
+        assert.equal(answer.status, 500);
+        assert.equal(answer.headers.get('content-disposition'), null, 'no file');
+        await answer.arrayBuffer();
+      } finally {
+        other.server.closeAllConnections();
+        await new Promise((go) => other.server.close(go));
+      }
+      assert.deepEqual(closed, ['contact'], 'its reading ended');
+      assert.match(warned.join('\n'), /the disk is gone/);
+    });
+
+    test('ends its answer unfinished where the store breaks while its rows are written, so that the browser says the download failed', async () => {
+      const long = 'x'.repeat(20_000);
+      for (let number = 0; number < 100; number += 1) store.keep(sent(new Date(Date.UTC(2026, 10, 1, 10, 0, number)), [field('message', 'Message', `${number} ${long}`)]));
+      // Early, before anything has left, and late, once its headers and rows have.
+      for (const at of [1, 90]) {
+        const { given, closed } = breaking(2, at);
+        const warned = [];
+        const other = await serving(given, (warning) => warned.push(warning));
+        try {
+          const whole = async () => {
+            const answer = await fetch(`${other.origin}/_konzilo/submissions/contact.csv?separator=comma`, { headers: MAY_WRITE });
+            if (at > 1) assert.equal(answer.status, 200, 'its headers left first');
+            return answer.arrayBuffer();
+          };
+          await assert.rejects(whole(), /terminated|other side closed|fetch failed/, `a body cut off at ${at} is no file`);
+        } finally {
+          other.server.closeAllConnections();
+          await new Promise((go) => other.server.close(go));
+        }
+        assert.deepEqual(closed, ['contact'], 'its reading ended');
+        assert.match(warned.join('\n'), /the disk is gone/);
+      }
+    });
+
     test('opens with its columns by the separator it was written with, and with no cell that starts a formula by either', async () => {
       store.keep(sent('2026-11-01T10:00:00Z', Object.entries(risky).map(([name, value]) => field(name.toLowerCase(), name, value))));
       for (const [written, separator] of [['comma', ','], ['semicolon', ';']]) {
@@ -251,16 +347,26 @@ describe('the submissions, for editors', () => {
 
   describe('the store', () => {
     // A file is written as it is read, and other requests are answered meanwhile.
-    test('goes on giving a form\'s submissions one at a time while it is asked for them again', () => {
+    test('goes on giving a form\'s submissions one at a time, from one moment\'s data, while it is asked for them again', () => {
       for (let number = 0; number < 5; number += 1) store.keep(sent(new Date(Date.UTC(2026, 10, 1, 10, number)), [field('name', 'Name', `Number ${number}`)]));
-      const each = store.eachSubmission('contact');
-      const read = [each.next().value];
-      assert.equal(store.submissions('contact', { limit: 2 }).length, 2);
-      const second = store.eachSubmission('contact');
-      second.next();
-      for (const submission of each) read.push(submission);
-      second.return();
-      assert.deepEqual(read.map(({ fields }) => fields[0].value), ['Number 4', 'Number 3', 'Number 2', 'Number 1', 'Number 0']);
+      const reading = store.snapshot('contact');
+      const other = store.snapshot('contact');
+      try {
+        const each = reading.each();
+        const read = [each.next().value];
+        assert.equal(store.submissions('contact', { limit: 2 }).length, 2);
+        const second = other.each();
+        second.next();
+        store.keep(sent(new Date(Date.UTC(2026, 10, 1, 10, 9)), [field('name', 'Name', 'Number 9')]));
+        for (const submission of each) read.push(submission);
+        second.return();
+        assert.deepEqual(read.map(({ fields }) => fields[0].value), ['Number 4', 'Number 3', 'Number 2', 'Number 1', 'Number 0']);
+        assert.deepEqual([...reading.each()].map(({ fields }) => fields[0].value), ['Number 4', 'Number 3', 'Number 2', 'Number 1', 'Number 0'], 'the same, read again');
+      } finally {
+        reading.close();
+        other.close();
+      }
+      assert.equal(store.submissions('contact').length, 6);
     });
   });
 
