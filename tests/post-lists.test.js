@@ -68,6 +68,61 @@ describe('the evaluator', () => {
     assert.deepEqual(evaluate(query({ order: 'related' }), posts), []);
   });
 
+  describe('related to an article', () => {
+    // Fictional articles related to Lantern, which has the topics harbour and
+    // light and the category stories, scored by hand: one point for each topic
+    // shared, half a point for the same category, and none for an author.
+    const article = (id, day, terms) => ({ id, title: id[0].toUpperCase() + id.slice(1), terms, fields: { date: `${day}T08:00:00Z` } });
+    const lantern = { type: 'article', ...article('lantern', '2026-10-15', { topics: ['harbour', 'light'], category: ['stories'], authors: ['ines'] }) };
+    const articles = [
+      article('anchor', '2025-01-01', { topics: ['harbour', 'light'], category: ['stories'] }), // 2.5
+      article('beacon', '2026-09-01', { topics: ['harbour'], category: ['stories'] }), // 1.5
+      article('cove', '2026-06-01', { topics: ['light', 'harbour'], category: ['essays'] }), // 2
+      article('dune', '2026-10-01', { topics: ['sand'], category: ['stories'] }), // 0.5
+      article('ember', '2026-10-10', { topics: ['sand'], category: ['essays'], authors: ['ines'] }), // 0
+      article('fjord', '2026-10-12', { topics: ['ice'], category: ['travel'] }), // 0
+    ];
+    const points = { topics: 1, category: 0.5 };
+    const related = (options, changes = {}) => ids(evaluate(query({ type: 'article', order: 'related', number: 10, ...changes }), [lantern, ...articles], { current: lantern, points, ...options }));
+
+    test('scores one point for each shared topic and half a point for the same category, and never shows one that shares neither', () => {
+      assert.deepEqual(related({ halfLife: null }), ['anchor', 'cove', 'beacon', 'dune']);
+      assert.deepEqual(related({ halfLife: null }, { number: 3 }), ['anchor', 'cove', 'beacon']);
+    });
+
+    test('halves a score with each half-life of its post\'s age, and ranks the same at any build moment', () => {
+      // By hand, each score times 2^(-days before Dune / half-life), Dune's day
+      // as good as any, since every post ages alike: at 90 days Beacon 1.19,
+      // Cove 0.78, Dune 0.5, Anchor 0.02; at 365 days Cove 1.59, Beacon 1.42,
+      // Anchor 0.74, Dune 0.5.
+      for (const now of ['2026-11-11T09:00:00Z', '2027-03-01T00:00:00Z', '2036-01-01T00:00:00Z'].map(Date.parse)) {
+        assert.deepEqual(related({ halfLife: 90, now }), ['beacon', 'cove', 'dune', 'anchor'], new Date(now).toISOString());
+        assert.deepEqual(related({ halfLife: 365, now }), ['cove', 'beacon', 'anchor', 'dune'], new Date(now).toISOString());
+      }
+    });
+
+    test('lets only the score, then the date, then the title decide with freshness switched off', () => {
+      const more = [
+        ...articles,
+        article('grove', '2026-10-14', { topics: ['harbour'], category: ['stories'] }), // 1.5, newer than Beacon
+        { ...article('bay', '2026-09-01', { topics: ['light'], category: ['stories'] }), title: 'Bay' }, // 1.5, Beacon's day
+      ];
+      const listed = evaluate(query({ type: 'article', order: 'related', number: 10 }), more, { current: lantern, points, halfLife: null });
+      assert.deepEqual(ids(listed), ['anchor', 'cove', 'grove', 'bay', 'beacon', 'dune']);
+    });
+
+    test('decays no post without a date, so that a type without dates ranks by the score, then the title', () => {
+      const undated = [
+        { id: 'zeta', title: 'Zeta', terms: { topics: ['harbour', 'light'] }, fields: {} },
+        { id: 'alpha', title: 'Alpha', terms: { topics: ['harbour'] }, fields: {} },
+        { id: 'beta', title: 'Beta', terms: { topics: ['light', 'harbour'] }, fields: {} },
+      ];
+      for (const halfLife of [null, 90]) {
+        assert.deepEqual(ids(evaluate(query({ type: 'note', order: 'related' }), undated, { current: lantern, halfLife })), ['beta', 'zeta', 'alpha'], String(halfLife));
+      }
+    });
+  });
+
   test('leaves out this post and the posts the lists above showed, before its offset, and keeps them when told to', () => {
     const alfa = { type: 'post', ...posts.find((post) => post.id === 'alfa') };
     const shown = new Set(['bravo', 'charlie']);

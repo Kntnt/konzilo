@@ -4,8 +4,11 @@
 // the site registers for it (`konzilo({ presentations })`). Body.astro
 // evaluates a body's lists in the body's order, so that a list can leave out
 // the posts the lists above it showed. A site's template may call
-// listedPosts() too, for related posts in an article's template, from
-// `@kntnt/konzilo/astro/post-lists`.
+// listedPosts() too, for the posts a list's settings name, and
+// relatedPosts(), for "Read more" under an article, from
+// `@kntnt/konzilo/astro/post-lists`. A list ordered as related and
+// relatedPosts() rank alike, by the score and the freshness of
+// ../post-lists.js, with the half-life of the settings group `related`.
 //
 // One list in a post may have pages of its own: page 1 is the post's own
 // address, and page `n` from 2 `<address>page/<n>/`. The site's route for a
@@ -29,10 +32,13 @@ import { textsOf } from '../catalogues.js';
 import { listPageAddress } from '../format/addresses.js';
 import { readPostList, SECOND_PAGED_LIST } from '../format/post-list.js';
 import { british } from '../refusals.js';
+import { relatedPoints } from '../format/built-in-types.js';
 import rules from '../format/rules.json' with { type: 'json' };
 import { evaluate, pageCount } from '../post-lists.js';
+import { coreSettingsGroups } from '../settings-groups.js';
 import { describedSite, entryAddress, entryLanguage, entryName, siteLanguages } from './languages.js';
 import { postListsIn } from './reader.js';
+import { siteSettings } from './site-settings.js';
 import { termRoute, termsBelow, termsWithPages } from './term-pages.js';
 
 const { attributes } = rules.elements['post-list'].directive;
@@ -80,8 +86,8 @@ export async function postList(given, { post, shown = shownOnPage(), page = 1 } 
 }
 
 // The posts a list with these settings shows, as a template may ask for
-// them, for related posts in an article's template: the settings are a post
-// list's attributes, typed (`{ type: 'post', order: 'related', number: 3 }`),
+// them: the settings are a post list's attributes, typed (`{ type:
+// 'article', include: 'category:news', number: 3 }`),
 // with no presentation needed. Each is { entry, url }, the post's entry of
 // its collection and its address on the site, below the site's base, or
 // null for a type without one. Throws, naming why, for settings the site
@@ -89,6 +95,29 @@ export async function postList(given, { post, shown = shownOnPage(), page = 1 } 
 export async function listedPosts(settings, { post, shown = shownOnPage() } = {}) {
   const [first] = Object.keys(site.lists.presentations);
   return (await listed(settingsOf({ presentation: first, ...settings }, post).query, { post, shown })).posts;
+}
+
+// The number of related posts relatedPosts() gives, by default.
+export const RELATED_POSTS = 3;
+
+// The posts related to a post, as "Read more" under it shows them, in an
+// article's template:
+//
+//   const related = await relatedPosts(article);
+//
+// The posts of its own type that share its terms, ranked as a list ordered
+// as related ranks them, without the post itself: at most `number`, fewer
+// where fewer share a term, and none where none does. Related to an
+// article, a post scores a point for each topic it shares and half a point
+// for the same category; related to a post of another type, a point for
+// each term it shares, of any taxonomy; and each score is multiplied by the
+// post's freshness, by the half-life of the settings group `related`. Each is { entry, url }, as
+// listedPosts() gives them. Throws, naming why, for a post of a type
+// without terms.
+export async function relatedPosts(post, { number = RELATED_POSTS } = {}) {
+  const [name] = typeOf(post);
+  if (!name) throw new Error('Konzilo: relatedPosts() takes the entry of a post, from the collection of one of the site\'s types');
+  return (await listed(settingsOf({ type: name, order: 'related', number }, post).query, { post, shown: shownOnPage() })).posts;
 }
 
 // The pages a site's route for a type builds from its entries,
@@ -280,7 +309,9 @@ async function listed(query, { post, shown, page = 1, counting = false }) {
   if (!shown.has(query.type)) shown.set(query.type, new Set());
   const seen = shown.get(query.type);
   const listable = entries.map((entry) => listablePost(entry, type));
-  const options = { current, shown: seen, locale: site.locale };
+  const declared = describedSite().types[query.type];
+  const related = query.order === 'related' ? { points: relatedPoints(declared), halfLife: await halfLife() } : {};
+  const options = { current, shown: seen, locale: site.locale, ...related };
   const pages = counting ? pageCount(query, listable, options) : 1;
   const posts = evaluate(query, listable, { ...options, page });
   for (const one of posts) seen.add(one.id);
@@ -288,7 +319,6 @@ async function listed(query, { post, shown, page = 1, counting = false }) {
   // An entry's id is its path in the collection, which a hierarchical type's
   // address takes as `{path}`, in its language's folder on a site
   // in several languages, whose prefix its address takes.
-  const declared = describedSite().types[query.type];
   return {
     posts: posts.map(({ id }) => {
       const address = entryAddress(declared, id, languages);
@@ -296,6 +326,20 @@ async function listed(query, { post, shown, page = 1, counting = false }) {
     }),
     pages,
   };
+}
+
+// The settings group of related posts (format/settings-groups.json).
+const RELATED = 'related';
+
+// The days in which a related post's freshness halves, as the site settings
+// give them, the main language's, which every language shares: null with
+// freshness switched off, and the group's defaults where the settings have
+// none.
+async function halfLife() {
+  const group = coreSettingsGroups().find(({ name }) => name === RELATED);
+  const defaults = Object.fromEntries(group.settings.map((setting) => [setting.name, setting.default]));
+  const { freshness, halfLife: days } = { ...defaults, ...(await siteSettings())?.[RELATED] };
+  return freshness ? days : null;
 }
 
 // The type of an entry's collection, as [name, type], or [].

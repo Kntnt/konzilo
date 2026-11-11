@@ -230,6 +230,28 @@ describe('the interface language', () => {
     });
   });
 
+  test('shows the half-life of related posts among the settings groups in the interface language, with its default, and the switch for freshness', () => {
+    const related = (language) => {
+      const made = cmsConfig(swedish, { ...place, language });
+      const group = field(made.collections.find((one) => one.name === 'settings').files[0].fields, 'related');
+      const setting = (name) => {
+        const { label, widget, default: given } = field(group.fields, name);
+        return { label, widget, default: given };
+      };
+      return { heading: group.label, freshness: setting('freshness'), halfLife: setting('halfLife') };
+    };
+    assert.deepEqual(related('sv'), {
+      heading: 'Relaterade inlägg',
+      freshness: { label: 'Färskhet', widget: 'boolean', default: true },
+      halfLife: { label: 'Halveringstid i dagar', widget: 'number', default: 90 },
+    });
+    assert.deepEqual(related('en'), {
+      heading: 'Related posts',
+      freshness: { label: 'Freshness', widget: 'boolean', default: true },
+      halfLife: { label: 'Half-life in days', widget: 'number', default: 90 },
+    });
+  });
+
   test('shows every settings text of the catalogues in the settings groups, and in Swedish nothing beside them but the site\'s own', () => {
     const given = declared();
     given.forms = { contact: { label: 'Contact', fields: [{ name: 'email', label: 'Email', kind: 'email', required: true }] } };

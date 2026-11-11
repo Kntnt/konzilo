@@ -174,6 +174,10 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Pager**: The integration's links between a post list's pages. _Avoid_: pagination.
 
+**Freshness**: What the score of a post related to another is multiplied by for its age, 2^(-age / half-life), so that newer posts rank higher in "Read more" and in a post list ordered as related: a half at one half-life old, a quarter at two. A post without a date has no age. _Avoid_: recency, decay.
+
+**Half-life**: The days in which a post's freshness halves, 90 by default, set by an Admin in the settings group *Related posts*, where freshness can be switched off too.
+
 ## Media
 
 **Original**: The file an editor uploads, kept private in Git LFS. _Avoid_: upload, source image.
