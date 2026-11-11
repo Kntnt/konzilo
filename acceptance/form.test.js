@@ -79,6 +79,20 @@ describe('the form in Sveltia', () => {
     await page.locator('.field[data-key-path="structured.schema"]').waitFor();
   });
 
+  // A post's structured data type decides what it is, and is one its type offers: an article a
+  // kind of article, a page any of them, each type's own first and shown as chosen.
+  test('the structured data type offers the post\'s type\'s own types alone, its type\'s own shown as chosen', async () => {
+    const every = ['AboutPage', 'ContactPage', 'CollectionPage', 'Article', 'BlogPosting', 'NewsArticle'];
+    for (const [collection, options] of [['articles', ['Article (chosen for articles)', 'BlogPosting', 'NewsArticle']], ['pages', ['WebPage (chosen for pages)', ...every]], ['canvases', ['WebPage (chosen for canvases)', ...every]]]) {
+      await newEntry(collection);
+      await bar('Structured data').click();
+      const select = page.locator('.field[data-key-path="structured.schema"] select');
+      await select.waitFor();
+      assert.deepEqual((await select.locator('option').allTextContents()).map((one) => one.trim()), options, collection);
+      assert.equal(await select.inputValue(), '', collection);
+    }
+  });
+
   test('a form left closed saves with nothing to fill in, and a filled part is open when it comes back', async () => {
     await newEntry('pages');
     await page.getByRole('textbox', { name: 'Title', exact: true }).fill('Left closed');
