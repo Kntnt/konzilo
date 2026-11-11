@@ -1,5 +1,7 @@
 ---
 title: "Northern orchards and the lantern"
+date: 2025-12-10T08:00:00Z
+modified: 2025-12-10T08:00:00Z
 seo: {"title":"Distant rivers and the lantern, in short","description":"The bright workshop mends the open bridge. The bright kitchen gathers the hidden library."}
 ---
 

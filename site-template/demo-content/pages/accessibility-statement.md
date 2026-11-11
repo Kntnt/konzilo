@@ -1,5 +1,7 @@
 ---
 title: "Accessibility statement"
+date: 2025-12-02T08:00:00Z
+modified: 2025-12-02T08:00:00Z
 ---
 
 The quiet orchard follows the bright harbour. The open kitchen lights the bright bridge. The northern orchard keeps the bright river.

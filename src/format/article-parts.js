@@ -2,8 +2,10 @@
 // editor's placeholders and for the site, so that a placeholder never promises what the site
 // does not do. The parts are the eyebrow, the main headline and the subheadline, the
 // standfirst, the teaser with its image, headline and text, and the name in breadcrumbs, each
-// a field of the core's (site-description.js). It imports nothing, so that the editor and the
-// build both run it.
+// a field of the core's (site-description.js). A part falls back to what the post's type has:
+// a page's and a canvas's teaser, with no eyebrow, main headline, standfirst or main image, to
+// its title, and to no text or image of its own. It imports nothing, so that the editor and
+// the build both run it.
 
 // Arial's advance widths in thousandths of an em, regular and bold, for the characters a
 // Swedish or English text uses, read from the font files. Search engines measure a title in

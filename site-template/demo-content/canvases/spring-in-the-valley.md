@@ -1,5 +1,9 @@
 ---
 title: "Spring in the valley"
+date: 2026-01-02T08:00:00Z
+modified: 2026-01-02T08:00:00Z
+breadcrumb: "Spring"
+teaser: {"headline":"Spring comes to the valley","text":"What the gardens and the meadows bring this spring."}
 ---
 
 ## Spring in the valley

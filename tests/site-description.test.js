@@ -164,13 +164,17 @@ describe('the built-in types', () => {
     ]);
   });
 
-  test('give a page its name in breadcrumbs and the search and sharing fields, and a canvas the search and sharing fields', () => {
+  test('give a page and a canvas the date and the last change, the name in breadcrumbs, the teaser and the search and sharing fields, in the article\'s order', () => {
     const read = siteDescription(site({ page: { collection: 'pages', hierarchical: true, address: '/{path}/', elements: ['paragraph'] }, canvas: { collection: 'canvases', address: '/landing/{slug}/', elements: ['paragraph'] } }));
     assert.equal(read.types.page.builtIn, 'page');
     assert.equal(read.types.page.hierarchical, true);
-    assert.deepEqual(read.types.page.fields.map((field) => field.name), ['breadcrumb', 'seo']);
+    assert.deepEqual(read.types.page.fields.map((field) => field.name), ['date', 'modified', 'breadcrumb', 'teaser', 'seo']);
     assert.equal(read.types.canvas.builtIn, 'canvas');
-    assert.deepEqual(read.types.canvas.fields.map((field) => field.name), ['seo']);
+    assert.deepEqual(read.types.canvas.fields.map((field) => field.name), ['date', 'modified', 'breadcrumb', 'teaser', 'seo']);
+    assert.deepEqual(read.types.page.fields.filter((field) => field.required).map((field) => field.name), [], 'each optional to fill in');
+    // A feed lists posts by their date, which a page and a canvas now have.
+    const fed = siteDescription(site({ page: { collection: 'pages', address: '/pages/{slug}/', feed: '/pages/feed/', elements: ['paragraph'] }, canvas: { collection: 'canvases', address: '/landing/{slug}/', feed: '/landing/feed/', elements: ['paragraph'] } }));
+    assert.deepEqual([fed.types.page.feed, fed.types.canvas.feed], ['/pages/feed/', '/landing/feed/']);
     assert.deepEqual(read.taxonomies, {}, 'the taxonomies come with the article alone');
   });
 
@@ -188,7 +192,7 @@ describe('the built-in types', () => {
     }, { taxonomies: { region: { label: 'Region', plural: 'Regions', collection: 'regions' } } }));
     assert.deepEqual(read.types.article.fields.map((field) => field.name).slice(-4), ['teaser', 'readingTime', 'regions', 'seo']);
     assert.equal(read.types.article.fields.find((field) => field.name === 'readingTime').kind, 'meta');
-    assert.deepEqual(read.types.page.fields.map((field) => field.name), ['breadcrumb', 'lead', 'seo']);
+    assert.deepEqual(read.types.page.fields.map((field) => field.name), ['date', 'modified', 'breadcrumb', 'teaser', 'lead', 'seo']);
   });
 
   test('take their labels from the catalogues, and a site\'s own label in place of them', () => {
@@ -220,7 +224,8 @@ describe('the built-in types', () => {
     refused(site({ article: article({ fields: { category: { taxonomy: 'category' } } }) }), 'types.article.fields.category: is one of the core\'s fields of the built-in article');
     refused(site({ article: article({ fields: { subheadline: false } }) }), 'types.article.fields.subheadline: is one of the core\'s fields of the built-in article, which every article has; a site cannot leave it out');
     refused(site({ page: { collection: 'pages', address: '/{slug}/', elements: ['paragraph'], fields: { seo: null } } }), 'types.page.fields.seo: is one of the core\'s fields of the built-in page, which every page has; a site cannot leave it out');
-    refused(site({ page: { collection: 'pages', address: '/{slug}/', elements: ['paragraph'], fields: { date: {} } } }), 'types.page.fields.date: names a field of the core\'s, which the built-in page does not take; give a field of the site\'s own another name');
+    refused(site({ page: { collection: 'pages', address: '/{slug}/', elements: ['paragraph'], fields: { date: {} } } }), 'types.page.fields.date: is one of the core\'s fields of the built-in page, which has it without being declared; leave it out of fields');
+    refused(site({ page: { collection: 'pages', address: '/{slug}/', elements: ['paragraph'], fields: { standfirst: {} } } }), 'types.page.fields.standfirst: names a field of the core\'s, which the built-in page does not take; give a field of the site\'s own another name');
     refused(site({ article: article({ fields: { excerpt: {} } }) }), 'types.article.fields.excerpt: names a field of the core\'s, which the built-in article does not take');
     refused(site({ article: article({ fields: { tags: { taxonomy: 'topics' } } }) }), 'types.article.fields.tags: a second field for the taxonomy topics');
   });

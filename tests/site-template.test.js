@@ -114,9 +114,10 @@ describe('the site template, built by Astro', () => {
     const link = /<a [^>]*href="\/"[^>]*>(.*?)<\/a>/s.exec(header(page('index.html')))?.[1];
     assert.match(link, new RegExp(`^<img src="/_astro/logo-${shortHash(drawing({ width: 240, height: 60 }))}\\.[^"]+\\.svg" alt="A lantern by the harbour"[^>]* width="240" height="60"[^>]*>$`));
     assert.equal(title(page('index.html')), 'Lantern &amp; Co');
-    // An article's title tag is what its teaser shows, its main headline, with the site's name.
+    // An article's title tag is what its teaser shows, its main headline, with the site's name,
+    // and a page's what its teaser shows, its title.
     assert.equal(title(page('harbour-lights/index.html')), 'Harbour lights | Lantern &amp; Co');
-    assert.equal(title(page('pages/about/index.html')), 'About – Lantern &amp; Co');
+    assert.equal(title(page('pages/about/index.html')), 'About | Lantern &amp; Co');
   });
 
   test('takes the title as the logo\'s alt text where the logo has none, and shows the title in the header where there is no logo', () => {
@@ -219,7 +220,7 @@ describe('the site template, built by Astro', () => {
     assert.match(shown, /A landing page alone\./);
     assert.equal(header(shown), undefined);
     assert.equal(footer(shown), undefined);
-    assert.match(shown, /<title>Spring – Lantern<\/title>/, 'with Konzilo\'s head still');
+    assert.match(shown, /<title>Spring \| Lantern<\/title>/, 'with Konzilo\'s head still');
     for (const path of ['harbour-lights/index.html', 'pages/about/index.html']) {
       assert.ok(header(page(path)), path);
       assert.ok(footer(page(path)), path);

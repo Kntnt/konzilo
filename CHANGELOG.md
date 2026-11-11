@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A site repository can keep fictional demo content of its own in `demo-content/`, which a local copy starts from in place of the core's, with `npm run dev`, `npm run build` or Compose, and which a build for a public host refuses as it refuses the core's.
 - A meta line between an article's standfirst and its body, with its date, its category and its authors, written by a format with variables that an Admin sets for each type in each language in the site settings; a page or a type of the site's own shows one once an Admin gives it a format.
 
+### Changed
+
+- A page and a canvas have a date, which an editor may change under the status, and a teaser, as an article has, and a canvas has a name in breadcrumbs: their forms follow the article's order, with no publishing row, and a page's date and last change reach its sitemap entry, feeds, lists ordered by date, search and structured data.
+
 ## [0.1.0] – 2026-11-11
 
 ### Added

@@ -102,7 +102,7 @@ test('replaces an image\'s path with its master, from where the file is', () => 
   };
   const result = run(files, site);
   assert.deepEqual(result.refusals, []);
-  assert.equal(written(result)['pages/parent/child.md'], '---\ntitle: "Child"\n---\n\n![A barn](../../media/child-faf546aae9.webp)\\\nThe barn\n');
+  assert.equal(written(result)['pages/parent/child.md'], '---\ntitle: "Child"\ndate: 2026-11-03T12:00:00Z\nmodified: 2026-11-03T12:00:00Z\n---\n\n![A barn](../../media/child-faf546aae9.webp)\\\nThe barn\n');
   assert.equal(written(result)['media/child-faf546aae9.webp'], 'the master of media/barn-faf546aae9.jpg');
 });
 
@@ -115,6 +115,14 @@ test('writes a post list\'s attributes in the registry\'s order, off their defau
   const list = '::post-list{presentation="list" number="10" offset="0" include="category:termtermterm,news" date="false" type="page" pages="true"}';
   const { text } = out(list, site, { 'categories/termtermterm.json': { name: 'Local', slug: 'local' }, 'categories/newsnewsnews.json': { name: 'News', slug: 'news' } });
   assert.equal(text.split('---\n\n')[1], '::post-list{type="page" include="category:local,news" pages="true" presentation="list"}\n');
+});
+
+// A page has a date and a last change, so a list of pages may be ordered by either.
+test('takes a list of pages ordered by their date or their last change', () => {
+  for (const order of ['date', 'modified']) {
+    const { text } = out(`::post-list{type="page" order="${order}" presentation="list"}`);
+    assert.equal(text.split('---\n\n')[1], `::post-list{type="page" order="${order}" presentation="list"}\n`, order);
+  }
 });
 
 test('reads a source the same with any other parser that gives the same tree', () => {
