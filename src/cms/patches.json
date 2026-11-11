@@ -54,6 +54,12 @@
     "replace": "W0e({draft:e,key:n,locale:t.locale,collapsed:t.fieldConfig.accordion?!B(T):B(m)})}})},fe=({type:e}={})=>"
   },
   {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "Sveltia holds an object the file lacks as `null`, and at Save a `null` wins over what is written under it, so a value written in a closed bar would be lost. Sveltia's box to tick takes the `null` away when it adds the object, and a closed bar has no box, so an accordion takes it away itself once something is written in it, and adds nothing else (ADR 0029).",
+    "find": "Xs(()=>{de(),B(T)&&B(se)&&EKe({fieldType:`object`,keyPath:t.keyPath,type:B(ie),typeKey:B(y),types:B(v)})});",
+    "replace": "Xs(()=>{de(),B(T)&&B(se)&&EKe({fieldType:`object`,keyPath:t.keyPath,type:B(ie),typeKey:B(y),types:B(v)})});R(()=>{t.fieldConfig.accordion&&B(T)&&B(C)?.[t.keyPath]===null&&Ao(()=>n6({valueStore:r.current[a],locale:t.locale,i18n:t.fieldConfig.i18n??!1,draft:r.current,keyPath:t.keyPath},e=>{e[t.keyPath]===null&&delete e[t.keyPath]}))});"
+  },
+  {
     "module": "@milkdown/components/lib/list-item-block/index.js",
     "why": "A list item puts back the selection it saw when it mounted, one frame later, even when the cursor has moved since, so text typed within that frame lands in another item (Milkdown issues 2501 and 2506). A selection that has moved is newer than the one put back.",
     "find": "if (!last) return;",

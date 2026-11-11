@@ -21,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- A value written in one of the editor's closed bars, such as a post's title tag under Search, its structured data type, or a setting in a group of the site settings, is kept at Save where the post's file or the settings file held nothing of that bar yet, where it was lost without a word; a bar opened and left still adds nothing to the file.
 - The site settings in the editor show each setting's default where the site has not set it, such as freshness of related posts switched on and a half-life of 90 days, where they showed a switch off and an empty number; a setting left untouched, or set back to its default, stays out of the settings file, so it follows the default.
 
 ## [0.1.0] – 2026-11-11
