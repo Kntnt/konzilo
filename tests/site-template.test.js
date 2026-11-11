@@ -7,9 +7,10 @@
 // its footer shows the publisher's details after the footer text, or none of
 // them without a publisher's name. Its 404 page, 404.html, shows
 // the page an Admin chose in the site's frame, or the core's plain text in
-// the site's language. An article shows its headline, its byline, its authors
-// in the order the editor gave them, each linked to its page where the authors
-// have pages, its category after its parents, and its topics, and a canvas has
+// the site's language. An article shows its headline, its meta line after its
+// standfirst, by its type's format: its date, its category and its authors in
+// the order the editor gave them, each linked to its page where its taxonomy
+// has pages, and its topics, and a canvas has
 // neither header nor footer. On a
 // site in several
 // languages its frame shows the menu, the settings and the title of the
@@ -87,6 +88,8 @@ const main = (html) => /<(?:main|article) class="body-text"[^>]*>(.*?)<\/(?:main
 const footer = (html) => /<footer>(.*?)<\/footer>/s.exec(html)?.[1];
 const head = (html) => /<head>(.*?)<\/head>/s.exec(html)?.[1];
 const title = (html) => /<title>(.*?)<\/title>/s.exec(html)?.[1];
+// A meta line's markup, without Astro's own attributes.
+const metaLine = (html) => /<p class="meta-line"[^>]*>(.*?)<\/p>/s.exec(html ?? '')?.[1].replace(/ data-astro-[^=]+="[^"]*"/g, '');
 
 // The publisher's details in a footer, each line as a visitor reads it.
 const details = (html) => /<address\b[^>]*>(.*?)<\/address>/s.exec(html)?.[1].match(/<p\b[^>]*>.*?<\/p>/gs).map((line) => line.replace(/<[^>]+>/g, '').trim());
@@ -162,21 +165,20 @@ describe('the site template, built by Astro', () => {
     assert.match(page('index.html'), /<main[^>]*>\s*<ul class="post-list"/);
   });
 
-  test('shows an article\'s headline, its category after its parents, and its topics, outside its body text\'s own lists', () => {
+  test('shows an article\'s headline and its topics, outside its body text\'s own lists', () => {
     const page = build(repository, { title: 'Lantern', logo: null, icon: null })('harbour-lights/index.html');
     const list = (name) => [...page.matchAll(new RegExp(`<ul class="${name}"[^>]*>(.*?)</ul>`, 'gs'))]
       .flatMap(([, items]) => [...items.matchAll(/<li[^>]*>(.*?)<\/li>/gs)].map(([, item]) => item));
-    assert.deepEqual(list('categories'), ['News › Local news']);
     assert.deepEqual(list('topics'), ['Harbours', 'Lanterns']);
-    assert.match(page, /<div class="terms"[^>]*>\s*<ul class="categories"/);
+    assert.match(page, /<div class="terms"[^>]*>\s*<ul class="topics"/);
     assert.match(page, /<h1[^>]*>Harbour lights<\/h1>/);
   });
 
-  test('shows an article\'s byline, its authors in the order the editor gave them, as its structured data names them', () => {
+  test('shows an article\'s meta line by the article\'s format after its headline, its authors in the order the editor gave them, as its structured data names them', () => {
     const page = build(repository, { title: 'Lantern', logo: null, icon: null })('harbour-lights/index.html');
-    const byline = /<ul class="byline"[^>]*>(.*?)<\/ul>/s.exec(main(page))?.[1];
-    assert.deepEqual([...byline.matchAll(/<li[^>]*>(.*?)<\/li>/gs)].map(([, item]) => item), ['Rafael Berg', 'Ines Holm'], 'no links while the authors have no pages');
-    assert.match(main(page), /<\/h1>\s*<ul class="byline"[^>]*>.*?<\/ul>\s*<time/s, 'after the headline, before the date');
+    const line = metaLine(main(page));
+    assert.equal(line, 'Published on <time datetime="2026-10-01T08:00:00.000Z">1 October 2026</time> in Local news by Rafael Berg, Ines Holm', 'no links while the taxonomies have no pages');
+    assert.match(main(page), /<\/h1>\s*<p class="meta-line"/, 'after the headline');
     const graph = JSON.parse(/<script type="application\/ld\+json">(.*?)<\/script>/s.exec(page)[1])['@graph'];
     const people = graph.find((node) => node['@type'] === 'Article').author.map(({ '@id': id }) => graph.find((node) => node['@id'] === id));
     assert.deepEqual(people, [
@@ -185,15 +187,14 @@ describe('the site template, built by Astro', () => {
     ]);
   });
 
-  test('links each author in the byline to the author\'s page once the authors declare an address, which shows the biography and what the author wrote', () => {
+  test('links each author in the meta line to the author\'s page once the authors declare an address, which shows the biography and what the author wrote', () => {
     const description = join(repository, 'site-description.json');
     const declared = readFileSync(description, 'utf8');
     try {
       const read = JSON.parse(declared);
       writeFileSync(description, JSON.stringify({ ...read, taxonomies: { ...read.taxonomies, authors: { address: '/authors/{slug}/' } } }));
       const page = build(repository, { title: 'Lantern', logo: null, icon: null });
-      const byline = /<ul class="byline"[^>]*>(.*?)<\/ul>/s.exec(main(page('harbour-lights/index.html')))?.[1];
-      assert.deepEqual([...byline.matchAll(/<li[^>]*>(.*?)<\/li>/gs)].map(([, item]) => item), ['<a href="/authors/rafael-berg/">Rafael Berg</a>', '<a href="/authors/ines-holm/">Ines Holm</a>']);
+      assert.match(metaLine(main(page('harbour-lights/index.html'))), / by <a href="\/authors\/rafael-berg\/">Rafael Berg<\/a>, <a href="\/authors\/ines-holm\/">Ines Holm<\/a>$/);
       const author = /<main class="term-page"[^>]*>(.*?)<\/main>/s.exec(page('authors/ines-holm/index.html'))?.[1];
       assert.match(author, /<h1>Ines Holm<\/h1>\s*<p class="term-description">Writes of the northern harbours\.<\/p>/);
       assert.match(author, /<li><a href="\/harbour-lights\/">Harbour lights<\/a>/);
@@ -202,6 +203,14 @@ describe('the site template, built by Astro', () => {
     } finally {
       writeFileSync(description, declared);
     }
+  });
+
+  test('shows a page\'s meta line after its heading where an Admin gives pages a format, and none where pages have none', () => {
+    const identity = { title: 'Lantern', logo: null, icon: null };
+    assert.equal(metaLine(main(build(repository, identity)('pages/about/index.html'))), undefined);
+    const page = build(repository, identity, { settings: { metaLine: { types: { page: { format: 'Kept by the friends of the harbour' } } } } })('pages/about/index.html');
+    assert.equal(metaLine(main(page)), 'Kept by the friends of the harbour');
+    assert.match(main(page), /<\/h1>\s*<p class="meta-line"/);
   });
 
   test('draws a canvas without the header and the footer, which an article and a page have', () => {
@@ -458,6 +467,7 @@ describe('the site template, built by Astro', () => {
       assert.equal(title(page('category/news/index.html')), 'News – Lantern');
       assert.equal(page('topic/lanterns/index.html'), null);
       assert.match(page('sitemap.xml'), /<loc>https:\/\/www\.example\.com\/category\/news\/<\/loc>/);
+      assert.match(metaLine(main(page('harbour-lights/index.html'))), / in <a href="\/category\/local\/">Local news<\/a> by /, 'the meta line links the category to its page');
     } finally {
       writeFileSync(description, declared);
     }
@@ -580,6 +590,12 @@ describe('the site template in Swedish and English, built by Astro', () => {
     assert.equal(page('sv/english-only/index.html'), null);
     assert.equal(page('en/pages/om-oss/index.html'), null);
     assert.equal(page('harbour-lights/index.html'), null);
+  });
+
+  test('writes each article\'s meta line by the format of its language, which begins with a capital where its first words dropped', () => {
+    assert.equal(metaLine(main(page('sv/hamnljus/index.html'))), 'Publicerad den <time datetime="2026-10-01T08:00:00.000Z">1 oktober 2026</time> under Hamnar');
+    assert.equal(metaLine(main(page('en/harbour-lights/index.html'))), 'Published on <time datetime="2026-10-01T08:00:00.000Z">1 October 2026</time> in Harbours');
+    assert.equal(metaLine(main(page('sv/pages/om-oss/index.html'))), undefined, 'a page without a format has none');
   });
 
   test('builds each language\'s start page under its prefix, in its language, listing that language\'s articles alone, newest first', () => {

@@ -165,6 +165,22 @@
       }
     }
   },
+  "metaLine": {
+    "types": {
+      "only": "address",
+      "settings": {
+        "format": {
+          "type": "string",
+          "control": "text",
+          "metaLine": true,
+          "translated": true,
+          "defaultFor": {
+            "article": { "text": "site.settings.metaLine.article" }
+          }
+        }
+      }
+    }
+  },
   "breadcrumbs": {
     "types": {
       "only": "address",

@@ -6,7 +6,8 @@
 // body styles name (astro.config.mjs). Konzilo's Breadcrumbs above its
 // heading show where it sits: its language's start page, each page above it
 // and the page itself, by its name in breadcrumbs or its title, the same
-// levels its structured data holds. Its body goes
+// levels its structured data holds. Its meta line follows its heading where
+// an Admin gives pages a format, with Konzilo's helpers. Its body goes
 // through Konzilo's Body, which renders each post list in it with its
 // presentation. The cookie declaration follows the body of the page chosen
 // as the cookie policy, and of no other.
@@ -20,6 +21,7 @@ import Breadcrumbs from '@kntnt/konzilo/astro/Breadcrumbs.astro';
 import CookieDeclaration from '@kntnt/konzilo/astro/CookieDeclaration.astro';
 import { entryPages } from '@kntnt/konzilo/astro/languages';
 import { render } from 'astro:content';
+import MetaLine from '../components/MetaLine.astro';
 import Site from '../layouts/Site.astro';
 
 export function getStaticPaths() {
@@ -33,6 +35,7 @@ const { Content } = await render(page);
   <main class="body-text">
     <Breadcrumbs entry={page} />
     <h1>{page.data.title}</h1>
+    <MetaLine entry={page} />
     <Body post={page} page={number}><Content /></Body>
     <CookieDeclaration />
   </main>
