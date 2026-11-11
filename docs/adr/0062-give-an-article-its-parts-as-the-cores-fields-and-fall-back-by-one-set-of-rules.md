@@ -53,3 +53,8 @@
 - The authors field's own texts are under `authors.` in the catalogues and say "author", whatever label a site gives the taxonomy, which the field's own label shows.
 - With no Forgejo to ask, as in Sveltia's test repository, the field shows the IDs it holds and offers no new author.
 - The site template's site description and demo content are on the built-in types, its tags now topics. The core has no release yet, so no site needs a way across.
+
+## What practice has shown
+
+- **Sveltia leaves the entry at an Escape,** which it hears on the window before anything on the page does, whatever has the focus, unless a dialog covers its back button. The authors field's own listener there is set before Sveltia starts, so it hears first, and keeps an Escape while the box has a list to close or a name to clear.
+- **Safari's Tab goes from field to field alone,** and Option-Tab to every control, so a chip's own control and *Add a new author* are reached with Option-Tab there.
