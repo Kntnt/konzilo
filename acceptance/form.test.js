@@ -42,12 +42,31 @@ describe('the form in Sveltia', () => {
 
   after(() => site?.close());
 
-  test('a page cannot be made from another page, but an article can make an author, a category and a topic', async () => {
+  test('a page cannot be made from another page, but an article can make a category and a topic, and has its authors in a field of the core\'s own', async () => {
     await newEntry('pages');
     assert.equal(await page.getByRole('button', { name: /Add.*Page/ }).count(), 0);
     await newEntry('articles');
-    for (const name of [/Add.*Author/, /Add.*Category/, /Add.*Topic/]) await page.getByRole('button', { name }).first().waitFor();
+    for (const name of [/Add.*Category/, /Add.*Topic/]) await page.getByRole('button', { name }).first().waitFor();
     assert.equal(await page.getByRole('button', { name: /Add.*Article/ }).count(), 0);
+    // A test repository has no Forgejo to read the authors from, or add one to (Compose has).
+    await page.locator('section.field[data-key-path="authors"]').getByRole('combobox', { name: 'Authors' }).waitFor({ state: 'attached' });
+  });
+
+  // Sveltia leaves the entry at an Escape, which it hears before anything on the page does.
+  test('an Escape in the authors\' box closes its list, and then empties it, and leaves the entry open', async () => {
+    await newEntry('articles');
+    const box = page.locator('section.field[data-key-path="authors"]').getByRole('combobox', { name: 'Authors' });
+    await box.scrollIntoViewIfNeeded();
+    await box.click();
+    await page.keyboard.type('Ines', { delay: 20 });
+    assert.equal(await box.getAttribute('aria-expanded'), 'true');
+    await page.keyboard.press('Escape');
+    assert.equal(await box.getAttribute('aria-expanded'), 'false');
+    assert.equal(await box.inputValue(), 'Ines');
+    await page.keyboard.press('Escape');
+    assert.equal(await box.inputValue(), '');
+    await page.waitForTimeout(300);
+    assert.match(await page.evaluate(() => window.location.hash), /\/new$/, 'still in the entry');
   });
 
   test('search, sharing and structured data are closed bars, with no box to tick', async () => {
@@ -397,9 +416,26 @@ describe('the interface language in Sveltia', () => {
     assert.equal(await page.getByRole('textbox', { name: 'Working name', exact: true }).count(), 0);
   });
 
-  test('shows the core\'s settings groups in it, Breadcrumbs among them, with their headings, labels and help', async () => {
+  test('shows the core\'s settings groups in it, Breadcrumbs and Related posts among them, with their headings, labels and help', async () => {
     await breadcrumbs({ heading: 'Brödsmulor', description: 'Om en sidas brödsmulor slutar med sidan själv', perType: 'Per inläggstyp', articles: 'Artiklar', label: 'Sidan själv sist', help: 'När den är av slutar brödsmulorna' });
     assert.equal(await bar('Breadcrumbs').count(), 0);
+    // Related posts, their freshness and its half-life. Sveltia puts a long form's fields on
+    // the page only as a person scrolls near them, so the wheel turns over the form until the
+    // half-life is there.
+    await bar('Relaterade inlägg').click();
+    await page.getByText('Hur ”Läs mer” under ett inlägg').waitFor();
+    await page.getByRole('switch', { name: 'Färskhet' }).waitFor();
+    const halfLife = page.locator('section.field[data-key-path="related.halfLife"]');
+    const box = await page.locator('section.field[data-key-path="related"]').boundingBox();
+    await page.mouse.move(box.x + box.width / 2, Math.min(Math.max(box.y + 5, 10), page.viewportSize().height - 10));
+    for (let tries = 0; await halfLife.count() === 0 && tries < 40; tries += 1) {
+      await page.mouse.wheel(0, 600);
+      await page.waitForTimeout(250);
+    }
+    await halfLife.scrollIntoViewIfNeeded();
+    await halfLife.getByText('Halveringstid i dagar', { exact: true }).waitFor();
+    await halfLife.getByText('Antalet dagar på vilka ett inläggs färskhet halveras').waitFor();
+    assert.equal(await bar('Related posts').count(), 0);
   });
 
   test('is the editor\'s own once chosen in Sveltia\'s preferences, which loads the editor again in it', async () => {

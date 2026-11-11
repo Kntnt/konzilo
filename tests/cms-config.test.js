@@ -75,14 +75,25 @@ test('refers to a term and a parent by ID', () => {
   assert.equal(category.value_field, '{{slug}}');
   assert.equal(category.multiple, false, 'an article has one category or none');
   assert.equal(category.required, false);
-  for (const [name, among] of [['authors', 'authors'], ['topics', 'topics']]) {
-    assert.equal(field(collection('articles').fields, name).collection, among);
-    assert.equal(field(collection('articles').fields, name).multiple, true);
-  }
+  assert.equal(field(collection('articles').fields, 'topics').collection, 'topics');
+  assert.equal(field(collection('articles').fields, 'topics').multiple, true);
   assert.equal(field(collection('pages').fields, 'parent').collection, 'pages');
   assert.equal(field(collection('articles').fields, 'parent'), undefined);
   assert.equal(field(collection('categories').fields, 'parent').collection, 'categories');
   assert.equal(field(collection('topics').fields, 'parent'), undefined);
+});
+
+// A relation keeps no order an editor could set, and an article's first author is its main one
+// (ADR 0062), so the authors are chosen in a field of the core's own, which reads and adds to
+// the authors' files where the source keeps them.
+test('chooses an article\'s authors in the core\'s own field, by the folder of their files', () => {
+  assert.deepEqual(field(collection('articles').fields, 'authors'), { name: 'authors', label: 'Authors', widget: 'konzilo-authors', folder: 'authors', required: false });
+  const { language: _one, ...declared } = JSON.parse(readFileSync(file('site-template/files/site-description.json'), 'utf8'));
+  declared.languages = ['sv_SE', 'en_GB'];
+  const several = cmsConfig(siteDescription(declared), place);
+  const authors = field(several.collections.find((one) => one.name === 'articles').fields, 'authors');
+  assert.equal(authors.folder, 'authors/sv-SE', 'where an author\'s file in the main language is, which every author has');
+  assert.equal(authors.i18n, 'duplicate', 'and the same in every language');
 });
 
 test('gives the built-in types and taxonomies the core\'s labels in the interface language, and an author a biography', () => {
@@ -222,6 +233,28 @@ describe('the interface language', () => {
     });
   });
 
+  test('shows the half-life of related posts among the settings groups in the interface language, with its default, and the switch for freshness', () => {
+    const related = (language) => {
+      const made = cmsConfig(swedish, { ...place, language });
+      const group = field(made.collections.find((one) => one.name === 'settings').files[0].fields, 'related');
+      const setting = (name) => {
+        const { label, widget, default: given } = field(group.fields, name);
+        return { label, widget, default: given };
+      };
+      return { heading: group.label, freshness: setting('freshness'), halfLife: setting('halfLife') };
+    };
+    assert.deepEqual(related('sv'), {
+      heading: 'Relaterade inlägg',
+      freshness: { label: 'Färskhet', widget: 'boolean', default: true },
+      halfLife: { label: 'Halveringstid i dagar', widget: 'number', default: 90 },
+    });
+    assert.deepEqual(related('en'), {
+      heading: 'Related posts',
+      freshness: { label: 'Freshness', widget: 'boolean', default: true },
+      halfLife: { label: 'Half-life in days', widget: 'number', default: 90 },
+    });
+  });
+
   test('shows every settings text of the catalogues in the settings groups, and in Swedish nothing beside them but the site\'s own', () => {
     const given = declared();
     given.forms = { contact: { label: 'Contact', fields: [{ name: 'email', label: 'Email', kind: 'email', required: true }] } };
@@ -329,7 +362,7 @@ test('gives a child page its parent by ID, and gives the same files each time', 
   assert.deepEqual(demoSource(description, file('site-template/demo-content')).map((one) => one.path), files.map((one) => one.path));
 });
 
-test('makes nothing from inside another\'s form, but for a post\'s terms', () => {
+test('makes nothing from inside another\'s form, but for a post\'s category and topics', () => {
   const allowed = [];
   const walk = (fields) => {
     for (const one of fields ?? []) {
@@ -341,7 +374,7 @@ test('makes nothing from inside another\'s form, but for a post\'s terms', () =>
     walk(entry.fields);
     for (const file of entry.files ?? []) walk(file.fields);
   }
-  assert.deepEqual([...new Set(allowed)].sort(), ['authors', 'category', 'topics']);
+  assert.deepEqual([...new Set(allowed)].sort(), ['category', 'topics']);
 });
 
 test('holds search and sharing in closed parts, each key once, with nothing required', () => {

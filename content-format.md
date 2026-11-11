@@ -206,7 +206,7 @@ The keys come in this order, each on one line: `title`; then each field the type
 | `eyebrow`, `headline` and `subheadline` | `"headline": { "required": true }` | An article's headline in its three parts: the eyebrow above it, the main headline, and the subheadline under it, each a JSON string without spaces at its ends. Plain text. Only the main headline may be required. |
 | `standfirst` | `"standfirst": {}` | An article's standfirst, between its headline and its body, a JSON string without spaces at its ends. Plain text. |
 | `teaser` | `"teaser": {}` | What shows the post elsewhere, in a list or a search result, as one JSON object, each part only when the post sets it: `image`, as the featured image is written; `headline`; and `text`. Plain text. No key when the post sets none. |
-| the terms of a taxonomy | `"regions": { "taxonomy": "region" }` | The slugs of the post's terms, sorted, as a JSON list: `["harbours","lanterns"]`, `[]` for none; each names a term's file ([A term](#a-term)). A required field, `"required": true`, is never empty, and one with `"most": 1`, or another whole number, holds at most that many. An article's `authors`, `category` and `topics` are such fields, of the built-in taxonomies of their names, `category` with at most one. |
+| the terms of a taxonomy | `"regions": { "taxonomy": "region" }` | The slugs of the post's terms, each once, sorted, as a JSON list: `["harbours","lanterns"]`, `[]` for none; each names a term's file ([A term](#a-term)). A required field, `"required": true`, is never empty, and one with `"most": 1`, or another whole number, holds at most that many. An article's `authors`, `category` and `topics` are such fields, of the built-in taxonomies of their names, `category` with at most one. An article's `authors` alone is not sorted, and keeps the order the editor gave them, its first author first: `["ben-holm","ada-lind"]`. |
 | `seo` | `"seo": {}` | The search and sharing fields the post sets, as one JSON object, in this order, each only when set: `title`, the title tag; `description`, the meta description; `canonical`, the post's canonical address where it names one, a whole `http://` or `https://` address as a browser sends it, such as the original's where the text was published elsewhere first; `socialTitle` and `socialDescription`, for a shared link; `socialImage`, a master as the featured image's `src`, with `socialImageAlt`, its alt text; `schema`, a structured data type, one of `Article`, `BlogPosting`, `NewsArticle`, `WebPage`, `AboutPage`, `ContactPage` and `CollectionPage`; and `noindex` and `nofollow`, `true` when set. No key when the post sets none. |
 | a field of the site's own | `{ "type": … }` | By its `type`, below. |
 | `translationKey` | Not declared. | On a site in several languages: 16 lowercase hexadecimal digits that a post shares with its translations ([Several languages](#several-languages)). |
@@ -236,7 +236,7 @@ eyebrow: "The quay"
 headline: "Why the harbour keeps its lanterns lit"
 subheadline: "A night with the keepers"
 standfirst: "The lanterns have burned every night for two hundred years."
-authors: ["ada-lind","ben-holm"]
+authors: ["ben-holm","ada-lind"]
 category: ["local"]
 topics: ["harbours","lanterns"]
 teaser: {"image":{"src":"../media/harbour-lights-5c0ffee5a1.webp","alt":"Two keepers by a lantern"},"headline":"The keepers of the lanterns","text":"Two hundred years of light."}
@@ -522,6 +522,8 @@ A farm in summer
 
 A post list, a list of posts the site picks at every build, is the leaf directive `::post-list{…}` alone on its line. Its attributes come in this order, each only when it is not at its default: `type`, the post type it lists, required; `include` and `exclude`, terms as `<taxonomy>:<slug>,<slug>`, taxonomies apart by a space; `where`, conditions on fields, `<field><op><value>` apart by `;`; `order`, `direction`, `offset` (0 by default) and `number` (10 by default, at most 100); `leaveOutThis` and `leaveOutShown` (`true` by default); `pages` (`false` by default), `true` for the one list in a post that has pages of its own, at the post's address and `<address>page/<n>/`; `presentation`, one the site description declares, required; `empty`, the text shown when no post matches; then the options of the presentations, in the order the site description declares them. [ADR 0039](docs/adr/0039-write-a-post-list-as-a-directive-evaluated-at-every-build.md) gives each attribute's values.
 
+A list whose `order` is `related` takes no `direction`, and lists the posts that share a term with the post it sits in, as "Read more" under a post ranks them ([ADR 0070](docs/adr/0070-rank-related-posts-by-shared-topics-and-category-times-a-freshness-that-halves.md)): in a list of articles, a point for each topic a post shares and half a point for the same category, its authors none; in a list of another type, a point for each term it shares, of any taxonomy. Each score is multiplied by the post's freshness, 2^(-age / half-life), its age from its date to the build and the half-life in days `related.halfLife` in the site settings ([The site settings](#the-site-settings)), unless `related.freshness` is `false`; a post without a date is not decayed. The highest comes first, then the newest, then by title, and a post that scores nothing is not listed. Since every post ages alike, the order is the same whenever the site is built.
+
 ```markdown body
 ::post-list{type="article" include="category:news" number="3" presentation="list" date="true"}
 
@@ -775,7 +777,7 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
 
 1. **The site's identity**, each only when it is set: `title`, the site's title; `logo`, `{ "src": "media/<name>", "alt": "…" }`, its alt text only when it has one; and `icon`, the site icon, `{ "src": "media/<name>" }`, square, from which every build makes the site's icons.
 2. **The site's own settings**, each by its name in the order the site description declares them, by its `type`: a `string` as a string, a `number` and an `integer` as a number, a `boolean` as `true` or `false`, always there, a `date` as a day, `"YYYY-MM-DD"`, quoted; a `post`, the choice of a post, as `{ "title": "…", "url": "…" }`, the post's title and current address, left out while the post has no page; and an `image`, the choice of an image, as `{ "src": "media/<name>", "alt": "…" }`, as the logo. A setting without a value is left out.
-3. **Konzilo's own settings groups** that apply to the site, each an object under its name: `search`, the search and sharing settings; `breadcrumbs`, whether a page's breadcrumbs end with the page itself, `current`, by type; `ai`, AI visibility; `consent`, the consent texts; `tagManager`, what the public site loads to measure visits, `None`, `Matomo Tag Manager` or `Matomo`, Matomo's own tracker, with the instance's `address`, the `container`'s ID, the `site`'s ID in Matomo, the tracker's `cookieDomain` and `timeZone`, the site's time zone in Matomo by its IANA name, and who runs the instance, `provider`, each only once given; `legalPages`, the legal pages, each a choice of a post; `forms`, each declared form's confirmation text, by the form's name; and `feeds`, what the site's feeds hold, `item`, `"The summary"` or `"The whole text"`, and `posts`, a whole number from 1. The 404 page an Admin chooses is no setting here: it is `not-found.md`. A group holds its settings, then its named parts, each an object under its name, then `types`, a part for each post type, by the type's name. A setting with a default is always there. [`src/format/settings-groups.json`](src/format/settings-groups.json) describes each group's settings.
+3. **Konzilo's own settings groups** that apply to the site, each an object under its name: `search`, the search and sharing settings; `breadcrumbs`, whether a page's breadcrumbs end with the page itself, `current`, by type; `ai`, AI visibility; `consent`, the consent texts; `tagManager`, what the public site loads to measure visits, `None`, `Matomo Tag Manager` or `Matomo`, Matomo's own tracker, with the instance's `address`, the `container`'s ID, the `site`'s ID in Matomo, the tracker's `cookieDomain` and `timeZone`, the site's time zone in Matomo by its IANA name, and who runs the instance, `provider`, each only once given; `legalPages`, the legal pages, each a choice of a post; `forms`, each declared form's confirmation text, by the form's name; `feeds`, what the site's feeds hold, `item`, `"The summary"` or `"The whole text"`, and `posts`, a whole number from 1; and `related`, on a site with articles or a taxonomy of its own, how related posts rank ([Post lists](#post-lists)): `freshness`, `true` or `false`, and `halfLife`, the days in which a post's freshness halves, a whole number from 1. The 404 page an Admin chooses is no setting here: it is `not-found.md`. A group holds its settings, then its named parts, each an object under its name, then `types`, a part for each post type, by the type's name. A setting with a default is always there. [`src/format/settings-groups.json`](src/format/settings-groups.json) describes each group's settings.
 
 ```json file=settings.json
 {
@@ -930,6 +932,10 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
     "contact": {
       "confirmation": "Thank you. Your message has been sent."
     }
+  },
+  "related": {
+    "freshness": true,
+    "halfLife": 90
   }
 }
 ```
@@ -1158,8 +1164,8 @@ An ID is text, the name of the post's source file, such as `96ba709ec918`, which
         "/harbour-lights/"
       ],
       "title": "Harbour lights & lanterns",
-      "source": "cb70efe093083dbe15f13217708e00ce1f9425a650c3f2b85af1a237dd745dea",
-      "published": "a4c35c2a737a570f5e0c886df72e366b4edaf23bf04a231caa1d963474983ddd",
+      "source": "6da1fa92b8343c291be5406cc109eaef9e6309b42dcf3ed6c5ac627f6d18c838",
+      "published": "eacf443e94a6eb54e4be0336e07d002205ee5eade306ed26a6d591efbf90522c",
       "taken": "2026-10-20T08:00:00Z",
       "modified": "2026-10-21T09:30:00Z",
       "names": {

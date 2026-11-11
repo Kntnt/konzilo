@@ -618,6 +618,70 @@ describe('a site in Compose', () => {
         await large.waitFor({ state: 'hidden' });
       });
 
+      test('chooses authors by name, adds a new one without leaving the form, puts them in order by dragging, and publishes them in that order', async () => {
+        const { page } = session;
+        const title = `A title saved in ${engine}`;
+        const newName = `Author from ${engine}`;
+        await openArticle(page, title);
+        await bringNear(page, 'authors');
+        const field = page.locator('section.field[data-key-path="authors"]');
+        const chips = () => field.locator('.konzilo-authors-name').allTextContents();
+        await field.locator('.konzilo-authors-name', { hasText: 'Ines Holm' }).waitFor({ timeout: 30_000 });
+        if ((await chips()).includes('Rafael Berg')) {
+          await field.getByRole('button', { name: 'Remove Rafael Berg' }).click();
+        }
+        assert.deepEqual(await chips(), ['Ines Holm']);
+
+        const box = field.getByRole('combobox', { name: 'Authors' });
+        await box.click();
+        await page.keyboard.type('berg', { delay: 20 });
+        await field.getByRole('option', { name: 'Rafael Berg' }).waitFor();
+        await page.keyboard.press('Enter');
+        assert.deepEqual(await chips(), ['Ines Holm', 'Rafael Berg']);
+
+        await field.getByRole('button', { name: 'Add a new author' }).click();
+        const dialog = page.getByRole('dialog', { name: 'A new author' });
+        await dialog.getByRole('textbox', { name: 'Name' }).fill(newName);
+        await dialog.getByRole('textbox', { name: 'Biography' }).fill(`Writes of ${engine}.`);
+        await dialog.getByRole('button', { name: 'Add the author' }).click();
+        await dialog.waitFor({ state: 'detached', timeout: 30_000 });
+        assert.deepEqual(await chips(), ['Ines Holm', 'Rafael Berg', newName]);
+        assert.match(page.url(), /\/entries\//, 'still in the form');
+
+        // Each author by the ID its file is named by, the new one's committed at once.
+        const ids = {};
+        for (const { path: place, name } of await api(`${repository()}/contents/authors`)) {
+          const { content } = await api(`${repository()}/contents/${place}`);
+          ids[JSON.parse(Buffer.from(content, 'base64').toString()).name] = name.replace(/\.json$/, '');
+        }
+        assert.match(ids[newName] ?? '', /^[0-9a-f]{12}$/);
+        const made = await lastCommit(`authors/${ids[newName]}.json`);
+        assert.equal(made.author?.login ?? made.commit.author.name, 'anna');
+
+        const from = await field.locator('.konzilo-authors-chip', { hasText: newName }).boundingBox();
+        const to = await field.locator('.konzilo-authors-chip', { hasText: 'Ines Holm' }).boundingBox();
+        await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(from.x + from.width / 2 - 8, from.y + from.height / 2 + 2, { steps: 3 });
+        await page.mouse.move(to.x + 6, to.y + to.height / 2, { steps: 8 });
+        await field.locator('.konzilo-authors-chip[data-drop="before"]').waitFor();
+        await page.mouse.up();
+        assert.deepEqual(await chips(), [newName, 'Ines Holm', 'Rafael Berg']);
+        await page.getByRole('button', { name: 'Save', exact: true }).click();
+
+        const saved = await fileNamed('articles', title);
+        const order = [ids[newName], ids['Ines Holm'], ids['Rafael Berg']];
+        const inOrder = (text) => order.every((id, at) => text.indexOf(id) !== -1 && (at === 0 || text.indexOf(order[at - 1]) < text.indexOf(id)));
+        const text = await waitForFile(page, saved.path, inOrder);
+        assert.ok(inOrder(text), `${order.join(', ')} in that order in\n${text}`);
+        const taken = await throughIntake();
+        assert.deepEqual(taken.refusals.map((refusal) => refusal.message), [], 'the intake refuses nothing');
+        const slugs = `authors: ["author-from-${engine}","ines-holm","rafael-berg"]`;
+        assert.ok(taken.files.some(({ contents }) => String(contents).includes(`title: "${title}"`) && String(contents).includes(slugs)), `a content file with ${slugs}`);
+        const shown = await onTheSite(addressOf(saved.text), newName);
+        assert.match(shown, new RegExp(`<ul class="byline">.*${newName}.*Ines Holm.*Rafael Berg.*</ul>`, 's'));
+      });
+
       test('asks nothing outside this copy of the site, and breaks no policy', () => {
         assert.deepEqual(session.seen.outside, []);
         assert.deepEqual(session.seen.refused, []);

@@ -5,7 +5,7 @@ modified: 2026-01-08T08:00:00Z
 image: {"src":"../media/hidden-meadows-and-the-bridge-f3cd184b52.webp","alt":"A hidden landscape with a low sun over the land"}
 headline: "Hidden meadows and the bridge"
 standfirst: "The open workshop changes the open island."
-authors: ["ines-holm","rafael-berg"]
+authors: ["rafael-berg","ines-holm"]
 category: ["orchards"]
 topics: ["orchards","rivers"]
 ---

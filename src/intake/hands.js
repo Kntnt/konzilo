@@ -1,6 +1,7 @@
 // What a post's fields and its body take of the site: a master for each image, terms by
 // their IDs, and where a link leads.
 
+import { AUTHORS } from '../format/built-in-types.js';
 import { bodyHands, slugOf } from './post-file.js';
 import { linkTarget } from './resolve.js';
 import { say } from './words.js';
@@ -61,6 +62,8 @@ export function contextFor(post, run, from) {
   };
 }
 
+// A terms field's slugs, each once: an article's authors in the order the source gives them,
+// which says who wrote it first, and every other field's sorted.
 function termField(field, value, post, run) {
   const given = value === undefined || value === null || value === '' ? [] : Array.isArray(value) ? value : [value];
   if (given.length === 0 && field.required) return { reason: say('refusal.field-required', { field: field.name }) };
@@ -75,7 +78,8 @@ function termField(field, value, post, run) {
     for (const one of term.chain) post.termIds.add(one.key);
     slugs.push(`${folder}${term.slug}`);
   }
-  return { yaml: JSON.stringify([...new Set(slugs)].sort()) };
+  const once = [...new Set(slugs)];
+  return { yaml: JSON.stringify(field.taxonomy.builtIn === AUTHORS ? once : once.sort()) };
 }
 
 // A post list's terms, kept by ID in source and written as slugs. One no longer there is

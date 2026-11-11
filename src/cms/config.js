@@ -15,6 +15,7 @@ import settingsGroups from '../format/settings-groups.json' with { type: 'json' 
 import { SHARING_SAFE, SHARING_SIZE } from '../format/article-parts.js';
 import { IMAGE_WIDGET } from './image/widget.js';
 import { STRUCTURE_WIDGET } from './structure/widget.js';
+import { AUTHORS_WIDGET } from './authors/widget.js';
 import { SCHEMA_WIDGET, SLUG_WIDGET, TEXT_WIDGET } from './parts/widgets.js';
 import { inCatalogue, labelIn, text } from '../catalogues.js';
 import { BODY_WIDGET } from './body/widget.js';
@@ -281,6 +282,12 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
         return { name: field.name, label: say(field.kind), ...PARTS[field.kind], ...required(field.required), ...within(TRANSLATED) };
       }
       case 'terms':
+        // An article's authors, in the order the editor gives them, in the core's own field, which
+        // reads and adds to the authors' files where every author has one, in the main language.
+        if (field.taxonomy.builtIn === AUTHORS) {
+          const folder = several ? `${field.taxonomy.collection}/${description.languages.find((language) => language.main).tag}` : field.taxonomy.collection;
+          return { name: field.name, label: own(field.taxonomy.plural), widget: AUTHORS_WIDGET, folder, ...required(field.required), ...within(SAME_IN_EACH) };
+        }
         // A field of one term at most is one choice or none, and its source holds a text.
         return {
           name: field.name,

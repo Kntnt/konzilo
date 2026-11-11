@@ -54,6 +54,8 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Author**: A person credited with an article: a term of the built-in taxonomy `authors`, with a name and a biography. Not the editor who saves it. _Avoid_: byline (for the person), writer.
 
+**Byline**: The names of an article's authors, in the order the editor gave them, the main author first, shown between its standfirst and its body. _Avoid_: author line.
+
 **Category**: The term of the built-in hierarchical taxonomy `category` an article is filed under, one or none. _Avoid_: section, department.
 
 **Topic**: A term of the built-in taxonomy `topics`, what an article is about, as many as fit. _Avoid_: tag, keyword.
@@ -173,6 +175,10 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 **Presentation**: One way a site's design can show a post list, which the site declares with its few options. _Avoid_: template, view.
 
 **Pager**: The integration's links between a post list's pages. _Avoid_: pagination.
+
+**Freshness**: What the score of a post related to another is multiplied by for its age, 2^(-age / half-life), so that newer posts rank higher in "Read more" and in a post list ordered as related: a half at one half-life old, a quarter at two. A post without a date has no age. _Avoid_: recency, decay.
+
+**Half-life**: The days in which a post's freshness halves, 90 by default, set by an Admin in the settings group *Related posts*, where freshness can be switched off too.
 
 ## Media
 

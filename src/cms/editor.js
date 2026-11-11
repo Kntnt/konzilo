@@ -14,6 +14,7 @@ import { registerBodyField } from './body/register.js';
 import { registerPreview } from './preview/template.js';
 import { registerImageField } from './image/register.js';
 import { registerGroups } from './groups/register.js';
+import { registerAuthorsField } from './authors/register.js';
 import { registerParts } from './parts/register.js';
 import { registerStructureField } from './structure/register.js';
 import { registerPublishing } from './publishing/register.js';
@@ -49,6 +50,7 @@ function start() {
   registerGroups(CMS, config, konzilo.groups);
   registerParts(CMS, config);
   registerImageField(CMS, config);
+  registerAuthorsField(CMS, config);
   registerStructureField(CMS, config);
   if (konzilo.preview) registerPreview(CMS, config, konzilo.preview);
   CMS.init({ config });

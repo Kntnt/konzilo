@@ -103,6 +103,18 @@ export function isArticle(type) {
   return builtInOf(type) === ARTICLE;
 }
 
+// What a term an article shares with another scores, by taxonomy, where related posts
+// are ranked (post-lists.js): a point for each topic, half a point for the same category,
+// and nothing for an author.
+const RELATED_POINTS = Object.freeze({ [TOPICS]: 1, [CATEGORY]: 0.5 });
+
+// What a term a post of a type shares with another scores, by taxonomy, where related
+// posts are ranked: an article's by RELATED_POINTS, and null for a type of the site's own,
+// whose every shared term, of any taxonomy, scores a point.
+export function relatedPoints(type) {
+  return isArticle(type) ? RELATED_POINTS : null;
+}
+
 // Whether a post's head, its search and sharing fields in the editor, and its summary
 // follow its article parts (article-parts.js): an article's do, and so do those of a
 // type of the site's own that has a teaser.

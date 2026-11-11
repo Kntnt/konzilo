@@ -104,7 +104,9 @@ export function writeSite(folder, declared, posts, { menus = {}, settings = {}, 
       else if (field.kind === 'terms') {
         const terms = one.terms?.[field.taxonomy?.name] ?? [];
         const folder = site.languages.length > 1 ? `${site.languages.find(({ locale }) => locale === localeOf(one)).tag}/` : '';
-        front[field.name] = terms.map((found) => `${folder}${found.slug}`).sort();
+        // An article's authors keep the order given, and every other field's terms are sorted.
+        const slugs = [...new Set(terms.map((found) => `${folder}${found.slug}`))];
+        front[field.name] = field.taxonomy?.builtIn === 'authors' ? slugs : slugs.sort();
         for (const found of [...terms, ...(one.term_parents?.[field.taxonomy?.name] ?? [])]) {
           const parent = found.parent ? { parent: found.parent } : {};
           const description = found.description ? { description: found.description } : {};

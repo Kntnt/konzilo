@@ -17,8 +17,10 @@
 //   declares them, its date and last change;
 // - `<page address>#article`, for the Article types alone, the article the
 //   page holds: the post's title, the description, its date and last change,
-//   its image, and the publisher as its author and publisher, since posts
-//   carry no author;
+//   its image, its authors as its author, in the order its editor gave them,
+//   or the publisher where it has none, and the publisher as its publisher;
+// - `<origin>/#author-<slug>`, each of an article's authors (authors.js), a
+//   Person: its name and its page's address where the authors have pages;
 // - `<page address>#primaryimage`, the image the page shares, as its head's
 //   sharing tags give it, with its size and its alt text as its caption;
 // - `<page address>#breadcrumb`, the BreadcrumbList of the page's
@@ -46,14 +48,18 @@ const WEB_PAGES = new Set(['WebPage', 'AboutPage', 'ContactPage', 'CollectionPag
 // `search`, the Search and sharing settings; `image`, the image it shares,
 // { src, width, height, alt }, or null; `logo`, the site's logo in the same
 // form, or null; `breadcrumbs`, the page's levels, each { name, url }, its
-// name and its address on the public host, none on the start page.
-export function structuredData({ page, url, origin, languageTag, siteTitle, search = {}, image = null, logo = null, breadcrumbs = [] }) {
+// name and its address on the public host, none on the start page;
+// `authors`, an article's authors, in order, each { name, slug, url }, its
+// page's address on the public host or null, none on another page.
+export function structuredData({ page, url, origin, languageTag, siteTitle, search = {}, image = null, logo = null, breadcrumbs = [], authors = [] }) {
   const home = new URL('/', origin).href;
   const website = { '@id': `${home}#website` };
   const publisher = { '@id': `${home}#publisher` };
   const webpage = { '@id': `${url}#webpage` };
   const primaryImage = image && { '@id': `${url}#primaryimage` };
   const breadcrumb = breadcrumbs.length > 0 && { '@id': `${url}#breadcrumb` };
+  const article = ARTICLES.has(page.schema);
+  const people = article ? authors.map((author) => ({ ...author, '@id': `${home}#author-${author.slug}` })) : [];
   const nodes = [
     present({
       '@type': 'WebSite',
@@ -78,7 +84,7 @@ export function structuredData({ page, url, origin, languageTag, siteTitle, sear
       datePublished: page.published,
       dateModified: page.modified,
     }),
-    ARTICLES.has(page.schema) && present({
+    article && present({
       '@type': page.schema,
       '@id': `${url}#article`,
       headline: page.headline,
@@ -86,11 +92,12 @@ export function structuredData({ page, url, origin, languageTag, siteTitle, sear
       datePublished: page.published,
       dateModified: page.modified || page.published,
       image: primaryImage,
-      author: publisher,
+      author: people.length > 0 ? people.map((person) => ({ '@id': person['@id'] })) : publisher,
       publisher,
       mainEntityOfPage: webpage,
       inLanguage: languageTag,
     }),
+    ...people.map((person) => present({ '@type': 'Person', '@id': person['@id'], name: person.name, url: person.url })),
     image && { ...imageObject(image), ...primaryImage },
     breadcrumb && {
       '@type': 'BreadcrumbList',
