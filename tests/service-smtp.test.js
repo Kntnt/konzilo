@@ -5,6 +5,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, test } from 'node:test';
 
+import { mailDelivery } from '../src/service/mail-delivery.js';
 import { sendBySmtp } from '../src/service/smtp.js';
 import { smtpServer } from './lib/smtp-server.js';
 import { selfSigned } from './lib/tls.js';
@@ -87,5 +88,88 @@ describe('sending by SMTP', () => {
     await server.close();
     server = null;
     await assert.rejects(sendBySmtp({ host: '127.0.0.1', port, security: 'none' }, envelope), /ECONNREFUSED/);
+  });
+});
+
+// A message as a mail program reads it: its headers, unfolded, each encoded word decoded, and its
+// body decoded by its transfer encoding.
+function readMessage(data) {
+  const [head, ...rest] = data.split('\r\n\r\n');
+  const headers = {};
+  for (const line of head.replace(/\r\n[ \t]/g, ' ').split('\r\n')) {
+    const at = line.indexOf(':');
+    headers[line.slice(0, at).toLowerCase()] = line.slice(at + 1).trim()
+      .replace(/=\?UTF-8\?B\?([^?]*)\?=\s*(?==\?)/gi, '=?UTF-8?B?$1?=')
+      .replace(/=\?UTF-8\?B\?([^?]*)\?=/gi, (_, words) => Buffer.from(words, 'base64').toString('utf8'));
+  }
+  const body = rest.join('\r\n\r\n');
+  return { headers, body: headers['content-transfer-encoding'] === 'base64' ? Buffer.from(body.replace(/\r\n/g, ''), 'base64').toString('utf8') : body, raw: body };
+}
+
+describe('a mail handed to its adapter', () => {
+  let server;
+  afterEach(() => server?.close());
+
+  const mail = {
+    from: 'site@example.com',
+    to: ['anna@example.com', 'bo@example.com'],
+    replyTo: 'ada@example.com',
+    subject: 'Nytt inskick: Kontakta oss – ett formulär med ett långt namn som tar mer än en rad i ett huvud',
+    language: 'sv-SE',
+    date: new Date('2026-11-12T09:59:50Z'),
+    text: 'Det här skickades med formuläret Kontakta oss.\n\nMeddelande\nHej\n.och hå\n',
+  };
+  const settings = (port, security = 'starttls') => ({ adapter: 'smtp', smtp: { host: 'localhost', port, security, ...account, sender: 'site@example.com' } });
+
+  test('goes by SMTP as UTF-8 that a mail program reads, answering to the visitor, dated when it was sent, in its language, as sent by a program', async () => {
+    server = await smtpServer({ tls: certificate, account });
+    const deliver = mailDelivery({ tls: trusted });
+    assert.deepEqual(await deliver(settings(server.port), mail), { refused: [] });
+    const [kept] = server.received;
+    assert.deepEqual([kept.from, kept.to], ['site@example.com', ['anna@example.com', 'bo@example.com']]);
+    assert.ok(kept.data.split('\r\n').every((line) => line.length <= 78 && /^[\x20-\x7e]*$/.test(line)), 'lines of printable ASCII, none too long');
+    const { headers, body } = readMessage(kept.data);
+    assert.equal(headers.from, 'site@example.com');
+    assert.equal(headers.to, 'anna@example.com, bo@example.com');
+    assert.equal(headers['reply-to'], 'ada@example.com');
+    assert.equal(headers.subject, mail.subject);
+    assert.equal(headers.date, 'Thu, 12 Nov 2026 09:59:50 +0000');
+    assert.equal(headers['content-language'], 'sv-SE');
+    assert.equal(headers['mime-version'], '1.0');
+    assert.equal(headers['content-type'], 'text/plain; charset=utf-8');
+    assert.equal(headers['auto-submitted'], 'auto-generated');
+    assert.match(headers['message-id'], /^<[0-9a-f]{32}@example\.com>$/);
+    assert.equal(body, mail.text.replace(/\n/g, '\r\n'));
+  });
+
+  test('has no Reply-To where the visitor gave no address', async () => {
+    server = await smtpServer({ tls: certificate, account });
+    await mailDelivery({ tls: trusted })(settings(server.port), { ...mail, replyTo: null });
+    assert.equal(readMessage(server.received[0].data).headers['reply-to'], undefined);
+  });
+
+  test('in a local copy, is written to the log as it would have been sent, and goes nowhere', async () => {
+    server = await smtpServer({ tls: certificate, account });
+    const written = [];
+    const deliver = mailDelivery({ toLog: true, write: (line) => written.push(line), tls: trusted });
+    assert.deepEqual(await deliver(settings(server.port), mail), { refused: [] });
+    assert.deepEqual(server.commands, [], 'nothing asked of the server');
+    assert.equal(written.length, 1);
+    assert.equal(written[0], [
+      `A local copy sends no mail. This is what it would have sent through localhost:${server.port}:`,
+      'From: site@example.com',
+      'To: anna@example.com, bo@example.com',
+      'Reply-To: ada@example.com',
+      `Subject: ${mail.subject}`,
+      'Date: Thu, 12 Nov 2026 09:59:50 +0000',
+      'Content-Language: sv-SE',
+      '',
+      'Det här skickades med formuläret Kontakta oss.',
+      '',
+      'Meddelande',
+      'Hej',
+      '.och hå',
+      '',
+    ].join('\n'));
   });
 });
