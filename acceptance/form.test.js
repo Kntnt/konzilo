@@ -191,9 +191,9 @@ describe('field groups in Sveltia', () => {
       assert.equal(await group(name).getByRole('button', { name: 'Show Field Options' }).filter({ visible: true }).count(), 1, `${name} has one menu`);
     };
     await holds('group-name', ['Working name', 'Breadcrumb', 'Slug']);
-    await holds('group-status', ['Status', 'Date']);
+    await holds('group-status', ['Status', 'UTC']);
     await holds('group-terms', ['Authors', 'Category', 'Topics']);
-    await holds('group-headline', ['Eyebrow', 'Main headline', 'Subheadline']);
+    await holds('group-headline', ['+ Add an eyebrow', 'Main headline', '+ Add a subheadline']);
     await group('search').scrollIntoViewIfNeeded();
     await holds('search', []);
     assert.equal(await group('publishing').count(), 0);
@@ -204,6 +204,58 @@ describe('field groups in Sveltia', () => {
     await group('publishing').waitFor();
     const sections = await page.evaluate(() => [...document.querySelectorAll('section.field[data-key-path]')].map((one) => one.dataset.keyPath).filter((key) => !key.includes('.')));
     assert.deepEqual(sections.slice(0, 3), ['group-name', 'group-status', 'publishing']);
+  });
+
+  // The headline's group: the main headline, a button above it that adds an eyebrow and one below
+  // it that adds a subheadline, neither part with a label of its own. A part emptied, by the editor
+  // or from the menu, is its button again.
+  test('show a new article\'s main headline alone, between a button that adds an eyebrow and one that adds a subheadline, each a part with the focus in it until emptied', async () => {
+    await open('articles/new');
+    const headline = group('group-headline');
+    await headline.scrollIntoViewIfNeeded();
+    const top = async (locator) => (await locator.boundingBox()).y;
+    const eyebrowButton = headline.getByRole('button', { name: '+ Add an eyebrow' });
+    const subheadlineButton = headline.getByRole('button', { name: '+ Add a subheadline' });
+    const main = textbox('Main headline');
+    assert.deepEqual(await headline.getByRole('textbox').evaluateAll((all) => all.map((one) => one.getAttribute('aria-label'))), ['Main headline'], 'one text field, the main headline');
+    assert.equal(await top(eyebrowButton) < await top(main), true, 'the eyebrow\'s button above');
+    assert.equal(await top(subheadlineButton) > await top(main), true, 'the subheadline\'s below');
+    for (const label of ['Eyebrow', 'Subheadline']) assert.equal(await headline.getByText(label, { exact: true }).filter({ visible: true }).count(), 0, `no label ${label}`);
+    await headline.getByText('Main headline', { exact: true }).filter({ visible: true }).waitFor();
+
+    // A click opens the eyebrow, above the main headline, with the focus in it.
+    await eyebrowButton.click();
+    const eyebrow = textbox('Eyebrow');
+    await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Eyebrow');
+    assert.equal(await eyebrow.getAttribute('placeholder'), 'Eyebrow', 'its placeholder says what it is');
+    assert.equal(await top(eyebrow) < await top(main), true);
+    assert.equal(await headline.getByText('Eyebrow', { exact: true }).filter({ visible: true }).count(), 0, 'still no label');
+    await page.keyboard.type('Coast');
+    await page.keyboard.press('Tab');
+    assert.equal(await eyebrow.inputValue(), 'Coast', 'a part with something in it stays open');
+    // Emptied, it is its button again, once the focus has left it.
+    await eyebrow.fill('');
+    await page.keyboard.press('Tab');
+    await eyebrowButton.waitFor();
+    assert.equal(await textbox('Eyebrow').count(), 0);
+
+    // The keyboard opens the subheadline, below the main headline, with the focus in it.
+    await subheadlineButton.focus();
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Subheadline');
+    assert.equal(await top(textbox('Subheadline')) > await top(main), true);
+    await page.keyboard.type('A walk along the quay');
+    await main.fill('Harbour lights');
+    await eyebrowButton.click();
+    await page.keyboard.type('Coast');
+
+    // Clear, from the group's menu, empties all three, and leaves the two buttons.
+    await menu('group-headline');
+    await choose('Clear');
+    await eyebrowButton.waitFor();
+    await subheadlineButton.waitFor();
+    assert.equal(await main.inputValue(), '');
+    assert.deepEqual(await headline.getByRole('textbox').evaluateAll((all) => all.map((one) => one.getAttribute('aria-label'))), ['Main headline']);
   });
 
   test('revert, restore and clear every field a group covers, and never restore a required field without a default to nothing', async () => {
@@ -414,6 +466,27 @@ describe('the interface language in Sveltia', () => {
     await page.getByRole('textbox', { name: 'Arbetsnamn', exact: true }).waitFor();
     await page.getByRole('button', { name: 'Spara', exact: true }).waitFor();
     assert.equal(await page.getByRole('textbox', { name: 'Working name', exact: true }).count(), 0);
+  });
+
+  // The status and date group: the status's choices, then the date and time with no label of
+  // their own, which still names them for a screen reader, then the time zone under them.
+  test('shows the status and date group in it: the status\'s choices, then the date and time without a label, then the time zone under them', async () => {
+    await newArticle();
+    const status = page.locator('section.field[data-key-path="group-status"]');
+    const below = async (lower, upper) => {
+      const [one, other] = [await lower.boundingBox(), await upper.boundingBox()];
+      return one.y >= other.y + other.height;
+    };
+    const choices = status.getByRole('radiogroup', { name: 'Status' });
+    for (const choice of ['Utkast', 'Schemalagd', 'Publicerad']) await choices.getByRole('radio', { name: choice }).waitFor();
+    assert.equal(await status.getByText('Status', { exact: true }).filter({ visible: true }).count(), 1, 'the status\'s label');
+    const date = status.getByLabel('Datum', { exact: true });
+    assert.equal(await date.getAttribute('type'), 'datetime-local');
+    assert.equal(await status.getByText('Datum', { exact: true }).filter({ visible: true }).count(), 0, 'no label of its own');
+    await status.getByRole('button', { name: 'Nu', exact: true }).waitFor();
+    assert.equal(await below(date, choices), true, 'the date and time under the choices');
+    assert.equal(await below(status.getByText('UTC', { exact: true }), date), true, 'the time zone under them');
+    assert.equal(await status.getByText(/Draft|Scheduled|Published|Date|Now/).count(), 0, 'nothing in English');
   });
 
   test('shows the core\'s settings groups in it, Breadcrumbs and Related posts among them, with their headings, labels and help', async () => {

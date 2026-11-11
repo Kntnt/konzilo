@@ -251,12 +251,13 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
   });
 
   // A part of an article that is a text: its field, which shows what it falls back to, or is
-  // a button until it is wanted.
+  // a button until it is wanted. An optional part of the headline stands above or below it, with
+  // no label of its own: its button, and then its placeholder, say what it is.
   const PARTS = {
     breadcrumb: { widget: TEXT_WIDGET, fallback: 'breadcrumb', hint: say('breadcrumbHint') },
-    eyebrow: { widget: TEXT_WIDGET, add: say('addEyebrow'), placeholder: say('eyebrow') },
+    eyebrow: { widget: TEXT_WIDGET, add: say('addEyebrow'), placeholder: say('eyebrow'), labelled: false },
     headline: { widget: TEXT_WIDGET, placeholder: say('headline') },
-    subheadline: { widget: TEXT_WIDGET, add: say('addSubheadline'), placeholder: say('subheadline') },
+    subheadline: { widget: TEXT_WIDGET, add: say('addSubheadline'), placeholder: say('subheadline'), labelled: false },
     standfirst: { widget: 'text' },
   };
 
@@ -416,7 +417,9 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
       name: () => (several
         ? [coreGroup('name', say('groupName'), [title, fieldOf('breadcrumb')].filter(Boolean)), coreGroup('slug', say('slug'), [slug])]
         : coreGroup('name', say('groupName'), [title, fieldOf('breadcrumb'), slug].filter(Boolean))),
-      status: () => coreGroup('status', date ? say('groupStatus') : say('status'), [status, date].filter(Boolean)),
+      // The date and time under the status's choices, with no label of its own, and the time zone,
+      // which Sveltia names, under them.
+      status: () => coreGroup('status', date ? say('groupStatus') : say('status'), [status, date && { ...date, labelled: false }].filter(Boolean)),
       // How it stands on the site, which is nothing the file holds (ADR 0031). An article's
       // status says whether it is published, and its page opens from beside the slug.
       publishing: () => ({ name: 'publishing', label: say('publishing'), widget: PUBLISHING_WIDGET, required: false, ...within(SAME_IN_EACH) }),

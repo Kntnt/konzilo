@@ -7,6 +7,8 @@
 // the configuration (config.js):
 //   fields: [...]     the fields it covers, each as a field of its own is declared, and also
 //                     computed: <rule>, a default made from the post's other values (menu.js)
+//                     labelled: false, no label shown, which still names the field for a
+//                     screen reader and in a refusal
 //   heading: true     the group's label shows above its fields; otherwise it names the section
 //                     for a screen reader alone
 // Sveltia's own heading and menu of the field are left out (group.css), since the group's are
@@ -196,8 +198,11 @@ export function registerGroups(CMS, config, groups = {}) {
             readonly: false,
             invalid: false,
           }) : null;
-        return h('div', { key: one.name, className: 'konzilo-group-field', 'data-key-path': `${name}.${one.name}`, 'data-field-type': one.widget ?? 'string' },
-          h('div', { className: 'konzilo-group-label' },
+        // A field with no label of its own keeps it, hidden, for the controls that name themselves
+        // by it, which a screen reader still reads.
+        const unlabelled = one.labelled === false;
+        return h('div', { key: one.name, className: `konzilo-group-field${unlabelled ? ' konzilo-group-unlabelled' : ''}`, 'data-key-path': `${name}.${one.name}`, 'data-field-type': one.widget ?? 'string' },
+          unlabelled ? h('span', { id: `${id}-label`, hidden: true }, one.label) : h('div', { className: 'konzilo-group-label' },
             h('span', { id: `${id}-label` }, one.label),
             one.required === true && !followed ? h('span', { className: 'konzilo-group-required', 'aria-hidden': true }, '*') : null),
           shown,
