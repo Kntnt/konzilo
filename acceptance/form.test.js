@@ -744,7 +744,10 @@ describe('the body field, the preview and the publish status in the interface la
         void dialog.dismiss();
       });
     });
-    await tree.locator('li[data-kind="paragraph"]').first().getByRole('button', { name: words.remove, exact: true }).click();
+    // A row's buttons show while it is pointed at.
+    const row = tree.locator('li[data-kind="paragraph"] > .konzilo-tree-row').first();
+    await row.hover();
+    await row.getByRole('button', { name: words.remove, exact: true }).click();
     assert.equal(await asked, words.removeAsk);
 
     await open('pages');
