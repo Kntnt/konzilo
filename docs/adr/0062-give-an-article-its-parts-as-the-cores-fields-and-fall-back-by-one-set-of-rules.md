@@ -5,7 +5,7 @@
 ## Decision
 
 - **The parts are fields of the core's own,** beside `date`, `image` and `excerpt`: `breadcrumb`, the name in breadcrumbs; `eyebrow`, `headline` and `subheadline`, the headline in its three parts; `standfirst`; and `teaser`, `{ image: { src, alt }, headline, text }`, each part optional. Each text is plain, refused with HTML in it, and only `headline` and `standfirst` may be required. The built-in article has them all; a type of the site's own declares the parts it has, as it declares any field. The title stays: where a type has a main headline, the title is the post's working name, which lists, menus and breadcrumbs show.
-- **The name in breadcrumbs is a field of its own,** no longer one of the search and sharing fields, so that a page has it without them.
+- **The name in breadcrumbs is a field of its own,** apart from the search and sharing fields, so that a page has it without them.
 - **Search, sharing and structured data are three groups of the source's own,** `search`, `sharing` with its image as `{ src, alt }`, and `structured`, each a key of the source file beside the post's fields, since the editor cannot place one object's fields in three places in a form. The intake writes the content file's one `seo` map as before, and refuses a source that still holds `seo`, so that nothing it says is lost without a word.
 - **One module says what each part falls back to,** `article-parts.js`, which the editor and the build both import: the teaser's headline is its own, else the eyebrow, a colon and the main headline, else the title; its text is its own, else the standfirst; its image its own, else the main image. A title tag is cut at a word to fit, with the separator and the site's name, within 580 pixels of Arial 20 px bold, and a meta description within 920 pixels of Arial 14 px, as search results show them, by a table of Arial's advance widths read from the font files; a sharing title and description within 55 and 100 characters.
 - **A post whose type has a teaser says in its head what its teaser shows,** before the type's templates: its title tag, meta description and sharing texts. Its structured data's headline is its main headline. A type without a teaser is as before.
@@ -45,13 +45,13 @@
 
 ## Consequences
 
-- A content file's `seo` map no longer holds `breadcrumb`, and a source file holds the three groups, not `seo`: a source saved before is refused until it is saved again. The core has no release yet, so no site meets this.
-- A site's own type with a teaser keeps the fallbacks it had, and one without is as before.
+- A content file's `seo` map holds no `breadcrumb`, and a source file holds the three groups, never `seo`, which the intake refuses rather than lose what it says.
+- A site's own type with a teaser falls back as an article does, and one without leaves its head to its templates.
 - An article's authors are the terms of its `authors`, which its structured data and its byline name, in the editor's order; its category and topics are what related posts can be chosen by.
 - An author added from a post's form stays, as a term, if the post is never saved, and is removed under the authors like any other. Sveltia's own list of authors shows it the next time Sveltia looks at the repository, within a minute.
 - The authors field's own texts are under `authors.` in the catalogues and say "author", whatever label a site gives the taxonomy, which the field's own label shows.
 - With no Forgejo to ask, as in Sveltia's test repository, the field shows the IDs it holds and offers no new author.
-- The site template's site description and demo content are on the built-in types, its tags now topics. The core has no release yet, so no site needs a way across.
+- The site template's site description and demo content are on the built-in types, their subjects among the topics.
 
 ## What practice has shown
 

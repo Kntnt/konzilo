@@ -27,7 +27,7 @@
 
 ## Consequences
 
-- It replaces ADR 0039's related order, by the number of terms shared, which ADR 0039 now says.
+- ADR 0039's order *related* is this ranking.
 - A type's posts either all have a date or none has one, since a post of a type with a date always has one ([`content-format.md`](../../content-format.md)), so a list never weighs a candidate that decays against one that does not, and its order never changes by itself.
 - Every settings file of a site with articles or a taxonomy holds the group `related`, at its defaults where an Admin has set nothing.
 - The site template's article shows "Read more" after its main content, through `relatedPosts()`: the cards by the rule of [ADR 0068](0068-render-a-sites-lists-layout-and-text-roles-in-the-design-system-and-check-them-in-the-core.md), under a heading in the page's language, `pageTexts().readMore` ([ADR 0066](0066-translate-the-editors-texts-through-catalogues-in-an-interface-language-of-its-own.md)), and neither with none. `tests/site-template.test.js` holds it.
