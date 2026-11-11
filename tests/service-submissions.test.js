@@ -209,6 +209,31 @@ describe('the submissions, for editors', () => {
       ].join('\r\n'));
     });
 
+    test('comes whole however large, written as fast as it is read, and a page is answered meanwhile', async () => {
+      const long = 'x'.repeat(20_000);
+      for (let number = 0; number < 400; number += 1) store.keep(sent(new Date(Date.UTC(2026, 10, 1, 10, 0, number)), [field('message', 'Message', `${number} ${long}`)]));
+      const warned = [];
+      const warn = (warning) => warned.push(warning.name);
+      process.on('warning', warn);
+      try {
+        const answer = await get('/_konzilo/submissions/contact.csv?separator=comma');
+        const reader = answer.body.getReader();
+        const pieces = [];
+        let page = null;
+        for (let read = await reader.read(); !read.done; read = await reader.read()) {
+          pieces.push(read.value);
+          page ??= await (await get('/_konzilo/submissions/contact')).json();
+        }
+        const rows = readCsv(new TextDecoder().decode(Buffer.concat(pieces)), ',');
+        assert.equal(rows.length, 401);
+        assert.deepEqual(rows.slice(1).map((row) => Number(row[2].split(' ')[0])), Array.from({ length: 400 }, (_, at) => 399 - at));
+        assert.equal(page.submissions.length, 50);
+      } finally {
+        process.off('warning', warn);
+      }
+      assert.deepEqual(warned, []);
+    });
+
     test('opens with its columns by the separator it was written with, and with no cell that starts a formula by either', async () => {
       store.keep(sent('2026-11-01T10:00:00Z', Object.entries(risky).map(([name, value]) => field(name.toLowerCase(), name, value))));
       for (const [written, separator] of [['comma', ','], ['semicolon', ';']]) {
@@ -221,6 +246,21 @@ describe('the submissions, for editors', () => {
           for (const cell of readCsv(text, other).flat()) assert.doesNotMatch(cell, FORMULA, `${written} read by ${other}: ${JSON.stringify(cell)}`);
         }
       }
+    });
+  });
+
+  describe('the store', () => {
+    // A file is written as it is read, and other requests are answered meanwhile.
+    test('goes on giving a form\'s submissions one at a time while it is asked for them again', () => {
+      for (let number = 0; number < 5; number += 1) store.keep(sent(new Date(Date.UTC(2026, 10, 1, 10, number)), [field('name', 'Name', `Number ${number}`)]));
+      const each = store.eachSubmission('contact');
+      const read = [each.next().value];
+      assert.equal(store.submissions('contact', { limit: 2 }).length, 2);
+      const second = store.eachSubmission('contact');
+      second.next();
+      for (const submission of each) read.push(submission);
+      second.return();
+      assert.deepEqual(read.map(({ fields }) => fields[0].value), ['Number 4', 'Number 3', 'Number 2', 'Number 1', 'Number 0']);
     });
   });
 

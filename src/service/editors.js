@@ -65,8 +65,8 @@ export function editorsService({ forgejo, repository, token, control, pictures =
 
   // A form's submissions (ADR 0045), to Admins and Editors alone: each form with how many it holds,
   // a form's newest first, and a form's as CSV, by the separator, in the time zone and in the
-  // interface language the reader names, spam left out. Whoever may not write is told nothing, not even which
-  // forms there are.
+  // interface language the reader names, spam left out. Whoever may not write is told nothing,
+  // not even which forms there are.
   const answerSubmissions = async (incoming, outgoing, below, searchParams) => {
     if (incoming.method !== 'GET') return answerJson(outgoing, 405, {});
     if (!store) return answerJson(outgoing, 404, {});
@@ -111,8 +111,13 @@ export function editorsService({ forgejo, repository, token, control, pictures =
       if (outgoing.destroyed) return;
       if (!outgoing.write(piece)) {
         await new Promise((go) => {
-          outgoing.once('drain', go);
-          outgoing.once('close', go);
+          const goOn = () => {
+            outgoing.off('drain', goOn);
+            outgoing.off('close', goOn);
+            go();
+          };
+          outgoing.on('drain', goOn);
+          outgoing.on('close', goOn);
         });
       }
     }
