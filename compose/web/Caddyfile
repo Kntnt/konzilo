@@ -17,6 +17,40 @@
 	# Search (ADR 0053): the route to Typesense, with its key, which every build writes outside
 	# the releases, where no visitor reaches it; none before the first build.
 	import /srv/search/search-route*.caddy
+	# The service, in its role for visitors (ADR 0044): every other path below the reserved prefix,
+	# but the consent scripts' files, which are the release's to serve, GET alone (ADR 0049). It is
+	# passed the request's method, path, query and body with its type, where the browser says it
+	# came from, the visitor's address and the host it came to, and nothing else: no cookie,
+	# browser's name, not even the proxy's own, password or language. A body is cut off at a
+	# megabyte, and nothing is logged.
+	@konzilo_visitors {
+		path /_konzilo/*
+		not path /_konzilo/search /_konzilo/search/*
+		not {
+			path /_konzilo/consent/*
+			method GET HEAD
+		}
+	}
+	handle @konzilo_visitors {
+		request_body {
+			max_size 1MB
+		}
+		reverse_proxy visitors:4200 {
+			header_up -*
+			header_up Content-Type {http.request.header.Content-Type}
+			header_up Origin {http.request.header.Origin}
+			header_up Referer {http.request.header.Referer}
+			header_up Sec-Fetch-Site {http.request.header.Sec-Fetch-Site}
+			header_up X-Konzilo-Client {http.request.remote.host}
+			header_up X-Konzilo-Host {http.request.hostport}
+			# Without it the proxy would name itself, as Go does where a request names no browser.
+			header_up User-Agent ""
+			transport http {
+				dial_timeout 5s
+				response_header_timeout 10s
+			}
+		}
+	}
 	file_server
 	handle_errors {
 		# Search that Typesense does not answer says so, as the dev server's does.
@@ -28,6 +62,19 @@
 			header Content-Type `application/json; charset=utf-8`
 			header Cache-Control no-store
 			respond `{"message":"Search does not answer."}` 502
+		}
+		# A form the service does not answer gets the release's page that says it was not sent,
+		# with the status the web server gives (ADR 0045): a page of its own, which a browser
+		# without JavaScript shows, and the page's script reads as no answer of the service's.
+		@form_down {
+			path /_konzilo/forms/*
+			expression `{err.status_code} >= 500`
+		}
+		handle @form_down {
+			method GET
+			rewrite * /_konzilo/form-not-sent.html
+			header Cache-Control no-store
+			file_server
 		}
 		handle {
 			rewrite * /404.html
