@@ -1,6 +1,7 @@
 // Fill a new Forgejo: the instance's second factor and credential, an account with a
 // known password and a second factor, an organisation with its two teams, a source
-// repository holding the demo content, the editor's OAuth client, and Typesense's keys
+// repository holding the demo content, the site repository's own where it has any, else
+// the core's (ADR 0025), the editor's OAuth client, and Typesense's keys
 // (ADR 0002, ADR 0007, ADR 0008, ADR 0053). It talks to Forgejo itself, behind the
 // proxy, since the proxy refuses making a token, and there is no API for a second
 // factor, so an account enrols through the forms a person uses. Each step looks first,
@@ -12,12 +13,15 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileS
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
+import { demoContentOf } from '../../src/demo-content.js';
 import { demoSource, GIT_ATTRIBUTES } from '../../src/demo-source.js';
 import { readSiteDescription } from '../../src/site-description.js';
 import { totp } from '../../src/totp.js';
 
 const FORGEJO = 'http://forgejo:3000';
 const STATE = '/state';
+// The site repository, read-only.
+const SITE = '/site';
 const {
   KONZILO_SITE: site,
   KONZILO_ACCOUNT: account,
@@ -144,8 +148,8 @@ async function pushDemoContent(token) {
   git('config', 'user.email', 'konzilo@localhost.invalid');
   git('lfs', 'install', '--local', '--skip-repo');
   writeFileSync(join(folder, '.gitattributes'), GIT_ATTRIBUTES);
-  const description = readSiteDescription('/site/site-description.json');
-  for (const { path, content } of demoSource(description, '/konzilo/site-template/demo-content')) {
+  const description = readSiteDescription(`${SITE}/site-description.json`);
+  for (const { path, content } of demoSource(description, demoContentOf(SITE))) {
     mkdirSync(dirname(join(folder, path)), { recursive: true });
     writeFileSync(join(folder, path), content);
   }

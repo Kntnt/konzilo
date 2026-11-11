@@ -6,8 +6,8 @@
 # Creates the folder <name> in the current directory as a git repository with
 # one commit: the site template (site-template/files/), with the core pinned
 # by its path in package.json and compose.yaml. A site's demo content, which is fictional, comes
-# from the core the first time `npm run dev` or `npm run build` runs and finds
-# no content/ folder.
+# the first time `npm run dev` or `npm run build` runs and finds no content/ folder: from
+# the site's own demo-content/, which it may add, else from the core.
 #
 # The name becomes the folder, and later the site's hostnames, so it must be a
 # hostname label. Needs git, Node and npm.

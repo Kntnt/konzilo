@@ -1,6 +1,6 @@
 # @NAME@
 
-A site built on Konzilo. This repository pins the core and holds what is the site's own; it never holds content.
+A site built on Konzilo. This repository pins the core and holds what is the site's own; it never holds content, but fictional demo content of its own, if it has any.
 
 ## Start it locally
 
@@ -13,7 +13,9 @@ npm run dev
 
 Astro's dev server answers at <http://localhost:4321> and reloads as you change the site's code or its content. `npm run build` writes the static site to `dist/`, for the public host `KONZILO_ORIGIN` names.
 
-The first run copies the core's fictional demo content into `content/`, which Git ignores. Change it, or replace it with the site's own files, as Konzilo's `content-format.md` describes them. A site that has a `content/` folder keeps it.
+The first run copies fictional demo content into `content/`, which Git ignores: the site's own, from `demo-content/`, if it has one, else Konzilo's. Change it, or replace it with the site's own files, as Konzilo's `content-format.md` describes them. A site that has a `content/` folder keeps it, and a build for a public host with none stops.
+
+A site that shows itself with posts of its own keeps them in `demo-content/`, fictional, in the shape of Konzilo's `site-template/demo-content/`: published content files of this site's `site-description.json`, its images in `media/`. A local copy, by `npm run dev` or by Compose, starts from it in place of Konzilo's.
 
 ## What is the site's own
 

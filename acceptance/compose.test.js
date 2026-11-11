@@ -11,6 +11,7 @@ import { after, before, describe, test } from 'node:test';
 import { intake } from '../src/intake/index.js';
 import { readSiteDescription } from '../src/site-description.js';
 import { sharp } from '../tests/lib/images.js';
+import { OWN_DEMO, writeOwnDemoContent } from '../tests/lib/demo-content.js';
 import { namedImages, NOW, sourcePost } from '../tests/lib/intake.js';
 import { ENGINES, openEditor, signIn } from './lib/editor.js';
 import { makeSite } from './lib/site.js';
@@ -1249,5 +1250,66 @@ describe('a site in Compose', () => {
       assert.equal(release(), was, 'and builds nothing again');
       assert.equal((await get(`${site.origin.site}/found-by-the-clock/`)).status, 200);
     });
+  });
+});
+
+// A site repository that keeps demo content of its own in demo-content/ (ADR 0025): the seed fills
+// the source repository with it in place of the core's, and the editor and the public site show it.
+describe('a site with demo content of its own, in Compose', () => {
+  let site;
+  let token;
+
+  const api = async (path) => {
+    const answer = await fetch(`${site.origin.git}/api/v1${path}`, { headers: { authorization: `token ${token}` } });
+    assert.equal(answer.status, 200, path);
+    return answer.json();
+  };
+  const repository = () => `/repos/${site.name}/source`;
+  const text = async (path) => Buffer.from((await api(`${repository()}/contents/${path}`)).content, 'base64').toString();
+
+  before(async () => {
+    site = await makeSite({ name: `accept-own-${process.pid}` });
+    await writeOwnDemoContent(join(site.directory, 'demo-content'));
+    site.up('--build');
+    token = site.state('instance-token');
+  }, { timeout: 900_000 });
+
+  after(() => site?.remove());
+
+  test('holds it as source files, its media in LFS, and nothing of the core\'s', async () => {
+    const articles = await api(`${repository()}/contents/articles`);
+    assert.equal(articles.length, 1);
+    assert.match(articles[0].name, /^[0-9a-f]{12}\.md$/);
+    const article = await text(articles[0].path);
+    assert.match(article, new RegExp(`^title: "?${OWN_DEMO.article.title}"?$`, 'm'));
+    assert.match(article, /^status: "?published"?$/m);
+    assert.equal((await api(`${repository()}/contents/pages`)).length, 1);
+    const media = await api(`${repository()}/contents/media`);
+    assert.deepEqual(media.map((file) => file.name.replace(/[0-9a-f]{10}\.webp$/, '…')), ['lamps-along-the-northern-quay-…']);
+    const read = (kind) => fetch(`${site.origin.git}/api/v1${repository()}/${kind}/media/${media[0].name}`, { headers: { authorization: `token ${token}` } });
+    assert.match(await (await read('raw')).text(), /^version https:\/\/git-lfs/, 'Git holds a pointer');
+    assert.ok((await (await read('media')).arrayBuffer()).byteLength > 1000, 'and LFS the file');
+    assert.match(JSON.parse(await text('settings.json')).title, new RegExp(OWN_DEMO.title));
+  });
+
+  test('shows it to visitors, and nothing of the core\'s', async () => {
+    const start = await (await fetch(`${site.origin.site}/`)).text();
+    assert.match(start, new RegExp(OWN_DEMO.title));
+    assert.doesNotMatch(start, /The Gentle Garden/);
+    assert.match(await (await fetch(`${site.origin.site}${OWN_DEMO.article.address}`)).text(), new RegExp(OWN_DEMO.article.words));
+    assert.match(await (await fetch(`${site.origin.site}${OWN_DEMO.page.address}`)).text(), new RegExp(OWN_DEMO.page.words));
+    assert.equal((await fetch(`${site.origin.site}/quiet-harbours-and-the-lantern/`)).status, 404);
+  });
+
+  test('shows it in the editor', async () => {
+    const session = await openEditor('chromium', site);
+    try {
+      await signIn(session, site);
+      await session.page.getByText('Articles').first().waitFor();
+      await session.page.getByText(OWN_DEMO.article.title).waitFor();
+      assert.equal(await session.page.getByText('Quiet harbours and the lantern').count(), 0);
+    } finally {
+      await session.browser.close();
+    }
   });
 });
