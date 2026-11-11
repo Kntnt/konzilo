@@ -1,8 +1,8 @@
 // The helpers a site's templates call (`@kntnt/konzilo/astro/helpers`).
 
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
-import { authorsOf, builtInType, countOf, legalPages, longDate, oneLine, ordered, postalAddress, summary, termPath } from '@kntnt/konzilo/astro/helpers';
+import { describe, test } from 'node:test';
+import { authorsOf, builtInType, countOf, legalPages, longDate, metaLine, oneLine, ordered, postalAddress, summary, termPath } from '@kntnt/konzilo/astro/helpers';
 import { siteDescription } from '../src/site-description.js';
 
 test('longDate writes a date as the same long date in each language', () => {
@@ -119,4 +119,84 @@ test('authorsOf gives a template an article\'s authors in the order its editor g
   assert.equal((await authorsOf(article, { site: paged, getEntries }))[1].entry.data.description, 'Writes of the northern harbours.', 'with its term, its biography among its data');
   assert.deepEqual(await shown(paged, { id: 'spring-fair', collection: 'events', data: { hosts: [{ collection: 'hosts', id: 'rafael-berg' }] } }), [], 'a type of the site\'s own has no authors');
   assert.deepEqual(await shown(paged, { ...article, data: { authors: [] } }), []);
+});
+
+describe('metaLine writes a post\'s meta line by its type\'s format in the page\'s language', () => {
+  const declared = {
+    language: 'en_GB',
+    images: { smallestWidth: 400, displayWidth: 1280 },
+    types: {
+      article: { collection: 'articles', address: '/{slug}/', elements: ['paragraph'] },
+      event: { label: 'Event', plural: 'Events', collection: 'events', address: '/events/{slug}/', elements: ['paragraph'], fields: { date: {} } },
+    },
+  };
+  const terms = {
+    'authors/ines-holm': { id: 'ines-holm', collection: 'authors', data: { name: 'Ines Holm' } },
+    'authors/rafael-berg': { id: 'rafael-berg', collection: 'authors', data: { name: 'Rafael Berg' } },
+    'categories/news': { id: 'news', collection: 'categories', data: { name: 'News' } },
+    'categories/local': { id: 'local', collection: 'categories', data: { name: 'Local news', parent: { collection: 'categories', id: 'news' } } },
+  };
+  const getEntry = async ({ collection, id }) => terms[`${collection}/${id}`];
+  const getEntries = async (references) => Promise.all(references.map(getEntry));
+  const article = (data = {}) => ({
+    id: 'harbour-lights',
+    collection: 'articles',
+    data: {
+      date: new Date('2026-10-01T08:00:00Z'),
+      modified: new Date('2026-10-02T09:00:00Z'),
+      authors: [{ collection: 'authors', id: 'rafael-berg' }, { collection: 'authors', id: 'ines-holm' }],
+      category: [{ collection: 'categories', id: 'local' }],
+      topics: [],
+      ...data,
+    },
+  });
+  const formats = (article, event) => ({ metaLine: { types: { article: { format: article }, ...(event ? { event: { format: event } } : {}) } } });
+  // The line as a visitor reads it, each link and each moment marked.
+  const read = (pieces) => pieces.map(({ text, url, datetime }) => (url ? `[${text}](${url})` : datetime ? `<${text}|${datetime}>` : text)).join('');
+  const line = async (format, { entry = article(), site = siteDescription(declared), language = 'en-GB', event } = {}) => read(await metaLine(entry, language, { site, settings: formats(format, event), getEntries, getEntry }));
+
+  test('gives the format\'s words, the date in the page\'s language, the category\'s name and the authors after each other, by a comma', async () => {
+    assert.equal(await line('Published on {date} in {category} by {authors}'), 'Published on <1 October 2026|2026-10-01T08:00:00.000Z> in Local news by Rafael Berg, Ines Holm');
+    assert.equal(await line('Av {authors}, publicerad den {date} under {category}', { language: 'sv-SE' }), 'Av Rafael Berg, Ines Holm, publicerad den <1 oktober 2026|2026-10-01T08:00:00.000Z> under Local news');
+  });
+
+  test('links each author and the category to its page where its taxonomy declares an address, the category by its path', async () => {
+    const site = siteDescription({ ...declared, taxonomies: { authors: { address: '/authors/{slug}/' }, category: { address: '/category/{path}/' } } });
+    assert.equal(await line('{category}: {authors}', { site }), '[Local news](/category/news/local/): [Rafael Berg](/authors/rafael-berg/), [Ines Holm](/authors/ines-holm/)');
+    const bySlug = siteDescription({ ...declared, taxonomies: { category: { address: '/topic/{slug}/' } } });
+    assert.equal(await line('{category}', { site: bySlug }), '[Local news](/topic/local/)');
+  });
+
+  // An article without a category, without authors, or without both.
+  const without = { category: article({ category: [] }), authors: article({ authors: [] }), both: article({ category: [], authors: [] }) };
+  const date = '<1 October 2026|2026-10-01T08:00:00.000Z>';
+  const datum = '<1 oktober 2026|2026-10-01T08:00:00.000Z>';
+
+  test('drops a variable without a value with the words before it, back to the variable or the punctuation mark before them', async () => {
+    const english = 'Published on {date} in {category} by {authors}';
+    assert.equal(await line(english, { entry: without.category }), `Published on ${date} by Rafael Berg, Ines Holm`);
+    assert.equal(await line(english, { entry: without.authors }), `Published on ${date} in Local news`);
+    assert.equal(await line(english, { entry: without.both }), `Published on ${date}`);
+    const swedish = 'Av {authors}, publicerad den {date} under {category}';
+    assert.equal(await line(swedish, { entry: without.category, language: 'sv-SE' }), `Av Rafael Berg, Ines Holm, publicerad den ${datum}`);
+    assert.equal(await line('Written by {authors}. Published {date} in {category}.', { entry: without.category }), `Written by Rafael Berg, Ines Holm. Published ${date}.`);
+  });
+
+  test('drops what punctuation is left at the start or the end of the line, or doubled, and begins a line whose start dropped with a capital', async () => {
+    assert.equal(await line('Av {authors}, publicerad den {date} under {category}', { entry: without.authors, language: 'sv-SE' }), `Publicerad den ${datum} under Local news`);
+    assert.equal(await line('Written by {authors}. Published {date} in {category}.', { entry: without.authors }), `Published ${date} in Local news.`);
+    assert.equal(await line('{authors} · {date} · {category}', { entry: without.both }), date);
+    assert.equal(await line('{date} · {authors} · {category}', { entry: without.authors }), `${date} · Local news`);
+    assert.equal(await line('{date} · {authors} · {category}', { entry: without.category }), `${date} · Rafael Berg, Ines Holm`);
+    assert.equal(await line('Published {date}, in {category}, by {authors}', { entry: without.category }), `Published ${date}, by Rafael Berg, Ines Holm`);
+    assert.equal(await line('Published {date} ({category}).', { entry: without.category }), `Published ${date}.`);
+    assert.equal(await line('{category}: {authors}', { entry: without.both }), '');
+    assert.deepEqual(await metaLine(without.both, 'en-GB', { site: siteDescription(declared), settings: formats('By {authors}'), getEntries, getEntry }), [], 'nothing to draw');
+  });
+
+  test('gives the last change only where it is on a later day than the date', async () => {
+    const format = 'Published {date}, updated {modified}';
+    assert.equal(await line(format), `Published ${date}, updated <2 October 2026|2026-10-02T09:00:00.000Z>`);
+    assert.equal(await line(format, { entry: article({ modified: new Date('2026-10-01T17:00:00Z') }) }), `Published ${date}`);
+  });
 });

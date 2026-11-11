@@ -133,6 +133,48 @@ describe('the site settings', () => {
   });
 });
 
+describe('the meta line\'s format', () => {
+  const builtIn = {
+    language: 'en_GB',
+    images: { smallestWidth: 400, displayWidth: 1280 },
+    types: {
+      article: { collection: 'articles', address: '/{slug}/', elements: ['paragraph'] },
+      page: { collection: 'pages', address: '/pages/{slug}/', elements: ['paragraph'] },
+      event: { label: 'Event', plural: 'Events', collection: 'events', address: '/events/{slug}/', elements: ['paragraph'], fields: { date: {} } },
+      note: { label: 'Note', plural: 'Notes', collection: 'notes', elements: ['paragraph'] },
+    },
+  };
+  const formats = (settings, site = builtIn, path = 'settings.json') => {
+    const result = run({ 'settings.json': settings }, site);
+    assert.deepEqual(result.refusals, []);
+    return settingsOf(result, path).metaLine.types;
+  };
+
+  test('is the article\'s by default, in the site\'s language, and no other type\'s, for each type with an address', () => {
+    assert.deepEqual(formats({}), { article: { format: 'Published on {date} in {category} by {authors}' }, page: {}, event: {} });
+    assert.deepEqual(formats({}, { ...builtIn, language: 'sv_SE' }).article, { format: 'Av {authors}, publicerad den {date} under {category}' });
+  });
+
+  test('is what an Admin sets for a type, in each language on a site in several', () => {
+    assert.deepEqual(formats({ metaLine: { types: { article: { format: 'By {authors}' }, event: { format: 'Held {date}' } } } }), { article: { format: 'By {authors}' }, page: {}, event: { format: 'Held {date}' } });
+    const { language: _, ...inOne } = builtIn;
+    const several = { ...inOne, languages: ['sv_SE', 'en_GB'] };
+    const settings = { metaLine: { types: { article: { format: { sv_SE: 'Av {authors}' } } } } };
+    assert.deepEqual(formats(settings, several, 'settings/sv-SE.json').article, { format: 'Av {authors}' });
+    assert.deepEqual(formats(settings, several, 'settings/en-GB.json').article, { format: 'Published on {date} in {category} by {authors}' }, 'the default in a language the Admin left');
+  });
+
+  test('is refused with a variable the type has not got, naming the setting and the variable', () => {
+    const refused = run({ 'settings.json': { metaLine: { types: { article: { format: 'On {dat}' }, page: { format: 'In {category}' }, event: { format: 'Held {date}, updated {modified}' } } } } }, builtIn);
+    assert.deepEqual(refused.refusals.map(({ setting, reason }) => [setting, reason]), [
+      ['metaLine.types.article.format', 'the meta line has no variable {dat} for this type; use one the Site settings page lists'],
+      ['metaLine.types.page.format', 'the meta line has no variable {category} for this type; use one the Site settings page lists'],
+      ['metaLine.types.event.format', 'the meta line has no variable {modified} for this type; use one the Site settings page lists'],
+    ]);
+    assert.equal(written(refused)['settings.json'], undefined);
+  });
+});
+
 describe('a menu', () => {
   const files = {
     'pages/contactpage0.md': page('contact'),

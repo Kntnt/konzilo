@@ -230,6 +230,7 @@ const cases = {
   'value-date': [() => withFiles({ 'settings.json': { ...settled, opens: 'soon' } }), { setting: 'opens' }],
   'value-least': [() => withFiles({ 'settings.json': { ...settled, tagManager: { manager: 'Matomo', address: 'https://matomo.example.com/', site: 0 } } }), { setting: 'tagManager.site' }],
   'template-variable': [() => withFiles({ 'settings.json': { ...settled, search: { home: { title: '{{ nothing.here }}' } } } }), { setting: 'search.home.title' }],
+  'meta-line-variable': [() => withFiles({ 'settings.json': { ...settled, metaLine: { types: { story: { format: 'By {authors} on {date}' } } } } }), { setting: 'metaLine.types.story.format' }],
   'format-matomo-address': [() => withFiles({ 'settings.json': { ...settled, tagManager: { address: 'http://matomo.example.com/' } } }), { setting: 'tagManager.address' }],
   'format-matomo-container': [() => withFiles({ 'settings.json': { ...settled, tagManager: { container: 'nope' } } }), { setting: 'tagManager.container' }],
   'format-domain': [() => withFiles({ 'settings.json': { ...settled, tagManager: { cookieDomain: 'Example.COM' } } }), { setting: 'tagManager.cookieDomain' }],

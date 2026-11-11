@@ -88,12 +88,14 @@ test('the defaults of the core\'s settings groups that visitors read are texts o
     ...Object.entries(parts).flatMap(([part, { settings: inPart = {} }]) => Object.entries(inPart).map(([name, setting]) => [`${group}.${part}.${name}`, setting])),
     ...Object.entries(types?.settings ?? {}).map(([name, setting]) => [`${group}.types.${name}`, setting]),
   ]);
-  const named = settings.filter(([, setting]) => setting.default !== null && typeof setting.default === 'object' && !Object.hasOwn(setting.default, 'identity'));
-  assert.ok(named.length > 0);
-  for (const [path, setting] of named) {
-    assert.deepEqual(Object.keys(setting.default), ['text'], path);
-    assert.ok(Object.hasOwn(source, setting.default.text), `${path}: ${setting.default.text}`);
-    assert.match(setting.default.text, /^site\./, path);
+  // A default for the types of one kind, as an article's meta line, too.
+  const defaults = settings.flatMap(([path, setting]) => [[path, setting.default], ...Object.entries(setting.defaultFor ?? {}).map(([kind, value]) => [`${path}.defaultFor.${kind}`, value])]);
+  const named = defaults.filter(([, value]) => value !== null && typeof value === 'object' && !Object.hasOwn(value, 'identity'));
+  assert.ok(named.some(([path]) => path.includes('.defaultFor.')));
+  for (const [path, value] of named) {
+    assert.deepEqual(Object.keys(value), ['text'], path);
+    assert.ok(Object.hasOwn(source, value.text), `${path}: ${value.text}`);
+    assert.match(value.text, /^site\./, path);
   }
 });
 

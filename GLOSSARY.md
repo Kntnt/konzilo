@@ -54,7 +54,9 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Author**: A person credited with an article: a term of the built-in taxonomy `authors`, with a name and a biography. Not the editor who saves it. _Avoid_: byline (for the person), writer.
 
-**Byline**: The names of an article's authors, in the order the editor gave them, the main author first, shown between its standfirst and its body. _Avoid_: author line.
+**Byline**: The names of an article's authors, in the order the editor gave them, the main author first, a list a template shows in the meta line. _Avoid_: author line.
+
+**Meta line**: The line between a post's standfirst and its body that shows its byline, its date and its category, written by its type's format: text with variables in braces, such as `{authors}`, which an Admin sets per type and language, never per post. _Avoid_: byline (for the whole line), dateline.
 
 **Category**: The term of the built-in hierarchical taxonomy `category` an article is filed under, one or none. _Avoid_: section, department.
 

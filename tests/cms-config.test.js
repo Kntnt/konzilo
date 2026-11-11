@@ -234,6 +234,19 @@ describe('the interface language', () => {
     });
   });
 
+  test('shows the meta line\'s format by type, in the interface language, the article\'s default in the content\'s language, and none for a page or a canvas', () => {
+    for (const [language, heading] of [['sv', 'Metarad'], ['en', 'Meta line']]) {
+      const made = cmsConfig(swedish, { ...place, language });
+      const group = field(made.collections.find((one) => one.name === 'settings').files[0].fields, 'metaLine');
+      const format = (type) => field(field(field(group.fields, 'types').fields, type).fields, 'format');
+      assert.equal(group.label, heading, language);
+      const { label, widget, default: given } = format('article');
+      assert.deepEqual({ label, widget, default: given }, { label: 'Format', widget: 'string', default: 'Av {authors}, publicerad den {date} under {category}' }, language);
+      assert.equal(format('page').default, undefined, language);
+      assert.equal(format('canvas').default, undefined, language);
+    }
+  });
+
   test('shows the half-life of related posts among the settings groups in the interface language, with its default, and the switch for freshness', () => {
     const related = (language) => {
       const made = cmsConfig(swedish, { ...place, language });
