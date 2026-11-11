@@ -7,6 +7,7 @@ import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { cmsConfig } from '../src/cms/config.js';
+import { frontMatterOf } from '../src/cms/groups/source.js';
 import { fieldNamed, named, say } from '../src/intake/words.js';
 import { siteDescription } from '../src/site-description.js';
 import { ENGINES, openNew } from './lib/editor.js';
@@ -1168,6 +1169,144 @@ for (const [engineName, engine] of Object.entries(ENGINES).filter(([name]) => na
       await openSettings();
       assert.equal(await (await numberOf('related.halfLife')).inputValue(), '90');
       assert.equal(await (await switchOf('related.freshness')).getAttribute('aria-checked'), 'false');
+    });
+
+    test('has asked nothing outside, and broken no policy', () => {
+      assert.deepEqual(seen.outside, []);
+      assert.deepEqual(seen.refused, []);
+      assert.deepEqual(seen.errors, []);
+    });
+  });
+}
+
+// A value written in a closed bar whose object the file does not hold yet is in the file after
+// Save, in a settings group, in a new post and in a post whose file lacks the object, and a bar
+// opened and left adds nothing to the file (ADR 0029). Sveltia keeps a saved entry in memory, so
+// the file read back decides: the test repository keeps its files in the browser's own file
+// system, which Playwright's WebKit lacks, as above.
+for (const [engineName, engine] of Object.entries(ENGINES).filter(([name]) => name !== 'webkit')) {
+  describe(`a value written in a closed bar whose object the file lacks, in ${engineName}`, () => {
+    let site;
+    let page;
+    let seen;
+
+    // A site that has set its title and nothing else, and a page with no search, sharing,
+    // structured data or teaser.
+    const PAGE = '0a1b2c3d4e5f';
+    const SEEDED = {
+      'settings.json': `${JSON.stringify({ title: 'Demo' }, null, 2)}\n`,
+      [`pages/${PAGE}.md`]: '---\ntitle: Quiet quay\nstatus: draft\n---\n\nThe quiet quay keeps the boats.\n',
+    };
+    // Every file of the test repository, by its path, after writing `written`.
+    const files = (written = {}) => page.evaluate(async (given) => {
+      const root = await (await navigator.storage.getDirectory()).getDirectoryHandle('sveltia-cms-test', { create: true });
+      for (const [path, text] of Object.entries(given)) {
+        let folder = root;
+        for (const name of path.split('/').slice(0, -1)) folder = await folder.getDirectoryHandle(name, { create: true });
+        const writer = await (await folder.getFileHandle(path.split('/').at(-1), { create: true })).createWritable();
+        await writer.write(text);
+        await writer.close();
+      }
+      const read = {};
+      const walk = async (folder, prefix) => {
+        for await (const [name, handle] of folder.entries()) {
+          if (handle.kind === 'directory') await walk(handle, `${prefix}${name}/`);
+          else read[`${prefix}${name}`] = await (await handle.getFile()).text();
+        }
+      };
+      await walk(root, '');
+      return read;
+    }, written);
+    const origin = () => new URL(page.url()).origin;
+    const textbox = (name) => page.getByRole('textbox', { name, exact: true });
+    const bar = (name) => page.locator('button[aria-expanded]', { hasText: name }).first();
+    const open = async (name) => {
+      await bar(name).scrollIntoViewIfNeeded();
+      if (await bar(name).getAttribute('aria-expanded') === 'false') await bar(name).click();
+    };
+    const field = (keyPath) => page.locator(`section.field[data-key-path="${keyPath}"]`);
+    // Sveltia draws a field as it comes near the window, so the form is scrolled until it is there,
+    // from wherever it stands.
+    const near = async (keyPath) => {
+      const box = await field('title').boundingBox();
+      await page.mouse.move(box.x + box.width / 2, 600);
+      for (let tries = 0; await field(keyPath).count() === 0 && tries < 40; tries += 1) {
+        await page.mouse.wheel(0, 400);
+        await page.waitForTimeout(150);
+      }
+      await field(keyPath).scrollIntoViewIfNeeded();
+      return field(keyPath);
+    };
+    // What a post's file holds of its closed bars.
+    const bars = (data) => Object.fromEntries(['teaser', 'search', 'sharing', 'structured'].filter((name) => Object.hasOwn(data, name)).map((name) => [name, data[name]]));
+    // The files once Sveltia has saved, as its notice of the save says, which stays a few seconds:
+    // the last save's is gone first.
+    const save = async () => {
+      const saved = page.getByText('Entry saved.');
+      await saved.first().waitFor({ state: 'detached' });
+      await page.getByRole('button', { name: 'Save', exact: true }).click();
+      await saved.first().waitFor();
+      return files();
+    };
+
+    before(async () => {
+      const declared = JSON.parse(readFileSync(`${core}site-template/files/site-description.json`, 'utf8'));
+      const config = cmsConfig(siteDescription(declared), { forgejo: 'http://localhost:1', repository: 'a/b', clientId: 'c', site: 'http://localhost:2' });
+      site = await openFieldPage({ engine, config: { ...config, backend: { name: 'test-repo' } } });
+      ({ page, seen } = await site.newPage({ viewport: { width: 1400, height: 1200 } }));
+      await files(SEEDED);
+      await page.getByRole('button', { name: 'Work with Test Repository' }).click();
+      await page.getByText('Pages', { exact: true }).first().waitFor();
+    }, { timeout: 120_000 });
+
+    after(() => site?.close());
+
+    test('keeps a setting written in groups the settings file lacks, one within another, and nothing of a group opened and left', async () => {
+      await page.goto(`${origin()}/#/collections/settings/entries/settings`);
+      await bar('AI visibility').waitFor();
+      await near('related');
+      await open('Related posts');
+      await (await near('related.halfLife')).getByRole('spinbutton').fill('30');
+      await near('ai');
+      await open('AI visibility');
+      await open('Start page');
+      await (await near('ai.home.markdown')).getByRole('switch').click();
+      await near('consent');
+      await open('Consent texts');
+      const saved = await save();
+      assert.deepEqual(JSON.parse(saved['settings.json']), { title: 'Demo', ai: { home: { markdown: false } }, related: { halfLife: 30 } });
+    });
+
+    test('keeps a value written in a closed bar of a new post, and nothing of the bars opened and left', async () => {
+      await openNew(page, 'pages');
+      await field('group-name').getByRole('textbox', { name: 'Title', exact: true }).fill('Filled in');
+      await open('Search');
+      await textbox('Title tag').fill('A title tag');
+      for (const name of ['Teaser', 'Sharing', 'Structured data']) await open(name);
+      const before = Object.keys(await files());
+      const saved = await save();
+      const made = Object.keys(saved).filter((path) => path.startsWith('pages/') && !before.includes(path));
+      assert.equal(made.length, 1, 'one new page');
+      assert.deepEqual(bars(frontMatterOf(saved[made[0]])), { search: { title: 'A title tag' } });
+    });
+
+    test('keeps a value written in a closed bar of a post whose file lacks its object, and nothing of the bars opened and left', async () => {
+      // The form left goes first, as a new post's does (openNew).
+      await page.evaluate((hash) => {
+        for (const one of document.querySelectorAll('section.field')) one.dataset.left = '';
+        window.location.hash = hash;
+      }, `#/collections/pages/entries/${PAGE}`);
+      await page.locator('section.field[data-left]').first().waitFor({ state: 'detached' });
+      const title = field('group-name').getByRole('textbox', { name: 'Title', exact: true });
+      await title.waitFor();
+      assert.equal(await title.inputValue(), 'Quiet quay');
+      await open('Search');
+      await textbox('Title tag').fill('A quay of its own');
+      for (const name of ['Teaser', 'Sharing', 'Structured data']) await open(name);
+      const data = frontMatterOf((await save())[`pages/${PAGE}.md`]);
+      assert.equal(data.title, 'Quiet quay');
+      assert.deepEqual(bars(data), { search: { title: 'A quay of its own' } });
+      assert.match(data.body, /The quiet quay keeps the boats\./);
     });
 
     test('has asked nothing outside, and broken no policy', () => {

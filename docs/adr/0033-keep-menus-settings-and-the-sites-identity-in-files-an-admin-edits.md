@@ -37,7 +37,7 @@
 
 Sveltia 0.256.1, where the settings file lacks a setting of a core group:
 
-- Where it lacks the whole group, Sveltia holds the group as nothing, gives its fields no default, and shows a switch off and a number empty, *Freshness* and *Half-life in days* of *Related posts* and AI visibility's *Markdown* among them. A save after another change, such as the site's title, wrote nothing of the group, so the site stayed as it was.
+- Where it lacks the whole group, Sveltia holds the group as nothing, gives its fields no default, and shows a switch off and a number empty, *Freshness* and *Half-life in days* of *Related posts* and AI visibility's *Markdown* among them. A save after another change, such as the site's title, wrote nothing of the group, so the site stayed as it was. A setting written in the group was lost at that save, the group written as `null`, as in every closed bar whose object a file lacks, which the closed bar's patch takes away once something is written in it ([ADR 0029](0029-configure-sveltia-from-the-description-and-patch-its-npm-build.md)).
 - Where it holds the group but not the setting, Sveltia fills the field's default into the form, and a save writes it into the file.
 - Save stays off until a value changes. A switch of a group the file lacks, switched off and on again, holds no value but is a change to Sveltia, and its save leaves the file as it was.
 
@@ -45,5 +45,5 @@ Sveltia 0.256.1, where the settings file lacks a setting of a core group:
 
 - An Admin cannot keep a setting with a default empty; a feature that needs "none" offers it as a value.
 - An Admin who chooses a setting's default again, or empties its field, leaves the file without it, so the default the core then has applies.
-- `tests/cms-config.test.js` holds which settings are the core's field and that no setting has a default of Sveltia's, `tests/cms-settings.test.js` what the field shows and keeps, and `acceptance/form.test.js` (`a setting's default in Sveltia`) the defaults shown, a closed bar left closed, a save after settings changed and changed back that leaves the file as it was, and a save that keeps only what differs from a default, in Chromium and Firefox, whose private file system the test repository keeps its files in.
+- `tests/cms-config.test.js` holds which settings are the core's field and that no setting has a default of Sveltia's, `tests/cms-settings.test.js` what the field shows and keeps, and `acceptance/form.test.js` (`a setting's default in Sveltia`) the defaults shown, a closed bar left closed, a save after settings changed and changed back that leaves the file as it was, and a save that keeps only what differs from a default, and (`a value written in a closed bar whose object the file lacks`) a setting written in groups the file lacks, one within another, kept, in Chromium and Firefox, whose private file system the test repository keeps its files in.
 - Fields of a group may take a regular expression of the whole value with the words of its refusal, which `preSave` and the intake both check.
