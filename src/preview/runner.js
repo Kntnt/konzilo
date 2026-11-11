@@ -64,7 +64,7 @@ export function previewRunner({ site: described, source, content, adminHost = nu
     const originals = [...source.originals().filter(({ path }) => !named.has(path)), ...unsaved];
     const ledgerFile = join(content, POST_IDS_FILE);
     const ledger = existsSync(ledgerFile) ? JSON.parse(readFileSync(ledgerFile, 'utf8')) : null;
-    const result = intake({ files, site, now: moment, ledger, images: await imagesFor(namedOriginals(originals, files), source.head()), adminHost, preview: [...drafts.keys()], components });
+    const result = intake({ files, site, now: moment, ledger, images: await imagesFor(namedOriginals(originals, files), source.head()), adminHost, preview: files.map(({ path }) => path), components });
     writeContent(content, site, result);
     return result;
   };

@@ -29,9 +29,11 @@ test('writes a post whose date has not come, and a post with no status', () => {
   assert.deepEqual(Object.keys(written(result)).filter((path) => path.startsWith('pages/')), ['pages/one.md', 'pages/two.md']);
 });
 
-test('without being asked it leaves them as they are', () => {
-  const result = run({ 'pages/one.md': draft('One') }, site);
+test('without being asked, as a build for the public site is not, it leaves a draft and a post ahead of its moment out', () => {
+  const result = run({ 'pages/one.md': draft('One'), 'pages/two.md': draft('Two', { status: 'scheduled', date: later }), 'pages/three.md': sourcePost({ title: 'Three', status: 'published', date: later }, 'Words.') }, site);
+  assert.deepEqual(result.refusals, []);
   assert.deepEqual(Object.keys(written(result)).filter((path) => path.startsWith('pages/')), []);
+  assert.deepEqual(result.posts.map(({ state }) => state), ['off', 'waiting', 'waiting']);
 });
 
 test('places a draft below a draft parent, as saving would', () => {
@@ -47,4 +49,24 @@ test('refuses a draft as it would a published post, and leaves its last good fil
   assert.ok(result.refusals.some((one) => one.file === 'pages/one.md' && one.field?.name === 'title'), JSON.stringify(result.refusals));
   assert.ok(result.keep.includes('pages/one.md'));
   assert.equal(written(result)['pages/one.md'], undefined);
+});
+
+test('gives an address a published post and a draft both want to the published post, as publishing the draft would', () => {
+  const files = {
+    'pages/a-draft.md': draft('A draft', { slug: 'same' }),
+    'pages/b-live.md': sourcePost({ title: 'Live', slug: 'same', status: 'published' }, 'Words.'),
+  };
+  const all = Object.keys(files);
+  const first = run(files, site, { preview: all });
+  assert.ok(first.refusals.some((one) => one.file === 'pages/a-draft.md' && one.field?.name === 'slug'), JSON.stringify(first.refusals));
+  assert.equal(first.ledger.posts['b-live'].address, '/pages/same/');
+  assert.match(written(first)['pages/same.md'], /title: "Live"/);
+
+  // Even where the preview showed the draft there before the other was published.
+  const before = run({ 'pages/a-draft.md': files['pages/a-draft.md'] }, site, { preview: ['pages/a-draft.md'] });
+  assert.equal(before.ledger.posts['a-draft'].address, '/pages/same/');
+  const after = run(files, site, { preview: all, ledger: before.ledger });
+  assert.ok(after.refusals.some((one) => one.file === 'pages/a-draft.md' && one.field?.name === 'slug'), JSON.stringify(after.refusals));
+  assert.equal(after.ledger.posts['b-live'].address, '/pages/same/');
+  assert.match(written(after)['pages/same.md'], /title: "Live"/);
 });

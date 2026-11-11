@@ -121,11 +121,12 @@ describe('the runs', () => {
     moment = '2026-11-03T12:00:00Z';
   });
 
-  test('its first run writes what the source publishes, and no draft', async () => {
+  test('its first run writes every saved post, a draft and one scheduled ahead too', async () => {
     files['pages/waiting.md'] = sourcePost({ title: 'Waiting', status: 'draft' }, 'Words.');
+    files['pages/ahead.md'] = sourcePost({ title: 'Ahead', status: 'scheduled', date: '2026-12-24T09:00:00Z' }, 'Words.');
+    files['pages/plain.md'] = sourcePost({ title: 'Plain' }, 'Words.');
     await runner().refresh();
-    assert.ok(existsSync(join(content, 'pages/live.md')));
-    assert.equal(existsSync(join(content, 'pages/waiting.md')), false);
+    for (const path of ['pages/live.md', 'pages/waiting.md', 'pages/ahead.md', 'pages/plain.md']) assert.ok(existsSync(join(content, path)), path);
   });
 
   test('a draft gets a page and an address, and its source file need not exist', async () => {

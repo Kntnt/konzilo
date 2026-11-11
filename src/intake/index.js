@@ -139,9 +139,25 @@ function holdLegalPagesTaken(run) {
   source.posts.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 }
 
-// Whether a post is on the site's way: published, its date come. A draft is nobody's
-// business but its editor's, and is not checked.
+// Whether a post is on the site's way: published, its date come, or shown by a live preview
+// whatever its status and moment. A draft is otherwise nobody's business but its editor's,
+// and is not checked.
 function stateOf(post, run) {
+  ownStateOf(post, run);
+  if (post.on || !run.preview.has(post.path)) return;
+  // On the preview alone, where it yields to every post on its own way, as it would once
+  // published.
+  post.on = true;
+  post.forPreview = true;
+  post.notFound = run.chosen.notFound === post.id;
+  if (run.several && post.language === null) {
+    refuse(run, post, { reason: say('refusal.language-folder', { folder: post.tag ?? say('about.collection-folder') }) });
+    post.keepsNothing = true;
+  }
+}
+
+// Whether a post is on the site's way by its own status and moment.
+function ownStateOf(post, run) {
   const { status = 'draft' } = post.fields;
   post.on = false;
   if (post.unreadable) {
@@ -156,15 +172,6 @@ function stateOf(post, run) {
     post.on = true;
     post.notFound = run.chosen.notFound === post.id;
     refuse(run, post, { reason: say(post.gone ? 'refusal.admin-legal-gone' : 'refusal.admin-legal', { by: taking.by ?? say('about.someone') }) });
-    return;
-  }
-  if (run.preview.has(post.path)) {
-    post.on = true;
-    post.notFound = run.chosen.notFound === post.id;
-    if (run.several && post.language === null) {
-      refuse(run, post, { reason: say('refusal.language-folder', { folder: post.tag ?? say('about.collection-folder') }) });
-      post.keepsNothing = true;
-    }
     return;
   }
   if (status === 'draft' || status === null) return;

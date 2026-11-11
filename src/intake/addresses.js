@@ -35,7 +35,13 @@ function pathOf(post, run) {
   return { name: names.join('/') };
 }
 
+// A post on its own way comes before one a live preview shows whatever its status and moment,
+// which would find the other there once published.
+const ownFirst = (a, b) => Number(Boolean(a.forPreview)) - Number(Boolean(b.forPreview));
+
 export const earlier = (run, a, b) => {
+  const own = ownFirst(a, b);
+  if (own !== 0) return own;
   const [x, y] = [run.ledger.posts[a.key], run.ledger.posts[b.key]];
   if (x?.taken && y?.taken && x.taken !== y.taken) return x.taken < y.taken ? -1 : 1;
   if (x?.taken && !y?.taken) return -1;
@@ -80,11 +86,12 @@ export function holdAddresses(run) {
   }
   if (run.refused.size !== before) return true;
   // The post the current release shows there keeps it; otherwise the one the ledger took
-  // first. The other is refused, naming it.
+  // first. The other is refused, naming it. In a live preview, whose release shows drafts
+  // too, a post on its own way comes first.
   for (const [key, claims] of holders) {
     if (claims.length < 2) continue;
     const current = (entry) => entry.kept || run.ledger.posts[entry.post.key]?.address === entry.post.place?.address && run.ledger.posts[entry.post.key]?.path;
-    const sorted = [...claims].sort((a, b) => Number(Boolean(current(b))) - Number(Boolean(current(a))) || earlier(run, a.post, b.post));
+    const sorted = [...claims].sort((a, b) => ownFirst(a.post, b.post) || Number(Boolean(current(b))) - Number(Boolean(current(a))) || earlier(run, a.post, b.post));
     const [winner, ...losers] = sorted;
     for (const { post, kept } of losers) {
       if (kept || post === winner.post || run.refused.has(post.key)) continue;
