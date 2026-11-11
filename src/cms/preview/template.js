@@ -108,7 +108,7 @@ export function previewTemplate({ origin, several, credential = signedInCredenti
     // and the window can each draw it.
     const notes = [];
     if (state.phase === 'off') notes.push({ key: 'off', role: 'alert', look: NOTE, text: say('preview.off') });
-    if (state.refusals.length > 0) notes.push({ key: 'refused', role: 'alert', look: NOTE, text: say(state.address === null ? 'preview.refusedNoPage' : 'preview.refused'), items: state.refusals.map((refusal) => ({ key: `${refusal.field}:${refusal.name ?? refusal.reason}`, text: refusalShown(refusal) })) });
+    if (state.refusals.length > 0) notes.push({ key: 'refused', role: 'alert', look: NOTE, text: say(state.address === null ? 'preview.refusedNoPage' : 'preview.refused'), items: state.refusals.map((refusal) => ({ key: `${refusal.field?.name ?? refusal.field}:${refusal.name ?? refusal.reason}`, text: refusalShown(refusal) })) });
     if (state.leads !== null) notes.push({ key: 'leads', role: 'status', look: QUIET, text: state.leads.loop ? say('preview.leadsRound', state.leads) : say('preview.leads', state.leads) });
     if (state.phase === 'starting') notes.push({ key: 'starting', role: 'status', look: QUIET, text: say('preview.starting') });
     if (state.phase === 'shown' && state.address === null && state.refusals.length === 0 && state.leads === null) notes.push({ key: 'none', role: 'status', look: QUIET, text: say('preview.noPage') });

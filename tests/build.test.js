@@ -190,7 +190,7 @@ describe('a build', () => {
     for (const build of [1, 2]) {
       const status = statusOf(site, 'articles/aaaaaaaaaaaa.md');
       assert.equal(status.status, 'live', `build ${build}`);
-      assert.deepEqual(status.warnings.map(({ field, name, values }) => ({ field, name, values })), [{ field: 'date', name: 'warning.scheduled-passed', values: { moment: { moment: '2026-01-01T12:00:00Z' } } }]);
+      assert.deepEqual(status.warnings.map(({ field, name, values }) => ({ field: field.name, name, values })), [{ field: 'date', name: 'warning.scheduled-passed', values: { moment: { moment: '2026-01-01T12:00:00Z' } } }]);
       assert.match(status.warnings[0].reason, /^the post is scheduled for 1 January 2026 at \d\d:00 \S+, which had already passed when the site first read it, so it is published at once, with that moment as its date$/);
       assert.match(wordsIn('sv', status.warnings[0]), /^inlägget är schemalagt till 1 januari 2026 kl\. \d\d:00 \S+, en tidpunkt som redan hade passerat/);
       await site.build()();
@@ -224,7 +224,7 @@ describe('a build', () => {
     const refused = statusOf(site, 'articles/aaaaaaaaaaaa.md');
     assert.equal(refused.status, 'failed');
     assert.equal(refused.stillShown, true);
-    assert.equal(refused.refusals[0].field, 'title');
+    assert.equal(refused.refusals[0].field.name, 'title');
     assert.equal(refused.refusals[0].name, 'refusal.title-empty', 'by its name, which the publish status shows in the interface language');
     assert.equal(statusOf(site, 'articles/bbbbbbbbbbbb.md').status, 'live');
     assert.match(readFileSync(join(site.siteFolder, 'content/articles/second.md'), 'utf8'), /New words/);

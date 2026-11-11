@@ -242,7 +242,7 @@ Text.
 
   test('a wrong value says so, naming the field', () => {
     const { refusals } = run({ 'articles/aaaaaaaaaaaa.md': article({ rating: 'high', eventDay: '2026-13-45' }) }, site);
-    assert.deepEqual(refusals.map(({ field, reason }) => [field, reason]), [
+    assert.deepEqual(refusals.map(({ field, reason }) => [field.name, reason]), [
       ['eventDay', 'the site cannot publish "2026-13-45" as a date'],
       ['rating', 'the site cannot publish "high" as a number'],
     ]);

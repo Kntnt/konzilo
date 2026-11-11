@@ -95,7 +95,7 @@ describe('the intake', () => {
   });
 
   test('refuses a main headline left empty, a part holding HTML and a teaser image without its alt text', () => {
-    assert.ok(reasons(article({ headline: '' })).some((one) => /without its headline/.test(one)));
+    assert.ok(reasons(article({ headline: '' })).some((one) => /without its main headline/.test(one)));
     assert.ok(reasons(article({ eyebrow: 'An <em>eyebrow</em>' })).some((one) => /eyebrow holding HTML/.test(one)));
     assert.ok(reasons(article({ teaser: { image: { src: '/media/puff.png' } } })).some((one) => /without alt text/.test(one)));
   });

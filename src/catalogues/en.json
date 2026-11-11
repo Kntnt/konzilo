@@ -948,6 +948,7 @@
   "about.file": "The file {file}",
   "about.block": "block {path} ({name})",
   "about.field": "the field {field}",
+  "about.part": "{group}: {part}",
   "about.entry": "entry {entry}",
   "about.setting": "the setting {setting}",
   "about.line": "line {line}",

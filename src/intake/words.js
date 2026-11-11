@@ -5,7 +5,8 @@
 // shows it in its interface language (refusals.js); and the reason and a message that
 // says the whole in British English, as the command line and the build log write them.
 
-import { CATALOGUES, SOURCE_LANGUAGE } from '../catalogues.js';
+import { CATALOGUES, INTERFACE_LANGUAGES, labelInPhrase, SOURCE_LANGUAGE, text } from '../catalogues.js';
+import { catalogueLabel } from '../format/built-in-types.js';
 import { british, messageIn } from '../refusals.js';
 
 // A reason by its name in the catalogues, `refusal.…` or `warning.…`, and the values
@@ -32,3 +33,63 @@ export function named(about) {
   const refusal = { ...clean, ...said, reason: british(words) };
   return { ...refusal, message: messageIn(SOURCE_LANGUAGE, refusal) };
 }
+
+// The label of each of the core's fields, by its name in the catalogues, as the form shows it;
+// and of each part of the teaser and of search, sharing and structured data, by its group's and
+// its own (cms/config.js).
+const CORE_LABELS = Object.freeze({
+  slug: 'form.slug',
+  status: 'form.status',
+  parent: 'form.parent',
+  date: 'form.date',
+  excerpt: 'form.excerpt',
+  image: 'form.image',
+  breadcrumb: 'form.breadcrumb',
+  eyebrow: 'form.eyebrow',
+  headline: 'form.headline',
+  subheadline: 'form.subheadline',
+  standfirst: 'form.standfirst',
+  teaser: 'form.teaser',
+  seo: 'form.search',
+  otherAddresses: 'form.inPhrase.otherAddresses',
+});
+const PART_LABELS = Object.freeze({
+  'teaser.image': ['form.teaser', 'form.file'],
+  'teaser.headline': ['form.teaser', 'form.teaserHeadline'],
+  'teaser.text': ['form.teaser', 'form.teaserText'],
+  'search.title': ['form.search', 'form.seoTitle'],
+  'search.description': ['form.search', 'form.seoDescription'],
+  'search.canonical': ['form.search', 'form.seoCanonical'],
+  'search.noindex': ['form.search', 'form.seoNoindex'],
+  'search.nofollow': ['form.search', 'form.seoNofollow'],
+  'sharing.image': ['form.sharing', 'form.seoSocialImage'],
+  'sharing.title': ['form.sharing', 'form.seoSocialTitle'],
+  'sharing.description': ['form.sharing', 'form.seoSocialDescription'],
+  'structured.schema': ['form.structured', 'form.seoSchema'],
+  search: ['form.search'],
+  sharing: ['form.sharing'],
+  structured: ['form.structured'],
+});
+
+// A field of a post's type by its label, as the form shows it: the site's own label, one text or
+// by language, or the core's in each language its interface comes in (ADR 0066). A refusal or a
+// warning names a field so, and the editor reads it in its interface language, the command line
+// and the build log in British English. A name the form shows no field for is given as it is.
+export function fieldLabel(type, name) {
+  if (name === 'title') return catalogueLabel(type.fields.some((field) => field.kind === 'headline') ? 'form.workingName' : 'form.title');
+  if (Object.hasOwn(PART_LABELS, name)) {
+    const [group, part] = PART_LABELS[name];
+    if (part === undefined) return catalogueLabel(group);
+    return Object.fromEntries(INTERFACE_LANGUAGES.map((language) => [language, text(language, 'about.part', { group: text(language, group), part: labelInPhrase(text(language, part), language) })]));
+  }
+  const field = type.fields.find((one) => one.name === name);
+  if (field?.kind === 'meta') return field.label;
+  if (field?.kind === 'terms' && field.taxonomy) return field.most === 1 ? field.taxonomy.label : field.taxonomy.plural;
+  return Object.hasOwn(CORE_LABELS, name) ? catalogueLabel(CORE_LABELS[name]) : name;
+}
+
+// A field as a refusal or a warning names where it is: its name, and its label.
+export const fieldNamed = (type, name) => ({ name, label: fieldLabel(type, name) });
+
+// A field as a value of a refusal's or a warning's reason: its label, in the middle of a phrase.
+export const fieldValued = (type, name) => ({ label: fieldLabel(type, name) });

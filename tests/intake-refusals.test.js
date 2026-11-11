@@ -10,7 +10,7 @@ import { CATALOGUES } from '../src/catalogues.js';
 import { checkBody } from '../src/format/body.js';
 import { embedOf } from '../src/format/embeds.js';
 import rules from '../src/format/rules.json' with { type: 'json' };
-import { messageIn, reasonIn } from '../src/refusals.js';
+import { messageIn, placeIn, reasonIn } from '../src/refusals.js';
 import { reader } from '../src/intake/reader.js';
 import { named as refusalOf } from '../src/intake/words.js';
 import { namedImages, run, sourcePost } from './lib/intake.js';
@@ -326,7 +326,7 @@ const cases = {
   'set-twice': [() => run({
     'articles/sv-SE/aaaaaaaaaaaa.md': article({ slug: 'ett', translationKey: '3a1dace55ce438b2' }),
     'articles/sv-SE/bbbbbbbbbbbb.md': article({ slug: 'tva', translationKey: '3a1dace55ce438b2' }),
-  }, { languages: ['sv_SE', 'en_GB'], types: { story: { label: 'A', plural: 'As', collection: 'articles', address: '/{slug}/', elements: ['paragraph'] } } }), { field: 'translationKey' }],
+  }, { languages: ['sv_SE', 'en_GB'], types: { story: { label: 'A', plural: 'As', collection: 'articles', address: '/{slug}/', elements: ['paragraph'] } } }), {}],
   'not-found-none': [() => withFiles({ 'settings.json': { ...settled, notFound: { page: 'gone00000000' } } }), { setting: 'notFound.page' }, 'warning'],
   'setting-pattern': [() => withFiles({ 'settings.json': { ...settled, ai: { excludedPaths: '([' } } }), { setting: 'ai.excludedPaths' }],
   'setting-shape': [() => withFiles({ 'settings.json': { seats: { a: 1 } } }), { setting: 'seats' }],
@@ -462,6 +462,7 @@ for (const [key, [make, about, kind = 'refusal']] of Object.entries(cases)) {
     assert.deepEqual(JSON.parse(JSON.stringify(found)), found, 'it travels as JSON');
     for (const [part, value] of Object.entries(about)) {
       if (part === 'block') assert.equal(found.block?.name, value, JSON.stringify(found));
+      else if (part === 'field') assert.equal(found.field?.name, value, JSON.stringify(found));
       else if (value === true) assert.ok(found[part] !== undefined, `names no ${part}: ${JSON.stringify(found)}`);
       else assert.deepEqual(found[part], value, JSON.stringify(found));
     }
@@ -542,10 +543,31 @@ test('names a site\'s own label given by language in the language a refusal is s
   const most = refusals.find((one) => one.name === 'refusal.terms-most');
   assert.deepEqual(most.values, { most: 2, plural: { label: { en: 'Categories', sv: 'Kategorier' } } });
   assert.equal(reasonIn('sv', most), 'ett inlägg tar högst 2 av sina kategorier; välj färre');
-  assert.equal(messageIn('sv', most), 'Inlägget "An article" (story, aaaaaaaaaaaa), fältet categories: ett inlägg tar högst 2 av sina kategorier; välj färre');
+  assert.equal(messageIn('sv', most), 'Inlägget "An article" (story, aaaaaaaaaaaa), fältet kategorier: ett inlägg tar högst 2 av sina kategorier; välj färre');
   assert.equal(messageIn('en', most), 'The story "An article" (aaaaaaaaaaaa), the field categories: a post takes at most 2 of its categories; choose fewer');
   const note = refusals.find((one) => one.name === 'refusal.reference-no-address');
   assert.match(reasonIn('sv', note), /och anteckningar har ingen egen sida/);
+});
+
+// An editor reads a field as the form shows it, by its label in the interface language, in the
+// middle of a phrase; the command line reads the British English (ADR 0066).
+test('names a field by its label, the core\'s or the site\'s own, in each interface language, and in British English on the command line', () => {
+  const shown = (refusal) => [placeIn('en', refusal), placeIn('sv', refusal), reasonIn('sv', refusal)];
+  const title = onePost({ title: '' }).refusals.find((one) => one.name === 'refusal.title-empty');
+  assert.deepEqual(title.field, { name: 'title', label: { en: 'Title', sv: 'Titel' } });
+  assert.deepEqual(shown(title).slice(0, 2), ['the field title', 'fältet titel']);
+  assert.match(title.message, /, the field title: /);
+  const moment = onePost({ date: 'soon' }).refusals.find((one) => one.name === 'refusal.field-moment');
+  assert.deepEqual(shown(moment), ['the field date', 'fältet datum', 'webbplatsen kan inte publicera "soon" som datum och tid i datum; välj en']);
+  assert.equal(moment.reason, 'the site cannot publish "soon" as a date and time in date; choose one');
+  const canonical = onePost({ search: { canonical: 'the-original/' } }).refusals[0];
+  assert.deepEqual(shown(canonical).slice(0, 2), ['the field search: canonical address', 'fältet sök: kanonisk adress']);
+  const excerpt = onePost({ excerpt: 'An <em>excerpt</em>' }).refusals.find((one) => one.name === 'refusal.field-markup');
+  assert.deepEqual(shown(excerpt), ['the field excerpt', 'fältet utdrag', 'webbplatsen kan inte publicera utdrag med HTML i; skriv det som vanlig text']);
+  const own = withFiles({ 'articles/aaaaaaaaaaaa.md': article({ readingTime: { a: 1 } }) }).refusals.find((one) => one.name === 'refusal.field-value');
+  assert.deepEqual(shown(own), ['the field reading time', 'fältet reading time', 'webbplatsen kan inte publicera detta som reading time']);
+  const brief = withFiles({ 'briefs/aaaaaaaaaaaa.md': sourcePost({ title: 'B', slug: 'b', status: 'published', excerpt: 'E', image: { src: '/media/a.png', alt: 'A' } }) }).refusals.find((one) => one.name === 'refusal.field-required');
+  assert.deepEqual(shown(brief), ['the field tags', 'fältet tags', 'webbplatsen kan inte publicera ett inlägg utan fältet tags; fyll i det']);
 });
 
 test('a feed a refusal names is named in each interface language', () => {
@@ -626,7 +648,7 @@ test('a non-Admin may change a post, and an Admin what is an Admin\'s', () => {
 test('a canonical address is a whole http:// or https:// address, and anything else is refused, naming the field', () => {
   for (const given of ['the-original/', '/the-original/', '//elsewhere.example.org/the-original/', 'ftp://elsewhere.example.org/the-original/', 'mailto:keeper@example.org', 'https://', 'https://elsewhere.example.org/the original/', 'https://keeper@elsewhere.example.org/']) {
     const { refusals } = onePost({ search: { canonical: given } });
-    assert.deepEqual(refusals.map(({ field, reason }) => [field, reason]), [['search.canonical', `the canonical address ${JSON.stringify(given)} is not a whole web address; write one starting with https:// or http://, or leave it out`]], given);
+    assert.deepEqual(refusals.map(({ field, reason }) => [field.name, reason]), [['search.canonical', `the canonical address ${JSON.stringify(given)} is not a whole web address; write one starting with https:// or http://, or leave it out`]], given);
   }
   for (const given of ['https://elsewhere.example.org/the-original/', 'http://elsewhere.example.org', 'https://elsewhere.example.org:8443/a/b?c=d#e']) {
     assert.deepEqual(onePost({ search: { canonical: given } }).refusals, [], given);

@@ -45,11 +45,12 @@ export function wordsIn(language, words) {
 export const reasonIn = (language, about) => (typeof about?.name === 'string' ? wordsIn(language, about) : about?.reason ?? '');
 
 // What a refusal or a warning names within its post or file, in a language: the block, the
-// field, the entry, the setting, and the line, each it has, `block 2.1 (list), line 9`.
+// field, the entry, the setting, and the line, each it has, `block 2.1 (list), line 9`. A field
+// is named by its label, `{ name, label }`, in the middle of a phrase.
 export function placeIn(language, { block, field, entry, setting, line } = {}) {
   return [
     block ? text(language, 'about.block', { path: block.path, name: block.name }) : null,
-    field ? text(language, 'about.field', { field }) : null,
+    field ? text(language, 'about.field', { field: typeof field === 'object' ? labelInPhrase(field.label ?? field.name, language) : field }) : null,
     entry ? text(language, 'about.entry', { entry }) : null,
     setting ? text(language, 'about.setting', { setting }) : null,
     line ? text(language, 'about.line', { line }) : null,

@@ -4,7 +4,7 @@
 import { AUTHORS } from '../format/built-in-types.js';
 import { bodyHands, slugOf } from './post-file.js';
 import { linkTarget } from './resolve.js';
-import { say } from './words.js';
+import { fieldValued, say } from './words.js';
 
 const hashDigits = (hash) => hash.slice(0, 10);
 
@@ -66,7 +66,7 @@ export function contextFor(post, run, from) {
 // which says who wrote it first, and every other field's sorted.
 function termField(field, value, post, run) {
   const given = value === undefined || value === null || value === '' ? [] : Array.isArray(value) ? value : [value];
-  if (given.length === 0 && field.required) return { reason: say('refusal.field-required', { field: field.name }) };
+  if (given.length === 0 && field.required) return { reason: say('refusal.field-required', { field: fieldValued(post.type, field.name) }) };
   if (field.most !== null && new Set(given).size > field.most) return { reason: say('refusal.terms-most', { most: field.most, plural: { label: field.taxonomy.plural } }) };
   const slugs = [];
   const folder = run.several && post.tag ? `${post.tag}/` : '';

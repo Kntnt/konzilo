@@ -948,6 +948,7 @@
   "about.file": "Filen {file}",
   "about.block": "block {path} ({name})",
   "about.field": "fältet {field}",
+  "about.part": "{group}: {part}",
   "about.entry": "post {entry}",
   "about.setting": "inställningen {setting}",
   "about.line": "rad {line}",

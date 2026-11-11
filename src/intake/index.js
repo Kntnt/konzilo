@@ -17,12 +17,12 @@ import { emptyLedger, ledgerFile, nextLedger, normalLedger } from './ledger.js';
 import { bodyProblems, fieldsOf, fileText, momentOf, otherAddressesIn, publishedHash, slugOf, writtenBody } from './post-file.js';
 import { reader as siteReader } from './reader.js';
 import { readRules } from './rules-file.js';
-import { aboutPost, groupBy, inBody, refuse } from './run.js';
+import { aboutPost, groupBy, inBody, ofPost, refuse } from './run.js';
 import { chosenIn } from './settings.js';
 import { consentFile, menuFiles, notFoundFiles, redirectsFile, settingsFiles } from './site-files.js';
 import { readSource, sha256 } from './source.js';
 import { readTerms, termFiles } from './terms.js';
-import { named, say } from './words.js';
+import { fieldValued, named, say } from './words.js';
 
 const MARKUP = /<\/?[a-zA-Z!?][^<>]*>/;
 
@@ -176,7 +176,7 @@ function stateOf(post, run) {
   const date = post.fields.date === undefined || post.fields.date === null || post.fields.date === '' ? undefined : momentOf(post.fields.date);
   if (status === 'scheduled' && !date) {
     post.on = true;
-    refuse(run, post, { field: date === null ? 'date' : 'status', reason: date === null ? say('refusal.field-moment', { field: 'date', value: String(post.fields.date) }) : say('refusal.scheduled-date') });
+    refuse(run, post, { field: date === null ? 'date' : 'status', reason: date === null ? say('refusal.field-moment', { field: fieldValued(post.type, 'date'), value: String(post.fields.date) }) : say('refusal.scheduled-date') });
     return;
   }
   // A scheduled post seen waiting for its moment is remembered with it, so that it goes
@@ -284,7 +284,7 @@ function checkSets(run) {
   const groups = groupBy(live, (post) => `${setOf(post)}\n${post.tag}`);
   for (const group of groups.values()) {
     const [first, ...rest] = [...group].sort((a, b) => earlier(run, a, b));
-    for (const post of rest) refuse(run, post, { field: 'translationKey', reason: say('refusal.set-twice', { holder: first.title ?? first.id }) });
+    for (const post of rest) refuse(run, post, { reason: say('refusal.set-twice', { holder: first.title ?? first.id }) });
   }
   return run.refused.size !== before;
 }
@@ -340,7 +340,7 @@ function assemble(run) {
   // Warnings of a post that is live, in the order of its blocks.
   for (const post of source.posts) {
     if (run.refused.has(post.key) || !post.written) continue;
-    for (const warning of post.written.warnings) run.warnings.push(named({ post: aboutPost(post), file: post.path, ...warning }));
+    for (const warning of post.written.warnings) run.warnings.push(ofPost(post, warning));
   }
   const next = source.posts.map((post) => post.waiting).filter(Boolean).sort()[0] ?? null;
   const updated = nextLedger(run, settings);

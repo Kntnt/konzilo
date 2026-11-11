@@ -12,7 +12,7 @@ import { isSource, OTHER_ANSWERS, SHOW } from '../format/redirects.js';
 import rules from '../format/rules.json' with { type: 'json' };
 import { declaredNames, postListModel, SCHEMA_TYPES, SEO_KEYS, SEO_PARTS, siteRules, TEXT_FIELDS } from '../site-description.js';
 import { sha256 } from './source.js';
-import { say } from './words.js';
+import { fieldValued, say } from './words.js';
 
 // A title or a plain text holding what reads as HTML.
 const MARKUP = /<\/?[a-zA-Z!?][^<>]*>/;
@@ -55,37 +55,38 @@ export function momentOf(value) {
 const text = (value) => (value === undefined || value === null ? '' : typeof value === 'object' ? null : String(value));
 
 // One frontmatter field's value: { yaml } to write it, {} to leave it out, or
-// { reason }. `images(address, field)` gives a master's address, or { reason }.
-function fieldValue(field, value, { images, terms }) {
+// { reason }. `images(address, field)` gives a master's address, or { reason }. A field is
+// named in a reason by its label, `named(name)`, as the form shows it.
+function fieldValue(field, value, { images, terms }, named) {
   if (TEXT_FIELDS.includes(field.kind)) {
     const written = text(value)?.trim();
-    if (written === undefined || written === null) return { reason: say('refusal.field-text', { field: field.name }) };
-    if (MARKUP.test(written)) return { reason: say('refusal.field-markup', { field: field.name }) };
-    if (written === '') return field.required ? { reason: say('refusal.field-required', { field: field.name }) } : {};
+    if (written === undefined || written === null) return { reason: say('refusal.field-text', { field: named(field.name) }) };
+    if (MARKUP.test(written)) return { reason: say('refusal.field-markup', { field: named(field.name) }) };
+    if (written === '') return field.required ? { reason: say('refusal.field-required', { field: named(field.name) }) } : {};
     return { yaml: JSON.stringify(written) };
   }
   switch (field.kind) {
     case 'image':
       return featuredImage(field, value, images);
     case 'teaser':
-      return teaserValue(field, value, images);
+      return teaserValue(field, value, images, named);
     case 'seo':
       return seoValue(field, value, images);
     case 'terms':
       return terms(field, value);
     case 'meta':
-      return ownField(field, value);
+      return ownField(field, value, named);
     default:
       return {};
   }
 }
 
-function ownField(field, value) {
+function ownField(field, value, named) {
   const stored = text(value);
-  if (stored === null) return { reason: say('refusal.field-value', { field: field.name }) };
+  if (stored === null) return { reason: say('refusal.field-value', { field: named(field.name) }) };
   const read = ownValue(stored, field);
   if (read.reason) return { reason: read.reason };
-  if (read.value === undefined) return field.required ? { reason: say('refusal.field-required', { field: field.name }) } : {};
+  if (read.value === undefined) return field.required ? { reason: say('refusal.field-required', { field: named(field.name) }) } : {};
   return { yaml: read.yaml };
 }
 
@@ -154,9 +155,9 @@ export function seoSource(fields) {
 }
 
 // The teaser: its image with its alt text, its headline and its text, each only when given.
-function teaserValue(field, value, images) {
+function teaserValue(field, value, images, named) {
   if (value === undefined || value === null) return {};
-  if (!isObject(value)) return { reason: say('refusal.field-text', { field: field.name }) };
+  if (!isObject(value)) return { reason: say('refusal.field-text', { field: named(field.name) }) };
   const written = {};
   let warning;
   const image = isObject(value.image) ? value.image : value.image ? { src: value.image } : null;
@@ -170,9 +171,9 @@ function teaserValue(field, value, images) {
   }
   for (const key of ['headline', 'text']) {
     const one = text(value[key]);
-    if (one === null) return { reason: say('refusal.field-text', { field: `${field.name}.${key}` }) };
+    if (one === null) return { reason: say('refusal.field-text', { field: named(`${field.name}.${key}`) }), part: `${field.name}.${key}` };
     const trimmed = one.trim();
-    if (MARKUP.test(trimmed)) return { reason: say('refusal.field-markup', { field: `${field.name}.${key}` }) };
+    if (MARKUP.test(trimmed)) return { reason: say('refusal.field-markup', { field: named(`${field.name}.${key}`) }), part: `${field.name}.${key}` };
     if (trimmed !== '') written[key] = trimmed;
   }
   return Object.keys(written).length === 0 ? {} : { yaml: JSON.stringify(written), warning };
@@ -201,11 +202,12 @@ export function fieldsOf(post, context, derived = {}) {
   const lines = [];
   const problems = [];
   const warnings = [];
+  const named = (name) => fieldValued(post.type, name);
   for (const field of post.type.fields) {
     const given = post.fields[field.name];
     if (field.kind === 'date') {
       const moment = given === undefined || given === null || given === '' ? derived.date : momentOf(given);
-      if (moment === null) problems.push({ field: field.name, reason: say('refusal.field-moment', { field: field.name, value: String(given) }) });
+      if (moment === null) problems.push({ field: field.name, reason: say('refusal.field-moment', { field: named(field.name), value: String(given) }) });
       else lines.push([field.name, moment ?? '']);
       continue;
     }
@@ -213,7 +215,7 @@ export function fieldsOf(post, context, derived = {}) {
       lines.push([field.name, derived.modified ?? '']);
       continue;
     }
-    const value = fieldValue(field, field.kind === 'seo' ? seoSource(post.fields) : given, context);
+    const value = fieldValue(field, field.kind === 'seo' ? seoSource(post.fields) : given, context, named);
     if (value.reason) problems.push({ field: value.part ?? field.name, reason: value.reason });
     else if (value.yaml !== undefined) lines.push([field.name, value.yaml]);
     if (value.warning) warnings.push({ field: field.name, reason: value.warning });

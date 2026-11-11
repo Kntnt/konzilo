@@ -143,7 +143,7 @@ describe('two posts at one address', () => {
     const [, second] = history({ [THE_POST]: post() }, { [THE_POST]: post(), [OTHER_POST]: post({ title: 'Other' }) });
     assert.equal(second.refusals.length, 1);
     assert.equal(second.refusals[0].post.id, 'bbbbbbbbbbbb');
-    assert.equal(second.refusals[0].field, 'slug');
+    assert.equal(second.refusals[0].field.name, 'slug');
     assert.equal(second.refusals[0].reason, 'the address /first/ belongs to "A post"; change this post\'s slug or parent');
   });
 
@@ -238,7 +238,7 @@ describe('what is derived', () => {
     const [first, second] = history({ [THE_POST]: post({ status: 'scheduled', date: passed }) }, { [THE_POST]: post({ status: 'scheduled', date: passed }) });
     assert.equal(frontmatter(written(first)['articles/first.md']).date, passed);
     for (const result of [first, second]) {
-      assert.deepEqual(warned(result).map(({ name, post: about, field, values }) => ({ name, post: about.id, field, values })), [{ name: 'warning.scheduled-passed', post: 'aaaaaaaaaaaa', field: 'date', values: { moment: { moment: passed } } }]);
+      assert.deepEqual(warned(result).map(({ name, post: about, field, values }) => ({ name, post: about.id, field: field.name, values })), [{ name: 'warning.scheduled-passed', post: 'aaaaaaaaaaaa', field: 'date', values: { moment: { moment: passed } } }]);
     }
 
     // One that waited, moved by another hand to a moment that has passed.

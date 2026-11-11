@@ -7,7 +7,7 @@ import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { cmsConfig } from '../src/cms/config.js';
-import { named, say } from '../src/intake/words.js';
+import { fieldNamed, named, say } from '../src/intake/words.js';
 import { siteDescription } from '../src/site-description.js';
 import { ENGINES } from './lib/editor.js';
 import { openFieldPage } from './lib/field-page.js';
@@ -413,6 +413,7 @@ describe('the interface language in Sveltia', () => {
   let site;
   let page;
   let seen;
+  let description;
 
   const origin = () => new URL(page.url()).origin;
   const bar = (name) => page.locator('button[aria-expanded]', { hasText: name }).first();
@@ -449,7 +450,7 @@ describe('the interface language in Sveltia', () => {
     const declared = JSON.parse(readFileSync(`${core}site-template/files/site-description.json`, 'utf8'));
     declared.language = 'sv_SE';
     declared.types.article.plural = { en: 'Articles', sv: 'Artiklar' };
-    const description = siteDescription(declared);
+    description = siteDescription(declared);
     const made = (language) => ({
       ...cmsConfig(description, { forgejo: 'http://localhost:1', repository: 'a/b', clientId: 'c', site: 'http://localhost:2', language }),
       backend: { name: 'test-repo' },
@@ -541,7 +542,7 @@ describe('the interface language in Sveltia', () => {
   // holds why its target cannot be, and a declared service's.
   test('refuses at Save and in the publish status in the interface language, naming what it is about', async () => {
     const answer = {
-      posts: [{ file: 'pages/aaaaaaaaaaaa.md', version: 'v1', status: 'failed', stillShown: false, id: 'aaaaaaaaaaaa', type: 'page', title: 'Untitled', refusals: [named({ post: { id: 'aaaaaaaaaaaa', type: 'page', title: 'aaaaaaaaaaaa' }, file: 'pages/aaaaaaaaaaaa.md', field: 'title', reason: say('refusal.title-empty') })] }],
+      posts: [{ file: 'pages/aaaaaaaaaaaa.md', version: 'v1', status: 'failed', stillShown: false, id: 'aaaaaaaaaaaa', type: 'page', title: 'Untitled', refusals: [named({ post: { id: 'aaaaaaaaaaaa', type: 'page', title: 'aaaaaaaaaaaa' }, file: 'pages/aaaaaaaaaaaa.md', field: fieldNamed(description.types.page, 'title'), reason: say('refusal.title-empty') })] }],
       others: {
         refusals: [
           named({ file: 'menus/main.json', entry: '1', reason: say('refusal.menu-title') }),
@@ -557,7 +558,7 @@ describe('the interface language in Sveltia', () => {
       {
         locale: null, start: 'Arbeta med test-repo', title: 'Titel', save: 'Spara',
         refusal: 'Block 1: webbplatsen kan inte publicera en rubrik på nivå 1: inläggets titel är dess nivå 1; använd en nivå från 2 till 6',
-        post: 'fältet title: webbplatsen kan inte publicera ett inlägg utan titel; ge det en',
+        post: 'fältet titel: webbplatsen kan inte publicera ett inlägg utan titel; ge det en',
         files: [
           'Filen menus/main.json, post 1: posten har ingen etikett; ge den en, eller välj ett inlägg',
           'Filen redirects.json, post 2: regeln från /old/ kan inte svara så: "old" är varken en adress på webbplatsen, med ett snedstreck först, eller en https://-adress',
@@ -614,7 +615,7 @@ describe('the interface language in Sveltia', () => {
   test('warns in the publish status, in the interface language, of a scheduled post published at once', async () => {
     const post = { id: 'bbbbbbbbbbbb', type: 'article', title: 'Imported long ago' };
     const answer = {
-      posts: [{ file: 'articles/bbbbbbbbbbbb.md', version: 'v1', status: 'live', ...post, address: '/imported-long-ago/', warnings: [named({ post, file: 'articles/bbbbbbbbbbbb.md', field: 'date', reason: say('warning.scheduled-passed', { moment: { moment: '2026-01-01T12:00:00Z' } }) })] }],
+      posts: [{ file: 'articles/bbbbbbbbbbbb.md', version: 'v1', status: 'live', ...post, address: '/imported-long-ago/', warnings: [named({ post, file: 'articles/bbbbbbbbbbbb.md', field: fieldNamed(description.types.article, 'date'), reason: say('warning.scheduled-passed', { moment: { moment: '2026-01-01T12:00:00Z' } }) })] }],
       others: { refusals: [], warnings: [] },
       reason: null,
       at: '2026-11-10T12:00:00Z',
@@ -622,7 +623,7 @@ describe('the interface language in Sveltia', () => {
     const editors = [
       {
         locale: null, start: 'Arbeta med test-repo', words: 'Publicerad på webbplatsen, men se över det här:',
-        warning: /^fältet date: inlägget är schemalagt till 1 januari 2026 kl\. \d\d:00 \S+, en tidpunkt som redan hade passerat när webbplatsen först läste det, så det publiceras direkt, med den tidpunkten som datum$/,
+        warning: /^fältet datum: inlägget är schemalagt till 1 januari 2026 kl\. \d\d:00 \S+, en tidpunkt som redan hade passerat när webbplatsen först läste det, så det publiceras direkt, med den tidpunkten som datum$/,
       },
       {
         locale: 'en-GB', start: 'Work with Test Repository', words: 'Live on the site, with something to look at:',
