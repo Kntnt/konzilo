@@ -1048,3 +1048,132 @@ for (const [engineName, engine] of Object.entries(ENGINES)) {
     });
   });
 }
+
+// A setting the site's settings file holds no value for shows its default, and a save leaves the
+// file holding only what differs from a default (ADR 0033). The test repository keeps its files in
+// the browser's own file system, where the settings file is written before the editor reads it and
+// read again after each save. Playwright's WebKit has no such file system, and its test repository
+// keeps its files in memory alone, so the suite runs in the other two engines.
+for (const [engineName, engine] of Object.entries(ENGINES).filter(([name]) => name !== 'webkit')) {
+  describe(`a setting's default in Sveltia, in ${engineName}`, () => {
+    let site;
+    let page;
+    let seen;
+
+    // A site that has set its title and the half-life of related posts, and nothing else.
+    const SETTINGS = `${JSON.stringify({ title: 'The Gentle Garden', related: { halfLife: 30 } }, null, 2)}\n`;
+    const fileSystem = (write) => page.evaluate(async (text) => {
+      const root = await (await navigator.storage.getDirectory()).getDirectoryHandle('sveltia-cms-test', { create: true });
+      const handle = await root.getFileHandle('settings.json', { create: true });
+      if (text === null) return (await handle.getFile()).text();
+      const writer = await handle.createWritable();
+      await writer.write(text);
+      await writer.close();
+      return text;
+    }, write);
+    const settingsFile = () => fileSystem(null);
+    const origin = () => new URL(page.url()).origin;
+    const bar = (name) => page.locator('button[aria-expanded]', { hasText: name }).first();
+    const field = (keyPath) => page.locator(`section.field[data-key-path="${keyPath}"]`);
+    // Sveltia draws a field as it comes near the window, so the form is scrolled until it is there.
+    const near = async (keyPath) => {
+      const box = await field('title').boundingBox();
+      await page.mouse.move(box.x + box.width / 2, box.y + 5);
+      for (let tries = 0; await field(keyPath).count() === 0 && tries < 40; tries += 1) {
+        await page.mouse.wheel(0, 400);
+        await page.waitForTimeout(150);
+      }
+      await field(keyPath).scrollIntoViewIfNeeded();
+      return field(keyPath);
+    };
+    const switchOf = async (keyPath) => (await near(keyPath)).getByRole('switch');
+    const numberOf = async (keyPath) => (await near(keyPath)).getByRole('spinbutton');
+    // The settings as Sveltia holds them, in a form of their own: from the file at the first
+    // opening, and as last saved after that.
+    const openSettings = async () => {
+      await page.goto(`${origin()}/#/collections/pages`);
+      await page.locator('section.field').first().waitFor({ state: 'detached' });
+      await page.goto(`${origin()}/#/collections/settings/entries/settings`);
+      await bar('AI visibility').waitFor();
+    };
+    const open = async (name) => {
+      if (await bar(name).getAttribute('aria-expanded') === 'false') await bar(name).click();
+    };
+    // What the settings file holds once Sveltia has saved it, as its notice of the save says, which
+    // stays a few seconds: the last save's is gone first.
+    const save = async () => {
+      const saved = page.getByText('Entry saved.');
+      await saved.first().waitFor({ state: 'detached' });
+      await page.getByRole('button', { name: 'Save', exact: true }).click();
+      await saved.first().waitFor();
+      return settingsFile();
+    };
+
+    before(async () => {
+      const declared = JSON.parse(readFileSync(`${core}site-template/files/site-description.json`, 'utf8'));
+      const config = cmsConfig(siteDescription(declared), { forgejo: 'http://localhost:1', repository: 'a/b', clientId: 'c', site: 'http://localhost:2' });
+      site = await openFieldPage({ engine, config: { ...config, backend: { name: 'test-repo' } } });
+      ({ page, seen } = await site.newPage({ viewport: { width: 1400, height: 1200 } }));
+      await fileSystem(SETTINGS);
+      await page.getByRole('button', { name: 'Work with Test Repository' }).click();
+      await page.getByText('Pages', { exact: true }).first().waitFor();
+    }, { timeout: 120_000 });
+
+    after(() => site?.close());
+
+    test('shows each setting\'s default where the file holds none, in a bar that stays closed while nothing in it is set', async () => {
+      await openSettings();
+      // The file holds no AI visibility, so its bar is closed, and its switches show their defaults.
+      assert.equal(await bar('AI visibility').getAttribute('aria-expanded'), 'false');
+      await open('AI visibility');
+      await open('Start page');
+      assert.equal(await (await switchOf('ai.home.markdown')).getAttribute('aria-checked'), 'true');
+      assert.equal(await (await switchOf('ai.home.llmsFull')).getAttribute('aria-checked'), 'true');
+      // The file holds the half-life of related posts, so that bar is open, and freshness, which
+      // it lacks, shows its default beside it.
+      assert.equal(await bar('Related posts').getAttribute('aria-expanded'), 'true');
+      assert.equal(await (await switchOf('related.freshness')).getAttribute('aria-checked'), 'true');
+      assert.equal(await (await numberOf('related.halfLife')).inputValue(), '30');
+    });
+
+    test('leaves the file as it was at a save after settings were changed and changed back', async () => {
+      await openSettings();
+      await open('AI visibility');
+      await open('Start page');
+      for (const keyPath of ['ai.home.markdown', 'related.freshness']) {
+        const toggle = await switchOf(keyPath);
+        await toggle.click();
+        assert.equal(await toggle.getAttribute('aria-checked'), 'false', keyPath);
+        await toggle.click();
+        assert.equal(await toggle.getAttribute('aria-checked'), 'true', keyPath);
+      }
+      const halfLife = await numberOf('related.halfLife');
+      await halfLife.fill('45');
+      await halfLife.fill('30');
+      // A switch of a group the file lacks, switched back, is a change to Sveltia, which saves.
+      assert.equal(await page.getByRole('button', { name: 'Save', exact: true }).isEnabled(), true);
+      assert.equal(await save(), SETTINGS);
+    });
+
+    test('keeps only what differs from a default: a switch turned off, and no half-life once it is the default again', async () => {
+      await openSettings();
+      await (await switchOf('related.freshness')).click();
+      const halfLife = await numberOf('related.halfLife');
+      await halfLife.fill('');
+      await halfLife.pressSequentially('90');
+      assert.equal(await halfLife.inputValue(), '90', 'what is typed shows as it is typed');
+      const expected = `${JSON.stringify({ title: 'The Gentle Garden', related: { freshness: false } }, null, 2)}\n`;
+      assert.equal(await save(), expected);
+      // Opened again, the half-life shows its default.
+      await openSettings();
+      assert.equal(await (await numberOf('related.halfLife')).inputValue(), '90');
+      assert.equal(await (await switchOf('related.freshness')).getAttribute('aria-checked'), 'false');
+    });
+
+    test('has asked nothing outside, and broken no policy', () => {
+      assert.deepEqual(seen.outside, []);
+      assert.deepEqual(seen.refused, []);
+      assert.deepEqual(seen.errors, []);
+    });
+  });
+}
