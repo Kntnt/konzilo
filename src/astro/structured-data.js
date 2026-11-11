@@ -33,12 +33,9 @@
 // to say: the article on a page of another type, the image on a page that
 // shares none, the breadcrumbs on the start page.
 
-import { isKindOfArticle } from '../format/built-in-types.js';
-
-// The structured data types of the rule data (`structuredDataTypes`) that
-// are kinds of web page, which the page's own node takes; a kind of article
-// gives the page an article node (built-in-types.js).
-const WEB_PAGES = new Set(['WebPage', 'AboutPage', 'ContactPage', 'CollectionPage']);
+// A kind of web page is the page's own node's type, and a kind of article gives the page an
+// article node (built-in-types.js).
+import { isKindOfArticle, isKindOfWebPage } from '../format/built-in-types.js';
 
 // The graph of a page, as JSON-LD: `page`, { title, description, schema,
 // headline, published, modified }, its title tag, meta description,
@@ -74,7 +71,7 @@ export function structuredData({ page, url, origin, languageTag, siteTitle, sear
     }),
     publisherNode(search.publisher ?? {}, { ...publisher, url: home }, logo),
     present({
-      '@type': WEB_PAGES.has(page.schema) ? page.schema : 'WebPage',
+      '@type': isKindOfWebPage(page.schema) ? page.schema : 'WebPage',
       ...webpage,
       url,
       name: page.title,
