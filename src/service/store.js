@@ -1,0 +1,77 @@
+// The service's data (ADR 0044): one SQLite database in a volume of the site's own, which the
+// archive, backups and restores carry. It holds the service's key, made once, from which its
+// timing tokens and its digests of clients are derived, and each form's submissions (ADR 0045).
+// Nothing in it holds a visitor's address, browser or referrer.
+//
+// Each change to what it holds is one step in STEPS, taken once, in order, and counted in the
+// database's own `user_version`, so that a later duty, such as mail or retention, adds a step of
+// its own and a database made before it is brought up to it at the next start.
+
+import { randomBytes } from 'node:crypto';
+import { DatabaseSync } from 'node:sqlite';
+
+// The file in the service's data folder.
+export const STORE_FILE = 'service.sqlite';
+
+const STEPS = [
+  `CREATE TABLE secret (name TEXT PRIMARY KEY, value BLOB NOT NULL) STRICT;
+   CREATE TABLE submission (
+     id INTEGER PRIMARY KEY,
+     form TEXT NOT NULL,
+     sent_at TEXT NOT NULL,
+     language TEXT NOT NULL,
+     spam TEXT,
+     fields TEXT NOT NULL
+   ) STRICT;
+   CREATE INDEX submission_by_form ON submission (form, sent_at);`,
+];
+
+// The store in `file`, made where there is none, and brought up to the last step. Two programs may
+// hold it open at once, the service's two roles, each waiting a moment for the other's write.
+//
+// Gives { key, keep(submission), submissions(form), close() }: `key`, 32 bytes, the same from the
+// first opening on; `keep` takes { form, sentAt, language, spam, fields }, `sentAt` a Date,
+// `spam` null or why it was held as spam, and `fields` each { name, label, value }, and gives its
+// number; `submissions` gives a form's, newest first, each as kept with its `id` and `sentAt` in
+// ISO 8601, UTC.
+export function openStore(file) {
+  const database = new DatabaseSync(file);
+  database.exec('PRAGMA busy_timeout = 5000');
+  database.exec('PRAGMA journal_mode = WAL');
+  database.exec('BEGIN IMMEDIATE');
+  try {
+    const done = database.prepare('PRAGMA user_version').get().user_version;
+    for (const [at, step] of STEPS.entries()) if (at >= done) database.exec(step);
+    database.exec(`PRAGMA user_version = ${STEPS.length}`);
+    database.prepare("INSERT OR IGNORE INTO secret (name, value) VALUES ('key', ?)").run(randomBytes(32));
+    database.exec('COMMIT');
+  } catch (error) {
+    database.exec('ROLLBACK');
+    database.close();
+    throw error;
+  }
+  const key = Buffer.from(database.prepare("SELECT value FROM secret WHERE name = 'key'").get().value);
+
+  const insert = database.prepare('INSERT INTO submission (form, sent_at, language, spam, fields) VALUES (?, ?, ?, ?, ?)');
+  const byForm = database.prepare('SELECT id, form, sent_at, language, spam, fields FROM submission WHERE form = ? ORDER BY sent_at DESC, id DESC');
+
+  return {
+    key,
+    keep({ form, sentAt, language, spam = null, fields }) {
+      return Number(insert.run(form, sentAt.toISOString(), language, spam, JSON.stringify(fields)).lastInsertRowid);
+    },
+    submissions(form) {
+      return byForm.all(form).map((row) => ({
+        id: Number(row.id),
+        form: row.form,
+        sentAt: row.sent_at,
+        language: row.language,
+        spam: row.spam,
+        fields: JSON.parse(row.fields),
+      }));
+    },
+    close() {
+      database.close();
+    },
+  };
+}
