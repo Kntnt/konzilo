@@ -194,9 +194,10 @@ export function registerParts(CMS, config) {
       page ? h('a', { className: 'konzilo-part-button', href: page, target: '_blank', rel: 'noopener' }, say('parts.slugShow')) : null);
   });
 
-  // The structured data type: the type's own shows as chosen while the post has none, and
-  // choosing it again leaves the post with none, so that a later change of the type's setting
-  // reaches it.
+  // The structured data type, among those the post's type offers: the type's own shows as
+  // chosen while the post has none, and choosing it again leaves the post with none, so that a
+  // later change of the type's setting reaches it. The type's own is the settings' choice where
+  // the type offers it, else its default, the first it offers, as the build takes it.
   CMS.registerFieldType(SCHEMA_WIDGET, function KonziloSchema({ value, onChange, field, forID }) {
     const options = plain(field.get('options')) ?? [];
     const type = plain(field.get('type'));
@@ -206,13 +207,15 @@ export function registerParts(CMS, config) {
       let gone = false;
       void readSettings().then((settings) => {
         const chosen = settings.search?.types?.[type]?.schema;
-        if (!gone && chosen) setPreset(chosen);
+        if (!gone && options.includes(chosen)) setPreset(chosen);
       });
       return () => {
         gone = true;
       };
     }, [type]);
-    return h('select', { id: forID, className: 'konzilo-part-input konzilo-part-select', value: value && value !== preset ? value : '', onChange: (event) => onChange(event.target.value) },
+    // A stored choice the type does not offer shows as the type's own, which the build takes.
+    const shown = value && value !== preset && options.includes(value) ? value : '';
+    return h('select', { id: forID, className: 'konzilo-part-input konzilo-part-select', value: shown, onChange: (event) => onChange(event.target.value) },
       options.map((one) => (one === preset
         ? h('option', { key: one, value: '' }, say('parts.schemaPreset', { type: one, plural: typeLabel }))
         : h('option', { key: one, value: one }, one))));

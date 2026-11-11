@@ -9,8 +9,8 @@ import { ownValue } from '../format/frontmatter.js';
 import { metaLineProblems, metaLineVariables } from '../meta-line.js';
 import { templateProblems, variablesOf } from '../metadata-templates.js';
 import { groupsIn, isSiteTitle, leastProblem, TYPES } from '../settings-groups.js';
-import { IMAGE, POST } from '../site-description.js';
-import { say } from './words.js';
+import { IMAGE, POST, SCHEMA_TYPES } from '../site-description.js';
+import { notOffered, say } from './words.js';
 
 const NOT_FOUND = 'notFound';
 
@@ -102,6 +102,10 @@ function settingValue(setting, raw, at, context) {
     if (setting.required) return { reason: say('refusal.setting-required') };
     return setting.type === 'boolean' ? { value: false } : {};
   }
+  if (setting.structuredDataTypes) {
+    const named = typeof raw === 'string' ? raw.trim() : raw;
+    if (SCHEMA_TYPES.includes(named) && !setting.options.includes(named)) return { value: setting.default, warning: notOffered(named, context.type) };
+  }
   return plainValue(setting, raw, context.variables);
 }
 
@@ -157,7 +161,7 @@ export function settingsFor(site, source, language, hands) {
         into[TYPES][part.type] = {};
         const type = site.types[part.type];
         const variables = { template: variablesOf(type), metaLine: metaLineVariables(type) };
-        readSettings(part.settings, stored[TYPES]?.[part.type], `${path}${TYPES}.${part.type}.`, into[TYPES][part.type], { ...context, variables });
+        readSettings(part.settings, stored[TYPES]?.[part.type], `${path}${TYPES}.${part.type}.`, into[TYPES][part.type], { ...context, variables, type });
       }
     }
     values[group.name] = into;

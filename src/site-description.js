@@ -9,7 +9,7 @@
 import { readFileSync } from 'node:fs';
 import { catalogueFor, INTERFACE_LANGUAGES, labelIn, SOURCE_LANGUAGE } from './catalogues.js';
 import { freeze, interfaceLanguagesNamed, isObject, label, onlyKeys as checkedKeys, text } from './checks.js';
-import { ARTICLE, BUILT_IN_TAXONOMIES, BUILT_IN_TYPES, catalogueLabel, fieldsWith } from './format/built-in-types.js';
+import { ARTICLE, BUILT_IN_TAXONOMIES, BUILT_IN_TYPES, catalogueLabel, EVERY_STRUCTURED_DATA_TYPE, fieldsWith } from './format/built-in-types.js';
 import { IMAGE_LIBRARY_FOLDER, MEDIA_FOLDER } from './format/masters.js';
 import { suffixTakenIn } from './format/public-suffixes.js';
 import { readComponents, withComponents } from './format/components.js';
@@ -152,7 +152,7 @@ const results = new WeakSet();
 //   { language: <locale> or null,
 //     languages: [ { locale, tag, prefix, main } ],
 //     interfaceLanguage: <interface language>,
-//     types: { <post type>: { name, builtIn, label, plural, collection, address, feed, hierarchical, search, elements, fields, editor } },
+//     types: { <post type>: { name, builtIn, label, plural, collection, address, feed, hierarchical, search, elements, fields, editor, structuredDataTypes } },
 //     taxonomies: { <taxonomy>: { name, builtIn, label, plural, collection, hierarchical, address, feed } },
 //     images: { smallestWidth, displayWidth } or null,
 //     menus: { <menu>: { name, label } },
@@ -180,7 +180,9 @@ const results = new WeakSet();
 // core's own, built in (format/built-in-types.js), and `builtIn` names it, null on a
 // type of the site's own: the site gives it what it gives any type but its fields, its
 // label and plural where it wants its own, and fields of its own, and the type has the
-// core's fields, with the site's own before the search and sharing fields. An article
+// core's fields, with the site's own before the search and sharing fields. A type's
+// `structuredDataTypes` are those its posts may have, its default first: a built-in type's
+// the core's, and a type of the site's own's those it declares, else a page's. An article
 // brings the built-in taxonomies `authors`, `category` and `topics`, first among the
 // taxonomies, to which a site may give an address, a feed and a label of its own; on a
 // site without the article, a taxonomy of one of these names is the site's own. Where a
@@ -874,7 +876,7 @@ function typeOf(name, type, path, site, problems) {
     return null;
   }
   const builtIn = Object.hasOwn(BUILT_IN_TYPES, name) ? BUILT_IN_TYPES[name] : null;
-  onlyKeys(type, ['label', 'plural', 'collection', 'address', 'feed', 'hierarchical', 'search', 'elements', 'fields', 'editor'], path, problems);
+  onlyKeys(type, ['label', 'plural', 'collection', 'address', 'feed', 'hierarchical', 'search', 'elements', 'fields', 'editor', 'structuredDataTypes'], path, problems);
   if (type.editor !== undefined && !EDITORS.includes(type.editor)) problems.push(`${path}.editor: must be ${EDITORS.join(' or ')}, how an editor writes the body`);
   if (builtIn && !builtIn.hierarchical && type.hierarchical !== undefined) {
     problems.push(`${path}.hierarchical: an ${name} has no parent; only a page and a canvas may be hierarchical`);
@@ -894,6 +896,7 @@ function typeOf(name, type, path, site, problems) {
     search: takesPart(type.search, address, site.addresses.searched, `${path}.search`, problems),
     elements: elementsOf(type.elements, `${path}.elements`, site.rules, problems),
     editor: EDITORS.includes(type.editor) ? type.editor : 'text',
+    structuredDataTypes: structuredDataTypesOf(name, type.structuredDataTypes, builtIn, `${path}.structuredDataTypes`, problems),
     fields: [],
   };
   const declaredFields = entries(type.fields, `${path}.fields`, problems, false);
@@ -930,6 +933,21 @@ function ownOfBuiltIn(type, name, declared, path, problems) {
     return false;
   }
   return true;
+}
+
+// The structured data types a type offers its posts, its default first: a built-in type's are
+// the core's, and a type of the site's own's those it declares, each once, else what a page
+// offers.
+function structuredDataTypesOf(name, declared, builtIn, path, problems) {
+  if (builtIn) {
+    if (declared !== undefined) problems.push(`${path}: the built-in ${name} offers the core's structured data types; leave it out`);
+    return builtIn.structuredDataTypes;
+  }
+  if (declared === undefined) return EVERY_STRUCTURED_DATA_TYPE;
+  const known = Array.isArray(declared) && declared.length > 0 && new Set(declared).size === declared.length && declared.every((one) => SCHEMA_TYPES.includes(one));
+  if (known) return Object.freeze([...declared]);
+  problems.push(`${path}: must list the structured data types the type offers, each once, its default first, among ${SCHEMA_TYPES.slice(0, -1).join(', ')} and ${SCHEMA_TYPES.at(-1)}`);
+  return EVERY_STRUCTURED_DATA_TYPE;
 }
 
 // A field of the site's own on a built-in type, a value, is one the editor keeps in a group of the

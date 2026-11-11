@@ -281,6 +281,26 @@ describe('the interface language', () => {
     }
   });
 
+  test('offers each type\'s structured data types in the settings, its default first and chosen', () => {
+    const made = cmsConfig(swedish, { ...place, language: 'en' });
+    const group = field(made.collections.find((one) => one.name === 'settings').files[0].fields, 'search');
+    // Each has a default, so it is the core's field for a setting, which shows Sveltia's select.
+    const schema = (type) => {
+      const one = field(field(field(group.fields, 'types').fields, type).fields, 'schema');
+      assert.equal(one.widget, 'konzilo-setting', type);
+      return one.field;
+    };
+    const every = ['WebPage', 'AboutPage', 'ContactPage', 'CollectionPage', 'Article', 'BlogPosting', 'NewsArticle'];
+    assert.equal(schema('article').widget, 'select');
+    assert.deepEqual(schema('article').options.map(({ value }) => value), ['Article', 'BlogPosting', 'NewsArticle']);
+    assert.equal(schema('article').default, 'Article');
+    for (const type of ['page', 'canvas']) {
+      assert.deepEqual(schema(type).options.map(({ value }) => value), every, type);
+      assert.equal(schema(type).default, 'WebPage', type);
+    }
+    assert.deepEqual(schema('article').options[1], { value: 'BlogPosting', label: 'BlogPosting' });
+  });
+
   test('shows the half-life of related posts among the settings groups in the interface language, with its default, and the switch for freshness', () => {
     const related = (language) => {
       const made = cmsConfig(swedish, { ...place, language });
@@ -765,14 +785,22 @@ describe('labels in phrases', () => {
     assert.equal(field(field(settings, 'consent').fields, 'bannerTitle').label, 'banner: titel', 'and the core\'s, in Swedish');
   });
 
-  // Whether a post is an article is whether its type is the built-in article, so the structured
-  // data type a type has before a site sets its own is Article for the built-in article alone.
-  test('preset the built-in article\'s structured data type as Article, and any other type\'s, one of the site\'s own with a date too, as WebPage', () => {
+  // A post's structured data type is among those its type offers, and its type's own, before a
+  // site sets one, is the first of them.
+  test('offer a post the structured data types its type offers, and preset its type\'s default, the first of them', () => {
     const given = declared();
     given.types.story = { label: 'Story', plural: 'Stories', collection: 'stories', address: '/stories/{slug}/', elements: ['paragraph'], fields: { date: {}, seo: {} } };
+    given.types.review = { label: 'Review', plural: 'Reviews', collection: 'reviews', address: '/reviews/{slug}/', elements: ['paragraph'], fields: { seo: {} }, structuredDataTypes: ['BlogPosting', 'Article'] };
     const made = cmsConfig(siteDescription(given), place);
-    const preset = (name) => field(one(made, name).fields.find((each) => each.name === 'structured').fields, 'schema').preset;
-    assert.deepEqual(['articles', 'pages', 'canvases', 'stories'].map(preset), ['Article', 'WebPage', 'WebPage', 'WebPage']);
+    const schema = (name) => field(one(made, name).fields.find((each) => each.name === 'structured').fields, 'schema');
+    const every = ['WebPage', 'AboutPage', 'ContactPage', 'CollectionPage', 'Article', 'BlogPosting', 'NewsArticle'];
+    assert.deepEqual(['articles', 'pages', 'canvases', 'stories', 'reviews'].map((name) => [schema(name).options, schema(name).preset]), [
+      [['Article', 'BlogPosting', 'NewsArticle'], 'Article'],
+      [every, 'WebPage'],
+      [every, 'WebPage'],
+      [every, 'WebPage'],
+      [['BlogPosting', 'Article'], 'BlogPosting'],
+    ]);
   });
 
   // The structured data type's own, while a post has none, is "{type} (förvald för {plural})".

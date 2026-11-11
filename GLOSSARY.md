@@ -72,6 +72,8 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Teaser**: What shows a post elsewhere, in a list, a search result or a shared link: its image, headline and text, each the post's own or what it falls back to. _Avoid_: card, excerpt (for the teaser as a whole).
 
+**Structured data type**: The schema.org type a post's page names it by in its structured data, such as `AboutPage` or `NewsArticle`: its own choice, else its type's from the site settings, among those its type offers. A kind of article makes the post an article to search engines and social networks, whatever its type. _Avoid_: schema (alone), schema type.
+
 **Hierarchical type**: A post type whose posts have parents, so that its addresses and published files follow their paths. _Avoid_: nested type, tree.
 
 **Path**: A post's ancestors' slugs, from the top, and its own, joined by `/`, as `about-us/team`.
