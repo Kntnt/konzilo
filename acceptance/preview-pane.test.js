@@ -13,6 +13,7 @@ import { previewLink } from '../src/astro/preview-link.js';
 import { cmsConfig } from '../src/cms/config.js';
 import { PLACE_MESSAGE, SHOW_MESSAGE } from '../src/cms/preview/paths.js';
 import { siteDescription } from '../src/site-description.js';
+import { openNew } from './lib/editor.js';
 import { openFieldPage } from './lib/field-page.js';
 
 const core = fileURLToPath(new URL('../', import.meta.url));
@@ -38,10 +39,7 @@ describe('the preview\'s pane, on a site in two languages', () => {
   let wheres;
   let whereAnswer;
 
-  const newEntry = async (collection) => {
-    await page.goto(`${new URL(page.url()).origin}/#/collections/${collection}/new`);
-    await page.locator('.konzilo-body-visual .ProseMirror').first().waitFor();
-  };
+  const newEntry = (collection) => openNew(page, collection);
   const draftWith = async (check) => {
     for (let waited = 0; waited < 10_000; waited += 100) {
       const found = drafts.findLast(check);
@@ -297,7 +295,7 @@ describe('the preview\'s pane, on a site in two languages', () => {
 
     test('opens the block\'s row in the structure field, and leaves the focus in the preview', async () => {
       answer = { address: '/blocks/', refusals: [] };
-      await page.goto(`${new URL(page.url()).origin}/#/collections/landings/new`);
+      await openNew(page, 'landings', '.konzilo-tree-host');
       const tree = page.locator('.konzilo-tree-host').first();
       await tree.locator('.konzilo-tree-modes button').nth(1).click();
       await tree.locator('.konzilo-tree-source').fill(BLOCKS_BODY);

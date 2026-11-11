@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { cmsConfig } from '../src/cms/config.js';
 import { fieldNamed, named, say } from '../src/intake/words.js';
 import { siteDescription } from '../src/site-description.js';
-import { ENGINES } from './lib/editor.js';
+import { ENGINES, openNew } from './lib/editor.js';
 import { openFieldPage } from './lib/field-page.js';
 
 const core = fileURLToPath(new URL('../', import.meta.url));
@@ -20,10 +20,7 @@ describe('the form in Sveltia', () => {
   let seen;
 
   const bar = (name) => page.locator('button[aria-expanded]', { hasText: name }).first();
-  const newEntry = async (collection) => {
-    await page.goto(`${new URL(page.url()).origin}/#/collections/${collection}/new`);
-    await page.locator('.konzilo-body-visual .ProseMirror').waitFor();
-  };
+  const newEntry = (collection) => openNew(page, collection);
   // A saved entry stays open, under an address of its own, and an editor leaves it for the list.
   const save = async () => {
     await page.getByRole('button', { name: 'Save', exact: true }).click();
@@ -151,11 +148,7 @@ describe('field groups in Sveltia', () => {
   let page;
   let seen;
 
-  const origin = () => new URL(page.url()).origin;
-  const open = async (path) => {
-    await page.goto(`${origin()}/#/collections/${path}`);
-    await page.locator('.konzilo-body-visual .ProseMirror').waitFor();
-  };
+  const open = (collection) => openNew(page, collection);
   const group = (name) => page.locator(`section.field[data-key-path="${name}"]`);
   const textbox = (name) => page.getByRole('textbox', { name, exact: true });
   // A group's menu, opened, as an editor opens it: what it offers, and whether each is greyed.
@@ -183,7 +176,7 @@ describe('field groups in Sveltia', () => {
   after(() => site?.close());
 
   test('give the article its form in story 23\'s order, each group one section with one menu, and no publishing row', async () => {
-    await open('articles/new');
+    await open('articles');
     const sections = await page.evaluate(() => [...document.querySelectorAll('section.field[data-key-path]')].map((one) => one.dataset.keyPath).filter((key) => !key.includes('.')));
     assert.deepEqual(sections, ['group-name', 'group-status', 'image', 'group-terms', 'group-headline', 'standfirst', 'body', 'teaser', 'search', 'sharing', 'structured', 'otherAddresses']);
     const holds = async (name, labels) => {
@@ -201,7 +194,7 @@ describe('field groups in Sveltia', () => {
   });
 
   test('keep a page\'s publishing row', async () => {
-    await open('pages/new');
+    await open('pages');
     await group('publishing').waitFor();
     const sections = await page.evaluate(() => [...document.querySelectorAll('section.field[data-key-path]')].map((one) => one.dataset.keyPath).filter((key) => !key.includes('.')));
     assert.deepEqual(sections.slice(0, 3), ['group-name', 'group-status', 'publishing']);
@@ -211,7 +204,7 @@ describe('field groups in Sveltia', () => {
   // it that adds a subheadline, neither part with a label of its own. A part emptied, by the editor
   // or from the menu, is its button again.
   test('show a new article\'s main headline alone, between a button that adds an eyebrow and one that adds a subheadline, each a part with the focus in it until emptied', async () => {
-    await open('articles/new');
+    await open('articles');
     const headline = group('group-headline');
     await headline.scrollIntoViewIfNeeded();
     const top = async (locator) => (await locator.boundingBox()).y;
@@ -260,7 +253,7 @@ describe('field groups in Sveltia', () => {
   });
 
   test('revert, restore and clear every field a group covers, and never restore a required field without a default to nothing', async () => {
-    await open('articles/new');
+    await open('articles');
     await textbox('Working name').fill('Harbour lights');
     await page.getByRole('button', { name: '+ Add an eyebrow' }).click();
     await textbox('Eyebrow').fill('Coast');
@@ -304,7 +297,7 @@ describe('field groups in Sveltia', () => {
   });
 
   test('give the slug made from the name as its default, from Restore Default and Clear, and grey Restore Default while it is that', async () => {
-    await open('articles/new');
+    await open('articles');
     await textbox('Working name').fill('Quiet quay');
     const slug = group('group-name').locator('[data-key-path="group-name.slug"] input');
     await page.waitForFunction(() => document.querySelector('[data-key-path="group-name.slug"] input')?.value === 'quiet-quay');
@@ -335,7 +328,7 @@ describe('field groups in Sveltia', () => {
   });
 
   test('work with the keyboard alone', async () => {
-    await open('articles/new');
+    await open('articles');
     await textbox('Working name').fill('Keys');
     await group('group-name').getByRole('button', { name: 'Show Field Options' }).focus();
     await page.keyboard.press('Enter');
@@ -378,8 +371,7 @@ describe('a scheduled post at Save in Sveltia', () => {
   after(() => site?.close());
 
   test('is refused with a moment in the past, saying why, and saves with one ahead', async () => {
-    await page.goto(`${new URL(page.url()).origin}/#/collections/articles/new`);
-    await page.locator('.konzilo-body-visual .ProseMirror').waitFor();
+    await openNew(page, 'articles');
     // An article needs its main headline, and nothing else but its moment can stop it here.
     await page.getByRole('textbox', { name: 'Working name', exact: true }).fill('Out on time');
     await page.getByRole('textbox', { name: 'Main headline', exact: true }).fill('Out on time');
@@ -428,10 +420,7 @@ describe('the interface language in Sveltia', () => {
     await page.getByText(words.label, { exact: true }).waitFor();
     await page.getByText(words.help).waitFor();
   };
-  const newArticle = async () => {
-    await page.goto(`${origin()}/#/collections/articles/new`);
-    await page.locator('.konzilo-body-visual .ProseMirror').waitFor();
-  };
+  const newArticle = () => openNew(page, 'articles');
   // Sveltia's own choice of language, in its preferences, from the list of articles.
   const choose = async (words, option) => {
     await page.goto(`${origin()}/#/collections/articles`);
@@ -701,10 +690,7 @@ describe('the body field, the preview and the publish status in the interface la
   let seen;
 
   const origin = () => new URL(page.url()).origin;
-  const open = async (collection) => {
-    await page.goto(`${origin()}/#/collections/${collection}/new`);
-    await page.locator('.konzilo-body-visual .ProseMirror, .konzilo-tree-host').first().waitFor();
-  };
+  const open = (collection) => openNew(page, collection, '.konzilo-body-visual .ProseMirror, .konzilo-tree-host');
   // Sveltia's own choice of language, in its preferences, from the list of pages, which shows
   // again, named in the language chosen, `to`, once Sveltia has signed in anew.
   const choose = async ({ sveltia }, option, to) => {
@@ -874,12 +860,7 @@ for (const [engineName, engine] of Object.entries(ENGINES)) {
     let seen;
 
     const origin = () => new URL(page.url()).origin;
-    // A new post of a collection, once its own form is there, by a field only that form has.
-    const open = async (collection, only) => {
-      await page.goto(`${origin()}/#/collections/${collection}/new`);
-      await page.locator(`section.field[data-key-path="${only}"]`).waitFor();
-      await page.locator('.konzilo-body-visual .ProseMirror').waitFor();
-    };
+    const open = (collection) => openNew(page, collection);
     const group = (name) => page.locator(`section.field[data-key-path="${name}"]`);
     // What a person reads: the text as drawn, with the capital the stylesheet gives it, and
     // without the marks Sveltia keeps a name apart with, which nobody sees.
@@ -914,7 +895,7 @@ for (const [engineName, engine] of Object.entries(ENGINES)) {
     after(() => site?.close());
 
     test('reads "Lägg till annan adress" and "0 andra adresser" under the heading "Andra adresser", and adds a category and a topic with a small letter', async () => {
-      await open('articles', 'group-terms');
+      await open('articles');
       assert.equal(await title(), 'Skapar artikel – Konzilo');
       const other = group('otherAddresses');
       await other.scrollIntoViewIfNeeded();
@@ -938,7 +919,7 @@ for (const [engineName, engine] of Object.entries(ENGINES)) {
       const shown = await items.evaluateAll((all) => all.map((one) => one.innerText.trim()));
       for (const name of ['Artikel', 'Sida', 'FAQ', 'Kategori', 'Ämne', 'Bild']) assert.ok(shown.includes(name), `${name} in ${shown}`);
       await page.keyboard.press('Escape');
-      await open('faqs', 'question');
+      await open('faqs');
       assert.equal(await title(), 'Skapar FAQ – Konzilo');
       await page.locator('button[aria-expanded]', { hasText: 'Strukturerad data' }).first().click();
       const preset = group('structured').locator('option[value=""]');
@@ -947,7 +928,7 @@ for (const [engineName, engine] of Object.entries(ENGINES)) {
     });
 
     test('hold the article\'s own fields in a group of their own, after the body and before the teaser, with one menu that never restores a required field to nothing', async () => {
-      await open('articles', 'group-terms');
+      await open('articles');
       assert.deepEqual(await sections(), ['group-name', 'group-status', 'image', 'group-terms', 'group-headline', 'standfirst', 'body', 'group-own', 'teaser', 'search', 'sharing', 'structured', 'otherAddresses']);
       const own = group('group-own');
       await own.scrollIntoViewIfNeeded();
@@ -976,7 +957,7 @@ for (const [engineName, engine] of Object.entries(ENGINES)) {
     });
 
     test('keep a type of the site\'s own in the order it declares, with the core\'s fields in their groups and its field named as the article\'s own where it is, and save it', async () => {
-      await open('faqs', 'question');
+      await open('faqs');
       assert.deepEqual(await sections(), ['group-name', 'group-status', 'publishing', 'body', 'question', 'group-headline', 'rating', 'search', 'sharing', 'structured', 'otherAddresses']);
       await group('rating').scrollIntoViewIfNeeded();
       await group('rating').getByRole('spinbutton', { name: 'Stjärnor' }).fill('3');
@@ -994,7 +975,7 @@ for (const [engineName, engine] of Object.entries(ENGINES)) {
 
     // Sveltia's own menu would restore it to nothing, so it stands in a group of the core's alone.
     test('give a required field standing alone one menu, which greys Restore Default and keeps what it holds, and stop a save without it, naming it', async () => {
-      await open('faqs', 'question');
+      await open('faqs');
       const question = group('question');
       const box = question.getByRole('textbox', { name: 'Fråga', exact: true });
       await box.fill('Var ligger hamnen?');

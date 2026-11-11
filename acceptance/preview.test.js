@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
 
 import { sharp } from '../tests/lib/images.js';
-import { ENGINES, openEditor, signIn } from './lib/editor.js';
+import { ENGINES, openEditor, openNew, signIn } from './lib/editor.js';
 import { framesWhile, isBlank } from './lib/frames.js';
 import { makeSite } from './lib/site.js';
 
@@ -345,10 +345,7 @@ describe('the live preview', () => {
 
     after(() => session?.browser.close());
 
-    const newEntry = async (collection) => {
-      await page.goto(`${site.origin.admin}/#/collections/${collection}/new`);
-      await page.locator('.konzilo-body-visual .ProseMirror').waitFor({ timeout: 30_000 });
-    };
+    const newEntry = (collection) => openNew(page, collection);
 
     test('has a page before it has been saved', async () => {
       await newEntry('pages');
