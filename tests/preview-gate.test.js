@@ -2,16 +2,29 @@
 // this test: who gets past it, what it says about every answer, and what it never passes on.
 
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { createServer, request as httpRequest } from 'node:http';
 import { after, before, beforeEach, describe, test } from 'node:test';
 
 import { isLivePreview, isPublicBuild } from '../src/astro/public-site.js';
-import { DRAFT_PATH, HEALTH_PATH, SESSION_PATH, WHERE_PATH } from '../src/cms/preview/paths.js';
+import { text } from '../src/catalogues.js';
+import { DRAFT_PATH, HEALTH_PATH, SESSION_PATH, SIGN_IN_PATH, WHERE_PATH } from '../src/cms/preview/paths.js';
 import { previewGate } from '../src/preview/gate.js';
 
 const ADMIN = 'http://localhost:7002';
+const FORGEJO = 'http://localhost:7003';
+const PREVIEW = 'http://localhost:7004';
+const CLIENT = 'the-previews-client';
 const WRITER = 'token may-write';
 const READER = 'Bearer may-read';
+// What Forgejo gives a browser back after its sign-in, and the token the gate is given for each.
+const CODES = { 'code-writer': 'oauth.may-write', 'code-reader': 'oauth.may-read' };
+// How often the right to see the preview is asked again, and how long a session lasts after it
+// was last asked, for what is not a page of its own.
+const CHECK_EVERY = 10 * 60 * 1000;
+const SESSION_LIFE = 60 * 60 * 1000;
+// A code that reaches Forgejo while it does not answer.
+const DOWN = 'code-while-down';
 
 const listen = (server) => new Promise((resolve) => {
   server.listen(0, '127.0.0.1', () => resolve(server.address().port));
@@ -34,13 +47,30 @@ describe('the preview\'s gate', () => {
   let forgejoDown;
   let takeFails;
   let startFails;
+  let ready;
+  let exchanged;
+  let removed;
 
   before(async () => {
-    forgejo = createServer((incoming, outgoing) => {
-      const push = incoming.headers.authorization === WRITER;
-      const known = push || incoming.headers.authorization === READER;
+    forgejo = createServer(async (incoming, outgoing) => {
+      if (incoming.url === '/login/oauth/access_token') {
+        let body = '';
+        for await (const part of incoming) body += part;
+        const given = Object.fromEntries(new URLSearchParams(body));
+        exchanged.push({ method: incoming.method, type: incoming.headers['content-type'], given });
+        if (given.code === DOWN) {
+          outgoing.writeHead(503);
+          return outgoing.end();
+        }
+        const token = CODES[given.code];
+        outgoing.writeHead(token ? 200 : 400, { 'Content-Type': 'application/json' });
+        return outgoing.end(JSON.stringify(token ? { access_token: token, token_type: 'bearer', expires_in: 3600, refresh_token: 'never-kept' } : { error: 'invalid_grant' }));
+      }
+      const { authorization } = incoming.headers;
+      const push = (authorization === WRITER || authorization === `Bearer ${CODES['code-writer']}`) && !removed;
+      const known = push || [WRITER, READER, `Bearer ${CODES['code-writer']}`, `Bearer ${CODES['code-reader']}`].includes(authorization);
       outgoing.writeHead(known ? 200 : 401, { 'Content-Type': 'application/json' });
-      outgoing.end(JSON.stringify(known && incoming.url === '/api/v1/repos/a/source' ? { permissions: { push } } : {}));
+      return outgoing.end(JSON.stringify(known && incoming.url === '/api/v1/repos/a/source' ? { permissions: { push } } : {}));
     });
     const forgejoPort = await listen(forgejo);
     inner = createServer((incoming, outgoing) => {
@@ -82,9 +112,12 @@ describe('the preview\'s gate', () => {
     });
     const innerPort = await listen(inner);
     const gate = previewGate({
-      origin: 'http://localhost:7004',
+      origin: PREVIEW,
       adminOrigin: ADMIN,
       forgejo: `http://127.0.0.1:${forgejoPort}`,
+      forgejoOrigin: FORGEJO,
+      clientId: CLIENT,
+      language: 'sv',
       repository: 'a/source',
       cookieName: 'a_preview',
       now: () => clock,
@@ -103,6 +136,7 @@ describe('the preview\'s gate', () => {
           starts += 1;
           if (startFails) throw new Error('did not start');
         },
+        ready: () => ready,
       },
     });
     outer = createServer((incoming, outgoing) => {
@@ -126,6 +160,9 @@ describe('the preview\'s gate', () => {
     clock = 1_000_000;
     takeFails = false;
     startFails = false;
+    ready = true;
+    exchanged = [];
+    removed = false;
   });
 
   const session = (authorization = WRITER, from = ADMIN) => fetch(`${origin}${SESSION_PATH}`, { method: 'POST', headers: { origin: from, authorization } });
@@ -136,6 +173,287 @@ describe('the preview\'s gate', () => {
     return answer;
   };
   const draft = (body, headers = {}) => fetch(`${origin}${DRAFT_PATH}`, { method: 'POST', headers: { origin: ADMIN, cookie, 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
+
+  // A browser's visit to a page in a tab of its own, with what it holds of this host.
+  const visit = (path, held = null, headers = {}) => fetch(`${origin}${path}`, {
+    redirect: 'manual',
+    headers: { accept: 'text/html,*/*;q=0.8', 'sec-fetch-dest': 'document', 'sec-fetch-mode': 'navigate', ...(held ? { cookie: held } : {}), ...headers },
+  });
+  const pairOf = (answer, name) => answer.headers.getSetCookie().map((set) => set.split(';')[0]).find((pair) => pair.startsWith(`${name}`)) ?? null;
+  // Whether an answer gives no session: none set, or one emptied.
+  const givesNone = (answer) => [null, 'a_preview='].includes(pairOf(answer, 'a_preview='));
+
+  // Forgejo's sign-in, as a browser goes through it for a visit to `path`, and the gate's answer
+  // when Forgejo sends it back with `code`. Someone already signed in to Forgejo is sent back
+  // at once; anyone else signs in first, which makes no difference to the gate.
+  const signInAs = async (path, code, held = null) => {
+    const away = await visit(path, held);
+    assert.equal(away.status, 303, 'to Forgejo');
+    const to = new URL(away.headers.get('location'));
+    const state = to.searchParams.get('state');
+    const binding = pairOf(away, 'a_preview_sign_in_');
+    const back = await visit(`${SIGN_IN_PATH}?${new URLSearchParams({ code, state })}`, [binding, held].filter(Boolean).join('; '));
+    return { away, to, state, binding, back };
+  };
+
+  describe('a visit in a tab of its own', () => {
+    test('leads someone without a session to Forgejo\'s sign-in, as the preview\'s own client, and asks the dev server nothing', async () => {
+      const away = await visit('/a-page/?x=1');
+      assert.equal(away.status, 303);
+      const to = new URL(away.headers.get('location'));
+      assert.equal(`${to.origin}${to.pathname}`, `${FORGEJO}/login/oauth/authorize`);
+      const query = Object.fromEntries(to.searchParams);
+      assert.equal(query.client_id, CLIENT);
+      assert.equal(query.redirect_uri, `${PREVIEW}${SIGN_IN_PATH}`);
+      assert.equal(query.response_type, 'code');
+      assert.equal(query.scope, 'read:repository');
+      assert.equal(query.code_challenge_method, 'S256');
+      assert.match(query.code_challenge, /^[\w-]{43}$/);
+      assert.match(query.state, /^[\w-]{43}$/);
+      assert.equal(query.code_verifier, undefined);
+      // The sign-in is this browser's own: what it holds comes back with Forgejo's answer alone.
+      const [binding] = away.headers.getSetCookie();
+      assert.match(binding, new RegExp(`^a_preview_sign_in_[\\w-]+=${query.state};`));
+      assert.match(binding, new RegExp(`; Path=${SIGN_IN_PATH}(;|$)`));
+      assert.match(binding, /; HttpOnly/);
+      assert.match(binding, /; SameSite=Lax/);
+      assert.match(binding, /; Max-Age=600/);
+      assert.deepEqual(asked, []);
+      assert.equal(starts, 0);
+    });
+
+    test('leads no frame, nothing a page asks for itself and nothing but GET to a sign-in', async () => {
+      for (const dest of ['iframe', 'image', 'script', 'empty']) assert.equal((await visit('/a-page/', null, { 'sec-fetch-dest': dest })).status, 403, dest);
+      for (const method of ['HEAD', 'POST']) {
+        assert.equal((await fetch(`${origin}/a-page/`, { method, redirect: 'manual', headers: { 'sec-fetch-dest': 'document' } })).status, 403, method);
+      }
+      // A browser that does not say what it asks for is taken at its word on what it takes.
+      assert.equal((await fetch(`${origin}/a-page/`, { redirect: 'manual', headers: { accept: 'text/html,application/xhtml+xml' } })).status, 303);
+      assert.equal((await fetch(`${origin}/a-page/`, { redirect: 'manual', headers: { accept: '*/*' } })).status, 403);
+      assert.deepEqual(asked, []);
+    });
+
+    test('brings someone who may write back to the address asked for, with a session, and keeps nothing of what Forgejo gave', async () => {
+      const { to, back } = await signInAs('/a-page/?x=1', 'code-writer');
+      assert.equal(back.status, 303);
+      assert.equal(back.headers.get('location'), '/a-page/?x=1');
+      const held = pairOf(back, 'a_preview=');
+      assert.match(held, /^a_preview=[\w-]{43}$/);
+      const set = back.headers.getSetCookie().find((one) => one.startsWith('a_preview='));
+      for (const attribute of [/; HttpOnly/, /; SameSite=Lax/, /; Path=\/(;|$)/]) assert.match(set, attribute);
+      // The browser's own mark of its sign-in goes, used.
+      assert.match(back.headers.getSetCookie().find((one) => one.startsWith('a_preview_sign_in_')), /Max-Age=0/);
+      const shown = await visit('/a-page/?x=1', held);
+      assert.equal(shown.status, 200);
+      assert.equal(await shown.text(), 'a page');
+
+      // The code was exchanged by the gate itself, with the verifier its challenge was made from.
+      assert.equal(exchanged.length, 1);
+      const [{ method, given }] = exchanged;
+      assert.equal(method, 'POST');
+      assert.equal(given.grant_type, 'authorization_code');
+      assert.equal(given.code, 'code-writer');
+      assert.equal(given.client_id, CLIENT);
+      assert.equal(given.redirect_uri, `${PREVIEW}${SIGN_IN_PATH}`);
+      assert.equal(createHash('sha256').update(given.code_verifier).digest('base64url'), to.searchParams.get('code_challenge'));
+      // Nothing of the token reaches the browser or the dev server.
+      for (const answer of [back, shown]) assert.doesNotMatch(JSON.stringify([...answer.headers]), /may-write|never-kept/);
+      assert.doesNotMatch(JSON.stringify(asked), /may-write|never-kept/);
+    });
+
+    test('meets someone signed in who may not see it with a plain page in the interface language, which says who can grant access, and nothing of the site', async () => {
+      const { back } = await signInAs('/a-page/', 'code-reader');
+      assert.equal(back.status, 403);
+      assert.match(back.headers.get('content-type'), /^text\/html; charset=utf-8$/);
+      assert.ok(givesNone(back), 'no session');
+      const page = await back.text();
+      assert.match(page, /^<!doctype html>/i);
+      assert.match(page, /<html lang="sv">/);
+      assert.ok(page.includes(text('sv', 'previewTab.refusedTitle')));
+      assert.ok(page.includes(text('sv', 'previewTab.refused')));
+      assert.match(page, /Admin/);
+      assert.doesNotMatch(page, /a page|<script|<a /);
+      assert.deepEqual(asked, []);
+      assert.equal(starts, 0);
+    });
+
+    // A page that says the sign-in did not complete, with a link back to where it set out for,
+    // and no session.
+    const unfinished = async (answer, again, says = 'previewTab.signInFailed') => {
+      assert.ok(givesNone(answer), 'no session');
+      const page = await answer.text();
+      assert.ok(page.includes(text('sv', 'previewTab.signInFailedTitle')));
+      assert.ok(page.includes(text('sv', says)));
+      assert.ok(page.includes(`<a href="${again}">${text('sv', 'previewTab.tryAgain')}</a>`), page);
+      assert.deepEqual(asked, []);
+    };
+
+    test('opens no session for a sign-in this browser did not start, and says how to sign in anew', async () => {
+      const away = await visit('/a-page/');
+      const state = new URL(away.headers.get('location')).searchParams.get('state');
+      const back = await visit(`${SIGN_IN_PATH}?code=code-writer&state=${state}`);
+      assert.equal(back.status, 400);
+      await unfinished(back, '/a-page/');
+      assert.deepEqual(exchanged, [], 'the code is never exchanged');
+    });
+
+    test('takes each sign-in back once', async () => {
+      const { state, binding } = await signInAs('/a-page/', 'code-writer');
+      const again = await visit(`${SIGN_IN_PATH}?code=code-writer&state=${state}`, binding);
+      assert.equal(again.status, 400);
+      await unfinished(again, '/');
+      assert.equal(exchanged.length, 1);
+    });
+
+    test('opens no session where Forgejo gave no code, or one it does not know', async () => {
+      const away = await visit('/a-page/');
+      const state = new URL(away.headers.get('location')).searchParams.get('state');
+      const cancelled = await visit(`${SIGN_IN_PATH}?error=access_denied&state=${state}`, pairOf(away, 'a_preview_sign_in_'));
+      assert.equal(cancelled.status, 400);
+      await unfinished(cancelled, '/a-page/');
+      const { back } = await signInAs('/a-page/', 'code-nobody-gave');
+      assert.equal(back.status, 400);
+      await unfinished(back, '/a-page/');
+      const unknown = await visit(`${SIGN_IN_PATH}?code=code-writer&state=never-given`);
+      assert.equal(unknown.status, 400);
+      await unfinished(unknown, '/');
+    });
+
+    test('says so when Forgejo does not answer', async () => {
+      const { back } = await signInAs('/a-page/?x=1', DOWN);
+      assert.equal(back.status, 502);
+      await unfinished(back, '/a-page/?x=1', 'previewTab.forgejoDown');
+    });
+
+    test('leads back to a path on this host alone', async () => {
+      for (const asked of ['//elsewhere.example/a/', '/\\elsewhere.example/a/']) {
+        const { back } = await signInAs(asked, 'code-writer');
+        assert.equal(back.status, 303, asked);
+        assert.match(back.headers.get('location'), /^\/(?![/\\])/, asked);
+      }
+    });
+
+    test('asks Forgejo again at intervals whether its person may still see it, by the next page they open', async () => {
+      const { back } = await signInAs('/', 'code-writer');
+      const held = pairOf(back, 'a_preview=');
+      clock += CHECK_EVERY - 1;
+      assert.equal((await visit('/a-page/', held)).status, 200, 'within the interval');
+      clock += 2;
+      const asks = await visit('/a-page/', held);
+      assert.equal(asks.status, 303);
+      assert.ok(asks.headers.get('location').startsWith(`${FORGEJO}/login/oauth/authorize?`));
+      // What a page asks for itself, and a frame, which cannot be led away, go on meanwhile.
+      for (const dest of ['image', 'script', 'iframe']) assert.equal((await visit('/a-page/', held, { 'sec-fetch-dest': dest })).status, 200, dest);
+      const again = await signInAs('/a-page/', 'code-writer', held);
+      assert.equal(again.back.status, 303);
+      assert.equal(again.back.headers.get('location'), '/a-page/');
+      assert.equal((await visit('/a-page/', pairOf(again.back, 'a_preview='))).status, 200);
+    });
+
+    test('refuses someone removed from the site\'s teams at the next check, and ends their session', async () => {
+      const { back } = await signInAs('/', 'code-writer');
+      const held = pairOf(back, 'a_preview=');
+      removed = true;
+      clock += CHECK_EVERY + 1;
+      const refused = await signInAs('/a-page/', 'code-writer', held);
+      assert.equal(refused.back.status, 403);
+      assert.ok((await refused.back.text()).includes(text('sv', 'previewTab.refused')));
+      assert.match(refused.back.headers.getSetCookie().find((one) => one.startsWith('a_preview=')), /Max-Age=0/);
+      assert.equal((await visit('/a-page/', held, { 'sec-fetch-dest': 'image' })).status, 403);
+    });
+
+    test('ends a session an hour after it was last asked', async () => {
+      const { back } = await signInAs('/', 'code-writer');
+      const held = pairOf(back, 'a_preview=');
+      clock += SESSION_LIFE + 1;
+      assert.equal((await visit('/a-page/', held, { 'sec-fetch-dest': 'iframe' })).status, 403);
+    });
+
+    test('starts a stopped preview at a visit, with a short notice in the interface language until the page is ready', async () => {
+      const { back } = await signInAs('/', 'code-writer');
+      const held = pairOf(back, 'a_preview=');
+      ready = false;
+      starts = 0;
+      const notice = await visit('/a-page/', held);
+      assert.equal(notice.status, 503);
+      assert.equal(notice.headers.get('retry-after'), '2');
+      const page = await notice.text();
+      assert.ok(page.includes(text('sv', 'previewTab.startingTitle')));
+      assert.ok(page.includes(text('sv', 'previewTab.starting')));
+      assert.match(page, /<meta http-equiv="refresh" content="2">/);
+      assert.doesNotMatch(page, /<script/);
+      assert.equal(starts, 1);
+      assert.deepEqual(asked, []);
+      ready = true;
+      const shown = await visit('/a-page/', held);
+      assert.equal(shown.status, 200);
+      assert.equal(await shown.text(), 'a page');
+    });
+
+    test('says so when the preview did not start, and starts it anew at the next try', async () => {
+      const { back } = await signInAs('/', 'code-writer');
+      const held = pairOf(back, 'a_preview=');
+      ready = false;
+      startFails = true;
+      assert.equal((await visit('/a-page/?x=1', held)).status, 503);
+      const failed = await visit('/a-page/?x=1', held);
+      assert.equal(failed.status, 503);
+      const page = await failed.text();
+      assert.ok(page.includes(text('sv', 'previewTab.notStartedTitle')));
+      assert.ok(page.includes(text('sv', 'previewTab.notStarted')));
+      assert.ok(page.includes(`<a href="/a-page/?x=1">${text('sv', 'previewTab.tryAgain')}</a>`));
+      assert.doesNotMatch(page, /http-equiv="refresh"/, 'it waits for the person');
+      startFails = false;
+      starts = 0;
+      assert.ok((await (await visit('/a-page/?x=1', held)).text()).includes(text('sv', 'previewTab.startingTitle')));
+      assert.equal(starts, 1);
+    });
+
+    test('tells of a failed start only while someone may be waiting for it', async () => {
+      const { back } = await signInAs('/', 'code-writer');
+      const held = pairOf(back, 'a_preview=');
+      ready = false;
+      startFails = true;
+      await visit('/a-page/', held);
+      startFails = false;
+      clock += 60 * 1000 + 1;
+      assert.ok((await (await visit('/a-page/', held)).text()).includes(text('sv', 'previewTab.startingTitle')));
+    });
+
+    test('lets a frame and what a page asks for itself wait for a stopped preview, as before', async () => {
+      await signedIn();
+      ready = false;
+      for (const dest of ['iframe', 'image']) {
+        const answer = await visit('/a-page/', cookie, { 'sec-fetch-dest': dest });
+        assert.equal(answer.status, 200, dest);
+        assert.equal(await answer.text(), 'a page');
+      }
+    });
+
+    test('keeps every answer from being indexed, kept by anyone else or framed but by the editor', async () => {
+      const away = await visit('/a-page/');
+      const { back } = await signInAs('/a-page/', 'code-writer');
+      const held = pairOf(back, 'a_preview=');
+      const refused = (await signInAs('/a-page/', 'code-reader')).back;
+      const unfinishedOne = await visit(`${SIGN_IN_PATH}?code=code-writer&state=never-given`);
+      ready = false;
+      const notice = await visit('/a-page/', held);
+      for (const answer of [away, back, refused, unfinishedOne, notice]) {
+        assert.equal(answer.headers.get('x-robots-tag'), 'noindex, nofollow', answer.status);
+        assert.match(answer.headers.get('cache-control'), /^private/, answer.status);
+        assert.equal(answer.headers.get('x-frame-options'), null);
+        assert.match(answer.headers.get('content-security-policy'), new RegExp(`(^|; )frame-ancestors ${ADMIN}$`), answer.status);
+      }
+      // Its own pages load nothing and run nothing.
+      for (const answer of [refused, unfinishedOne, notice]) assert.match(answer.headers.get('content-security-policy'), /^default-src 'none'; /);
+    });
+
+    test('lets someone already signed in to Forgejo in without a word, starting the preview on the way', async () => {
+      const { back } = await signInAs('/', 'code-writer');
+      assert.equal(back.status, 303);
+      assert.equal(starts, 1);
+    });
+  });
 
   test('stands, and says so, with nobody signed in', async () => {
     assert.equal((await fetch(`${origin}${HEALTH_PATH}`)).status, 200);
@@ -177,6 +495,12 @@ describe('the preview\'s gate', () => {
   test('starts the dev server when someone opens an entry', async () => {
     await signedIn();
     assert.equal(starts, 1);
+  });
+
+  test('the pane is asked again for its credential at intervals', async () => {
+    await signedIn();
+    clock += CHECK_EVERY + 1;
+    assert.equal((await draft({ path: 'pages/a.md', fields: {} })).status, 401);
   });
 
   test('a session ends, and a forged one is none', async () => {

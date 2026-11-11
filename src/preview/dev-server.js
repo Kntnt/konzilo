@@ -29,6 +29,7 @@ const answers = (port) => new Promise((resolve) => {
 export function devServer({ root, port, environment, before = async () => {}, idle = IDLE, spawn = spawnProcess, ask = answers, wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), startsWithin = STARTS_WITHIN }) {
   let child = null;
   let starting = null;
+  let answering = false;
   let timer = null;
 
   const stop = () => {
@@ -37,6 +38,7 @@ export function devServer({ root, port, environment, before = async () => {}, id
     child?.kill('SIGTERM');
     child = null;
     starting = null;
+    answering = false;
   };
 
   const touch = () => {
@@ -57,11 +59,15 @@ export function devServer({ root, port, environment, before = async () => {}, id
       if (child === started) {
         child = null;
         starting = null;
+        answering = false;
       }
     });
     for (let waited = 0; waited < startsWithin; waited += LOOKS_EVERY) {
       if (ended) throw new Error('the dev server stopped as it started');
-      if (await ask(port)) return;
+      if (await ask(port)) {
+        answering = child === started;
+        return;
+      }
       await wait(LOOKS_EVERY);
     }
     started.kill('SIGTERM');
@@ -73,6 +79,8 @@ export function devServer({ root, port, environment, before = async () => {}, id
     touch,
     stop,
     running: () => child !== null,
+    // Whether it answers now, so that a page asked for is a moment away rather than a start.
+    ready: () => answering,
     // Starts it if it is not running, and returns when it answers. Someone is looking.
     ensure() {
       touch();

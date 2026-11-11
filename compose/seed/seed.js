@@ -1,7 +1,7 @@
 // Fill a new Forgejo: the instance's second factor and credential, an account with a
 // known password and a second factor, an organisation with its two teams, a source
 // repository holding the demo content, the site repository's own where it has any, else
-// the core's (ADR 0025), the editor's OAuth client, and Typesense's keys
+// the core's (ADR 0025), the editor's OAuth client and the live preview's, and Typesense's keys
 // (ADR 0002, ADR 0007, ADR 0008, ADR 0053). It talks to Forgejo itself, behind the
 // proxy, since the proxy refuses making a token, and there is no API for a second
 // factor, so an account enrols through the forms a person uses. Each step looks first,
@@ -13,6 +13,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileS
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
+import { SIGN_IN_PATH } from '../../src/cms/preview/paths.js';
 import { demoContentOf } from '../../src/demo-content.js';
 import { demoSource, GIT_ATTRIBUTES } from '../../src/demo-source.js';
 import { readSiteDescription } from '../../src/site-description.js';
@@ -26,6 +27,7 @@ const {
   KONZILO_SITE: site,
   KONZILO_ACCOUNT: account,
   KONZILO_ADMIN_ORIGIN: adminOrigin,
+  KONZILO_PREVIEW_ORIGIN: previewOrigin,
 } = process.env;
 const REPOSITORY = 'source';
 const CONTENT = 'content';
@@ -33,6 +35,10 @@ const SERVICE_HOOK = 'http://editors:4100/webhook';
 const TEAMS = { admins: 'write', editors: 'write' };
 const READER = 'preview-reader';
 const READ_TOKEN = '/preview-secret/read-token';
+// The live preview's own OAuth client, for a sign-in in a tab of its own (ADR 0032): apart from
+// the editor's, so that each has a grant and a scope of its own.
+const PREVIEW_CLIENT = '/preview-secret/oauth-client';
+const PREVIEW_CLIENT_NAME = 'Konzilo live preview';
 const SERVICE_READER = 'service-reader';
 const SERVICE_TOKEN = '/editors-secret/read-token';
 const SERVICE_ROLES_TOKEN = '/editors-secret/roles-token';
@@ -203,6 +209,21 @@ async function teamOfTheSource(call, name, permission) {
   return team;
 }
 
+// The live preview's OAuth client, public, with PKCE only, as the editor's (ADR 0007), whose one
+// address is the preview's own, as it is at this start.
+async function previewClient(call) {
+  const address = `${previewOrigin}${SIGN_IN_PATH}`;
+  const wanted = { name: PREVIEW_CLIENT_NAME, redirect_uris: [address], confidential_client: false };
+  const clients = must('listing the OAuth clients', await call('GET', '/user/applications/oauth2?limit=50'), 200);
+  const found = clients.find(({ name }) => name === PREVIEW_CLIENT_NAME);
+  let client = found;
+  if (!found) client = must('making the preview\'s OAuth client', await call('POST', '/user/applications/oauth2', wanted), 201);
+  else if (found.confidential_client || found.redirect_uris.join('\n') !== address) {
+    client = must('keeping the preview\'s OAuth client to its address', await call('PATCH', `/user/applications/oauth2/${found.id}`, wanted), 200);
+  }
+  writeFileSync(PREVIEW_CLIENT, `${client.client_id}\n`, { mode: 0o600 });
+}
+
 // What publishing stands on, which every start makes sure of, so that a site seeded before it
 // came gets it with its next start.
 async function publishing(call, instancePassword, instanceKey) {
@@ -237,6 +258,7 @@ async function publishing(call, instancePassword, instanceKey) {
     const { sha1 } = must('making the token that reads who is an Admin', await request('/users/konzilo/tokens', { name: `service-roles-${randomBytes(4).toString('hex')}`, scopes: ['read:organization'] }, basic('konzilo', instancePassword), totp(instanceKey)), 201);
     writeFileSync(SERVICE_ROLES_TOKEN, `${sha1}\n`, { mode: 0o600 });
   }
+  await previewClient(call);
   await machineAccount(call, {
     name: SERVICE_READER,
     tokenFile: SERVICE_TOKEN,

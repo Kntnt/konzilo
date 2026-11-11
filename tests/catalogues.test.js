@@ -76,6 +76,19 @@ test('every text the editor\'s own code names is in the source, and every text o
   assert.deepEqual(Object.keys(source).filter((key) => EDITOR_AREAS.includes(key.split('.')[0]) && !named.has(key)), [], 'texts no code names');
 });
 
+// The live preview's own pages in a tab of its own, which its gate shows in place of the site's,
+// name their texts whole in the gate's code, as the editor's code does.
+test('every text the preview\'s own pages name is in the source, and every text of their area is named there', () => {
+  const gateCode = fileURLToPath(new URL('../src/preview/', import.meta.url));
+  const named = new Set();
+  for (const file of readdirSync(gateCode).filter((one) => one.endsWith('.js'))) {
+    for (const [, found] of readFileSync(`${gateCode}${file}`, 'utf8').matchAll(/['"`](previewTab\.[a-zA-Z0-9.-]+)['"`]/g)) named.add(found);
+  }
+  assert.ok(named.size > 0);
+  assert.deepEqual([...named].filter((key) => !Object.hasOwn(source, key)), [], 'names the source does not have');
+  assert.deepEqual(Object.keys(source).filter((key) => key.startsWith('previewTab.') && !named.has(key)), [], 'texts no code names');
+});
+
 test('the source is written in British English, not American', () => {
   const american = /\b(?:colors?|centers?|behaviors?|favorites?|gray|catalogs?|canceled|canceling|organizations?|organize[ds]?|recognize[ds]?|customize[ds]?|optimize[ds]?|analyze[ds]?|labeled|labeling|modeled|traveled)\b/i;
   for (const [name, value] of Object.entries(source)) assert.doesNotMatch(value, american, name);
