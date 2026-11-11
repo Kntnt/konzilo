@@ -3,7 +3,9 @@
 // by its digest, every volume says what it holds, and the proxy's list stands.
 
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { builtinModules } from 'node:module';
+import { dirname, resolve } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
@@ -15,7 +17,7 @@ const versions = read('versions.env');
 test('names the images it builds by the site, so that sites on one machine keep their own', () => {
   const built = [...compose.matchAll(/^\s+image: (konzilo-\S+)$/gm)].map(([, reference]) => reference);
   assert.ok(built.length > 0);
-  for (const reference of built) assert.match(reference, /^konzilo-(web|builder):\$\{KONZILO_SITE\}$/, reference);
+  for (const reference of built) assert.match(reference, /^konzilo-(web|builder|typesense):\$\{KONZILO_SITE\}$/, reference);
 });
 
 test('names every image by a digest from versions.env, and holds no version of its own', () => {
@@ -24,10 +26,10 @@ test('names every image by a digest from versions.env, and holds no version of i
     assert.match(reference, /@sha256:\$\{[A-Z_]+_DIGEST\}$/, reference);
   }
   assert.doesNotMatch(compose, /sha256:[0-9a-f]{8}/);
-  for (const [, key] of compose.matchAll(/\$\{([A-Z_]+_DIGEST|FORGEJO|CADDY|NODE_RELEASE)\}/g)) {
+  for (const [, key] of compose.matchAll(/\$\{([A-Z_]+_DIGEST|FORGEJO|CADDY|NODE_RELEASE|TYPESENSE)\}/g)) {
     assert.match(versions, new RegExp(`^${key}=`, 'm'), key);
   }
-  for (const dockerfile of ['compose/web/Dockerfile', 'compose/builder/Dockerfile']) {
+  for (const dockerfile of ['compose/web/Dockerfile', 'compose/builder/Dockerfile', 'compose/typesense/Dockerfile']) {
     for (const [, from] of read(dockerfile).matchAll(/^FROM (\S+)/gm)) {
       assert.match(from, /@sha256:\$\{[A-Z_]+_DIGEST\}$/, `${dockerfile}: ${from}`);
     }
@@ -93,4 +95,62 @@ test('keeps Forgejo\'s settings closed', () => {
   ]) {
     assert.ok(compose.includes(`FORGEJO__${key}: ${value}`), key);
   }
+});
+
+// Search (ADR 0053, ADR 0005): Typesense in a network of its own, which only the web server and
+// what shares its network reach, with no port and no way out, its admin key read from a file the
+// seed writes, never from the environment or its command.
+test('runs Typesense in a network of its own, with no port and its key in a file', () => {
+  const blocks = Object.fromEntries(compose.split(/^ {2}(?=[a-z-]+:\n)/m).slice(1).map((block) => [block.slice(0, block.indexOf(':')), block]));
+  const typesense = blocks.typesense;
+  assert.ok(typesense, 'a service of its own');
+  assert.match(typesense, /^ {4}<<: \*hardened$/m);
+  assert.match(typesense, /^ {4}networks: \[search\]$/m);
+  assert.doesNotMatch(typesense, /^ {4}ports:/m);
+  assert.match(typesense, /"--config", "\/secret\/typesense\.ini"/);
+  assert.doesNotMatch(typesense, /TYPESENSE_API_KEY|--api-key/);
+  assert.match(blocks.web, /^ {4}networks: \[default, search\]$/m);
+  assert.match(compose, /^ {2}search:\n {4}internal: true$/m);
+  for (const [name, block] of Object.entries(blocks)) {
+    if (!['web', 'typesense'].includes(name)) assert.doesNotMatch(block, /^ {4}networks:.*search/m, name);
+  }
+  assert.match(read('compose/typesense/Dockerfile'), /^USER 1000:1000$/m);
+});
+
+test('reads the route to search from where the build writes it, and says when Typesense does not answer', () => {
+  const caddyfile = read('compose/web/Caddyfile');
+  const host = caddyfile.slice(caddyfile.indexOf(':{$KONZILO_PORT_SITE}'), caddyfile.indexOf(':{$KONZILO_PORT_ADMIN}'));
+  // A glob, since there is none before the first build.
+  assert.match(host, /import \/srv\/search\/search-route\*\.caddy/);
+  assert.match(host, /handle_errors \{[\s\S]*@search_down \{\n\t\t\tpath \/_konzilo\/search\n\t\t\texpression `\{err\.status_code\} >= 500`\n\t\t\}/);
+  assert.match(host, /respond `\{"message":"Search does not answer\."\}` 502/);
+  assert.match(compose, /- search-route:\/srv\/search:ro/);
+  assert.match(compose, /- search-route:\/search-route\n/);
+});
+
+// The builder's image installs the core's dependencies alone, with no peer such as Astro, so
+// whatever a site's Astro must read runs in the site's own dependencies, as a program of its own
+// (the build's Astro and its search documents). Each program the image runs, and all it imports.
+test('runs nothing in the builder\'s image that imports a package the image does not install', () => {
+  const installed = new Set(Object.keys(JSON.parse(read('package.json')).dependencies));
+  const root = fileURLToPath(new URL('../', import.meta.url));
+  const programs = ['compose/seed/seed.js', 'bin/konzilo-builder.js', 'bin/konzilo-service.js', 'bin/konzilo-preview.js', 'bin/konzilo-code.js', 'bin/konzilo-intake.js', 'bin/konzilo-cms.js'];
+  const seen = new Set();
+  const outside = [];
+  const walk = (file) => {
+    if (seen.has(file)) return;
+    seen.add(file);
+    for (const [, specifier] of readFileSync(file, 'utf8').matchAll(/^\s*(?:import|export)\b[^'"]*?\bfrom\s+['"]([^'"]+)['"]|^\s*import\s+['"]([^'"]+)['"]/gm)) {
+      if (!specifier) continue;
+      if (specifier.startsWith('.')) {
+        const next = resolve(dirname(file), specifier);
+        if (next.endsWith('.js') && existsSync(next)) walk(next);
+        continue;
+      }
+      const name = specifier.startsWith('@') ? specifier.split('/').slice(0, 2).join('/') : specifier.split('/')[0];
+      if (!specifier.startsWith('node:') && !builtinModules.includes(name) && !installed.has(name)) outside.push(`${file.slice(root.length)}: ${specifier}`);
+    }
+  };
+  for (const program of programs) walk(resolve(root, program));
+  assert.deepEqual(outside, []);
 });

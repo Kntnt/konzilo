@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import { RefusedRules, webRules } from '../src/build/web-server.js';
+import { RefusedRules, searchRoute, webRules } from '../src/build/web-server.js';
 import { headersFile, securityHeaders } from '../src/astro/security-headers.js';
 import { siteDescription } from '../src/site-description.js';
 
@@ -147,5 +147,46 @@ describe('a release\'s redirects', () => {
 
   test('name the line that was refused', () => {
     refused({ redirects: '/fine/ /ok/ 301\n/also/ /ok/ 301\n/a /b/ 200\n' }, /_redirects, line 3/);
+  });
+});
+
+// The route to the site's search, which a build writes for the web server outside every release
+// (ADR 0053): the same answers as the dev server's (src/astro/search.js), and real Caddy and
+// Typesense take it in the Compose acceptance suite.
+describe('the route to search', () => {
+  const KEY = 'c2NvcGVkLWtleQ+/=';
+  const route = searchRoute({ collection: 'gentle-garden', key: KEY });
+
+  test('sends a search of the site\'s collection to Typesense, with the scoped key and none of the visitor\'s headers', () => {
+    assert.match(route, /^@konzilo_search path \/_konzilo\/search \/_konzilo\/search\/\*\nroute @konzilo_search \{\n/m);
+    assert.match(route, /\trewrite \* \/collections\/gentle-garden\/documents\/search\?/);
+    assert.match(route, /\treverse_proxy typesense:8108 \{\n\t\theader_up -\*\n\t\theader_up X-TYPESENSE-API-KEY `c2NvcGVkLWtleQ\+\/=`\n/);
+    assert.equal(route.split(KEY).length, 2, 'the key once, in the header alone');
+  });
+
+  test('passes on q, page and filter_by alone, which the web server writes into Typesense\'s address encoded, page 1 where none is given', () => {
+    assert.match(route, /\tmap \{query\.page\} \{konzilo_page\} \{\n\t\t"" 1\n\t\tdefault \{query\.page\}\n\t\}\n/);
+    assert.match(route, /search\?q=\{query\.q\}&page=\{konzilo_page\}&filter_by=\{query\.filter_by\}\n/);
+    assert.doesNotMatch(route, /\{http\.request\.uri\.query\}|\{query\}/, 'nothing else of the visitor\'s query');
+  });
+
+  test('answers as the dev server does: 405 to another method, 404 below it, never kept', () => {
+    assert.match(route, /@konzilo_search_below path \/_konzilo\/search\/\*\n[\s\S]*respond @konzilo_search_below `\{"message":"Not found\."\}` 404\n/);
+    assert.match(route, /@konzilo_search_other not method GET\n\theader @konzilo_search_other Allow GET\n[\s\S]*respond @konzilo_search_other `\{"message":"Search takes GET alone\."\}` 405\n/);
+    assert.match(route, /\theader Cache-Control no-store\n/);
+    assert.match(route, /\t\theader_down -\*\n\t\theader_down Content-Type `application\/json; charset=utf-8`\n/);
+    assert.ok(route.indexOf('respond @konzilo_search_below') < route.indexOf('rewrite'), 'in a route, which keeps the order written');
+  });
+
+  test('says on a site without search that it has none, and holds no key', () => {
+    const none = searchRoute({ collection: 'gentle-garden', key: null });
+    assert.match(none, /respond `\{"message":"This site has no search\."\}` 404\n/);
+    assert.doesNotMatch(none, /reverse_proxy|X-TYPESENSE/);
+  });
+
+  test('takes a collection and a key only as plain as a Caddyfile cannot read as its own', () => {
+    assert.throws(() => searchRoute({ collection: 'a site', key: KEY }), RefusedRules);
+    assert.throws(() => searchRoute({ collection: 'a-site', key: 'a`key' }), RefusedRules);
+    assert.throws(() => searchRoute({ collection: 'a-site', key: '{$SECRET}' }), RefusedRules);
   });
 });

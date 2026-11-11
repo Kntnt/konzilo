@@ -214,6 +214,59 @@ describe('a build', () => {
     assert.equal(site.seen.astro, 3, 'and a new origin');
   });
 
+  // The search index (ADR 0053): made once `current` is switched, and at a builder's first
+  // build, which keeps no word of an index made before it started. One builder makes one
+  // siteBuild(), so a build function called again is the same builder.
+  test('makes the search index once a new release is in use, and again at a builder\'s first build', async () => {
+    const site = newSite({ 'articles/aaaaaaaaaaaa.md': post('first') });
+    const seen = [];
+    const index = async () => {
+      seen.push(readlinkSync(join(site.root, 'public/current')));
+    };
+    const build = site.build({ index });
+    await build();
+    assert.deepEqual(seen, [readlinkSync(join(site.root, 'public/current'))], 'the release in use');
+    site.save({ 'articles/aaaaaaaaaaaa.md': `${post('first')}\n` });
+    await build();
+    assert.equal(seen.length, 1, 'nothing new to index');
+    await site.build({ index })();
+    assert.equal(seen.length, 2, 'a new builder indexes the release in use');
+    site.save({ 'articles/aaaaaaaaaaaa.md': post('first', {}, 'New words.') });
+    await build();
+    assert.equal(seen.length, 3);
+    assert.notEqual(seen[2], seen[0]);
+    assert.deepEqual(Object.keys(site.logged().at(-1)), ['at', 'site', 'outcome', 'failures']);
+  });
+
+  test('keeps the release live when the search index cannot be made, says so in the build\'s line, and makes it at the next build', async () => {
+    const site = newSite({ 'articles/aaaaaaaaaaaa.md': post('first') });
+    let answering = false;
+    let made = 0;
+    const build = site.build({
+      index: async () => {
+        if (!answering) throw new Error('Typesense does not answer at http://typesense:8108');
+        made += 1;
+      },
+    });
+    const record = await build();
+    assert.equal(record.outcome, 'live');
+    assert.equal(statusOf(site, 'articles/aaaaaaaaaaaa.md').status, 'live');
+    assert.ok(existsSync(join(site.root, 'public/current/pages/index.html')), 'visitors have the release');
+    const [line] = site.logged();
+    assert.deepEqual(Object.keys(line), ['at', 'site', 'outcome', 'failures', 'unindexed']);
+    assert.equal(line.outcome, 'live');
+    assert.equal(line.unindexed, true);
+    assert.match(site.seen.warned.at(-1), /^The search index could not be made: Typesense does not answer/);
+    answering = true;
+    site.save({ 'articles/aaaaaaaaaaaa.md': `${post('first')}\n` });
+    await build();
+    assert.equal(made, 1, 'made at the next build, though the release is the same');
+    assert.equal(site.logged().at(-1).unindexed, undefined);
+    site.save({ 'articles/aaaaaaaaaaaa.md': `${post('first')}\n\n` });
+    await build();
+    assert.equal(made, 1, 'and not again for the same release');
+  });
+
   test('publishes the rest when one post is refused, and says that visitors still see its last version', async () => {
     const site = newSite({ 'articles/aaaaaaaaaaaa.md': post('first'), 'articles/bbbbbbbbbbbb.md': post('second') });
     await site.build()();

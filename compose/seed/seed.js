@@ -1,10 +1,10 @@
 // Fill a new Forgejo: the instance's second factor and credential, an account with a
 // known password and a second factor, an organisation with its two teams, a source
-// repository holding the demo content, and the editor's OAuth client (ADR 0002,
-// ADR 0007, ADR 0008). It talks to Forgejo itself, behind the proxy, since the proxy
-// refuses making a token, and there is no API for a second factor, so an account
-// enrols through the forms a person uses. Each step looks first, so that a seed
-// stopped half way can run again.
+// repository holding the demo content, the editor's OAuth client, and Typesense's keys
+// (ADR 0002, ADR 0007, ADR 0008, ADR 0053). It talks to Forgejo itself, behind the
+// proxy, since the proxy refuses making a token, and there is no API for a second
+// factor, so an account enrols through the forms a person uses. Each step looks first,
+// so that a seed stopped half way can run again.
 
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
@@ -35,6 +35,9 @@ const BUILDER = 'builder';
 const BUILDER_TOKEN = '/builder-secret/token';
 const BUILDER_CLIENT = '/builder-secret/oauth-client';
 const ROLES_TOKEN = '/builder-secret/roles-token';
+const SEARCH_ADMIN_KEY = '/builder-secret/typesense-admin-key';
+const SEARCH_KEY = '/builder-secret/typesense-search-key';
+const TYPESENSE_CONFIG = '/typesense-secret/typesense.ini';
 
 const secret = (name) => readFileSync(`/run/secrets/${name}`, 'utf8').trim();
 const known = (name) => (existsSync(join(STATE, name)) ? readFileSync(join(STATE, name), 'utf8').trim() : null);
@@ -243,7 +246,20 @@ async function publishing(call, instancePassword, instanceKey) {
   writeFileSync(BUILDER_CLIENT, `${known('oauth-client')}\n`, { mode: 0o600 });
 }
 
+// Typesense's keys (ADR 0053): its admin key, which the builder indexes with, and the site's
+// search key, which searches the site's collection alone and which each build makes the route's
+// scoped key from. Each is made once. Typesense reads its admin key from the configuration
+// written here, never from the environment (ADR 0005), and starts after the seed, so it takes
+// the one written at this start.
+function searchKeys() {
+  for (const file of [SEARCH_ADMIN_KEY, SEARCH_KEY]) {
+    if (!existsSync(file)) writeFileSync(file, `${randomBytes(24).toString('base64url')}\n`, { mode: 0o600 });
+  }
+  writeFileSync(TYPESENSE_CONFIG, `[server]\napi-key = ${readFileSync(SEARCH_ADMIN_KEY, 'utf8').trim()}\n`, { mode: 0o600 });
+}
+
 async function main() {
+  searchKeys();
   const instancePassword = secret('instance-password');
   const accountPassword = secret('account-password');
   const instanceKey = await enrol('konzilo', instancePassword, 'instance-totp');

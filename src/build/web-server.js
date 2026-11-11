@@ -171,3 +171,64 @@ export function webRules({ headers = '', redirects = '' }) {
     '',
   ].join('\n');
 }
+
+// Where the web server reaches Typesense, in the network only the two share (compose.yaml).
+const TYPESENSE = 'typesense:8108';
+// A collection is named as the site, a hostname label; a key is base64, plain or for addresses.
+const COLLECTION = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+const SEARCH_KEY = /^[A-Za-z0-9+/=_-]+$/;
+const AS_JSON = '`application/json; charset=utf-8`';
+
+// The route to the site's search (ADR 0053, ADR 0044), as rules for the web server's site host,
+// which a build writes where the web server reads it and no visitor reaches it, outside every
+// release: a GET of /_konzilo/search goes to Typesense's search of the site's collection,
+// `collection`, with every header of the visitor's dropped and the scoped key, `key`, added,
+// which holds the search every query runs. It answers as the dev server does: it passes on `q`,
+// `page` and `filter_by` alone, each value as the visitor sent it, which the web server encodes
+// again in Typesense's address, an `&` in it too, with page 1 where none is given, Typesense's
+// own, and an empty filter where none is, which filters nothing; a value given twice comes as
+// the two joined by a comma, where the dev server takes the first. It refuses another method
+// with 405 and a path below it with 404; and Typesense's answer goes out as JSON, never kept. Its 502, while
+// Typesense does not answer, is the Caddyfile's, which holds the site host's errors. With `key`
+// null, on a site without search, it says that there is none. Each is checked, since what is
+// written here is read as the web server's own.
+export function searchRoute({ collection, key }) {
+  if (!COLLECTION.test(String(collection))) refuse('the route to search', null, `"${collection}" is not the name of a collection`);
+  if (key !== null && !SEARCH_KEY.test(String(key))) refuse('the route to search', null, 'the key is not plain base64');
+  // An answer of the route's own, to what `matcher` matches, or to all it is given without one.
+  const answer = (matcher, status, message) => [
+    `\t${['header', matcher, 'Content-Type', AS_JSON].filter(Boolean).join(' ')}`,
+    `\t${['respond', matcher, `\`${JSON.stringify({ message })}\``, status].filter(Boolean).join(' ')}`,
+  ];
+  const kept = ['\theader Cache-Control no-store', '\theader X-Content-Type-Options nosniff'];
+  if (key === null) {
+    return ['@konzilo_search path /_konzilo/search /_konzilo/search/*', 'route @konzilo_search {', ...kept, ...answer('', 404, 'This site has no search.'), '}', ''].join('\n');
+  }
+  return [
+    '@konzilo_search path /_konzilo/search /_konzilo/search/*',
+    'route @konzilo_search {',
+    ...kept,
+    '\t@konzilo_search_below path /_konzilo/search/*',
+    ...answer('@konzilo_search_below', 404, 'Not found.'),
+    '\t@konzilo_search_other not method GET',
+    '\theader @konzilo_search_other Allow GET',
+    ...answer('@konzilo_search_other', 405, 'Search takes GET alone.'),
+    '\tmap {query.page} {konzilo_page} {',
+    '\t\t"" 1',
+    '\t\tdefault {query.page}',
+    '\t}',
+    `\trewrite * /collections/${collection}/documents/search?q={query.q}&page={konzilo_page}&filter_by={query.filter_by}`,
+    `\treverse_proxy ${TYPESENSE} {`,
+    '\t\theader_up -*',
+    `\t\theader_up X-TYPESENSE-API-KEY \`${key}\``,
+    '\t\theader_down -*',
+    `\t\theader_down Content-Type ${AS_JSON}`,
+    '\t\ttransport http {',
+    '\t\t\tdial_timeout 10s',
+    '\t\t\tresponse_header_timeout 10s',
+    '\t\t}',
+    '\t}',
+    '}',
+    '',
+  ].join('\n');
+}

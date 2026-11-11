@@ -6,7 +6,8 @@
 // the form, the results and the messages in the page's language, its title
 // and heading too (`search.title` of the texts), and the page says noindex
 // through Konzilo's Head in the layout.
-// Locally it searches the Typesense KONZILO_TYPESENSE names, if any; online, the
+// In Compose it searches the copy's own Typesense through the web server; under
+// `npm run dev`, the Typesense KONZILO_TYPESENSE names, if any; online, the
 // shared server's.
 import Search from '@kntnt/konzilo/astro/Search.astro';
 import { pageTexts } from '@kntnt/konzilo/astro/languages';

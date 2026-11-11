@@ -16,12 +16,18 @@ import { releases } from '../src/build/release.js';
 import { contentRepository, sourceRepository } from '../src/build/repositories.js';
 import { buildOnRequest } from '../src/build/requests.js';
 import { forgejoRoles } from '../src/build/roles.js';
+import { searchDocumentsCommand, siteSearch } from '../src/build/search-index.js';
 import { walk } from '../src/intake/content-folder.js';
+import { readSiteDescription } from '../src/site-description.js';
 
 const run = promisify(execFile);
 
 const SITE_FOLDER = '/work/site';
 const FORGEJO = 'http://forgejo:3000';
+// Typesense, in the network the web server shares with it (compose.yaml).
+const TYPESENSE = 'http://typesense:8108';
+// Where the web server reads the route to search from, outside every release.
+const SEARCH_ROUTE_FILE = '/search-route/search-route.caddy';
 const ACCOUNT = 'builder';
 const HOME = '/work/home';
 const INSTANCE = 'konzilo';
@@ -80,6 +86,22 @@ const build = siteBuild({
     environment: { PATH: process.env.PATH, HOME, ...(new URL(adminOrigin).hostname === new URL(origin).hostname ? {} : { KONZILO_ADMIN_ORIGIN: adminOrigin }) },
   }),
   astro: astroBuild({ folder: SITE_FOLDER, environment }),
+  // Of the site's code as it stands, which is the same for this builder's life; its documents by
+  // the core the site has installed, which has the site's Astro to read its content files with.
+  index: siteSearch({
+    typesense: TYPESENSE,
+    key: secret('typesense-admin-key'),
+    searchKey: secret('typesense-search-key'),
+    collection: site,
+    site: readSiteDescription(join(SITE_FOLDER, 'site-description.json')),
+    documents: searchDocumentsCommand({
+      program: join(SITE_FOLDER, 'node_modules/@kntnt/konzilo/bin/konzilo-search.js'),
+      site: join(SITE_FOLDER, 'site-description.json'),
+      content: content.folder,
+      environment,
+    }),
+    route: SEARCH_ROUTE_FILE,
+  }),
 });
 
 let stopping = false;

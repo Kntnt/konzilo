@@ -1008,6 +1008,119 @@ describe('a site in Compose', () => {
       for (const address of ['/_headers', '/_redirects', '/_markdown', '/web-rules.caddy', '/../web-rules.caddy']) assert.equal((await get(`${site.origin.site}${address}`)).status, 404, address);
     });
 
+    // Search (ADR 0053): what is published, through the web server's route to Typesense, which
+    // every build indexes and writes the route to. What a search answers, once it answers so.
+    const searched = async (query, { within = 60_000, until = () => true } = {}) => {
+      const deadline = Date.now() + within;
+      for (;;) {
+        const answer = await get(`${site.origin.site}/_konzilo/search?${new URLSearchParams({ page: '1', ...query })}`);
+        const body = answer.status === 200 ? await answer.json() : null;
+        if ((body !== null && until(body)) || Date.now() > deadline) return { answer, body };
+        await new Promise((go) => setTimeout(go, 500));
+      }
+    };
+    const addresses = (body) => (body?.hits ?? []).map(({ document }) => document.address).sort();
+    // The build log's last line, once it says what `holds` asks; the line follows the record.
+    const lastLine = async (holds) => {
+      const deadline = Date.now() + 10_000;
+      for (;;) {
+        const line = JSON.parse(site.compose('exec', '-T', 'builder', 'tail', '-n', '1', '/control/build-log.jsonl'));
+        if (holds(line) || Date.now() > deadline) return line;
+        await new Promise((go) => setTimeout(go, 250));
+      }
+    };
+    const healthy = async (service) => {
+      const deadline = Date.now() + 60_000;
+      while (!site.compose('ps', '--format', 'json', service).includes('"Health":"healthy"') && Date.now() < deadline) {
+        await new Promise((go) => setTimeout(go, 500));
+      }
+    };
+
+    test('finds what is published, by a word and by a part of one, and nothing taken off or kept from search engines', async () => {
+      const whole = await searched({ q: 'landscape' }, { until: (body) => body.found > 0 });
+      assert.ok(whole.body?.found > 0, 'the demo content, from the first build');
+      assert.equal(whole.answer.headers.get('cache-control'), 'no-store');
+      assert.match(whole.answer.headers.get('content-type'), /^application\/json/);
+
+      const words = 'A word only this post holds: quetzalcoatlus, & more.';
+      await saveFile(file('0a0a0a0a0a0a'), published('a-searched-post', {}, words), 'anna');
+      await onTheSite('/a-searched-post/', 'quetzalcoatlus');
+      assert.deepEqual(addresses((await searched({ q: 'quetzalcoatlus' }, { until: (body) => body.found === 1 })).body), ['/a-searched-post/']);
+      assert.deepEqual(addresses((await searched({ q: 'quetzalcoatlus & more' })).body), ['/a-searched-post/'], 'an & in the query is a word of it');
+      assert.ok(addresses((await searched({ q: 'coatlus' })).body).includes('/a-searched-post/'), 'a part of a word of the body finds it, inside the word');
+      await saveFile(file('0a0a0a0a0a0a'), published('a-searched-post', { status: 'draft' }, words), 'anna');
+      assert.equal((await searched({ q: 'quetzalcoatlus' }, { until: (body) => body.found === 0 })).body.found, 0, 'a draft is not found');
+      await saveFile(file('0a0a0a0a0a0a'), published('a-searched-post', { search: { noindex: true } }, words), 'anna');
+      // Live again, which the record says once the build, its index too, is done.
+      assert.equal((await statusBecomes(file('0a0a0a0a0a0a'), 'live')).status, 'live');
+      assert.equal((await searched({ q: 'quetzalcoatlus' }, { within: 0 })).body.found, 0, 'nor one kept from search engines');
+    });
+
+    test('takes q, page and filter_by alone, answers the rest as the dev server does, and holds no key where a visitor reaches', async () => {
+      const asked = await searched({ q: 'landscape', per_page: '250', include_fields: 'body' });
+      assert.equal(asked.body.request_params.per_page, 10);
+      assert.ok(asked.body.hits.length > 0 && asked.body.hits.every(({ document }) => !('body' in document)));
+      assert.equal((await searched({ q: 'landscape', filter_by: 'type:=nothing' })).body.found, 0);
+      const posted = await get(`${site.origin.site}/_konzilo/search?q=landscape`, { method: 'POST' });
+      assert.equal(posted.status, 405);
+      assert.equal(posted.headers.get('allow'), 'GET');
+      assert.deepEqual(await posted.json(), { message: 'Search takes GET alone.' });
+      assert.equal((await get(`${site.origin.site}/_konzilo/search/keys`)).status, 404);
+      assert.equal((await get(`${site.origin.site}/search-route.caddy`)).status, 404);
+
+      const route = site.compose('exec', '-T', 'web', 'cat', '/srv/search/search-route.caddy');
+      const keys = [
+        /X-TYPESENSE-API-KEY `([^`]+)`/.exec(route)[1],
+        site.compose('exec', '-T', 'builder', 'cat', '/secret/typesense-search-key').trim(),
+        site.compose('exec', '-T', 'builder', 'cat', '/secret/typesense-admin-key').trim(),
+      ];
+      for (const address of ['/', '/search/?q=landscape', '/_konzilo/search?q=landscape&page=1']) {
+        const answer = await get(`${site.origin.site}${address}`);
+        const seen = `${JSON.stringify([...answer.headers])}${await answer.text()}`;
+        for (const key of keys) assert.ok(!seen.includes(key), `${address} holds no key`);
+      }
+      const inReleases = site.compose('exec', '-T', 'web', 'sh', '-c', 'for key in "$@"; do grep -rlF -- "$key" /srv/site; done; true', 'sh', ...keys);
+      assert.equal(inReleases.trim(), '', 'nor does any release');
+    });
+
+    test('shows the results on the search page, and says that search does not answer while Typesense is stopped, every other page still there', async () => {
+      const session = await openEditor('chromium', site);
+      try {
+        const { page } = session;
+        await page.goto(`${site.origin.site}/search/?q=landscape`);
+        await page.locator('.konzilo-search-results li a').first().waitFor();
+        assert.match(await page.getByRole('status').textContent(), /results? for “landscape”/);
+        site.compose('stop', 'typesense');
+        try {
+          const down = await get(`${site.origin.site}/_konzilo/search?q=landscape&page=1`);
+          assert.equal(down.status, 502);
+          assert.deepEqual(await down.json(), { message: 'Search does not answer.' });
+          await page.goto(`${site.origin.site}/search/?q=landscape`);
+          await page.getByRole('status').filter({ hasText: 'Search does not answer right now. Try again in a while.' }).waitFor();
+          assert.equal((await get(`${site.origin.site}/`)).status, 200);
+          assert.deepEqual(session.seen.refused, []);
+          assert.deepEqual(session.seen.outside, []);
+
+          // A build while it is stopped: the release goes live, unindexed.
+          await saveFile(file('0b0b0b0b0b0b'), published('while-search-sleeps', {}, 'Plain words: ornithopter.'), 'anna');
+          await onTheSite('/while-search-sleeps/', 'ornithopter');
+          assert.equal((await statusBecomes(file('0b0b0b0b0b0b'), 'live')).status, 'live');
+          const line = await lastLine((one) => one.unindexed === true);
+          assert.equal(line.outcome, 'live');
+          assert.equal(line.unindexed, true);
+        } finally {
+          site.compose('start', 'typesense');
+          await healthy('typesense');
+        }
+        // The next build makes the index, of what was published while it was stopped too.
+        await saveFile(file('0b0b0b0b0b0b'), published('while-search-sleeps', {}, 'Plain words: ornithopter, again.'), 'anna');
+        assert.deepEqual(addresses((await searched({ q: 'ornithopter' }, { within: 90_000, until: (body) => body.found === 1 })).body), ['/while-search-sleeps/']);
+        assert.equal((await lastLine((one) => one.unindexed === undefined)).unindexed, undefined);
+      } finally {
+        await session.browser.close();
+      }
+    });
+
     test('breaks no policy of its own, in a real browser', async () => {
       const session = await openEditor('chromium', site);
       try {

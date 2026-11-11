@@ -46,8 +46,9 @@ const heldBy = (posts) => Object.fromEntries(Object.entries(posts).filter(([, { 
 // `site`: the site's name. `origin`: its public host's. `code`: what names its code as it stands.
 // `source`, `content`: as repositories.js gives them. `roles`: as roles.js gives it. `control`:
 // as record.js gives it. `live`: as release.js gives it. `intake(checkout, roles, confirmed)` gives
-// { status, report, detail } and `astro()` the folder it built into, or throws.
-export function siteBuild({ site, origin, code, source, content, roles, control, live, intake, astro, now = () => new Date(), warn = console.error }) {
+// { status, report, detail } and `astro()` the folder it built into, or throws. `index()` makes the
+// site's search index of the release in use (search-index.js), or throws.
+export function siteBuild({ site, origin, code, source, content, roles, control, live, intake, astro, index = async () => {}, now = () => new Date(), warn = console.error }) {
   const stamp = (date) => date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
 
   // The content repository is a copy here until this has worked. A push that fails goes with
@@ -60,10 +61,26 @@ export function siteBuild({ site, origin, code, source, content, roles, control,
     }
   };
 
+  // The search index (ADR 0053), made once `current` is switched, and at this builder's first build,
+  // since nothing says whether an index of the release in use was kept. One that cannot be made
+  // costs visitors nothing but search: the release stays live, the build's line says
+  // `unindexed`, and the next build makes it, of the same release too.
+  let indexed = false;
+  const indexing = async () => {
+    try {
+      await index();
+      indexed = true;
+      return false;
+    } catch (error) {
+      warn(`The search index could not be made: ${error.message}`);
+      return true;
+    }
+  };
+
   return async function build() {
     const previous = control.record();
     const started = now();
-    const finish = ({ source: read = previous?.source ?? null, reason = null, stopped = null, report = null, versions = {}, release = previous?.release ?? null }) => {
+    const finish = ({ source: read = previous?.source ?? null, reason = null, stopped = null, report = null, versions = {}, release = previous?.release ?? null, unindexed = false }) => {
       const posts = report ? postsFrom(report, versions) : previous?.posts ?? {};
       const refusals = report?.refusals ?? previous?.refusals ?? [];
       const record = {
@@ -84,6 +101,7 @@ export function siteBuild({ site, origin, code, source, content, roles, control,
         site,
         outcome: record.outcome,
         failures: [...(reason ? [reason] : []), ...refusals],
+        ...(unindexed ? { unindexed: true } : {}),
       });
       return record;
     };
@@ -121,8 +139,9 @@ export function siteBuild({ site, origin, code, source, content, roles, control,
       fingerprint = { content: await content.commit(`Publish ${head.slice(0, 12)}`), code, origin };
       const same = previous?.release && live.current() === previous.release.name && JSON.stringify(previous.release.fingerprint) === JSON.stringify(fingerprint);
       if (same) {
+        const unindexed = indexed ? false : await indexing();
         await pushing();
-        return finish({ source: head, report, versions, release: { ...previous.release, held: heldBy(postsFrom(report, versions)) } });
+        return finish({ source: head, report, versions, release: { ...previous.release, held: heldBy(postsFrom(report, versions)) }, unindexed });
       }
     } catch (error) {
       warn(`The build could not commit the content: ${error.message}`);
@@ -146,8 +165,9 @@ export function siteBuild({ site, origin, code, source, content, roles, control,
       return finish({ source: head, reason: NOT_RELEASED, report, versions });
     }
 
+    const unindexed = await indexing();
     await pushing();
-    return finish({ source: head, report, versions, release: { name, at: now().toISOString(), fingerprint, held: heldBy(postsFrom(report, versions)) } });
+    return finish({ source: head, report, versions, release: { name, at: now().toISOString(), fingerprint, held: heldBy(postsFrom(report, versions)) }, unindexed });
   };
 }
 

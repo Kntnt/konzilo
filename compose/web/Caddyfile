@@ -14,10 +14,25 @@
 :{$KONZILO_PORT_SITE} {
 	root * /srv/site/current/pages
 	import /srv/site/current/web-rules*.caddy
+	# Search (ADR 0053): the route to Typesense, with its key, which every build writes outside
+	# the releases, where no visitor reaches it; none before the first build.
+	import /srv/search/search-route*.caddy
 	file_server
 	handle_errors {
-		rewrite * /404.html
-		file_server
+		# Search that Typesense does not answer says so, as the dev server's does.
+		@search_down {
+			path /_konzilo/search
+			expression `{err.status_code} >= 500`
+		}
+		handle @search_down {
+			header Content-Type `application/json; charset=utf-8`
+			header Cache-Control no-store
+			respond `{"message":"Search does not answer."}` 502
+		}
+		handle {
+			rewrite * /404.html
+			file_server
+		}
 	}
 }
 
