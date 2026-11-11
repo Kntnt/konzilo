@@ -8,6 +8,8 @@ section.field[data-field-type='konzilo-group'] > header { display: none; }
 .konzilo-group-required { margin-inline-start: 2px; color: var(--sui-error-foreground-color); font-size: var(--sui-font-size-large); }
 .konzilo-group-hint { margin: 4px 0 0; font-size: var(--sui-font-size-small); line-height: var(--sui-line-height-compact); color: var(--sui-tertiary-foreground-color); }
 .konzilo-group-field :is(input[type='text'], textarea) { width: 100%; }
+/* A field with no label of its own first in its group leaves the label's line to the menu. */
+.konzilo-group-menu + .konzilo-group-unlabelled { padding-inline-end: 32px; }
 .konzilo-group-menu { position: absolute; inset-block-start: 0; inset-inline-end: 0; z-index: 2; }
 .konzilo-group-options { display: inline-flex; align-items: center; justify-content: center; width: var(--sui-button-small-height, 24px); height: var(--sui-button-small-height, 24px); padding: 0; border: 0; border-radius: var(--sui-control-medium-border-radius, 4px); background: transparent; color: var(--sui-secondary-foreground-color); font: inherit; font-size: 16px; cursor: pointer; }
 .konzilo-group-options:hover, .konzilo-group-options[aria-expanded='true'] { background: var(--sui-hover-background-color); }

@@ -558,6 +558,32 @@ describe('the form\'s field groups', () => {
     assert.equal(field(cmsConfig(description, { ...place, language: 'sv' }).collections[0].fields, 'group-headline').label, 'Rubrik');
   });
 
+  // The headline's optional parts are buttons until wanted, and the date and time stand under the
+  // status's choices, with the time zone under them; none of these shows a label of its own, which
+  // still names it for a screen reader and in a refusal.
+  test('show the main headline and the status with their labels, and the eyebrow, the subheadline and the date without', () => {
+    const shown = (made) => {
+      const fields = made.collections.find((one) => one.name === 'articles').fields;
+      return ['group-headline', 'group-status'].flatMap((name) => field(fields, name).fields.map((one) => [one.name, one.label, one.labelled !== false, one.add ?? null]));
+    };
+    assert.deepEqual(shown(config), [
+      ['eyebrow', 'Eyebrow', false, 'Add an eyebrow'],
+      ['headline', 'Main headline', true, null],
+      ['subheadline', 'Subheadline', false, 'Add a subheadline'],
+      ['status', 'Status', true, null],
+      ['date', 'Date', false, null],
+    ]);
+    assert.deepEqual(shown(cmsConfig(description, { ...place, language: 'sv' })), [
+      ['eyebrow', 'Dårrad', false, 'Lägg till dårrad'],
+      ['headline', 'Huvudrubrik', true, null],
+      ['subheadline', 'Nedryckare', false, 'Lägg till nedryckare'],
+      ['status', 'Status', true, null],
+      ['date', 'Datum', false, null],
+    ]);
+    // Sveltia names the time zone under a date and time it takes in UTC.
+    assert.equal(field(collection('articles').fields, 'date').picker_utc, true);
+  });
+
   test('give the slug its default from the name in breadcrumbs, and leave the required working name and main headline without one', () => {
     const fields = collection('articles').fields;
     assert.equal(field(fields, 'slug').computed, 'slug');
