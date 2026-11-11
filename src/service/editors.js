@@ -1,11 +1,16 @@
-// The service's part for editors (ADR 0044): what starts a build, what a post's status is, and a
-// small picture of an image in the library (ADR 0055). Forgejo's webhook only says that something may have happened: the
-// build looks for itself, so a request here decides nothing, and needs no secret. Everything an
-// editor asks goes by what Forgejo says of the one asking, each time.
+// The service's part for editors (ADR 0044): what starts a build, what a post's status is, a
+// small picture of an image in the library (ADR 0055), the forms' submissions (ADR 0045), and how
+// the site mails them, which an Admin sets on the *Mail* page (ADR 0003). Forgejo's webhook only
+// says that something may have happened: the build looks for itself, so a request here decides
+// nothing, and needs no secret. Everything an editor asks goes by what Forgejo says of the one
+// asking, each time.
 
+import { ADMINS_TEAM } from '../build/roles.js';
 import { publishStatus } from '../build/status.js';
-import { mayWrite } from '../forgejo.js';
+import { CREDENTIAL, mayWrite } from '../forgejo.js';
 import { FORM_NAME } from '../site-description.js';
+import { FAILURE_SETTING, MAIL_SETTING } from './mail.js';
+import { checkMailSettings, mailSettingsShown } from './mail-settings.js';
 import { SEPARATORS, submissionsCsv, timeZoneOf } from './submissions-csv.js';
 
 const answerJson = (outgoing, status, body) => {
@@ -14,6 +19,9 @@ const answerJson = (outgoing, status, body) => {
 };
 
 const SUBMISSIONS = '/_konzilo/submissions';
+const MAIL = '/_konzilo/mail';
+// The most the *Mail* page's settings take, as JSON.
+const MAIL_BODY_LIMIT = 64 * 1024;
 // A form's submissions are shown this many at a time, newest first.
 const SUBMISSIONS_AT_ONCE = 50;
 
@@ -37,11 +45,33 @@ const ANSWERS_AT_MOST = 256;
 // A picture changes only with its file, which is seldom, and is looked at again within the hour.
 const PICTURE_HOLDS = 3600;
 
+// A body up to `limit` bytes, or null when it is longer.
+function bodyOf(incoming, limit) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let length = 0;
+    incoming.on('data', (chunk) => {
+      length += chunk.length;
+      if (length > limit) {
+        incoming.removeAllListeners('data');
+        incoming.resume();
+        resolve(null);
+        return;
+      }
+      chunks.push(chunk);
+    });
+    incoming.on('end', () => resolve(Buffer.concat(chunks)));
+    incoming.on('error', reject);
+  });
+}
+
 // `forgejo`: where to ask. `repository`: the source repository. `token`: a credential that can
-// read it. `control`: as record.js gives it. `isPost(file)`: whether a file in the source is a post.
+// read it. `rolesToken`: one that can read the organisation's teams, and so who is an Admin.
+// `control`: as record.js gives it. `isPost(file)`: whether a file in the source is a post.
 // `pictures`: as thumbnails.js gives them. `store`: the service's data, as store.js opens it, which
-// holds the forms' submissions, and `forms()`: the forms the site description in use declares.
-export function editorsService({ forgejo, repository, token, control, pictures = null, store = null, forms = () => ({}), isPost = () => true, now = () => new Date(), warn = console.error, get = fetch }) {
+// holds the forms' submissions and how the site mails them, and `forms()`: the forms the site
+// description in use declares. `local`: whether this is a local copy, which sends no mail.
+export function editorsService({ forgejo, repository, token, rolesToken = null, control, pictures = null, store = null, forms = () => ({}), local = false, isPost = () => true, now = () => new Date(), warn = console.error, get = fetch }) {
   const answers = new Map();
   const mayWriteLately = async (credential) => {
     const held = answers.get(credential);
@@ -51,6 +81,78 @@ export function editorsService({ forgejo, repository, token, control, pictures =
     if (answers.size >= ANSWERS_AT_MOST) answers.clear();
     answers.set(credential, { may, at: moment });
     return may;
+  };
+
+  // Who is asking, as Forgejo says: `admin`, one in the organisation's team of Admins or the one
+  // who runs the instance (ADR 0008); `writer`, anyone else who may write; or null. Who is in a
+  // team Forgejo tells only those in it and the one who runs it, so the service asks by a
+  // credential of its own that can read the teams and nothing else.
+  const organisation = repository.split('/')[0];
+  const asked = (path, credential) => get(`${forgejo}/api/v1${path}`, { headers: { authorization: credential } });
+  const inAdmins = async (login) => {
+    if (rolesToken === null) return false;
+    const teams = await asked(`/orgs/${encodeURIComponent(organisation)}/teams?limit=50`, `token ${rolesToken}`);
+    if (!teams.ok) throw new Error(`Forgejo answered ${teams.status} about the teams`);
+    const team = (await teams.json()).find(({ name }) => name === ADMINS_TEAM);
+    if (!team) return false;
+    const member = await asked(`/teams/${team.id}/members/${encodeURIComponent(login)}`, `token ${rolesToken}`);
+    if (member.status === 404) return false;
+    if (!member.ok) throw new Error(`Forgejo answered ${member.status} about the team of Admins`);
+    return true;
+  };
+  const roleOf = async (credential) => {
+    if (!CREDENTIAL.test(credential ?? '')) return null;
+    const me = await asked('/user', credential);
+    if (!me.ok) return null;
+    const { login, is_admin: runsTheInstance } = await me.json();
+    if (runsTheInstance === true || (typeof login === 'string' && await inAdmins(login))) return 'admin';
+    return await mayWrite({ forgejo, repository, credential, get }) ? 'writer' : null;
+  };
+
+  // How the site mails the forms' submissions, to an Admin alone: an Editor is told only that it is
+  // an Admin's, and whoever may not write nothing. A save makes what waits to be tried again due
+  // at once, since what failed may now go.
+  const answerMail = async (incoming, outgoing) => {
+    if (!['GET', 'PUT'].includes(incoming.method)) {
+      incoming.resume();
+      outgoing.writeHead(405, { allow: 'GET, PUT', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+      return outgoing.end();
+    }
+    if (!store) return answerJson(outgoing, 404, {});
+    const role = await roleOf(incoming.headers.authorization);
+    if (role !== 'admin') {
+      incoming.resume();
+      return answerJson(outgoing, role === null ? 401 : 403, {});
+    }
+    const shown = () => mailSettingsShown({ store, forms: forms(), local });
+    if (incoming.method === 'GET') return answerJson(outgoing, 200, shown());
+    if ((incoming.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase() !== 'application/json') {
+      incoming.resume();
+      return answerJson(outgoing, 415, {});
+    }
+    if (Number(incoming.headers['content-length'] ?? 0) > MAIL_BODY_LIMIT) {
+      outgoing.shouldKeepAlive = false;
+      incoming.resume();
+      return answerJson(outgoing, 413, {});
+    }
+    const body = await bodyOf(incoming, MAIL_BODY_LIMIT);
+    if (body === null) {
+      outgoing.shouldKeepAlive = false;
+      return answerJson(outgoing, 413, {});
+    }
+    let given;
+    try {
+      given = JSON.parse(body.toString('utf8'));
+    } catch {
+      return answerJson(outgoing, 400, { problems: { '': 'malformed' } });
+    }
+    const checked = checkMailSettings(given, { store, forms: forms() });
+    if (checked.problems) return answerJson(outgoing, 400, { problems: checked.problems });
+    store.setSetting(MAIL_SETTING, checked.mail);
+    for (const [form, recipients] of Object.entries(checked.recipients)) store.setFormSettings(form, { recipients });
+    store.setSetting(FAILURE_SETTING, null);
+    store.mailSoon(now());
+    return answerJson(outgoing, 200, shown());
   };
 
   const answerPicture = async (incoming, outgoing, of) => {
@@ -183,6 +285,7 @@ export function editorsService({ forgejo, repository, token, control, pictures =
       }
       if (pathname === '/_konzilo/thumbnail') return answerPicture(incoming, outgoing, searchParams.get('of'));
       if (pathname === SUBMISSIONS || pathname.startsWith(`${SUBMISSIONS}/`)) return answerSubmissions(incoming, outgoing, pathname.slice(SUBMISSIONS.length), searchParams);
+      if (pathname === MAIL) return answerMail(incoming, outgoing);
       return answerJson(outgoing, 404, {});
     },
 

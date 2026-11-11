@@ -8,7 +8,8 @@ import { dirname, join } from 'node:path';
 import { addPushers, eventsAfter } from './pushers.js';
 
 const PAGE = 50;
-const ADMINS_TEAM = 'admins';
+// The organisation's team of Admins (ADR 0008).
+export const ADMINS_TEAM = 'admins';
 
 // `token`: a credential that may read the organisation's teams and every account's pushes.
 // `instance`: the account the core itself pushes with, which counts as an Admin. `folder`: where
