@@ -29,13 +29,15 @@ const STEPS = [
 // The store in `file`, made where there is none, and brought up to the last step. Two programs may
 // hold it open at once, the service's two roles, each waiting a moment for the other's write.
 //
-// Gives { key, keep(submission), submissions(form), counts(), close() }: `key`, 32 bytes, the same from the
+// Gives { key, keep(submission), submissions(form), eachSubmission(form), counts(), close() }: `key`, 32 bytes, the same from the
 // first opening on; `keep` takes { form, sentAt, language, spam, fields }, `sentAt` a Date,
 // `spam` null or why it was held as spam, and `fields` each { name, label, value }, and gives its
 // number; `submissions` gives a form's, newest first, each as kept with its `id` and `sentAt` in
 // ISO 8601, UTC, spam among them unless `spam` is false, from after the submission numbered
 // `before` where it is given, and at most `limit`; `counts` gives how many each form holds that
-// are not spam, by the form's name, of each form that holds one.
+// are not spam, by the form's name, of each form that holds one; and `eachSubmission` gives a
+// form's as `submissions` does with `spam` false, one at a time as they are read, for what writes
+// them out as it reads them.
 export function openStore(file) {
   const database = new DatabaseSync(file);
   database.exec('PRAGMA busy_timeout = 5000');
@@ -61,20 +63,25 @@ export function openStore(file) {
     ORDER BY sent_at DESC, id DESC LIMIT :limit`);
   const counted = database.prepare('SELECT form, COUNT(*) AS count FROM submission WHERE spam IS NULL GROUP BY form ORDER BY form');
 
+  const submissionOf = (row) => ({
+    id: Number(row.id),
+    form: row.form,
+    sentAt: row.sent_at,
+    language: row.language,
+    spam: row.spam,
+    fields: JSON.parse(row.fields),
+  });
+
   return {
     key,
     keep({ form, sentAt, language, spam = null, fields }) {
       return Number(insert.run(form, sentAt.toISOString(), language, spam, JSON.stringify(fields)).lastInsertRowid);
     },
     submissions(form, { spam = true, before = null, limit = null } = {}) {
-      return byForm.all({ form, spam: spam ? 1 : 0, before, limit: limit ?? -1 }).map((row) => ({
-        id: Number(row.id),
-        form: row.form,
-        sentAt: row.sent_at,
-        language: row.language,
-        spam: row.spam,
-        fields: JSON.parse(row.fields),
-      }));
+      return byForm.all({ form, spam: spam ? 1 : 0, before, limit: limit ?? -1 }).map(submissionOf);
+    },
+    * eachSubmission(form) {
+      for (const row of byForm.iterate({ form, spam: 0, before: null, limit: -1 })) yield submissionOf(row);
     },
     counts() {
       return Object.fromEntries(counted.all().map(({ form, count }) => [form, Number(count)]));

@@ -5,6 +5,7 @@
 
 import { publishStatus } from '../build/status.js';
 import { mayWrite } from '../forgejo.js';
+import { SEPARATORS, submissionsCsv, timeZoneOf } from './submissions-csv.js';
 
 const answerJson = (outgoing, status, body) => {
   outgoing.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
@@ -63,7 +64,8 @@ export function editorsService({ forgejo, repository, token, control, pictures =
   };
 
   // A form's submissions (ADR 0045), to Admins and Editors alone: each form with how many it holds,
-  // and a form's newest first, spam left out. Whoever may not write is told nothing, not even which
+  // a form's newest first, and a form's as CSV, by the separator, in the time zone and in the
+  // interface language the reader names, spam left out. Whoever may not write is told nothing, not even which
   // forms there are.
   const answerSubmissions = async (incoming, outgoing, below, searchParams) => {
     if (incoming.method !== 'GET') return answerJson(outgoing, 405, {});
@@ -75,8 +77,19 @@ export function editorsService({ forgejo, repository, token, control, pictures =
       const named = [...Object.keys(declared), ...Object.keys(counts).filter((name) => !Object.hasOwn(declared, name))];
       return answerJson(outgoing, 200, { forms: named.map((name) => ({ name, label: declared[name]?.label ?? name, count: counts[name] ?? 0 })) });
     }
-    const [, name] = /^\/([a-z][a-z0-9-]*)$/.exec(below) ?? [];
+    const [, name, asCsv] = /^\/([a-z][a-z0-9-]*)(\.csv)?$/.exec(below) ?? [];
     if (name === undefined || !(Object.hasOwn(declared, name) || Object.hasOwn(counts, name))) return answerJson(outgoing, 404, {});
+    if (asCsv) {
+      const separator = searchParams.get('separator');
+      if (!Object.hasOwn(SEPARATORS, separator ?? '')) return answerJson(outgoing, 400, {});
+      return answerCsv(outgoing, name, submissionsCsv({
+        label: declared[name]?.label ?? name,
+        each: () => store.eachSubmission(name),
+        separator,
+        timeZone: timeZoneOf(searchParams.get('timeZone')),
+        language: searchParams.get('language'),
+      }));
+    }
     const before = searchParams.get('before');
     if (before !== null && !/^[1-9][0-9]{0,15}$/.test(before)) return answerJson(outgoing, 400, {});
     const shown = store.submissions(name, { spam: false, before: before === null ? null : Number(before), limit: SUBMISSIONS_AT_ONCE + 1 });
@@ -84,6 +97,26 @@ export function editorsService({ forgejo, repository, token, control, pictures =
       submissions: shown.slice(0, SUBMISSIONS_AT_ONCE).map(({ id, sentAt, language, fields }) => ({ id, sentAt, language, fields })),
       more: shown.length > SUBMISSIONS_AT_ONCE,
     });
+  };
+
+  // A file written a piece at a time, as its pieces are read, never held whole.
+  const answerCsv = async (outgoing, name, pieces) => {
+    outgoing.writeHead(200, {
+      'content-type': 'text/csv; charset=utf-8; header=present',
+      'content-disposition': `attachment; filename="${name}.csv"`,
+      'cache-control': 'no-store',
+      'x-content-type-options': 'nosniff',
+    });
+    for (const piece of pieces) {
+      if (outgoing.destroyed) return;
+      if (!outgoing.write(piece)) {
+        await new Promise((go) => {
+          outgoing.once('drain', go);
+          outgoing.once('close', go);
+        });
+      }
+    }
+    outgoing.end();
   };
 
   // Each file in the source as it stands, with its version.

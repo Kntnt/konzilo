@@ -136,6 +136,132 @@ describe('the submissions, for editors', () => {
     });
   });
 
+  describe('a form\'s submissions as CSV', () => {
+    const csv = async (query) => {
+      const answer = await get(`/_konzilo/submissions/contact.csv?${query}`);
+      assert.equal(answer.status, 200, query);
+      return { headers: answer.headers, text: new TextDecoder('utf-8', { ignoreBOM: true }).decode(await answer.arrayBuffer()) };
+    };
+    const keepTwoAndSpam = () => {
+      store.keep(sent('2026-11-01T10:00:00Z', [field('name', 'Name', 'Ada'), field('phone', 'Phone', '+46 70 123'), field('message', 'Message', 'Hello\nagain'), field('copy', 'Keep me posted', true), field('interests', 'Interests', ['Web', 'Print'])]));
+      store.keep(sent('2026-11-02T23:30:00Z', [field('name', 'Your name', 'Bea'), field('message', 'Message', 'Hi'), field('copy', 'Keep me posted', false)]));
+      store.keep(sent('2026-11-04T10:00:00Z', [field('name', 'Your name', 'Spam'), field('message', 'Message', 'Buy')], { spam: 'trap' }));
+      store.keep(sent('2026-11-03T10:00:00Z', [field('note', 'Note', 'Elsewhere')], { form: 'note' }));
+    };
+
+    test('is UTF-8 with a byte-order mark, its rows ended by CRLF, newest first, its columns the moment in the reader\'s time zone, the form, then the newest submission\'s labels in order and then each only older ones hold, and spam left out', async () => {
+      keepTwoAndSpam();
+      const { headers, text } = await csv('separator=comma&timeZone=Europe/Stockholm&language=en');
+      assert.equal(headers.get('content-type'), 'text/csv; charset=utf-8; header=present');
+      assert.equal(headers.get('content-disposition'), 'attachment; filename="contact.csv"');
+      assert.equal(headers.get('cache-control'), 'no-store');
+      assert.equal(headers.get('x-content-type-options'), 'nosniff');
+      assert.equal(text, [
+        '﻿Sent at,Form,Your name,Message,Keep me posted,Name,Phone,Interests',
+        '2026-11-03 00:30:00,Contact us,Bea,Hi,No,,,',
+        '2026-11-01 11:00:00,Contact us,,"Hello\nagain",Yes,Ada,\'+46 70 123,"Web, Print"',
+        '',
+      ].join('\r\n'));
+    });
+
+    test('takes semicolons, and its words in the reader\'s interface language, in UTC where the reader names no time zone the service knows', async () => {
+      keepTwoAndSpam();
+      const expected = [
+        '﻿Skickat;Formulär;Your name;Message;Keep me posted;Name;Phone;Interests',
+        '2026-11-02 23:30:00;Contact us;Bea;Hi;Nej;;;',
+        '2026-11-01 10:00:00;Contact us;;"Hello\nagain";Ja;Ada;\'+46 70 123;Web, Print',
+        '',
+      ].join('\r\n');
+      assert.equal((await csv('separator=semicolon&language=sv')).text, expected);
+      assert.equal((await csv('separator=semicolon&language=sv&timeZone=Mars/Olympus')).text, expected);
+      assert.match((await csv('separator=comma&language=de')).text, /^﻿Sent at,Form,/, 'British English for a language without a catalogue');
+      assert.equal((await get('/_konzilo/submissions/contact.csv?separator=tab')).status, 400);
+      assert.equal((await get('/_konzilo/submissions/contact.csv')).status, 400);
+    });
+
+    test('has a column for each field of a label two fields share in one submission, and names a form the site no longer declares by its name', async () => {
+      store.keep(sent('2026-11-01T10:00:00Z', [field('first', 'Name', 'Ada'), field('last', 'Name', 'Lovelace')]));
+      store.keep(sent('2026-11-01T10:00:00Z', [field('topic', 'Topic', 'Old')], { form: 'retired' }));
+      assert.equal((await csv('separator=comma')).text, '﻿Sent at,Form,Name,Name\r\n2026-11-01 10:00:00,Contact us,Ada,Lovelace\r\n');
+      assert.equal(new TextDecoder().decode(await (await get('/_konzilo/submissions/retired.csv?separator=comma')).arrayBuffer()), 'Sent at,Form,Topic\r\n2026-11-01 10:00:00,retired,Old\r\n');
+      assert.equal(new TextDecoder().decode(await (await get('/_konzilo/submissions/note.csv?separator=comma')).arrayBuffer()), 'Sent at,Form\r\n', 'a declared form none was sent to');
+      assert.equal((await get('/_konzilo/submissions/no-such-form.csv?separator=comma')).status, 404);
+    });
+
+    // What a spreadsheet would take as a formula, at the start of a cell.
+    const FORMULA = /^[=+\-@\t\r]/;
+    const risky = {
+      equals: '=1+1', plus: '+1', minus: '-1', at: '@SUM(A1)', tab: '\tx', carriageReturn: '\rx',
+      afterComma: 'a,=1+1', afterSemicolon: 'a;=1+1', afterLineBreak: 'a\n=1+1', quoteAfterComma: 'a,"b', minusAfterSemicolon: 'a;-b',
+      inside: 'a = b', plain: 'plain',
+    };
+
+    test('writes a value that begins with =, +, -, @, a tab or a carriage return after an apostrophe, and such a character, or a quote, after a comma, a semicolon or a line break inside a value', async () => {
+      store.keep(sent('2026-11-01T10:00:00Z', Object.entries(risky).map(([name, value]) => field(name.toLowerCase(), name, value))));
+      assert.equal((await csv('separator=comma')).text.split('\r\n').slice(1).join('\r\n'), [
+        `2026-11-01 10:00:00,Contact us,'=1+1,'+1,'-1,'@SUM(A1),'\tx,"'\rx","a,'=1+1",a;'=1+1,"a\n'=1+1","a,'""b",a;'-b,a = b,plain`,
+        '',
+      ].join('\r\n'));
+      assert.equal((await csv('separator=semicolon')).text.split('\r\n').slice(1).join('\r\n'), [
+        `2026-11-01 10:00:00;Contact us;'=1+1;'+1;'-1;'@SUM(A1);'\tx;"'\rx";a,'=1+1;"a;'=1+1";"a\n'=1+1";"a,'""b";"a;'-b";a = b;plain`,
+        '',
+      ].join('\r\n'));
+    });
+
+    // A file as a spreadsheet reads it by `separator`: a cell that starts with a quote runs to the
+    // next lone quote, with a doubled quote in it one, and a quote anywhere else is a character;
+    // a row ends at a line break outside quotes.
+    const readAs = (text, separator) => {
+      const rows = [];
+      let row = [];
+      let cell = '';
+      let quoted = false;
+      let fresh = true;
+      const endCell = () => {
+        row.push(cell);
+        cell = '';
+        fresh = true;
+      };
+      for (let at = text.startsWith('﻿') ? 1 : 0; at < text.length; at += 1) {
+        const char = text[at];
+        if (quoted) {
+          if (char === '"' && text[at + 1] === '"') {
+            cell += '"';
+            at += 1;
+          } else if (char === '"') quoted = false;
+          else cell += char;
+        } else if (fresh && char === '"') {
+          quoted = true;
+          fresh = false;
+        } else if (char === separator) endCell();
+        else if (char === '\n' || char === '\r') {
+          if (char === '\r' && text[at + 1] === '\n') at += 1;
+          endCell();
+          rows.push(row);
+          row = [];
+        } else {
+          cell += char;
+          fresh = false;
+        }
+      }
+      return rows;
+    };
+
+    test('opens with its columns by the separator it was written with, and with no cell that starts a formula by either', async () => {
+      store.keep(sent('2026-11-01T10:00:00Z', Object.entries(risky).map(([name, value]) => field(name.toLowerCase(), name, value))));
+      for (const [written, separator] of [['comma', ','], ['semicolon', ';']]) {
+        const { text } = await csv(`separator=${written}`);
+        const [header, row, ...rest] = readAs(text, separator);
+        assert.deepEqual(rest, []);
+        assert.deepEqual(header, ['Sent at', 'Form', ...Object.keys(risky)]);
+        assert.deepEqual(row.slice(2).map((cell) => cell.replace(/(^|[,;\r\n])'/g, '$1')), Object.values(risky), written);
+        for (const other of [',', ';']) {
+          for (const cell of readAs(text, other).flat()) assert.doesNotMatch(cell, FORMULA, `${written} read by ${other}: ${JSON.stringify(cell)}`);
+        }
+      }
+    });
+  });
+
   describe('whoever may not write', () => {
     test('is told nothing, not even which forms there are, asking Forgejo each time', async () => {
       store.keep(sent('2026-11-01T10:00:00Z', [field('name', 'Name', 'Ada'), field('message', 'Message', 'Hello')]));
