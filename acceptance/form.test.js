@@ -175,15 +175,18 @@ describe('field groups in Sveltia', () => {
 
   after(() => site?.close());
 
+  // The form's sections, in order, by their places in the post's values.
+  const sections = () => page.evaluate(() => [...document.querySelectorAll('section.field[data-key-path]')].map((one) => one.dataset.keyPath).filter((key) => !key.includes('.')));
+  // A group holds the fields by these labels, and has one menu.
+  const holds = async (name, labels) => {
+    for (const label of labels) assert.equal(await group(name).getByText(label, { exact: true }).count() > 0, true, `${name} holds ${label}`);
+    await group(name).hover();
+    assert.equal(await group(name).getByRole('button', { name: 'Show Field Options' }).filter({ visible: true }).count(), 1, `${name} has one menu`);
+  };
+
   test('give the article its form in story 23\'s order, each group one section with one menu, and no publishing row', async () => {
     await open('articles');
-    const sections = await page.evaluate(() => [...document.querySelectorAll('section.field[data-key-path]')].map((one) => one.dataset.keyPath).filter((key) => !key.includes('.')));
-    assert.deepEqual(sections, ['group-name', 'group-status', 'image', 'group-terms', 'group-headline', 'standfirst', 'body', 'teaser', 'search', 'sharing', 'structured', 'otherAddresses']);
-    const holds = async (name, labels) => {
-      for (const label of labels) assert.equal(await group(name).getByText(label, { exact: true }).count() > 0, true, `${name} holds ${label}`);
-      await group(name).hover();
-      assert.equal(await group(name).getByRole('button', { name: 'Show Field Options' }).filter({ visible: true }).count(), 1, `${name} has one menu`);
-    };
+    assert.deepEqual(await sections(), ['group-name', 'group-status', 'image', 'group-terms', 'group-headline', 'standfirst', 'body', 'teaser', 'search', 'sharing', 'structured', 'otherAddresses']);
     await holds('group-name', ['Working name', 'Breadcrumb', 'Slug']);
     await holds('group-status', ['Status', 'UTC']);
     await holds('group-terms', ['Authors', 'Category', 'Topics']);
@@ -193,11 +196,22 @@ describe('field groups in Sveltia', () => {
     assert.equal(await group('publishing').count(), 0);
   });
 
-  test('keep a page\'s publishing row', async () => {
-    await open('pages');
-    await group('publishing').waitFor();
-    const sections = await page.evaluate(() => [...document.querySelectorAll('section.field[data-key-path]')].map((one) => one.dataset.keyPath).filter((key) => !key.includes('.')));
-    assert.deepEqual(sections.slice(0, 3), ['group-name', 'group-status', 'publishing']);
+  // A page and a canvas take the article's sections that they have, in its order, beside their
+  // parent and body; their status says whether they are published, as an article's does.
+  test('give a page and a canvas the article\'s sections in its order, the date under the status and the canvas\'s name in breadcrumbs among them, and no publishing row', async () => {
+    for (const [collection, order] of [
+      ['pages', ['group-name', 'group-status', 'parent', 'body', 'teaser', 'search', 'sharing', 'structured', 'otherAddresses']],
+      ['canvases', ['group-name', 'group-status', 'body', 'teaser', 'search', 'sharing', 'structured', 'otherAddresses']],
+    ]) {
+      await open(collection);
+      assert.deepEqual(await sections(), order, collection);
+      await holds('group-name', ['Title', 'Breadcrumb', 'Slug']);
+      await holds('group-status', ['Status', 'UTC']);
+      assert.equal(await group('group-status').getByLabel('Date', { exact: true }).getAttribute('type'), 'datetime-local');
+      await group('teaser').scrollIntoViewIfNeeded();
+      await page.locator('button[aria-expanded]', { hasText: 'Teaser' }).first().waitFor();
+      assert.equal(await group('publishing').count(), 0, collection);
+    }
   });
 
   // The headline's group: the main headline, a button above it that adds an eyebrow and one below
@@ -480,6 +494,31 @@ describe('the interface language in Sveltia', () => {
     assert.equal(await status.getByText(/Draft|Scheduled|Published|Date|Now/).count(), 0, 'nothing in English');
   });
 
+  // A page and a canvas take the article's sections that they have, in its order, the status and
+  // date group among them, in the interface language as an article does.
+  test('shows a page\'s and a canvas\'s sections in it, in the article\'s order, with the status and date group and the teaser', async () => {
+    for (const [collection, order] of [
+      ['pages', ['group-name', 'group-status', 'parent', 'body', 'teaser', 'search', 'sharing', 'structured', 'otherAddresses']],
+      ['canvases', ['group-name', 'group-status', 'body', 'teaser', 'search', 'sharing', 'structured', 'otherAddresses']],
+    ]) {
+      await openNew(page, collection);
+      const sections = await page.evaluate(() => [...document.querySelectorAll('section.field[data-key-path]')].map((one) => one.dataset.keyPath).filter((key) => !key.includes('.')));
+      assert.deepEqual(sections, order, collection);
+      const name = page.locator('section.field[data-key-path="group-name"]');
+      for (const label of ['Titel', 'Brödsmula', 'Slug']) await name.getByText(label, { exact: true }).first().waitFor();
+      const status = page.locator('section.field[data-key-path="group-status"]');
+      const choices = status.getByRole('radiogroup', { name: 'Status' });
+      for (const choice of ['Utkast', 'Schemalagd', 'Publicerad']) await choices.getByRole('radio', { name: choice }).waitFor();
+      assert.equal(await status.getByLabel('Datum', { exact: true }).getAttribute('type'), 'datetime-local');
+      assert.equal(await status.getByText('Datum', { exact: true }).filter({ visible: true }).count(), 0, 'no label of its own');
+      await status.getByText('UTC', { exact: true }).waitFor();
+      assert.equal(await status.getByText(/Draft|Scheduled|Published|Date|Now/).count(), 0, 'nothing in English');
+      await page.locator('section.field[data-key-path="teaser"]').scrollIntoViewIfNeeded();
+      await bar('Puff').waitFor();
+      assert.equal(await bar('Teaser').count(), 0);
+    }
+  });
+
   test('shows the core\'s settings groups in it, Breadcrumbs and Related posts among them, with their headings, labels and help', async () => {
     await breadcrumbs({ heading: 'Brödsmulor', description: 'Om en sidas brödsmulor slutar med sidan själv', perType: 'Per inläggstyp', articles: 'Artiklar', label: 'Sidan själv sist', help: 'När den är av slutar brödsmulorna' });
     assert.equal(await bar('Breadcrumbs').count(), 0);
@@ -718,6 +757,8 @@ describe('the body field, the preview and the publish status in the interface la
     assert.equal(await page.locator('.field[data-key-path="image"] .konzilo-pick-choose').first().textContent(), words.image);
 
     await open('landings');
+    // The publishing row, which a type of the site's own keeps.
+    await page.getByText(words.notSaved).first().waitFor();
     assert.equal(await page.locator('.konzilo-tree-search').first().getAttribute('placeholder'), words.find);
     // The question before a block goes names its kind in the middle of it, with a small letter.
     const tree = page.locator('.konzilo-tree-host').first();
@@ -737,7 +778,6 @@ describe('the body field, the preview and the publish status in the interface la
     assert.equal(await asked, words.removeAsk);
 
     await open('pages');
-    await page.getByText(words.notSaved).first().waitFor();
     await page.getByRole('textbox', { name: words.title, exact: true }).first().fill('En sida');
     const pane = page.frameLocator('iframe.preview');
     const alert = pane.getByRole('alert');

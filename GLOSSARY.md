@@ -48,7 +48,7 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Canvas**: The built-in type of a blank page, without the site's header and footer, built of components alone; in Swedish *arbetsyta*, as design tools name a canvas. _Avoid_: landing page (for the type), blank template.
 
-**Page**: The built-in type of a page with the site's header and footer, and its name in breadcrumbs and search and sharing fields. _Avoid_: static page.
+**Page**: The built-in type of a page with the site's header and footer, and its date, name in breadcrumbs, teaser and search and sharing fields. _Avoid_: static page.
 
 **Article**: The built-in type whose fields are the article parts, the same on every site, with its authors, its category and its topics. _Avoid_: post (for the type), blog post, story.
 
