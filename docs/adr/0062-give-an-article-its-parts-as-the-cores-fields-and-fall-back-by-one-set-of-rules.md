@@ -33,7 +33,6 @@
 
 ## Considered and rejected
 
-- **A canonical address per post.** ADR 0046 rejects it (Thomas).
 - **The parts as a site's own fields.** Each site would name them, and the core could not fall back between them.
 - **The groups inside one `seo` object in the source.** The editor would have to show them together.
 - **Dropping the page's own level when it is not shown.** The structured data and a design's narrow form need it.
