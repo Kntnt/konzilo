@@ -1234,13 +1234,15 @@ for (const [engineName, engine] of Object.entries(ENGINES).filter(([name]) => na
     const origin = () => new URL(page.url()).origin;
     const textbox = (name) => page.getByRole('textbox', { name, exact: true });
     const bar = (name) => page.locator('button[aria-expanded]', { hasText: name }).first();
+    // Sveltia draws a field as it comes near the window, so an opened bar goes to the top, and
+    // what it holds comes into view.
     const open = async (name) => {
       await bar(name).scrollIntoViewIfNeeded();
       if (await bar(name).getAttribute('aria-expanded') === 'false') await bar(name).click();
+      await bar(name).evaluate((element) => element.scrollIntoView({ block: 'start' }));
     };
     const field = (keyPath) => page.locator(`section.field[data-key-path="${keyPath}"]`);
-    // Sveltia draws a field as it comes near the window, so the form is scrolled until it is there,
-    // from wherever it stands.
+    // The form is scrolled until a field is there, from wherever it stands.
     const near = async (keyPath) => {
       const box = await field('title').boundingBox();
       await page.mouse.move(box.x + box.width / 2, 600);
@@ -1291,17 +1293,19 @@ for (const [engineName, engine] of Object.entries(ENGINES).filter(([name]) => na
       assert.deepEqual(JSON.parse(saved['settings.json']), { title: 'Demo', ai: { home: { markdown: false } }, related: { halfLife: 30 } });
     });
 
-    test('keeps a value written in a closed bar of a new post, and nothing of the bars opened and left', async () => {
+    test('keeps values written in closed bars of a new post, its structured data type among them, and nothing of the bars opened and left', async () => {
       await openNew(page, 'pages');
       await field('group-name').getByRole('textbox', { name: 'Title', exact: true }).fill('Filled in');
       await open('Search');
       await textbox('Title tag').fill('A title tag');
-      for (const name of ['Teaser', 'Sharing', 'Structured data']) await open(name);
+      await open('Structured data');
+      await page.locator('.field[data-key-path="structured.schema"] select').selectOption('AboutPage');
+      for (const name of ['Teaser', 'Sharing']) await open(name);
       const before = Object.keys(await files());
       const saved = await save();
       const made = Object.keys(saved).filter((path) => path.startsWith('pages/') && !before.includes(path));
       assert.equal(made.length, 1, 'one new page');
-      assert.deepEqual(bars(frontMatterOf(saved[made[0]])), { search: { title: 'A title tag' } });
+      assert.deepEqual(bars(frontMatterOf(saved[made[0]])), { search: { title: 'A title tag' }, structured: { schema: 'AboutPage' } });
     });
 
     test('keeps a value written in a closed bar of a post whose file lacks its object, and nothing of the bars opened and left', async () => {
