@@ -4,7 +4,7 @@
 
 import { signedInCredential } from '../credential.js';
 import { say } from '../interface-language.js';
-import { browserTimeZone, downloadCsv, momentShown, offeredSeparator, readForms, readSubmissions, valueShown } from './client.js';
+import { browserTimeZone, downloadCsv, momentShown, offeredSeparator, readForms, submissionPages, valueShown } from './client.js';
 
 const TEXT = { font: '14px/1.4 system-ui, sans-serif', overflowWrap: 'anywhere' };
 const LINE = { ...TEXT, margin: '4px 0' };
@@ -60,14 +60,18 @@ function Download({ form, credential }) {
     failed ? h('p', { role: 'alert', style: LINE }, say('submissions.downloadFailed')) : null);
 }
 
+// A form's submissions, its own pages for as long as it is shown: a click on *Show older* while
+// they are on their way asks for nothing more (submissionPages()).
 function FormSubmissions({ form, credential }) {
-  const { createElement: h } = react();
-  const [shown, setShown] = useAnswer(() => readSubmissions({ credential, form }), [form]);
+  const { createElement: h, useRef } = react();
+  const pages = useRef(null);
+  pages.current ??= submissionPages({ credential, form });
+  const [shown, setShown] = useAnswer(() => pages.current.first(), [form]);
   if (shown === undefined) return null;
   if (shown === null) return h('p', { style: LINE }, say('submissions.unknown'));
   const older = async () => {
-    const next = await readSubmissions({ credential, form, before: shown.submissions.at(-1).id });
-    if (next) setShown({ submissions: [...shown.submissions, ...next.submissions], more: next.more });
+    const next = await pages.current.older();
+    if (next) setShown(next);
   };
   return h('div', null,
     shown.submissions.length === 0 ? h('p', { style: LINE }, say('submissions.none')) : null,

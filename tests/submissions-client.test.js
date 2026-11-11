@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
 import { say, useInterfaceLanguage } from '../src/cms/interface-language.js';
-import { downloadCsv, momentShown, offeredSeparator, readForms, readSubmissions, valueShown } from '../src/cms/submissions/client.js';
+import { downloadCsv, momentShown, offeredSeparator, readForms, readSubmissions, submissionPages, valueShown } from '../src/cms/submissions/client.js';
 
 // A service that answers each path as it is told to, and notes what it was asked.
 function service(answers) {
@@ -55,6 +55,51 @@ describe('asking the service', () => {
       assert.equal(await read({ credential: () => 'token mine', get: service({}).get }), null);
       assert.equal(await read({ credential: () => 'token someone', get: service({ '/_konzilo/submissions': [401, {}], '/_konzilo/submissions/contact': [401, {}] }).get }), null);
     }
+  });
+});
+
+describe('a form\'s submissions a page at a time', () => {
+  const submission = (id) => ({ id, sentAt: '2026-11-11T10:00:00.000Z', language: 'en-GB', fields: [] });
+  // A service whose answers come only when told, each page of two before the one numbered.
+  const slowService = () => {
+    const asked = [];
+    const waiting = [];
+    const get = (address) => {
+      const before = Number(new URL(address, 'http://admin').searchParams.get('before') ?? 7);
+      asked.push(before);
+      const ids = [before - 1, before - 2].filter((id) => id > 0);
+      return new Promise((answer) => waiting.push(() => answer({ ok: true, json: async () => ({ submissions: ids.map(submission), more: ids.at(-1) > 1 }) })));
+    };
+    const answerAll = async () => {
+      for (const answer of waiting.splice(0)) answer();
+      await new Promise(setImmediate);
+    };
+    return { asked, get, answerAll };
+  };
+
+  test('asks once for the older ones however often it is asked before they come, and goes on from the last one it holds', async () => {
+    const stand = slowService();
+    const pages = submissionPages({ credential: () => 'token mine', form: 'contact', get: stand.get });
+    const first = pages.first();
+    await stand.answerAll();
+    assert.deepEqual((await first).submissions.map(({ id }) => id), [6, 5]);
+    const clicks = [pages.older(), pages.older()];
+    await stand.answerAll();
+    const [once, twice] = await Promise.all(clicks);
+    assert.deepEqual(stand.asked, [7, 5], 'the older ones asked for once');
+    assert.deepEqual(once.submissions.map(({ id }) => id), [6, 5, 4, 3]);
+    assert.deepEqual(twice, once, 'the same, with nothing twice');
+    const next = pages.older();
+    await stand.answerAll();
+    assert.deepEqual((await next).submissions.map(({ id }) => id), [6, 5, 4, 3, 2, 1]);
+    assert.equal((await next).more, false);
+    assert.deepEqual(stand.asked, [7, 5, 3], 'from the last one it holds');
+  });
+
+  test('gives nothing where the service cannot be told, and asks nothing for older ones where there are none', async () => {
+    const pages = submissionPages({ credential: () => null, form: 'contact', get: () => assert.fail('asks nothing') });
+    assert.equal(await pages.first(), null);
+    assert.equal(await pages.older(), null);
   });
 });
 

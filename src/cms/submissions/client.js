@@ -32,6 +32,33 @@ export function readSubmissions({ credential, form, before = null, get = fetchin
   return answered(`${SUBMISSIONS_PATH}/${encodeURIComponent(form)}${query}`, { credential, get });
 }
 
+// A form's submissions as the page shows them, a page at a time, newest first, each answer
+// { submissions, more }, all those it holds so far, or null where the service cannot be told:
+// `first()` the newest, and `older()` those it holds with the page after the last of them. The
+// older ones are asked for once while they are on their way, however often `older()` is called
+// meanwhile, as by two quick clicks, and from the last one it holds, so that none comes twice.
+export function submissionPages({ credential, form, get = fetching() }) {
+  let held = null;
+  let asking = null;
+  // The page after `before`, after those `shown`.
+  const read = async (before, shown) => {
+    const next = await readSubmissions({ credential, form, before, get });
+    if (!next) return null;
+    held = { submissions: [...shown, ...next.submissions], more: next.more };
+    return held;
+  };
+  return {
+    first: () => read(null, []),
+    older() {
+      if (!held?.more) return Promise.resolve(null);
+      asking ??= read(held.submissions.at(-1).id, held.submissions).finally(() => {
+        asking = null;
+      });
+      return asking;
+    },
+  };
+}
+
 // The separator offered first: the semicolon where the interface language writes a decimal
 // comma, which a spreadsheet in that language would otherwise not split by, else the comma.
 export function offeredSeparator() {
