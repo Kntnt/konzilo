@@ -673,6 +673,8 @@ describe('the body field, the preview and the publish status in the interface la
     toggle: 'Visa Markdown',
     image: 'Välj bild…',
     find: 'Hitta en text på sidan',
+    remove: 'Ta bort',
+    removeAsk: 'Ta bort stycke?',
     notSaved: 'Inte sparad än.',
     refused: /^Webbplatsen kan inte publicera det här än, så sidan nedan är den senaste som gick\. Det här behöver ändras:/,
     frame: 'Sidan så som den skulle se ut',
@@ -685,6 +687,8 @@ describe('the body field, the preview and the publish status in the interface la
     toggle: 'Show Markdown',
     image: 'Choose an image…',
     find: 'Find a text on the page',
+    remove: 'Remove',
+    removeAsk: 'Remove paragraph?',
     notSaved: 'Not saved yet.',
     refused: /^The site cannot publish this yet, so the page below is the last good one\. What to change:/,
     frame: 'The page as it would look',
@@ -729,6 +733,19 @@ describe('the body field, the preview and the publish status in the interface la
 
     await open('landings');
     assert.equal(await page.locator('.konzilo-tree-search').first().getAttribute('placeholder'), words.find);
+    // The question before a block goes names its kind in the middle of it, with a small letter.
+    const tree = page.locator('.konzilo-tree-host').first();
+    await tree.locator('.konzilo-tree-modes button').nth(1).click();
+    await tree.locator('.konzilo-tree-source').fill('Ett stycke.');
+    await tree.locator('.konzilo-tree-modes button').nth(0).click();
+    const asked = new Promise((resolve) => {
+      page.once('dialog', (dialog) => {
+        resolve(dialog.message());
+        void dialog.dismiss();
+      });
+    });
+    await tree.locator('li[data-kind="paragraph"]').first().getByRole('button', { name: words.remove, exact: true }).click();
+    assert.equal(await asked, words.removeAsk);
 
     await open('pages');
     await page.getByText(words.notSaved).first().waitFor();

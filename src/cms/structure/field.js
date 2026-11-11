@@ -6,7 +6,8 @@
 import { withComponents } from '../../format/components.js';
 import rules from '../../format/rules.json' with { type: 'json' };
 import { siteComponents } from '../body/components.js';
-import { say } from '../body/texts.js';
+import { labelInPhrase } from '../../catalogues.js';
+import { interfaceLanguage, say } from '../body/texts.js';
 import { PLACE_EVENT, SHOW_EVENT } from '../preview/paths.js';
 import { everyNode, nodeAt, parentOf, parseBody, pathTo, summaryOf, writeBody } from './model.js';
 import './field.css';
@@ -366,7 +367,8 @@ export function mountStructureField(host, { value: given, changed, key, forms = 
         el('button', { type: 'button', title: say('structure.up'), 'aria-label': say('structure.up'), onclick: () => move(node, -1) }, '↑'),
         el('button', { type: 'button', title: say('structure.down'), 'aria-label': say('structure.down'), onclick: () => move(node, 1) }, '↓'),
         el('button', { type: 'button', title: say('structure.remove'), 'aria-label': say('structure.remove'), onclick: () => {
-          if (globalThis.confirm(say('structure.removeAsk', { what: labelOf(node) }))) remove(node);
+          // The kind in the middle of the question, with a small letter, but in an abbreviation.
+          if (globalThis.confirm(say('structure.removeAsk', { what: labelInPhrase(labelOf(node), interfaceLanguage()) }))) remove(node);
         } }, '✕')));
     const item = el('li', {
       class: box ? 'konzilo-tree-box' : 'konzilo-tree-leaf',
