@@ -192,6 +192,8 @@ test('passes every path below /_konzilo/ to the service but search and the conse
     ['Sec-Fetch-Site', '{http.request.header.Sec-Fetch-Site}'],
     ['X-Konzilo-Client', '{http.request.remote.host}'],
     ['X-Konzilo-Host', '{http.request.hostport}'],
+    // Go names itself where a request names no browser, and names none where the name is empty.
+    ['User-Agent', '""'],
   ]);
   assert.ok(host.indexOf('handle @konzilo_visitors') < host.indexOf('file_server'), 'before the release\'s files');
 });

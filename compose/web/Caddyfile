@@ -21,7 +21,8 @@
 	# but the consent scripts' files, which are the release's to serve, GET alone (ADR 0049). It is
 	# passed the request's method, path, query and body with its type, where the browser says it
 	# came from, the visitor's address and the host it came to, and nothing else: no cookie,
-	# browser, password or language. A body is cut off at a megabyte, and nothing is logged.
+	# browser's name, not even the proxy's own, password or language. A body is cut off at a
+	# megabyte, and nothing is logged.
 	@konzilo_visitors {
 		path /_konzilo/*
 		not path /_konzilo/search /_konzilo/search/*
@@ -42,6 +43,8 @@
 			header_up Sec-Fetch-Site {http.request.header.Sec-Fetch-Site}
 			header_up X-Konzilo-Client {http.request.remote.host}
 			header_up X-Konzilo-Host {http.request.hostport}
+			# Without it the proxy would name itself, as Go does where a request names no browser.
+			header_up User-Agent ""
 			transport http {
 				dial_timeout 5s
 				response_header_timeout 10s
