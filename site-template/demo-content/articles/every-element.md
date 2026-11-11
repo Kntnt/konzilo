@@ -2,9 +2,11 @@
 title: "Every element of body text"
 date: 2026-01-20T08:00:00Z
 modified: 2026-01-20T08:00:00Z
-excerpt: "One article that holds every element a template styles."
-categories: ["meadows"]
-tags: ["rivers"]
+headline: "Every element of body text"
+standfirst: "One article that holds every element a template styles."
+authors: ["rafael-berg"]
+category: ["meadows"]
+topics: ["rivers"]
 ---
 
 A paragraph with **bold**, _italic_, `inline code`, ~~struck~~ text, H<sub>2</sub>O, E = mc<sup>2</sup>, and a footnote[^1].\

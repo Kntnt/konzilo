@@ -84,3 +84,10 @@ export function labelIn(label, language) {
   const subtag = typeof language === 'string' ? language.split(/[_-]/)[0].toLowerCase() : null;
   return Object.hasOwn(label, subtag) ? label[subtag] : label[SOURCE_LANGUAGE];
 }
+
+// A site's own label in the middle of a phrase, in a language, as labelIn() gives it: its first
+// letter lowered, but in an abbreviation, such as FAQ, which keeps its capitals.
+export function labelInPhrase(label, language) {
+  const given = String(labelIn(label, language) ?? '');
+  return /^\p{Lu}\p{Lu}/u.test(given) ? given : `${given.charAt(0).toLocaleLowerCase(catalogueFor(language))}${given.slice(1)}`;
+}

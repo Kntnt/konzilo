@@ -3,48 +3,26 @@
   "search": { "address": "/search/" },
   "types": {
     "article": {
-      "label": "Article",
-      "plural": "Articles",
       "collection": "articles",
       "address": "/{slug}/",
       "feed": "/feed/",
-      "elements": ["paragraph", "heading", "list", "quote", "code", "table", "footnotes", "embed", "image", "gallery"],
-      "fields": {
-        "date": {},
-        "modified": {},
-        "excerpt": {},
-        "categories": { "taxonomy": "category", "required": true },
-        "tags": { "taxonomy": "tag" },
-        "image": {},
-        "seo": {}
-      }
+      "elements": ["paragraph", "heading", "list", "quote", "code", "table", "footnotes", "embed", "image", "gallery"]
     },
     "page": {
-      "label": "Page",
-      "plural": "Pages",
       "collection": "pages",
       "hierarchical": true,
       "address": "/pages/{path}/",
-      "elements": ["paragraph", "heading", "list", "code", "table", "embed", "image", "gallery", "post-list", "form"],
-      "fields": {
-        "seo": {}
-      }
+      "elements": ["paragraph", "heading", "list", "code", "table", "embed", "image", "gallery", "post-list", "form"]
+    },
+    "canvas": {
+      "collection": "canvases",
+      "address": "/landing/{slug}/",
+      "elements": ["paragraph", "heading", "list", "embed", "image", "gallery", "post-list", "form"]
     }
   },
   "taxonomies": {
-    "category": {
-      "label": "Category",
-      "plural": "Categories",
-      "collection": "categories",
-      "hierarchical": true,
-      "feed": "/category/{slug}/feed/"
-    },
-    "tag": {
-      "label": "Tag",
-      "plural": "Tags",
-      "collection": "tags",
-      "feed": "/tag/{slug}/feed/"
-    }
+    "category": { "feed": "/category/{slug}/feed/" },
+    "topics": { "feed": "/topic/{slug}/feed/" }
   },
   "presentations": {
     "list": {

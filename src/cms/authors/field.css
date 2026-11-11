@@ -1,0 +1,38 @@
+/* The authors field: the chosen authors as chips in a row, the box that suggests more under
+   them, and the button for a new one, in Sveltia's colours, so that it follows light and dark mode. */
+.konzilo-authors { position: relative; display: flex; flex-direction: column; gap: 8px; font: 14px/1.4 var(--sui-font-family-default, system-ui, sans-serif); color: var(--sui-primary-foreground-color); }
+.konzilo-authors * { box-sizing: border-box; }
+.konzilo-authors [hidden] { display: none; }
+.konzilo-authors-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.konzilo-authors-chips:empty { display: none; }
+.konzilo-authors-chip { position: relative; display: inline-flex; align-items: center; gap: 2px; height: 30px; padding: 0 2px 0 4px; border: 1px solid var(--sui-control-border-color); border-radius: 15px; background: var(--sui-secondary-background-color, var(--sui-control-background-color)); cursor: grab; user-select: none; -webkit-user-select: none; }
+.konzilo-authors-chip[data-missing] { border-style: dashed; color: var(--sui-error-foreground-color, #c62828); }
+.konzilo-authors-name { padding: 2px 6px; border-radius: 11px; white-space: nowrap; }
+.konzilo-authors-name::before { content: '⠿'; margin-right: 6px; color: var(--sui-tertiary-foreground-color, var(--sui-secondary-foreground-color)); }
+.konzilo-authors-name:focus-visible, .konzilo-authors-remove:focus-visible { outline: 2px solid var(--sui-primary-accent-color, #1c6ef2); outline-offset: 1px; }
+.konzilo-authors-remove { display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 12px; background: none; color: var(--sui-secondary-foreground-color); font: inherit; font-size: 12px; cursor: pointer; }
+.konzilo-authors-remove:hover { background: var(--sui-hover-background-color); color: var(--sui-primary-foreground-color); }
+/* Where a dragged chip would land. */
+.konzilo-authors-chip[data-drop]::after { content: ''; position: absolute; top: 2px; bottom: 2px; width: 3px; border-radius: 2px; background: var(--sui-primary-foreground-color, #1c1c1c); pointer-events: none; }
+.konzilo-authors-chip[data-drop='before']::after { left: -6px; }
+.konzilo-authors-chip[data-drop='after']::after { right: -6px; }
+.konzilo-authors-pick { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.konzilo-authors-box { position: relative; display: flex; flex: 1 1 240px; min-width: 0; }
+.konzilo-authors-input { flex: 1 1 auto; min-width: 0; height: 36px; padding: 6px 36px 6px 10px; border: 1px solid var(--sui-control-border-color); border-radius: var(--sui-control-medium-border-radius, 6px); background: var(--sui-textbox-background-color, var(--sui-control-background-color)); color: var(--sui-textbox-foreground-color, var(--sui-control-foreground-color)); font: inherit; }
+.konzilo-authors-input::placeholder { color: var(--sui-tertiary-foreground-color, var(--sui-secondary-foreground-color)); opacity: 1; }
+.konzilo-authors-open { position: absolute; top: 2px; right: 2px; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 4px; background: none; color: var(--sui-secondary-foreground-color); font: inherit; cursor: pointer; }
+.konzilo-authors-open:hover { background: var(--sui-hover-background-color); }
+.konzilo-authors-popup { position: absolute; top: calc(100% + 4px); right: 0; left: 0; z-index: 10; max-height: 240px; overflow: auto; border: 1px solid var(--sui-control-border-color); border-radius: 6px; background: var(--sui-primary-background-color, #fff); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.16); }
+.konzilo-authors-list { margin: 0; padding: 4px 0; list-style: none; }
+.konzilo-authors-list:empty { display: none; }
+.konzilo-authors-option { padding: 6px 10px; cursor: pointer; }
+.konzilo-authors-option:hover { background: var(--sui-hover-background-color); }
+.konzilo-authors-option[aria-selected='true'] { background: var(--sui-selected-background-color, var(--sui-hover-background-color)); outline: 1px solid var(--sui-control-border-color); outline-offset: -1px; }
+.konzilo-authors-empty { margin: 0; padding: 8px 10px; color: var(--sui-secondary-foreground-color); }
+.konzilo-authors-empty:empty { display: none; }
+.konzilo-authors-new { flex: none; height: 36px; padding: 0 12px; border: 1px dashed var(--sui-control-border-color); border-radius: 6px; background: var(--sui-control-background-color); color: var(--sui-control-foreground-color); font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; }
+.konzilo-authors-new:hover { background: var(--sui-hover-background-color); }
+.konzilo-authors-note { margin: 0; font-size: 13px; color: var(--sui-error-foreground-color, #c62828); }
+.konzilo-authors-note:empty { display: none; }
+.konzilo-authors-spoken { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.konzilo-dialog .konzilo-authors-biography { flex: 1; min-width: 0; padding: 5px 8px; border: 1px solid #a8a8a8; border-radius: 4px; background: #fff; color: inherit; font: inherit; resize: vertical; }

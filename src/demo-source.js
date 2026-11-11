@@ -10,6 +10,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { isObject } from './checks.js';
 import { publicAddress } from './format/addresses.js';
+import { builtInOf, PAGE } from './format/built-in-types.js';
 import { IMAGE_LIBRARY_FOLDER } from './format/masters.js';
 import { isSiteTitle } from './settings-groups.js';
 import { SEO_PARTS } from './site-description.js';
@@ -174,7 +175,7 @@ export function sourceFrom(description, published) {
 
 function notFoundPost(description, { content }, ids, files) {
   const types = Object.values(description.types).filter((one) => one.address !== null);
-  const type = types.find((one) => one.name === 'page') ?? types[0];
+  const type = types.find((one) => builtInOf(one) === PAGE) ?? types[0];
   const { fields, body } = parsePost(content);
   const id = idOf(type.collection, 'not-found');
   files.push({ path: `${type.collection}/${id}.md`, content: writePost({ title: fields.title, slug: 'not-found', status: 'published' }, bodyAsSource(body, ids)) });

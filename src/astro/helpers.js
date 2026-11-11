@@ -1,8 +1,11 @@
 // The helpers, reached as `@kntnt/konzilo/astro/helpers`: the common ways a
 // site's templates work on their data.
 //
-//   import { longDate, termPath, postalAddress, oneLine, legalPages, summary, ordered, countOf } from '@kntnt/konzilo/astro/helpers';
+//   import { longDate, termPath, postalAddress, oneLine, legalPages, summary, ordered, countOf, builtInType, authorsOf } from '@kntnt/konzilo/astro/helpers';
 //   <time datetime={article.data.date.toISOString()}>{longDate(article.data.date, Astro.url)}</time>
+//   const authors = await authorsOf(article);
+//   {authors.map((author) => <li>{author.url ? <a href={author.url}>{author.name}</a> : author.name}</li>)}
+//   {builtInType(entry) !== 'canvas' && <header>…</header>}
 //   <p>{summary(article.data.excerpt, 20)}</p>
 //   <p>{countOf(categories)} categories</p>
 //   {ordered(categories, (category) => category.data.name, { language: Astro.url, descending: true }).map(...)}
@@ -10,6 +13,9 @@
 // A date's ISO form, `date.toISOString()`, is its data put in place, and
 // needs no helper.
 
+import { builtInOf } from '../format/built-in-types.js';
+import { articleAuthors } from './authors.js';
+import { describedSite } from './languages.js';
 import { publicSite } from './public-site.js';
 
 // The separator between a term's parents' names and its own in termPath().
@@ -113,4 +119,29 @@ export function ordered(items, by, { language, descending = false } = {}) {
   return [...(items ?? [])].map((item, index) => ({ item, index, text: String(textOf(item) ?? '') }))
     .sort((one, other) => sign * collator.compare(one.text, other.text) || one.index - other.index)
     .map(({ item }) => item);
+}
+
+// The core's built-in type a post is (format/built-in-types.js), `canvas`, `page` or
+// `article`, so that a layout can draw a canvas without the site's header and footer:
+// null for a post of a type of the site's own, and for no post, as on a page of the
+// site's own. `entry`: an entry of a type's collection, as Astro hands a template one.
+// `site`: the site description as checked, the site's own by default.
+export function builtInType(entry, { site = describedSite() } = {}) {
+  if (!entry) return null;
+  return builtInOf(Object.values(site.types).find((type) => type?.collection === entry.collection));
+}
+
+// An article's authors, for its byline, in the order its editor gave them, the first
+// author first (authors.js): each { name, url, slug, entry }, its name, its page's address
+// below the site's base, which a preview's build moves, where the authors taxonomy
+// declares one, else null, its slug, and its term's entry, which holds its biography as
+// `data.description`. None for a post of a type of the site's own. `entry`: an entry of a
+// type's collection, as Astro hands a template one. `site`: the site description as
+// checked, the site's own by default; `getEntries`: Astro's own from astro:content, by
+// default.
+export async function authorsOf(entry, { site = describedSite(), getEntries } = {}) {
+  const type = Object.values(site.types).find((declared) => declared?.collection === entry?.collection);
+  const read = getEntries ?? (await import('astro:content')).getEntries;
+  const base = (import.meta.env?.BASE_URL ?? '/').replace(/\/$/, '');
+  return (await articleAuthors(entry, type, site, read)).map(({ name, path, slug, entry: term }) => ({ name, url: path === null ? null : `${base}${path}`, slug, entry: term }));
 }

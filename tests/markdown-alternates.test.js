@@ -35,7 +35,7 @@ const site = {
       elements: ['paragraph', 'heading', 'list', 'table', 'footnotes', 'embed', 'image'],
       fields: { date: {}, categories: { taxonomy: 'category' }, tags: { taxonomy: 'tag' }, image: {}, seo: {} },
     },
-    page: { label: 'Page', plural: 'Pages', collection: 'pages', hierarchical: true, address: '/pages/{path}/', elements: ['paragraph'], fields: { seo: {} } },
+    page: { label: 'Page', plural: 'Pages', collection: 'pages', hierarchical: true, address: '/pages/{path}/', elements: ['paragraph'] },
     note: { label: 'Note', plural: 'Notes', collection: 'notes', address: '/notes/{slug}/', elements: ['paragraph'], fields: {} },
   },
   taxonomies: {

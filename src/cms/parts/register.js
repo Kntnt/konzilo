@@ -15,17 +15,21 @@
 //   placeholder: <words>  the placeholder of a field without a fallback, or while its
 //                         fallback gives nothing
 // The slug's: `address`, the type's address with {slug}, to open the post's page.
-// The structured data type's: `options`, `type` and `typeLabel`, the post's type, and `preset`,
-// its type's structured data type until the site's settings say another.
+// The structured data type's: `options`, `type` and `typeLabel`, the post's type and its plural as
+// it stands in a phrase, and `preset`, its type's structured data type until the site's settings
+// say another.
 
 import { breadcrumbOf, searchDescriptionOf, searchTitleOf, slugFrom, socialDescriptionOf, socialTitleOf, teaserHeadlineOf, teaserTextOf } from '../../format/article-parts.js';
 import { say } from '../body/texts.js';
+import { computedDefault } from '../groups/menu.js';
+import { postValues } from '../groups/values.js';
 import { signedInCredential } from '../credential.js';
 import { SCHEMA_WIDGET, SLUG_WIDGET, TEXT_WIDGET } from './widgets.js';
 import './form.css';
 
 const plain = (value) => (value?.toJS ? value.toJS() : value);
-const dataOf = (entry) => plain(entry?.get?.('data')) ?? {};
+// A post's values, flat, with its field groups' as they are now (ADR 0071).
+const dataOf = (entry) => postValues(entry?.get?.('data'));
 
 // The site's settings in the source repository, read once.
 function settingsReader(config) {
@@ -144,7 +148,7 @@ export function registerParts(CMS, config) {
   // title by default, until it is changed, and an emptied slug is that proposal again.
   CMS.registerFieldType(SLUG_WIDGET, function KonziloSlug({ value, onChange, field, forID, entry }) {
     const address = plain(field.get('address'));
-    const proposed = slugFrom(breadcrumbOf(dataOf(entry)));
+    const proposed = computedDefault('slug', dataOf(entry));
     const following = React.useRef(!value);
     const [editing, setEditing] = React.useState(false);
     const [draft, setDraft] = React.useState(value ?? '');
@@ -209,7 +213,7 @@ export function registerParts(CMS, config) {
     }, [type]);
     return h('select', { id: forID, className: 'konzilo-part-input konzilo-part-select', value: value && value !== preset ? value : '', onChange: (event) => onChange(event.target.value) },
       options.map((one) => (one === preset
-        ? h('option', { key: one, value: '' }, say('parts.schemaPreset', { type: one, plural: typeLabel.toLocaleLowerCase() }))
+        ? h('option', { key: one, value: '' }, say('parts.schemaPreset', { type: one, plural: typeLabel }))
         : h('option', { key: one, value: one }, one))));
   });
 
@@ -221,9 +225,9 @@ export function registerParts(CMS, config) {
   CMS.registerEventListener({
     name: 'preSave',
     handler: ({ entry }) => {
-      const data = entry.get('data');
-      if (data?.get?.('status') !== 'scheduled') return;
-      const moment = Date.parse(data.get('date') ?? '');
+      const data = postValues(entry.get('data'));
+      if (data.status !== 'scheduled') return;
+      const moment = Date.parse(data.date ?? '');
       if (Number.isFinite(moment) && moment > Date.now()) return;
       refusal = say('parts.scheduledAhead');
       throw new Error(refusal);

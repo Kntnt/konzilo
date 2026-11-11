@@ -21,6 +21,7 @@ describe('a release\'s headers', () => {
   test('take what a real build writes, every opt-in on', () => {
     const description = siteDescription({
       language: 'en_GB',
+      images: { smallestWidth: 400, displayWidth: 1280 },
       security: { includeSubDomains: true, frameAncestors: ['https://frame.example'] },
       types: { page: { label: 'Page', plural: 'Pages', collection: 'pages', address: '/{slug}/', elements: ['paragraph'], fields: {} } },
     });

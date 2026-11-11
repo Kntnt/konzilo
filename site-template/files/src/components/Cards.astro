@@ -1,13 +1,15 @@
 ---
 // The presentation `cards` (site-description.json, astro.config.mjs): a post
 // list as a card per post, its featured image, its title linked to the post
-// and its excerpt, in two, three or four columns, three where the list
+// and what it says of itself, its excerpt, else its teaser's text, else its
+// standfirst, by Konzilo's ownSummary(), in two, three or four columns, three where the list
 // says nothing. Konzilo gives it `posts`, each { entry,
 // url }, the post's entry and its address, or null for a type without one;
 // `options`, the presentation's options as the list sets them; `empty`, the
 // text for a list that matches nothing; and `pager`, for a list with pages
 // of its own, the pager's data, which Konzilo's Pager renders after the
 // cards (src/styles/pager.css).
+import { ownSummary } from '@kntnt/konzilo/astro';
 import Pager from '@kntnt/konzilo/astro/Pager.astro';
 import { Image } from 'astro:assets';
 import '../styles/pager.css';
@@ -21,7 +23,7 @@ const columns = options.columns ?? '3';
       <li class="post-card">
         {entry.data.image && <Image class="post-card-image" src={entry.data.image.src} alt={entry.data.image.alt} width={640} />}
         <p class="post-card-title">{url ? <a href={url}>{entry.data.title}</a> : entry.data.title}</p>
-        {entry.data.excerpt && <p class="post-card-excerpt">{entry.data.excerpt}</p>}
+        {ownSummary(entry.data) && <p class="post-card-excerpt">{ownSummary(entry.data)}</p>}
       </li>
     ))}
   </ul>

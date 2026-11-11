@@ -47,6 +47,25 @@ describe('what a status says', () => {
     }
   });
 
+  test('a scheduled post published at once, its moment in the interface language\'s own form', () => {
+    const warnings = [{
+      field: 'date',
+      name: 'warning.scheduled-passed',
+      values: { moment: { moment: '2026-01-01T12:00:00Z' } },
+      reason: 'the post is scheduled for 1 January 2026 at 12:00 UTC, which had already passed when the site first read it, so it is published at once, with that moment as its date',
+    }];
+    try {
+      useInterfaceLanguage('sv');
+      const swedish = statusWords({ status: 'live', warnings });
+      assert.equal(swedish.words, 'Publicerad på webbplatsen, men se över det här:');
+      assert.match(swedish.details[0], /^fältet date: inlägget är schemalagt till 1 januari 2026 kl\. \d\d:00 \S+, en tidpunkt som redan hade passerat när webbplatsen först läste det, så det publiceras direkt, med den tidpunkten som datum$/);
+      useInterfaceLanguage('en');
+      assert.match(statusWords({ status: 'live', warnings }).details[0], /^the field date: the post is scheduled for 1 January 2026 at \d\d:00 \S+, which had already passed when the site first read it, so it is published at once, with that moment as its date$/);
+    } finally {
+      useInterfaceLanguage('en');
+    }
+  });
+
   test('a refusal by a name these catalogues lack, from a build of another version, in the words it carries', () => {
     const refusals = [{ field: 'title', name: 'refusal.gone-since', values: {}, reason: 'the words it was given' }];
     assert.deepEqual(statusWords({ status: 'failed', refusals, stillShown: true }).details, ['the field title: the words it was given']);
