@@ -20,6 +20,14 @@ test('names the images it builds by the site, so that sites on one machine keep 
   for (const reference of built) assert.match(reference, /^konzilo-(web|builder|typesense):\$\{KONZILO_SITE\}$/, reference);
 });
 
+// A test's site removes its images by its name, since nothing else does: every one Compose
+// builds, so that no run leaves one behind.
+test('removes, in the acceptance suites, every image a site\'s Compose builds', () => {
+  const built = [...compose.matchAll(/^\s+image: konzilo-([a-z]+):\$\{KONZILO_SITE\}$/gm)].map(([, kind]) => kind);
+  const removed = [...read('acceptance/lib/site.js').matchAll(/`konzilo-([a-z]+):\$\{name\}`/g)].map(([, kind]) => kind);
+  assert.deepEqual([...new Set(removed)].sort(), [...new Set(built)].sort());
+});
+
 test('names every image by a digest from versions.env, and holds no version of its own', () => {
   for (const [, reference] of compose.matchAll(/^\s+image: (\S+)$/gm)) {
     if (reference.startsWith('konzilo-')) continue;

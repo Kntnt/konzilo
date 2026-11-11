@@ -55,7 +55,7 @@ export async function makeSite() {
     remove() {
       spawnSync('docker', ['compose', 'down', '--volumes', '--remove-orphans', '--timeout', '2'], { cwd: directory, env });
       // A site's images go by its name, and Docker's cache keeps what they are made of.
-      spawnSync('docker', ['image', 'rm', `konzilo-web:${name}`, `konzilo-builder:${name}`], { env });
+      spawnSync('docker', ['image', 'rm', `konzilo-web:${name}`, `konzilo-builder:${name}`, `konzilo-typesense:${name}`], { env });
       rmSync(folder, { recursive: true, force: true });
     },
   };
