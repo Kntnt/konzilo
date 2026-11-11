@@ -3,11 +3,12 @@
 // does; the intake's own suite holds the rest to the format.
 
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, extname, join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, extname, join, relative } from 'node:path';
 import { embedsInFile } from '../../src/astro/reader.js';
 import { registryFile } from '../../src/format/consent.js';
 import { declaredServices } from '../../src/format/declared-services.js';
+import { walk, writeContent as writeFolder } from '../../src/intake/content-folder.js';
 import { settingsFor } from '../../src/intake/settings.js';
 import { SEO_KEYS, siteDescription } from '../../src/site-description.js';
 
@@ -65,12 +66,10 @@ const moment = (text) => new Date(`${text.replace(' ', 'T')}Z`);
 // posts, as the intake writes it: each post's file, each term's, the settings
 // and the redirect rules, and which post each file is. A post that is not
 // published has no file. `siteSettings` is { menus, settings, identity, groups,
-// redirects }.
+// redirects }. It goes through the intake's own writer, which touches only what has changed
+// and removes what has gone, but for the masters in media/, which the caller writes.
 export function writeSite(folder, declared, posts, { menus = {}, settings = {}, identity = { title: 'The Quiet Lantern' }, groups = {}, languages = {}, redirects = [], registry = null } = {}) {
   const site = siteDescription(declared);
-  for (const { collection } of [...Object.values(site.types), ...Object.values(site.taxonomies)]) rmSync(join(folder, collection), { recursive: true, force: true });
-  rmSync(join(folder, 'not-found.md'), { force: true });
-  rmSync(join(folder, 'not-found'), { recursive: true, force: true });
   const files = {};
   const ids = {};
   const byId = new Map(posts.map((one) => [one.ID, one]));
@@ -144,7 +143,10 @@ export function writeSite(folder, declared, posts, { menus = {}, settings = {}, 
   files['redirects.json'] = `${JSON.stringify({ rules: redirects }, null, 2)}\n`;
   files['.post-ids.json'] = `${JSON.stringify({ posts: Object.fromEntries(Object.entries(ids).sort().map(([path, id]) => [String(id), { path }])) }, null, 2)}\n`;
   if (registry !== null) files['consent.json'] = `${JSON.stringify(registry, null, 2)}\n`;
-  writeFiles(folder, files);
+  // A folder removed and written again would leave a dev server in Linux deaf to a file
+  // written into it a moment later: Vite's watcher reads a new folder, and only then watches it.
+  const masters = walk(join(folder, 'media')).map((path) => relative(folder, path));
+  writeFolder(folder, site, { files: Object.entries(files).map(([path, contents]) => ({ path, contents })), keep: masters });
 }
 
 const decoded = (text) => text.replaceAll('&amp;', '&');
