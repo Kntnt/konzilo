@@ -5,7 +5,7 @@
 // shows it in its interface language (refusals.js); and the reason and a message that
 // says the whole in British English, as the command line and the build log write them.
 
-import { CATALOGUES, INTERFACE_LANGUAGES, labelInPhrase, SOURCE_LANGUAGE, text } from '../catalogues.js';
+import { CATALOGUES, INTERFACE_LANGUAGES, SOURCE_LANGUAGE, text } from '../catalogues.js';
 import { catalogueLabel } from '../format/built-in-types.js';
 import { british, messageIn } from '../refusals.js';
 
@@ -51,7 +51,7 @@ const CORE_LABELS = Object.freeze({
   standfirst: 'form.standfirst',
   teaser: 'form.teaser',
   seo: 'form.search',
-  otherAddresses: 'form.inPhrase.otherAddresses',
+  otherAddresses: 'form.otherAddresses',
 });
 const PART_LABELS = Object.freeze({
   'teaser.image': ['form.teaser', 'form.file'],
@@ -80,7 +80,7 @@ export function fieldLabel(type, name) {
   if (Object.hasOwn(PART_LABELS, name)) {
     const [group, part] = PART_LABELS[name];
     if (part === undefined) return catalogueLabel(group);
-    return Object.fromEntries(INTERFACE_LANGUAGES.map((language) => [language, text(language, 'about.part', { group: text(language, group), part: labelInPhrase(text(language, part), language) })]));
+    return Object.fromEntries(INTERFACE_LANGUAGES.map((language) => [language, text(language, 'about.part', { group: text(language, group), part: text(language, part) })]));
   }
   const field = type.fields.find((one) => one.name === name);
   if (field?.kind === 'meta') return field.label;
@@ -91,5 +91,5 @@ export function fieldLabel(type, name) {
 // A field as a refusal or a warning names where it is: its name, and its label.
 export const fieldNamed = (type, name) => ({ name, label: fieldLabel(type, name) });
 
-// A field as a value of a refusal's or a warning's reason: its label, in the middle of a phrase.
-export const fieldValued = (type, name) => ({ label: fieldLabel(type, name) });
+// A field as a value of a refusal's or a warning's reason: its label, which names it.
+export const fieldValued = (type, name) => ({ field: fieldLabel(type, name) });

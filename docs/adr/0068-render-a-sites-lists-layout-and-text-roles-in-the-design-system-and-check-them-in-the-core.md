@@ -1,6 +1,6 @@
 # ADR 0068: Render a site's lists, layout and text roles in the design system, and check them in the core
 
-**Date:** 2026-11-10 · **Status:** Accepted, settled by Thomas on 2026-11-10: these components render in the design system, a site declares them, and the core checks them. The markup is agreed with the design system's session on 2026-11-10, and is its own, in its `docs/spec/directives.md`, with classes and attributes of its own.
+**Date:** 2026-11-10, amended 2026-11-11 · **Status:** Accepted, settled by Thomas on 2026-11-10: these components render in the design system, a site declares them, and the core checks them. The markup is agreed with the design system's session on 2026-11-10, and is its own, in its `docs/spec/directives.md`, with classes and attributes of its own.
 
 ## Decision
 
@@ -24,7 +24,7 @@
 
 ## Consequences
 
-- "Read more" is ranked by the core, which gives a template from none to three related posts by default; the design system draws them by its rule for a series of cards: one card keeps a column's width, two stand in two columns and three in three, and with none the template writes neither heading nor list.
+- The recommended reading is ranked by the core, which gives a template from none to three related posts by default; the design system draws them by its rule for a series of cards: one card keeps a column's width, two stand in two columns and three in three, and with none the template writes neither heading nor list.
 - A design's small interface icons may stand inline in its stylesheet as SVG, since a page's policy allows `data:` images by default (ADR 0051); anything larger is a file. The design system's own marks are CSS shapes or inline `<svg>` in its markup, so a site that switches `data:` images off loses none of them.
 - The design system asks for three changes of these contracts, each for Thomas to settle: that a site take the components' declarations and checks from the package (issue #33), that a component be given its body as a tree with the block marks on it (issue #34), and that a component's mark in the preview stand on its own root rather than in a wrapper inside another component, which its layout's child selectors cannot see past (issue #35).
 - Until the design system has a first release, a site either declares these components and draws them with styles of its own, or does without them.

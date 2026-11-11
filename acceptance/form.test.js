@@ -487,7 +487,7 @@ describe('the interface language in Sveltia', () => {
     // the page only as a person scrolls near them, so the wheel turns over the form until the
     // half-life is there.
     await bar('Relaterade inlägg').click();
-    await page.getByText('Hur ”Läs mer” under ett inlägg').waitFor();
+    await page.getByText('Hur ”Rekommenderad läsning” under ett inlägg').waitFor();
     await page.getByRole('switch', { name: 'Färskhet' }).waitFor();
     const halfLife = page.locator('section.field[data-key-path="related.halfLife"]');
     const box = await page.locator('section.field[data-key-path="related"]').boundingBox();
@@ -547,7 +547,7 @@ describe('the interface language in Sveltia', () => {
       {
         locale: null, start: 'Arbeta med test-repo', title: 'Titel', save: 'Spara',
         refusal: 'Block 1: webbplatsen kan inte publicera en rubrik på nivå 1: inläggets titel är dess nivå 1; använd en nivå från 2 till 6',
-        post: 'fältet titel: webbplatsen kan inte publicera ett inlägg utan titel; ge det en',
+        post: 'fältet Titel: webbplatsen kan inte publicera ett inlägg utan titel; ge det en',
         files: [
           'Filen menus/main.json, post 1: posten har ingen etikett; ge den en, eller välj ett inlägg',
           'Filen redirects.json, post 2: regeln från /old/ kan inte svara så: "old" är varken en adress på webbplatsen, med ett snedstreck först, eller en https://-adress',
@@ -557,7 +557,7 @@ describe('the interface language in Sveltia', () => {
       {
         locale: 'en-GB', start: 'Work with Test Repository', title: 'Title', save: 'Save',
         refusal: 'Block 1: the site cannot publish a heading at level 1: the post\'s title is its level 1; use a level from 2 to 6',
-        post: 'the field title: the site cannot publish a post without a title; give it one',
+        post: 'the field Title: the site cannot publish a post without a title; give it one',
         files: [
           'The file menus/main.json, entry 1: the entry has no label; give it one, or choose a post',
           'The file redirects.json, entry 2: the rule from /old/ cannot answer so: "old" is neither an address on the site, starting with a slash, nor an https:// address',
@@ -612,11 +612,11 @@ describe('the interface language in Sveltia', () => {
     const editors = [
       {
         locale: null, start: 'Arbeta med test-repo', words: 'Publicerad på webbplatsen, men se över det här:',
-        warning: /^fältet datum: inlägget är schemalagt till 1 januari 2026 kl\. \d\d:00 \S+, en tidpunkt som redan hade passerat när webbplatsen först läste det, så det publiceras direkt, med den tidpunkten som datum$/,
+        warning: /^fältet Datum: inlägget är schemalagt till 1 januari 2026 kl\. \d\d:00 \S+, en tidpunkt som redan hade passerat när webbplatsen först läste det, så det publiceras direkt, med den tidpunkten som datum$/,
       },
       {
         locale: 'en-GB', start: 'Work with Test Repository', words: 'Live on the site, with something to look at:',
-        warning: /^the field date: the post is scheduled for 1 January 2026 at \d\d:00 \S+, which had already passed when the site first read it, so it is published at once, with that moment as its date$/,
+        warning: /^the field Date: the post is scheduled for 1 January 2026 at \d\d:00 \S+, which had already passed when the site first read it, so it is published at once, with that moment as its date$/,
       },
     ];
     for (const editor of editors) {

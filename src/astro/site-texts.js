@@ -4,12 +4,12 @@
 // plain text of a page not found, which the site template's 404 page shows
 // where the site settings choose no page of its own; and the site template's
 // own words, its frame's, which name its menus and label the publisher's
-// details, and the heading over the related posts under an article. The core
+// details, and the heading over the recommended reading under an article. The core
 // gives each in the catalogues (ADR 0066), under `site.`, in the content's
 // language, never the editor's interface language; a site gives its own per
 // language in `konzilo({ texts })`, by locale:
 //
-//   texts: { de_DE: { languageSwitcher: 'Sprachen', emptyList: 'Noch nichts.', readMore: 'Mehr dazu', forms: { send: 'Senden' }, search: { label: 'Suche' }, notFound: { title: 'Seite nicht gefunden' }, frame: { mainMenu: 'Hauptmenü' } } }
+//   texts: { de_DE: { languageSwitcher: 'Sprachen', emptyList: 'Noch nichts.', recommendedReading: 'Empfohlene Lektüre', forms: { send: 'Senden' }, search: { label: 'Suche' }, notFound: { title: 'Seite nicht gefunden' }, frame: { mainMenu: 'Hauptmenü' } } }
 //
 // and its main language's, as before languages, in `konzilo({ emptyList,
 // formTexts })`. A page takes the site's text in its language, else the
@@ -34,7 +34,7 @@ const hasCatalogue = (locale) => locale === null || catalogueFor(locale) === lan
 
 // The names of the texts a site may give per language: each a text, or an
 // object of texts.
-const TEXT_NAMES = ['languageSwitcher', 'emptyList', 'readMore'];
+const TEXT_NAMES = ['languageSwitcher', 'emptyList', 'recommendedReading'];
 const NAMES = [...TEXT_NAMES, 'forms', 'search', 'notFound', 'frame'];
 
 // The texts of an area of the catalogues a site may give by their names in it,
@@ -99,7 +99,7 @@ function rename(check, from, to) {
 // site's per language, as givenTexts() checked them, over `main`, the
 // site's in its main language, { emptyList, forms }, over the core's in
 // each language. Returns { texts, warnings }: the texts, each language's
-// { languageSwitcher, emptyList, readMore, forms, search, notFound, frame },
+// { languageSwitcher, emptyList, recommendedReading, forms, search, notFound, frame },
 // and a warning
 // for each language the core has no catalogue for, naming the texts the
 // site has not given in it.
@@ -113,7 +113,7 @@ export function siteTexts(languages, given = {}, main = {}) {
     texts[locale ?? ''] = {
       languageSwitcher: own.languageSwitcher ?? text(catalogueFor(locale), 'site.languageSwitcher'),
       emptyList: own.emptyList ?? mains.emptyList ?? text(catalogueFor(locale), 'site.emptyList'),
-      readMore: own.readMore ?? text(catalogueFor(locale), 'site.readMore'),
+      recommendedReading: own.recommendedReading ?? text(catalogueFor(locale), 'site.recommendedReading'),
       forms: formTexts(locale, { ...mains.forms, ...own.forms }),
       search: searchTexts(locale, own.search),
       ...Object.fromEntries(Object.entries(AREAS).map(([area, { prefix }]) => [area, { ...textsOf(locale, prefix), ...own[area] }])),

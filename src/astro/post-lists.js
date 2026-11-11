@@ -5,7 +5,7 @@
 // evaluates a body's lists in the body's order, so that a list can leave out
 // the posts the lists above it showed. A site's template may call
 // listedPosts() too, for the posts a list's settings name, and
-// relatedPosts(), for "Read more" under an article, from
+// relatedPosts(), for the recommended reading under an article, from
 // `@kntnt/konzilo/astro/post-lists`. A list ordered as related and
 // relatedPosts() rank alike, by the score and the freshness of
 // ../post-lists.js, with the half-life of the settings group `related`.
@@ -100,7 +100,7 @@ export async function listedPosts(settings, { post, shown = shownOnPage() } = {}
 // The number of related posts relatedPosts() gives, by default.
 export const RELATED_POSTS = 3;
 
-// The posts related to a post, as "Read more" under it shows them, in an
+// The posts related to a post, as the recommended reading under it shows them, in an
 // article's template:
 //
 //   const related = await relatedPosts(article);

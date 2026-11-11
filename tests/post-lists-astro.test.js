@@ -232,7 +232,7 @@ describe('Astro', () => {
   });
 });
 
-// "Read more" and a list ordered as related, on a site with the built-in
+// The recommended reading and a list ordered as related, on a site with the built-in
 // article: fictional articles related to Lantern, which has the topics
 // harbour and light, the category stories and the author Ines. Each article's
 // template shows what relatedPosts() gives it, and Lantern's body holds a list

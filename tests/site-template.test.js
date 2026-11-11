@@ -397,7 +397,7 @@ describe('the site template, built by Astro', () => {
     assert.doesNotMatch(page('sitemap.xml'), /\/page\/\d/);
   });
 
-  // "Read more" under an article: up to three articles that share its topics or its category,
+  // "Recommended reading" under an article: up to three articles that share its topics or its category,
   // ranked by Konzilo's relatedPosts(), as cards under a heading in the page's language, and
   // neither heading nor list where none shares a term (ADR 0068, ADR 0070).
   test('shows up to three related articles under an article as cards, ranked, under a heading, and nothing where none shares its terms', () => {
@@ -413,17 +413,17 @@ describe('the site template, built by Astro', () => {
       story(64, 'apart', 'Apart', '2026-09-28 08:00:00', [topic('meadows', 'Meadows')]),
     ];
     const page = build(repository, { title: 'Lantern', logo: null, icon: null }, { given });
-    const readMore = (html) => /<aside class="read-more"[^>]*>(.*?)<\/aside>/s.exec(html)?.[1] ?? null;
-    const cards = (html) => [...readMore(html).matchAll(/<p class="post-card-title"[^>]*><a href="([^"]*)"[^>]*>([^<]*)<\/a>/g)].map(([, href, name]) => [href, name]);
+    const recommended = (html) => /<aside class="recommended-reading"[^>]*>(.*?)<\/aside>/s.exec(html)?.[1] ?? null;
+    const cards = (html) => [...recommended(html).matchAll(/<p class="post-card-title"[^>]*><a href="([^"]*)"[^>]*>([^<]*)<\/a>/g)].map(([, href, name]) => [href, name]);
 
-    const shown = readMore(page('harbour-lights/index.html'));
-    assert.match(shown, /<h2 id="read-more"[^>]*>Read more<\/h2>/);
+    const shown = recommended(page('harbour-lights/index.html'));
+    assert.match(shown, /<h2 id="recommended-reading"[^>]*>Recommended reading<\/h2>/);
     assert.match(shown, /<ul class="post-cards post-cards-3"/);
     assert.deepEqual(cards(page('harbour-lights/index.html')), [['/two-topics/', 'Two topics'], ['/one-topic/', 'One topic'], ['/older-one-topic/', 'An older one']]);
-    assert.doesNotMatch(main(page('harbour-lights/index.html')), /read-more/, 'outside the article\'s main content');
-    assert.match(readMore(page('older-one-topic/index.html')), /<ul class="post-cards post-cards-3"/);
-    assert.equal(readMore(page('apart/index.html')), null, 'none shares its terms');
-    assert.doesNotMatch(page('apart/index.html'), /Read more/);
+    assert.doesNotMatch(main(page('harbour-lights/index.html')), /recommended-reading/, 'outside the article\'s main content');
+    assert.match(recommended(page('older-one-topic/index.html')), /<ul class="post-cards post-cards-3"/);
+    assert.equal(recommended(page('apart/index.html')), null, 'none shares its terms');
+    assert.doesNotMatch(page('apart/index.html'), /Recommended reading/);
   });
 
   // Term pages: with the categories at /category/{slug}/, News
@@ -664,13 +664,13 @@ describe('the site template in Swedish and English, built by Astro', () => {
 
   // Each article's related articles are those of its language, under a heading in it.
   test('shows the related articles under an article in its language, under a heading in it', () => {
-    const readMore = (html) => /<aside class="read-more"[^>]*>(.*?)<\/aside>/s.exec(html)?.[1] ?? '';
-    assert.match(readMore(page('sv/hamnljus/index.html')), /<h2 id="read-more"[^>]*>Läs mer<\/h2>/);
-    assert.match(readMore(page('sv/hamnljus/index.html')), /href="\/sv\/bara-svenska\/"/);
-    assert.doesNotMatch(readMore(page('sv/hamnljus/index.html')), /english-only|harbour-lights/);
-    assert.match(readMore(page('en/harbour-lights/index.html')), /<h2 id="read-more"[^>]*>Read more<\/h2>/);
-    assert.match(readMore(page('en/harbour-lights/index.html')), /href="\/en\/english-only\/"/);
-    assert.doesNotMatch(readMore(page('en/harbour-lights/index.html')), /bara-svenska|hamnljus/);
+    const recommended = (html) => /<aside class="recommended-reading"[^>]*>(.*?)<\/aside>/s.exec(html)?.[1] ?? '';
+    assert.match(recommended(page('sv/hamnljus/index.html')), /<h2 id="recommended-reading"[^>]*>Rekommenderad läsning<\/h2>/);
+    assert.match(recommended(page('sv/hamnljus/index.html')), /href="\/sv\/bara-svenska\/"/);
+    assert.doesNotMatch(recommended(page('sv/hamnljus/index.html')), /english-only|harbour-lights/);
+    assert.match(recommended(page('en/harbour-lights/index.html')), /<h2 id="recommended-reading"[^>]*>Recommended reading<\/h2>/);
+    assert.match(recommended(page('en/harbour-lights/index.html')), /href="\/en\/english-only\/"/);
+    assert.doesNotMatch(recommended(page('en/harbour-lights/index.html')), /bara-svenska|hamnljus/);
   });
 
   test('takes the theme colour from the main language\'s start page', () => {

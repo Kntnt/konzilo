@@ -195,7 +195,7 @@ describe('the built-in types', () => {
     const read = siteDescription(site({ article: article(), page: { collection: 'pages', address: '/pages/{slug}/', elements: ['paragraph'] }, canvas: { collection: 'canvases', address: '/landing/{slug}/', elements: ['paragraph'] } }));
     assert.deepEqual([read.types.article.label, read.types.article.plural], [{ en: 'Article', sv: 'Artikel' }, { en: 'Articles', sv: 'Artiklar' }]);
     assert.deepEqual([read.types.page.label, read.types.page.plural], [{ en: 'Page', sv: 'Sida' }, { en: 'Pages', sv: 'Sidor' }]);
-    assert.deepEqual([read.types.canvas.label, read.types.canvas.plural], [{ en: 'Canvas', sv: 'Tom sida' }, { en: 'Canvases', sv: 'Tomma sidor' }]);
+    assert.deepEqual([read.types.canvas.label, read.types.canvas.plural], [{ en: 'Canvas', sv: 'Arbetsyta' }, { en: 'Canvases', sv: 'Arbetsytor' }]);
     assert.deepEqual(Object.values(read.taxonomies).map((taxonomy) => [taxonomy.label.en, taxonomy.plural.sv]), [['Author', 'Författare'], ['Category', 'Kategorier'], ['Topic', 'Ämnen']]);
     const own = siteDescription(site({ article: article({ label: 'Magazine', plural: { en: 'Magazines', sv: 'Magasin' } }) }, { taxonomies: { topics: { label: 'Tag', plural: 'Tags' } } }));
     assert.equal(own.types.article.label, 'Magazine');

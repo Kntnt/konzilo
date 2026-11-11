@@ -12,11 +12,12 @@
 // in it with its presentation. The cookie declaration follows the body of the
 // article chosen as the cookie policy, if one is, and of no other.
 //
-// "Read more" follows the article, outside its <main>: Konzilo's relatedPosts()
-// ranks up to three articles that share its topics or its category, and they
-// show as cards, one a column's width, two in two columns and three in three,
-// under a heading in the page's language, Konzilo's texts' `readMore`. With
-// none, neither the heading nor the list is there.
+// The recommended reading follows the article, outside its <main>: Konzilo's
+// relatedPosts() ranks up to three articles that share its topics or its
+// category, and they show as cards, one a column's width, two in two columns
+// and three in three, under a heading in the page's language, Konzilo's
+// texts' `recommendedReading`. With none, neither the heading nor the list is
+// there.
 //
 // The route takes a rest parameter, the article's whole address, so that an
 // article whose post list has pages of its own has them at
@@ -45,7 +46,7 @@ const authors = await authorsOf(article);
 const categories = await Promise.all((await getEntries(article.data.category)).map((category) => termPath(category)));
 const topics = await getEntries(article.data.topics);
 const related = await relatedPosts(article);
-const { readMore } = pageTexts(Astro.url);
+const { recommendedReading } = pageTexts(Astro.url);
 ---
 <Site entry={article} page={page}>
   <main>
@@ -68,8 +69,8 @@ const { readMore } = pageTexts(Astro.url);
     </article>
   </main>
   {related.length > 0 && (
-    <aside class="read-more" aria-labelledby="read-more">
-      <h2 id="read-more">{readMore}</h2>
+    <aside class="recommended-reading" aria-labelledby="recommended-reading">
+      <h2 id="recommended-reading">{recommendedReading}</h2>
       <Cards posts={related} options={{ columns: related.length === 2 ? '2' : '3' }} empty="" />
     </aside>
   )}

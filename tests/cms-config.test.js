@@ -109,7 +109,7 @@ test('gives the built-in types and taxonomies the core\'s labels in the interfac
     'image-library': ['image', 'Image library'],
   });
   const swedish = cmsConfig(description, { ...place, language: 'sv' });
-  assert.deepEqual(Object.values(labels(swedish)).slice(0, 6), [['artikel', 'Artiklar'], ['sida', 'Sidor'], ['tom sida', 'Tomma sidor'], ['författare', 'Författare'], ['kategori', 'Kategorier'], ['ämne', 'Ämnen']]);
+  assert.deepEqual(Object.values(labels(swedish)).slice(0, 6), [['artikel', 'Artiklar'], ['sida', 'Sidor'], ['arbetsyta', 'Arbetsytor'], ['författare', 'Författare'], ['kategori', 'Kategorier'], ['ämne', 'Ämnen']]);
   assert.equal(field(collection('articles').fields, 'authors').label, 'Authors');
   assert.equal(field(swedish.collections.find((one) => one.name === 'articles').fields, 'category').label, 'Kategori');
   assert.equal(field(collection('authors').fields, 'description').label, 'Biography');
@@ -666,7 +666,7 @@ describe('labels in phrases', () => {
   // "Lägg till {name}", and by its plural alone.
   test('give a collection\'s singular label as it stands in a phrase, the core\'s and the site\'s alike, and an abbreviation as it is', () => {
     const singular = (made) => Object.fromEntries(made.collections.filter((each) => each.label_singular).map((each) => [each.name, each.label_singular]));
-    assert.deepEqual(singular(swedish), { articles: 'artikel', pages: 'sida', canvases: 'tom sida', authors: 'författare', categories: 'kategori', topics: 'ämne', 'image-library': 'bild' });
+    assert.deepEqual(singular(swedish), { articles: 'artikel', pages: 'sida', canvases: 'arbetsyta', authors: 'författare', categories: 'kategori', topics: 'ämne', 'image-library': 'bild' });
     assert.deepEqual(singular(config), { articles: 'article', pages: 'page', canvases: 'canvas', authors: 'author', categories: 'category', topics: 'topic', 'image-library': 'image' });
     assert.equal(one(swedish, 'articles').label, 'Artiklar', 'its plural stands alone');
     const given = declared();

@@ -543,31 +543,35 @@ test('names a site\'s own label given by language in the language a refusal is s
   const most = refusals.find((one) => one.name === 'refusal.terms-most');
   assert.deepEqual(most.values, { most: 2, plural: { label: { en: 'Categories', sv: 'Kategorier' } } });
   assert.equal(reasonIn('sv', most), 'ett inlägg tar högst 2 av sina kategorier; välj färre');
-  assert.equal(messageIn('sv', most), 'Inlägget "An article" (story, aaaaaaaaaaaa), fältet kategorier: ett inlägg tar högst 2 av sina kategorier; välj färre');
-  assert.equal(messageIn('en', most), 'The story "An article" (aaaaaaaaaaaa), the field categories: a post takes at most 2 of its categories; choose fewer');
+  assert.equal(messageIn('sv', most), 'Inlägget "An article" (story, aaaaaaaaaaaa), fältet Kategorier: ett inlägg tar högst 2 av sina kategorier; välj färre');
+  assert.equal(messageIn('en', most), 'The story "An article" (aaaaaaaaaaaa), the field Categories: a post takes at most 2 of its categories; choose fewer');
   const note = refusals.find((one) => one.name === 'refusal.reference-no-address');
   assert.match(reasonIn('sv', note), /och anteckningar har ingen egen sida/);
 });
 
-// An editor reads a field as the form shows it, by its label in the interface language, in the
-// middle of a phrase; the command line reads the British English (ADR 0066).
+// An editor reads a field as the form shows it, by its label in the interface language, which
+// names it, as it stands in the form; the command line reads the British English (ADR 0066).
 test('names a field by its label, the core\'s or the site\'s own, in each interface language, and in British English on the command line', () => {
   const shown = (refusal) => [placeIn('en', refusal), placeIn('sv', refusal), reasonIn('sv', refusal)];
   const title = onePost({ title: '' }).refusals.find((one) => one.name === 'refusal.title-empty');
   assert.deepEqual(title.field, { name: 'title', label: { en: 'Title', sv: 'Titel' } });
-  assert.deepEqual(shown(title).slice(0, 2), ['the field title', 'fältet titel']);
-  assert.match(title.message, /, the field title: /);
+  assert.deepEqual(shown(title).slice(0, 2), ['the field Title', 'fältet Titel']);
+  assert.match(title.message, /, the field Title: /);
   const moment = onePost({ date: 'soon' }).refusals.find((one) => one.name === 'refusal.field-moment');
-  assert.deepEqual(shown(moment), ['the field date', 'fältet datum', 'webbplatsen kan inte publicera "soon" som datum och tid i datum; välj en']);
-  assert.equal(moment.reason, 'the site cannot publish "soon" as a date and time in date; choose one');
+  assert.deepEqual(shown(moment), ['the field Date', 'fältet Datum', 'webbplatsen kan inte publicera "soon" som datum och tid i fältet Datum; välj en']);
+  assert.equal(moment.reason, 'the site cannot publish "soon" as a date and time in the field Date; choose one');
   const canonical = onePost({ search: { canonical: 'the-original/' } }).refusals[0];
-  assert.deepEqual(shown(canonical).slice(0, 2), ['the field search: canonical address', 'fältet sök: kanonisk adress']);
+  assert.deepEqual(shown(canonical).slice(0, 2), ['the field Search: Canonical address', 'fältet Sök: Kanonisk adress']);
   const excerpt = onePost({ excerpt: 'An <em>excerpt</em>' }).refusals.find((one) => one.name === 'refusal.field-markup');
-  assert.deepEqual(shown(excerpt), ['the field excerpt', 'fältet utdrag', 'webbplatsen kan inte publicera utdrag med HTML i; skriv det som vanlig text']);
+  assert.deepEqual(shown(excerpt), ['the field Excerpt', 'fältet Utdrag', 'webbplatsen kan inte publicera fältet Utdrag med HTML i; skriv det som vanlig text']);
   const own = withFiles({ 'articles/aaaaaaaaaaaa.md': article({ readingTime: { a: 1 } }) }).refusals.find((one) => one.name === 'refusal.field-value');
-  assert.deepEqual(shown(own), ['the field reading time', 'fältet reading time', 'webbplatsen kan inte publicera detta som reading time']);
+  assert.deepEqual(shown(own), ['the field Reading time', 'fältet Reading time', 'webbplatsen kan inte publicera detta i fältet Reading time']);
   const brief = withFiles({ 'briefs/aaaaaaaaaaaa.md': sourcePost({ title: 'B', slug: 'b', status: 'published', excerpt: 'E', image: { src: '/media/a.png', alt: 'A' } }) }).refusals.find((one) => one.name === 'refusal.field-required');
-  assert.deepEqual(shown(brief), ['the field tags', 'fältet tags', 'webbplatsen kan inte publicera ett inlägg utan fältet tags; fyll i det']);
+  assert.deepEqual(shown(brief), ['the field Tags', 'fältet Tags', 'webbplatsen kan inte publicera ett inlägg utan fältet Tags; fyll i det']);
+  // The other addresses' label stands in Sveltia's phrases with a small letter; as a name, it
+  // is as the form's heading shows it. A type's plural there describes, with a small letter.
+  const other = withFiles({ 'notes/aaaaaaaaaaaa.md': sourcePost({ title: 'N', slug: 'n', status: 'published', otherAddresses: [{ address: '/x/' }] }) }).refusals.find((one) => one.name === 'refusal.other-no-address');
+  assert.deepEqual(shown(other), ['the field Other addresses', 'fältet Andra adresser', 'notes har ingen egen sida, så de tar inga andra adresser; ta bort dem']);
 });
 
 test('a feed a refusal names is named in each interface language', () => {

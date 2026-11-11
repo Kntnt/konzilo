@@ -46,7 +46,7 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Built-in type**: One of the core's own post types, `canvas`, `page` and `article`, which a site uses by naming it, and whose fields are the core's; a site may add its own. _Avoid_: core type, default type.
 
-**Canvas**: The built-in type of a blank page, without the site's header and footer, built of components alone. _Avoid_: landing page (for the type), blank template.
+**Canvas**: The built-in type of a blank page, without the site's header and footer, built of components alone; in Swedish *arbetsyta*, as design tools name a canvas. _Avoid_: landing page (for the type), blank template.
 
 **Page**: The built-in type of a page with the site's header and footer, and its name in breadcrumbs and search and sharing fields. _Avoid_: static page.
 
@@ -176,7 +176,9 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Pager**: The integration's links between a post list's pages. _Avoid_: pagination.
 
-**Freshness**: What the score of a post related to another is multiplied by for its age, 2^(-age / half-life), so that newer posts rank higher in "Read more" and in a post list ordered as related: a half at one half-life old, a quarter at two. A post without a date has no age. _Avoid_: recency, decay.
+**Recommended reading**: The posts the core ranks as related to an article and its template shows under it, three at most: chosen by what the article is about, without the promise that each is about the same. _Avoid_: read more, related posts (for the list under an article).
+
+**Freshness**: What the score of a post related to another is multiplied by for its age, 2^(-age / half-life), so that newer posts rank higher in the recommended reading and in a post list ordered as related: a half at one half-life old, a quarter at two. A post without a date has no age. _Avoid_: recency, decay.
 
 **Half-life**: The days in which a post's freshness halves, 90 by default, set by an Admin in the settings group *Related posts*, where freshness can be switched off too.
 
