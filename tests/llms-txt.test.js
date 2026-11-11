@@ -34,16 +34,15 @@ const core = fileURLToPath(new URL('../', import.meta.url));
 const astro = join(core, 'node_modules/astro/bin/astro.mjs');
 const integration = join(core, 'src/astro/index.js');
 
-// Articles with a date and an excerpt; notes and guides with a date, the
-// notes declared before the guides; and pages, without a date, declared
-// last.
+// Articles with a date and an excerpt; notes with a date, declared before
+// the guides, without one; and pages, which have a date, declared last.
 const site = {
   language: 'en_GB',
   images: { smallestWidth: 400, displayWidth: 1280 },
   types: {
     post: { label: 'Article', plural: 'Articles', collection: 'articles', address: '/{slug}/', elements: ['paragraph'], fields: { date: {}, excerpt: {}, seo: {} } },
     note: { label: 'Note', plural: 'Notes', collection: 'notes', address: '/notes/{slug}/', elements: ['paragraph'], fields: { date: {} } },
-    guide: { label: 'Guide', plural: 'Guides', collection: 'guides', address: '/guides/{slug}/', elements: ['paragraph'], fields: { date: {} } },
+    guide: { label: 'Guide', plural: 'Guides', collection: 'guides', address: '/guides/{slug}/', elements: ['paragraph'], fields: {} },
     page: { label: 'Page', plural: 'Pages', collection: 'pages', hierarchical: true, address: '/pages/{path}/', elements: ['paragraph'] },
   },
 };
@@ -104,9 +103,12 @@ const posts = [
   post({ ID: 3, slug: 'night-watch', title: 'Night watch', date: '2026-10-02 08:00:00', body: paragraphs('Not for search engines.'), meta: { seo_noindex: ['1'] } }),
   post({ ID: 11, type: 'note', slug: 'tide-table', title: 'Tide table', date: '2026-10-05 08:00:00', body: paragraphs('High water at six.') }),
   post({ ID: 12, type: 'note', slug: 'fog', title: 'Fog', date: '2026-10-06 08:00:00', body: paragraphs('Thick at dawn.') }),
-  post({ ID: 21, type: 'guide', slug: 'trimming-the-wick', title: 'Trimming the wick', date: '2026-10-04 08:00:00', body: paragraphs('Cut it straight.') }),
-  post({ ID: 31, type: 'page', slug: 'contact', title: 'Contact', body: '' }),
-  post({ ID: 32, type: 'page', slug: 'about', title: 'About the keeper', body: paragraphs('She keeps the light.') }),
+  // A guide has no date, so the guides come by title, whatever their paths.
+  post({ ID: 21, type: 'guide', slug: 'trimming-the-wick', title: 'Trimming the wick', body: paragraphs('Cut it straight.') }),
+  post({ ID: 22, type: 'guide', slug: 'anchoring', title: 'Weighing anchor', body: paragraphs('Pull it up slowly.') }),
+  // A page has a date, so the pages come newest first too.
+  post({ ID: 31, type: 'page', slug: 'contact', title: 'Contact', date: '2026-10-04 08:00:00', body: '' }),
+  post({ ID: 32, type: 'page', slug: 'about', title: 'About the keeper', date: '2026-10-02 08:00:00', body: paragraphs('She keeps the light.') }),
   post({ ID: 33, type: 'page', slug: 'private', title: 'Private', body: paragraphs('Kept out by a pattern.') }),
 ];
 
@@ -133,8 +135,8 @@ Markdown index of The Quiet Lantern for AI agents. Full text: https://www.exampl
 - [The Quiet Lantern](https://www.example.com/index.md): Light for the harbour, every night.
 
 ## Pages
-- [About the keeper](https://www.example.com/pages/about.md): She keeps the light.
 - [Contact](https://www.example.com/pages/contact.md)
+- [About the keeper](https://www.example.com/pages/about.md): She keeps the light.
 
 ## Articles
 - [The \\[draft\\] keeper's \\\`log\\\`](https://www.example.com/the-keepers-log.md): Kept every night.
@@ -146,6 +148,7 @@ Markdown index of The Quiet Lantern for AI agents. Full text: https://www.exampl
 
 ## Guides
 - [Trimming the wick](https://www.example.com/guides/trimming-the-wick.md): Cut it straight.
+- [Weighing anchor](https://www.example.com/guides/anchoring.md): Pull it up slowly.
 `;
 
 const LLMS_FULL = `# The Quiet Lantern
@@ -162,28 +165,30 @@ canonical_url: "https://www.example.com/"
 Light for the harbour.
 
 ---
+title: "Contact"
+canonical_url: "https://www.example.com/pages/contact/"
+date: 2026-10-04
+---
+
+# Contact
+
+---
 title: "About the keeper"
 canonical_url: "https://www.example.com/pages/about/"
+date: 2026-10-02
 ---
 
 # About the keeper
 
 She keeps the light.
-
----
-title: "Contact"
-canonical_url: "https://www.example.com/pages/contact/"
----
-
-# Contact
 `;
 
 // With NARROW, and a site without a description.
 const NARROW_LLMS = `# The Quiet Lantern
 
 ## Pages
-- [About the keeper](https://www.example.com/pages/about.md): She keeps the light.
 - [Contact](https://www.example.com/pages/contact.md)
+- [About the keeper](https://www.example.com/pages/about.md): She keeps the light.
 
 ## Articles
 - [The \\[draft\\] keeper's \\\`log\\\`](https://www.example.com/the-keepers-log.md): Kept every night.
@@ -191,6 +196,7 @@ const NARROW_LLMS = `# The Quiet Lantern
 
 ## Guides
 - [Trimming the wick](https://www.example.com/guides/trimming-the-wick.md): Cut it straight.
+- [Weighing anchor](https://www.example.com/guides/anchoring.md): Pull it up slowly.
 `;
 
 const NARROW_LLMS_FULL = '# The Quiet Lantern\n';
@@ -269,7 +275,7 @@ describe('a site built with astro build for https://www.example.com', () => {
   test('links every page of llms.txt at its Markdown alternate in the release', () => {
     assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
     const links = [...output('llms.txt').matchAll(/\]\((https:\/\/www\.example\.com\/[^)]+)\)/g)].map(([, href]) => new URL(href).pathname);
-    assert.equal(links.length, 8);
+    assert.equal(links.length, 9);
     for (const link of links.filter((path) => path.endsWith('.md'))) assert.ok(existsSync(join(repository, 'dist', link)), link);
   });
 
@@ -325,8 +331,8 @@ describe('pages whose template renders no Konzilo Head', () => {
   test('leave them out of llms-full.txt, and the build\'s log names them once', () => {
     const log = `${built.stdout}\n${built.stderr}`;
     assert.equal(built.status, 0, log);
-    assert.equal(readFileSync(join(repository, 'dist', 'llms-full.txt'), 'utf8'), LLMS_FULL.split('\n---\ntitle: "About the keeper"')[0]);
-    assert.match(log, /llms-full\.txt leaves out these pages, which have no Markdown alternate, since their templates render no Konzilo Head:\n- \/pages\/about\/\n- \/pages\/contact\/\n/);
+    assert.equal(readFileSync(join(repository, 'dist', 'llms-full.txt'), 'utf8'), LLMS_FULL.split('\n---\ntitle: "Contact"')[0]);
+    assert.match(log, /llms-full\.txt leaves out these pages, which have no Markdown alternate, since their templates render no Konzilo Head:\n- \/pages\/contact\/\n- \/pages\/about\/\n/);
     assert.equal(log.match(/llms-full\.txt leaves out/g).length, 1);
   });
 
@@ -334,7 +340,7 @@ describe('pages whose template renders no Konzilo Head', () => {
     const log = `${built.stdout}\n${built.stderr}`;
     assert.equal(built.status, 0, log);
     assert.equal(readFileSync(join(repository, 'dist', 'llms.txt'), 'utf8'), LLMS.replace(/## Pages\n[^#]*/, ''));
-    assert.match(log, /llms\.txt leaves out these pages, which have no Markdown alternate, since their templates render no Konzilo Head:\n- \/pages\/about\/\n- \/pages\/contact\/\n/);
+    assert.match(log, /llms\.txt leaves out these pages, which have no Markdown alternate, since their templates render no Konzilo Head:\n- \/pages\/contact\/\n- \/pages\/about\/\n/);
     assert.equal(log.match(/(?<!-full)\.txt leaves out/g).length, 1);
   });
 });

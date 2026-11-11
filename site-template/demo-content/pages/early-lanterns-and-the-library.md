@@ -1,5 +1,7 @@
 ---
 title: "Early lanterns and the library"
+date: 2025-12-15T08:00:00Z
+modified: 2025-12-15T08:00:00Z
 ---
 
 The hidden garden mends the golden library. The hidden library follows the careful river. The bright library welcomes the hidden meadow.

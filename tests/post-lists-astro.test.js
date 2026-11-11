@@ -127,6 +127,8 @@ const content = {
   'content/pages/start.md': [
     '---',
     'title: "Start"',
+    'date: 2026-01-01T08:00:00Z',
+    'modified: 2026-01-01T08:00:00Z',
     '---',
     '',
     'Intro',
@@ -226,9 +228,9 @@ describe('Astro', () => {
   });
 
   test('fails the build of a content file with a list the site cannot publish, naming the file, the line and the reason', () => {
-    const failed = build({ 'content/pages/other.md': '---\ntitle: "Other"\n---\n\n::post-list{type="post" presentation="slides"}\n' }, { presentations });
+    const failed = build({ 'content/pages/other.md': '---\ntitle: "Other"\ndate: 2026-01-01T08:00:00Z\nmodified: 2026-01-01T08:00:00Z\n---\n\n::post-list{type="post" presentation="slides"}\n' }, { presentations });
     assert.notEqual(failed.status, 0);
-    assert.match(failed.output, /content\/pages\/other\.md: line 5: the site has no presentation "slides" for a list; it has list and cards/);
+    assert.match(failed.output, /content\/pages\/other\.md: line 7: the site has no presentation "slides" for a list; it has list and cards/);
   });
 });
 
@@ -330,6 +332,8 @@ describe('a list with pages', () => {
   const news = [
     '---',
     'title: "News"',
+    'date: 2026-01-01T08:00:00Z',
+    'modified: 2026-01-01T08:00:00Z',
     '---',
     '',
     '::post-list{type="post" include="section:paged" order="title" number="2" presentation="cards"}',
@@ -417,7 +421,7 @@ describe('a list with pages', () => {
 
   test('fails the build of a post with a second list with pages, naming it', () => {
     const twice = '::post-list{type="post" pages="true" presentation="list"}\n\n::post-list{type="post" pages="true" presentation="list"}\n';
-    const failed = build({ 'content/pages/twice.md': `---\ntitle: "Twice"\n---\n\n${twice}` }, { presentations });
+    const failed = build({ 'content/pages/twice.md': `---\ntitle: "Twice"\ndate: 2026-01-01T08:00:00Z\nmodified: 2026-01-01T08:00:00Z\n---\n\n${twice}` }, { presentations });
     assert.notEqual(failed.status, 0);
     assert.match(failed.output, /a post list in pages\/twice: the site cannot publish a second list with pages of its own; turn off Pages in one of them/);
   });

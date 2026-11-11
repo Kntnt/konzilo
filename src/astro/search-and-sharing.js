@@ -10,10 +10,12 @@
 // - its title tag: the post's own, else its type's template rendered, else
 //   its title; its meta description: the post's own, else the template
 //   rendered; its sharing title and description: the post's own, else the
-//   templates rendered, else the title tag and the description. An article,
-//   and a post whose type of the site's own has a teaser, falls back to what
-//   its teaser shows before the templates, cut as a search result and a
-//   shared link show it (article-parts.js, built-in-types.js);
+//   templates rendered, else the title tag and the description. A post of a
+//   built-in type, and one whose type of the site's own has a teaser, falls
+//   back to what its teaser shows before the templates, cut as a search
+//   result and a shared link show it (article-parts.js, built-in-types.js):
+//   a page's and a canvas's teaser to its title alone, so that where it has
+//   no text of its own the templates give its description;
 // - its canonical address, as its canonical link and Open Graph's address:
 //   the one the post names, such as the original's where it was published
 //   elsewhere first, else the post's public address on the public host,
@@ -226,8 +228,8 @@ async function postPage({ entry, type, path, number, search, site }, known, getE
   const templates = search.types?.[type.name] ?? {};
   const seo = entry.data.seo ?? {};
   const field = (kind) => entry.data[type.fields.find((found) => found.kind === kind)?.name];
-  // What the teaser shows, in an article and in a type of the site's own that has a
-  // teaser, before the templates.
+  // What the teaser shows, in a type with a teaser, every built-in one among them, before
+  // the templates.
   const teaser = followsParts(type);
   const shown = (rule) => (teaser ? rule(entry.data) : '');
   const titleTag = seo.title || shown((data) => searchTitleOf(data, known.settings?.title ?? '')) || render(templates.title) || entry.data.title;

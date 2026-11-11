@@ -1,5 +1,7 @@
 ---
 title: "Privacy policy"
+date: 2025-12-01T08:00:00Z
+modified: 2025-12-01T08:00:00Z
 ---
 
 The careful lantern lights the gentle valley. The open harbour welcomes the small valley. The careful lantern changes the distant harbour.

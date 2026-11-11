@@ -25,6 +25,8 @@ Every example is of the site description in [The site description](#the-site-des
   ```markdown
   ---
   title: "Example"
+  date: 2026-11-03T12:00:00Z
+  modified: 2026-11-03T12:00:00Z
   ---
   ```
 
@@ -84,11 +86,11 @@ Three post types are the core's own, and a site uses one by naming it among its 
 
 | Type | Its fields |
 |---|---|
-| `canvas` | `seo` |
-| `page` | `breadcrumb`, `seo` |
+| `canvas` | `date`, `modified`, `breadcrumb`, `teaser`, `seo` |
+| `page` | `date`, `modified`, `breadcrumb`, `teaser`, `seo` |
 | `article` | `date`, `modified`, `image`, `breadcrumb`, `eyebrow`, `headline`, `subheadline`, `standfirst`, `authors`, `category`, `topics`, `teaser`, `seo` |
 
-An article's main headline, `headline`, is required, and every other part optional. A site may give a built-in type fields of its own, under `fields`, which its posts' files hold after the core's and before `seo`. A field named as one of the type's own is refused, whether declared again or left out with `false` or `null`, and so is one named as another field of the core's, such as `excerpt` on an article.
+Every post of a built-in type is published at a moment, its `date`, and has its last change, `modified`. A page and a canvas have the article's parts that name and show a post, the name in breadcrumbs and the teaser, and none of its others. An article's main headline, `headline`, is required, and every other part optional. A site may give a built-in type fields of its own, under `fields`, which its posts' files hold after the core's and before `seo`. A field named as one of the type's own is refused, whether declared again or left out with `false` or `null`, and so is one named as another field of the core's, such as `excerpt` on an article.
 
 Naming `article` brings three built-in taxonomies, each held by the article's field of the same name: `authors`, whose terms are the article's authors, each with its name and its biography, the term's `description`; `category`, hierarchical, of which an article takes one or none, as with `"most": 1`; and `topics`. Their collections are `authors`, `categories` and `topics`. A site may give each, under `taxonomies` by its name, an `address`, a `feed`, and a `label` and `plural` of its own, and nothing of its shape. On a site without an article, a taxonomy by one of these names is the site's own.
 
@@ -257,11 +259,13 @@ The lantern keeps the harbour.
 <p>The lantern keeps the harbour.</p>
 ```
 
-A page has no date: the built-in page's fields are its name in breadcrumbs and `seo`. A page below another sits in its parent's folder:
+A page has its date and its last change, as every post of a built-in type has, and a teaser and a name in breadcrumbs where it sets them. A page below another sits in its parent's folder:
 
 ```markdown file=pages/about-us.md
 ---
 title: "About us"
+date: 2026-05-01T08:00:00Z
+modified: 2026-05-01T08:00:00Z
 ---
 
 Who we are.
@@ -270,6 +274,8 @@ Who we are.
 ```markdown file=pages/about-us/team.md
 ---
 title: "Team"
+date: 2026-05-01T08:00:00Z
+modified: 2026-05-01T08:00:00Z
 ---
 
 Who does what.
@@ -278,6 +284,8 @@ Who does what.
 ```markdown file=pages/privacy.md
 ---
 title: "Privacy policy"
+date: 2026-05-01T08:00:00Z
+modified: 2026-05-01T08:00:00Z
 ---
 
 What we keep, and for how long.
@@ -1087,8 +1095,8 @@ An ID is text, the name of the post's source file, such as `96ba709ec918`, which
         "/pages/about-us/team/"
       ],
       "title": "Team",
-      "source": "467344dee0605842d503da619c9e3c2797bed57e84242ad5cf091a43bef10303",
-      "published": "6eb80b1320a80142a7a6f7fc11203f620b4fdddb7eb917e60e850d12cfd16693",
+      "source": "661f669b023c9c066a1968192577e1a55da2e84ae7b02f3aca1b9313212e58a0",
+      "published": "013a5b77c59aed21ea19084ddc7310d70a1799bdb2787ceaff92bb82a52317d8",
       "taken": "2026-05-01T08:00:00Z",
       "modified": "2026-05-01T08:00:00Z",
       "names": {}
@@ -1117,8 +1125,8 @@ An ID is text, the name of the post's source file, such as `96ba709ec918`, which
         "/pages/about-us/"
       ],
       "title": "About us",
-      "source": "b786c34b8ba834ff83e38e52fbae83e8c56a7228cd83753691bf38230d6fde62",
-      "published": "d0d2633153ad9f40d621f9f2b88f54d77c02515c31dba1f84e5c5cec3f921c1c",
+      "source": "d166febac5302b4081c5ffb479eeb69ebcfd1ff8fe1bfa1fb84ade8416f25378",
+      "published": "e5147ebd22f1517cf6ffcf0a3451b1a35d362763d4428f925748e0c6659ef4fb",
       "taken": "2026-05-01T08:00:00Z",
       "modified": "2026-05-01T08:00:00Z",
       "names": {}
@@ -1155,8 +1163,8 @@ An ID is text, the name of the post's source file, such as `96ba709ec918`, which
         "/pages/privacy/"
       ],
       "title": "Privacy policy",
-      "source": "2d7913d9adff38331ce91fa4d914e3f1ec5cb9d2d5961a5d1dd27a7486294d32",
-      "published": "0f6d48f2113e0608afebfb8c3306f9402a9c6c88d7170e196ec79f91adb2938f",
+      "source": "1dbbd4046c9040ca59ee81e4f9ec7a9560d46eee4af3530ec2a7dc470eeeb6ef",
+      "published": "3e41001f463e136b7af5c5bed0cf14ebda470abdf98595db5a3f08c043b86dfa",
       "taken": "2026-05-01T08:00:00Z",
       "modified": "2026-05-01T08:00:00Z",
       "names": {}
@@ -1332,6 +1340,8 @@ A page and its translation, at `/sv/sidor/om-oss/` and `/en/pages/about-us/`, wh
 ```markdown file=pages/sv-SE/om-oss.md site=languages
 ---
 title: "Om oss"
+date: 2026-10-20T08:00:00Z
+modified: 2026-10-20T08:00:00Z
 translationKey: "4b61ce33f4918c84"
 oldAddresses: ["/sidor/om-oss/"]
 ---
@@ -1342,6 +1352,8 @@ Vilka vi är.
 ```markdown file=pages/en-GB/about-us.md site=languages
 ---
 title: "About us"
+date: 2026-10-20T08:00:00Z
+modified: 2026-10-20T08:00:00Z
 translationKey: "4b61ce33f4918c84"
 ---
 
@@ -1473,6 +1485,8 @@ A page that holds every body element. It names images, so it is read; every bloc
 ````markdown file=pages/a-tour.md tour
 ---
 title: "A tour of every element"
+date: 2026-11-03T12:00:00Z
+modified: 2026-11-03T12:00:00Z
 ---
 
 A paragraph with **bold**, _italic_, `inline code`, ~~struck~~ text, H<sub>2</sub>O, E = mc<sup>2</sup>, 10 kg and a footnote[^1].\

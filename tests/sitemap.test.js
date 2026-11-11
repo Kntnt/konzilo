@@ -52,7 +52,7 @@ const posts = [
   article({ ID: 3, slug: 'tips', title: 'Tips', modified: '2026-10-22 16:30:00', meta: { seo_nofollow: ['1'] } }),
   article({ ID: 4, status: 'draft', slug: 'unfinished', title: 'Unfinished', modified: '2026-10-23 10:00:00' }),
   post({ ID: 5, type: 'news', slug: 'opening', title: 'Opening', date: '2026-10-05 09:30:00', body: paragraphs('News.') }),
-  post({ ID: 6, type: 'page', slug: 'who-we-are', title: 'Who we are', body: paragraphs('Us.'), meta: { old_slug: ['about-us'] } }),
+  post({ ID: 6, type: 'page', slug: 'who-we-are', title: 'Who we are', modified: '2026-10-12 10:00:00', body: paragraphs('Us.'), meta: { old_slug: ['about-us'] } }),
   post({ ID: 7, type: 'snippet', slug: 'footer', title: 'Footer', body: paragraphs('Small print.') }),
 ];
 
@@ -133,6 +133,7 @@ const SITEMAP = `<?xml version="1.0" encoding="UTF-8"?>
   </url>
   <url>
     <loc>https://www.example.com/pages/who-we-are/</loc>
+    <lastmod>2026-10-12T10:00:00Z</lastmod>
   </url>
   <url>
     <loc>https://www.example.com/renamed/</loc>
@@ -412,6 +413,7 @@ describe('the dev server', () => {
   </url>
   <url>
     <loc>https://www.example.com/pages/who-we-are/</loc>
+    <lastmod>2026-10-12T10:00:00Z</lastmod>
   </url>
   <url>
     <loc>https://www.example.com/renamed/</loc>

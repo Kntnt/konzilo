@@ -1,5 +1,7 @@
 ---
 title: "Bright librarys and the bridge"
+date: 2025-12-12T08:00:00Z
+modified: 2025-12-12T08:00:00Z
 ---
 
 The gentle river follows the open lantern. The hidden garden crosses the distant lantern. The quiet bridge keeps the hidden library.

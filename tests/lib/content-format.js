@@ -133,9 +133,10 @@ export function unnamed(document, known) {
 }
 
 // The page a body example stands for: `pages/example.md`, its frontmatter
-// the title alone, then a blank line and the body.
+// its title and the date and last change the intake gives it at the suite's
+// moment of a build, then a blank line and the body.
 export const BODY_PAGE = 'pages/example.md';
-const BODY_HEAD = '---\ntitle: "Example"\n---\n\n';
+export const BODY_HEAD = '---\ntitle: "Example"\ndate: 2026-11-03T12:00:00Z\nmodified: 2026-11-03T12:00:00Z\n---\n\n';
 
 // The content file a Markdown example or a JSON example of a file stands
 // for, { path, contents }: its text with one final newline.

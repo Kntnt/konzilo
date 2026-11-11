@@ -20,6 +20,7 @@ const declared = {
     // The built-in article, which has every part and the taxonomies of its own.
     article: { label: 'Artikel', plural: 'Artiklar', collection: 'articles', address: '/magasin/{slug}/', elements: ['paragraph'] },
     page: { label: 'Sida', plural: 'Sidor', collection: 'pages', address: '/{slug}/', elements: ['paragraph'] },
+    canvas: { collection: 'canvases', address: '/landning/{slug}/', elements: ['paragraph'] },
     // A type of the site's own that has a teaser.
     story: { label: 'Reportage', plural: 'Reportage', collection: 'stories', address: '/reportage/{slug}/', elements: ['paragraph'], fields: { date: {}, headline: {}, eyebrow: {}, standfirst: {}, teaser: {}, seo: {} } },
   },
@@ -47,6 +48,16 @@ describe('what each part falls back to', () => {
     assert.equal(teaserHeadlineOf(own), 'Egen');
     assert.equal(teaserTextOf(own), 'Egen text');
     assert.deepEqual(teaserImageOf(own), own.teaser.image);
+  });
+
+  test('a page\'s and a canvas\'s teaser falls back to what the type has: its title, and no text or image of its own', () => {
+    const page = { title: 'Om föreningen' };
+    assert.equal(teaserHeadlineOf(page), 'Om föreningen');
+    assert.equal(teaserTextOf(page), '');
+    assert.equal(teaserImageOf(page), null);
+    assert.equal(searchDescriptionOf(page), '');
+    const own = { ...page, teaser: { headline: 'Vilka vi är', text: 'En förening vid hamnen.', image: { src: 'own.webp', alt: 'Hamnen' } } };
+    assert.deepEqual([teaserHeadlineOf(own), teaserTextOf(own), teaserImageOf(own)], ['Vilka vi är', 'En förening vid hamnen.', own.teaser.image]);
   });
 
   test('the title tag is the teaser\'s headline cut at a word so that it, the separator and the site\'s name fit a search result', () => {
@@ -163,6 +174,29 @@ describe('what shows an article, and a post of the site\'s own type that has a t
     assert.equal(value(tags, 'title'), 'Analys: Smarta kameror | Lyktan');
     assert.equal(value(tags, 'description'), 'Kameran ser, men inte allt.');
     assert.equal(value(tags, 'canonical'), 'https://www.example.com/reportage/ett-reportage/');
+  });
+
+  // A page and a canvas have a teaser, which falls back to the title alone, and leave what it
+  // has no text for to their type's templates, by default the start of the body.
+  test('says in a page\'s and a canvas\'s head what its teaser shows, its title where it has none of its own, and the type\'s template where it has no text', async () => {
+    const shown = async (collection, teaser) => headTags(
+      { entry: { id: 'om-oss', collection, body: 'Vi är en förening vid hamnen.', data: { title: 'Om oss', date: new Date('2026-10-01T08:00:00Z'), modified: new Date('2026-10-02T08:00:00Z'), ...(teaser ? { teaser } : {}) } }, path: '/om-oss/', settings: { title: 'Lyktan', search: { separator: '–', types: { page: { title: 'Mallen', description: 'Mallens text', socialTitle: 'Mallen', socialDescription: 'Mallens text' }, canvas: { title: 'Mallen', description: '{{ post.auto_description }}' } } } }, site, origin: 'https://www.example.com', locale: 'sv_SE', languageTag: 'sv-SE' },
+      { getImage: () => assert.fail('no image to make'), getEntries: async () => [] },
+    );
+    const page = await shown('pages');
+    assert.equal(value(page, 'title'), 'Om oss | Lyktan');
+    assert.equal(value(page, 'og:title'), 'Om oss');
+    assert.equal(value(page, 'description'), 'Mallens text');
+    assert.equal(value(page, 'og:description'), 'Mallens text');
+    const webpage = JSON.parse(page.at(-1).text)['@graph'].find((node) => node['@type'] === 'WebPage');
+    assert.deepEqual([webpage.datePublished, webpage.dateModified], ['2026-10-01T08:00:00Z', '2026-10-02T08:00:00Z'], 'its date and last change in its structured data');
+    const own = await shown('pages', { headline: 'Vilka vi är', text: 'En förening sedan 1902.' });
+    assert.equal(value(own, 'title'), 'Vilka vi är | Lyktan');
+    assert.equal(value(own, 'description'), 'En förening sedan 1902.');
+    assert.equal(value(own, 'og:title'), 'Vilka vi är');
+    const canvas = await shown('canvases');
+    assert.equal(value(canvas, 'title'), 'Om oss | Lyktan');
+    assert.equal(value(canvas, 'description'), 'Vi är en förening vid hamnen.', 'the start of its body, by the template\'s default');
   });
 
   test('summarises it by its excerpt, else its teaser\'s text, else its standfirst', () => {
