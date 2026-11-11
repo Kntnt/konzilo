@@ -179,11 +179,16 @@ function stateOf(post, run) {
     refuse(run, post, { field: date === null ? 'date' : 'status', reason: date === null ? say('refusal.field-moment', { field: 'date', value: String(post.fields.date) }) : say('refusal.scheduled-date') });
     return;
   }
+  // A scheduled post seen waiting for its moment is remembered with it, so that it goes
+  // live at it with nothing to say. One whose moment had passed when it was first read
+  // goes live at once, with that moment as its date, and says so (ADR 0069).
+  if (status === 'scheduled' && (new Date(date) > run.now || run.ledger.awaited[post.key] === date)) post.awaited = date;
   if (date && new Date(date) > run.now) {
     post.waiting = date;
     return;
   }
   post.on = true;
+  if (status === 'scheduled' && !post.awaited) post.passed = date;
   if (run.several && post.language === null) {
     refuse(run, post, { reason: say('refusal.language-folder', { folder: post.tag ?? say('about.collection-folder') }) });
     post.keepsNothing = true;
@@ -247,7 +252,11 @@ function writePost(post, run) {
     modified,
     taken,
     embeds,
-    warnings: [...warnings.map((warning) => inBody(warning, post)), ...fields.warnings],
+    warnings: [
+      ...(post.passed ? [{ field: 'date', reason: say('warning.scheduled-passed', { moment: { moment: post.passed } }) }] : []),
+      ...warnings.map((warning) => inBody(warning, post)),
+      ...fields.warnings,
+    ],
     terms: [...post.termIds],
     masters: post.masters,
   };

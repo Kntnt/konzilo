@@ -206,7 +206,7 @@ The keys come in this order, each on one line: `title`; then each field the type
 | `eyebrow`, `headline` and `subheadline` | `"headline": { "required": true }` | An article's headline in its three parts: the eyebrow above it, the main headline, and the subheadline under it, each a JSON string without spaces at its ends. Plain text. Only the main headline may be required. |
 | `standfirst` | `"standfirst": {}` | An article's standfirst, between its headline and its body, a JSON string without spaces at its ends. Plain text. |
 | `teaser` | `"teaser": {}` | What shows the post elsewhere, in a list or a search result, as one JSON object, each part only when the post sets it: `image`, as the featured image is written; `headline`; and `text`. Plain text. No key when the post sets none. |
-| the terms of a taxonomy | `"regions": { "taxonomy": "region" }` | The slugs of the post's terms, sorted, as a JSON list: `["harbours","lanterns"]`, `[]` for none; each names a term's file ([A term](#a-term)). A required field, `"required": true`, is never empty, and one with `"most": 1`, or another whole number, holds at most that many. An article's `authors`, `category` and `topics` are such fields, of the built-in taxonomies of their names, `category` with at most one. |
+| the terms of a taxonomy | `"regions": { "taxonomy": "region" }` | The slugs of the post's terms, each once, sorted, as a JSON list: `["harbours","lanterns"]`, `[]` for none; each names a term's file ([A term](#a-term)). A required field, `"required": true`, is never empty, and one with `"most": 1`, or another whole number, holds at most that many. An article's `authors`, `category` and `topics` are such fields, of the built-in taxonomies of their names, `category` with at most one. An article's `authors` alone is not sorted, and keeps the order the editor gave them, its first author first: `["ben-holm","ada-lind"]`. |
 | `seo` | `"seo": {}` | The search and sharing fields the post sets, as one JSON object, in this order, each only when set: `title`, the title tag; `description`, the meta description; `canonical`, the post's canonical address where it names one, a whole `http://` or `https://` address as a browser sends it, such as the original's where the text was published elsewhere first; `socialTitle` and `socialDescription`, for a shared link; `socialImage`, a master as the featured image's `src`, with `socialImageAlt`, its alt text; `schema`, a structured data type, one of `Article`, `BlogPosting`, `NewsArticle`, `WebPage`, `AboutPage`, `ContactPage` and `CollectionPage`; and `noindex` and `nofollow`, `true` when set. No key when the post sets none. |
 | a field of the site's own | `{ "type": … }` | By its `type`, below. |
 | `translationKey` | Not declared. | On a site in several languages: 16 lowercase hexadecimal digits that a post shares with its translations ([Several languages](#several-languages)). |
@@ -236,7 +236,7 @@ eyebrow: "The quay"
 headline: "Why the harbour keeps its lanterns lit"
 subheadline: "A night with the keepers"
 standfirst: "The lanterns have burned every night for two hundred years."
-authors: ["ada-lind","ben-holm"]
+authors: ["ben-holm","ada-lind"]
 category: ["local"]
 topics: ["harbours","lanterns"]
 teaser: {"image":{"src":"../media/harbour-lights-5c0ffee5a1.webp","alt":"Two keepers by a lantern"},"headline":"The keepers of the lanterns","text":"Two hundred years of light."}
@@ -1058,6 +1058,7 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
 An ID is text, the name of the post's source file, such as `96ba709ec918`, which never changes. A post's translations share it, so on a site in several languages an entry's key is `<tag>/<ID>`. The file holds, each sorted by its keys:
 
 - **`posts`**, by key, each with `path`, the post's file now, `null` while it has none; `paths`, every path it has had, the first first; `address`, where the current release shows it, which stays while it is off the site; `addresses`, those it had while live, from which its `oldAddresses` come; `title`, as it was published; `source`, the SHA-256 of the source file of its published version, and `published`, that of its published file without `modified`; `taken`, when the intake first took it, the post's `date` where it has none of its own; `modified`, when its published version last changed; and `names`, what its file names, `media`, `terms` and `embeds`, which stay for it while it is refused.
+- **`awaited`**, by key, the moment a scheduled post was seen waiting for, kept while it stays scheduled for that moment, so that it goes live at it with no warning.
 - **`terms`**, by the term's ID, each with the `address` of its page and the `addresses` it has had, for a taxonomy with an address.
 - **`files`**, the SHA-256 of each of an Admin's source files the site last took.
 - **`chosen`**, the posts the settings last chose as `legalPages` and for `notFound`.
@@ -1163,8 +1164,8 @@ An ID is text, the name of the post's source file, such as `96ba709ec918`, which
         "/harbour-lights/"
       ],
       "title": "Harbour lights & lanterns",
-      "source": "cb70efe093083dbe15f13217708e00ce1f9425a650c3f2b85af1a237dd745dea",
-      "published": "a4c35c2a737a570f5e0c886df72e366b4edaf23bf04a231caa1d963474983ddd",
+      "source": "6da1fa92b8343c291be5406cc109eaef9e6309b42dcf3ed6c5ac627f6d18c838",
+      "published": "eacf443e94a6eb54e4be0336e07d002205ee5eade306ed26a6d591efbf90522c",
       "taken": "2026-10-20T08:00:00Z",
       "modified": "2026-10-21T09:30:00Z",
       "names": {
@@ -1184,6 +1185,7 @@ An ID is text, the name of the post's source file, such as `96ba709ec918`, which
       }
     }
   },
+  "awaited": {},
   "terms": {},
   "files": {
     "menus/main.json": "c908ea7d89d8c2d1afbf49c879448e82dce4e5c134daaaa0081d4864777ece69",
@@ -1445,11 +1447,11 @@ The source files are what the intake reads: what editors save, one file per thin
 | `services.json` | `services`, the services an Admin declares. |
 | `media/<name>` | Originals, as uploaded, in Git LFS. |
 
-A post's frontmatter holds `title`; `slug`, made from the title if left empty; `parent`, the ID of a post of its type, in a hierarchical type; `status`, `draft`, `scheduled` or `published`, a draft when left out; `date`, which also says when a scheduled post goes live; each field its type declares, a taxonomy's terms by their IDs, a list or, for a field of one term at most, the ID alone, an image by `/media/<name>`; where the type has the search and sharing fields, `search` (`title`, `description`, `canonical`, `noindex`, `nofollow`), `sharing` (`image`, `{ "src", "alt" }`, `title`, `description`) and `structured` (`schema`), three groups the intake writes as the one `seo` map, and never `seo` itself, which is refused; `otherAddresses`, each `{ "address", "answer" }`; and on a site in several languages `translationKey` where the same ID does not tie a translation set. What the intake derives is in no source file: `modified`, `oldAddresses`, masters, `consent.json` and `not-found.md`.
+A post's frontmatter holds `title`; `slug`, made from the title if left empty; `parent`, the ID of a post of its type, in a hierarchical type; `status`, `draft`, `scheduled` or `published`, a draft when left out; `date`, which also says when a scheduled post goes live, and a scheduled post whose moment had passed when the intake first read it goes live at once, with that moment as its date and a warning; each field its type declares, a taxonomy's terms by their IDs, a list or, for a field of one term at most, the ID alone, an image by `/media/<name>`; where the type has the search and sharing fields, `search` (`title`, `description`, `canonical`, `noindex`, `nofollow`), `sharing` (`image`, `{ "src", "alt" }`, `title`, `description`) and `structured` (`schema`), three groups the intake writes as the one `seo` map, and never `seo` itself, which is refused; `otherAddresses`, each `{ "address", "answer" }`; and on a site in several languages `translationKey` where the same ID does not tie a translation set. What the intake derives is in no source file: `modified`, `oldAddresses`, masters, `consent.json` and `not-found.md`.
 
 In a body, a link to a post or to a term's page is `[text](konzilo:<ID>)`, with `#<anchor>` or not, and `konzilo:<tag>/<ID>` for one in another language. An image is `![alt](/media/<name>)`. A post list names its terms by their IDs. A file named with a leading dot, another kind of file, and a folder no collection names are left alone.
 
-A source file the intake cannot publish is *refused*, and one it publishes otherwise than it holds gets a *warning*. Each is data, in the JSON the intake's command prints: what it is about, the `post` by `id`, `type` and `title`, and its `file`, or the `file` alone; where, the `block` by `path` and `name`, the `field`, the `entry`, the `setting` and the `line`, each it has; its reason by `name` in the core's catalogues, such as `refusal.image-alt` or `warning.image-narrow`, and the `values` that fill it; and the `reason` and the whole `message` in British English. A value is a text or a number as it is, `{ "name", "values" }` for a text by name of its own, `{ "label" }` for one of the site's own labels, one text or texts by language, or `{ "and": […] }` or `{ "or": […] }` for a list of values. The editor shows each in its interface language, and the command line and the build log write the British English. A reason the site gives in its own words, from its components' check or an attribute's `refusal`, has no `name`, and its `reason` is those words.
+A source file the intake cannot publish is *refused*, and one it publishes otherwise than it holds gets a *warning*. Each is data, in the JSON the intake's command prints: what it is about, the `post` by `id`, `type` and `title`, and its `file`, or the `file` alone; where, the `block` by `path` and `name`, the `field`, the `entry`, the `setting` and the `line`, each it has; its reason by `name` in the core's catalogues, such as `refusal.image-alt` or `warning.image-narrow`, and the `values` that fill it; and the `reason` and the whole `message` in British English. A value is a text or a number as it is, `{ "name", "values" }` for a text by name of its own, `{ "label" }` for one of the site's own labels, one text or texts by language, `{ "moment" }` for a date and time, which each reader shows in its language's form and its own time zone, named, or `{ "and": […] }` or `{ "or": […] }` for a list of values. The editor shows each in its interface language, and the command line and the build log write the British English. A reason the site gives in its own words, from its components' check or an attribute's `refusal`, has no `name`, and its `reason` is those words.
 
 ## What is not the format
 

@@ -1,6 +1,6 @@
 # ADR 0046: Generate search and sharing metadata from templates an Admin edits
 
-**Date:** 2026-10-29, amended 2026-11-10 · **Status:** Accepted. Settled by Thomas on 2026-10-29: Konzilo's own fields; templates in the manner of Slim SEO; site-wide values in the editing tool, not in the site description; per-post overrides; `noindex` and `nofollow`. Settled by Thomas on 2026-11-10: a canonical address per post, under Search, which lifts the rejection of a canonical override. The rest is a technical choice; Thomas may veto.
+**Date:** 2026-10-29, amended 2026-11-10 and 2026-11-11 · **Status:** Accepted. Settled by Thomas on 2026-10-29: Konzilo's own fields; templates in the manner of Slim SEO; site-wide values in the editing tool, not in the site description; per-post overrides; `noindex` and `nofollow`. Settled by Thomas on 2026-11-10: a canonical address per post, under Search, which lifts the rejection of a canonical override; and an article's authors as its author in the structured data, in the order the editor gave them, each a `Person`, or the publisher where it has none. The rest is a technical choice; Thomas may veto.
 
 ## Decision
 
@@ -13,7 +13,7 @@
 - **A template** renders each variable as its value, one without a value as nothing, collapses spaces and drops a separator left at either end or beside another. A date is the page's language's long date in UTC.
 - **The summary** is the excerpt, whole, else the start of the body as plain text, without footnotes, code, images and embeds, cut at a word to at most 160 characters with `…`; one function, which feeds and `llms.txt` use too.
 - **The sharing image** is the post's own, else its featured image, the default sharing image, the logo, then none, 1200 × 630, cropped to fill, as a JPEG on white.
-- **The graph** holds, each with a stable `@id`: the `WebSite`, `<origin>/#website`; the publisher, `<origin>/#publisher`, with `sameAs`, `taxID` for the organisation number and `vatID`; the page, `<page address>#webpage`; for articles `<page address>#article`, with the publisher as author, since posts carry no author; and the sharing image. A value the site has not got is left out.
+- **The graph** holds, each with a stable `@id`: the `WebSite`, `<origin>/#website`; the publisher, `<origin>/#publisher`, with `sameAs`, `taxID` for the organisation number and `vatID`; the page, `<page address>#webpage`; for articles `<page address>#article`, with its authors as its author, in the order the editor gave them, else the publisher, and the publisher as its publisher; each of its authors, `<origin>/#author-<slug>`, a `Person` with its name and, where the authors have pages, its page's address as `url` ([ADR 0062](0062-give-an-article-its-parts-as-the-cores-fields-and-fall-back-by-one-set-of-rules.md)); and the sharing image. A value the site has not got is left out.
 - **Sitemap and robots.txt:** the integration's own routes, written by every build and answered by the dev server; a file of the site's own at either address fails the build. A preview has neither. `/sitemap.xml` lists the start page and every published post of a type with an address; a `noindex` post leaves it, and so does a post whose canonical address is not its own on the public host, which is no `hreflang` alternate in the sitemap or a head either; no redirect is in it. `lastmod` is `modified`, else `date`. Beyond 50,000 addresses it is an index of `/sitemap-1.xml` and on. `/robots.txt` allows every address to every crawler and names the sitemap. Other parts add their lines through one list.
 
 ## Why
@@ -27,9 +27,17 @@ A canonical address per post (Thomas, 2026-11-10):
 - A shared link takes `og:url`, so it credits the same address as search does.
 - A whole address alone, since a path would be read on whichever host shows the page, a preview's too, and a post that should answer at another address of the site has other addresses and redirects (ADR 0036).
 
+An article's authors as `Person` (Thomas, 2026-11-10):
+
+- Search engines credit an article to the people its structured data names as its author, and those who wrote it are its authors, not the publisher.
+- In the order the editor gave them, since the first author is the main one, as the byline shows them.
+- An author's `@id` is made from its slug, which every language shares, so that each article names the same person by the same node, on a site in several languages too, whether or not the authors have pages, and when a site gives them pages later.
+- An article without authors still names someone as its author, the publisher, as search engines ask of an article.
+
 ## Considered and rejected
 
 - **Templates in the site description.** Thomas wants them edited in the editing tool.
 - **A canonical address that is a path on the site.** A post's other addresses and the redirect rules already lead from one address of the site to another.
 - **`@astrojs/sitemap`,** which the dev server does not serve.
 - **The organisation number as `iso6523Code`,** which needs each country's scheme code and fits an organisation alone.
+- **An author's `@id` from its page's address.** An author without a page needs one too, and its node would change name when the authors get pages.

@@ -22,6 +22,8 @@ A component a site declares (`content-format.md`, *A site's own components*) is 
 
 A layout is told which of the core's built-in types a post is, `canvas`, `page` or `article`, by `builtInType(entry)` from `@kntnt/konzilo/astro/helpers`, null for a type of the site's own or a page that shows no post. A canvas is a blank page, which a layout draws without the site's header and footer. An article's fields are the same on every site (`content-format.md`, *The built-in types*), so a design can draw its parts by their names.
 
+An article's byline is told its authors by `authorsOf(entry)` from the helpers, in the order the editor gave them, the first author first: each `{ name, url, slug, entry }`, `url` the author's page below the site's base where the authors taxonomy declares an address, else null, and `entry` its term, its biography in `data.description`. A post of a type of the site's own has none.
+
 A menu reaches a site's layout as a list of entries, each `{ title, url, items }`, `items` being the entries below it. A design with names of its own takes them through an adapter of its own: the core does not know a design's names.
 
 ## Custom properties the core reads

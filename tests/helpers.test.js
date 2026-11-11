@@ -2,7 +2,7 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { builtInType, countOf, legalPages, longDate, oneLine, ordered, postalAddress, summary, termPath } from '@kntnt/konzilo/astro/helpers';
+import { authorsOf, builtInType, countOf, legalPages, longDate, oneLine, ordered, postalAddress, summary, termPath } from '@kntnt/konzilo/astro/helpers';
 import { siteDescription } from '../src/site-description.js';
 
 test('longDate writes a date as the same long date in each language', () => {
@@ -92,4 +92,31 @@ test('builtInType tells a template which of the core\'s types a post is, and not
   assert.deepEqual(['articles', 'pages', 'landings', 'events', 'categories'].map(typeOf), ['article', 'page', 'canvas', null, null]);
   assert.equal(builtInType(null, { site }), null, 'a page of the site\'s own, which shows no entry');
   assert.equal(builtInType(undefined, { site }), null);
+});
+
+test('authorsOf gives a template an article\'s authors in the order its editor gave them, each with its page where the authors have pages', async () => {
+  const declared = {
+    language: 'en_GB',
+    images: { smallestWidth: 400, displayWidth: 1280 },
+    types: {
+      article: { collection: 'articles', address: '/{slug}/', elements: ['paragraph'] },
+      event: { label: 'Event', plural: 'Events', collection: 'events', address: '/events/{slug}/', elements: ['paragraph'], fields: { hosts: { taxonomy: 'hosts' } } },
+    },
+    taxonomies: { hosts: { label: 'Host', plural: 'Hosts', collection: 'hosts' } },
+  };
+  const terms = {
+    'authors/ines-holm': { id: 'ines-holm', collection: 'authors', data: { name: 'Ines Holm', description: 'Writes of the northern harbours.' } },
+    'authors/rafael-berg': { id: 'rafael-berg', collection: 'authors', data: { name: 'Rafael Berg' } },
+    'hosts/rafael-berg': { id: 'rafael-berg', collection: 'hosts', data: { name: 'Rafael Berg' } },
+  };
+  const getEntries = async (references) => references.map(({ collection, id }) => terms[`${collection}/${id}`]);
+  const article = { id: 'hidden-meadows', collection: 'articles', data: { authors: [{ collection: 'authors', id: 'rafael-berg' }, { collection: 'authors', id: 'ines-holm' }] } };
+  const shown = async (site, entry = article) => (await authorsOf(entry, { site, getEntries })).map(({ name, url }) => ({ name, url }));
+
+  assert.deepEqual(await shown(siteDescription(declared)), [{ name: 'Rafael Berg', url: null }, { name: 'Ines Holm', url: null }]);
+  const paged = siteDescription({ ...declared, taxonomies: { ...declared.taxonomies, authors: { address: '/authors/{slug}/' } } });
+  assert.deepEqual(await shown(paged), [{ name: 'Rafael Berg', url: '/authors/rafael-berg/' }, { name: 'Ines Holm', url: '/authors/ines-holm/' }]);
+  assert.equal((await authorsOf(article, { site: paged, getEntries }))[1].entry.data.description, 'Writes of the northern harbours.', 'with its term, its biography among its data');
+  assert.deepEqual(await shown(paged, { id: 'spring-fair', collection: 'events', data: { hosts: [{ collection: 'hosts', id: 'rafael-berg' }] } }), [], 'a type of the site\'s own has no authors');
+  assert.deepEqual(await shown(paged, { ...article, data: { authors: [] } }), []);
 });
