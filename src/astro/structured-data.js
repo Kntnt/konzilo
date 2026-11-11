@@ -33,17 +33,18 @@
 // to say: the article on a page of another type, the image on a page that
 // shares none, the breadcrumbs on the start page.
 
+import { isKindOfArticle } from '../format/built-in-types.js';
+
 // The structured data types of the rule data (`structuredDataTypes`) that
-// are articles, whose page holds an article node, and those that are kinds
-// of web page, which the page's own node takes.
-export const ARTICLES = new Set(['Article', 'BlogPosting', 'NewsArticle']);
+// are kinds of web page, which the page's own node takes; a kind of article
+// gives the page an article node (built-in-types.js).
 const WEB_PAGES = new Set(['WebPage', 'AboutPage', 'ContactPage', 'CollectionPage']);
 
 // The graph of a page, as JSON-LD: `page`, { title, description, schema,
-// article, headline, published, modified }, its title tag, meta description,
-// structured data type, whether it is an article's, the post's title (none on
-// a page of the site's own) and its date and last change as Open Graph writes
-// them, each '' where the page has none; `url`, its canonical address; `origin`, the public
+// headline, published, modified }, its title tag, meta description,
+// structured data type, which makes it an article's where it is a kind of
+// article, the post's title (none on a page of the site's own) and its date
+// and last change as Open Graph writes them, each '' where the page has none; `url`, its canonical address; `origin`, the public
 // host's; `languageTag`, the site's language tag; `siteTitle`, the site's title;
 // `search`, the Search and sharing settings; `image`, the image it shares,
 // { src, width, height, alt }, or null; `logo`, the site's logo in the same
@@ -58,9 +59,8 @@ export function structuredData({ page, url, origin, languageTag, siteTitle, sear
   const webpage = { '@id': `${url}#webpage` };
   const primaryImage = image && { '@id': `${url}#primaryimage` };
   const breadcrumb = breadcrumbs.length > 0 && { '@id': `${url}#breadcrumb` };
-  // An article has an article node, of its structured data type where that is a kind of
-  // article, else Article; another post has one where an Admin gave its type a kind of article.
-  const article = page.article === true || ARTICLES.has(page.schema);
+  // A post whose structured data type is a kind of article has an article node of that type.
+  const article = isKindOfArticle(page.schema);
   const people = article ? authors.map((author) => ({ ...author, '@id': `${home}#author-${author.slug}` })) : [];
   const nodes = [
     present({
@@ -87,7 +87,7 @@ export function structuredData({ page, url, origin, languageTag, siteTitle, sear
       dateModified: page.modified,
     }),
     article && present({
-      '@type': ARTICLES.has(page.schema) ? page.schema : 'Article',
+      '@type': page.schema,
       '@id': `${url}#article`,
       headline: page.headline,
       description: page.description,

@@ -10,9 +10,7 @@
 import { ARTICLE, AUTHORS, BUILT_IN_TYPES, CATEGORY, descriptionLabel, followsParts, keepsOrder, pageTypeOf, TOPICS } from '../format/built-in-types.js';
 import { CANONICAL_PATTERN, publicAddress } from '../format/addresses.js';
 import { IMAGE_LIBRARY_FOLDER } from '../format/masters.js';
-import { declaredNames, SCHEMA_TYPES } from '../site-description.js';
-import { defaultForType } from '../settings-groups.js';
-import settingsGroups from '../format/settings-groups.json' with { type: 'json' };
+import { declaredNames } from '../site-description.js';
 import { SHARING_SAFE, SHARING_SIZE } from '../format/article-parts.js';
 import { IMAGE_WIDGET } from './image/widget.js';
 import { STRUCTURE_WIDGET } from './structure/widget.js';
@@ -22,6 +20,7 @@ import { inCatalogue, labelIn, labelInPhrase, text } from '../catalogues.js';
 import { BODY_WIDGET } from './body/widget.js';
 import { PUBLISHING_WIDGET } from './publishing/widget.js';
 import { BUILT_IN_FORMAT, GROUP_PREFIX, GROUP_WIDGET, OWN_FORMAT } from './groups/widget.js';
+import { SETTING_WIDGET } from './settings/widget.js';
 
 // How deep a menu's entries go in the form. Sveltia has no recursive field.
 const MENU_DEPTH = 3;
@@ -129,22 +128,31 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     }
   };
 
+  // A setting with a default is the core's field for a setting, which draws Sveltia's own field
+  // with the default where the settings file holds no value (settings/register.js, ADR 0033).
+  // Sveltia gives a field's default only where the file holds the setting's group, and writes it
+  // into the file at the next save, so it is given none of its own.
+  const withDefault = (made) => {
+    if (!('default' in made)) return made;
+    return { name: made.name, label: made.label, required: false, ...(made.hint ? { hint: made.hint } : {}), widget: SETTING_WIDGET, field: made };
+  };
+
   // A setting that is translated holds a text per language on a site in several, which Sveltia
   // offers as "Lägg till {label}", so its label is as it stands there.
   const settingField = (setting) => {
-    if (!setting.translated || !several) return valueField(setting);
+    if (!setting.translated || !several) return withDefault(valueField(setting));
     return {
       name: setting.name,
       label: inPhrase(setting.label),
       widget: 'object',
       required: false,
-      fields: description.languages.map((language) => valueField({
+      fields: description.languages.map((language) => withDefault(valueField({
         ...setting,
         name: language.locale,
         label: language.tag,
         translated: false,
         default: setting.defaults ? inCatalogue(setting.defaults, language.locale) : setting.default,
-      })),
+      }))),
     };
   };
 
@@ -174,8 +182,6 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
   // Search, sharing and structured data: three groups of the source's own, beside the
   // post's fields, closed, since an editor who sets none of it leaves the defaults to say it
   // (ADR 0029). The content file holds them as one map (the intake's seoValue()).
-  // The type's structured data type as the settings give it before a site sets its own.
-  const schemaPreset = (type) => defaultForType(settingsGroups.search.types.settings.schema, type);
 
   // A post of a type with a teaser, every built-in type and a type of the site's own that
   // declares one, shows in its search and sharing fields what its teaser shows, as its head
@@ -226,7 +232,9 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
         { name: 'description', label: say('seoSocialDescription'), widget: 'text', ...(teaser ? { widget: TEXT_WIDGET, multiline: true, fallback: 'socialDescription' } : {}) },
       ]),
       group('structured', [
-        { name: 'schema', label: say('seoSchema'), widget: SCHEMA_WIDGET, options: [...SCHEMA_TYPES], type: type.name, typeLabel: inPhrase(type.plural), preset: schemaPreset(type) },
+        // The structured data types the post's type offers, and its type's own, as the settings
+        // give it before a site sets one: the first of them.
+        { name: 'schema', label: say('seoSchema'), widget: SCHEMA_WIDGET, options: [...type.structuredDataTypes], type: type.name, typeLabel: inPhrase(type.plural), preset: type.structuredDataTypes[0] },
       ]),
     ];
   };

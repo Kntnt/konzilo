@@ -127,6 +127,22 @@ describe('the intake', () => {
     assert.match(fileOf(result), /^seo: \{"title":"Egen titel","socialDescription":"Delas så","socialImage":"\.\.\/media\/en-artikel-[0-9a-f]{10}\.webp","socialImageAlt":"Delad","schema":"NewsArticle","noindex":true\}$/m);
   });
 
+  // A post's structured data type is one its type offers; one it does not offer, which an
+  // earlier list may have allowed, is left out, with a warning, for its type's own.
+  test('leaves out a structured data type the post\'s type does not offer, with a warning, and writes the rest', () => {
+    const result = article({ search: { title: 'Egen titel' }, structured: { schema: 'AboutPage' } });
+    assert.deepEqual(reasons(result), []);
+    assert.match(fileOf(result), /^seo: \{"title":"Egen titel"\}$/m);
+    const posts = (one) => one.warnings.filter(({ post }) => post);
+    assert.deepEqual(posts(result).map(({ field, reason }) => [field.name, reason]), [
+      ['structured.schema', 'artiklar cannot have "AboutPage" as their structured data type, so it is left out and their default applies; choose one of Article, BlogPosting or NewsArticle'],
+    ]);
+    const alone = article({ structured: { schema: 'WebPage' } });
+    assert.equal(/^seo:/m.test(fileOf(alone)), false);
+    assert.equal(posts(alone).length, 1);
+    assert.deepEqual(reasons(article({ structured: { schema: 'Event' } })).length, 1, 'and refuses one the core does not know');
+  });
+
   test('refuses the single map the groups replaced', () => {
     assert.ok(reasons(article({ seo: { search: { title: 'Gammal' } } })).some((one) => /cannot read the search and sharing fields/.test(one)));
   });

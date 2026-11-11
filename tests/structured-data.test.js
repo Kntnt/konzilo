@@ -88,6 +88,75 @@ test('no text in the graph can end its script in the page', async () => {
   assert.equal(graph['@graph'][3].headline, '</script><!-- Tide');
 });
 
+// What a post is, its og:type and its article node, follows the structured data type it has:
+// its own, else its type's from the settings, each only among those its type offers.
+describe('the structured data type a post has', () => {
+  const site = siteDescription({
+    language: 'en_GB',
+    images: { smallestWidth: 400, displayWidth: 1280 },
+    types: {
+      page: { collection: 'pages', address: '/{slug}/', elements: ['paragraph'] },
+      article: { collection: 'articles', address: '/news/{slug}/', elements: ['paragraph'] },
+    },
+  });
+  const ABOUT = `${ORIGIN}/about/`;
+  const about = (seo) => ({ id: 'about', collection: 'pages', body: 'The lantern has stood on the pier since 1890.', data: { title: 'About the lantern', date: new Date('2026-10-01T08:00:00Z'), modified: new Date('2026-10-03T09:00:00Z'), ...(seo ? { seo } : {}) } });
+  // The head of a post `entry` at `path`, the Admin's structured data type for its type
+  // `chosen`, as the tags' properties and the graph's nodes.
+  async function head(entry, path, chosen = {}) {
+    const settings = { title: 'Lantern', search: { separator: '–', publisher: { kind: 'Organization', name: 'Lantern AB' }, types: chosen } };
+    const tags = await headTags({ entry, path, settings, site, origin: ORIGIN, locale: 'en_GB', languageTag: 'en-GB' }, { getImage: () => assert.fail('no image to make'), getEntries: async () => [] });
+    const properties = Object.fromEntries(tags.filter(({ attributes }) => attributes?.property).map(({ attributes }) => [attributes.property, attributes.content]));
+    return { properties, nodes: JSON.parse(tags.at(-1).text)['@graph'] };
+  }
+
+  test('makes a page marked as an Article one, with its date and the publisher as its author, since a page has no authors', async () => {
+    const { properties, nodes } = await head(about({ schema: 'Article' }), '/about/');
+    assert.equal(properties['og:type'], 'article');
+    assert.equal(properties['article:published_time'], '2026-10-01T08:00:00Z');
+    assert.equal(properties['article:modified_time'], '2026-10-03T09:00:00Z');
+    assert.deepEqual(nodes.find((node) => node['@id'] === `${ABOUT}#article`), {
+      '@type': 'Article',
+      '@id': `${ABOUT}#article`,
+      headline: 'About the lantern',
+      datePublished: '2026-10-01T08:00:00Z',
+      dateModified: '2026-10-03T09:00:00Z',
+      author: PUBLISHER,
+      publisher: PUBLISHER,
+      mainEntityOfPage: { '@id': `${ABOUT}#webpage` },
+      inLanguage: 'en-GB',
+    });
+    assert.equal(nodes.find((node) => node['@id'] === `${ABOUT}#webpage`)['@type'], 'WebPage');
+    assert.equal(nodes.some((node) => node['@type'] === 'Person'), false);
+  });
+
+  test('leaves a page a web page, og:type website and no article node, while it has a kind of web page', async () => {
+    for (const [seo, chosen, kind] of [[undefined, {}, 'WebPage'], [{ schema: 'AboutPage' }, {}, 'AboutPage'], [undefined, { page: { schema: 'ContactPage' } }, 'ContactPage']]) {
+      const { properties, nodes } = await head(about(seo), '/about/', chosen);
+      assert.equal(properties['og:type'], 'website', kind);
+      assert.equal(properties['article:published_time'], undefined, kind);
+      assert.equal(nodes.find((node) => node['@id'] === `${ABOUT}#webpage`)['@type'], kind);
+      assert.equal(nodes.some((node) => node['@id'] === `${ABOUT}#article`), false, kind);
+    }
+  });
+
+  test('takes the post\'s own type, else its type\'s from the settings, else its type\'s default, each only among those its type offers', async () => {
+    const NEWS = `${ORIGIN}/news/harbour-lights/`;
+    const harbour = (seo) => ({ id: 'harbour-lights', collection: 'articles', body: 'The lantern keeps the harbour.', data: { title: 'Harbour lights', date: new Date('2026-10-01T08:00:00Z'), headline: 'Harbour lights', authors: [], category: [], topics: [], ...(seo ? { seo } : {}) } });
+    const kindOf = async (entry, path, chosen, id) => {
+      const { properties, nodes } = await head(entry, path, chosen);
+      return [properties['og:type'], nodes.find((node) => node['@id'] === id)?.['@type'] ?? null];
+    };
+    assert.deepEqual(await kindOf(harbour({ schema: 'NewsArticle' }), '/news/harbour-lights/', { article: { schema: 'BlogPosting' } }, `${NEWS}#article`), ['article', 'NewsArticle']);
+    assert.deepEqual(await kindOf(harbour(), '/news/harbour-lights/', { article: { schema: 'BlogPosting' } }, `${NEWS}#article`), ['article', 'BlogPosting']);
+    // An article offers none of the kinds of web page, whoever named one.
+    assert.deepEqual(await kindOf(harbour({ schema: 'WebPage' }), '/news/harbour-lights/', { article: { schema: 'AboutPage' } }, `${NEWS}#article`), ['article', 'Article']);
+    assert.deepEqual(await kindOf(harbour({ schema: 'WebPage' }), '/news/harbour-lights/', {}, `${NEWS}#article`), ['article', 'Article']);
+    assert.deepEqual(await kindOf(about(), '/about/', { page: { schema: 'BlogPosting' } }, `${ABOUT}#article`), ['article', 'BlogPosting']);
+    assert.deepEqual(await kindOf(about({ schema: 'ContactPage' }), '/about/', { page: { schema: 'BlogPosting' } }, `${ABOUT}#article`), ['website', null]);
+  });
+});
+
 // A small site built by Astro, as a build on the shared server builds it
 // for its public host, from content files the intake's command writes.
 describe('a site built with astro build for https://www.example.com', () => {

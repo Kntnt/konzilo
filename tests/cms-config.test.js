@@ -130,6 +130,40 @@ test('shows the site\'s settings and groups in one file, and a menu in its own',
   }
 });
 
+// Sveltia gives a field's default to a setting the settings file lacks only where the file holds
+// its group, and then writes it into the file at the next save; where the file lacks the group it
+// shows a switch off and a number empty. So a setting with a default is the core's field, which
+// shows Sveltia's own field with the default while the file holds nothing (ADR 0033).
+test('gives each setting with a default the core\'s field for a setting, which shows Sveltia\'s own field with that default, and leaves Sveltia no default to write', () => {
+  const [settings] = collection('settings').files;
+  const setting = (group, ...path) => path.reduce((fields, name, at) => (at === path.length - 1 ? field(fields, name) : field(fields, name).fields), field(settings.fields, group).fields);
+  const shown = (one) => ({ widget: one.widget, shows: one.field.widget, default: one.field.default });
+  assert.deepEqual(shown(setting('related', 'freshness')), { widget: 'konzilo-setting', shows: 'boolean', default: true });
+  assert.deepEqual(shown(setting('related', 'halfLife')), { widget: 'konzilo-setting', shows: 'number', default: 90 });
+  assert.equal(setting('related', 'halfLife').field.value_type, 'int');
+  assert.deepEqual(shown(setting('ai', 'home', 'markdown')), { widget: 'konzilo-setting', shows: 'boolean', default: true });
+  assert.deepEqual(shown(setting('ai', 'types', 'page', 'llmsFull')), { widget: 'konzilo-setting', shows: 'boolean', default: true }, 'the default for its type');
+  assert.deepEqual(shown(setting('feeds', 'item')), { widget: 'konzilo-setting', shows: 'select', default: 'The summary' });
+  assert.deepEqual(shown(setting('search', 'separator')), { widget: 'konzilo-setting', shows: 'string', default: '–' });
+  // Its label and help are where Sveltia shows a field's, and it is never required.
+  const freshness = setting('related', 'freshness');
+  assert.deepEqual([freshness.label, freshness.hint, freshness.required], ['Freshness', freshness.field.hint, false]);
+  assert.ok(freshness.hint);
+  // A setting without a default is Sveltia's own field, as before.
+  assert.equal(setting('search', 'description').widget, 'text');
+  assert.equal(setting('tagManager', 'site').widget, 'number');
+  // Nothing in the settings file has a default that Sveltia would write into it.
+  const defaults = [];
+  const walk = (fields, at) => {
+    for (const one of fields) {
+      if ('default' in one) defaults.push(`${at}${one.name}`);
+      if (one.fields) walk(one.fields, `${at}${one.name}.`);
+    }
+  };
+  walk(settings.fields, '');
+  assert.deepEqual(defaults, []);
+});
+
 test('keeps what the published files never hold out of the form', () => {
   assert.doesNotMatch(JSON.stringify(config), /"recipients"|"retention"/);
 });
@@ -211,14 +245,14 @@ describe('the interface language', () => {
     const consentOf = (made) => field(made.collections.find((one) => one.name === 'settings').files[0].fields, 'consent').fields;
     for (const language of ['sv', 'en']) {
       const one = consentOf(cmsConfig(siteDescription({ ...declared(), language: 'sv_SE', interfaceLanguage: 'en' }), { ...place, language }));
-      assert.equal(field(one, 'bannerTitle').default, 'Din integritet', language);
-      assert.equal(field(one, 'placeholderQuestion').default, 'Vill du låta {service} spela upp det här innehållet?', language);
+      assert.equal(field(one, 'bannerTitle').field.default, 'Din integritet', language);
+      assert.equal(field(one, 'placeholderQuestion').field.default, 'Vill du låta {service} spela upp det här innehållet?', language);
       const { language: _, ...inOne } = declared();
       const several = consentOf(cmsConfig(siteDescription({ ...inOne, languages: ['sv_SE', 'en_GB'] }), { ...place, language }));
-      assert.deepEqual(field(several, 'bannerTitle').fields.map((each) => [each.name, each.default]), [['sv_SE', 'Din integritet'], ['en_GB', 'Your privacy']], language);
+      assert.deepEqual(field(several, 'bannerTitle').fields.map((each) => [each.name, each.field.default]), [['sv_SE', 'Din integritet'], ['en_GB', 'Your privacy']], language);
     }
     const english = consentOf(cmsConfig(siteDescription({ ...declared(), language: 'en_GB', interfaceLanguage: 'sv' }), place));
-    assert.equal(field(english, 'bannerTitle').default, 'Your privacy');
+    assert.equal(field(english, 'bannerTitle').field.default, 'Your privacy');
   });
 
   test('shows the core\'s settings groups in the interface language, Breadcrumbs among them, with their headings, labels and help', () => {
@@ -249,20 +283,41 @@ describe('the interface language', () => {
       const group = field(made.collections.find((one) => one.name === 'settings').files[0].fields, 'metaLine');
       const format = (type) => field(field(field(group.fields, 'types').fields, type).fields, 'format');
       assert.equal(group.label, heading, language);
-      const { label, widget, default: given } = format('article');
-      assert.deepEqual({ label, widget, default: given }, { label: 'Format', widget: 'string', default: 'Av {authors}, publicerad den {date} under {category}' }, language);
-      assert.equal(format('page').default, undefined, language);
-      assert.equal(format('canvas').default, undefined, language);
+      // The article's, which has a default, in the core's field for a setting, which shows Sveltia's.
+      const { label, field: shown } = format('article');
+      assert.deepEqual({ label, widget: shown.widget, default: shown.default }, { label: 'Format', widget: 'string', default: 'Av {authors}, publicerad den {date} under {category}' }, language);
+      for (const type of ['page', 'canvas']) assert.deepEqual([format(type).widget, format(type).default], ['string', undefined], `${language}: ${type}`);
     }
+  });
+
+  test('offers each type\'s structured data types in the settings, its default first and chosen', () => {
+    const made = cmsConfig(swedish, { ...place, language: 'en' });
+    const group = field(made.collections.find((one) => one.name === 'settings').files[0].fields, 'search');
+    // Each has a default, so it is the core's field for a setting, which shows Sveltia's select.
+    const schema = (type) => {
+      const one = field(field(field(group.fields, 'types').fields, type).fields, 'schema');
+      assert.equal(one.widget, 'konzilo-setting', type);
+      return one.field;
+    };
+    const every = ['WebPage', 'AboutPage', 'ContactPage', 'CollectionPage', 'Article', 'BlogPosting', 'NewsArticle'];
+    assert.equal(schema('article').widget, 'select');
+    assert.deepEqual(schema('article').options.map(({ value }) => value), ['Article', 'BlogPosting', 'NewsArticle']);
+    assert.equal(schema('article').default, 'Article');
+    for (const type of ['page', 'canvas']) {
+      assert.deepEqual(schema(type).options.map(({ value }) => value), every, type);
+      assert.equal(schema(type).default, 'WebPage', type);
+    }
+    assert.deepEqual(schema('article').options[1], { value: 'BlogPosting', label: 'BlogPosting' });
   });
 
   test('shows the half-life of related posts among the settings groups in the interface language, with its default, and the switch for freshness', () => {
     const related = (language) => {
       const made = cmsConfig(swedish, { ...place, language });
       const group = field(made.collections.find((one) => one.name === 'settings').files[0].fields, 'related');
+      // Each in the core's field for a setting, which shows Sveltia's own field with its default.
       const setting = (name) => {
-        const { label, widget, default: given } = field(group.fields, name);
-        return { label, widget, default: given };
+        const { label, field: shown } = field(group.fields, name);
+        return { label, widget: shown.widget, default: shown.default };
       };
       return { heading: group.label, freshness: setting('freshness'), halfLife: setting('halfLife') };
     };
@@ -296,6 +351,7 @@ describe('the interface language', () => {
         if (one.hint) texts.add(one.hint);
         for (const option of one.options ?? []) texts.add(option.label);
         if (one.fields) shown(one.fields, texts);
+        if (one.field) shown([one.field], texts);
       }
       return texts;
     };
@@ -312,10 +368,10 @@ describe('the interface language', () => {
   test('labels a select\'s options in the interface language and keeps their values, and keeps each default visitors read in the content\'s language', () => {
     for (const [language, labels] of [['sv', ['Sammanfattningen', 'Hela texten']], ['en', ['The summary', 'The whole text']]]) {
       const groups = cmsConfig(description, { ...place, language }).collections.find((one) => one.name === 'settings').files[0].fields;
-      const item = field(field(groups, 'feeds').fields, 'item');
+      const item = field(field(groups, 'feeds').fields, 'item').field;
       assert.deepEqual(item.options, [{ value: 'The summary', label: labels[0] }, { value: 'The whole text', label: labels[1] }], language);
       assert.equal(item.default, 'The summary', language);
-      assert.equal(field(field(groups, 'consent').fields, 'bannerTitle').default, 'Your privacy', language);
+      assert.equal(field(field(groups, 'consent').fields, 'bannerTitle').field.default, 'Your privacy', language);
     }
   });
 
@@ -738,14 +794,22 @@ describe('labels in phrases', () => {
     assert.equal(field(field(settings, 'consent').fields, 'bannerTitle').label, 'banner: titel', 'and the core\'s, in Swedish');
   });
 
-  // Whether a post is an article is whether its type is the built-in article, so the structured
-  // data type a type has before a site sets its own is Article for the built-in article alone.
-  test('preset the built-in article\'s structured data type as Article, and any other type\'s, one of the site\'s own with a date too, as WebPage', () => {
+  // A post's structured data type is among those its type offers, and its type's own, before a
+  // site sets one, is the first of them.
+  test('offer a post the structured data types its type offers, and preset its type\'s default, the first of them', () => {
     const given = declared();
     given.types.story = { label: 'Story', plural: 'Stories', collection: 'stories', address: '/stories/{slug}/', elements: ['paragraph'], fields: { date: {}, seo: {} } };
+    given.types.review = { label: 'Review', plural: 'Reviews', collection: 'reviews', address: '/reviews/{slug}/', elements: ['paragraph'], fields: { seo: {} }, structuredDataTypes: ['BlogPosting', 'Article'] };
     const made = cmsConfig(siteDescription(given), place);
-    const preset = (name) => field(one(made, name).fields.find((each) => each.name === 'structured').fields, 'schema').preset;
-    assert.deepEqual(['articles', 'pages', 'canvases', 'stories'].map(preset), ['Article', 'WebPage', 'WebPage', 'WebPage']);
+    const schema = (name) => field(one(made, name).fields.find((each) => each.name === 'structured').fields, 'schema');
+    const every = ['WebPage', 'AboutPage', 'ContactPage', 'CollectionPage', 'Article', 'BlogPosting', 'NewsArticle'];
+    assert.deepEqual(['articles', 'pages', 'canvases', 'stories', 'reviews'].map((name) => [schema(name).options, schema(name).preset]), [
+      [['Article', 'BlogPosting', 'NewsArticle'], 'Article'],
+      [every, 'WebPage'],
+      [every, 'WebPage'],
+      [every, 'WebPage'],
+      [['BlogPosting', 'Article'], 'BlogPosting'],
+    ]);
   });
 
   // The structured data type's own, while a post has none, is "{type} (förvald för {plural})".

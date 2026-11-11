@@ -964,6 +964,7 @@
   "warning.publisher-missing": "the site has no publisher's name, so the footer shows none of its details; give it one, or a title for the site",
   "warning.departure-service": "the departure names the service {service}, which no page of the site lets a visitor reach",
   "warning.departure-tracker": "the departure counts without storage only with Matomo's own tracker, which the site settings do not choose, so nothing counts before consent",
+  "warning.schema-not-offered": "{plural} cannot have \"{value}\" as their structured data type, so it is left out and their default applies; choose one of {types}",
   "warning.scheduled-passed": "the post is scheduled for {moment}, which had already passed when the site first read it, so it is published at once, with that moment as its date",
   "about.inline.strong": "bold",
   "about.inline.em": "italic",
