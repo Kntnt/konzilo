@@ -117,7 +117,7 @@ describe('a site in Compose', () => {
   // turns the wheel over the form until the field at `key` is there, and brings it into view.
   const bringNear = async (page, key) => {
     const field = page.locator(`section.field[data-key-path="${key}"]`);
-    const box = await page.locator('section.field[data-key-path="slug"]').boundingBox();
+    const box = await page.locator('section.field[data-key-path="group-name"]').boundingBox();
     await page.mouse.move(box.x + box.width / 2, Math.min(Math.max(box.y + 5, 10), page.viewportSize().height - 10));
     for (let tries = 0; await field.count() === 0 && tries < 40; tries += 1) {
       await page.mouse.wheel(0, 600);
@@ -623,8 +623,8 @@ describe('a site in Compose', () => {
         const title = `A title saved in ${engine}`;
         const newName = `Author from ${engine}`;
         await openArticle(page, title);
-        await bringNear(page, 'authors');
-        const field = page.locator('section.field[data-key-path="authors"]');
+        await bringNear(page, 'group-terms.authors');
+        const field = page.locator('section.field[data-key-path="group-terms.authors"]');
         const chips = () => field.locator('.konzilo-authors-name').allTextContents();
         await field.locator('.konzilo-authors-name', { hasText: 'Ines Holm' }).waitFor({ timeout: 30_000 });
         if ((await chips()).includes('Rafael Berg')) {
@@ -888,7 +888,7 @@ describe('a site in Compose', () => {
         await page.getByRole('textbox', { name: 'Working name' }).fill('A new post');
         await page.getByRole('textbox', { name: 'Main headline' }).fill('A new post');
         // An article's one category, in a field Sveltia renders as it comes near.
-        await bringNear(page, 'category');
+        await bringNear(page, 'group-terms.category');
         await page.getByRole('radio', { name: 'Kitchens' }).first().click();
         await page.getByRole('button', { name: 'Save', exact: true }).click();
         const deadline = Date.now() + 30_000;

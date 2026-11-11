@@ -49,13 +49,13 @@ describe('the form in Sveltia', () => {
     for (const name of [/Add.*Category/, /Add.*Topic/]) await page.getByRole('button', { name }).first().waitFor();
     assert.equal(await page.getByRole('button', { name: /Add.*Article/ }).count(), 0);
     // A test repository has no Forgejo to read the authors from, or add one to (Compose has).
-    await page.locator('section.field[data-key-path="authors"]').getByRole('combobox', { name: 'Authors' }).waitFor({ state: 'attached' });
+    await page.locator('section.field[data-key-path="group-terms.authors"]').getByRole('combobox', { name: 'Authors' }).waitFor({ state: 'attached' });
   });
 
   // Sveltia leaves the entry at an Escape, which it hears before anything on the page does.
   test('an Escape in the authors\' box closes its list, and then empties it, and leaves the entry open', async () => {
     await newEntry('articles');
-    const box = page.locator('section.field[data-key-path="authors"]').getByRole('combobox', { name: 'Authors' });
+    const box = page.locator('section.field[data-key-path="group-terms.authors"]').getByRole('combobox', { name: 'Authors' });
     await box.scrollIntoViewIfNeeded();
     await box.click();
     await page.keyboard.type('Ines', { delay: 20 });
