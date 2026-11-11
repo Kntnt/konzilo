@@ -3,9 +3,10 @@
 // site-description.json has it, under its language's prefix on a site in
 // several languages. It shows its headline, its eyebrow above the main
 // headline and its subheadline below it where it has them, its standfirst, its
+// meta line, written by the format an Admin sets for articles in the page's
+// language, with Konzilo's helpers: by default its date, its category and its
 // byline, its authors in the order the editor gave them, each linked to its
-// page where the authors taxonomy declares an address, its date in the page's
-// language, its category after its parents, with Konzilo's helpers, its topics
+// page where its taxonomy declares an address. Then its topics
 // and its main image, wrapped in the class the body styles
 // name (astro.config.mjs), in the page's <main>, which its Markdown alternate is
 // made from. Its body goes through Konzilo's Body, which renders each post list
@@ -27,12 +28,12 @@
 //.
 import Body from '@kntnt/konzilo/astro/Body.astro';
 import CookieDeclaration from '@kntnt/konzilo/astro/CookieDeclaration.astro';
-import { authorsOf, longDate, termPath } from '@kntnt/konzilo/astro/helpers';
 import { entryPages, pageTexts } from '@kntnt/konzilo/astro/languages';
 import { relatedPosts } from '@kntnt/konzilo/astro/post-lists';
 import { Image } from 'astro:assets';
 import { getEntries, render } from 'astro:content';
 import Cards from '../components/Cards.astro';
+import MetaLine from '../components/MetaLine.astro';
 import Site from '../layouts/Site.astro';
 
 export function getStaticPaths() {
@@ -42,8 +43,6 @@ export function getStaticPaths() {
 const { entry: article, page } = Astro.props;
 const { Content } = await render(article);
 const { eyebrow, headline, subheadline, standfirst } = article.data;
-const authors = await authorsOf(article);
-const categories = await Promise.all((await getEntries(article.data.category)).map((category) => termPath(category)));
 const topics = await getEntries(article.data.topics);
 const related = await relatedPosts(article);
 const { recommendedReading } = pageTexts(Astro.url);
@@ -55,12 +54,10 @@ const { recommendedReading } = pageTexts(Astro.url);
       <h1>{headline}</h1>
       {subheadline && <p class="subheadline">{subheadline}</p>}
       {standfirst && <p class="standfirst">{standfirst}</p>}
-      {authors.length > 0 && <ul class="byline">{authors.map((author) => <li>{author.url ? <a href={author.url}>{author.name}</a> : author.name}</li>)}</ul>}
-      <time datetime={article.data.date.toISOString()}>{longDate(article.data.date, Astro.url)}</time>
-      {categories.length + topics.length > 0 && (
+      <MetaLine entry={article} />
+      {topics.length > 0 && (
         <div class="terms">
-          {categories.length > 0 && <ul class="categories">{categories.map((category) => <li>{category}</li>)}</ul>}
-          {topics.length > 0 && <ul class="topics">{topics.map((topic) => <li>{topic.data.name}</li>)}</ul>}
+          <ul class="topics">{topics.map((topic) => <li>{topic.data.name}</li>)}</ul>
         </div>
       )}
       {article.data.image && <Image class="featured-image" src={article.data.image.src} alt={article.data.image.alt} />}
