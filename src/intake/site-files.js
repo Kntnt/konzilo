@@ -141,13 +141,21 @@ export function redirectsFile(run, files) {
   files.set(REDIRECTS_FILE, json({ rules: [...exact, ...run.rules.patterns] }));
 }
 
+// Where in services.json a declared service's problem is: the setting by the service's id
+// or name and the field, else its entry in the list.
+function servicePlace({ id, name, number }, field) {
+  const own = id ?? name;
+  if (own !== null) return { setting: `${own}.${field}` };
+  return field === null ? { entry: String(number) } : { entry: String(number), setting: field };
+}
+
 export function consentFile(run, files, settings, embeds) {
   if (settings.refused || run.gated.has('services.json') || run.source.services?.refused) return;
   const given = run.source.services?.value;
   const list = isObject(given) ? given.services ?? [] : Array.isArray(given) ? given : [];
   const { services, problems } = declaredServices(list, { adminHost: run.adminHost });
   if (problems.length > 0) {
-    for (const { service, field, reason } of problems) run.refusals.push(named({ file: 'services.json', setting: `${service.id ?? service.name ?? 'a service'}.${field}`, reason }));
+    for (const { service, field, reason } of problems) run.refusals.push(named({ file: 'services.json', ...servicePlace(service, field), reason }));
     return;
   }
   const previous = run.ledger.consent;

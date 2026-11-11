@@ -16,7 +16,11 @@
 // lazy with a `?` after it, and `$`. Everything else is refused, naming it:
 // lookaround and backreferences, which RE2 has not, named groups, flags,
 // POSIX classes, and a counted repetition inside another, which RE2 may find
-// too large.
+// too large. Each problem is a reason by its name in the core's catalogues and
+// the values that fill it (refusals.js), which the intake gives the Admin and
+// the build writes in British English.
+
+const said = (name, values = {}) => ({ name, values });
 
 // The most patterns a site has, and the longest a pattern is.
 export const PATTERNS = 100;
@@ -40,32 +44,36 @@ export function isPattern(text) {
   return typeof text === 'string' && text.startsWith('^');
 }
 
-// Why text cannot be a pattern, as { problem }, or { groups }, the number of
-// its groups, when it can.
+// Why text cannot be a pattern, as { problem }, a refusal by its name, or
+// { groups }, the number of its groups, when it can.
 export function readPattern(text) {
-  if (!isPattern(text)) return { problem: `${JSON.stringify(text)} does not begin with ^` };
-  if (text.length > PATTERN_LENGTH) return { problem: `it is longer than ${PATTERN_LENGTH} characters` };
+  if (!isPattern(text)) return { problem: said('refusal.pattern-start', { pattern: String(text) }) };
+  if (text.length > PATTERN_LENGTH) return { problem: said('refusal.rule-pattern-long', { most: PATTERN_LENGTH }) };
   const outside = [...text].find((c) => c < '!' || c > '~');
-  if (outside !== undefined) {
-    return { problem: `it holds ${JSON.stringify(outside)}, which no path as a browser sends it holds; write such a character percent-encoded, as %C3%A9 for é` };
-  }
+  if (outside !== undefined) return { problem: said('refusal.pattern-encoded', { pattern: text, character: JSON.stringify(outside) }) };
   try {
     return { groups: parse(text) };
   } catch (error) {
     if (!(error instanceof PatternError)) throw error;
-    return { problem: error.message };
+    return { problem: error.words };
   }
 }
 
-class PatternError extends Error {}
+// What a pattern holds that no pattern may, as `refusal.pattern-<why>` and its values.
+class PatternError extends Error {
+  constructor(pattern, why, values) {
+    super(`pattern-${why}`);
+    this.words = said(`refusal.pattern-${why}`, { pattern, ...values });
+  }
+}
 
 // The number of groups of a pattern, or a PatternError naming what it holds
 // that no pattern may.
 function parse(text) {
   let i = 1;
   let groups = 0;
-  const refuse = (why) => {
-    throw new PatternError(why);
+  const refuse = (why, values = {}) => {
+    throw new PatternError(text, why, values);
   };
   // The open groups, innermost last, each with whether it holds a counted
   // repetition, and the sequence being read: whether its last item may be
@@ -80,11 +88,11 @@ function parse(text) {
       return { counted: false };
     }
     const match = /^\{(\d+)(,(\d*))?\}/.exec(text.slice(i));
-    if (match === null) refuse(`it holds a { that begins no repetition such as {4} or {2,5}`);
+    if (match === null) refuse('brace', { repetitions: { or: ['{4}', '{2,5}'] } });
     const low = Number(match[1]);
     const high = match[2] === undefined ? low : match[3] === '' ? low : Number(match[3]);
-    if (low > REPEAT || high > REPEAT) refuse(`it repeats more than ${REPEAT} times, ${match[0]}, as RE2 does not`);
-    if (high < low) refuse(`it holds the repetition ${match[0]}, whose largest count is less than its smallest`);
+    if (low > REPEAT || high > REPEAT) refuse('repeat-most', { most: REPEAT, repetition: match[0] });
+    if (high < low) refuse('repeat-range', { repetition: match[0] });
     i += match[0].length;
     return { counted: true };
   };
@@ -92,14 +100,14 @@ function parse(text) {
   while (i < text.length) {
     const c = text[i];
     if (c === '*' || c === '+' || c === '?' || c === '{') {
-      if (last === null) refuse(`it holds ${c} where nothing comes before it to repeat`);
+      if (last === null) refuse('repeat-nothing', { character: c });
       const begun = i;
       const { counted } = quantifier();
-      if (counted && last.counted) refuse('it holds a counted repetition inside another, which RE2 may find too large');
+      if (counted && last.counted) refuse('repeat-counted');
       if (text[i] === '?') i += 1;
       if (text[i] === '*' || text[i] === '+' || text[i] === '?' || text[i] === '{') {
         const second = text[i] === '{' ? /^\{[^}]*\}?/.exec(text.slice(i))[0] : text[i];
-        refuse(`it repeats a repetition, ${text.slice(begun, i)}${second}, which RE2 has not`);
+        refuse('repeat-twice', { repetition: `${text.slice(begun, i)}${second}` });
       }
       if (counted) open.at(-1).counted = true;
       last = null;
@@ -111,11 +119,11 @@ function parse(text) {
         if (text.startsWith('(?:', i)) {
           i += 3;
         } else if (/^\(\?(?:=|!|<=|<!)/.test(kind)) {
-          refuse('it holds lookaround, which RE2 has not');
+          refuse('lookaround');
         } else if (/^\(\?(?:P?<[A-Za-z_]|P=|P>)/.test(kind)) {
-          refuse('it holds a named group; give a group no name, and use $1 to $9 for what it matched');
+          refuse('named-group');
         } else {
-          refuse(`it holds ${text.slice(i, i + 3)}, a flag or a kind of group a pattern cannot have; it has ( ) and (?: ) alone`);
+          refuse('group-kind', { group: text.slice(i, i + 3) });
         }
       } else {
         groups += 1;
@@ -126,7 +134,7 @@ function parse(text) {
       continue;
     }
     if (c === ')') {
-      if (open.length === 1) refuse('it holds a ) that closes no group');
+      if (open.length === 1) refuse('unopened');
       const group = open.pop();
       if (group.counted) open.at(-1).counted = true;
       last = { counted: group.counted };
@@ -138,7 +146,7 @@ function parse(text) {
       i += 1;
       continue;
     }
-    if (c === '^') refuse('it holds a ^ after its first character; a pattern matches the whole path, so it needs none');
+    if (c === '^') refuse('caret');
     if (c === '$') {
       last = null;
       i += 1;
@@ -151,11 +159,11 @@ function parse(text) {
     }
     if (c === '\\') {
       const next = text[i + 1];
-      if (next === undefined) refuse('it ends in a \\ that escapes nothing');
-      if (/[1-9]/.test(next)) refuse(`it holds a backreference, \\${next}, which RE2 has not`);
+      if (next === undefined) refuse('escape-end');
+      if (/[1-9]/.test(next)) refuse('backreference', { reference: `\\${next}` });
       if (BOUNDARIES.includes(next)) last = null;
       else if (CLASS_ESCAPES.includes(next) || ESCAPED.includes(next)) last = { counted: false };
-      else refuse(`it holds \\${next}, an escape a pattern cannot have`);
+      else refuse('escape', { escape: `\\${next}` });
       i += 2;
       continue;
     }
@@ -164,9 +172,9 @@ function parse(text) {
       i += 1;
       continue;
     }
-    refuse(`it holds ${c}, which no path as a browser sends it holds`);
+    refuse('character', { character: c });
   }
-  if (open.length > 1) refuse('it holds a ( that is not closed');
+  if (open.length > 1) refuse('unclosed');
   return groups;
 }
 
@@ -181,28 +189,28 @@ function readClass(text, start, refuse) {
   // The item at `at`: { char, next }, `char` null for `\d` and the like.
   const item = (at) => {
     const c = text[at];
-    if (c === undefined) refuse('it holds a [ whose class is not closed');
+    if (c === undefined) refuse('class-unclosed');
     if (c === '\\') {
       const next = text[at + 1];
-      if (next === undefined) refuse('it ends in a \\ that escapes nothing');
+      if (next === undefined) refuse('escape-end');
       if (CLASS_ESCAPES.includes(next)) return { char: null, next: at + 2 };
       if (ESCAPED.includes(next)) return { char: next, next: at + 2 };
-      refuse(`it holds \\${next} in a class, an escape a pattern cannot have there`);
+      refuse('class-escape', { escape: `\\${next}` });
     }
-    if (c === '[') refuse('it holds a [ inside a class, as in [[:alpha:]], which engines read apart; escape it as \\[');
+    if (c === '[') refuse('class-nested');
     if (LITERAL.test(c) || IN_CLASS.includes(c)) return { char: c, next: at + 1 };
-    return refuse(`it holds ${c}, which no path as a browser sends it holds`);
+    return refuse('character', { character: c });
   };
   let i = start + 1;
   if (text[i] === '^') i += 1;
-  if (text[i] === ']') refuse('it holds a class that is empty, or that begins with ], which engines read apart; escape it as \\]');
+  if (text[i] === ']') refuse('class-empty');
   while (text[i] !== ']') {
     const low = item(i);
     i = low.next;
     if (text[i] !== '-' || text[i + 1] === ']' || text[i + 1] === undefined) continue;
     const high = item(i + 1);
-    if (low.char === null || high.char === null) refuse('it holds a range in a class whose ends are not single characters');
-    if (high.char < low.char) refuse(`it holds the range ${low.char}-${high.char}, which runs backwards`);
+    if (low.char === null || high.char === null) refuse('class-range');
+    if (high.char < low.char) refuse('class-backwards', { range: `${low.char}-${high.char}` });
     i = high.next;
   }
   return i + 1;
@@ -228,31 +236,28 @@ function withSample(target, sample) {
 // What a pattern's groups may plausibly match, to try its target with.
 const SAMPLES = ['x', '', 'X', '1', 'x/x'];
 
-// Why a target cannot be a pattern's, given `targetProblem` (redirects.js)
-// for a target without references and `onSite`, or null. The target may hold
-// `$1` to `$9`, each one of the pattern's groups, after the host of an
-// `https://` address; and on the site, it may not be an address the pattern
-// matches again, which would loop.
+// Why a target cannot be a pattern's, by its name, `about.target-…`, given
+// `targetProblem` (redirects.js) for a target without references and
+// `onSite`, or null. The target may hold `$1` to `$9`, each one of the
+// pattern's groups, after the host of an `https://` address; and on the site,
+// it may not be an address the pattern matches again, which would loop.
 export function patternTargetProblem(pattern, target, groups, { targetProblem, onSite }) {
   const beyond = referencesIn(target).filter((n) => n === 0 || n > groups);
   if (beyond.length > 0) {
-    const named = `$${beyond[0]}`;
-    return groups === 0
-      ? `its target holds ${named}, but the pattern has no group`
-      : `its target holds ${named}, but the pattern has ${groups === 1 ? 'one group, $1' : `${groups} groups, $1 to $${groups}`}`;
+    const reference = `$${beyond[0]}`;
+    if (groups === 0) return said('about.target-group-none', { reference });
+    return groups === 1 ? said('about.target-group-one', { reference }) : said('about.target-groups', { reference, groups, last: `$${groups}` });
   }
   if (target.startsWith('https://')) {
     const host = target.slice('https://'.length).split(/[/?#]/)[0];
-    if (host.includes('$')) return 'its target holds a group in the host of its address, which only its path may';
+    if (host.includes('$')) return said('about.target-group-host');
   }
   const problem = targetProblem(withSample(target, 'x'));
   if (problem) return problem;
   const compiled = compilePattern(pattern);
   for (const sample of SAMPLES) {
     const shown = onSite(withSample(target, sample));
-    if (shown !== null && compiled.test(shown.path)) {
-      return `it matches its own target again, as ${shown.path}, so it would loop`;
-    }
+    if (shown !== null && compiled.test(shown.path)) return said('about.target-loop', { path: shown.path });
   }
   return null;
 }

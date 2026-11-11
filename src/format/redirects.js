@@ -17,9 +17,12 @@
 // This module holds the forms of sources and targets, the order, and the
 // matching of a request.
 
+import { british } from '../refusals.js';
 import { feedAt, feedName } from './addresses.js';
 import { patternTargetProblem, readPattern } from './patterns.js';
 import rules from './rules.json' with { type: 'json' };
+
+const said = (name, values = {}) => ({ name, values });
 
 // The site's rules in the content folder.
 export const REDIRECTS_FILE = 'redirects.json';
@@ -68,24 +71,24 @@ export function isSource(text) {
   return siteAddress(text) !== null;
 }
 
-// Why text cannot be a redirect's target, or null when it can: a root path
-// on the site, with an optional query and fragment, or an `https://` address.
+// Why text cannot be a redirect's target, by its name in the core's
+// catalogues, `about.target-…`, and the values that fill it (refusals.js), or
+// null when it can: a root path on the site, with an optional query and
+// fragment, or an `https://` address.
 export function targetProblem(text) {
-  if (typeof text !== 'string' || text === '') return 'a redirect needs a target';
+  if (typeof text !== 'string' || text === '') return said('about.target-missing');
   if (text.startsWith('https://')) {
-    if (!/^[\x21-\x7e]+$/.test(text) || /[<>"{}|\\^`]/.test(text)) return `${JSON.stringify(text)} is not an address as a browser sends it`;
+    if (!/^[\x21-\x7e]+$/.test(text) || /[<>"{}|\\^`]/.test(text)) return said('about.target-browser', { target: text });
     let url;
     try {
       url = new URL(text);
     } catch {
-      return `${JSON.stringify(text)} is not an address`;
+      return said('about.target-unreadable', { target: text });
     }
-    if (url.hostname === '' || url.username !== '' || url.password !== '') return `${JSON.stringify(text)} is not an address of a site`;
+    if (url.hostname === '' || url.username !== '' || url.password !== '') return said('about.target-site', { target: text });
     return null;
   }
-  if (siteAddress(text, { fragment: true }) === null) {
-    return `${JSON.stringify(text)} is neither an address on the site, starting with a slash, nor an https:// address`;
-  }
+  if (siteAddress(text, { fragment: true }) === null) return said('about.target-form', { target: text });
   return null;
 }
 
@@ -205,17 +208,19 @@ export function location(rule, query) {
   return before.includes('?') ? to : `${before}?${query}${fragment}`;
 }
 
-// Why a pattern cannot answer, or null: one that
-// is no pattern of the grammar, an answer that is none of a rule's, a
-// redirect without a target or with one that names a group the pattern has
-// not or that the pattern matches again, and a 404 or a 410 with a target.
+// Why a pattern cannot answer, by its name in the core's catalogues and the
+// values that fill it, as an exact rule's are, or null: one that is no
+// pattern of the grammar, an answer that is none of a rule's, a redirect
+// without a target or with one that names a group the pattern has not or
+// that the pattern matches again, and a 404 or a 410 with a target.
 export function patternProblem({ from, to, status }) {
   const { problem, groups } = readPattern(from);
-  if (problem) return `the pattern ${from}: ${problem}`;
-  if (!STATUSES.includes(status)) return `${JSON.stringify(status)} is none of the answers ${STATUSES.join(', ')}`;
-  if (!REDIRECT_STATUSES.includes(status)) return to === undefined ? null : `a ${status} answers without a target`;
-  if (typeof to !== 'string' || to === '') return 'a redirect needs a target';
-  return patternTargetProblem(from, to, groups, { targetProblem, onSite });
+  if (problem) return problem;
+  if (!STATUSES.includes(status)) return said('refusal.rule-status', { source: from, status: String(status), statuses: STATUSES.join(', ') });
+  const target = !REDIRECT_STATUSES.includes(status) ? (to === undefined ? null : said('about.no-target', { status }))
+    : typeof to !== 'string' || to === '' ? said('about.target-missing')
+      : patternTargetProblem(from, to, groups, { targetProblem, onSite });
+  return target === null ? null : said('refusal.rule-target', { source: from, reason: target });
 }
 
 // The words that say what a rule of content/redirects.json looks like, an
@@ -223,19 +228,22 @@ export function patternProblem({ from, to, status }) {
 const RULE_SHAPE = 'the site reads a rule only as { "from", "to", "status" }, its target only for a redirect';
 const PATTERN_SHAPE = 'the site reads a rule only as { "from", "to", "status" }, or a pattern as { "pattern", "to", "status" }, its target only for a redirect';
 
-// Why a rule of content/redirects.json is not as the intake writes it, or
-// null: an exact rule { from, to, status } or a pattern { pattern, to,
-// status }, its target only for a redirect, its source an address on the
-// site as a browser sends it, or a pattern of the grammar. Astro reads the file
-// by it (astro/redirects.js).
+// Why a rule of content/redirects.json is not as the intake writes it, in
+// British English, as the build's log writes it, or null: an exact rule
+// { from, to, status } or a pattern { pattern, to, status }, its target only
+// for a redirect, its source an address on the site as a browser sends it, or
+// a pattern of the grammar. Astro reads the file by it (astro/redirects.js).
 export function fileRuleProblem(rule) {
   if (rule === null || typeof rule !== 'object' || Array.isArray(rule)) return RULE_SHAPE;
   const source = Object.hasOwn(rule, 'pattern') ? 'pattern' : 'from';
   const keys = REDIRECT_STATUSES.includes(rule.status) ? [source, 'status', 'to'] : [source, 'status'];
   if (!STATUSES.includes(rule.status) || Object.keys(rule).sort().join() !== keys.sort().join()) return source === 'pattern' ? PATTERN_SHAPE : RULE_SHAPE;
   if (source === 'pattern') {
-    return typeof rule.pattern === 'string' ? patternProblem({ from: rule.pattern, to: rule.to, status: rule.status }) : 'the pattern is no text';
+    if (typeof rule.pattern !== 'string') return 'the pattern is no text';
+    const problem = patternProblem({ from: rule.pattern, to: rule.to, status: rule.status });
+    return problem === null ? null : british(problem);
   }
   if (!isSource(rule.from)) return `${JSON.stringify(rule.from)} is not an address on the site as a browser sends it`;
-  return REDIRECT_STATUSES.includes(rule.status) ? targetProblem(rule.to) : null;
+  const problem = REDIRECT_STATUSES.includes(rule.status) ? targetProblem(rule.to) : null;
+  return problem === null ? null : british(problem);
 }

@@ -86,6 +86,17 @@ function withReader(tree, source = 'x') {
 
 const inBlock = (name) => ({ block: name });
 
+// A redirect rule of the site's, and a pattern with a target.
+const withRule = (rule) => withFiles({ 'redirects.json': { rules: [rule] } });
+const withPattern = (pattern) => withRule({ pattern, to: '/x/$1', status: 301 });
+
+// A service an Admin declares, as the site can publish it but for what is changed.
+const PROVIDER = Object.freeze({ name: 'P Inc', country: 'IE', privacyPolicy: 'https://p.example.com/privacy' });
+const STORED = Object.freeze({ name: 'pixel-id', kind: 'cookie', lifetime: 'P1D', party: 'third' });
+const service = (changes = {}) => ({ id: 'pixel', name: 'Pixel', category: 'marketing', provider: PROVIDER, purpose: 'Counts visits.', storage: [STORED], hosts: { images: ['https://pixel.example.com'] }, transfers: [], ...changes });
+const declaring = (...services) => withFiles({ 'services.json': { services } });
+const hosting = (host, options) => withFiles({ 'services.json': { services: [service({ hosts: { images: [host] } })] } }, options);
+
 // By the words' key: what makes them, and what they must name.
 const cases = {
   'element-not-taken': [() => withFiles({ 'guides/aaaaaaaaaaaa.md': sourcePost({ title: 'G', slug: 'g', status: 'published' }, '## A heading') }), inBlock('heading')],
@@ -345,6 +356,78 @@ const cases = {
   'rule-start': [() => withFiles({ 'redirects.json': { rules: [{ from: '/a/', to: '/', status: 301 }] } }), { entry: '1' }, 'warning'],
   'rule-post-off': [() => withFiles({ 'redirects.json': { rules: [{ from: '/a/', post: 'gone00000000', status: 301 }] } }), { file: 'redirects.json' }, 'warning'],
   'rule-shadowed': [() => withFiles({ 'articles/aaaaaaaaaaaa.md': article(), 'redirects.json': { rules: [{ from: '/an-article/', to: '/x/', status: 301 }] } }), { file: 'redirects.json' }, 'warning'],
+  // The grammar of a pattern (format/patterns.js).
+  'pattern-start': [() => withPattern('blog/(.*)$'), { entry: '1' }],
+  'pattern-encoded': [() => withPattern('^/café/(.*)$'), { entry: '1' }],
+  'pattern-character': [() => withPattern('^/a"b/(.*)$'), { entry: '1' }],
+  'pattern-brace': [() => withPattern('^/a{x}/(.*)$'), { entry: '1' }],
+  'pattern-repeat-most': [() => withPattern('^/a{1001}/(.*)$'), { entry: '1' }],
+  'pattern-repeat-range': [() => withPattern('^/a{5,2}/(.*)$'), { entry: '1' }],
+  'pattern-repeat-nothing': [() => withPattern('^*a/(.*)$'), { entry: '1' }],
+  'pattern-repeat-counted': [() => withPattern('^/(a{2}){3}/(.*)$'), { entry: '1' }],
+  'pattern-repeat-twice': [() => withPattern('^/a**/(.*)$'), { entry: '1' }],
+  'pattern-lookaround': [() => withPattern('^/(?=a)(.*)$'), { entry: '1' }],
+  'pattern-named-group': [() => withPattern('^/(?<rest>.*)$'), { entry: '1' }],
+  'pattern-group-kind': [() => withPattern('^/(?i)(.*)$'), { entry: '1' }],
+  'pattern-unopened': [() => withPattern('^/a)/(.*)$'), { entry: '1' }],
+  'pattern-caret': [() => withPattern('^/a^/(.*)$'), { entry: '1' }],
+  'pattern-escape-end': [() => withPattern('^/(.*)\\'), { entry: '1' }],
+  'pattern-backreference': [() => withPattern('^/(a)/\\1$'), { entry: '1' }],
+  'pattern-escape': [() => withPattern('^/\\q/(.*)$'), { entry: '1' }],
+  'pattern-unclosed': [() => withPattern('^/(a/(.*)$'), { entry: '1' }],
+  'pattern-class-unclosed': [() => withPattern('^/(.*)[a'), { entry: '1' }],
+  'pattern-class-escape': [() => withPattern('^/[\\q]/(.*)$'), { entry: '1' }],
+  'pattern-class-nested': [() => withPattern('^/[[:alpha:]]/(.*)$'), { entry: '1' }],
+  'pattern-class-empty': [() => withPattern('^/[]a]/(.*)$'), { entry: '1' }],
+  'pattern-class-range': [() => withPattern('^/[\\d-z]/(.*)$'), { entry: '1' }],
+  'pattern-class-backwards': [() => withPattern('^/[z-a]/(.*)$'), { entry: '1' }],
+  // A service an Admin declares in services.json (format/declared-services.js).
+  'service-shape': [() => declaring('not a service'), { file: 'services.json', entry: '1' }],
+  'service-id': [() => declaring(service({ id: 'Not an id' })), { setting: 'Not an id.id' }],
+  'service-core': [() => declaring(service({ id: 'vimeo' })), { setting: 'vimeo.id' }],
+  'service-twice': [() => declaring(service(), service({ name: 'Another' })), { setting: 'pixel.id' }],
+  'service-name': [() => declaring(service({ name: ' ' })), { setting: 'pixel.name' }],
+  'service-necessary': [() => declaring(service({ category: 'necessary' })), { setting: 'pixel.category' }],
+  'service-category': [() => declaring(service({ category: 'advertising' })), { setting: 'pixel.category' }],
+  'service-provider': [() => declaring(service({ provider: 'P Inc' })), { setting: 'pixel.provider' }],
+  'service-provider-name': [() => declaring(service({ provider: { ...PROVIDER, name: '' } })), { setting: 'pixel.provider.name' }],
+  'service-country': [() => declaring(service({ provider: { ...PROVIDER, country: 'Ireland' } })), { setting: 'pixel.provider.country' }],
+  'service-privacy-policy': [() => declaring(service({ provider: { ...PROVIDER, privacyPolicy: 'http://p.example.com/privacy' } })), { setting: 'pixel.provider.privacyPolicy' }],
+  'service-provider-part': [() => declaring(service({ provider: { ...PROVIDER, email: 'p@example.com' } })), { setting: 'pixel.provider.email' }],
+  'service-purpose': [() => declaring(service({ purpose: '' })), { setting: 'pixel.purpose' }],
+  'service-storage': [() => declaring(service({ storage: 'a cookie' })), { setting: 'pixel.storage' }],
+  'service-storage-item': [() => declaring(service({ storage: ['a cookie'] })), { setting: 'pixel.storage.1' }],
+  'service-storage-name': [() => declaring(service({ storage: [{ ...STORED, name: '' }] })), { setting: 'pixel.storage.1.name' }],
+  'service-storage-kind': [() => declaring(service({ storage: [{ ...STORED, kind: 'flash' }] })), { setting: 'pixel.storage.1.kind' }],
+  'service-storage-lifetime': [() => declaring(service({ storage: [{ ...STORED, lifetime: 'forever' }] })), { setting: 'pixel.storage.1.lifetime' }],
+  'service-storage-party': [() => declaring(service({ storage: [{ ...STORED, party: 'second' }] })), { setting: 'pixel.storage.1.party' }],
+  'service-storage-part': [() => declaring(service({ storage: [{ ...STORED, domain: 'example.com' }] })), { setting: 'pixel.storage.1.domain' }],
+  'service-transfers': [() => declaring(service({ transfers: 'US' })), { setting: 'pixel.transfers' }],
+  'service-transfer': [() => declaring(service({ transfers: ['US'] })), { setting: 'pixel.transfers.1' }],
+  'service-safeguards': [() => declaring(service({ transfers: [{ country: 'US', safeguards: ['trust'] }] })), { setting: 'pixel.transfers.1.safeguards' }],
+  'service-transfer-part': [() => declaring(service({ transfers: [{ country: 'US', safeguards: ['scc'], since: 2020 }] })), { setting: 'pixel.transfers.1.since' }],
+  'service-part': [() => declaring(service({ colour: 'red' })), { setting: 'pixel.colour' }],
+  'service-hosts': [() => declaring(service({ hosts: 'https://pixel.example.com' })), { setting: 'pixel.hosts' }],
+  'service-hosts-kind': [() => declaring(service({ hosts: { sockets: ['https://pixel.example.com'] } })), { setting: 'pixel.hosts.sockets' }],
+  'service-hosts-list': [() => declaring(service({ hosts: { images: 'https://pixel.example.com' } })), { setting: 'pixel.hosts.images' }],
+  'service-host-any': [() => hosting('*'), { setting: 'pixel.hosts.images.1' }],
+  'service-host-http': [() => hosting('http://pixel.example.com'), { setting: 'pixel.hosts.images.1' }],
+  'service-host-scheme': [() => hosting('ftp://pixel.example.com'), { setting: 'pixel.hosts.images.1' }],
+  'service-host-https-alone': [() => hosting('https://'), { setting: 'pixel.hosts.images.1' }],
+  'service-host-path': [() => hosting('https://pixel.example.com/count'), { setting: 'pixel.hosts.images.1' }],
+  'service-host-query': [() => hosting('https://pixel.example.com?count'), { setting: 'pixel.hosts.images.1' }],
+  'service-host-fragment': [() => hosting('https://pixel.example.com#count'), { setting: 'pixel.hosts.images.1' }],
+  'service-host-user': [() => hosting('https://someone@pixel.example.com'), { setting: 'pixel.hosts.images.1' }],
+  'service-host-port': [() => hosting('https://pixel.example.com:8443'), { setting: 'pixel.hosts.images.1' }],
+  'service-host-letters': [() => hosting('https://bücher.example'), { setting: 'pixel.hosts.images.1' }],
+  'service-host-wildcard': [() => hosting('https://pixel.*.example.com'), { setting: 'pixel.hosts.images.1' }],
+  'service-host-name': [() => hosting('https://localhost'), { setting: 'pixel.hosts.images.1' }],
+  'service-host-public': [() => hosting('https://*.co.uk'), { setting: 'pixel.hosts.images.1' }],
+  'service-host-public-each': [() => hosting('https://*.kawasaki.jp'), { setting: 'pixel.hosts.images.1' }],
+  'service-host-shared': [() => hosting('https://*.github.io'), { setting: 'pixel.hosts.images.1' }],
+  'service-host-shared-each': [() => hosting('https://*.compute.amazonaws.com'), { setting: 'pixel.hosts.images.1' }],
+  'service-host-admin': [() => hosting('https://admin.example.com', { adminHost: 'admin.example.com' }), { setting: 'pixel.hosts.images.1' }],
+  'service-host-admin-under': [() => hosting('https://*.example.com', { adminHost: 'admin.example.com' }), { setting: 'pixel.hosts.images.1' }],
   'publisher-missing': [() => withFiles({}), { setting: 'search.publisher.name' }, 'warning'],
   'legal-missing': [() => withFiles({ 'articles/aaaaaaaaaaaa.md': article({}, 'https://vimeo.com/76979871') }), { setting: 'legalPages.privacyPolicy' }, 'warning'],
 };
@@ -384,6 +467,59 @@ for (const [key, [make, about, kind = 'refusal']] of Object.entries(cases)) {
     }
   });
 }
+
+// Why a rule cannot answer with its target, which `refusal.rule-target` gives by a name of its
+// own, `about.target-…`: an exact rule's target, and a pattern's.
+const targets = {
+  'target-missing': { from: '/a/', status: 301 },
+  'target-browser': { from: '/a/', to: 'https://example.com/a b', status: 301 },
+  'target-unreadable': { from: '/a/', to: 'https://[example]/', status: 301 },
+  'target-site': { from: '/a/', to: 'https://someone@example.com/', status: 301 },
+  'target-form': { from: '/a/', to: 'http://example.com/', status: 301 },
+  'target-group-none': { pattern: '^/a/.*$', to: '/x/$1', status: 301 },
+  'target-group-one': { pattern: '^/a/(.*)$', to: '/x/$2', status: 301 },
+  'target-groups': { pattern: '^/a/(.*)/(.*)$', to: '/x/$3', status: 301 },
+  'target-group-host': { pattern: '^/a/(.*)$', to: 'https://$1.example.com/', status: 301 },
+  'target-loop': { pattern: '^/a/(.*)$', to: '/a/b/$1', status: 301 },
+};
+
+test('every reason a rule\'s target is refused for has its case', () => {
+  const inCatalogue = Object.keys(CATALOGUES.en).filter((name) => name.startsWith('about.target-')).map((name) => name.slice('about.'.length));
+  assert.deepEqual(inCatalogue.sort(), Object.keys(targets).sort());
+});
+
+for (const [key, rule] of Object.entries(targets)) {
+  test(`a rule's target, ${key}: ${CATALOGUES.en[`about.${key}`] ?? ''}`, () => {
+    const found = withRule(rule).refusals.find((one) => one.name === 'refusal.rule-target');
+    assert.ok(found, JSON.stringify(withRule(rule).refusals));
+    assert.equal(found.values.reason.name, `about.${key}`);
+    assert.equal(found.values.source, rule.from ?? rule.pattern);
+    const words = (language) => CATALOGUES[language]['refusal.rule-target'].replace('{reason}', CATALOGUES[language][`about.${key}`]);
+    assert.match(found.reason, asPattern(words('en')));
+    assert.match(reasonIn('sv', found), asPattern(words('sv')));
+    assert.deepEqual(JSON.parse(JSON.stringify(found)), found, 'it travels as JSON');
+  });
+}
+
+test('a pattern\'s answer is refused in the words of an exact rule\'s', () => {
+  const status = withRule({ pattern: '^/a/(.*)$', to: '/x/$1', status: 200 }).refusals[0];
+  assert.equal(status.name, 'refusal.rule-status');
+  assert.equal(status.reason, 'the rule from ^/a/(.*)$ cannot answer "200": it answers 301, 302, 307, 308, 404, 410');
+  const gone = withRule({ pattern: '^/a/(.*)$', to: '/x/$1', status: 410 }).refusals[0];
+  assert.equal(gone.reason, 'the rule from ^/a/(.*)$ cannot answer so: a 410 answers without a target');
+  assert.equal(reasonIn('sv', gone), 'regeln från ^/a/(.*)$ kan inte svara så: en 410 svarar utan mål');
+});
+
+test('a pattern\'s grammar and a declared service\'s problem are named in each interface language', () => {
+  const [lookaround] = withPattern('^/(?=a)(.*)$').refusals;
+  assert.equal(lookaround.reason, 'the pattern ^/(?=a)(.*)$ holds lookaround, which RE2 has not');
+  assert.equal(reasonIn('sv', lookaround), 'mönstret ^/(?=a)(.*)$ innehåller lookaround, som RE2 saknar');
+  assert.equal(messageIn('en', lookaround), 'The file redirects.json, entry 1: the pattern ^/(?=a)(.*)$ holds lookaround, which RE2 has not');
+  const [kind] = declaring(service({ storage: [{ ...STORED, kind: 'flash' }] })).refusals;
+  assert.equal(kind.reason, '"flash" is no kind of storage; the kinds are cookie, localStorage, sessionStorage and other');
+  assert.equal(reasonIn('sv', kind), '"flash" är ingen typ av lagring; typerna är cookie, localStorage, sessionStorage och other');
+  assert.equal(messageIn('sv', kind), 'Filen services.json, inställningen pixel.storage.1.kind: "flash" är ingen typ av lagring; typerna är cookie, localStorage, sessionStorage och other');
+});
 
 test('names a site\'s own label given by language in the language a refusal is shown in, British English on the command line', () => {
   const byLanguage = {
