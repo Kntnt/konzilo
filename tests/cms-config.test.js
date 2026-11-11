@@ -183,6 +183,15 @@ test('gives a field only a plain value as its default, which is all Sveltia take
   }
 });
 
+// The Submissions page (ADR 0045) is the editor's on a site that declares a form, and on no other.
+test('tells the editor whether the site takes forms, so that it shows the Submissions page', () => {
+  assert.equal(config.konzilo.forms, true);
+  const declared = JSON.parse(readFileSync(file('site-template/files/site-description.json'), 'utf8'));
+  delete declared.forms;
+  for (const type of Object.values(declared.types)) type.elements = type.elements.filter((element) => element !== 'form');
+  assert.equal(Object.hasOwn(cmsConfig(siteDescription(declared), place).konzilo, 'forms'), false);
+});
+
 describe('the interface language', () => {
   const declared = () => JSON.parse(readFileSync(file('site-template/files/site-description.json'), 'utf8'));
   const swedish = siteDescription({ ...declared(), language: 'sv_SE' });
@@ -522,10 +531,10 @@ describe('the canonical address', () => {
 test('says where the live preview is, and which collections have pages to show there', () => {
   const given = cmsConfig(description, { forgejo: 'http://localhost:1', repository: 'a/b', clientId: 'c', site: 'http://localhost:2', preview: 'http://localhost:3' });
   const withPages = Object.values(description.types).filter((type) => type.address).map((type) => type.collection);
-  const { groups: _groups, ...konzilo } = given.konzilo;
+  const { groups: _groups, forms: _forms, ...konzilo } = given.konzilo;
   assert.deepEqual(konzilo, { language: 'en', preview: { origin: 'http://localhost:3', collections: withPages } });
   assert.ok(withPages.length > 0);
-  const { groups: _none, ...without } = cmsConfig(description, { forgejo: 'http://localhost:1', repository: 'a/b', clientId: 'c', site: 'http://localhost:2' }).konzilo;
+  const { groups: _none, forms: _taken, ...without } = cmsConfig(description, { forgejo: 'http://localhost:1', repository: 'a/b', clientId: 'c', site: 'http://localhost:2' }).konzilo;
   assert.deepEqual(without, { language: 'en' });
 });
 

@@ -5,11 +5,16 @@
 
 import { publishStatus } from '../build/status.js';
 import { mayWrite } from '../forgejo.js';
+import { SEPARATORS, submissionsCsv, timeZoneOf } from './submissions-csv.js';
 
 const answerJson = (outgoing, status, body) => {
   outgoing.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
   outgoing.end(JSON.stringify(body));
 };
+
+const SUBMISSIONS = '/_konzilo/submissions';
+// A form's submissions are shown this many at a time, newest first.
+export const SUBMISSIONS_AT_ONCE = 50;
 
 export const nextMinute = (at) => 60_000 - (at % 60_000);
 
@@ -22,8 +27,9 @@ const PICTURE_HOLDS = 3600;
 
 // `forgejo`: where to ask. `repository`: the source repository. `token`: a credential that can
 // read it. `control`: as record.js gives it. `isPost(file)`: whether a file in the source is a post.
-// `pictures`: as thumbnails.js gives them.
-export function editorsService({ forgejo, repository, token, control, pictures = null, isPost = () => true, now = () => new Date(), warn = console.error, get = fetch }) {
+// `pictures`: as thumbnails.js gives them. `store`: the service's data, as store.js opens it, which
+// holds the forms' submissions, and `forms()`: the forms the site description in use declares.
+export function editorsService({ forgejo, repository, token, control, pictures = null, store = null, forms = () => ({}), isPost = () => true, now = () => new Date(), warn = console.error, get = fetch }) {
   const answers = new Map();
   const mayWriteLately = async (credential) => {
     const held = answers.get(credential);
@@ -57,6 +63,67 @@ export function editorsService({ forgejo, repository, token, control, pictures =
     return outgoing.end(picture.bytes);
   };
 
+  // A form's submissions (ADR 0045), to Admins and Editors alone: each form with how many it holds,
+  // a form's newest first, and a form's as CSV, by the separator, in the time zone and in the
+  // interface language the reader names, spam left out. Whoever may not write is told nothing,
+  // not even which forms there are.
+  const answerSubmissions = async (incoming, outgoing, below, searchParams) => {
+    if (incoming.method !== 'GET') return answerJson(outgoing, 405, {});
+    if (!store) return answerJson(outgoing, 404, {});
+    if (!await mayWrite({ forgejo, repository, credential: incoming.headers.authorization, get })) return answerJson(outgoing, 401, {});
+    const declared = forms();
+    const counts = store.counts();
+    if (below === '') {
+      const named = [...Object.keys(declared), ...Object.keys(counts).filter((name) => !Object.hasOwn(declared, name))];
+      return answerJson(outgoing, 200, { forms: named.map((name) => ({ name, label: declared[name]?.label ?? name, count: counts[name] ?? 0 })) });
+    }
+    const [, name, asCsv] = /^\/([a-z][a-z0-9-]*)(\.csv)?$/.exec(below) ?? [];
+    if (name === undefined || !(Object.hasOwn(declared, name) || Object.hasOwn(counts, name))) return answerJson(outgoing, 404, {});
+    if (asCsv) {
+      const separator = searchParams.get('separator');
+      if (!Object.hasOwn(SEPARATORS, separator ?? '')) return answerJson(outgoing, 400, {});
+      return answerCsv(outgoing, name, submissionsCsv({
+        label: declared[name]?.label ?? name,
+        each: () => store.eachSubmission(name),
+        separator,
+        timeZone: timeZoneOf(searchParams.get('timeZone')),
+        language: searchParams.get('language'),
+      }));
+    }
+    const before = searchParams.get('before');
+    if (before !== null && !/^[1-9][0-9]{0,15}$/.test(before)) return answerJson(outgoing, 400, {});
+    const shown = store.submissions(name, { spam: false, before: before === null ? null : Number(before), limit: SUBMISSIONS_AT_ONCE + 1 });
+    return answerJson(outgoing, 200, {
+      submissions: shown.slice(0, SUBMISSIONS_AT_ONCE).map(({ id, sentAt, language, fields }) => ({ id, sentAt, language, fields })),
+      more: shown.length > SUBMISSIONS_AT_ONCE,
+    });
+  };
+
+  // A file written a piece at a time, as its pieces are read, never held whole.
+  const answerCsv = async (outgoing, name, pieces) => {
+    outgoing.writeHead(200, {
+      'content-type': 'text/csv; charset=utf-8; header=present',
+      'content-disposition': `attachment; filename="${name}.csv"`,
+      'cache-control': 'no-store',
+      'x-content-type-options': 'nosniff',
+    });
+    for (const piece of pieces) {
+      if (outgoing.destroyed) return;
+      if (!outgoing.write(piece)) {
+        await new Promise((go) => {
+          const goOn = () => {
+            outgoing.off('drain', goOn);
+            outgoing.off('close', goOn);
+            go();
+          };
+          outgoing.on('drain', goOn);
+          outgoing.on('close', goOn);
+        });
+      }
+    }
+    outgoing.end();
+  };
+
   // Each file in the source as it stands, with its version.
   const versions = async () => {
     const found = {};
@@ -88,6 +155,7 @@ export function editorsService({ forgejo, repository, token, control, pictures =
         return answerJson(outgoing, 200, { posts, others: { refusals: record?.refusals ?? [], warnings: record?.warnings ?? [] }, reason: record?.reason ?? null, at: record?.at ?? null });
       }
       if (pathname === '/_konzilo/thumbnail') return answerPicture(incoming, outgoing, searchParams.get('of'));
+      if (pathname === SUBMISSIONS || pathname.startsWith(`${SUBMISSIONS}/`)) return answerSubmissions(incoming, outgoing, pathname.slice(SUBMISSIONS.length), searchParams);
       return answerJson(outgoing, 404, {});
     },
 

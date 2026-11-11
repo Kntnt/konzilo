@@ -573,12 +573,14 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     // Konzilo's own, which the editor takes out before Sveltia sees the rest: the interface
     // language this configuration is in, where this copy of the site has its live preview,
     // and which collections have pages to show there, the site's own components, which
-    // its bodies may hold beside the core's elements, and the fields of each field group, by the
-    // format a post's files are read in.
+    // its bodies may hold beside the core's elements, the fields of each field group, by the
+    // format a post's files are read in, and whether the site declares a form, whose submissions
+    // the Submissions page shows (ADR 0045).
     konzilo: {
       language: interfaceLanguage,
       ...(preview === null ? {} : { preview: { origin: preview, collections: Object.values(description.types).filter((type) => type.address).map((type) => type.collection) } }),
       ...(Object.keys(components).length === 0 ? {} : { components }),
+      ...(Object.keys(description.forms ?? {}).length === 0 ? {} : { forms: true }),
       groups: groupsOf(postCollections),
     },
     app_title: 'Konzilo',

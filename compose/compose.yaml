@@ -235,8 +235,9 @@ services:
       - ${KONZILO_CORE}:${KONZILO_CORE}:ro
 
   # The service, in its role for editors (ADR 0044): Forgejo's webhook and the clock each ask
-  # for a build, and the editor asks how publishing stands, through the web server. It has a
-  # credential that can only read the source repository.
+  # for a build, and the editor asks how publishing stands, and reads the forms' submissions from
+  # the service's data, which the role for visitors keeps (ADR 0045), through the web server. It
+  # has a credential that can only read the source repository.
   editors:
     <<: *hardened
     build: *builder
@@ -259,6 +260,7 @@ services:
       - editors-secret:/secret:ro
       - build-control:/control
       - thumbnails:/thumbnails
+      - service-data:/service-data
       - ${KONZILO_SITE_DIR:-.}/site-description.json:/site/site-description.json:ro
 
   # The service, in its role for visitors (ADR 0044): what visitors' browsers send below

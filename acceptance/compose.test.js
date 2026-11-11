@@ -5,6 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { request as httpRequest } from 'node:http';
 import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
@@ -12,6 +13,7 @@ import { after, before, describe, test } from 'node:test';
 import { intake } from '../src/intake/index.js';
 import { readSiteDescription } from '../src/site-description.js';
 import { sharp } from '../tests/lib/images.js';
+import { readCsv } from '../tests/lib/csv.js';
 import { OWN_DEMO, writeOwnDemoContent } from '../tests/lib/demo-content.js';
 import { namedImages, NOW, sourcePost } from '../tests/lib/intake.js';
 import { ENGINES, openEditor, signIn } from './lib/editor.js';
@@ -1048,6 +1050,58 @@ describe('a site in Compose', () => {
       const [last, before] = kept();
       assert.deepEqual([[message(last), last.spam], [message(before), before.spam]], [['Too fresh', 'too-soon'], ['Caught in the trap', 'trap']]);
     });
+
+    // What the two tests before sent through the site's form, read on the Submissions page by the
+    // account signed in, in the site's interface language and in the other, and downloaded as CSV
+    // by the separator each offers (ADR 0045); the spam they held is in neither.
+    test('shows what was sent on the Submissions page to the account signed in, in both interface languages, spam left out, and downloads it as CSV by each separator', async () => {
+      const sentWords = kept().filter(({ spam }) => spam === null).map(message);
+      const spamWords = kept().filter(({ spam }) => spam !== null).map(message);
+      assert.ok(sentWords.length > 0 && spamWords.length > 0, 'something sent, and spam to leave out');
+
+      for (const path of ['/_konzilo/submissions', '/_konzilo/submissions/contact', '/_konzilo/submissions/contact.csv?separator=comma']) {
+        assert.equal((await get(`${site.origin.admin}${path}`)).status, 401, path);
+        assert.equal((await get(`${site.origin.admin}${path}`, { headers: { authorization: 'token nothing-at-all' } })).status, 401, path);
+        assert.equal((await get(`${site.origin.site}${path}`, { headers: { authorization: `token ${token}` } })).status, 404, `${path}, on the editor's host alone`);
+      }
+      const { forms } = await (await get(`${site.origin.admin}/_konzilo/submissions`, { headers: { authorization: `token ${token}` } })).json();
+      assert.deepEqual(forms, [{ name: 'contact', label: 'Contact us', count: sentWords.length }]);
+
+      const session = await openEditor('chromium', site);
+      try {
+        await signIn(session, site);
+        const { page } = session;
+        const read = async ({ name, form, separator, by, download, sentAt, formColumn, yes }) => {
+          await page.getByRole('radio', { name, exact: true }).click();
+          await page.getByRole('combobox', { name: form }).waitFor();
+          for (const words of sentWords) await page.getByText(words, { exact: true }).waitFor();
+          for (const words of spamWords) assert.equal(await page.getByText(words).count(), 0, words);
+          assert.equal(await page.getByRole('radio', { name: separator, exact: true }).isChecked(), true, `${separator}, offered by the interface language`);
+          const [file] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: download }).click()]);
+          assert.match(file.suggestedFilename(), /^contact-\d{4}-\d\d-\d\d\.csv$/);
+          const bytes = readFileSync(await file.path());
+          assert.deepEqual([...bytes.subarray(0, 3)], [0xef, 0xbb, 0xbf], 'UTF-8 with a byte-order mark');
+          const text = bytes.toString('utf8');
+          assert.doesNotMatch(text, /[^\r]\n/, 'every row ended by CRLF');
+          const [header, ...rows] = readCsv(text, by);
+          assert.deepEqual(header, [sentAt, formColumn, 'Name', 'Email', 'Message', 'I have read the privacy policy']);
+          assert.deepEqual(rows.map((row) => row[4]), sentWords, 'newest first, spam left out');
+          for (const row of rows) {
+            assert.match(row[0], /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/);
+            assert.deepEqual([row[1], row[5]], ['Contact us', yes]);
+          }
+        };
+        await read({ name: 'Submissions', form: 'Form', separator: 'Commas', by: ',', download: 'Download as CSV', sentAt: 'Sent at', formColumn: 'Form', yes: 'Yes' });
+        await page.evaluate(() => localStorage.setItem('sveltia-cms.prefs', JSON.stringify({ ...JSON.parse(localStorage.getItem('sveltia-cms.prefs') ?? '{}'), locale: 'sv' })));
+        await page.reload();
+        await read({ name: 'Inskick', form: 'Formulär', separator: 'Semikolon', by: ';', download: 'Ladda ned som CSV', sentAt: 'Skickat', formColumn: 'Formulär', yes: 'Ja' });
+        assert.deepEqual(session.seen.outside, []);
+        assert.deepEqual(session.seen.refused, []);
+        assert.deepEqual(session.seen.errors, []);
+      } finally {
+        await session.browser.close();
+      }
+    }, { timeout: 300_000 });
 
     test('is passed on by the web server with what ADR 0044 lists alone, and nothing kept holds the visitor\'s address or browser', async () => {
       const standIn = `${site.name}-visitors-stand-in`;
