@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - Search in a site run with Compose: Typesense in its own network, an index of what each build publishes, and the site's search page asking it through the web server, with a key no page holds.
+- A site's forms are taken: a visitor's message is sent with JavaScript or without, the form says it was sent, and the site keeps it with its fields' labels and its page's language, never the visitor's address, while spam is held apart and too many messages from one place are refused. The site template has a contact form on a page of its demo content.
 
 ## [0.1.0] – 2026-11-11
 
