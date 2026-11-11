@@ -52,6 +52,23 @@ describe('the form in Sveltia', () => {
     await page.locator('section.field[data-key-path="authors"]').getByRole('combobox', { name: 'Authors' }).waitFor({ state: 'attached' });
   });
 
+  // Sveltia leaves the entry at an Escape, which it hears before anything on the page does.
+  test('an Escape in the authors\' box closes its list, and then empties it, and leaves the entry open', async () => {
+    await newEntry('articles');
+    const box = page.locator('section.field[data-key-path="authors"]').getByRole('combobox', { name: 'Authors' });
+    await box.scrollIntoViewIfNeeded();
+    await box.click();
+    await page.keyboard.type('Ines', { delay: 20 });
+    assert.equal(await box.getAttribute('aria-expanded'), 'true');
+    await page.keyboard.press('Escape');
+    assert.equal(await box.getAttribute('aria-expanded'), 'false');
+    assert.equal(await box.inputValue(), 'Ines');
+    await page.keyboard.press('Escape');
+    assert.equal(await box.inputValue(), '');
+    await page.waitForTimeout(300);
+    assert.match(await page.evaluate(() => window.location.hash), /\/new$/, 'still in the entry');
+  });
+
   test('search, sharing and structured data are closed bars, with no box to tick', async () => {
     await newEntry('pages');
     assert.equal(await page.getByRole('checkbox', { name: /^Search$/ }).count(), 0);

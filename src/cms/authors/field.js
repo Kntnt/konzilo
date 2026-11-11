@@ -10,6 +10,7 @@
 import '../body/field.css';
 import { button, dialogOf, made, textRow } from '../body/dialog.js';
 import { languageTag, say } from '../body/texts.js';
+import { ESCAPE_EVENT } from './widget.js';
 import './field.css';
 
 let fields = 0;
@@ -268,15 +269,19 @@ export function mountAuthorsField(host, { value, changed, authors, label, forID 
       if (popup.hidden || active === -1) return;
       event.preventDefault();
       choose(shown[active].id);
-    } else if (event.key === 'Escape') {
-      if (popup.hidden && input.value === '') return;
-      // Sveltia leaves the entry at an Escape it is handed.
+    } else if (event.key === 'Escape' && escape()) {
       event.preventDefault();
       event.stopPropagation();
-      if (popup.hidden) input.value = '';
-      else closeList();
     }
   });
+  // An Escape closes the list, and then empties the box, and is the field's while it does either.
+  function escape() {
+    if (popup.hidden && input.value === '') return false;
+    if (popup.hidden) input.value = '';
+    else closeList();
+    return true;
+  }
+  input.addEventListener(ESCAPE_EVENT, escape);
   open.addEventListener('mousedown', (event) => event.preventDefault());
   open.addEventListener('click', () => {
     input.focus();

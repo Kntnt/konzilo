@@ -7,7 +7,7 @@
 
 import { signedInCredential } from '../credential.js';
 import { authorsIn } from './terms.js';
-import { AUTHORS_WIDGET } from './widget.js';
+import { AUTHORS_WIDGET, ESCAPE_EVENT } from './widget.js';
 
 export { AUTHORS_WIDGET };
 
@@ -22,6 +22,18 @@ export function registerAuthorsField(CMS, config) {
     if (!readers.has(folder)) readers.set(folder, authorsIn({ api, repository, branch, folder, credential: signedInCredential }));
     return readers.get(folder);
   };
+
+  // Sveltia leaves the entry at an Escape, which it hears on the window before anything on the
+  // page does. Heard here first, since this is set before Sveltia starts, an Escape is the box's
+  // while it has a list to close or a name to clear (field.js), and Sveltia's otherwise.
+  globalThis.addEventListener('keydown', (event) => {
+    const box = event.target;
+    if (event.key !== 'Escape' || !box?.matches?.('.konzilo-authors-input')) return;
+    if (box.getAttribute('aria-expanded') !== 'true' && box.value === '') return;
+    event.stopImmediatePropagation();
+    event.preventDefault();
+    box.dispatchEvent(new CustomEvent(ESCAPE_EVENT));
+  }, { capture: true });
 
   CMS.registerFieldType(AUTHORS_WIDGET, function KonziloAuthors({ value, onChange, field, forID }) {
     const React = window.__SVELTIA_CMS_REACT__;
