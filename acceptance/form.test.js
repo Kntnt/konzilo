@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { cmsConfig } from '../src/cms/config.js';
 import { named, say } from '../src/intake/words.js';
 import { siteDescription } from '../src/site-description.js';
+import { ENGINES } from './lib/editor.js';
 import { openFieldPage } from './lib/field-page.js';
 
 const core = fileURLToPath(new URL('../', import.meta.url));
@@ -751,3 +752,130 @@ describe('the canonical address in Sveltia, on a site in two languages', () => {
     assert.deepEqual(seen.errors, []);
   });
 });
+
+// A label in the middle of a phrase starts with a small letter, as in "Lägg till annan adress", but
+// for an abbreviation, and begins with a capital where Sveltia shows the same text alone (ADR
+// 0066); and a site's own fields on the built-in article stand in a group of their own, while a
+// type of the site's own keeps its order (ADR 0071). Each engine draws a first letter itself.
+for (const [engineName, engine] of Object.entries(ENGINES)) {
+  describe(`labels in phrases and a site's own fields in Sveltia, in ${engineName}`, () => {
+    let site;
+    let page;
+    let seen;
+
+    const origin = () => new URL(page.url()).origin;
+    // A new post of a collection, once its own form is there, by a field only that form has.
+    const open = async (collection, only) => {
+      await page.goto(`${origin()}/#/collections/${collection}/new`);
+      await page.locator(`section.field[data-key-path="${only}"]`).waitFor();
+      await page.locator('.konzilo-body-visual .ProseMirror').waitFor();
+    };
+    const group = (name) => page.locator(`section.field[data-key-path="${name}"]`);
+    // What a person reads: the text as drawn, with the capital the stylesheet gives it, and
+    // without the marks Sveltia keeps a name apart with, which nobody sees.
+    const read = async (locator) => (await locator.innerText()).replace(/[\u2066-\u2069]/g, '').replace(/\s+/g, ' ').trim();
+    const title = async () => (await page.title()).replace(/[\u2066-\u2069]/g, '');
+    const sections = () => page.evaluate(() => [...document.querySelectorAll('section.field[data-key-path]')].map((one) => one.dataset.keyPath).filter((key) => !key.includes('.')));
+
+    // A Swedish site, with fields of its own on the article, and a type of its own called FAQ,
+    // which has one of those fields too.
+    before(async () => {
+      const declared = JSON.parse(readFileSync(`${core}site-template/files/site-description.json`, 'utf8'));
+      declared.language = 'sv_SE';
+      declared.types.article.fields = {
+        rating: { label: { en: 'Rating', sv: 'Betyg' }, type: 'integer', control: 'number', required: true },
+        mood: { label: { en: 'Mood', sv: 'Stämning' }, type: 'string', control: 'select', options: ['calm', 'stormy'] },
+      };
+      declared.types.faq = {
+        label: 'FAQ',
+        plural: 'FAQ',
+        collection: 'faqs',
+        address: '/faq/{slug}/',
+        elements: ['paragraph'],
+        fields: { question: { label: { en: 'Question', sv: 'Fråga' }, type: 'string', control: 'text' }, headline: { required: true }, rating: { label: { en: 'Stars', sv: 'Stjärnor' }, type: 'integer', control: 'number' }, seo: {} },
+      };
+      const config = { ...cmsConfig(siteDescription(declared), { forgejo: 'http://localhost:1', repository: 'a/b', clientId: 'c', site: 'http://localhost:2' }), backend: { name: 'test-repo' } };
+      site = await openFieldPage({ engine, configs: { 'config.json': config, 'config.sv.json': config } });
+      ({ page, seen } = await site.newPage({ language: 'sv-SE', viewport: { width: 1400, height: 1200 } }));
+      await page.getByRole('button', { name: 'Arbeta med test-repo' }).click();
+      await page.getByText('Artiklar', { exact: true }).first().waitFor();
+    }, { timeout: 120_000 });
+
+    after(() => site?.close());
+
+    test('reads "Lägg till annan adress" and "0 andra adresser" under the heading "Andra adresser", and adds a category and a topic with a small letter', async () => {
+      await open('articles', 'group-terms');
+      assert.equal(await title(), 'Skapar artikel – Konzilo');
+      const other = group('otherAddresses');
+      await other.scrollIntoViewIfNeeded();
+      const heading = other.locator(':scope > header > h4');
+      assert.equal(await read(heading), 'Andra adresser');
+      assert.equal(await read(other.locator('.summary')), '0 andra adresser');
+      const add = other.getByRole('button', { name: /^Lägg till .?annan adress.?$/ });
+      assert.equal(await read(add.locator('.label')), 'Lägg till annan adress');
+      await add.click();
+      assert.equal(await read(other.locator('.summary')), '1 annan adress');
+      for (const name of ['Lägg till kategori', 'Lägg till ämne']) {
+        assert.equal(await group('group-terms').locator('button .label').evaluateAll((all, one) => all.some((label) => label.innerText.replace(/[\u2066-\u2069]/g, '').trim() === one), name), true, name);
+      }
+    });
+
+    test('keeps the capitals of an abbreviation, such as FAQ, and begins each kind of post with a capital in the menu that makes one', async () => {
+      await page.goto(`${origin()}/#/collections/articles`);
+      await page.getByRole('button', { name: 'Skapa post eller resurser' }).click();
+      const items = page.getByRole('menu').getByRole('menuitem');
+      await items.first().waitFor();
+      const shown = await items.evaluateAll((all) => all.map((one) => one.innerText.trim()));
+      for (const name of ['Artikel', 'Sida', 'FAQ', 'Kategori', 'Ämne', 'Bild']) assert.ok(shown.includes(name), `${name} in ${shown}`);
+      await page.keyboard.press('Escape');
+      await open('faqs', 'question');
+      assert.equal(await title(), 'Skapar FAQ – Konzilo');
+      await page.locator('button[aria-expanded]', { hasText: 'Strukturerad data' }).first().click();
+      const preset = group('structured').locator('option[value=""]');
+      await preset.waitFor({ state: 'attached' });
+      assert.match(await preset.textContent(), /\(förvald för FAQ\)$/);
+    });
+
+    test('hold the article\'s own fields in a group of their own, after the body and before the teaser, with one menu that never restores a required field to nothing', async () => {
+      await open('articles', 'group-terms');
+      assert.deepEqual(await sections(), ['group-name', 'group-status', 'image', 'group-terms', 'group-headline', 'standfirst', 'body', 'group-own', 'teaser', 'search', 'sharing', 'structured', 'otherAddresses']);
+      const own = group('group-own');
+      await own.scrollIntoViewIfNeeded();
+      for (const label of ['Betyg', 'Stämning']) assert.equal(await own.getByText(label, { exact: true }).count(), 1, label);
+      await own.hover();
+      assert.equal(await own.getByRole('button', { name: 'Visa fältalternativ' }).filter({ visible: true }).count(), 1);
+      await own.getByRole('spinbutton', { name: 'Betyg' }).fill('4');
+      await own.getByRole('radio', { name: 'stormy' }).check();
+      await own.getByRole('button', { name: 'Visa fältalternativ' }).click();
+      await page.getByRole('menu').getByRole('menuitem', { name: 'Återställ standardvärde' }).click();
+      await page.getByRole('menu').waitFor({ state: 'detached' });
+      assert.equal(await own.getByRole('spinbutton', { name: 'Betyg' }).inputValue(), '4', 'required, with no default, so kept');
+      assert.equal(await own.getByRole('radio', { name: 'stormy' }).isChecked(), false);
+
+      // Saved, and read back into the group.
+      await own.getByRole('radio', { name: 'calm' }).check();
+      await page.getByRole('textbox', { name: 'Arbetsnamn', exact: true }).fill(`Lanterns in ${engineName}`);
+      await page.getByRole('textbox', { name: 'Huvudrubrik', exact: true }).fill('Lanterns along the quay');
+      await page.getByRole('button', { name: 'Spara', exact: true }).click();
+      await page.waitForFunction(() => /\/entries\//.test(window.location.hash));
+      await page.goto(`${origin()}/#/collections/articles`);
+      await page.getByText(`Lanterns in ${engineName}`, { exact: true }).first().click();
+      await group('group-own').scrollIntoViewIfNeeded();
+      assert.equal(await group('group-own').getByRole('spinbutton', { name: 'Betyg' }).inputValue(), '4');
+      assert.equal(await group('group-own').getByRole('radio', { name: 'calm' }).isChecked(), true);
+    });
+
+    test('keep a type of the site\'s own in the order it declares, with the core\'s fields in their groups, and its field named as the article\'s own in that group', async () => {
+      await open('faqs', 'question');
+      assert.deepEqual(await sections(), ['group-name', 'group-status', 'publishing', 'body', 'question', 'group-headline', 'group-own', 'search', 'sharing', 'structured', 'otherAddresses']);
+      await group('group-own').scrollIntoViewIfNeeded();
+      await group('group-own').getByRole('spinbutton', { name: 'Stjärnor' }).waitFor();
+    });
+
+    test('has asked nothing outside, and broken no policy', () => {
+      assert.deepEqual(seen.outside, []);
+      assert.deepEqual(seen.refused, []);
+      assert.deepEqual(seen.errors, []);
+    });
+  });
+}
