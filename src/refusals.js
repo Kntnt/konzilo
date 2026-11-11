@@ -14,14 +14,7 @@
 // This module imports nothing but the catalogues, so that the editor's code in the
 // browser shows a refusal as the intake and the build write it.
 
-import { interfaceLanguageTag, labelIn, SOURCE_LANGUAGE, text } from './catalogues.js';
-
-// A site's label in the middle of a phrase: its first letter lowered, but in an
-// abbreviation, such as FAQ.
-const midPhrase = (label, language) => {
-  const given = String(labelIn(label, language) ?? '');
-  return /^\p{Lu}\p{Lu}/u.test(given) ? given : `${given.charAt(0).toLocaleLowerCase(language)}${given.slice(1)}`;
-};
+import { interfaceLanguageTag, labelInPhrase, SOURCE_LANGUAGE, text } from './catalogues.js';
 
 // A moment, `1 January 2026 at 09:00 CET`, named with its time zone, since the command line
 // is read on a server and the editor in a browser.
@@ -30,7 +23,7 @@ const MOMENT = { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit'
 function valueIn(language, value) {
   if (value === null || typeof value !== 'object') return value;
   if (typeof value.name === 'string') return wordsIn(language, value);
-  if (Object.hasOwn(value, 'label')) return midPhrase(value.label, language);
+  if (Object.hasOwn(value, 'label')) return labelInPhrase(value.label, language);
   if (Object.hasOwn(value, 'moment')) return new Date(value.moment).toLocaleString(interfaceLanguageTag(language), MOMENT);
   const joint = Object.hasOwn(value, 'and') ? 'and' : Object.hasOwn(value, 'or') ? 'or' : null;
   if (joint === null) return String(value);

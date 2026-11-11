@@ -17,7 +17,7 @@ import { IMAGE_WIDGET } from './image/widget.js';
 import { STRUCTURE_WIDGET } from './structure/widget.js';
 import { AUTHORS_WIDGET } from './authors/widget.js';
 import { SCHEMA_WIDGET, SLUG_WIDGET, TEXT_WIDGET } from './parts/widgets.js';
-import { inCatalogue, labelIn, text } from '../catalogues.js';
+import { inCatalogue, labelIn, labelInPhrase, text } from '../catalogues.js';
 import { BODY_WIDGET } from './body/widget.js';
 import { PUBLISHING_WIDGET } from './publishing/widget.js';
 import { GROUP_PREFIX, GROUP_WIDGET } from './groups/widget.js';
@@ -48,6 +48,9 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
   const say = (key, values) => text(interfaceLanguage, `form.${key}`, values);
   // A label of the site's own, as its site description gives it, in the interface language.
   const own = (label) => labelIn(label, interfaceLanguage);
+  // The same where Sveltia puts it in the middle of a phrase of its own, such as "Skapar {name}":
+  // its first letter lowered, but in an abbreviation (ADR 0066).
+  const inPhrase = (label) => labelInPhrase(label, interfaceLanguage);
   const several = description.languages.length > 1;
   const within = (extra) => (several ? extra : {});
   const { forms } = declaredNames(description);
@@ -128,12 +131,13 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     }
   };
 
-  // A setting that is translated holds a text per language on a site in several.
+  // A setting that is translated holds a text per language on a site in several, which Sveltia
+  // offers as "Lägg till {label}", so its label is as it stands there.
   const settingField = (setting) => {
     if (!setting.translated || !several) return valueField(setting);
     return {
       name: setting.name,
-      label: own(setting.label),
+      label: inPhrase(setting.label),
       widget: 'object',
       required: false,
       fields: description.languages.map((language) => valueField({
@@ -229,7 +233,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
         { name: 'description', label: say('seoSocialDescription'), widget: 'text', ...(teaser ? { widget: TEXT_WIDGET, multiline: true, fallback: 'socialDescription' } : {}) },
       ]),
       group('structured', [
-        { name: 'schema', label: say('seoSchema'), widget: SCHEMA_WIDGET, options: [...SCHEMA_TYPES], type: type.name, typeLabel: own(type.plural), preset: schemaPreset(type) },
+        { name: 'schema', label: say('seoSchema'), widget: SCHEMA_WIDGET, options: [...SCHEMA_TYPES], type: type.name, typeLabel: inPhrase(type.plural), preset: schemaPreset(type) },
       ]),
     ];
   };
@@ -304,11 +308,12 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
   };
 
   // What else answers with a post: a redirect to it, or the post shown there too. Rules
-  // the site keeps are the Redirects page's (ADR 0036).
+  // the site keeps are the Redirects page's (ADR 0036). Sveltia counts a list and adds to it in
+  // phrases of its own, so its labels are as they stand there.
   const otherAddressesField = () => ({
     name: 'otherAddresses',
-    label: say('otherAddresses'),
-    label_singular: say('otherAddress'),
+    label: say('inPhrase.otherAddresses'),
+    label_singular: say('inPhrase.otherAddress'),
     widget: 'list',
     required: false,
     collapsed: true,
@@ -435,7 +440,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
   const typeCollection = (type) => ({
     name: type.collection,
     label: own(type.plural),
-    label_singular: own(type.label),
+    label_singular: inPhrase(type.label),
     folder: type.collection,
     extension: 'md',
     format: 'yaml-frontmatter',
@@ -461,7 +466,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
   const taxonomyCollection = (taxonomy) => ({
     name: taxonomy.collection,
     label: own(taxonomy.plural),
-    label_singular: own(taxonomy.label),
+    label_singular: inPhrase(taxonomy.label),
     folder: taxonomy.collection,
     extension: 'json',
     format: 'json',
@@ -486,7 +491,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
   const imageLibraryCollection = () => ({
     name: IMAGE_LIBRARY_FOLDER,
     label: say('imageLibrary'),
-    label_singular: say('libraryImage'),
+    label_singular: say('inPhrase.libraryImage'),
     folder: IMAGE_LIBRARY_FOLDER,
     format: 'json',
     extension: 'json',
@@ -512,8 +517,8 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
   ];
   const entriesField = (depth) => ({
     name: 'items',
-    label: say('entries'),
-    label_singular: say('entry'),
+    label: say('inPhrase.entries'),
+    label_singular: say('inPhrase.entry'),
     widget: 'list',
     required: false,
     collapsed: true,

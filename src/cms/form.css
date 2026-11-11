@@ -28,3 +28,12 @@ section[data-accordion]:is([data-key-path='teaser'], [data-key-path='search'], [
 section[data-accordion]:has(> .field-wrapper > .wrapper > .header button[aria-expanded='false']) > .footer {
   display: none;
 }
+
+/* A label Sveltia also puts in the middle of a phrase of its own, such as "Lägg till {name}", is
+   given as it stands there, its first letter small (config.js, ADR 0066). Where Sveltia shows it
+   alone, as a list's or an object's heading or as an item of the menu that makes an entry, it
+   begins with a capital. */
+section.field:is([data-field-type='list'], [data-field-type='object']) > header > h4::first-letter,
+.sui.menu [role='menuitem'] > .label::first-letter {
+  text-transform: uppercase;
+}

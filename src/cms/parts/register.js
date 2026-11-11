@@ -15,8 +15,9 @@
 //   placeholder: <words>  the placeholder of a field without a fallback, or while its
 //                         fallback gives nothing
 // The slug's: `address`, the type's address with {slug}, to open the post's page.
-// The structured data type's: `options`, `type` and `typeLabel`, the post's type, and `preset`,
-// its type's structured data type until the site's settings say another.
+// The structured data type's: `options`, `type` and `typeLabel`, the post's type and its plural as
+// it stands in a phrase, and `preset`, its type's structured data type until the site's settings
+// say another.
 
 import { breadcrumbOf, searchDescriptionOf, searchTitleOf, slugFrom, socialDescriptionOf, socialTitleOf, teaserHeadlineOf, teaserTextOf } from '../../format/article-parts.js';
 import { say } from '../body/texts.js';
@@ -212,7 +213,7 @@ export function registerParts(CMS, config) {
     }, [type]);
     return h('select', { id: forID, className: 'konzilo-part-input konzilo-part-select', value: value && value !== preset ? value : '', onChange: (event) => onChange(event.target.value) },
       options.map((one) => (one === preset
-        ? h('option', { key: one, value: '' }, say('parts.schemaPreset', { type: one, plural: typeLabel.toLocaleLowerCase() }))
+        ? h('option', { key: one, value: '' }, say('parts.schemaPreset', { type: one, plural: typeLabel }))
         : h('option', { key: one, value: one }, one))));
   });
 

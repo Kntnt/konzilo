@@ -98,17 +98,18 @@ test('chooses an article\'s authors in the core\'s own field, by the folder of t
 
 test('gives the built-in types and taxonomies the core\'s labels in the interface language, and an author a biography', () => {
   const labels = (made) => Object.fromEntries(made.collections.filter((one) => one.label_singular).map((one) => [one.name, [one.label_singular, one.label]]));
+  // The singular as Sveltia puts it in a phrase of its own (labels in phrases, below).
   assert.deepEqual(labels(config), {
-    articles: ['Article', 'Articles'],
-    pages: ['Page', 'Pages'],
-    canvases: ['Canvas', 'Canvases'],
-    authors: ['Author', 'Authors'],
-    categories: ['Category', 'Categories'],
-    topics: ['Topic', 'Topics'],
-    'image-library': ['Image', 'Image library'],
+    articles: ['article', 'Articles'],
+    pages: ['page', 'Pages'],
+    canvases: ['canvas', 'Canvases'],
+    authors: ['author', 'Authors'],
+    categories: ['category', 'Categories'],
+    topics: ['topic', 'Topics'],
+    'image-library': ['image', 'Image library'],
   });
   const swedish = cmsConfig(description, { ...place, language: 'sv' });
-  assert.deepEqual(Object.values(labels(swedish)).slice(0, 6), [['Artikel', 'Artiklar'], ['Sida', 'Sidor'], ['Tom sida', 'Tomma sidor'], ['Författare', 'Författare'], ['Kategori', 'Kategorier'], ['Ämne', 'Ämnen']]);
+  assert.deepEqual(Object.values(labels(swedish)).slice(0, 6), [['artikel', 'Artiklar'], ['sida', 'Sidor'], ['tom sida', 'Tomma sidor'], ['författare', 'Författare'], ['kategori', 'Kategorier'], ['ämne', 'Ämnen']]);
   assert.equal(field(collection('articles').fields, 'authors').label, 'Authors');
   assert.equal(field(swedish.collections.find((one) => one.name === 'articles').fields, 'category').label, 'Kategori');
   assert.equal(field(collection('authors').fields, 'description').label, 'Biography');
@@ -183,7 +184,7 @@ describe('the interface language', () => {
       const made = cmsConfig(site, { ...place, language });
       const one = (name) => made.collections.find((each) => each.name === name);
       assert.equal(one('articles').label, words.articles, language);
-      assert.equal(one('articles').label_singular, words.article, language);
+      assert.equal(one('articles').label_singular, words.article.toLowerCase(), language, 'as Sveltia puts it in a phrase');
       assert.equal(field(one('articles').fields, 'size').label, words.size, language);
       assert.equal(field(one('articles').fields, 'category').label, words.section, language);
       assert.equal(one('categories').label, words.sections, language);
@@ -606,5 +607,66 @@ describe('the form\'s field groups', () => {
     }), place);
     assert.deepEqual(shape('stories', made), [['group-name', ['title', 'slug']], ['group-status', ['status', 'date']], 'publishing', 'body', 'mood', ['group-headline', ['headline']], ['group-terms', ['topics']], 'otherAddresses']);
     assert.deepEqual(made.konzilo.groups['group-status'], ['status', 'date']);
+  });
+});
+
+// A label in the middle of one of Sveltia's phrases, such as "Lägg till {name}" and "{count}
+// {label}", stands there as it does in the middle of a sentence. The core's own labels for these
+// places are its texts per language, and a label the site description gives, the site's own or a
+// built-in type's, has its first letter lowered there, but in an abbreviation (ADR 0066).
+describe('labels in phrases', () => {
+  const declared = () => JSON.parse(readFileSync(file('site-template/files/site-description.json'), 'utf8'));
+  const swedish = cmsConfig(siteDescription({ ...declared(), language: 'sv_SE' }), place);
+  const one = (made, name) => made.collections.find((each) => each.name === name);
+
+  test('give a post\'s other addresses, which Sveltia counts and adds to, as they stand in a phrase', () => {
+    for (const [made, words] of [[swedish, ['andra adresser', 'annan adress']], [config, ['other addresses', 'other address']]]) {
+      const other = one(made, 'articles').fields.find((each) => each.name === 'otherAddresses');
+      assert.deepEqual([other.label, other.label_singular], words);
+    }
+    const [entries] = one(swedish, 'menus').files[0].fields;
+    assert.deepEqual([entries.label, entries.label_singular], ['poster', 'post'], 'and a menu\'s entries');
+  });
+
+  // Sveltia names a collection by its singular label in "Skapar {name}" and in a relation's
+  // "Lägg till {name}", and by its plural alone.
+  test('give a collection\'s singular label as it stands in a phrase, the core\'s and the site\'s alike, and an abbreviation as it is', () => {
+    const singular = (made) => Object.fromEntries(made.collections.filter((each) => each.label_singular).map((each) => [each.name, each.label_singular]));
+    assert.deepEqual(singular(swedish), { articles: 'artikel', pages: 'sida', canvases: 'tom sida', authors: 'författare', categories: 'kategori', topics: 'ämne', 'image-library': 'bild' });
+    assert.deepEqual(singular(config), { articles: 'article', pages: 'page', canvases: 'canvas', authors: 'author', categories: 'category', topics: 'topic', 'image-library': 'image' });
+    assert.equal(one(swedish, 'articles').label, 'Artiklar', 'its plural stands alone');
+    const given = declared();
+    given.language = 'sv_SE';
+    given.types.faq = { label: 'FAQ', plural: { en: 'FAQs', sv: 'FAQ' }, collection: 'faqs', address: '/faq/{slug}/', elements: ['paragraph'] };
+    given.taxonomies.category.label = { en: 'Section', sv: 'Avdelning' };
+    const made = cmsConfig(siteDescription(given), place);
+    assert.equal(one(made, 'faqs').label_singular, 'FAQ');
+    assert.equal(one(made, 'categories').label_singular, 'avdelning');
+    assert.equal(one(cmsConfig(siteDescription(given), { ...place, language: 'en' }), 'categories').label_singular, 'section');
+  });
+
+  // On a site in several languages a setting that is translated is an object of a text per
+  // language, which an editor adds by ticking "Lägg till {label}".
+  test('give a translated setting\'s label as it stands in a phrase on a site in several languages', () => {
+    const { language: _one, ...given } = declared();
+    given.languages = ['sv_SE', 'en_GB'];
+    for (const type of Object.values(given.types)) {
+      if (typeof type.address === 'string') type.address = { sv_SE: type.address, en_GB: type.address.replace(/^\/(?=[a-z]+\/)/, '/en-') };
+    }
+    given.settings.faqTitle = { label: 'FAQ title', type: 'string', control: 'text', translated: true };
+    const settings = one(cmsConfig(siteDescription(given), { ...place, language: 'sv' }), 'settings').files[0].fields;
+    assert.equal(field(settings, 'footerText').widget, 'object');
+    assert.equal(field(settings, 'footerText').label, 'footer text');
+    assert.equal(field(settings, 'faqTitle').label, 'FAQ title');
+    assert.equal(field(field(settings, 'consent').fields, 'bannerTitle').label, 'banner: titel', 'and the core\'s, in Swedish');
+  });
+
+  // The structured data type's own, while a post has none, is "{type} (förvald för {plural})".
+  test('give the type\'s plural to the structured data type as it stands in a phrase', () => {
+    const schema = (made, name) => field(one(made, name).fields.find((each) => each.name === 'structured').fields, 'schema');
+    assert.equal(schema(swedish, 'articles').typeLabel, 'artiklar');
+    const given = declared();
+    given.types.faq = { label: 'FAQ', plural: 'FAQs', collection: 'faqs', address: '/faq/{slug}/', elements: ['paragraph'], fields: { seo: {} } };
+    assert.equal(schema(cmsConfig(siteDescription(given), place), 'faqs').typeLabel, 'FAQs');
   });
 });
