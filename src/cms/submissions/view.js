@@ -4,7 +4,7 @@
 
 import { signedInCredential } from '../credential.js';
 import { say } from '../interface-language.js';
-import { downloadCsv, momentShown, offeredSeparator, readForms, readSubmissions, valueShown } from './client.js';
+import { browserTimeZone, downloadCsv, momentShown, offeredSeparator, readForms, readSubmissions, valueShown } from './client.js';
 
 const TEXT = { font: '14px/1.4 system-ui, sans-serif', overflowWrap: 'anywhere' };
 const LINE = { ...TEXT, margin: '4px 0' };
@@ -37,7 +37,7 @@ function Submission({ submission }) {
   const { createElement: h } = react();
   return h('li', { style: SUBMISSION },
     h('dl', { style: FIELDS },
-      h('dt', { style: LABEL }, say('submissions.sentAt')),
+      h('dt', { style: LABEL }, say('submissions.sentAt', { timeZone: browserTimeZone() })),
       h('dd', { style: VALUE }, momentShown(submission.sentAt)),
       submission.fields.flatMap(({ name, label, value }, at) => [
         h('dt', { key: `${at}-${name}-label`, style: LABEL }, label),

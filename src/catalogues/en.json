@@ -416,7 +416,7 @@
   "publishing.unknown": "Cannot tell how publishing stands just now.",
   "submissions.page": "Submissions",
   "submissions.form": "Form",
-  "submissions.sentAt": "Sent at",
+  "submissions.sentAt": "Sent at ({timeZone})",
   "submissions.yes": "Yes",
   "submissions.no": "No",
   "submissions.noForms": "The site has no forms.",

@@ -150,7 +150,7 @@ describe('the submissions, for editors', () => {
       store.keep(sent('2026-11-03T10:00:00Z', [field('note', 'Note', 'Elsewhere')], { form: 'note' }));
     };
 
-    test('is UTF-8 with a byte-order mark, its rows ended by CRLF, newest first, its columns the moment in the reader\'s time zone, the form, then the newest submission\'s labels in order and then each only older ones hold, and spam left out', async () => {
+    test('is UTF-8 with a byte-order mark, its rows ended by CRLF, newest first, its columns the moment in the reader\'s time zone, which its heading names, the form, then the newest submission\'s labels in order and then each only older ones hold, and spam left out', async () => {
       keepTwoAndSpam();
       const { headers, text } = await csv('separator=comma&timeZone=Europe/Stockholm&language=en');
       assert.equal(headers.get('content-type'), 'text/csv; charset=utf-8; header=present');
@@ -158,7 +158,7 @@ describe('the submissions, for editors', () => {
       assert.equal(headers.get('cache-control'), 'no-store');
       assert.equal(headers.get('x-content-type-options'), 'nosniff');
       assert.equal(text, [
-        '\uFEFFSent at,Form,Your name,Message,Keep me posted,Name,Phone,Interests',
+        '\uFEFFSent at (Europe/Stockholm),Form,Your name,Message,Keep me posted,Name,Phone,Interests',
         '2026-11-03 00:30:00,Contact us,Bea,Hi,No,,,',
         '2026-11-01 11:00:00,Contact us,,"Hello\nagain",Yes,Ada,\'+46 70 123,"Web, Print"',
         '',
@@ -168,14 +168,14 @@ describe('the submissions, for editors', () => {
     test('takes semicolons, and its words in the reader\'s interface language, in UTC where the reader names no time zone the service knows', async () => {
       keepTwoAndSpam();
       const expected = [
-        '\uFEFFSkickat;Formulär;Your name;Message;Keep me posted;Name;Phone;Interests',
+        '\uFEFFSkickat (UTC);Formulär;Your name;Message;Keep me posted;Name;Phone;Interests',
         '2026-11-02 23:30:00;Contact us;Bea;Hi;Nej;;;',
         '2026-11-01 10:00:00;Contact us;;"Hello\nagain";Ja;Ada;\'+46 70 123;Web, Print',
         '',
       ].join('\r\n');
       assert.equal((await csv('separator=semicolon&language=sv')).text, expected);
       assert.equal((await csv('separator=semicolon&language=sv&timeZone=Mars/Olympus')).text, expected);
-      assert.match((await csv('separator=comma&language=de')).text, /^\uFEFFSent at,Form,/, 'British English for a language without a catalogue');
+      assert.match((await csv('separator=comma&language=de')).text, /^\uFEFFSent at \(UTC\),Form,/, 'British English for a language without a catalogue');
       assert.equal((await get('/_konzilo/submissions/contact.csv?separator=tab')).status, 400);
       assert.equal((await get('/_konzilo/submissions/contact.csv')).status, 400);
     });
@@ -183,9 +183,9 @@ describe('the submissions, for editors', () => {
     test('has a column for each field of a label two fields share in one submission, and names a form the site no longer declares by its name', async () => {
       store.keep(sent('2026-11-01T10:00:00Z', [field('first', 'Name', 'Ada'), field('last', 'Name', 'Lovelace')]));
       store.keep(sent('2026-11-01T10:00:00Z', [field('topic', 'Topic', 'Old')], { form: 'retired' }));
-      assert.equal((await csv('separator=comma')).text, '\uFEFFSent at,Form,Name,Name\r\n2026-11-01 10:00:00,Contact us,Ada,Lovelace\r\n');
-      assert.equal(new TextDecoder().decode(await (await get('/_konzilo/submissions/retired.csv?separator=comma')).arrayBuffer()), 'Sent at,Form,Topic\r\n2026-11-01 10:00:00,retired,Old\r\n');
-      assert.equal(new TextDecoder().decode(await (await get('/_konzilo/submissions/note.csv?separator=comma')).arrayBuffer()), 'Sent at,Form\r\n', 'a declared form none was sent to');
+      assert.equal((await csv('separator=comma')).text, '\uFEFFSent at (UTC),Form,Name,Name\r\n2026-11-01 10:00:00,Contact us,Ada,Lovelace\r\n');
+      assert.equal(new TextDecoder().decode(await (await get('/_konzilo/submissions/retired.csv?separator=comma')).arrayBuffer()), 'Sent at (UTC),Form,Topic\r\n2026-11-01 10:00:00,retired,Old\r\n');
+      assert.equal(new TextDecoder().decode(await (await get('/_konzilo/submissions/note.csv?separator=comma')).arrayBuffer()), 'Sent at (UTC),Form\r\n', 'a declared form none was sent to');
       assert.equal((await get('/_konzilo/submissions/no-such-form.csv?separator=comma')).status, 404);
     });
 
@@ -240,7 +240,7 @@ describe('the submissions, for editors', () => {
         const { text } = await csv(`separator=${written}`);
         const [header, row, ...rest] = readCsv(text, separator);
         assert.deepEqual(rest, []);
-        assert.deepEqual(header, ['Sent at', 'Form', ...Object.keys(risky)]);
+        assert.deepEqual(header, ['Sent at (UTC)', 'Form', ...Object.keys(risky)]);
         assert.deepEqual(row.slice(2).map((cell) => cell.replace(/(^|[,;\r\n])'/g, '$1')), Object.values(risky), written);
         for (const other of [',', ';']) {
           for (const cell of readCsv(text, other).flat()) assert.doesNotMatch(cell, FORMULA, `${written} read by ${other}: ${JSON.stringify(cell)}`);

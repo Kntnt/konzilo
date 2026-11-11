@@ -416,7 +416,7 @@
   "publishing.unknown": "Det går inte att se hur publiceringen står just nu.",
   "submissions.page": "Inskick",
   "submissions.form": "Formulär",
-  "submissions.sentAt": "Skickat",
+  "submissions.sentAt": "Skickat ({timeZone})",
   "submissions.yes": "Ja",
   "submissions.no": "Nej",
   "submissions.noForms": "Webbplatsen har inga formulär.",

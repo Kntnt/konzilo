@@ -12,7 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A site repository can keep fictional demo content of its own in `demo-content/`, which a local copy starts from in place of the core's, with `npm run dev`, `npm run build` or Compose, and which a build for a public host refuses as it refuses the core's.
 - A meta line between an article's standfirst and its body, with its date, its category and its authors, written by a format with variables that an Admin sets for each type in each language in the site settings; a page or a type of the site's own shows one once an Admin gives it a format.
 - A site's forms are taken: a visitor's message is sent with JavaScript or without, the form says it was sent, and the site keeps it with its fields' labels and its page's language, never the visitor's address, while spam is held apart and too many messages from one place are refused. The site template has a contact form on a page of its demo content.
-- Admins and Editors read each form's submissions, newest first and without spam, on a Submissions page in the editor, in its interface language, and download a form's as a CSV file with commas or semicolons, which opens in a spreadsheet with no value taken as a formula.
+- Admins and Editors read each form's submissions, newest first and without spam, on a Submissions page in the editor, in its interface language, and download a form's as a CSV file with commas or semicolons, which opens in a spreadsheet with no value taken as a formula; the page and the file give each moment in the reader's time zone, and name it.
 
 ### Changed
 

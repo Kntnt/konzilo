@@ -58,16 +58,18 @@ function* columnsOf({ fields }) {
 // for the rows. `separator`: a name of SEPARATORS. `timeZone`: the one the moments are in.
 // `language`: the reader's interface language, which the column names and a box's words are in.
 //
-// Columns: when it was sent, the form, then each field's label, the newest submission's in its
-// order, then each label only older ones hold.
+// Columns: when it was sent, in the time zone its heading names by its IANA name, since a
+// spreadsheet takes `YYYY-MM-DD HH:MM:SS` as a moment and the same with an offset as text; the
+// form; then each field's label, the newest submission's in its order, then each label only older
+// ones hold.
 export function* submissionsCsv({ label, each, separator, timeZone, language }) {
   const by = SEPARATORS[separator];
-  const words = (name) => text(catalogueFor(language), `submissions.${name}`);
+  const words = (name, values) => text(catalogueFor(language), `submissions.${name}`, values);
   const columns = new Map();
   for (const submission of each()) {
     for (const { column, label: named } of columnsOf(submission)) if (!columns.has(column)) columns.set(column, named);
   }
-  yield `${BYTE_ORDER_MARK}${row([words('sentAt'), words('form'), ...columns.values()], by)}`;
+  yield `${BYTE_ORDER_MARK}${row([words('sentAt', { timeZone }), words('form'), ...columns.values()], by)}`;
 
   const moment = momentIn(timeZone);
   const box = { yes: words('yes'), no: words('no') };

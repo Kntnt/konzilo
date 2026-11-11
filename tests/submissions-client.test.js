@@ -6,8 +6,8 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import { useInterfaceLanguage } from '../src/cms/interface-language.js';
-import { downloadCsv, offeredSeparator, readForms, readSubmissions, valueShown } from '../src/cms/submissions/client.js';
+import { say, useInterfaceLanguage } from '../src/cms/interface-language.js';
+import { downloadCsv, momentShown, offeredSeparator, readForms, readSubmissions, valueShown } from '../src/cms/submissions/client.js';
 
 // A service that answers each path as it is told to, and notes what it was asked.
 function service(answers) {
@@ -75,6 +75,21 @@ describe('a value shown', () => {
       assert.equal(valueShown(true), 'Ja');
       assert.equal(valueShown(false), 'Nej');
     });
+  });
+});
+
+describe('a moment shown', () => {
+  // The page and the file give a moment in the reader's time zone, which each names in the
+  // label beside it, its column's heading in the file.
+  test('is in the interface language\'s own form, in the time zone it is shown in, which its label names', async () => {
+    const at = '2026-11-11T10:00:00.000Z';
+    assert.match(momentShown(at, 'Europe/Stockholm'), /^11 November 2026\b.*\b11:00$/);
+    assert.match(momentShown(at, 'UTC'), /^11 November 2026\b.*\b10:00$/);
+    await withLanguage('sv', () => {
+      assert.match(momentShown(at, 'Europe/Stockholm'), /^11 november 2026\b.*\b11:00$/);
+      assert.equal(say('submissions.sentAt', { timeZone: 'Europe/Stockholm' }), 'Skickat (Europe/Stockholm)');
+    });
+    assert.equal(say('submissions.sentAt', { timeZone: 'Europe/Stockholm' }), 'Sent at (Europe/Stockholm)');
   });
 });
 

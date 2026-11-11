@@ -42,11 +42,12 @@ export function offeredSeparator() {
 // A field's value as the page shows it: a text as it came, a box ticked or not, or the boxes ticked.
 export const valueShown = (value) => valueText(value, { yes: say('submissions.yes'), no: say('submissions.no') });
 
-// A moment as the page shows it, in the interface language's own form and the browser's time zone.
-export const momentShown = (at) => new Date(at).toLocaleString(languageTag(), { dateStyle: 'long', timeStyle: 'short' });
-
 // The browser's own time zone, which the file's moments are in, as the page's are.
 export const browserTimeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+// A moment as the page shows it, in the interface language's own form, in a time zone, the
+// browser's by default, which the page names beside it, as the file's heading does.
+export const momentShown = (at, timeZone = browserTimeZone()) => new Date(at).toLocaleString(languageTag(), { dateStyle: 'long', timeStyle: 'short', timeZone });
 
 // A day as `YYYY-MM-DD` in a time zone.
 const dayIn = (at, timeZone) => momentIn(timeZone)(at).slice(0, 10);

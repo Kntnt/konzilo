@@ -1085,7 +1085,10 @@ describe('a site in Compose', () => {
           const text = bytes.toString('utf8');
           assert.doesNotMatch(text, /[^\r]\n/, 'every row ended by CRLF');
           const [header, ...rows] = readCsv(text, by);
-          assert.deepEqual(header, [sentAt, formColumn, 'Name', 'Email', 'Message', 'I have read the privacy policy']);
+          // The moments are in the browser's time zone, which the page and the file both name.
+          const zone = await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
+          await page.getByText(`${sentAt} (${zone})`, { exact: true }).first().waitFor();
+          assert.deepEqual(header, [`${sentAt} (${zone})`, formColumn, 'Name', 'Email', 'Message', 'I have read the privacy policy']);
           assert.deepEqual(rows.map((row) => row[4]), sentWords, 'newest first, spam left out');
           for (const row of rows) {
             assert.match(row[0], /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/);
