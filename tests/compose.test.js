@@ -157,7 +157,12 @@ test('runs the service for visitors in a container of its own, which the web ser
   assert.doesNotMatch(visitors, /^ {4}ports:/m);
   assert.match(visitors, /^ {4}command: \["node", "\/konzilo\/bin\/konzilo-service\.js", "visitors"\]$/m);
   assert.match(visitors, /^ {6}- service-data:\/service-data$/m);
-  assert.match(visitors, /site-description\.json:\/site\/site-description\.json:ro$/m);
+  // The site's folder, not its description alone: a mount of one file holds on to the file it was
+  // made with, and a description replaced, as Git writes one, would never reach the service.
+  for (const role of ['visitors', 'editors']) {
+    assert.match(blocks[role], /^ {6}- \$\{KONZILO_SITE_DIR:-\.\}:\/site:ro$/m, role);
+  }
+  assert.doesNotMatch(compose, /site-description\.json:\/site\//, 'no file of the site\'s mounted alone');
   assert.match(visitors, /KONZILO_SITE_ORIGIN: http:\/\/localhost:\$\{KONZILO_PORT_SITE\}/);
   assert.match(blocks.editors, /^ {4}command: \["node", "\/konzilo\/bin\/konzilo-service\.js", "editors"\]$/m);
   assert.match(compose, /^ {2}visitors:\n {4}internal: true$/m);
