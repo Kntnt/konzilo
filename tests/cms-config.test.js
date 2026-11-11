@@ -538,9 +538,30 @@ describe('the form\'s field groups', () => {
     ]);
   });
 
-  test('keep a page\'s and a canvas\'s publishing row, after their status', () => {
-    assert.deepEqual(shape('pages'), [['group-name', ['title', 'breadcrumb', 'slug']], ['group-status', ['status']], 'publishing', 'parent', 'body', 'search', 'sharing', 'structured', 'otherAddresses']);
-    assert.deepEqual(shape('canvases'), [['group-name', ['title', 'slug']], ['group-status', ['status']], 'publishing', 'body', 'search', 'sharing', 'structured', 'otherAddresses']);
+  // A page and a canvas take the article's sections that they have, in its order, beside their
+  // parent and body; their status says whether they are published, as an article's does.
+  test('give a page and a canvas the article\'s name, status and date, and teaser, in its order, with no publishing row', () => {
+    assert.deepEqual(shape('pages'), [['group-name', ['title', 'breadcrumb', 'slug']], ['group-status', ['status', 'date']], 'parent', 'body', 'teaser', 'search', 'sharing', 'structured', 'otherAddresses']);
+    assert.deepEqual(shape('canvases'), [['group-name', ['title', 'breadcrumb', 'slug']], ['group-status', ['status', 'date']], 'body', 'teaser', 'search', 'sharing', 'structured', 'otherAddresses']);
+    for (const name of ['pages', 'canvases']) {
+      const { fields } = collection(name);
+      assert.equal(field(fields, 'group-status').label, 'Status and date', name);
+      assert.equal(field(fields, 'date').widget, 'datetime');
+      assert.equal(field(fields, 'date').labelled, false, 'the date and time under the status\'s choices, with no label of their own');
+      assert.equal(field(fields, 'modified'), undefined, 'the last change is the intake\'s');
+      assert.equal(field(fields, 'publishing'), undefined);
+    }
+  });
+
+  // A teaser falls back to what its type has: a page's to its title, and no text or image of its own.
+  test('show in a page\'s teaser and its search and sharing fields what they fall back to, and offer its teaser no main image to fall back to', () => {
+    const teaser = field(collection('pages').fields, 'teaser');
+    assert.deepEqual(teaser.fields.map(({ name, fallback }) => [name, fallback]), [['image', undefined], ['headline', 'teaserHeadline'], ['text', 'teaserText']]);
+    assert.equal(field(collection('articles').fields, 'teaser').fields[0].fallback, true, 'an article\'s falls back to its main image');
+    const search = field(collection('pages').fields, 'search');
+    assert.deepEqual(search.fields.slice(0, 2).map(({ name, fallback }) => [name, fallback]), [['title', 'searchTitle'], ['description', 'searchDescription']]);
+    const sharing = field(collection('canvases').fields, 'sharing');
+    assert.deepEqual(sharing.fields.map(({ name, fallback }) => [name, fallback]), [['image', undefined], ['title', 'socialTitle'], ['description', 'socialDescription']]);
   });
 
   test('draw a group of the core\'s fields in the core\'s own field, and the terms, which only Sveltia draws, in an object', () => {
@@ -738,8 +759,8 @@ describe('a site\'s own fields in a group of their own', () => {
     assert.deepEqual(own.fields.map((one) => [one.name, one.label, one.widget, one.required]), [['rating', 'Rating', 'number', true], ['mood', 'Mood', 'select', false]]);
   });
 
-  test('put a page\'s after its body and before search', () => {
-    assert.deepEqual(shape(cmsConfig(siteDescription(withOwn()), place), 'pages'), [['group-name', ['title', 'breadcrumb', 'slug']], ['group-status', ['status']], 'publishing', 'parent', 'body', ['group-own', ['sidebar']], 'search', 'sharing', 'structured', 'otherAddresses']);
+  test('put a page\'s after its body and before the teaser', () => {
+    assert.deepEqual(shape(cmsConfig(siteDescription(withOwn()), place), 'pages'), [['group-name', ['title', 'breadcrumb', 'slug']], ['group-status', ['status', 'date']], 'parent', 'body', ['group-own', ['sidebar']], 'teaser', 'search', 'sharing', 'structured', 'otherAddresses']);
   });
 
   test('tell the editor the group\'s fields in every form, so that a source file keeps them flat', () => {
@@ -769,7 +790,7 @@ describe('a site\'s own fields in a group of their own', () => {
     given.types.page.fields = { ...given.types.page.fields, topics: { taxonomy: 'topics' } };
     const made = cmsConfig(siteDescription(given), place);
     assert.deepEqual(shape(made, 'articles').slice(6, 10), ['body', 'tags', ['group-own', ['rating', 'mood']], 'teaser']);
-    assert.deepEqual(shape(made, 'pages').slice(4, 8), ['body', ['group-own', ['sidebar']], ['group-terms', ['topics']], 'search']);
+    assert.deepEqual(shape(made, 'pages').slice(3, 8), ['body', ['group-own', ['sidebar']], ['group-terms', ['topics']], 'teaser', 'search']);
   });
 
   // A type of the site's own has its files read in a format of its own, which holds no group of

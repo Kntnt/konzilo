@@ -231,8 +231,9 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     ];
   };
 
-  // The teaser: what shows the post elsewhere, closed until an editor wants it otherwise.
-  const teaserField = (field) => ({
+  // The teaser: what shows the post elsewhere, closed until an editor wants it otherwise. Its
+  // image falls back to the main image, where the type has one; a page's and a canvas's to none.
+  const teaserField = (field, type) => ({
     name: field.name,
     label: say('teaser'),
     widget: 'object',
@@ -241,7 +242,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     collapsed: true,
     ...within(TRANSLATED),
     fields: [
-      imageField('image', say('file'), { required: false, fallback: true }),
+      imageField('image', say('file'), { required: false, ...(type.fields.some((one) => one.kind === 'image') ? { fallback: true } : {}) }),
       { name: 'headline', label: say('teaserHeadline'), widget: TEXT_WIDGET, fallback: 'teaserHeadline', required: false },
       { name: 'text', label: say('teaserText'), widget: TEXT_WIDGET, multiline: true, fallback: 'teaserText', required: false },
     ],
@@ -271,7 +272,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
       case 'seo':
         return seoFields(type);
       case 'teaser':
-        return teaserField(field);
+        return teaserField(field, type);
       case 'breadcrumb':
       case 'eyebrow':
       case 'headline':
@@ -378,9 +379,11 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
   const TERMS_FIELDS = [AUTHORS, CATEGORY, TOPICS];
 
   // The order of a form, by its parts: `declared` is where the fields the site declares go, on a
-  // built-in type its own after the body and before the closed bars.
+  // built-in type its own after the body and before the closed bars. A page and a canvas take
+  // the article's parts they have, in its order, beside their parent and body; their status says
+  // whether they are published, as an article's does, so neither has a publishing row.
   const ARTICLE_FORM = ['name', 'status', 'image', 'terms', 'headline', 'standfirst', 'body', 'declared', 'teaser', 'seo', 'otherAddresses'];
-  const PAGE_FORM = ['name', 'status', 'publishing', 'parent', 'body', 'declared', 'seo', 'otherAddresses'];
+  const PAGE_FORM = ['name', 'status', 'parent', 'body', 'declared', 'teaser', 'seo', 'otherAddresses'];
   const OWN_FORM = ['name', 'status', 'publishing', 'parent', 'body', 'declared', 'otherAddresses'];
 
   const typeFields = (type) => {
@@ -440,8 +443,9 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
       // The date and time under the status's choices, with no label of its own, and the time zone,
       // which Sveltia names, under them.
       status: () => coreGroup('status', date ? say('groupStatus') : say('status'), [status, date && { ...date, labelled: false }].filter(Boolean)),
-      // How it stands on the site, which is nothing the file holds (ADR 0031). An article's
-      // status says whether it is published, and its page opens from beside the slug.
+      // How it stands on the site, which is nothing the file holds (ADR 0031). A built-in type's
+      // status says whether it is published, and its page opens from beside the slug, so only a
+      // type of the site's own has it.
       publishing: () => ({ name: 'publishing', label: say('publishing'), widget: PUBLISHING_WIDGET, required: false, ...within(SAME_IN_EACH) }),
       parent: () => (type.hierarchical ? { name: 'parent', label: say('parent'), ...relation(type.collection, POST_TITLE), required: false, ...within(SAME_IN_EACH) } : null),
       body: () => ({ name: 'body', label: say('body'), widget: type.editor === 'structure' ? STRUCTURE_WIDGET : BODY_WIDGET, required: false, elements: type.elements, forms, ...(description.images?.smallestWidth ? { smallestWidth: description.images.smallestWidth } : {}), ...within(TRANSLATED) }),

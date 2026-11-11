@@ -385,7 +385,8 @@ describe('a site built with astro build for https://www.example.com', () => {
       ],
     });
 
-    // A page whose own type is AboutPage, with no date, sharing the logo.
+    // A page whose own type is AboutPage, sharing the logo, with its date and last change, and
+    // its title tag what its teaser falls back to, its title.
     const about = graphOf('about');
     const aboutPage = `${ORIGIN}/about/`;
     const card = imageAt(about, `${aboutPage}#primaryimage`, `logo-${shortHash(LOGO)}`, 'jpg|jpeg');
@@ -398,12 +399,14 @@ describe('a site built with astro build for https://www.example.com', () => {
           '@type': 'AboutPage',
           '@id': `${aboutPage}#webpage`,
           url: aboutPage,
-          name: 'About the lantern – The Quiet Lantern',
+          name: 'About the lantern | The Quiet Lantern',
           description: 'Who keeps the lantern.',
           isPartOf: WEBSITE,
           breadcrumb: { '@id': `${aboutPage}#breadcrumb` },
           inLanguage: 'en-GB',
           primaryImageOfPage: { '@id': `${aboutPage}#primaryimage` },
+          datePublished: '2026-10-01T08:00:00Z',
+          dateModified: '2026-10-01T08:00:00Z',
         },
         image(aboutPage, card, 'A lantern beside the words The Quiet Lantern'),
         breadcrumbs(aboutPage, 'About the lantern'),

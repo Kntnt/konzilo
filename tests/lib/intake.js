@@ -62,7 +62,8 @@ export const everyElement = Object.freeze({
   forms: { contact: { label: 'Contact us', fields: [{ name: 'email', label: 'Email', kind: 'email', required: true }] } },
 });
 
-// A page of that site, and its body as the intake writes it.
+// A page of that site, and its body as the intake writes it, its date and last change the
+// moment of the build that first took it.
 export const pageSource = (body) => sourcePost({ title: 'Hello world', slug: 'hello-world', status: 'published' }, body);
 export const pagePath = 'pages/1a2b3c4d5e6f.md';
-export const pageFile = (body) => `---\ntitle: "Hello world"\n---\n${body === '' ? '' : `\n${body}\n`}`;
+export const pageFile = (body) => `---\ntitle: "Hello world"\ndate: 2026-11-03T12:00:00Z\nmodified: 2026-11-03T12:00:00Z\n---\n${body === '' ? '' : `\n${body}\n`}`;

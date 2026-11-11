@@ -16,6 +16,7 @@ const site = {
   types: {
     story: { label: 'Article', plural: 'Articles', collection: 'articles', address: '/{slug}/', elements: ['paragraph'], fields: { date: {}, modified: {} } },
     page: { label: 'Page', plural: 'Pages', collection: 'pages', hierarchical: true, address: '/pages/{path}/', elements: ['paragraph'] },
+    canvas: { collection: 'canvases', address: '/landing/{slug}/', elements: ['paragraph'] },
   },
 };
 const THE_POST = 'articles/aaaaaaaaaaaa.md';
@@ -181,6 +182,26 @@ describe('what is derived', () => {
   test('a post\'s date is the moment the intake first took it, where it has none of its own', () => {
     const [, second] = history({ [THE_POST]: post({ date: undefined }) }, { [THE_POST]: post({ date: undefined }, 'Changed.') });
     assert.equal(frontmatter(written(second)['articles/first.md']).date, '2026-11-01T12:00:00Z');
+  });
+
+  // Every post is published at a moment, its date, a page's and a canvas's as an article's.
+  test('a page\'s and a canvas\'s date is the editor\'s own, else the moment the intake first took it, and its last change moves as an article\'s', () => {
+    const PAGE = 'pages/cccccccccccc.md';
+    const CANVAS = 'canvases/dddddddddddd.md';
+    const page = (fields = {}, body = 'Text.') => sourcePost({ title: 'About', slug: 'about', status: 'published', ...fields }, body);
+    const canvas = (fields = {}, body = 'Text.') => sourcePost({ title: 'Spring', slug: 'spring', status: 'published', date: '2026-10-01T08:00:00Z', ...fields }, body);
+    const [first, second, third] = history(
+      { [PAGE]: page(), [CANVAS]: canvas() },
+      { [PAGE]: page({}, 'Text.\n\n\n\n'), [CANVAS]: canvas() },
+      { [PAGE]: page({}, 'Changed.'), [CANVAS]: canvas({}, 'Changed.') },
+    );
+    assert.deepEqual(Object.keys(frontmatter(written(first)['pages/about.md'])), ['title', 'date', 'modified']);
+    assert.deepEqual(frontmatter(written(first)['pages/about.md']), { title: '"About"', date: '2026-11-01T12:00:00Z', modified: '2026-11-01T12:00:00Z' });
+    assert.deepEqual(frontmatter(written(first)['canvases/spring.md']), { title: '"Spring"', date: '2026-10-01T08:00:00Z', modified: '2026-10-01T08:00:00Z' });
+    assert.equal(frontmatter(written(second)['pages/about.md']).date, '2026-11-01T12:00:00Z', 'the moment first taken stays its date');
+    assert.equal(frontmatter(written(second)['pages/about.md']).modified, '2026-11-01T12:00:00Z');
+    assert.deepEqual(frontmatter(written(third)['pages/about.md']), { title: '"About"', date: '2026-11-01T12:00:00Z', modified: '2026-11-03T12:00:00Z' });
+    assert.equal(frontmatter(written(third)['canvases/spring.md']).modified, '2026-11-03T12:00:00Z');
   });
 
   test('a date given in another zone is written in UTC', () => {

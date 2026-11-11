@@ -12,7 +12,7 @@ import { demoSource, sourceFrom } from '../src/demo-source.js';
 import { imagesFrom } from '../src/intake/images.js';
 import { intake } from '../src/intake/index.js';
 import { siteDescription } from '../src/site-description.js';
-import { contentFormat, exampleFile, markedExamples, siteOf } from './lib/content-format.js';
+import { BODY_HEAD, contentFormat, exampleFile, markedExamples, siteOf } from './lib/content-format.js';
 import { everyElement, namedImages, NOW, pageFile, pagePath, pageSource, run, sourcePost, written } from './lib/intake.js';
 
 const root = fileURLToPath(new URL('./fixtures/', import.meta.url));
@@ -86,7 +86,7 @@ describe('the examples of content-format.md', () => {
   for (const example of marked.checked.filter((one) => one.attributes.body && !one.attributes['reader-only'])) {
     test(`the body at line ${example.line}`, () => {
       const { path, contents } = exampleFile(example);
-      const body = contents.replace(/^---\ntitle: "Example"\n---\n\n/, '').replace(/\n$/, '');
+      const body = contents.slice(BODY_HEAD.length).replace(/\n$/, '');
       const of = siteOf(example) === '' ? site : siteDescription(marked.sites[siteOf(example)]);
       const result = run({ [pagePath]: sourcePost({ title: 'Example', slug: 'example', status: 'published' }, body), ...(of === site ? { 'categories/newsnewsnews.json': { name: 'News', slug: 'news' } } : {}) }, of);
       assert.deepEqual(result.refusals, []);
