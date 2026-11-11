@@ -128,7 +128,8 @@ services:
       retries: 60
 
   # Fills Forgejo the first time: an organisation, a repository with the demo content
-  # as source files, an account and the editor's OAuth client; and at every start makes
+  # as source files, the site repository's own in its demo-content/ where it has any,
+  # else the core's, an account and the editor's OAuth client; and at every start makes
   # sure of the machine accounts, the content repository and the webhook.
   seed:
     <<: *hardened
@@ -157,7 +158,7 @@ services:
       - builder-secret:/builder-secret
       - editors-secret:/editors-secret
       - typesense-secret:/typesense-secret
-      - ${KONZILO_SITE_DIR:-.}/site-description.json:/site/site-description.json:ro
+      - ${KONZILO_SITE_DIR:-.}:/site:ro
 
   # Search (ADR 0053): Typesense, the vendor's, in a network of its own that only the web server
   # shares (ADR 0005), with no port and no way out. Its admin key is in the configuration the seed

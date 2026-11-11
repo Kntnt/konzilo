@@ -26,7 +26,7 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Site**: One website built on Konzilo: its site repository, its source and content repositories and its public pages. _Avoid_: project, instance.
 
-**Site repository**: A thin repository that pins a core release and holds what is the site's own: its site description, design, components and tests, never its content. _Avoid_: site template, theme.
+**Site repository**: A thin repository that pins a core release and holds what is the site's own: its site description, design, components and tests, and any demo content of its own, never its content. _Avoid_: site template, theme.
 
 **Site template**: The files `new-site` starts a site repository from. A change reaches only sites made after it.
 
@@ -78,7 +78,7 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Content format**: The shape of the published files, described in one document, `content-format.md`, so that any tool can read them. _Avoid_: schema, export format.
 
-**Demo content**: The fictional content a fresh local copy gets, as files. _Avoid_: sample content, test data.
+**Demo content**: The fictional content a fresh local copy gets, as files: the site repository's own, in its `demo-content/`, where it has any, else the core's. _Avoid_: sample content, test data.
 
 **Body styles**: The stylesheets a site names for the body text of its posts, which style it alike on the site and in the Crepe field. _Avoid_: theme, prose CSS.
 
