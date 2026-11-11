@@ -1,8 +1,8 @@
 // What a developer does from a fresh clone: bin/new-site makes a site
 // repository, `npm install` installs the core and Astro, `npm run build` builds
-// the demo content into a static site, and `npm run dev` serves it, following
-// every change of the site's content and code. It needs no PHP, no database and
-// no container.
+// the demo content into a static site, the core's or the site's own, and
+// `npm run dev` serves it, following every change of the site's content and
+// code. It needs no PHP, no database and no container.
 
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
@@ -229,7 +229,7 @@ describe('new-site', () => {
         assert.match(read(`${OWN_DEMO.article.address}index.html`), new RegExp(`<h1>${OWN_DEMO.article.title}</h1>`));
         assert.match(read(`${OWN_DEMO.page.address}index.html`), new RegExp(OWN_DEMO.page.words));
         assert.equal(existsSync(join(dist, 'quiet-harbours-and-the-lantern')), false, 'no article of the core\'s');
-        assert.match(run('git', ['-C', site, 'status', '--porcelain'], folder).stdout, /^\?\? demo-content\/$/m, 'Git tracks it, as the site\'s own');
+        assert.match(run('git', ['-C', site, 'status', '--porcelain'], folder).stdout, /^\?\? demo-content\/$/m, 'Git does not ignore it: it is the site\'s own to commit');
       });
 
       test('refuses a build for a public host with no content', () => {
