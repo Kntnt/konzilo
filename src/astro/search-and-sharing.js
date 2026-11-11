@@ -234,7 +234,7 @@ async function postPage({ entry, type, path, number, search, site }, known, getE
   // the templates.
   const teaser = followsParts(type);
   const shown = (rule) => (teaser ? rule(entry.data) : '');
-  const titleTag = seo.title || shown((data) => searchTitleOf(data, known.settings?.title ?? '')) || render(templates.title) || entry.data.title;
+  const titleTag = seo.title || shown((data) => searchTitleOf(data, known.settings?.title ?? '', search.separator ?? '')) || render(templates.title) || entry.data.title;
   const metaDescription = seo.description || shown(searchDescriptionOf) || render(templates.description);
   const address = entryAddress(type, entry.id, site.languages);
   const later = number > 1;

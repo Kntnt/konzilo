@@ -7,6 +7,9 @@
 //   fallback: <rule>      the placeholder shows what the part falls back to, by a rule of
 //                         article-parts.js: breadcrumb, teaserHeadline, teaserText,
 //                         searchTitle, searchDescription, socialTitle or socialDescription;
+//                         searchTitle with the site's name and separator from the site's
+//                         settings, and `separator`, the separator's default, where they
+//                         give none;
 //                         or ownAddress, the post's own address on the public site, from
 //                         `address`, its type's with {slug}, or one by the language tag of
 //                         each pane, while the post has a slug and no parent
@@ -66,7 +69,7 @@ export function registerParts(CMS, config) {
     breadcrumb: (data) => breadcrumbOf({ ...data, breadcrumb: '' }),
     teaserHeadline: (data) => teaserHeadlineOf({ ...data, teaser: { ...data.teaser, headline: '' } }),
     teaserText: (data) => teaserTextOf({ ...data, teaser: { ...data.teaser, text: '' } }),
-    searchTitle: (data, { name }) => searchTitleOf(data, name),
+    searchTitle: (data, { name, separator }) => searchTitleOf(data, name, separator),
     searchDescription: (data) => searchDescriptionOf(data),
     socialTitle: (data) => socialTitleOf(data),
     socialDescription: (data) => socialDescriptionOf(data),
@@ -83,6 +86,7 @@ export function registerParts(CMS, config) {
     const multiline = plain(field.get('multiline')) === true;
     const [open, setOpen] = React.useState(Boolean(value));
     const [name, setName] = React.useState('');
+    const [separator, setSeparator] = React.useState(plain(field.get('separator')) ?? '');
     const [locale, setLocale] = React.useState(null);
     const input = React.useRef(null);
     const composing = React.useRef(false);
@@ -94,7 +98,11 @@ export function registerParts(CMS, config) {
       if (fallback !== 'searchTitle') return undefined;
       let gone = false;
       void readSettings().then((settings) => {
-        if (!gone) setName(settings.title ?? '');
+        if (gone) return;
+        setName(settings.title ?? '');
+        // A settings file holds a setting only where it differs from its default.
+        const own = settings.search?.separator;
+        if (typeof own === 'string' && own.trim() !== '') setSeparator(own);
       });
       return () => {
         gone = true;
@@ -118,7 +126,7 @@ export function registerParts(CMS, config) {
     if (add && !value && !open) {
       return h('button', { type: 'button', id: forID, className: 'konzilo-part-add', onClick: () => setOpen(true) }, `+ ${add}`);
     }
-    const placeholder = (fallback && RULES[fallback] ? RULES[fallback](dataOf(entry), { name, address: plain(field.get('address')), locale }) : '') || (plain(field.get('placeholder')) ?? '');
+    const placeholder = (fallback && RULES[fallback] ? RULES[fallback](dataOf(entry), { name, separator, address: plain(field.get('address')), locale }) : '') || (plain(field.get('placeholder')) ?? '');
     return h(multiline ? 'textarea' : 'input', {
       ref: input,
       id: forID,

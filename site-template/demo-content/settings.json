@@ -33,23 +33,17 @@
     },
     "types": {
       "article": {
-        "title": "{{ post.title }} {{ sep }} {{ site.title }}",
         "description": "{{ post.auto_description }}",
-        "socialTitle": "{{ post.title }}",
         "socialDescription": "{{ post.auto_description }}",
         "schema": "Article"
       },
       "page": {
-        "title": "{{ post.title }} {{ sep }} {{ site.title }}",
         "description": "{{ post.auto_description }}",
-        "socialTitle": "{{ post.title }}",
         "socialDescription": "{{ post.auto_description }}",
         "schema": "WebPage"
       },
       "canvas": {
-        "title": "{{ post.title }} {{ sep }} {{ site.title }}",
         "description": "{{ post.auto_description }}",
-        "socialTitle": "{{ post.title }}",
         "socialDescription": "{{ post.auto_description }}",
         "schema": "WebPage"
       }
@@ -60,8 +54,7 @@
       "article": {
         "format": "Published on {date} in {category} by {authors}"
       },
-      "page": {},
-      "canvas": {}
+      "page": {}
     }
   },
   "breadcrumbs": {

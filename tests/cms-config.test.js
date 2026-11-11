@@ -277,7 +277,7 @@ describe('the interface language', () => {
     });
   });
 
-  test('shows the meta line\'s format by type, in the interface language, the article\'s default in the content\'s language, and none for a page or a canvas', () => {
+  test('shows the meta line\'s format by type, in the interface language, the article\'s default in the content\'s language, none for a page, and no format for a canvas', () => {
     for (const [language, heading] of [['sv', 'Metarad'], ['en', 'Meta line']]) {
       const made = cmsConfig(swedish, { ...place, language });
       const group = field(made.collections.find((one) => one.name === 'settings').files[0].fields, 'metaLine');
@@ -286,7 +286,8 @@ describe('the interface language', () => {
       // The article's, which has a default, in the core's field for a setting, which shows Sveltia's.
       const { label, field: shown } = format('article');
       assert.deepEqual({ label, widget: shown.widget, default: shown.default }, { label: 'Format', widget: 'string', default: 'Av {authors}, publicerad den {date} under {category}' }, language);
-      for (const type of ['page', 'canvas']) assert.deepEqual([format(type).widget, format(type).default], ['string', undefined], `${language}: ${type}`);
+      assert.deepEqual([format('page').widget, format('page').default], ['string', undefined], language);
+      assert.equal(field(field(group.fields, 'types').fields, 'canvas'), undefined, `${language}: a canvas is its body alone`);
     }
   });
 
@@ -638,6 +639,7 @@ describe('the form\'s field groups', () => {
     assert.equal(field(collection('articles').fields, 'teaser').fields[0].fallback, true, 'an article\'s falls back to its main image');
     const search = field(collection('pages').fields, 'search');
     assert.deepEqual(search.fields.slice(0, 2).map(({ name, fallback }) => [name, fallback]), [['title', 'searchTitle'], ['description', 'searchDescription']]);
+    assert.equal(search.fields[0].separator, '–', 'the separator\'s default, which the title tag takes until the site\'s settings give another');
     const sharing = field(collection('canvases').fields, 'sharing');
     assert.deepEqual(sharing.fields.map(({ name, fallback }) => [name, fallback]), [['image', undefined], ['title', 'socialTitle'], ['description', 'socialDescription']]);
   });

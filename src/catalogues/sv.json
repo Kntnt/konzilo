@@ -434,7 +434,7 @@
   "parts.schemaPreset": "{type} (förvald för {plural})",
   "parts.scheduledAhead": "En schemalagd post publiceras vid sin tidpunkt, och den behöver ligga i framtiden. Ändra datum och klockslag, eller välj en annan status.",
   "settings.search.label": "Sökning och delning",
-  "settings.search.description": "Det som sökmotorer och sociala nätverk visar av webbplatsens sidor: titeltaggen, metabeskrivningen och delningskortet för var och en, gjorda av mallarna nedan, dess typ av strukturerad data, och utgivaren bakom webbplatsen. En mall är text med variabler, till exempel {{ post.title }}; varje del listar de variabler den får använda.",
+  "settings.search.description": "Det som sökmotorer och sociala nätverk visar av webbplatsens sidor: titeltaggen, metabeskrivningen och delningskortet för var och en, gjorda av dess puff där dess typ har en, och annars av mallarna nedan, dess typ av strukturerad data, och utgivaren bakom webbplatsen. En mall är text med variabler, till exempel {{ post.title }}; varje del listar de variabler den får använda.",
   "settings.search.separator.label": "Avgränsare",
   "settings.search.description.label": "Webbplatsens beskrivning",
   "settings.search.image.label": "Standardbild för delning",

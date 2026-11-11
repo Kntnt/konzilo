@@ -468,7 +468,7 @@ describe('a site built with astro build for https://www.example.com', () => {
           '@type': 'AboutPage',
           '@id': `${aboutPage}#webpage`,
           url: aboutPage,
-          name: 'About the lantern | The Quiet Lantern',
+          name: 'About the lantern – The Quiet Lantern',
           description: 'Who keeps the lantern.',
           isPartOf: WEBSITE,
           breadcrumb: { '@id': `${aboutPage}#breadcrumb` },

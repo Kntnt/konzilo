@@ -122,7 +122,8 @@
           "control": "text",
           "template": true,
           "default": "{{ post.title }} {{ sep }} {{ site.title }}",
-          "translated": true
+          "translated": true,
+          "except": "teaser"
         },
         "description": {
           "type": "string",
@@ -136,7 +137,8 @@
           "control": "text",
           "template": true,
           "default": "{{ post.title }}",
-          "translated": true
+          "translated": true,
+          "except": "teaser"
         },
         "socialDescription": {
           "type": "string",
@@ -171,6 +173,7 @@
           "control": "text",
           "metaLine": true,
           "translated": true,
+          "except": "canvas",
           "defaultFor": {
             "article": { "text": "site.settings.metaLine.article" }
           }
