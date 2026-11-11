@@ -1,49 +1,112 @@
 #!/usr/bin/env node
-// The service, in its role for editors (ADR 0044): it takes Forgejo's webhook, keeps time, says
-// how publishing stands, and shows small pictures of images. It has a credential that can only
-// read the source repository.
+// The service (ADR 0044), one program in two roles, each a container of its own, named as its
+// first argument:
+//
+// - `editors`: it takes Forgejo's webhook, keeps time, says how publishing stands, and shows
+//   small pictures of images. It has a credential that can only read the source repository.
+// - `visitors`: it takes what visitors' browsers send below /_konzilo/, which the web server
+//   passes on, such as a site's forms (ADR 0045), and keeps it in the service's data. It reaches
+//   nothing.
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { join } from 'node:path';
 
 import { buildControl } from '../src/build/record.js';
 import { editorsService, nextMinute } from '../src/service/editors.js';
+import { openStore, STORE_FILE } from '../src/service/store.js';
 import { thumbnails } from '../src/service/thumbnails.js';
+import { visitorsService } from '../src/service/visitors.js';
 import { readSiteDescription, SITE_DESCRIPTION_FILE } from '../src/site-description.js';
 
-const PORT = 4100;
-const FORGEJO = 'http://forgejo:3000';
-const { KONZILO_REPOSITORY: repository } = process.env;
+const DESCRIPTION = `/site/${SITE_DESCRIPTION_FILE}`;
 
-const site = readSiteDescription(`/site/${SITE_DESCRIPTION_FILE}`);
-const collections = Object.values(site.types).map(({ collection }) => collection);
-
-const token = readFileSync('/secret/read-token', 'utf8').trim();
-
-const service = editorsService({
-  forgejo: FORGEJO,
-  repository,
-  token,
-  control: buildControl('/control'),
-  pictures: thumbnails({ forgejo: FORGEJO, repository, token, folder: '/thumbnails' }),
-  isPost: (file) => file.endsWith('.md') && collections.includes(file.split('/')[0]),
-});
-
-const server = createServer((incoming, outgoing) => {
-  service.request(incoming, outgoing).catch((error) => {
-    console.error(`The service broke: ${error.stack ?? error.message}`);
-    if (!outgoing.headersSent) outgoing.writeHead(500);
-    outgoing.end();
+// A request answered, or 500 where the service broke, which it says in its own log, with nothing
+// of the request.
+const serve = (service, port, options = {}) => {
+  const server = createServer(options, (incoming, outgoing) => {
+    service.request(incoming, outgoing).catch((error) => {
+      console.error(`The service broke: ${error.stack ?? error.message}`);
+      if (!outgoing.headersSent) outgoing.writeHead(500, { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+      outgoing.end();
+    });
   });
-});
-server.listen(PORT);
-
-const atEachMinute = () => {
-  setTimeout(async () => {
-    await service.tick().catch((error) => console.error(`The service's clock broke: ${error.stack ?? error.message}`));
-    atEachMinute();
-  }, nextMinute(Date.now()));
+  server.listen(port);
+  return server;
 };
-atEachMinute();
+
+function editors() {
+  const PORT = 4100;
+  const FORGEJO = 'http://forgejo:3000';
+  const { KONZILO_REPOSITORY: repository } = process.env;
+
+  const site = readSiteDescription(DESCRIPTION);
+  const collections = Object.values(site.types).map(({ collection }) => collection);
+
+  const token = readFileSync('/secret/read-token', 'utf8').trim();
+
+  const service = editorsService({
+    forgejo: FORGEJO,
+    repository,
+    token,
+    control: buildControl('/control'),
+    pictures: thumbnails({ forgejo: FORGEJO, repository, token, folder: '/thumbnails' }),
+    isPost: (file) => file.endsWith('.md') && collections.includes(file.split('/')[0]),
+  });
+  serve(service, PORT);
+
+  const atEachMinute = () => {
+    setTimeout(async () => {
+      await service.tick().catch((error) => console.error(`The service's clock broke: ${error.stack ?? error.message}`));
+      atEachMinute();
+    }, nextMinute(Date.now()));
+  };
+  atEachMinute();
+}
+
+// The site description of the code in use, read again when its file changes: a description that
+// cannot be read leaves the last one that could in use, and says so.
+function liveDescription(file) {
+  let held = { at: null, site: readSiteDescription(file) };
+  return () => {
+    let at = null;
+    try {
+      const { mtimeMs, size } = statSync(file);
+      at = `${mtimeMs}:${size}`;
+    } catch {
+      return held.site;
+    }
+    if (at === held.at) return held.site;
+    try {
+      held = { at, site: readSiteDescription(file) };
+    } catch (error) {
+      console.error(`The service goes on with the site description it read before: ${error.message}`);
+      held = { ...held, at };
+    }
+    return held.site;
+  };
+}
+
+function visitors() {
+  const PORT = 4200;
+  // The public site's origin, whose host a form's page is on.
+  const hosts = process.env.KONZILO_SITE_ORIGIN ? [new URL(process.env.KONZILO_SITE_ORIGIN).host] : [];
+  const store = openStore(join('/service-data', STORE_FILE));
+  const service = visitorsService({ site: liveDescription(DESCRIPTION), store, hosts });
+  // Each request within ten seconds (ADR 0044).
+  serve(service, PORT, { requestTimeout: 10_000, headersTimeout: 10_000 });
+  process.on('SIGTERM', () => {
+    store.close();
+    process.exit(0);
+  });
+}
+
+const roles = { editors, visitors };
+const role = process.argv[2];
+if (!Object.hasOwn(roles, role)) {
+  console.error(`konzilo-service: name its role, ${Object.keys(roles).join(' or ')}`);
+  process.exit(2);
+}
+roles[role]();
 
 process.on('SIGTERM', () => process.exit(0));

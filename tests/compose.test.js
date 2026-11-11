@@ -117,7 +117,7 @@ test('runs Typesense in a network of its own, with no port and its key in a file
   assert.doesNotMatch(typesense, /^ {4}ports:/m);
   assert.match(typesense, /"--config", "\/secret\/typesense\.ini"/);
   assert.doesNotMatch(typesense, /TYPESENSE_API_KEY|--api-key/);
-  assert.match(blocks.web, /^ {4}networks: \[default, search\]$/m);
+  assert.match(blocks.web, /^ {4}networks: \[default, search, visitors\]$/m);
   assert.match(compose, /^ {2}search:\n {4}internal: true$/m);
   for (const [name, block] of Object.entries(blocks)) {
     if (!['web', 'typesense'].includes(name)) assert.doesNotMatch(block, /^ {4}networks:.*search/m, name);
@@ -134,6 +134,80 @@ test('reads the route to search from where the build writes it, and says when Ty
   assert.match(host, /respond `\{"message":"Search does not answer\."\}` 502/);
   assert.match(compose, /- search-route:\/srv\/search:ro/);
   assert.match(compose, /- search-route:\/search-route\n/);
+});
+
+// Each service's block, by its name, from the services alone, since a network may take a
+// service's name.
+const servicesOf = (text) => Object.fromEntries(text.slice(text.indexOf('\nservices:\n'), text.indexOf('\nsecrets:\n')).split(/^ {2}(?=[a-z-]+:\n)/m).slice(1).map((block) => [block.slice(0, block.indexOf(':')), block]));
+const siteHost = () => {
+  const caddyfile = read('compose/web/Caddyfile');
+  return caddyfile.slice(caddyfile.indexOf(':{$KONZILO_PORT_SITE}'), caddyfile.indexOf(':{$KONZILO_PORT_ADMIN}'));
+};
+
+// The service in its role for visitors (ADR 0044, ADR 0005): a container of its own, locked down
+// as every other, in a network with no way out that it shares with the web server alone, and its
+// data in a volume of its own.
+test('runs the service for visitors in a container of its own, which the web server alone reaches, its data in a volume of its own', () => {
+  const blocks = servicesOf(compose);
+  const visitors = blocks.visitors;
+  assert.ok(visitors, 'a service of its own');
+  assert.match(visitors, /^ {4}<<: \*hardened$/m);
+  assert.match(visitors, /^ {4}mem_limit: /m);
+  assert.match(visitors, /^ {4}networks: \[visitors\]$/m);
+  assert.doesNotMatch(visitors, /^ {4}ports:/m);
+  assert.match(visitors, /^ {4}command: \["node", "\/konzilo\/bin\/konzilo-service\.js", "visitors"\]$/m);
+  assert.match(visitors, /^ {6}- service-data:\/service-data$/m);
+  assert.match(visitors, /site-description\.json:\/site\/site-description\.json:ro$/m);
+  assert.match(visitors, /KONZILO_SITE_ORIGIN: http:\/\/localhost:\$\{KONZILO_PORT_SITE\}/);
+  assert.match(blocks.editors, /^ {4}command: \["node", "\/konzilo\/bin\/konzilo-service\.js", "editors"\]$/m);
+  assert.match(compose, /^ {2}visitors:\n {4}internal: true$/m);
+  for (const [name, block] of Object.entries(blocks)) {
+    if (!['web', 'visitors'].includes(name)) assert.doesNotMatch(block, /^ {4}networks:.*visitors/m, name);
+    if (name !== 'visitors') assert.doesNotMatch(block, /service-data:/, name);
+  }
+  // A volume takes its first owner from the folder it is mounted on.
+  assert.match(read('compose/builder/Dockerfile'), /mkdir -p [^\n]*\/service-data\b[^\n]*&& chown node:node [^\n]*\/service-data\b/);
+});
+
+// What the web server passes on to the service (ADR 0044): the request's method, path, query and
+// body with its type, `Origin`, `Referer` and `Sec-Fetch-Site`, the visitor's address and the host
+// it came to, and nothing else.
+test('passes every path below /_konzilo/ to the service but search and the consent scripts\' files, with what ADR 0044 lists alone', () => {
+  const host = siteHost();
+  const matcher = /@konzilo_visitors \{\n([\s\S]*?)\n\t\}/.exec(host)?.[1];
+  assert.ok(matcher, 'a matcher of its own');
+  assert.match(matcher, /^\t\tpath \/_konzilo\/\*$/m);
+  assert.match(matcher, /^\t\tnot path \/_konzilo\/search \/_konzilo\/search\/\*$/m);
+  assert.match(matcher, /^\t\tnot \{\n\t\t\tpath \/_konzilo\/consent\/\*\n\t\t\tmethod GET HEAD\n\t\t\}$/m);
+  const handled = /handle @konzilo_visitors \{\n([\s\S]*?)\n\t\}\n/.exec(host)?.[1];
+  assert.ok(handled);
+  assert.match(handled, /request_body \{\n\t\t\tmax_size 1MB\n\t\t\}/);
+  assert.match(handled, /reverse_proxy visitors:4200 \{/);
+  const passed = [...handled.matchAll(/^\t\t\theader_up (\S+)(?: (.*))?$/gm)].map(([, name, value]) => [name, value ?? null]);
+  assert.deepEqual(passed, [
+    ['-*', null],
+    ['Content-Type', '{http.request.header.Content-Type}'],
+    ['Origin', '{http.request.header.Origin}'],
+    ['Referer', '{http.request.header.Referer}'],
+    ['Sec-Fetch-Site', '{http.request.header.Sec-Fetch-Site}'],
+    ['X-Konzilo-Client', '{http.request.remote.host}'],
+    ['X-Konzilo-Host', '{http.request.hostport}'],
+  ]);
+  assert.ok(host.indexOf('handle @konzilo_visitors') < host.indexOf('file_server'), 'before the release\'s files');
+});
+
+// While the service does not answer, a form's post gets the release's page that says it was not
+// sent (ADR 0045), as the dev server gives it.
+test('gives a form the service does not answer the release\'s page that says it was not sent', () => {
+  const errors = siteHost().slice(siteHost().indexOf('handle_errors'));
+  assert.match(errors, /@form_down \{\n\t\t\tpath \/_konzilo\/forms\/\*\n\t\t\texpression `\{err\.status_code\} >= 500`\n\t\t\}/);
+  const handled = /handle @form_down \{\n([\s\S]*?)\n\t\t\}/.exec(errors)?.[1];
+  assert.ok(handled);
+  assert.match(handled, /method GET/);
+  assert.match(handled, /rewrite \* \/_konzilo\/form-not-sent\.html/);
+  assert.match(handled, /header Cache-Control no-store/);
+  assert.match(handled, /file_server/);
+  assert.ok(errors.indexOf('handle @form_down') < errors.lastIndexOf('rewrite * /404.html'), 'before a page not found');
 });
 
 // The builder's image installs the core's dependencies alone, with no peer such as Astro, so
