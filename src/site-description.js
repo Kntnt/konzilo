@@ -152,7 +152,7 @@ const results = new WeakSet();
 //   { language: <locale> or null,
 //     languages: [ { locale, tag, prefix, main } ],
 //     interfaceLanguage: <interface language>,
-//     types: { <post type>: { name, builtIn, label, plural, collection, address, feed, hierarchical, search, elements, fields, editor } },
+//     types: { <post type>: { name, builtIn, label, plural, collection, address, feed, hierarchical, search, elements, fields, editor, structuredDataTypes } },
 //     taxonomies: { <taxonomy>: { name, builtIn, label, plural, collection, hierarchical, address, feed } },
 //     images: { smallestWidth, displayWidth } or null,
 //     menus: { <menu>: { name, label } },
@@ -180,7 +180,9 @@ const results = new WeakSet();
 // core's own, built in (format/built-in-types.js), and `builtIn` names it, null on a
 // type of the site's own: the site gives it what it gives any type but its fields, its
 // label and plural where it wants its own, and fields of its own, and the type has the
-// core's fields, with the site's own before the search and sharing fields. An article
+// core's fields, with the site's own before the search and sharing fields. A type's
+// `structuredDataTypes` are those its posts may have, its default first: a built-in type's
+// the core's, and a type of the site's own's those it declares, else a page's. An article
 // brings the built-in taxonomies `authors`, `category` and `topics`, first among the
 // taxonomies, to which a site may give an address, a feed and a label of its own; on a
 // site without the article, a taxonomy of one of these names is the site's own. Where a

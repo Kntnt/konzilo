@@ -119,7 +119,8 @@ export function settingsGroups(declared) {
 // `types`, one part for each post type it is repeated for, in the order the
 // site declares them: [ { type, label, settings } ], `label` the type's
 // plural, each setting with the default for the kind of type it is
-// (`defaultFor`). A default that is a text of the catalogues, `{ text }`,
+// (`defaultFor`), and a structured data type with the options and the default
+// of the type's own (forType()). A default that is a text of the catalogues, `{ text }`,
 // which visitors read, is the one in the site's language (ADR 0066), never
 // the interface language's; a translated setting's keeps the text's name
 // beside it, as `defaults`, from which each of a site's languages takes its
@@ -389,7 +390,10 @@ function requiredBy(read, before, path, problems) {
 // meta line's format (`metaLine`, meta-line.js), whose defaults name only the variables
 // every type of their kind has; a text shown as a text area
 // may hold regular expressions, one per line (`patterns`, ai-visibility.js),
-// and a text shown as text may declare its form (`format`, formatOf()).
+// and a text shown as text may declare its form (`format`, formatOf()). A select
+// of a part per post type of every structured data type the core knows may be
+// its type's (`structuredDataTypes`), which offers each type those it offers,
+// its default the first of them, and declares no default of its own.
 // A number may have a least value (`min`), which its default and every
 // value kept must reach. A yes-or-no setting may require another
 // (`requires`, checked by settingsOf()), any setting may have a help text

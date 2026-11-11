@@ -44,6 +44,7 @@ const site = Object.freeze({
       address: '/briefs/{slug}/',
       elements: ['paragraph'],
       fields: { excerpt: { required: true }, image: { required: true }, tags: { taxonomy: 'tag', required: true } },
+      structuredDataTypes: ['NewsArticle', 'BlogPosting'],
     },
     page: { label: 'Page', plural: 'Pages', collection: 'pages', hierarchical: true, address: '/pages/{path}/', elements: ['paragraph', 'post-list'] },
     guide: { label: 'Guide', plural: 'Guides', collection: 'guides', hierarchical: true, address: '/guides/{path}/', elements: ['paragraph'] },
@@ -430,6 +431,7 @@ const cases = {
   'service-host-admin': [() => hosting('https://admin.example.com', { adminHost: 'admin.example.com' }), { setting: 'pixel.hosts.images.1' }],
   'service-host-admin-under': [() => hosting('https://*.example.com', { adminHost: 'admin.example.com' }), { setting: 'pixel.hosts.images.1' }],
   'publisher-missing': [() => withFiles({}), { setting: 'search.publisher.name' }, 'warning'],
+  'schema-not-offered': [() => withFiles({ 'settings.json': { ...settled, search: { types: { brief: { schema: 'WebPage' } } } } }), { setting: 'search.types.brief.schema' }, 'warning'],
   'legal-missing': [() => withFiles({ 'articles/aaaaaaaaaaaa.md': article({}, 'https://vimeo.com/76979871') }), { setting: 'legalPages.privacyPolicy' }, 'warning'],
 };
 

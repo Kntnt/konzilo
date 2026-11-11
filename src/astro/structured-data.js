@@ -41,10 +41,10 @@ import { isKindOfArticle } from '../format/built-in-types.js';
 const WEB_PAGES = new Set(['WebPage', 'AboutPage', 'ContactPage', 'CollectionPage']);
 
 // The graph of a page, as JSON-LD: `page`, { title, description, schema,
-// article, headline, published, modified }, its title tag, meta description,
-// structured data type, whether it is an article's, the post's title (none on
-// a page of the site's own) and its date and last change as Open Graph writes
-// them, each '' where the page has none; `url`, its canonical address; `origin`, the public
+// headline, published, modified }, its title tag, meta description,
+// structured data type, which makes it an article's where it is a kind of
+// article, the post's title (none on a page of the site's own) and its date
+// and last change as Open Graph writes them, each '' where the page has none; `url`, its canonical address; `origin`, the public
 // host's; `languageTag`, the site's language tag; `siteTitle`, the site's title;
 // `search`, the Search and sharing settings; `image`, the image it shares,
 // { src, width, height, alt }, or null; `logo`, the site's logo in the same

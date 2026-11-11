@@ -117,8 +117,10 @@ export function fieldsWith(builtIn, own) {
   return [...core.filter(([name]) => name !== SEO), ...own, ...core.filter(([name]) => name === SEO)];
 }
 
-// Whether a post's type is the built-in article: the answer wherever the head, the
-// structured data, the summary or search ask whether a post is an article.
+// Whether a post's type is the built-in article: the answer wherever a post's fields are
+// asked for an article's, its authors, its category and its topics. Whether a post is an
+// article to search engines and social networks is its structured data type's to say
+// (isKindOfArticle()).
 export function isArticle(type) {
   return type?.builtIn === ARTICLE;
 }

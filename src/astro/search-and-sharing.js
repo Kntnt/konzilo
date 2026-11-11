@@ -29,8 +29,10 @@
 //   later page of a list has none;
 // - `<meta name="robots">` with noindex, nofollow or both, only when the
 //   post asks for it, or on a later page of its list, which is noindex;
-// - Open Graph's type, `article` for the Article types, with the post's
-//   date and last change, `website` for any other, and its title,
+// - Open Graph's type, `article` for a post whose structured data type is a
+//   kind of article, its own, else its type's, among those its type offers
+//   (built-in-types.js), with the post's date and last change, `website` for
+//   any other, and its title,
 //   description, the site's title and its language;
 // - the sharing image, the post's own, else its featured image, else the
 //   default sharing image, else the site's logo, else none, made 1200 × 630,
