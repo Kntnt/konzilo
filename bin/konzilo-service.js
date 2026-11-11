@@ -2,8 +2,9 @@
 // The service (ADR 0044), one program in two roles, each a container of its own, named as its
 // first argument:
 //
-// - `editors`: it takes Forgejo's webhook, keeps time, says how publishing stands, and shows
-//   small pictures of images. It has a credential that can only read the source repository.
+// - `editors`: it takes Forgejo's webhook, keeps time, says how publishing stands, shows small
+//   pictures of images, and shows Admins and Editors the forms' submissions from the service's
+//   data. It has a credential that can only read the source repository.
 // - `visitors`: it takes what visitors' browsers send below /_konzilo/, which the web server
 //   passes on, such as a site's forms (ADR 0045), and keeps it in the service's data. It reaches
 //   nothing.
@@ -20,6 +21,9 @@ import { visitorsService } from '../src/service/visitors.js';
 import { readSiteDescription, SITE_DESCRIPTION_FILE } from '../src/site-description.js';
 
 const DESCRIPTION = `/site/${SITE_DESCRIPTION_FILE}`;
+// The service's data, which both roles open: the role for visitors keeps the forms' submissions
+// there, and the role for editors shows them.
+const SERVICE_DATA = '/service-data';
 
 // A request answered, or 500 where the service broke, which it says in its own log, with nothing
 // of the request.
@@ -42,6 +46,8 @@ function editors() {
 
   const site = readSiteDescription(DESCRIPTION);
   const collections = Object.values(site.types).map(({ collection }) => collection);
+  const described = liveDescription(DESCRIPTION);
+  const store = openStore(join(SERVICE_DATA, STORE_FILE));
 
   const token = readFileSync('/secret/read-token', 'utf8').trim();
 
@@ -51,9 +57,15 @@ function editors() {
     token,
     control: buildControl('/control'),
     pictures: thumbnails({ forgejo: FORGEJO, repository, token, folder: '/thumbnails' }),
+    store,
+    forms: () => described().forms,
     isPost: (file) => file.endsWith('.md') && collections.includes(file.split('/')[0]),
   });
   serve(service, PORT);
+  process.on('SIGTERM', () => {
+    store.close();
+    process.exit(0);
+  });
 
   const atEachMinute = () => {
     setTimeout(async () => {
@@ -91,7 +103,7 @@ function visitors() {
   const PORT = 4200;
   // The public site's origin, whose host a form's page is on.
   const hosts = process.env.KONZILO_SITE_ORIGIN ? [new URL(process.env.KONZILO_SITE_ORIGIN).host] : [];
-  const store = openStore(join('/service-data', STORE_FILE));
+  const store = openStore(join(SERVICE_DATA, STORE_FILE));
   const service = visitorsService({ site: liveDescription(DESCRIPTION), store, hosts });
   // Each request within ten seconds (ADR 0044).
   serve(service, PORT, { requestTimeout: 10_000, headersTimeout: 10_000 });
