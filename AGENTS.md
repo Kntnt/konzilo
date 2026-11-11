@@ -21,6 +21,8 @@ Precedence over any conflicting skill, README, or other doc unless the user over
 
 - `docs/agents/status.md` — read first when starting or resuming work
 - `docs/agents/autonomy.md` — read when an action may cost money, reach outside this repository, commit, push or publish, or when asking Thomas anything
+- `docs/agents/waves.md` — read when building a spec's tickets, or a run of specs, through to `main`
+- `docs/agents/release.md` — read when making a release
 - `content-format.md` — read when changing what a content file holds or how it is read; the same change updates it
 - `site-template/README.md` — read when bringing up a site from a clean clone, or when a change alters what that takes
 - `docs/adr/README.md` — read before reversing or questioning a decision, or when recording a new one

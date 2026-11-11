@@ -15,6 +15,8 @@ Harnesses on this machine run without permission prompts. These gates are the on
 
 - work in this repository and its worktrees;
 - committing, pushing branches, and merging to `main` when CI is green, or when `npm run gate` passes while CI is off (`docs/agents/status.md` says which);
+- building a spec's tickets, and a run of specs, through to `main`, as `waves.md` says;
+- a release at the end of each spec of such a run: its commit, its tag and its GitHub release, as `release.md` says;
 - throwaway servers in `kntnt-lab` that the tests create and destroy;
 - DNS records in the test zone.
 
