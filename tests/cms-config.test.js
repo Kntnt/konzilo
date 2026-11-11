@@ -4,7 +4,7 @@
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, test } from 'node:test';
@@ -297,8 +297,9 @@ describe('the interface language', () => {
     }
   });
 
-  test('is written by konzilo-cms beside the site\'s own: one configuration in each language the interface comes in', () => {
+  test('is written by konzilo-cms beside the site\'s own: one configuration in each language the interface comes in', (t) => {
     const folder = mkdtempSync(join(tmpdir(), 'konzilo-cms-'));
+    t.after(() => rmSync(folder, { recursive: true, force: true }));
     const site = join(folder, 'site');
     mkdirSync(site);
     writeFileSync(join(site, 'site-description.json'), JSON.stringify({ ...declared(), language: 'sv_SE' }));
