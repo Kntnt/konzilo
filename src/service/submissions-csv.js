@@ -9,7 +9,7 @@ import { catalogueFor, text } from '../catalogues.js';
 // The separators a reader may choose, by the name the request gives.
 export const SEPARATORS = Object.freeze({ comma: ',', semicolon: ';' });
 
-const BYTE_ORDER_MARK = '﻿';
+const BYTE_ORDER_MARK = '\uFEFF';
 const ROW_END = '\r\n';
 
 // A value that begins with one of these, or that holds one, or a quote, after a comma, a

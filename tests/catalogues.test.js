@@ -54,11 +54,11 @@ for (const name of files.filter((one) => one !== `${SOURCE_LANGUAGE}.json`)) {
 }
 
 // The editor's own code in the browser, the body field's, the image field's, the structure
-// field's, the preview's, the publish status's, the article parts' fields', the authors field's
-// and the field groups', names each text whole, as `say('body.loading')`, so that a name it asks
+// field's, the preview's, the publish status's, the Submissions page's, the article parts'
+// fields', the authors field's and the field groups', names each text whole, as `say('body.loading')`, so that a name it asks
 // for and the source can be held side by side: a name the source lacks would throw in the editor,
 // and a text no code names is dead.
-const EDITOR_AREAS = ['body', 'image', 'structure', 'preview', 'publishing', 'parts', 'authors', 'groups'];
+const EDITOR_AREAS = ['body', 'image', 'structure', 'preview', 'publishing', 'submissions', 'parts', 'authors', 'groups'];
 const editorCode = fileURLToPath(new URL('../src/cms/', import.meta.url));
 const namedInCode = () => {
   const name = new RegExp(String.raw`(['"\`])((?:${EDITOR_AREAS.join('|')})\.[a-zA-Z0-9.-]+)\1`, 'g');

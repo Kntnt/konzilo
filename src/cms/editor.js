@@ -18,6 +18,7 @@ import { registerAuthorsField } from './authors/register.js';
 import { registerParts } from './parts/register.js';
 import { registerStructureField } from './structure/register.js';
 import { registerPublishing } from './publishing/register.js';
+import { registerSubmissions } from './submissions/register.js';
 import { chosenLanguage, followSite, languageChanged, loadedWith, say, useInterfaceLanguage } from './interface-language.js';
 import './form.css';
 // The preview's window hides its pane by these; template.js, which shows it, is read by tests too.
@@ -45,6 +46,7 @@ function start() {
   useComponents(konzilo.components);
   registerBodyField(CMS, config);
   registerPublishing(CMS, config);
+  if (konzilo.forms) registerSubmissions(CMS);
   // Before the parts' check at Save, which reads what the groups hold.
   registerGroups(CMS, config, konzilo.groups);
   registerParts(CMS, config);
