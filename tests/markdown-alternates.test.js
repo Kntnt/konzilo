@@ -200,8 +200,8 @@ function contentFiles(ai = AI) {
     }),
     'articles/index.md': postFile({ title: 'An index', date: new Date('2026-10-02T08:00:00Z'), categories: [], tags: [], body: 'Every light on the coast.' }),
     'articles/night-watch.md': postFile({ title: 'Night watch', date: new Date('2026-10-03T08:00:00Z'), categories: [], tags: [], seo: { noindex: true }, body: 'Not for search engines.' }),
-    'pages/about.md': postFile({ title: 'About the keeper', body: 'She keeps the light.' }),
-    'pages/private.md': postFile({ title: 'Private', body: 'Kept out by a pattern.' }),
+    'pages/about.md': postFile({ title: 'About the keeper', date: new Date('2026-10-04T08:00:00Z'), modified: new Date('2026-10-05T08:00:00Z'), body: 'She keeps the light.' }),
+    'pages/private.md': postFile({ title: 'Private', date: new Date('2026-10-04T08:00:00Z'), modified: new Date('2026-10-04T08:00:00Z'), body: 'Kept out by a pattern.' }),
     'notes/jotting.md': postFile({ title: 'A jotting', body: 'Notes have no Markdown.' }),
     'categories/news.json': `${JSON.stringify({ name: 'News' }, null, 2)}\n`,
     'tags/harbours.json': `${JSON.stringify({ name: 'Harbours' }, null, 2)}\n`,
@@ -355,6 +355,7 @@ Every light on the coast.
     assert.equal(files['pages/about.md'], `---
 title: "About the keeper"
 canonical_url: "https://www.example.com/pages/about/"
+date: 2026-10-04
 ---
 
 # About the keeper

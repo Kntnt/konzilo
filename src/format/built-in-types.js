@@ -1,9 +1,11 @@
 // The core's own post types and taxonomies (ADR 0062): canvas, a blank page; page, a
 // canvas with the site's header and footer; and article, a page with the article parts
 // fixed by Kntnt's model of an article, which brings three taxonomies, authors, category
-// and topics. A site uses one by naming it among its types; site-description.js reads
-// it into the same form as a type of the site's own, its fields in full, with `builtIn`
-// naming it, and null on a type or a taxonomy of the site's own.
+// and topics. Every post is published at a moment, its date, which an editor may change,
+// so each of the three has the date and the last change, the name in breadcrumbs and the
+// teaser, in the article's order. A site uses one by naming it among its types;
+// site-description.js reads it into the same form as a type of the site's own, its fields
+// in full, with `builtIn` naming it, and null on a type or a taxonomy of the site's own.
 //
 // What a built-in type is, its fields, and which of them hold an article's authors, its
 // category and its topics, are here and nowhere else. Code asks a post's type here too.
@@ -37,14 +39,14 @@ export const BUILT_IN_TYPES = Object.freeze({
     plural: 'form.canvases',
     hierarchical: true,
     taxonomies: Object.freeze([]),
-    fields: Object.freeze({ [SEO]: {} }),
+    fields: Object.freeze({ date: {}, modified: {}, breadcrumb: {}, teaser: {}, [SEO]: {} }),
   }),
   [PAGE]: Object.freeze({
     label: 'form.page',
     plural: 'form.pages',
     hierarchical: true,
     taxonomies: Object.freeze([]),
-    fields: Object.freeze({ breadcrumb: {}, [SEO]: {} }),
+    fields: Object.freeze({ date: {}, modified: {}, breadcrumb: {}, teaser: {}, [SEO]: {} }),
   }),
   [ARTICLE]: Object.freeze({
     label: 'form.article',
@@ -128,8 +130,9 @@ export function relatedPoints(type) {
 }
 
 // Whether a post's head, its search and sharing fields in the editor, and its summary
-// follow its article parts (article-parts.js): an article's do, and so do those of a
-// type of the site's own that has a teaser.
+// follow its article parts (article-parts.js): those of a type with a teaser do, every
+// built-in type and a type of the site's own that declares one. A teaser falls back to
+// what its type has, a page's and a canvas's to the title alone.
 export function followsParts(type) {
-  return isArticle(type) || (type?.fields ?? []).some((field) => field.kind === 'teaser');
+  return (type?.fields ?? []).some((field) => field.kind === 'teaser');
 }

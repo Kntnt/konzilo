@@ -13,6 +13,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A meta line between an article's standfirst and its body, with its date, its category and its authors, written by a format with variables that an Admin sets for each type in each language in the site settings; a page or a type of the site's own shows one once an Admin gives it a format.
 - A site's forms are taken: a visitor's message is sent with JavaScript or without, the form says it was sent, and the site keeps it with its fields' labels and its page's language, never the visitor's address, while spam is held apart and too many messages from one place are refused. The site template has a contact form on a page of its demo content.
 
+### Changed
+
+- A page and a canvas have a date, which an editor may change under the status, and a teaser, as an article has, and a canvas has a name in breadcrumbs: their forms follow the article's order, with no publishing row, and a page's date and last change reach its sitemap entry, feeds, lists ordered by date, search and structured data.
+
 ## [0.1.0] – 2026-11-11
 
 ### Added
