@@ -11,6 +11,10 @@ const answerJson = (outgoing, status, body) => {
   outgoing.end(JSON.stringify(body));
 };
 
+const SUBMISSIONS = '/_konzilo/submissions';
+// A form's submissions are shown this many at a time, newest first.
+export const SUBMISSIONS_AT_ONCE = 50;
+
 export const nextMinute = (at) => 60_000 - (at % 60_000);
 
 // A page of pictures would ask Forgejo once for each, about the same person, so an answer holds a
@@ -22,8 +26,9 @@ const PICTURE_HOLDS = 3600;
 
 // `forgejo`: where to ask. `repository`: the source repository. `token`: a credential that can
 // read it. `control`: as record.js gives it. `isPost(file)`: whether a file in the source is a post.
-// `pictures`: as thumbnails.js gives them.
-export function editorsService({ forgejo, repository, token, control, pictures = null, isPost = () => true, now = () => new Date(), warn = console.error, get = fetch }) {
+// `pictures`: as thumbnails.js gives them. `store`: the service's data, as store.js opens it, which
+// holds the forms' submissions, and `forms()`: the forms the site description in use declares.
+export function editorsService({ forgejo, repository, token, control, pictures = null, store = null, forms = () => ({}), isPost = () => true, now = () => new Date(), warn = console.error, get = fetch }) {
   const answers = new Map();
   const mayWriteLately = async (credential) => {
     const held = answers.get(credential);
@@ -57,6 +62,30 @@ export function editorsService({ forgejo, repository, token, control, pictures =
     return outgoing.end(picture.bytes);
   };
 
+  // A form's submissions (ADR 0045), to Admins and Editors alone: each form with how many it holds,
+  // and a form's newest first, spam left out. Whoever may not write is told nothing, not even which
+  // forms there are.
+  const answerSubmissions = async (incoming, outgoing, below, searchParams) => {
+    if (incoming.method !== 'GET') return answerJson(outgoing, 405, {});
+    if (!store) return answerJson(outgoing, 404, {});
+    if (!await mayWrite({ forgejo, repository, credential: incoming.headers.authorization, get })) return answerJson(outgoing, 401, {});
+    const declared = forms();
+    const counts = store.counts();
+    if (below === '') {
+      const named = [...Object.keys(declared), ...Object.keys(counts).filter((name) => !Object.hasOwn(declared, name))];
+      return answerJson(outgoing, 200, { forms: named.map((name) => ({ name, label: declared[name]?.label ?? name, count: counts[name] ?? 0 })) });
+    }
+    const [, name] = /^\/([a-z][a-z0-9-]*)$/.exec(below) ?? [];
+    if (name === undefined || !(Object.hasOwn(declared, name) || Object.hasOwn(counts, name))) return answerJson(outgoing, 404, {});
+    const before = searchParams.get('before');
+    if (before !== null && !/^[1-9][0-9]{0,15}$/.test(before)) return answerJson(outgoing, 400, {});
+    const shown = store.submissions(name, { spam: false, before: before === null ? null : Number(before), limit: SUBMISSIONS_AT_ONCE + 1 });
+    return answerJson(outgoing, 200, {
+      submissions: shown.slice(0, SUBMISSIONS_AT_ONCE).map(({ id, sentAt, language, fields }) => ({ id, sentAt, language, fields })),
+      more: shown.length > SUBMISSIONS_AT_ONCE,
+    });
+  };
+
   // Each file in the source as it stands, with its version.
   const versions = async () => {
     const found = {};
@@ -88,6 +117,7 @@ export function editorsService({ forgejo, repository, token, control, pictures =
         return answerJson(outgoing, 200, { posts, others: { refusals: record?.refusals ?? [], warnings: record?.warnings ?? [] }, reason: record?.reason ?? null, at: record?.at ?? null });
       }
       if (pathname === '/_konzilo/thumbnail') return answerPicture(incoming, outgoing, searchParams.get('of'));
+      if (pathname === SUBMISSIONS || pathname.startsWith(`${SUBMISSIONS}/`)) return answerSubmissions(incoming, outgoing, pathname.slice(SUBMISSIONS.length), searchParams);
       return answerJson(outgoing, 404, {});
     },
 
