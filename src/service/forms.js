@@ -79,7 +79,7 @@ function given(field, fields, encoded) {
     if (BOXES.includes(field.kind)) return { value: values.length > 0 };
     return { value: (values[0] ?? '').replace(/\r\n?/g, '\n') };
   }
-  const value = fields[field.name];
+  const value = Object.hasOwn(fields, field.name) ? fields[field.name] : undefined;
   if (field.kind === 'checkboxes') {
     if (value === undefined) return { value: [] };
     return Array.isArray(value) && value.every((one) => typeof one === 'string') ? { value } : { problem: 'malformed' };
@@ -162,7 +162,7 @@ export function formsKind({ site, store, now }) {
 
       const encoded = type !== JSON_TYPE;
       const fields = encoded ? new URLSearchParams(body.toString('utf8')) : parsed(body);
-      const own = (field) => (encoded ? fields.get(field) ?? undefined : fields?.[field]);
+      const own = (field) => (encoded ? fields.get(field) ?? undefined : fields !== null && Object.hasOwn(fields, field) ? fields[field] : undefined);
       const page = pageOf(fields === null ? null : own(PAGE));
       const answer = (status, said, more = {}) => outcome(name, { status, outcome: said, ...more }, { encoded, page });
       if (fields === null) return answer(400, 'refused');

@@ -190,6 +190,11 @@ describe('the service, for visitors', () => {
       const { message, ...without } = filledIn;
       assert.deepEqual((await sendJson('contact', without)).json, { outcome: 'invalid', fields: { message: 'missing' } });
 
+      site = described({ forms: { contact, note: { label: 'A note', fields: [{ name: 'constructor', label: 'Builder', kind: 'text' }, { name: 'tostring', label: 'Text', kind: 'text', required: true }] } } });
+      const inherited = await sendJson('note', { tostring: 'Hello' });
+      assert.deepEqual(inherited.json, { outcome: 'sent' }, 'a field named as what every object has, and left out');
+      assert.deepEqual(kept('note')[0].fields.map(({ value }) => value), ['', 'Hello']);
+
       const odd = await sendJson('contact', { ...filledIn, name: 42, copy: 'yes', interests: 'Web', topic: ['Sales'] });
       assert.deepEqual(odd.json, { outcome: 'invalid', fields: { name: 'malformed', topic: 'malformed', copy: 'malformed', interests: 'malformed' } });
       assert.equal(kept().length, 1);
