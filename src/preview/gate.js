@@ -8,10 +8,23 @@ import { createHash, randomBytes } from 'node:crypto';
 import { request } from 'node:http';
 import { connect } from 'node:net';
 
-import { DRAFT_PATH, HEALTH_PATH, SESSION_PATH, WHERE_PATH } from '../cms/preview/paths.js';
+import { DRAFT_PATH, HEALTH_PATH, SESSION_PATH, SIGN_IN_PATH, WHERE_PATH } from '../cms/preview/paths.js';
 import { CREDENTIAL, mayWrite } from '../forgejo.js';
+import { forgejoSignIn, SIGN_IN_LASTS } from './sign-in.js';
+import { TAB_PAGES, tabPage } from './tab-page.js';
 
+// Whether its person may still see the preview is asked again this often: in a tab by the next
+// page they open, which goes through Forgejo's sign-in again, at once while they are signed in
+// there, and in the pane by its next draft, which opens a session anew with the editor's
+// credential.
+const CHECK_EVERY = 10 * 60 * 1000;
+// How long a session lasts after it was last asked, for what cannot be led to a sign-in: what a
+// page asks for itself, and a frame.
 const SESSION_LIFE = 60 * 60 * 1000;
+// How often a page that says the preview is starting looks again, in seconds.
+const LOOKS_AGAIN = 2;
+// How long a start that failed is told of to the next page asked for: while someone waits for it.
+const FAILURE_TOLD = 60 * 1000;
 // A draft with its unsaved images, each at most what an original may be, in base64.
 const MOST_BYTES = 64 * 1024 * 1024;
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
@@ -20,6 +33,15 @@ const MOST_STEPS = 10;
 const DROPPED = new Set(['x-frame-options', 'content-security-policy', 'content-security-policy-report-only', 'reporting-endpoints', 'strict-transport-security', 'cache-control', 'x-robots-tag', 'set-cookie', 'connection', 'keep-alive', 'transfer-encoding']);
 
 const digest = (secret) => createHash('sha256').update(secret).digest('hex');
+
+// A page asked for in a tab of its own, which may be led to a sign-in and back: not a frame's,
+// and not what a page asks for itself. A browser too old to say so says it takes HTML.
+const isPage = (incoming) => incoming.method === 'GET' && (incoming.headers['sec-fetch-dest'] !== undefined
+  ? incoming.headers['sec-fetch-dest'] === 'document'
+  : /(^|,)\s*text\/html/.test(incoming.headers.accept ?? ''));
+
+// A path on this host to come back to, and never one a browser would read as another host's.
+const pathOn = (url) => (/^\/(?![/\\])/.test(url.pathname) ? `${url.pathname}${url.search}` : '/');
 
 const cookieIn = (incoming, name) => (incoming.headers.cookie ?? '').split(';').map((pair) => pair.trim()).find((pair) => pair.startsWith(`${name}=`))?.slice(name.length + 1) ?? null;
 
@@ -35,11 +57,19 @@ async function bodyOf(incoming) {
 }
 
 // `origin`, `adminOrigin`: this host's and the editor's. `forgejo`: where to ask whether a
-// credential may write to `repository`. `runner`, `dev`: runner.js's and dev-server.js's.
-export function previewGate({ origin, adminOrigin, forgejo, repository, runner, dev, cookieName, now = Date.now, warn = console.error }) {
+// credential may write to `repository`, and `forgejoOrigin` where a browser signs in to it, as
+// the OAuth client `clientId`; without one, the preview is the pane's alone. `language`: the
+// interface language its own pages are in. `runner`, `dev`: runner.js's and dev-server.js's.
+export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null, clientId = null, language = 'en', repository, runner, dev, cookieName, now = Date.now, warn = console.error }) {
   const secure = new URL(origin).protocol === 'https:';
   const cookie = secure ? '__Host-konzilo-preview' : cookieName;
+  // A browser's own sign-in, one cookie for each, so that tabs that sign in at once keep theirs; a
+  // `__Host-` name would have to be for every path.
+  const signInCookie = (state) => `${secure ? '__Secure-konzilo-preview-sign-in' : `${cookieName}_sign_in`}_${state.slice(0, 12)}`;
+  const signIn = clientId && forgejoOrigin ? forgejoSignIn({ forgejo, forgejoOrigin, clientId, redirectUri: `${origin}${SIGN_IN_PATH}`, now }) : null;
   const sessions = new Map();
+  // When the dev server last failed to start, while a page waiting for it may tell of it.
+  let failedAt = null;
   const own = {
     'X-Robots-Tag': 'noindex, nofollow',
     'Cache-Control': 'private, no-cache',
@@ -53,11 +83,70 @@ export function previewGate({ origin, adminOrigin, forgejo, repository, runner, 
     outgoing.end(`${JSON.stringify(value)}\n`);
   };
 
-  const hasSession = (incoming) => {
+  // One of the preview's own pages, which loads nothing and runs nothing.
+  const page = (outgoing, status, which, { again, refresh, headers = {} } = {}) => {
+    outgoing.writeHead(status, {
+      ...own,
+      'Content-Security-Policy': `default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors ${adminOrigin}`,
+      'Content-Type': 'text/html; charset=utf-8',
+      ...headers,
+    });
+    outgoing.end(tabPage(which, language, { again, refresh }));
+  };
+
+  // The dev server, started where it is not running, with nobody waiting for it here.
+  const start = () => dev.ensure().catch((error) => {
+    failedAt = now();
+    warn(`The preview did not start: ${error.message}`);
+  });
+
+  // A page asked for while the dev server is not ready: it starts, and a page that says so looks
+  // again until it is, or says that it did not start, once, with a link to try again.
+  const starting = (incoming, outgoing) => {
+    const failed = failedAt !== null && now() - failedAt < FAILURE_TOLD;
+    failedAt = null;
+    if (failed) return page(outgoing, 503, TAB_PAGES.notStarted, { again: pathOn(new URL(incoming.url, origin)) });
+    start();
+    return page(outgoing, 503, TAB_PAGES.starting, { refresh: LOOKS_AGAIN, headers: { 'Retry-After': String(LOOKS_AGAIN) } });
+  };
+
+  // To Forgejo's sign-in, to come back to the page asked for.
+  const toSignIn = (incoming, outgoing) => {
+    const { location, state } = signIn.start(pathOn(new URL(incoming.url, origin)));
+    const binding = [`${signInCookie(state)}=${state}`, `Path=${SIGN_IN_PATH}`, 'HttpOnly', 'SameSite=Lax', `Max-Age=${SIGN_IN_LASTS / 1000}`, ...(secure ? ['Secure'] : [])];
+    outgoing.writeHead(303, { ...own, Location: location, 'Set-Cookie': binding.join('; ') });
+    outgoing.end();
+  };
+
+  // The session a request holds, { key, fresh }, where `fresh` says that it was asked within the
+  // interval, or null.
+  const sessionIn = (incoming) => {
     const secret = cookieIn(incoming, cookie);
-    if (!secret) return false;
-    const until = sessions.get(digest(secret));
-    return until !== undefined && until > now();
+    if (!secret) return null;
+    const key = digest(secret);
+    const checked = sessions.get(key);
+    if (checked === undefined || checked + SESSION_LIFE <= now()) return null;
+    return { key, fresh: checked + CHECK_EVERY > now() };
+  };
+  const hasSession = (incoming) => sessionIn(incoming) !== null;
+
+  // A new session, as the cookie that holds it, in place of any the request holds. Someone has
+  // opened an entry or a page: the first page is seconds away, not the time it takes to start.
+  const opened = (incoming) => {
+    const held = sessionIn(incoming);
+    if (held) sessions.delete(held.key);
+    for (const [key, checked] of sessions) if (checked + SESSION_LIFE <= now()) sessions.delete(key);
+    const secret = randomBytes(32).toString('base64url');
+    sessions.set(digest(secret), now());
+    start();
+    return [`${cookie}=${secret}`, 'Path=/', 'HttpOnly', 'SameSite=Lax', `Max-Age=${SESSION_LIFE / 1000}`, ...(secure ? ['Secure'] : [])].join('; ');
+  };
+
+  // No session, for someone who may no longer see the preview.
+  const ended = (incoming) => {
+    const held = sessionIn(incoming);
+    if (held) sessions.delete(held.key);
+    return [`${cookie}=`, 'Path=/', 'HttpOnly', 'SameSite=Lax', 'Max-Age=0', ...(secure ? ['Secure'] : [])].join('; ');
   };
 
   const openSession = async (incoming, outgoing) => {
@@ -71,14 +160,29 @@ export function previewGate({ origin, adminOrigin, forgejo, repository, runner, 
       return answer(outgoing, 502, { message: 'Forgejo does not answer.' }, forTheEditor);
     }
     if (!allowed) return answer(outgoing, 403, { message: 'Only someone who may write to this site has a preview.' }, forTheEditor);
-    for (const [hash, until] of sessions) if (until <= now()) sessions.delete(hash);
-    const secret = randomBytes(32).toString('base64url');
-    sessions.set(digest(secret), now() + SESSION_LIFE);
-    const attributes = [`${cookie}=${secret}`, 'Path=/', 'HttpOnly', 'SameSite=Lax', `Max-Age=${SESSION_LIFE / 1000}`, ...(secure ? ['Secure'] : [])];
-    answer(outgoing, 200, { lasts: SESSION_LIFE }, { ...forTheEditor, 'Set-Cookie': attributes.join('; ') });
-    // Someone has opened an entry: the first page is seconds away, not the time it takes to start.
-    dev.ensure().catch((error) => warn(`The preview did not start: ${error.message}`));
-    return undefined;
+    return answer(outgoing, 200, { lasts: SESSION_LIFE }, { ...forTheEditor, 'Set-Cookie': opened(incoming) });
+  };
+
+  // A browser back from Forgejo's sign-in: to the page it set out for, with a session, where its
+  // person may see the preview. Whatever Forgejo gave is used for that question alone.
+  const backFromSignIn = async (incoming, outgoing) => {
+    const query = new URL(incoming.url, origin).searchParams;
+    const state = query.get('state') ?? '';
+    const name = signInCookie(state);
+    const used = [`${name}=`, `Path=${SIGN_IN_PATH}`, 'HttpOnly', 'SameSite=Lax', 'Max-Age=0', ...(secure ? ['Secure'] : [])].join('; ');
+    const { path, credential, unanswered } = await signIn.finish({ state, code: query.get('code'), bound: state !== '' && cookieIn(incoming, name) === state });
+    const again = path ?? '/';
+    if (!credential) return page(outgoing, unanswered ? 502 : 400, unanswered ? TAB_PAGES.forgejoDown : TAB_PAGES.signInFailed, { again, headers: { 'Set-Cookie': used } });
+    let allowed;
+    try {
+      allowed = await mayWrite({ forgejo, repository, credential });
+    } catch (error) {
+      warn(`The preview could not ask Forgejo: ${error.message}`);
+      return page(outgoing, 502, TAB_PAGES.forgejoDown, { again, headers: { 'Set-Cookie': used } });
+    }
+    if (!allowed) return page(outgoing, 403, TAB_PAGES.refused, { headers: { 'Set-Cookie': [used, ended(incoming)] } });
+    outgoing.writeHead(303, { ...own, Location: path, 'Set-Cookie': [used, opened(incoming)] });
+    return outgoing.end();
   };
 
   const takeDraft = async (incoming, outgoing) => {
@@ -186,6 +290,10 @@ export function previewGate({ origin, adminOrigin, forgejo, repository, runner, 
     async request(incoming, outgoing) {
       const { pathname } = new URL(incoming.url, origin);
       if (pathname === HEALTH_PATH) return answer(outgoing, 200, { message: 'The gate stands.' });
+      if (pathname === SIGN_IN_PATH && signIn) {
+        if (incoming.method !== 'GET') return answer(outgoing, 405, { message: 'This takes GET alone.' }, { Allow: 'GET' });
+        return backFromSignIn(incoming, outgoing);
+      }
       if (pathname === WHERE_PATH) {
         if (incoming.headers.origin !== adminOrigin) return answer(outgoing, 403, { message: 'Only the editor asks this.' });
         if (incoming.method !== 'GET') return answer(outgoing, 405, { message: 'This takes GET alone.' }, { ...forTheEditor, Allow: 'GET' });
@@ -200,12 +308,15 @@ export function previewGate({ origin, adminOrigin, forgejo, repository, runner, 
         }
         if (incoming.method !== 'POST') return answer(outgoing, 405, { message: 'This takes POST alone.' }, { ...forTheEditor, Allow: 'POST, OPTIONS' });
         if (pathname === SESSION_PATH) return openSession(incoming, outgoing);
-        if (!hasSession(incoming)) return answer(outgoing, 401, { message: 'This preview\'s session has ended.' }, forTheEditor);
+        if (!sessionIn(incoming)?.fresh) return answer(outgoing, 401, { message: 'This preview\'s session has ended.' }, forTheEditor);
         return takeDraft(incoming, outgoing);
       }
-      if (!hasSession(incoming)) return answer(outgoing, 403, { message: 'This preview is for people who may write to this site.' });
+      const held = sessionIn(incoming);
+      if (signIn && isPage(incoming) && !held?.fresh) return toSignIn(incoming, outgoing);
+      if (!held) return answer(outgoing, 403, { message: 'This preview is for people who may write to this site.' });
       const sends = incoming.method === 'POST' && pathname.startsWith('/_konzilo/');
       if (incoming.method !== 'GET' && incoming.method !== 'HEAD' && !sends) return answer(outgoing, 405, { message: 'A preview only shows pages.' }, { Allow: 'GET, HEAD' });
+      if (isPage(incoming) && !dev.ready()) return starting(incoming, outgoing);
       try {
         await dev.ensure();
       } catch (error) {

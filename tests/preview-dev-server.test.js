@@ -113,6 +113,26 @@ describe('the dev server', () => {
     server.stop();
   });
 
+  test('is ready once it answers, and not before it starts, while it starts or after it stops', async () => {
+    let answering = false;
+    const { server } = made({ answers: () => answering });
+    assert.equal(server.ready(), false, 'before');
+    const starting = server.ensure();
+    assert.equal(server.ready(), false, 'while it starts');
+    answering = true;
+    await starting;
+    assert.equal(server.ready(), true, 'once it answers');
+    server.stop();
+    assert.equal(server.ready(), false, 'after');
+  });
+
+  test('is not ready once it has fallen over', async () => {
+    const { server, children } = made();
+    await server.ensure();
+    children[0].emit('exit');
+    assert.equal(server.ready(), false);
+  });
+
   test('says so when it stops as it starts', async () => {
     let child;
     const { server, children } = made({ answers: () => {

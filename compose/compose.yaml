@@ -130,7 +130,8 @@ services:
   # Fills Forgejo the first time: an organisation, a repository with the demo content
   # as source files, the site repository's own in its demo-content/ where it has any,
   # else the core's, an account and the editor's OAuth client; and at every start makes
-  # sure of the machine accounts, the content repository and the webhook.
+  # sure of the machine accounts, the content repository, the webhook and the live
+  # preview's OAuth client.
   seed:
     <<: *hardened
     build: &builder
@@ -151,6 +152,7 @@ services:
       KONZILO_ACCOUNT: ${KONZILO_ACCOUNT}
       KONZILO_FORGEJO_ORIGIN: http://localhost:${KONZILO_PORT_GIT}
       KONZILO_ADMIN_ORIGIN: http://localhost:${KONZILO_PORT_ADMIN}
+      KONZILO_PREVIEW_ORIGIN: http://localhost:${KONZILO_PORT_PREVIEW}
     secrets: [instance-password, account-password]
     volumes:
       - state:/state
@@ -292,7 +294,8 @@ services:
       - ${KONZILO_SITE_DIR:-.}:/site:ro
 
   # The live preview (ADR 0032): its gate stands from the first moment, and starts the dev
-  # server when an editor opens an entry. It shares the web server's network, so that the
+  # server when an editor opens an entry or someone visits it in a tab of its own, signed in
+  # through Forgejo as its own OAuth client. It shares the web server's network, so that the
   # web server alone reaches it, and it reaches Forgejo as the seed does. It has a credential
   # that can only read, and a copy of the site's code of its own.
   preview:
@@ -317,6 +320,7 @@ services:
       KONZILO_REPOSITORY: ${KONZILO_SITE}/source
       KONZILO_SITE_ORIGIN: http://localhost:${KONZILO_PORT_SITE}
       KONZILO_ADMIN_ORIGIN: http://localhost:${KONZILO_PORT_ADMIN}
+      KONZILO_FORGEJO_ORIGIN: http://localhost:${KONZILO_PORT_GIT}
       KONZILO_PREVIEW_ORIGIN: http://localhost:${KONZILO_PORT_PREVIEW}
       ASTRO_TELEMETRY_DISABLED: "1"
     volumes:

@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 // The preview container's one program (ADR 0032): the gate, which stands at once, and behind
-// it the runs of the intake and Astro's dev server, which wait until someone opens an entry.
+// it the runs of the intake and Astro's dev server, which wait until someone opens an entry or
+// a page.
 // It takes its settings from the environment, as Compose gives them, and its folders are the
 // container's own. The dev server gets none of this environment, and the credential is never
 // passed to anything but Git.
 
 import { execFile } from 'node:child_process';
-import { mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { promisify } from 'node:util';
 
@@ -24,12 +25,15 @@ const DEV_PORT = 4001;
 const SITE_FOLDER = '/work/site';
 const FORGEJO = 'http://forgejo:3000';
 const READER = 'preview-reader';
+// The preview's own OAuth client, which the seed makes, for a sign-in in a tab of its own.
+const CLIENT = '/secret/oauth-client';
 
 const {
   KONZILO_SITE: site,
   KONZILO_REPOSITORY: repository,
   KONZILO_SITE_ORIGIN: siteOrigin,
   KONZILO_ADMIN_ORIGIN: adminOrigin,
+  KONZILO_FORGEJO_ORIGIN: forgejoOrigin,
   KONZILO_PREVIEW_ORIGIN: origin,
 } = process.env;
 
@@ -77,6 +81,9 @@ const gate = previewGate({
   origin,
   adminOrigin,
   forgejo: FORGEJO,
+  forgejoOrigin: forgejoOrigin ?? null,
+  clientId: existsSync(CLIENT) ? readFileSync(CLIENT, 'utf8').trim() || null : null,
+  language: described.interfaceLanguage,
   repository,
   cookieName: `${site}_preview`,
   dev,
