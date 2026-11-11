@@ -29,16 +29,27 @@ export const TOPICS = 'topics';
 // field of the site's own.
 const SEO = 'seo';
 
+// The structured data types that are kinds of article, as an article offers them, Article
+// its default.
+export const ARTICLE_KINDS = Object.freeze(['Article', 'BlogPosting', 'NewsArticle']);
+
+// The structured data types the core knows (the rule data's `structuredDataTypes`), as a page
+// offers them: the kinds of web page, WebPage its default, then the kinds of article. A page
+// and a canvas may be any of them, an about page, a press release or a one-off post, and so
+// may a type of the site's own that declares none of its own.
+export const EVERY_STRUCTURED_DATA_TYPE = Object.freeze(['WebPage', 'AboutPage', 'ContactPage', 'CollectionPage', ...ARTICLE_KINDS]);
+
 // Each built-in type: its label and plural, by their names in the catalogues; whether
-// a site may make it hierarchical; the built-in taxonomies it brings; and its fields, by
-// the names its content file gives them, in the order it holds them, each as a site
-// would declare it.
+// a site may make it hierarchical; the built-in taxonomies it brings; the structured data
+// types its posts may have, its default first; and its fields, by the names its content
+// file gives them, in the order it holds them, each as a site would declare it.
 export const BUILT_IN_TYPES = Object.freeze({
   [CANVAS]: Object.freeze({
     label: 'form.canvas',
     plural: 'form.canvases',
     hierarchical: true,
     taxonomies: Object.freeze([]),
+    structuredDataTypes: EVERY_STRUCTURED_DATA_TYPE,
     fields: Object.freeze({ date: {}, modified: {}, breadcrumb: {}, teaser: {}, [SEO]: {} }),
   }),
   [PAGE]: Object.freeze({
@@ -46,6 +57,7 @@ export const BUILT_IN_TYPES = Object.freeze({
     plural: 'form.pages',
     hierarchical: true,
     taxonomies: Object.freeze([]),
+    structuredDataTypes: EVERY_STRUCTURED_DATA_TYPE,
     fields: Object.freeze({ date: {}, modified: {}, breadcrumb: {}, teaser: {}, [SEO]: {} }),
   }),
   [ARTICLE]: Object.freeze({
@@ -53,6 +65,7 @@ export const BUILT_IN_TYPES = Object.freeze({
     plural: 'form.articles',
     hierarchical: false,
     taxonomies: Object.freeze([AUTHORS, CATEGORY, TOPICS]),
+    structuredDataTypes: ARTICLE_KINDS,
     fields: Object.freeze({
       date: {},
       modified: {},
@@ -108,6 +121,19 @@ export function fieldsWith(builtIn, own) {
 // structured data, the summary or search ask whether a post is an article.
 export function isArticle(type) {
   return type?.builtIn === ARTICLE;
+}
+
+// Whether a structured data type is a kind of article, which makes a post that has it an
+// article, in its head's og:type and its structured data's article node, whatever its type.
+export const isKindOfArticle = (schema) => ARTICLE_KINDS.includes(schema);
+
+// The structured data type a post of the type `type` has, among those its type offers: the
+// post's own choice, `own`, else its type's from the settings, `chosen`, else its type's
+// default, the first it offers. A choice its type does not offer is passed over, wherever it
+// was made.
+export function structuredDataTypeOf(type, own, chosen) {
+  const offered = type.structuredDataTypes;
+  return [own, chosen].find((one) => offered.includes(one)) ?? offered[0];
 }
 
 // The type a choice of one post is among, where the site must have one: the built-in page

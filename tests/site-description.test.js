@@ -230,6 +230,31 @@ describe('the built-in types', () => {
     refused(site({ article: article({ fields: { tags: { taxonomy: 'topics' } } }) }), 'types.article.fields.tags: a second field for the taxonomy topics');
   });
 
+  // A type offers the structured data types its posts may have, its default first.
+  test('offer an article\'s kinds of article, a page and a canvas every structured data type, and a site\'s own type what it declares, else what a page offers', () => {
+    const read = siteDescription(site({
+      article: article(),
+      page: { collection: 'pages', address: '/pages/{slug}/', elements: ['paragraph'] },
+      canvas: { collection: 'canvases', address: '/landing/{slug}/', elements: ['paragraph'] },
+      event: article({ label: 'Event', plural: 'Events', collection: 'events', address: '/events/{slug}/', structuredDataTypes: ['BlogPosting', 'Article'] }),
+      place: article({ label: 'Place', plural: 'Places', collection: 'places', address: '/places/{slug}/' }),
+    }));
+    const every = ['WebPage', 'AboutPage', 'ContactPage', 'CollectionPage', 'Article', 'BlogPosting', 'NewsArticle'];
+    assert.deepEqual(read.types.article.structuredDataTypes, ['Article', 'BlogPosting', 'NewsArticle']);
+    assert.deepEqual(read.types.page.structuredDataTypes, every);
+    assert.deepEqual(read.types.canvas.structuredDataTypes, every);
+    assert.deepEqual(read.types.event.structuredDataTypes, ['BlogPosting', 'Article']);
+    assert.deepEqual(read.types.place.structuredDataTypes, every);
+  });
+
+  test('refuse a list of structured data types on a built-in type, and one that is empty, repeats a type or names one the core does not know', () => {
+    refused(site({ article: article({ structuredDataTypes: ['Article'] }) }), 'types.article.structuredDataTypes: the built-in article offers the core\'s structured data types; leave it out');
+    const own = (structuredDataTypes) => site({ event: article({ label: 'Event', plural: 'Events', structuredDataTypes }) });
+    for (const given of [[], 'Article', ['Article', 'Article'], ['Event'], [42]]) {
+      refused(own(given), 'types.event.structuredDataTypes: must list the structured data types the type offers, each once, its default first, among Article, BlogPosting, NewsArticle, WebPage, AboutPage, ContactPage and CollectionPage');
+    }
+  });
+
   test('let only a page and a canvas be hierarchical', () => {
     refused(site({ article: article({ hierarchical: true, address: '/{path}/' }) }), 'types.article.hierarchical: an article has no parent; only a page and a canvas may be hierarchical');
     assert.equal(siteDescription(site({ canvas: { collection: 'canvases', hierarchical: true, address: '/{path}/', elements: ['paragraph'] } })).types.canvas.hierarchical, true);
