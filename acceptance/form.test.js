@@ -535,14 +535,21 @@ describe('the interface language in Sveltia', () => {
 
   // A refusal at Save and in the publish status, in the interface language, naming the block,
   // the field or the file, for an editor who has chosen none and so has the site's, and for one
-  // who has chosen English, each in a browser of their own. The words of the body field and of
-  // the publish status around them follow the browser until they move to the catalogues, so
-  // those are found by either. The status is the service's answer, as the intake shapes each
-  // refusal in it.
+  // who has chosen English, each in a browser of their own, so the body field's toggle and the
+  // Publishing page are found by either name. The status is the service's answer, as the intake
+  // shapes each refusal in it: a file's among them, a menu's, a redirect rule's, whose reason
+  // holds why its target cannot be, and a declared service's.
   test('refuses at Save and in the publish status in the interface language, naming what it is about', async () => {
     const answer = {
       posts: [{ file: 'pages/aaaaaaaaaaaa.md', version: 'v1', status: 'failed', stillShown: false, id: 'aaaaaaaaaaaa', type: 'page', title: 'Untitled', refusals: [named({ post: { id: 'aaaaaaaaaaaa', type: 'page', title: 'aaaaaaaaaaaa' }, file: 'pages/aaaaaaaaaaaa.md', field: 'title', reason: say('refusal.title-empty') })] }],
-      others: { refusals: [named({ file: 'menus/main.json', entry: '1', reason: say('refusal.menu-title') })], warnings: [] },
+      others: {
+        refusals: [
+          named({ file: 'menus/main.json', entry: '1', reason: say('refusal.menu-title') }),
+          named({ file: 'redirects.json', entry: '2', reason: say('refusal.rule-target', { source: '/old/', reason: say('about.target-form', { target: 'old' }) }) }),
+          named({ file: 'services.json', setting: 'pixel.storage.1.kind', reason: say('refusal.service-storage-kind', { kind: '"flash"', kinds: { and: ['cookie', 'localStorage', 'sessionStorage', 'other'] } }) }),
+        ],
+        warnings: [],
+      },
       reason: null,
       at: '2026-11-10T12:00:00Z',
     };
@@ -551,13 +558,21 @@ describe('the interface language in Sveltia', () => {
         locale: null, start: 'Arbeta med test-repo', title: 'Titel', save: 'Spara',
         refusal: 'Block 1: webbplatsen kan inte publicera en rubrik på nivå 1: inläggets titel är dess nivå 1; använd en nivå från 2 till 6',
         post: 'fältet title: webbplatsen kan inte publicera ett inlägg utan titel; ge det en',
-        file: 'Filen menus/main.json, post 1: posten har ingen etikett; ge den en, eller välj ett inlägg',
+        files: [
+          'Filen menus/main.json, post 1: posten har ingen etikett; ge den en, eller välj ett inlägg',
+          'Filen redirects.json, post 2: regeln från /old/ kan inte svara så: "old" är varken en adress på webbplatsen, med ett snedstreck först, eller en https://-adress',
+          'Filen services.json, inställningen pixel.storage.1.kind: "flash" är ingen typ av lagring; typerna är cookie, localStorage, sessionStorage och other',
+        ],
       },
       {
         locale: 'en-GB', start: 'Work with Test Repository', title: 'Title', save: 'Save',
         refusal: 'Block 1: the site cannot publish a heading at level 1: the post\'s title is its level 1; use a level from 2 to 6',
         post: 'the field title: the site cannot publish a post without a title; give it one',
-        file: 'The file menus/main.json, entry 1: the entry has no label; give it one, or choose a post',
+        files: [
+          'The file menus/main.json, entry 1: the entry has no label; give it one, or choose a post',
+          'The file redirects.json, entry 2: the rule from /old/ cannot answer so: "old" is neither an address on the site, starting with a slash, nor an https:// address',
+          'The file services.json, the setting pixel.storage.1.kind: "flash" is no kind of storage; the kinds are cookie, localStorage, sessionStorage and other',
+        ],
       },
     ];
     for (const editor of editors) {
@@ -584,7 +599,7 @@ describe('the interface language in Sveltia', () => {
         await own.page.goto(`${new URL(own.page.url()).origin}/#/collections/pages`);
         await own.page.getByRole('radio', { name: /^(?:Publishing|Publicering)$/ }).click();
         await own.page.getByRole('row', { name: /Untitled/ }).getByText(editor.post).waitFor();
-        await own.page.getByText(editor.file).waitFor();
+        for (const file of editor.files) await own.page.getByText(file).waitFor();
         assert.deepEqual(own.seen.outside, []);
         assert.deepEqual(own.seen.refused, []);
       } finally {
