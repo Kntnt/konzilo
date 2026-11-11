@@ -1,6 +1,6 @@
 # ADR 0007: Sign in through the customer's own Forgejo, with two factors for everyone, and close the rest at the proxy
 
-**Date:** 2026-11-03 · **Status:** Accepted as a technical choice; Thomas may veto. It carries out his settled decision of one Forgejo per customer (ADR 0004).
+**Date:** 2026-11-03, amended 2026-11-12 · **Status:** Accepted as a technical choice; Thomas may veto. It carries out his settled decision of one Forgejo per customer (ADR 0004).
 
 ## Context
 
@@ -8,10 +8,10 @@ The admin host is reachable from the internet, and a login reaches a customer's 
 
 ## Decision
 
-- **Forgejo's closed settings:** no registration, sign-in required to see anything, no user list, `GLOBAL_TWO_FACTOR_REQUIREMENT = all`, no Forgejo SSH, `LOGIN_REMEMBER_DAYS = 0`. Sveltia's OAuth application is a public client per admin host, with PKCE only and no token sign-in.
+- **Forgejo's closed settings:** no registration, sign-in required to see anything, no user list, `GLOBAL_TWO_FACTOR_REQUIREMENT = all`, no Forgejo SSH, `LOGIN_REMEMBER_DAYS = 0`. Sveltia's OAuth application is a public client per admin host, with PKCE only and no token sign-in. The live preview has one of its own, public with PKCE as well, whose one address is the preview's sign-in, and which asks for `read:repository` alone ([ADR 0032](0032-preview-live-beside-the-form-and-share-a-draft-through-a-secret-link.md)); the seed makes both, and sets the preview's address at every start.
 - **Only these paths reach Forgejo:** `/user/login*`, `/user/two_factor*`, `/user/webauthn*`, `/user/logout`, `/user/forgot_password`, `/user/recover_account`, `/user/settings/security*`, `/login/oauth/*`, `/assets/*`, `/avatars/*`, `/api/v1/*`, `/api/forgejo/*`, `/api/healthz`, `/<org>/<repo>.git/info/lfs/*`, `/<org>/<repo>/media/*`, `/<org>/<repo>/raw/*`. Refused within those: `/api/v1/users/*/tokens*`, `/api/v1/user/applications/*`, `/api/v1/user/keys*`, `/api/v1/user/gpg_keys*`. The block stands from the first start, since a token made before it goes on working.
 - **The proxy removes `X-Real-IP`** on its way to Forgejo (`header_up -X-Real-IP`), and the jail against guessing reads the proxy's own log (hosting).
-- **The consent page answers itself:** a template override, `custom/templates/user/auth/grant.tmpl`, clicks `#authorize-app`. It is safe only because the allow-list leaves one OAuth client per Forgejo, and is checked at each raise.
+- **The consent page answers itself:** a template override, `custom/templates/user/auth/grant.tmpl`, clicks `#authorize-app`. It is safe only because the allow-list leaves no way to make an OAuth client, so the only ones are the two the seed makes, each sending its code to the site's own host alone, and it is checked at each raise.
 - **Every person sets up a second factor before anything else.** An account with none is refused everywhere, tokens included. People are individual accounts, and someone who works for two customers has an account at each.
 - **Machine accounts are enrolled too,** through the web forms, since there is no API for it. One read-only account per site, for `builder` and `editors`. An instance credential held by the hosting layer, or by `konzilo` in Compose, for provisioning, restore and erase.
 - **First passwords come through an emailed link,** since whoever knows a new user's password before that user first logs in can set up a second factor of their own. A user who loses every method needs the operator, through a logged job.

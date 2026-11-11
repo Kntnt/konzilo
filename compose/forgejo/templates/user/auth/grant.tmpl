@@ -30,6 +30,6 @@
 		</div>
 	</div>
 </div>
-{{/* The one OAuth client that can reach this page is the site's own editor (ADR 0007): answer for the user, who has just signed in with both factors. */}}
+{{/* The only OAuth clients that can reach this page are the two the seed makes, the site's own editor's and its live preview's (ADR 0007, ADR 0032): answer for the user, who has signed in with both factors. */}}
 <script>document.querySelector('#authorize-app').click();</script>
 {{template "base/footer" .}}
