@@ -140,7 +140,7 @@ describe('new-site', () => {
     test('writes body text with no class of the core\'s but its own', () => {
       const body = /<article class="body-text">([\s\S]*?)<\/article>/.exec(read('quiet-harbours-and-the-lantern/index.html'))?.[1] ?? '';
       assert.notEqual(body, '');
-      for (const [, classes] of body.matchAll(/<(?:h[2-6]|p|ul|ol|li|blockquote|figure|figcaption)\b[^>]* class="([^"]*)"/g)) assert.match(classes, /^(?:konzilo-|eyebrow|subheadline|standfirst|byline|terms|categories|topics)/);
+      for (const [, classes] of body.matchAll(/<(?:h[2-6]|p|ul|ol|li|blockquote|figure|figcaption)\b[^>]* class="([^"]*)"/g)) assert.match(classes, /^(?:konzilo-|eyebrow|subheadline|standfirst|meta-line|terms|topics)/);
     });
 
     test('is built for the host KONZILO_ORIGIN names', () => {

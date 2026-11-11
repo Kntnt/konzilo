@@ -686,7 +686,7 @@ describe('a site in Compose', () => {
         const slugs = `authors: ["author-from-${engine}","ines-holm","rafael-berg"]`;
         assert.ok(taken.files.some(({ contents }) => String(contents).includes(`title: "${title}"`) && String(contents).includes(slugs)), `a content file with ${slugs}`);
         const shown = await onTheSite(addressOf(saved.text), newName);
-        assert.match(shown, new RegExp(`<ul class="byline">.*${newName}.*Ines Holm.*Rafael Berg.*</ul>`, 's'));
+        assert.match(shown, new RegExp(`<p class="meta-line">[^<]*(?:<time [^>]*>[^<]*</time>[^<]*)? by ${newName}, Ines Holm, Rafael Berg</p>`));
       });
 
       test('asks nothing outside this copy of the site, and breaks no policy', () => {

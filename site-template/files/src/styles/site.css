@@ -268,34 +268,21 @@ main h1 {
   font-weight: 600;
 }
 
-/* A post's head: its byline, its date, its terms and its image. */
-article > time {
-  display: block;
-  font-size: 0.9375rem;
-  color: var(--body-muted);
-}
-
-.body-text > .byline,
-.body-text > time,
+/* A post's head: its meta line, its terms and its image. The meta line is
+   the divider between what presents the post and the post itself. */
+.body-text > .meta-line,
 .body-text > .terms {
   margin-block-start: 0.75rem;
 }
 
-/* The byline's authors on one line, in their order, a comma between, outside
-   the body text's own lists. */
-.body-text > .byline {
+.body-text > .meta-line {
   margin-block-end: 0;
-  padding: 0;
-  list-style: none;
-  font-weight: 600;
+  font-size: 0.9375rem;
+  color: var(--body-muted);
 }
 
-.byline li {
-  display: inline;
-}
-
-.byline li + li::before {
-  content: ", ";
+.meta-line a {
+  color: inherit;
 }
 
 .terms,
