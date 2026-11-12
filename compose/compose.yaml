@@ -130,9 +130,10 @@ services:
 
   # Fills Forgejo the first time: an organisation, a repository with the demo content
   # as source files, the site repository's own in its demo-content/ where it has any,
-  # else the core's, an account and the editor's OAuth client; and at every start makes
-  # sure of the machine accounts, the content repository, the webhook and the live
-  # preview's OAuth client.
+  # else the core's, and the editor's OAuth client; and at every start makes sure of the
+  # machine accounts, the content repository, the webhook, the live preview's OAuth client
+  # and the people KONZILO_PEOPLE lists, else the one Admin KONZILO_ACCOUNT names, each in
+  # the team of their role with a second factor whose key it keeps in `state`.
   seed:
     <<: *hardened
     build: &builder
@@ -151,6 +152,7 @@ services:
     environment:
       KONZILO_SITE: ${KONZILO_SITE}
       KONZILO_ACCOUNT: ${KONZILO_ACCOUNT}
+      KONZILO_PEOPLE: ${KONZILO_PEOPLE:-}
       KONZILO_FORGEJO_ORIGIN: http://localhost:${KONZILO_PORT_GIT}
       KONZILO_ADMIN_ORIGIN: http://localhost:${KONZILO_PORT_ADMIN}
       KONZILO_PREVIEW_ORIGIN: http://localhost:${KONZILO_PORT_PREVIEW}
@@ -336,19 +338,25 @@ services:
       - ${KONZILO_SITE_DIR:-.}:/site:ro
       - ${KONZILO_CORE}:${KONZILO_CORE}:ro
 
-  # `docker compose run --rm code` prints the seeded account's current code.
+  # `docker compose run --rm code` prints the current code of the account KONZILO_ACCOUNT
+  # names, and `docker compose run --rm code <name>` that of the person named. The program is
+  # its entrypoint, so that a name given to `run` is its argument.
   code:
     <<: *hardened
     build: *builder
     image: konzilo-builder:${KONZILO_SITE}
     profiles: [tools]
     network_mode: none
-    command: ["node", "/konzilo/bin/konzilo-code.js"]
+    entrypoint: ["node", "/konzilo/bin/konzilo-code.js"]
+    environment:
+      KONZILO_ACCOUNT: ${KONZILO_ACCOUNT}
     volumes:
       - state:/state:ro
 
 # Files, since Compose can write no secret into a read-only container, and a secret
-# is never in the environment (ADR 0005). A local copy's passwords are known.
+# is never in the environment (ADR 0005). A local copy's passwords are known. Every person
+# the seed makes has account-password, unless the seed is given one of their own,
+# account-password-<name> (README.md, What another arrangement sets).
 secrets:
   instance-password:
     file: ${KONZILO_SECRETS:-./local-secrets}/instance-password

@@ -1,12 +1,13 @@
-// Fill a new Forgejo: the instance's second factor and credential, an account with a
-// known password and a second factor, an organisation with its three teams, a source
-// repository holding the demo content, the site repository's own where it has any, else
-// the core's (ADR 0025), the editor's OAuth client and the live preview's, and Typesense's keys
-// (ADR 0002, ADR 0007, ADR 0008, ADR 0053). It talks to Forgejo itself, behind the
-// proxy, since the proxy refuses making a token, and there is no API for a second
-// factor, so an account enrols through the forms a person uses. Each step looks first,
-// so that a seed stopped half way can run again. It finds Forgejo, and the service for
-// editors that Forgejo's webhook reaches, where the arrangement says (src/arrangement.js).
+// Fill a new Forgejo: the instance's second factor and credential, an organisation with its
+// three teams, a source repository holding the demo content, the site repository's own where it
+// has any, else the core's (ADR 0025), the editor's OAuth client and the live preview's,
+// Typesense's keys, and the local copy's people, each with a known password and a second factor,
+// in the team of their role (ADR 0002, ADR 0007, ADR 0008, ADR 0053). It talks to Forgejo
+// itself, behind the proxy, since the proxy refuses making a token, and there is no API for a
+// second factor, so an account enrols through the forms a person uses. Each step looks first,
+// so that a seed stopped half way can run again, and a copy seeded before gains what a later
+// start asks for. It finds Forgejo, and the service for editors that Forgejo's webhook reaches,
+// where the arrangement says (src/arrangement.js).
 
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
@@ -18,6 +19,7 @@ import { arrangement } from '../../src/arrangement.js';
 import { SIGN_IN_PATH } from '../../src/cms/preview/paths.js';
 import { demoContentOf } from '../../src/demo-content.js';
 import { demoSource, GIT_ATTRIBUTES } from '../../src/demo-source.js';
+import { ACCOUNT_NAME, keyFileOf, passwordFilesOf, peopleOf, seat } from '../../src/people.js';
 import { readSiteDescriptionWithoutTakenComponents } from '../../src/site-description.js';
 import { totp } from '../../src/totp.js';
 
@@ -27,7 +29,6 @@ const STATE = '/state';
 const SITE = '/site';
 const {
   KONZILO_SITE: site,
-  KONZILO_ACCOUNT: account,
   KONZILO_ADMIN_ORIGIN: adminOrigin,
   KONZILO_PREVIEW_ORIGIN: previewOrigin,
 } = process.env;
@@ -54,9 +55,11 @@ const SEARCH_ADMIN_KEY = '/builder-secret/typesense-admin-key';
 const SEARCH_KEY = '/builder-secret/typesense-search-key';
 const TYPESENSE_CONFIG = '/typesense-secret/typesense.ini';
 
-const secret = (name) => readFileSync(`/run/secrets/${name}`, 'utf8').trim();
+const SECRETS = '/run/secrets';
+const secret = (name) => readFileSync(join(SECRETS, name), 'utf8').trim();
 const known = (name) => (existsSync(join(STATE, name)) ? readFileSync(join(STATE, name), 'utf8').trim() : null);
 const remember = (name, value) => {
+  mkdirSync(dirname(join(STATE, name)), { recursive: true, mode: 0o700 });
   writeFileSync(join(STATE, name), `${value}\n`);
   chmodSync(join(STATE, name), 0o600);
 };
@@ -96,7 +99,8 @@ async function enrol(user, password, keyFile) {
   if (signedIn.status !== 303) throw new Error(`signing in as ${user}: ${signedIn.status}`);
   const page = await (await send('/user/settings/security/two_factor/enroll')).text();
   const key = /Or enter the secret: ([A-Z2-7]+)/.exec(page)?.[1];
-  if (!key) throw new Error(`no secret on the enrolment page of ${user}`);
+  // An account given a second factor elsewhere has a key the seed never saw, and none to keep.
+  if (!key) throw new Error(`no secret on the enrolment page of ${user}, who may have a second factor the seed did not enrol, whose key it cannot keep`);
   const enrolled = await form('/user/settings/security/two_factor/enroll', { passcode: totp(key) });
   if (enrolled.status !== 303) throw new Error(`enrolling ${user}: ${enrolled.status}`);
   remember(keyFile, key);
@@ -299,56 +303,85 @@ function searchKeys() {
   writeFileSync(TYPESENSE_CONFIG, `[server]\napi-key = ${readFileSync(SEARCH_ADMIN_KEY, 'utf8').trim()}\n`, { mode: 0o600 });
 }
 
+// The local copy's people (src/people.js), which every start makes sure of, so that a copy seeded
+// before gains those added since: each person's account, with their password where it is made,
+// a second factor whose key `state` keeps, and the team of their role and no other role's. The
+// key of the account `KONZILO_ACCOUNT` named at the first start is `account-totp`, as it has
+// always been, and `account-name` says whose it is, so that a later change of the setting never
+// gives one person another's key.
+async function seedPeople(call, people) {
+  const account = known(ACCOUNT_NAME) ?? process.env.KONZILO_ACCOUNT;
+  if (account && !known(ACCOUNT_NAME)) remember(ACCOUNT_NAME, account);
+  const teams = must('listing the teams', await call('GET', `/orgs/${site}/teams`), 200);
+  for (const person of people) {
+    const { name } = person;
+    const keyFile = keyFileOf(name, account);
+    const found = await call('GET', `/users/${encodeURIComponent(name)}`);
+    must(`looking for the account ${name}`, found, 200, 404);
+    if (found.status === 404 || !known(keyFile)) {
+      const password = passwordOf(name);
+      if (found.status === 404) {
+        must(`making the account ${name}`, await call('POST', '/admin/users', {
+          username: name,
+          email: `${name}@localhost.invalid`,
+          password,
+          must_change_password: false,
+          send_notify: false,
+          visibility: 'private',
+        }), 201);
+      }
+      await enrol(name, password, keyFile);
+    }
+    await seat(call, teams, person);
+  }
+}
+
+// A person's password: from a secret of their own where one is mounted, else from the one they
+// share (src/people.js).
+function passwordOf(name) {
+  const file = passwordFilesOf(name).find((one) => existsSync(join(SECRETS, one)));
+  if (!file) throw new Error(`no password for ${name}: neither ${passwordFilesOf(name).map((one) => join(SECRETS, one)).join(' nor ')} is there`);
+  return secret(file);
+}
+
 async function main() {
+  // The machine accounts, the instance's and the site's organisation are no one's to take.
+  const people = peopleOf(process.env, { taken: ['konzilo', BUILDER, READER, SERVICE_READER, site] });
   searchKeys();
   const instancePassword = secret('instance-password');
-  const accountPassword = secret('account-password');
   const instanceKey = await enrol('konzilo', instancePassword, 'instance-totp');
   const token = await instanceToken(instancePassword, instanceKey);
   const call = api(token);
-  if (known('seeded')) {
-    await publishing(call, instancePassword, instanceKey);
-    return;
+  const first = !known('seeded');
+
+  if (first) {
+    must('making the organisation', await call('POST', '/orgs', {
+      username: site,
+      visibility: 'private',
+      repo_admin_change_team_access: false,
+    }), 201, 422);
+
+    const made = await call('POST', `/orgs/${site}/repos`, { name: REPOSITORY, private: true, auto_init: false, default_branch: 'main' });
+    must('making the repository', made, 201, 409);
+    const branches = must('listing the branches', await call('GET', `/repos/${site}/${REPOSITORY}/branches`), 200);
+    if (branches.length === 0) await pushDemoContent(token);
+
+    // One OAuth client per Forgejo, public, with PKCE only (ADR 0007).
+    if (!known('oauth-client')) {
+      const client = must('making the OAuth client', await call('POST', '/user/applications/oauth2', {
+        name: 'Konzilo',
+        redirect_uris: [`${adminOrigin}/`],
+        confidential_client: false,
+      }), 201);
+      remember('oauth-client', client.client_id);
+    }
   }
 
-  must('making the account', await call('POST', '/admin/users', {
-    username: account,
-    email: `${account}@localhost.invalid`,
-    password: accountPassword,
-    must_change_password: false,
-    send_notify: false,
-    visibility: 'private',
-  }), 201, 422);
-  await enrol(account, accountPassword, 'account-totp');
-
-  must('making the organisation', await call('POST', '/orgs', {
-    username: site,
-    visibility: 'private',
-    repo_admin_change_team_access: false,
-  }), 201, 422);
-
-  const made = await call('POST', `/orgs/${site}/repos`, { name: REPOSITORY, private: true, auto_init: false, default_branch: 'main' });
-  must('making the repository', made, 201, 409);
-  const branches = must('listing the branches', await call('GET', `/repos/${site}/${REPOSITORY}/branches`), 200);
-  if (branches.length === 0) await pushDemoContent(token);
-
-  // Write access and never ownership, so that no customer reaches webhooks or
-  // settings (ADR 0008).
-  const { id: admins } = await teamOfTheSource(call, 'admins', TEAMS.admins);
-  must('adding the account to its team', await call('PUT', `/teams/${admins}/members/${account}`), 204);
-
-  // One OAuth client per Forgejo, public, with PKCE only (ADR 0007).
-  if (!known('oauth-client')) {
-    const client = must('making the OAuth client', await call('POST', '/user/applications/oauth2', {
-      name: 'Konzilo',
-      redirect_uris: [`${adminOrigin}/`],
-      confidential_client: false,
-    }), 201);
-    remember('oauth-client', client.client_id);
-  }
-
+  // The teams have write access and never ownership, so that no customer reaches webhooks or
+  // settings (ADR 0008), and publishing makes sure of them before anyone is put in one.
   await publishing(call, instancePassword, instanceKey);
-  remember('seeded', new Date().toISOString());
+  await seedPeople(call, people);
+  if (first) remember('seeded', new Date().toISOString());
 }
 
 await main();

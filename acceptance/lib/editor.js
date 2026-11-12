@@ -62,8 +62,10 @@ export async function freshCode(login, make) {
 // A code a person has used elsewhere, as at their enrolment, which their next sign-in waits past.
 export const usedCode = (login, code) => lastCodes.set(login, code);
 
-// The account the seed makes, which a site's teams have as an Admin.
-const seeded = (site) => ({ login: 'anna', password: 'local-only-account-password', code: () => site.code() });
+// One of the people the seed makes, `login`, with the password they share and a code from
+// `konzilo-code <login>`; without one, the account a site's teams have as an Admin, with the
+// code `konzilo-code` gives without a name.
+export const seeded = (site, login) => ({ login: login ?? 'anna', password: 'local-only-account-password', code: () => site.code(login) });
 
 // A new post of `collection` in Sveltia, once its own form is shown, with `ready` in it. Sveltia
 // changes its view inside a view transition, a frame or more after the address changes, and
@@ -104,12 +106,13 @@ export async function throughForgejo(page, site, through, person = seeded(site))
   await through;
 }
 
-export async function signIn({ context, page, watch }, site) {
+// `person`: who signs in, the seeded account where none is given.
+export async function signIn({ context, page, watch }, site, person = seeded(site)) {
   const button = page.getByRole('button', { name: /Forgejo/ });
   await button.waitFor();
   // Safari opened no popup for a click right after a load (ADR 0007).
   await page.waitForTimeout(1000);
   const [popup] = await Promise.all([context.waitForEvent('page'), button.click()]);
   watch(popup);
-  await throughForgejo(popup, site, popup.waitForEvent('close', { timeout: 120_000 }));
+  await throughForgejo(popup, site, popup.waitForEvent('close', { timeout: 120_000 }), person);
 }
