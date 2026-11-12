@@ -73,8 +73,9 @@ const body = [
   '::callout[Read **this**]{tone="warning"}',
 ].join('\n\n');
 
-// A site repository with `files`, built; { status, output, html(slug) }.
-function build(files, directives = {}, described = site) {
+// A site repository with `files`, built, as the public site's or, with `preview`, as the live
+// preview's dev server renders it; { status, output, article(slug), html(slug) }.
+function build(files, directives = {}, described = site, { preview = false } = {}) {
   const repository = mkdtempSync(join(tmpdir(), 'konzilo-directives-'));
   repositories.push(repository);
   // The core's dependencies, each on its own, for a package of the site's to stand among them.
@@ -91,9 +92,10 @@ function build(files, directives = {}, described = site) {
   write('site-description.json', JSON.stringify(described));
   write('src/pages/[slug].astro', page);
   for (const [path, contents] of Object.entries({ ...components, ...files })) write(path, contents);
-  const built = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
-  const article = (slug) => /<article>(.*)<\/article>/s.exec(readFileSync(join(repository, `dist/${slug}/index.html`), 'utf8'))?.[1];
-  return { status: built.status, output: `${built.stdout}\n${built.stderr}`, article };
+  const built = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: preview ? { ...astroEnvironment, KONZILO_PREVIEW: '1' } : astroEnvironment });
+  const html = (slug) => readFileSync(join(repository, `dist/${slug}/index.html`), 'utf8');
+  const article = (slug) => /<article>(.*)<\/article>/s.exec(html(slug))?.[1];
+  return { status: built.status, output: `${built.stdout}\n${built.stderr}`, article, html };
 }
 
 describe('Astro', () => {
@@ -178,6 +180,81 @@ describe("a site's own components", () => {
     const built = build({ 'content/articles/hello-world.md': post(':::panel{tone="dark"}\n\nText\n\n:::') }, {}, own);
     assert.notEqual(built.status, 0);
     assert.match(built.output, /content\/articles\/hello-world\.md: line 5: the site cannot publish the setting "tone" with the value "dark"/);
+  });
+});
+
+// In the live preview, each component's block is marked on its own root, so that a design's
+// child selectors see the page as published (docs/site-design.md, *The live preview*).
+describe("a site's own components in the live preview", () => {
+  const own = {
+    components: {
+      section: { label: 'Section', form: 'container', body: 'blocks', attributes: { tone: { type: 'string', label: 'Tone', values: ['plain', 'bright'], default: 'plain' } } },
+      kicker: { label: 'Kicker', form: 'leaf', body: 'text' },
+      pair: { label: 'Pair', form: 'leaf', body: 'none' },
+      words: { label: 'Words', form: 'leaf', body: 'none' },
+      bare: { label: 'Bare', form: 'container', body: 'blocks' },
+    },
+    types: { post: { ...site.types.post, elements: ['paragraph', 'heading', 'section', 'kicker', 'pair', 'words', 'bare'] } },
+  };
+  // A section that places its mark itself, by passing on what it is not told of; a kicker, one
+  // element, and a pair, two side by side, that place none; words, which render no element; and
+  // a bare container, which renders its blocks with nothing around them.
+  const designed = {
+    'src/components/Section.astro': '---\nconst { tone, ...rest } = Astro.props;\n---\n<section class="site-section" {...rest}><div class="site-band"><slot /></div></section>\n',
+    'src/components/Kicker.astro': '<p class="site-kicker"><slot /></p>\n',
+    'src/components/Pair.astro': '<b class="site-pair">One</b><i class="site-pair">Two</i>\n',
+    'src/components/Words.astro': 'Only words\n',
+    'src/components/Bare.astro': '<slot />\n',
+  };
+  const given = { section: './src/components/Section.astro', kicker: './src/components/Kicker.astro', pair: './src/components/Pair.astro', words: './src/components/Words.astro', bare: './src/components/Bare.astro' };
+  const nested = ['Before', ':::section{tone="bright"}', '::kicker[A _kicker_]', '## Inside', '::::section', 'Deep', '::::', '::pair', '::words', '::::bare', 'Bare', '::::', ':::', '::words', ':::bare', 'Bare too', ':::'].join('\n\n');
+
+  test('puts each mark on the root the component renders, its own or the core\'s, and a wrapper only at the top of the body, where nothing else can hold it', () => {
+    const built = build({ ...designed, 'content/articles/hello-world.md': post(nested) }, given, own, { preview: true });
+    assert.equal(built.status, 0, built.output);
+    assert.equal(built.article('hello-world').replaceAll('\n', ''), [
+      '<p data-konzilo-block="0">Before</p>',
+      '<section class="site-section" data-konzilo-block="1"><div class="site-band">',
+      '<p data-konzilo-block="1.0" class="site-kicker">A <em>kicker</em></p>',
+      '<h2 data-konzilo-block="1.1" id="inside">Inside</h2>',
+      '<section class="site-section" data-konzilo-block="1.2"><div class="site-band"><p data-konzilo-block="1.2.0">Deep</p></div></section>',
+      '<b data-konzilo-block="1.3" class="site-pair">One</b><i data-konzilo-block="1.3" class="site-pair">Two</i>',
+      'Only words',
+      '<p data-konzilo-block="1.5.0">Bare</p>',
+      '</div></section>',
+      '<div class="konzilo-preview-part" data-konzilo-block="2">Only words</div>',
+      '<div class="konzilo-preview-part" data-konzilo-block="3"><p data-konzilo-block="3.0">Bare too</p></div>',
+    ].join(''));
+  });
+
+  test('keeps a component\'s script, as the public site has it', () => {
+    const scripted = { ...designed, 'src/components/Kicker.astro': '<p class="site-kicker"><slot /></p>\n<script>document.documentElement.dataset.kicker = "ran";</script>\n' };
+    const files = { ...scripted, 'content/articles/hello-world.md': post(nested) };
+    const scripts = (built) => built.article('hello-world').match(/<script\b[^>]*>[^<]*<\/script>/g);
+    const published = build(files, given, own);
+    const previewed = build(files, given, own, { preview: true });
+    assert.equal(previewed.status, 0, previewed.output);
+    assert.equal(scripts(published).length, 1, published.article('hello-world'));
+    assert.deepEqual(scripts(previewed), scripts(published));
+    assert.match(previewed.article('hello-world'), /<p data-konzilo-block="1.0" class="site-kicker">/);
+  });
+
+  test('gives a component no mark on the public site', () => {
+    const built = build({ ...designed, 'content/articles/hello-world.md': post(nested) }, given, own);
+    assert.equal(built.status, 0, built.output);
+    assert.equal(built.article('hello-world').replaceAll('\n', ''), [
+      '<p>Before</p>',
+      '<section class="site-section"><div class="site-band">',
+      '<p class="site-kicker">A <em>kicker</em></p>',
+      '<h2 id="inside">Inside</h2>',
+      '<section class="site-section"><div class="site-band"><p>Deep</p></div></section>',
+      '<b class="site-pair">One</b><i class="site-pair">Two</i>',
+      'Only words',
+      '<p>Bare</p>',
+      '</div></section>',
+      'Only words',
+      '<p>Bare too</p>',
+    ].join(''));
   });
 });
 

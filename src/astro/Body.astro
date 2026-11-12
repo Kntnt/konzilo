@@ -25,6 +25,8 @@
 //   <Body post={entry} page={page}><Content /></Body>
 import components from 'virtual:konzilo/directives';
 import './modal.css';
+import BlockMark from './BlockMark.astro';
+import { BLOCK_ATTRIBUTE } from './block-marks.js';
 import { bodyParts } from './directives.js';
 import { withLightboxes } from './lightbox.js';
 import { postList, shownOnPage } from './post-lists.js';
@@ -47,13 +49,14 @@ const lightboxes = {
 ---
 {parts.map((part) => {
   if (typeof part === 'string') return <Fragment set:html={withLightboxes(part, lightboxes)} />;
-  // In the live preview a component keeps the mark of its block, around it, since its own
-  // markup is the site's (block-marks.js).
-  const marked = (rendered) => (part.block === null ? rendered : <div class="konzilo-preview-part" data-konzilo-block={part.block}>{rendered}</div>);
+  // In the live preview a component is given the mark of its block to place on its root, and
+  // keeps it there whether it does or not (BlockMark.astro, block-marks.js).
+  const mark = part.block === null ? {} : { [BLOCK_ATTRIBUTE]: part.block };
+  const marked = (rendered) => (part.block === null ? rendered : <BlockMark block={part.block}>{rendered}</BlockMark>);
   if (part.list) {
     const { component: Presentation, posts, options, empty, pager } = part.list;
-    return marked(<Presentation posts={posts} options={options} empty={empty} pager={pager} />);
+    return marked(<Presentation posts={posts} options={options} empty={empty} pager={pager} {...mark} />);
   }
   const Component = components[part.name];
-  return marked(part.body === null ? <Component {...part.attributes} /> : <Component {...part.attributes}><Astro.self html={part.body} post={post} shown={shown} page={page} /></Component>);
+  return marked(part.body === null ? <Component {...part.attributes} {...mark} /> : <Component {...part.attributes} {...mark}><Astro.self html={part.body} post={post} shown={shown} page={page} /></Component>);
 })}

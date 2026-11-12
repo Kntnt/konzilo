@@ -1,0 +1,17 @@
+---
+// A component the site renders in a body, in the live preview, with the mark of its block, `block`,
+// on its root (block-marks.js): as the component placed it there, or put there by the core. Where
+// it cannot be, a wrapper with no box of its own holds it, around the component at the top of the
+// body; within another component's body none does, since a wrapper there would stand inside that
+// component's root, between it and what its child selectors seek, and the blocks the component
+// holds lead to it there. Body.astro renders each component it marks through this.
+//
+//   <BlockMark block="2.1"><Component data-konzilo-block="2.1" … /></BlockMark>
+import { withBlockMark } from './block-marks.js';
+
+const { block } = Astro.props;
+const rendered = (await Astro.slots.render('default')) ?? '';
+const marked = withBlockMark(rendered, block);
+const atTheTop = !block.includes('.');
+---
+{marked !== null ? <Fragment set:html={marked} /> : atTheTop ? <div class="konzilo-preview-part" data-konzilo-block={block}><Fragment set:html={rendered} /></div> : <Fragment set:html={rendered} />}
