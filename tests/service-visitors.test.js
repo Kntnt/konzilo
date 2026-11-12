@@ -10,7 +10,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, afterEach, before, beforeEach, describe, test } from 'node:test';
 
+import { submissionMail } from '../src/service/mail.js';
 import { openStore } from '../src/service/store.js';
+import { submissionsCsv } from '../src/service/submissions-csv.js';
 import { visitorsService } from '../src/service/visitors.js';
 import { siteDescription } from '../src/site-description.js';
 
@@ -150,6 +152,26 @@ describe('the service, for visitors', () => {
           { name: 'privacy', label: 'I have read the privacy policy', value: true },
         ],
       }]);
+    });
+
+    test('keeps a label\'s words without the links it holds, and its mail and its CSV show them so', async () => {
+      const linked = { label: 'Join', fields: [
+        { name: 'email', label: 'Email, as [we use it](/privacy-policy/#email)', kind: 'email', required: true },
+        { name: 'privacy', label: 'I have read the [privacy policy](/privacy-policy/)', kind: 'acceptance' },
+      ] };
+      site = described({ forms: { contact, note, linked } });
+      assert.equal((await sendJson('linked', { email: 'ada@example.com', privacy: true })).status, 200);
+
+      const [submission] = store.submissions('linked');
+      assert.deepEqual(submission.fields, [
+        { name: 'email', label: 'Email, as we use it', value: 'ada@example.com' },
+        { name: 'privacy', label: 'I have read the privacy policy', value: true },
+      ]);
+      const mail = submissionMail({ submission, form: site.forms.linked, sender: 'site@example.com', recipients: ['anna@example.com'] });
+      assert.match(mail.text, /^Email, as we use it\nada@example\.com\n\nI have read the privacy policy\nYes\n$/m);
+      assert.doesNotMatch(mail.text, /[[\]()]/);
+      const csv = [...submissionsCsv({ labelOf: () => 'Join', each: () => [submission], separator: 'comma', timeZone: 'UTC', language: 'en' })].join('');
+      assert.equal(csv.split('\r\n')[0], '\uFEFFSent at (UTC),Form,"Email, as we use it",I have read the privacy policy');
     });
 
     test('notes the language of the page it was sent from, on a site in several', async () => {

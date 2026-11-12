@@ -129,6 +129,8 @@ The core's stylesheet makes it work, and it stands inside a body's wrapper, so a
 | `.konzilo-form-send` | The button | |
 | `.konzilo-form-trap` | The field only a robot fills in, which must stay out of sight | |
 
+A field's label is in its `label`, or a group's of choices in its `legend`, before the mark of a required field. A link the label holds, such as an acceptance line's to its policy, is a plain `a` inside it, with no class and no `target`, so a design reaches it as `.konzilo-form-field label a` or `.konzilo-form-field legend a`. A choice's own label holds none.
+
 ### Consent
 
 `ConsentBanner.astro` goes once on a page, and `ConsentControls.astro` in its footer. `links={false}` leaves the policy links out of the controls and `buttons={false}` the buttons, so that each can stand in its own place, and `objection` adds the right to object to counting without storage, as the dialog has it, where the site counts so, for a template such as the privacy policy's to place. The banner stays hidden on the privacy policy and the cookie policy, and the footer controls work there. Where an item stored on the page's own host is named, the element marked `data-konzilo-consent-host` holds the host, which the script writes from the page's address. Each component, `CookieDeclaration.astro` too, is a thin wrapper around a pure function of `src/consent/markup.js`, `consentMarkup()`, `consentControlsMarkup()` and `cookieDeclarationMarkup()`, which give the same markup outside Astro.

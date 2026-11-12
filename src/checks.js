@@ -24,6 +24,13 @@ export function text(value, path, problems) {
   return value;
 }
 
+// Whether `url` is an address a link of a site's own may lead to, a menu's entry's or one in a
+// form field's label: a path of the site's, from its root, or an address that starts with
+// https://, http://, mailto: or tel:, and no white space in it.
+export function isLinkAddress(url) {
+  return typeof url === 'string' && (/^(?:https?:\/\/|mailto:|tel:)/.test(url) || (url.startsWith('/') && !url.startsWith('//'))) && !/\s/.test(url);
+}
+
 // The languages Konzilo's interface comes in, each by its catalogue's name and
 // what it is in British English: `en (British English) and sv (Swedish)`.
 export function interfaceLanguagesNamed() {

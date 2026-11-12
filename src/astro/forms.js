@@ -83,10 +83,10 @@ function withContact(sentence, texts, email) {
 // whose form sends nothing.
 //
 // Gives { name, label, action, id, preview, page, texts, fields, outcomes,
-// data }: each field with the ids of its control, help and problem, its
-// HTML type and its rules; each outcome by its id, as parts of text and
-// links; and what the script reads, as JSON. Throws for a form the site
-// description does not declare.
+// data }: each field with its label as parts of text and links, `labelParts`,
+// the ids of its control, help and problem, its HTML type and its rules; each
+// outcome by its id, as parts of text and links; and what the script reads, as
+// JSON. Throws for a form the site description does not declare.
 export function formView(name, { forms, settings, locale, languageTag, base = '/', page = '/', texts: own = {} }) {
   const form = forms?.[name];
   if (!form) {

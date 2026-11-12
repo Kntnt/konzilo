@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- A form field's label can hold links, written as Markdown links in the site description, such as `I have read the [privacy policy](/privacy-policy/)` for an acceptance line, each to an address a menu's entry may have: the form draws the link in the field's label, and a submission, its mail, its CSV and the Submissions page show the label's words without it.
+
 ### Fixed
 
 - A click in the body field while the live preview's page is still loading, in the pane or in its window of its own, no longer leaves an error in the browser's console in Safari and Firefox.
