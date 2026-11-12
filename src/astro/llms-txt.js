@@ -95,9 +95,9 @@ function order(type, language) {
 async function filePages({ settings, site }, { getCollection }) {
   const ai = aiSettings(settings, site);
   const pages = await markdownPages({ settings, site }, { getCollection });
-  const home = pages.find((page) => page.entry === null) ?? null;
+  const home = pages.find((page) => page.home) ?? null;
   const sections = typesInOrder(site)
-    .map((type) => ({ type, pages: pages.filter((page) => page.type?.name === type.name).sort(order(type, site.language)) }))
+    .map((type) => ({ type, pages: pages.filter((page) => !page.home && page.type?.name === type.name).sort(order(type, site.language)) }))
     .filter((section) => section.pages.length > 0);
   return { home, sections, ai };
 }

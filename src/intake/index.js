@@ -10,6 +10,7 @@
 import { isObject } from '../checks.js';
 import { DRAFT, POST_STATUSES, PUBLISHED, SCHEDULED } from '../format/post-status.js';
 import { REDIRECTS_FILE } from '../format/redirects.js';
+import { START_PAGE, startFile } from '../format/start-page.js';
 import { POST_IDS_FILE } from '../format/write.js';
 import { siteDescription } from '../site-description.js';
 import { addressWanted, allOthers, earlier, holdAddresses, oldAddressesOf } from './addresses.js';
@@ -76,6 +77,7 @@ export function intake({ files, site: described, now, ledger = null, changes = {
   run.posts = new Map(run.source.posts.map((post) => [post.key, post]));
   run.postsById = groupBy(run.source.posts, (post) => post.id);
   for (const post of run.source.posts) stateOf(post, run);
+  chooseStartPage(run);
   for (const post of run.source.posts) if (post.on) checkPost(post, run);
   settle(run);
   return assemble(run);
@@ -156,11 +158,12 @@ function holdPostsTaken(run) {
   for (const [key, entry] of Object.entries(ledger.posts)) {
     const id = key.split('/').at(-1);
     if (!entry.path || present.has(key)) continue;
-    const collection = entry.path.split('/')[0];
-    const type = Object.values(site.types).find((one) => one.collection === collection);
-    const path = `${collection}/${key}.md`;
+    // Its file is in its type's collection's folder, or, the start page's, named by its type.
+    const type = Object.values(site.types).find((one) => entry.path === startFile(one) || one.collection === entry.path.split('/')[0]);
+    if (!type) continue;
+    const path = `${type.collection}/${key}.md`;
     const legal = run.chosen.legalPages.includes(id) && run.changes?.[path]?.admin === false;
-    if (!type || (!legal && !reviewersChange(run, path))) continue;
+    if (!legal && !reviewersChange(run, path)) continue;
     const tag = key.includes('/') ? key.split('/')[0] : null;
     source.posts.push({ key, id, tag, language: tag ? site.languages.find((one) => one.tag === tag) ?? null : site.languages[0] ?? null, type, path, hash: null, fields: {}, body: '', bodyLine: 1, title: entry.title, gone: true });
   }
@@ -242,6 +245,22 @@ function ownStateOf(post, run) {
   post.notFound = run.chosen.notFound === post.id;
   const change = legalChangedBy(post, run);
   if (change) refuse(run, post, { reason: say('refusal.admin-legal', { by: change.by ?? say('about.someone') }) });
+}
+
+// The start page an Admin chose, which is the site's start page where it is on the site's
+// way, of a type with an address: `startPage` on the post. A site in several languages chooses
+// none (ADR 0042), and the page for addresses not found, which has no address, is none; the
+// settings page says so, as it says of a chosen post that cannot serve, and the site shows its
+// own start page.
+function chooseStartPage(run) {
+  const id = run.chosen.startPage;
+  if (id === null) return;
+  const warn = (key) => run.warnings.push(named({ file: 'settings.json', setting: `${START_PAGE}.page`, reason: say(key) }));
+  if (run.several) return warn('warning.start-page-languages');
+  if (id === run.chosen.notFound) return warn('warning.start-page-not-found');
+  const post = (run.postsById.get(id) ?? []).find((one) => one.on && !one.keepsNothing);
+  if (!post || post.type.address === null) return warn('warning.start-page-none');
+  post.startPage = true;
 }
 
 // A post's own problems, what no other post can change.

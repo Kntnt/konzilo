@@ -1,33 +1,62 @@
 ---
-// The start page of each language: its articles, newest first, each by its
-// teaser's headline and text, what Konzilo's article parts give where the
-// article has no teaser of its own. On a site in
-// one language it is at the root; on a site in several, each language's is
-// at its prefix, `/sv/` and `/en/`, with that language's articles alone, and
-// the root leads to the main language's. Its layout
-// stays in the site repository; the main menu and the footer come from the
-// site settings. Each link starts at the site's base, so that it stays in
-// a preview, which is served below a base of its own.
+// The start page of each language.
+//
+// Where an Admin has chosen a page as the start page, in the Site settings,
+// Konzilo's startPages() gives its entry, and the route draws it as a page's
+// own route does: its title as its heading and its body through Konzilo's
+// Body, which renders each post list in it with its presentation and a form
+// with the site's form component; a canvas, its body alone, which the layout
+// gives neither header nor footer. The chosen page is at the root alone: its
+// own address leads here, and a post list with pages of its own has its later
+// pages at /page/2/ and on, which startPages() gives too. Its head is the
+// start page's, which Konzilo's Head writes from the entry.
+//
+// Where none is chosen, as on a site in several languages, which chooses
+// none, the start page is the site's own: its articles, newest first, each by
+// its teaser's headline and text, what Konzilo's article parts give where the
+// article has no teaser of its own. On a site in one language it is at the
+// root; on a site in several, each language's is at its prefix, `/sv/` and
+// `/en/`, with that language's articles alone, and the root leads to the main
+// language's.
+//
+// The main menu and the footer come from the site settings. Each link starts
+// at the site's base, so that it stays in a preview, which is served below a
+// base of its own.
 import { teaserHeadlineOf, teaserTextOf } from '@kntnt/konzilo/article-parts';
+import Body from '@kntnt/konzilo/astro/Body.astro';
+import CookieDeclaration from '@kntnt/konzilo/astro/CookieDeclaration.astro';
+import { builtInType } from '@kntnt/konzilo/astro/helpers';
 import { entriesIn, entryUrl, startPages } from '@kntnt/konzilo/astro/languages';
+import { render } from 'astro:content';
 import Site from '../layouts/Site.astro';
 
 export function getStaticPaths() {
   return startPages('start');
 }
 
-const { language } = Astro.props;
-const articles = (await entriesIn('articles', language)).sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+const { language, entry, page } = Astro.props;
+const Content = entry ? (await render(entry)).Content : null;
+const articles = entry ? [] : (await entriesIn('articles', language)).sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
 ---
-<Site>
-  <main>
-    <ul class="post-list">
-      {articles.map((article) => (
-        <li>
-          <a href={entryUrl(article)}>{teaserHeadlineOf(article.data)}</a>
-          {teaserTextOf(article.data) && <p>{teaserTextOf(article.data)}</p>}
-        </li>
-      ))}
-    </ul>
-  </main>
-</Site>
+{entry ? (
+  <Site entry={entry} page={page}>
+    <main class="body-text">
+      {builtInType(entry) !== 'canvas' && <h1>{entry.data.title}</h1>}
+      <Body post={entry} page={page}><Content /></Body>
+      <CookieDeclaration />
+    </main>
+  </Site>
+) : (
+  <Site>
+    <main>
+      <ul class="post-list">
+        {articles.map((article) => (
+          <li>
+            <a href={entryUrl(article)}>{teaserHeadlineOf(article.data)}</a>
+            {teaserTextOf(article.data) && <p>{teaserTextOf(article.data)}</p>}
+          </li>
+        ))}
+      </ul>
+    </main>
+  </Site>
+)}

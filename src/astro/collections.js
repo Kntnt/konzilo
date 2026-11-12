@@ -39,6 +39,7 @@ import { canonicalAddress } from '../format/addresses.js';
 import { CATEGORIES, CONSENT_FILE, CONSENT_GROUP, HOST_KINDS, LIFETIME, SAFEGUARDS, STORAGE_KINDS } from '../format/consent.js';
 import { NOT_FOUND, NOT_FOUND_FILE, NOT_FOUND_FOLDER } from '../format/not-found.js';
 import { isSource, OTHER_ANSWERS } from '../format/redirects.js';
+import { START_ENTRY, START_PAGE, startFile } from '../format/start-page.js';
 import { isSiteTitle, TYPES } from '../settings-groups.js';
 import { declaredNames, DEPARTURES, IMAGE, PRIVACY_SIGNALS, OLD_ADDRESSES, OTHER_ADDRESSES, POST, readSiteDescription, SCHEMA_TYPES, SITE_DESCRIPTION_FILE, siteDescription, TRANSLATION_KEY } from '../site-description.js';
 import { SETTINGS_ENTRY } from './languages.js';
@@ -67,7 +68,7 @@ export function collections(site, { groups } = {}) {
   return Object.fromEntries([
     ...Object.values(types).map((type) => [
       type.collection,
-      defineCollection({ loader: loader(files(type, inFolders(type.hierarchical ? '**/*.md' : '*.md')), { type, tags, forms }), schema: ({ image }) => z.strictObject(postSchema(type, image)) }),
+      defineCollection({ loader: loader(postFiles(type, inFolders(type.hierarchical ? '**/*.md' : '*.md'), tags), { type, tags, forms }), schema: ({ image }) => z.strictObject(postSchema(type, image)) }),
     ]),
     ...Object.values(taxonomies).map((taxonomy) => [
       taxonomy.collection,
@@ -81,7 +82,8 @@ export function collections(site, { groups } = {}) {
       }),
     ]]),
     // Every site has an identity, so every site has the settings. The 404
-    // page's group is the collection notFound instead.
+    // page's group is the collection notFound instead, and the start page's
+    // the chosen post's entry in its type's collection.
     ['settings', defineCollection({
       loader: loader(tags === null
         ? { pattern: 'settings.json', base: contentFolder(), generateId: () => SETTINGS_ENTRY }
@@ -89,7 +91,7 @@ export function collections(site, { groups } = {}) {
       schema: ({ image }) => z.strictObject({
         ...identitySchema(image),
         ...settingsSchema(settings, image),
-        ...Object.fromEntries(applied.filter((group) => group.name !== NOT_FOUND).map((group) => [group.name, groupSchema(group, image)])),
+        ...Object.fromEntries(applied.filter((group) => group.name !== NOT_FOUND && group.name !== START_PAGE).map((group) => [group.name, groupSchema(group, image)])),
       }),
     })],
     // Every site has a 404 page, the template's own where none is chosen,
@@ -340,6 +342,22 @@ function settingSchema(setting, image) {
 // A field without a value is left out of the file, unless it is required.
 function optional(schema, { required }) {
   return required ? schema : schema.optional();
+}
+
+// The files of a post type's collection, as files() finds them, and on a site
+// in one language (`tags` null) the start page an Admin chose where it is a
+// post of the type, its file at the content folder's root, `start.<type>.md`,
+// whose entry's id is START_ENTRY, which no slug or path is, at the start
+// page's address (languages.js).
+function postFiles(type, pattern, tags) {
+  if (tags !== null) return files(type, pattern);
+  const within = `${type.collection}/`;
+  const start = startFile(type);
+  return {
+    pattern: [`${within}${pattern}`, start],
+    base: contentFolder(),
+    generateId: ({ entry }) => (entry === start ? START_ENTRY : entry.slice(within.length).replace(/\.md$/, '')),
+  };
 }
 
 // The files of a collection, as `glob` finds them. Astro keeps what it has

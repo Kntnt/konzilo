@@ -140,6 +140,24 @@ test('shows the site\'s settings and groups in one file, and a menu in its own',
   }
 });
 
+// The start page is chosen as the page for addresses not found is, among the site's pages, on a
+// site in one language; a site in several shows its own start page in each, and is offered
+// no choice (ADR 0033, ADR 0042).
+test('lets an Admin choose a page as the start page, as the page for addresses not found, on a site in one language alone', () => {
+  const [settings] = collection('settings').files;
+  const group = field(settings.fields, 'startPage');
+  assert.equal(group.label, 'Start page');
+  assert.deepEqual(group.fields.map(({ name, label, widget, collection: among }) => ({ name, label, widget, among })), [{ name: 'page', label: 'Start page', widget: 'relation', among: 'pages' }]);
+  assert.deepEqual(field(field(settings.fields, 'notFound').fields, 'page').collection, 'pages');
+  assert.equal(field(cmsConfig(description, { ...place, language: 'sv' }).collections.find((one) => one.name === 'settings').files[0].fields, 'startPage').label, 'Startsida');
+  const declared = JSON.parse(readFileSync(file('site-template/files/site-description.json'), 'utf8'));
+  delete declared.language;
+  declared.languages = ['sv_SE', 'en_GB'];
+  const several = cmsConfig(siteDescription(declared), place).collections.find((one) => one.name === 'settings').files[0].fields;
+  assert.equal(field(several, 'startPage'), undefined);
+  assert.ok(field(several, 'notFound'));
+});
+
 // A line under an entry, as a large menu shows it, at every depth of the menu: one line of at
 // most the characters the intake takes, never required.
 test('gives each entry of a menu, at every depth, a line of description, labelled in the interface language', () => {

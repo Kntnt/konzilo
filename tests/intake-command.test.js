@@ -115,6 +115,27 @@ describe('konzilo-intake', () => {
     assert.deepEqual(report.removed.map((path) => path.replace(/-[0-9a-f]{10}/, '')), ['articles/stray.md', 'media/first.webp', 'tags/a-tag.json']);
   });
 
+  // The start page an Admin chooses is the post's file at the content folder's root, which
+  // goes back to its collection's folder when the choice does, and counts as a post's file.
+  test('moves the start page\'s file to the root and back, and counts it among the posts\' files', () => {
+    const site = newSite({ 'articles/aaaaaaaaaaaa.md': post('first'), 'articles/bbbbbbbbbbbb.md': post('second'), 'settings.json': '{"startPage":{"page":"aaaaaaaaaaaa"}}' });
+    const chosen = intake(site);
+    assert.deepEqual(chosen.report.refusals, []);
+    assert.ok(existsSync(join(site.content, 'start.story.md')));
+    assert.equal(existsSync(join(site.content, 'articles/first.md')), false);
+    put(site.checkout, { 'settings.json': '{}' });
+    const back = intake(site);
+    assert.deepEqual(back.report.removed, ['start.story.md']);
+    assert.ok(existsSync(join(site.content, 'articles/first.md')));
+    put(site.checkout, { 'settings.json': '{"startPage":{"page":"aaaaaaaaaaaa"}}' });
+    intake(site);
+    rmSync(join(site.checkout, 'articles/aaaaaaaaaaaa.md'));
+    rmSync(join(site.checkout, 'articles/bbbbbbbbbbbb.md'));
+    const stopped = intake(site);
+    assert.equal(stopped.status, 3, 'the start page is one of the two posts the run would take off');
+    assert.deepEqual(stopped.report.stopped.paths, ['articles/second.md', 'start.story.md']);
+  });
+
   test('a refused post keeps its file, and the command goes on', () => {
     const site = newSite({ 'articles/aaaaaaaaaaaa.md': post('first'), 'articles/bbbbbbbbbbbb.md': post('second') });
     intake(site);

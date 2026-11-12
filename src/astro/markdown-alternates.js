@@ -6,6 +6,7 @@
 //
 // What takes part: each page of a published post whose type has Markdown on
 // in the AI visibility settings, and the start page when its row has it on,
+// the page an Admin chose for it by that row and not its type's,
 // but for a post marked noindex and a page whose path an excluded pattern
 // matches. A page of the site's own, the 404 page, an old address's
 // redirect page, a post's later page of a list with pages, which says
@@ -35,7 +36,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { excludedPaths } from '../ai-visibility.js';
 import { MAIN_MARK, pageMarkdown } from './html-to-markdown.js';
-import { entryAddress, startAddress } from './languages.js';
+import { entryAddress, isStartEntry, startAddress } from './languages.js';
 import { isPublicBuild } from './public-site.js';
 
 export { MAIN_MARK };
@@ -94,31 +95,48 @@ function startPaths(site) {
 
 // Whether the page passes every rule but the excluded paths: a post of a
 // type whose row has Markdown on, not marked noindex, or the start page
-// with its row on.
+// with its row on, the page an Admin chose for it not marked noindex.
 function candidate({ entry, type, path }, ai, site) {
+  const noindex = () => {
+    const seo = type.fields.find((field) => field.kind === 'seo');
+    return Boolean(seo && entry.data[seo.name]?.noindex === true);
+  };
   if (entry === null) return startPaths(site).includes(path) && ai.home?.markdown === true;
-  if (type === null || ai.types?.[type.name]?.markdown !== true) return false;
-  const seo = type.fields.find((field) => field.kind === 'seo');
-  return !(seo && entry.data[seo.name]?.noindex === true);
+  if (type === null) return false;
+  if (isStartEntry(entry.id)) return ai.home?.markdown === true && !noindex();
+  return ai.types?.[type.name]?.markdown === true && !noindex();
 }
 
 // Each page of the site that passes every rule but the excluded paths, as
-// { entry, type, path }: the start page, then the posts of each type with an
+// { entry, type, path, home }: the start page, `home` true, the page an Admin
+// chose for it where there is one, then the posts of each type with an
 // address, in Astro's order.
 async function candidates(site, ai, getCollection) {
   const found = [];
+  const chosen = await chosenStart(site, getCollection);
   for (const path of startPaths(site)) {
-    const home = { entry: null, type: null, path };
-    if (candidate(home, ai, site)) found.push(home);
+    const home = chosen ?? { entry: null, type: null, path };
+    if (candidate(home, ai, site)) found.push({ ...home, home: true });
   }
   for (const type of Object.values(site.types)) {
     if (type.address === null || ai.types?.[type.name]?.markdown !== true) continue;
     for (const entry of await getCollection(type.collection)) {
+      if (isStartEntry(entry.id)) continue;
       const page = { entry, type, path: postPath(type, entry, site) };
       if (page.path !== null && candidate(page, ai, site)) found.push(page);
     }
   }
   return found;
+}
+
+// The page an Admin chose as the start page, as { entry, type, path }, or null.
+async function chosenStart(site, getCollection) {
+  for (const type of Object.values(site.types)) {
+    if (type.address === null) continue;
+    const entry = (await getCollection(type.collection)).find((one) => isStartEntry(one.id));
+    if (entry) return { entry, type, path: postPath(type, entry, site) };
+  }
+  return null;
 }
 
 // Which paths the excluded paths leave out, by the patterns' text: the
@@ -159,7 +177,7 @@ export async function markdownAlternate({ entry = null, type = null, path, page 
 }
 
 // Every page of the site that has a Markdown alternate, as { entry, type,
-// path, markdown }, the start page first, then the posts of each type in
+// path, home, markdown }, the start page first, then the posts of each type in
 // Astro's order: the same pages markdownAlternate() tells of.
 export async function markdownPages({ settings, site }, { getCollection }) {
   const ai = aiSettings(settings, site);

@@ -269,6 +269,7 @@ const cases = {
     'articles/bbbbbbbbbbbb.md': article({ title: 'Another', slug: 'another' }),
   }), { field: 'otherAddresses' }],
   'other-rule': [() => withFiles({ 'articles/aaaaaaaaaaaa.md': article({ otherAddresses: [{ address: '/x/' }] }), 'redirects.json': { rules: [{ from: '/x/', to: '/y/', status: 301 }] } }), { field: 'otherAddresses' }],
+  'other-start': [() => withFiles({ 'settings.json': { ...settled, startPage: { page: 'aaaaaaaaaaaa' } }, 'articles/aaaaaaaaaaaa.md': article({ otherAddresses: [{ address: '/x/', answer: 'show' }] }) }), { field: 'otherAddresses' }],
   'term-main': [() => run({
     'articles/sv-SE/aaaaaaaaaaaa.md': article({ categories: ['tttttttttttt'] }),
     'categories/en-GB/tttttttttttt.json': { name: 'News' },
@@ -335,6 +336,9 @@ const cases = {
     'articles/sv-SE/bbbbbbbbbbbb.md': article({ slug: 'tva', translationKey: '3a1dace55ce438b2' }),
   }, { languages: ['sv_SE', 'en_GB'], types: { story: { label: 'A', plural: 'As', collection: 'articles', address: '/{slug}/', elements: ['paragraph'] } } }), {}],
   'not-found-none': [() => withFiles({ 'settings.json': { ...settled, notFound: { page: 'gone00000000' } } }), { setting: 'notFound.page' }, 'warning'],
+  'start-page-none': [() => withFiles({ 'settings.json': { ...settled, startPage: { page: 'gone00000000' } } }), { setting: 'startPage.page' }, 'warning'],
+  'start-page-not-found': [() => withFiles({ 'settings.json': { ...settled, startPage: { page: 'aaaaaaaaaaaa' }, notFound: { page: 'aaaaaaaaaaaa' } }, 'articles/aaaaaaaaaaaa.md': article() }), { setting: 'startPage.page' }, 'warning'],
+  'start-page-languages': [() => run({ 'settings.json': { startPage: { page: 'aaaaaaaaaaaa' } }, 'articles/sv-SE/aaaaaaaaaaaa.md': article() }, { languages: ['sv_SE', 'en_GB'], types: { story: { label: 'A', plural: 'As', collection: 'articles', address: '/{slug}/', elements: ['paragraph'] } } }), { file: 'settings.json', setting: 'startPage.page' }, 'warning'],
   'setting-pattern': [() => withFiles({ 'settings.json': { ...settled, ai: { excludedPaths: '([' } } }), { setting: 'ai.excludedPaths' }],
   'setting-shape': [() => withFiles({ 'settings.json': { seats: { a: 1 } } }), { setting: 'seats' }],
   'setting-required': [() => withFiles({ 'settings.json': {} }), { setting: 'seats' }],
