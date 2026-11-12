@@ -1,16 +1,21 @@
 #!/bin/sh
-# Create a site repository that pins this checkout of the core.
+# Create a site repository that pins a release of the core, or this checkout.
 #
-#   new-site <name>
+#   new-site [--release vX.Y.Z] <name>
 #
 # Creates the folder <name> in the current directory as a git repository with
-# one commit: the site template (site-template/files/), with the core pinned
-# by its path in package.json and compose.yaml. A site's demo content, which is fictional, comes
-# the first time `npm run dev` or `npm run build` runs and finds no content/ folder: from
+# one commit: the site template (site-template/files/), with the core pinned in
+# package.json. With --release, the release's package, the tarball attached to
+# it, is fetched into the site's vendor/ and pinned by that path, so that the
+# site installs anywhere; KONZILO_RELEASES names where releases' files are, by
+# default GitHub's. Without it, the core is pinned by this checkout's path, for
+# the core's own development. compose.yaml names this checkout either way.
+#
+# A site's demo content, which is fictional, comes the first time `npm run dev` or `npm run build` runs and finds no content/ folder: from
 # the site's own demo-content/, which it may add, else from the core.
 #
 # The name becomes the folder, and later the site's hostnames, so it must be a
-# hostname label. Needs git, Node and npm.
+# hostname label. Needs git, Node and npm, and curl for a release.
 
 set -eu
 
@@ -19,17 +24,36 @@ fail() {
 	exit "${2:-1}"
 }
 
-[ $# -eq 1 ] || fail "usage: new-site <name>" 2
+usage="usage: new-site [--release vX.Y.Z] <name>"
+release=
+case ${1-} in
+--release)
+	[ $# -ge 2 ] || fail "$usage" 2
+	release=$2
+	shift 2
+	;;
+--release=*)
+	release=${1#--release=}
+	shift
+	;;
+esac
+[ $# -eq 1 ] || fail "$usage" 2
 name=$1
 
 printf '%s\n' "$name" | grep -Eq '^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$' ||
 	fail "the name must be lowercase letters, digits and inner hyphens, at most 63: $name" 2
+if [ -n "$release" ]; then
+	printf '%s\n' "$release" | grep -Eq '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-(alpha|beta|rc)\.(0|[1-9][0-9]*))?$' ||
+		fail "a release is a tag such as v1.2.3 or v1.2.3-rc.1: $release" 2
+fi
 
 core=$(cd "$(dirname "$0")/.." && pwd -P)
 target="$(pwd -P)/$name"
 [ ! -e "$target" ] || fail "$target already exists"
 
-for tool in git node npm; do
+tools="git node npm"
+[ -z "$release" ] || tools="$tools curl tar"
+for tool in $tools; do
 	command -v "$tool" >/dev/null 2>&1 || fail "needs $tool on the PATH"
 done
 
@@ -43,10 +67,32 @@ astro=$(sh "$core/scripts/versions" ASTRO)
 base=$((20000 + $(printf '%s' "$name" | cksum | cut -d' ' -f1) % 1000 * 10))
 
 mkdir "$target"
+pin="file:$core"
+if [ -n "$release" ]; then
+	# The release's package, as `npm pack` names it, kept in the site and pinned there, so
+	# that a build needs nothing from where releases are, and the lock's integrity holds it.
+	package="kntnt-konzilo-${release#v}.tgz"
+	source="${KONZILO_RELEASES:-https://github.com/Kntnt/konzilo/releases/download}/$release/$package"
+	mkdir "$target/vendor"
+	curl --fail --silent --show-error --location --output "$target/vendor/$package" "$source" ||
+		fail "cannot fetch $source"
+	tar -xzOf "$target/vendor/$package" package/package.json | node -e '
+		let text = "";
+		process.stdin.on("data", (chunk) => (text += chunk)).on("end", () => {
+			let named = {};
+			try {
+				named = JSON.parse(text);
+			} catch {
+				// No package at all.
+			}
+			if (named.name !== "@kntnt/konzilo" || named.version !== process.argv[1]) process.exit(1);
+		});' "${release#v}" || fail "$source is not the package of @kntnt/konzilo ${release#v}"
+	pin="file:vendor/$package"
+fi
 template="$core/site-template/files"
 (cd "$template" && find . -type f) | while IFS= read -r file; do
 	mkdir -p "$target/$(dirname "$file")"
-	sed -e "s|@NAME@|$name|g" -e "s|@ASTRO@|$astro|g" -e "s|@CORE@|file:$core|g" -e "s|@CORE_PATH@|$core|g" \
+	sed -e "s|@NAME@|$name|g" -e "s|@ASTRO@|$astro|g" -e "s|@CORE@|$pin|g" -e "s|@CORE_PATH@|$core|g" \
 		-e "s|@PORT_SITE@|$((base + 1))|g" -e "s|@PORT_ADMIN@|$((base + 2))|g" -e "s|@PORT_GIT@|$((base + 3))|g" -e "s|@PORT_PREVIEW@|$((base + 4))|g" \
 		"$template/$file" >"$target/$file"
 done
