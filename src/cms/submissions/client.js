@@ -5,10 +5,9 @@
 
 import { momentIn, valueText } from '../../submission-values.js';
 import { interfaceLanguage, languageTag, say } from '../interface-language.js';
+import { fetching } from '../service.js';
 
 const SUBMISSIONS_PATH = '/_konzilo/submissions';
-
-const fetching = () => globalThis.fetch.bind(globalThis);
 
 // What the service answers at `address`, as JSON, or null when it cannot be told.
 async function answered(address, { credential, get }) {
