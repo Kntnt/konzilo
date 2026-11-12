@@ -93,6 +93,11 @@ const gate = previewGate({
       await prepared;
       return runner.take(draft);
     },
+    refresh: async () => {
+      await prepared;
+      return runner.refresh();
+    },
+    at: runner.at,
   },
 });
 

@@ -14,7 +14,7 @@ import { connect } from 'node:net';
 import { DRAFT_PATH, HEALTH_PATH, SESSION_PATH, SIGN_IN_PATH, WHERE_PATH } from '../cms/preview/paths.js';
 import { accessTo, CREDENTIAL } from '../forgejo.js';
 import { forgejoSignIn, SIGN_IN_LASTS } from './sign-in.js';
-import { TAB_PAGES, tabPage } from './tab-page.js';
+import { refusalIn, TAB_PAGES, tabPage } from './tab-page.js';
 
 // Whether its person may still see the preview is asked again this often: in a tab by the next
 // page they open, which goes through Forgejo's sign-in again, at once while they are signed in
@@ -87,14 +87,28 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
   };
 
   // One of the preview's own pages, which loads nothing and runs nothing.
-  const page = (outgoing, status, which, { again, refresh, headers = {} } = {}) => {
+  const page = (outgoing, status, which, { again, refresh, values, items, headers = {} } = {}) => {
     outgoing.writeHead(status, {
       ...own,
       'Content-Security-Policy': `default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors ${adminOrigin}`,
       'Content-Type': 'text/html; charset=utf-8',
       ...headers,
     });
-    outgoing.end(tabPage(which, language, { again, refresh }));
+    outgoing.end(tabPage(which, language, { again, refresh, values, items }));
+  };
+
+  // A page asked for in a tab of its own shows what is saved: the preview reads it first, and
+  // goes on with what it has where that breaks. Gives the saved post refused at `path`, which
+  // the tab is shown in place of a page, or null. A frame keeps the last good page, which its
+  // pane names the refusal above.
+  const refusedAt = async (path) => {
+    try {
+      await runner.refresh();
+    } catch (error) {
+      warn(`The preview could not read what is saved: ${error.message}`);
+    }
+    const about = runner.at(path);
+    return about !== null && about.refusals.length > 0 ? about : null;
   };
 
   // The dev server, started where it is not running, with nobody waiting for it here.
@@ -325,6 +339,8 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
       const sends = incoming.method === 'POST' && pathname.startsWith('/_konzilo/');
       if (incoming.method !== 'GET' && incoming.method !== 'HEAD' && !sends) return answer(outgoing, 405, { message: 'A preview only shows pages.' }, { Allow: 'GET, HEAD' });
       if (isPage(incoming) && !dev.ready()) return starting(incoming, outgoing);
+      const refused = isPage(incoming) ? await refusedAt(pathname) : null;
+      if (refused) return page(outgoing, 200, TAB_PAGES.postRefused, { values: { title: refused.title }, items: refused.refusals.map((one) => refusalIn(language, one)) });
       try {
         await dev.ensure();
       } catch (error) {

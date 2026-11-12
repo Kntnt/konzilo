@@ -409,6 +409,8 @@
   "previewTab.starting": "Förhandsvisningen startar när någon tittar på den, och det tar några sekunder. Sidan öppnas av sig själv när den är klar.",
   "previewTab.notStartedTitle": "Förhandsvisningen startade inte",
   "previewTab.notStarted": "Något stoppade förhandsvisningen när den startade. Försök igen om en stund.",
+  "previewTab.postRefusedTitle": "Sidan kan inte publiceras än",
+  "previewTab.postRefused": "Webbplatsen kan inte publicera det som är sparat av ”{title}”, så det finns ingen sida att visa här. Det här behöver ändras:",
   "publishing.page": "Publicering",
   "publishing.title": "Titel",
   "publishing.status": "Status",

@@ -8,6 +8,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
 
+import { idOf } from '../src/demo-source.js';
 import { sharp } from '../tests/lib/images.js';
 import { ENGINES, freshCode, openEditor, openNew, signIn, throughForgejo, usedCode } from './lib/editor.js';
 import { framesWhile, isBlank } from './lib/frames.js';
@@ -181,6 +182,79 @@ describe('the live preview', () => {
     test('still says that a form cannot send', async () => {
       await page.goto(`${site.origin.preview}/pages/contact/`);
       await page.getByText('This is a preview: the form sends nothing.').waitFor({ timeout: ON_THE_PAGE });
+    });
+
+    test('shows every saved post, a draft and a scheduled one in the lists that will hold them, and a refused one\'s refusal at its page, while the public site shows none of them', async () => {
+      const token = site.state('instance-token');
+      const contents = `${site.origin.git}/api/v1/repos/${site.name}/source/contents`;
+      const headers = { authorization: `token ${token}`, 'content-type': 'application/json' };
+      // A save as anna makes it, from the source of an article of the demo content.
+      const save = async (path, text) => {
+        const answer = await fetch(`${contents}/${path}?sudo=anna`, { method: 'POST', headers, body: JSON.stringify({ content: Buffer.from(text).toString('base64'), message: 'A save' }) });
+        assert.equal(answer.status, 201, path);
+      };
+      const golden = Buffer.from((await (await fetch(`${contents}/articles/${idOf('articles', 'golden-harbours-and-the-harbour')}.md`, { headers })).json()).content, 'base64').toString('utf8');
+      const article = (title, slug, status, date) => golden
+        .replace(/^title: .*$/m, `title: ${JSON.stringify(title)}`)
+        .replace(/^headline: .*$/m, `headline: ${JSON.stringify(title)}`)
+        .replace(/^slug: .*$/m, `slug: ${JSON.stringify(slug)}`)
+        .replace(/^status: .*$/m, `status: ${JSON.stringify(status)}`)
+        .replace(/^date: .*\n/m, date ? `date: ${date}\n` : '')
+        // A teaser's headline follows an eyebrow, which would stand before the title.
+        .replace(/^eyebrow: .*\n/m, '');
+      const DRAFT = 'A draft of the harbours';
+      const SCHEDULED = 'The harbours to come';
+      const saved = {
+        'articles/a42d0000000a.md': ['draft', article(DRAFT, 'a-draft-of-the-harbours', 'draft', null)],
+        'articles/a42d0000000b.md': ['scheduled', article(SCHEDULED, 'the-harbours-to-come', 'scheduled', '2099-03-01T08:00:00Z')],
+        'pages/a42d0000000c.md': ['draft', '---\ntitle: "A <b>bold</b> page"\nslug: "a-refused-page"\nstatus: "draft"\n---\n\nWords of a page.\n'],
+      };
+      for (const [path, [, text]] of Object.entries(saved)) await save(path, text);
+
+      // Once the public site has been built from them, it shows none of them.
+      const deadline = Date.now() + 180_000;
+      for (;;) {
+        const answer = await fetch(`${site.origin.admin}/_konzilo/status`, { headers });
+        const { posts } = answer.status === 200 ? await answer.json() : { posts: [] };
+        if (Object.entries(saved).every(([file, [status]]) => posts.find((one) => one.file === file)?.status === status)) break;
+        assert.ok(Date.now() < deadline, `the public site was never built from them: ${JSON.stringify(posts.filter(({ file }) => file in saved))}`);
+        await new Promise((go) => setTimeout(go, 1000));
+      }
+      for (const path of ['/a-draft-of-the-harbours/', '/the-harbours-to-come/', '/pages/a-refused-page/']) assert.equal((await fetch(`${site.origin.site}${path}`)).status, 404, path);
+      for (const path of ['/', ARTICLE]) {
+        const answer = await fetch(`${site.origin.site}${path}`);
+        assert.equal(answer.status, 200, path);
+        assert.doesNotMatch(await answer.text(), new RegExp(`${DRAFT}|${SCHEDULED}`), path);
+      }
+      // The articles' feed, as the release holds it.
+      const feed = site.compose('exec', '-T', 'web', 'cat', '/srv/site/current/pages/feed/index.rss');
+      assert.ok(feed.includes(ARTICLE_TITLE), 'the feed of the published articles');
+      assert.doesNotMatch(feed, new RegExp(`${DRAFT}|${SCHEDULED}`));
+
+      // The preview reads what is saved at the next page asked for in a tab, and its dev server
+      // draws the page again once it has the change.
+      const shown = async (path, locator) => {
+        const until = Date.now() + ON_THE_PAGE * 2;
+        for (;;) {
+          await page.goto(`${site.origin.preview}${path}`);
+          if (await locator().count() > 0) return;
+          assert.ok(Date.now() < until, `${path} never showed it`);
+          await page.waitForTimeout(2000);
+        }
+      };
+      await shown('/a-draft-of-the-harbours/', () => page.getByRole('heading', { level: 1, name: DRAFT, exact: true }));
+      await shown('/the-harbours-to-come/', () => page.getByRole('heading', { level: 1, name: SCHEDULED, exact: true }));
+      for (const title of [DRAFT, SCHEDULED]) {
+        await shown('/', () => page.locator('main .post-list').getByRole('link', { name: title, exact: true }));
+        await shown(ARTICLE, () => page.locator('aside.recommended-reading').getByText(title, { exact: true }));
+      }
+      await page.goto(`${site.origin.preview}/pages/a-refused-page/`);
+      await page.getByRole('heading', { level: 1, name: 'This page cannot be published yet' }).waitFor({ timeout: ON_THE_PAGE });
+      const said = await page.locator('body').textContent();
+      assert.match(said, /what is saved of “A <b>bold<\/b> page”/);
+      assert.match(said, /the field Title: the site cannot publish a title holding HTML/);
+      await page.goto(`${site.origin.preview}${ARTICLE}`);
+      await page.getByRole('heading', { level: 1, name: ARTICLE_TITLE }).waitFor({ timeout: ON_THE_PAGE });
     });
 
     test('lets someone already signed in to Forgejo in without typing anything', async () => {

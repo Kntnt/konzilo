@@ -11,7 +11,7 @@ import { isObject } from '../checks.js';
 import { REDIRECTS_FILE } from '../format/redirects.js';
 import { POST_IDS_FILE } from '../format/write.js';
 import { siteDescription } from '../site-description.js';
-import { allOthers, earlier, holdAddresses, oldAddressesOf } from './addresses.js';
+import { addressWanted, allOthers, earlier, holdAddresses, oldAddressesOf } from './addresses.js';
 import { climb, contextFor, handsFor } from './hands.js';
 import { emptyLedger, ledgerFile, nextLedger, normalLedger } from './ledger.js';
 import { bodyProblems, fieldsOf, fileText, momentOf, otherAddressesIn, publishedHash, slugOf, writtenBody } from './post-file.js';
@@ -34,14 +34,16 @@ const MARKUP = /<\/?[a-zA-Z!?][^<>]*>/;
 // the host no link may lead to, or null. `reader`: the Markdown reader, the site's own
 // but in a test of what happens when it breaks. `preview`: the paths of the source files
 // a live preview shows, which are checked and written whatever their status and date,
-// where every other draft stays nobody's business.
+// where every other draft stays nobody's business; one on its way for the preview alone
+// gives way to a post on its own, as it would once published.
 //
 // Returns { files, refusals, warnings, keep, ledger, posts, next }: `keep`, the paths of the
 // content files that stay though no file here writes them, a refused post's own and what
 // it names, and what a refused settings file names; `posts`, what became of each source
 // file of a post, `state` being `live`, `refused`, `waiting` for its moment `at`, or `off`,
-// with its `address`, and whether the site `shown` shows a version of it; `next`, the next
-// scheduled moment, or null.
+// with its `address`, whether the site `shown` shows a version of it, and, while it is
+// refused, the address its page would be at, `wanted`, where it can have one nothing else
+// holds, or null; `next`, the next scheduled moment, or null.
 export function intake({ files, site: described, now, ledger = null, changes = {}, images = () => null, adminHost = null, reader = siteReader, preview = [], components = null }) {
   const site = siteDescription(described);
   const clock = typeof now === 'function' ? now() : now;
@@ -160,9 +162,25 @@ function holdPostsTaken(run) {
   source.posts.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 }
 
-// Whether a post is on the site's way: published, its date come. A draft is nobody's
-// business but its editor's, and is not checked.
+// Whether a post is on the site's way: published, its date come, or shown by a live preview
+// whatever its status and moment. A draft is otherwise nobody's business but its editor's,
+// and is not checked.
 function stateOf(post, run) {
+  ownStateOf(post, run);
+  if (post.on || !run.preview.has(post.path)) return;
+  // On the preview alone, where it yields to every post on its own way, as it would once
+  // published.
+  post.on = true;
+  post.forPreview = true;
+  post.notFound = run.chosen.notFound === post.id;
+  if (run.several && post.language === null) {
+    refuse(run, post, { reason: say('refusal.language-folder', { folder: post.tag ?? say('about.collection-folder') }) });
+    post.keepsNothing = true;
+  }
+}
+
+// Whether a post is on the site's way by its own status and moment.
+function ownStateOf(post, run) {
   const { status = 'draft' } = post.fields;
   post.on = false;
   // Nothing a Reviewer changed goes on the site, and nothing they took away leaves it, so this
@@ -187,15 +205,6 @@ function stateOf(post, run) {
     post.on = true;
     post.notFound = run.chosen.notFound === post.id;
     refuse(run, post, { reason: say(post.gone ? 'refusal.admin-legal-gone' : 'refusal.admin-legal', { by: taking.by ?? say('about.someone') }) });
-    return;
-  }
-  if (run.preview.has(post.path)) {
-    post.on = true;
-    post.notFound = run.chosen.notFound === post.id;
-    if (run.several && post.language === null) {
-      refuse(run, post, { reason: say('refusal.language-folder', { folder: post.tag ?? say('about.collection-folder') }) });
-      post.keepsNothing = true;
-    }
     return;
   }
   if (status === 'draft' || status === null) return;
@@ -393,6 +402,7 @@ function assemble(run) {
       at: post.waiting ?? null,
       address: updated.posts[post.key]?.address ?? null,
       shown: Boolean(updated.posts[post.key]?.path),
+      ...(run.refused.has(post.key) ? { wanted: addressWanted(post, run) } : {}),
     })),
     next,
   };
