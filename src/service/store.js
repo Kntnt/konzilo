@@ -106,6 +106,11 @@ export function openStore(file) {
   const formsHeld = database.prepare('SELECT DISTINCT form FROM submission ORDER BY form');
   const expireSent = database.prepare('DELETE FROM submission WHERE form = ? AND sent_at < ?');
   const expireSpam = database.prepare('DELETE FROM submission WHERE form = ? AND sent_at < ? AND spam IS NOT NULL');
+  const everything = database.prepare('SELECT id, form, sent_at, language, spam, fields FROM submission ORDER BY sent_at DESC, id DESC');
+  // A list of numbers as JSON, which one statement takes however many there are.
+  const byIds = database.prepare(`SELECT id, form, sent_at, language, spam, fields FROM submission
+    WHERE id IN (SELECT value FROM json_each(?)) ORDER BY sent_at DESC, id DESC`);
+  const eraseIds = database.prepare('DELETE FROM submission WHERE id IN (SELECT value FROM json_each(?))');
   const settingOf = database.prepare('SELECT value FROM setting WHERE name = ?');
   const keepSetting = database.prepare('INSERT INTO setting (name, value) VALUES (?, ?) ON CONFLICT (name) DO UPDATE SET value = excluded.value');
   const forgetSetting = database.prepare('DELETE FROM setting WHERE name = ?');
@@ -203,6 +208,15 @@ export function openStore(file) {
       return forgot(Number(expireSent.run(form, before.toISOString()).changes) + Number(expireSpam.run(form, spamBefore.toISOString()).changes));
     },
     settle,
+    * everything() {
+      for (const row of everything.iterate()) yield submissionOf(row);
+    },
+    chosen(ids) {
+      return byIds.all(JSON.stringify(ids)).map(submissionOf);
+    },
+    erase(ids) {
+      return forgot(Number(eraseIds.run(JSON.stringify(ids)).changes));
+    },
     setting(name) {
       const row = settingOf.get(name);
       return row ? JSON.parse(row.value) : null;

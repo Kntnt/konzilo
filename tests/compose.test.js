@@ -175,7 +175,8 @@ test('runs the service for visitors in a container of its own, which the web ser
 });
 
 // A form's submissions (ADR 0045): the service in its role for editors reads them from the same
-// data, and the admin host passes their addresses to it, which asks Forgejo who is asking.
+// data, and a person's, and the admin host passes their addresses to it, which asks Forgejo who
+// is asking.
 test('lets the service for editors read the forms\' submissions, on the admin host alone', () => {
   const blocks = servicesOf(compose);
   assert.match(blocks.editors, /^ {6}- service-data:\/service-data$/m);
@@ -184,7 +185,7 @@ test('lets the service for editors read the forms\' submissions, on the admin ho
   const admin = caddyfile.slice(caddyfile.indexOf(':{$KONZILO_PORT_ADMIN}'), caddyfile.indexOf(':{$KONZILO_PORT_PREVIEW}'));
   const matcher = /@service path (.*)$/m.exec(admin)?.[1].split(' ');
   assert.ok(matcher, 'a matcher of its own');
-  for (const path of ['/_konzilo/submissions', '/_konzilo/submissions/*', '/_konzilo/mail']) assert.ok(matcher.includes(path), path);
+  for (const path of ['/_konzilo/submissions', '/_konzilo/submissions/*', '/_konzilo/mail', '/_konzilo/personal-data', '/_konzilo/personal-data.csv']) assert.ok(matcher.includes(path), path);
   assert.match(/handle @service \{\n([\s\S]*?)\n\t\}/.exec(admin)?.[1] ?? '', /reverse_proxy editors:4100 \{/);
 });
 

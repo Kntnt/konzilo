@@ -249,7 +249,7 @@ describe('the submissions, for editors', () => {
       store.keep(sent('2026-11-01T10:00:00Z', [field('name', 'Name', 'Ada')]));
       const reading = store.snapshot('contact');
       try {
-        const pieces = submissionsCsv({ label: 'Contact us', each: () => reading.each(), separator: 'comma', timeZone: 'UTC', language: 'en' });
+        const pieces = submissionsCsv({ labelOf: () => 'Contact us', each: () => reading.each(), separator: 'comma', timeZone: 'UTC', language: 'en' });
         const header = pieces.next().value;
         store.keep(sent('2026-11-02T10:00:00Z', [field('name', 'Name', 'Bea'), field('phone', 'Phone', '+46 70 123')]));
         assert.equal([header, ...pieces].join(''), '\uFEFFSent at (UTC),Form,Name\r\n2026-11-01 10:00:00,Contact us,Ada\r\n');

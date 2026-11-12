@@ -20,6 +20,7 @@ import { registerStructureField } from './structure/register.js';
 import { registerPublishing } from './publishing/register.js';
 import { registerSubmissions } from './submissions/register.js';
 import { registerMail } from './mail/register.js';
+import { registerPersonalData } from './personal-data/register.js';
 import { registerSettings } from './settings/register.js';
 import { chosenLanguage, followSite, languageChanged, loadedWith, say, useInterfaceLanguage } from './interface-language.js';
 import './form.css';
@@ -51,6 +52,7 @@ function start() {
   if (konzilo.forms) {
     registerSubmissions(CMS);
     registerMail(CMS);
+    registerPersonalData(CMS);
   }
   // Before the parts' check at Save, which reads what the groups hold.
   registerGroups(CMS, config, konzilo.groups);
