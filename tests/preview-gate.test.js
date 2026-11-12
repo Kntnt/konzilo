@@ -50,6 +50,10 @@ describe('the preview\'s gate', () => {
   let ready;
   let exchanged;
   let removed;
+  // The runner's refreshes, whether one breaks, and the posts it holds refused, by their page.
+  let refreshes;
+  let refreshFails;
+  let refusedAt;
 
   before(async () => {
     forgejo = createServer(async (incoming, outgoing) => {
@@ -129,6 +133,11 @@ describe('the preview\'s gate', () => {
           taken.push(draft);
           return { address: '/a-page/', refusals: [] };
         },
+        refresh: async () => {
+          refreshes += 1;
+          if (refreshFails) throw new Error('the run broke');
+        },
+        at: (path) => refusedAt[path] ?? (path === '/a-page/' ? { file: 'pages/a-page.md', title: 'A page', refusals: [] } : null),
       },
       dev: {
         port: innerPort,
@@ -163,6 +172,9 @@ describe('the preview\'s gate', () => {
     ready = true;
     exchanged = [];
     removed = false;
+    refreshes = 0;
+    refreshFails = false;
+    refusedAt = {};
   });
 
   const session = (authorization = WRITER, from = ADMIN) => fetch(`${origin}${SESSION_PATH}`, { method: 'POST', headers: { origin: from, authorization } });
@@ -446,6 +458,59 @@ describe('the preview\'s gate', () => {
       }
       // Its own pages load nothing and run nothing.
       for (const answer of [refused, unfinishedOne, notice]) assert.match(answer.headers.get('content-security-policy'), /^default-src 'none'; /);
+    });
+
+    // A saved post the intake refuses, as the runner holds it at the page it would have.
+    const broken = {
+      file: 'pages/broken.md',
+      title: 'A <b>bold</b> title',
+      refusals: [
+        { field: { name: 'title', label: { en: 'Title', sv: 'Titel' } }, name: 'refusal.title-markup', values: {}, reason: 'the site cannot publish a title holding HTML; write it as plain text' },
+        { field: null, block: { path: '2', name: 'list' }, reason: 'words of the site\'s own check' },
+      ],
+    };
+
+    test('names a saved post\'s refusal where its page would be, in the interface language, and shows nothing of the site there', async () => {
+      const { back } = await signInAs('/', 'code-writer');
+      const held = pairOf(back, 'a_preview=');
+      refusedAt['/pages/broken/'] = broken;
+      asked = [];
+      const shown = await visit('/pages/broken/?x=1', held);
+      assert.equal(shown.status, 200);
+      assert.match(shown.headers.get('content-type'), /^text\/html; charset=utf-8$/);
+      assert.match(shown.headers.get('content-security-policy'), /^default-src 'none'; /);
+      assert.equal(shown.headers.get('x-robots-tag'), 'noindex, nofollow');
+      const page = await shown.text();
+      assert.match(page, /<html lang="sv">/);
+      assert.ok(page.includes(text('sv', 'previewTab.postRefusedTitle')));
+      assert.ok(page.includes(text('sv', 'previewTab.postRefused', { title: 'A &#60;b&#62;bold&#60;/b&#62; title' })), page);
+      assert.ok(page.includes(`<li>${text('sv', 'about.field', { field: 'Titel' })}: ${text('sv', 'refusal.title-markup')}</li>`), page);
+      assert.ok(page.includes(`<li>${text('sv', 'about.block', { path: '2', name: 'list' })}: words of the site&#39;s own check</li>`), page);
+      assert.doesNotMatch(page, /<script|<b>/);
+      assert.deepEqual(asked.map(({ url }) => url), [], 'the dev server is asked nothing');
+      assert.equal(refreshes, 1, 'what is saved is read first');
+    });
+
+    test('lets a frame show the last good page at a refused post\'s address, which its pane names the refusal above', async () => {
+      await signedIn();
+      refusedAt['/pages/broken/'] = broken;
+      const shown = await visit('/pages/broken/', cookie, { 'sec-fetch-dest': 'iframe' });
+      assert.equal(shown.status, 200);
+      assert.equal(await shown.text(), 'a page');
+    });
+
+    test('reads what is saved before each page asked for in a tab, and shows what it has where that breaks', async () => {
+      const { back } = await signInAs('/', 'code-writer');
+      const held = pairOf(back, 'a_preview=');
+      refreshes = 0;
+      assert.equal((await visit('/a-page/', held)).status, 200);
+      assert.equal(refreshes, 1);
+      for (const dest of ['image', 'script', 'iframe']) await visit('/a-page/', held, { 'sec-fetch-dest': dest });
+      assert.equal(refreshes, 1, 'not for what a page asks for itself, or a frame');
+      refreshFails = true;
+      const shown = await visit('/a-page/', held);
+      assert.equal(shown.status, 200);
+      assert.equal(await shown.text(), 'a page');
     });
 
     test('lets someone already signed in to Forgejo in without a word, starting the preview on the way', async () => {

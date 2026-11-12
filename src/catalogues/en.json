@@ -407,6 +407,8 @@
   "previewTab.starting": "The preview starts when someone looks at it, which takes a few seconds. The page opens by itself once it is ready.",
   "previewTab.notStartedTitle": "The preview did not start",
   "previewTab.notStarted": "Something stopped the preview as it started. Try again in a moment.",
+  "previewTab.postRefusedTitle": "This page cannot be published yet",
+  "previewTab.postRefused": "The site cannot publish what is saved of “{title}”, so there is no page to show here. What to change:",
   "publishing.page": "Publishing",
   "publishing.title": "Title",
   "publishing.status": "Status",
