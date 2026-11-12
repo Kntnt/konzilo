@@ -438,7 +438,10 @@ test('the integration refuses a component of its own for the post list, which it
 // Artikel 7, by title; the page Insikter lists the first of them, then the
 // rest, which it leaves out the first from, three a page on pages of their
 // own. Each term's name is its Swedish one, which orders otherwise than its
-// slug: `vind` is Blåst, `batteri` Lagring.
+// slug: `vind` is Blåst, `batteri` Lagring. Reports, a type of the site's
+// own, take the topics too, so that a topic's page lists posts of two
+// types; the authors have pages, which only the article takes, and one
+// author has no post.
 describe('what the whole list holds', () => {
   const described = {
     language: 'sv_SE',
@@ -448,8 +451,12 @@ describe('what the whole list holds', () => {
       article: { collection: 'articles', address: '/{slug}/', elements: ['paragraph', 'post-list'] },
       page: { collection: 'pages', hierarchical: true, address: '/pages/{path}/', elements: ['paragraph', 'post-list'] },
       note: { label: { en: 'Note', sv: 'Notis' }, plural: { en: 'Notes', sv: 'Notiser' }, collection: 'notes', elements: ['paragraph'], fields: {} },
+      report: {
+        label: { en: 'Report', sv: 'Rapport' }, plural: { en: 'Reports', sv: 'Rapporter' }, collection: 'reports', address: '/rapporter/{slug}/', elements: ['paragraph'],
+        fields: { date: {}, topics: { taxonomy: 'topics' } },
+      },
     },
-    taxonomies: { topics: { address: '/amne/{slug}/' } },
+    taxonomies: { topics: { address: '/amne/{slug}/' }, authors: { address: '/skribent/{slug}/' } },
     presentations: { probe: { label: 'Probe', options: {} } },
   };
   const piece = (n, { topics = [], category = [] }) => [
@@ -483,8 +490,9 @@ describe('what the whole list holds', () => {
       'export async function getStaticPaths({ routePattern }) {',
       '  return termPages(routePattern);',
       '}',
+      'const { posts, taxonomy, settled, list } = Astro.props;',
       '---',
-      '<html><body><main>{Astro.props.term.data.name}</main></body></html>',
+      '<html><body><main><output data-posts={posts.map(({ entry }) => entry.data.title).join(", ")} data-taxonomy={JSON.stringify(taxonomy)} data-settled={JSON.stringify(settled)} data-list={JSON.stringify(list)}></output></main></body></html>',
       '',
     ].join('\n'),
     'src/components/SearchPage.astro': '<html><body><main>Sök</main></body></html>\n',
@@ -510,6 +518,8 @@ describe('what the whole list holds', () => {
     'content/articles/a6.md': piece(6, { topics: ['sol', 'batteri'] }),
     'content/articles/a7.md': piece(7, { topics: ['vind'], category: ['analys'] }),
     'content/notes/first.md': '---\ntitle: "Första notisen"\n---\n\nEn notis.\n',
+    'content/reports/r1.md': '---\ntitle: "Rapport 1"\ndate: 2026-01-08T08:00:00Z\ntopics: ["sol", "vind"]\n---\n\nText.\n',
+    'content/authors/anna.json': term('Anna'),
     'content/pages/insikter.md': page('Insikter', [
       '::post-list{type="article" order="title" number="1" presentation="probe"}',
       '',
@@ -584,6 +594,43 @@ describe('what the whole list holds', () => {
         topics: [topic('sol', 'Solenergi', 4), topic('vind', 'Blåst', 1), topic('batteri', 'Lagring', 1)],
       },
       search: '/sok/',
+    });
+  });
+
+  // What the term page at `path` was given: its posts' titles, its
+  // `taxonomy`, `settled` and `list`. Astro writes an empty attribute
+  // without a value.
+  const termPage = (path) => {
+    const attributes = Object.fromEntries([...built.main(path).matchAll(/data-(\w+)="([^"]*)"/g)].map(([, name, value]) => [name, value.replaceAll('&quot;', '"').replaceAll('&#39;', "'").replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&amp;', '&')]));
+    return { posts: attributes.posts ?? '', taxonomy: JSON.parse(attributes.taxonomy), settled: JSON.parse(attributes.settled), list: JSON.parse(attributes.list) };
+  };
+
+  test("tells a topic's page, which an article and a report share, its taxonomy, the term it settles and what its whole list holds, with no one type", () => {
+    assert.equal(built.status, 0, built.output);
+    assert.deepEqual(termPage('amne/sol'), {
+      posts: 'Rapport 1, Artikel 6, Artikel 4, Artikel 2, Artikel 1',
+      taxonomy: { name: 'topics', label: 'Ämne' },
+      settled: { taxonomy: 'topics', term: 'sol' },
+      list: {
+        type: null,
+        total: 5,
+        terms: {
+          authors: [],
+          category: [category('nyheter', 'Nyheter', 2), category('analys', 'Analys', 1)],
+          topics: [topic('sol', 'Solenergi', 5), topic('vind', 'Blåst', 2), topic('batteri', 'Lagring', 1)],
+        },
+        search: '/sok/',
+      },
+    });
+  });
+
+  test("tells the page of an author, whose taxonomy only the article takes, its type, and that the author holds no post", () => {
+    assert.equal(built.status, 0, built.output);
+    assert.deepEqual(termPage('skribent/anna'), {
+      posts: '',
+      taxonomy: { name: 'authors', label: 'Författare' },
+      settled: { taxonomy: 'authors', term: 'anna' },
+      list: { type: article, total: 0, terms: { authors: [], category: [], topics: [] }, search: '/sok/' },
     });
   });
 });
