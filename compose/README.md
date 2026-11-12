@@ -32,6 +32,24 @@ A local copy runs with the defaults below, and a server sets each in its own `.e
 | `KONZILO_SECRETS` | `./local-secrets` | The folder of the first passwords, `instance-password` and `account-password`, a local copy's known; a server keeps its own outside the site repository, which each role sees ([ADR 0044](../docs/adr/0044-take-visitors-requests-at-one-service-below-konzilo-and-keep-nothing-of-the-visitor.md)) |
 | `KONZILO_MAIL_TO_LOG` | `true` | Whether `editors` writes each mail it would send to its log, and sends none, as a local copy does; a server sets `false`, and mails through the adapter an Admin chooses on the *Mail* page ([ADR 0003](../docs/adr/0003-keep-every-service-and-name-of-kntnts-replaceable.md)) |
 
+## What another arrangement sets
+
+Compose is the one arrangement the core ships, documents and tests, and it sets none of the settings below: each default is where Compose puts a program's peer or folder. A hosting layer or a site that arranges the same programs otherwise, on other machines or several in one container, sets them in each program's environment, the web server's among them, where its value differs ([ADR 0002](../docs/adr/0002-let-the-core-know-one-site-and-run-it-everywhere-with-docker-compose.md)). `src/arrangement.js` reads them, and the web server's `Caddyfile` reads the peer addresses as placeholders with the same defaults. A test fails on a setting missing here.
+
+| Variable | Default | Read by | What it is |
+|---|---|---|---|
+| `KONZILO_PEER_FORGEJO` | `http://forgejo:3000` | The seed, `builder`, `preview`, `editors` and `web` | Forgejo's peer address, where the programs call its API and its Git, and the web server passes on what it lets through to it; not `KONZILO_FORGEJO_ORIGIN`, where browsers reach it |
+| `KONZILO_PEER_TYPESENSE` | `http://typesense:8108` | `builder`, and `web` through the route to search | Typesense's peer address, where the builder indexes, and which it writes into the web server's route to search, so that the web server must reach Typesense there too |
+| `KONZILO_PEER_EDITORS` | `http://editors:4100` | The seed and `web` | The service in its role for editors, which Forgejo's webhook reaches at `/webhook` |
+| `KONZILO_PEER_VISITORS` | `http://visitors:4200` | `web` | The service in its role for visitors |
+| `KONZILO_PEER_PREVIEW` | `http://127.0.0.1:4000` | `web` | The live preview's gate |
+| `KONZILO_FOLDER_SECRET` | `/secret` | `builder`, `preview` and `editors` | The folder a program reads its own credentials from, which the seed writes in `/builder-secret`, `/preview-secret` and `/editors-secret`; programs that share a file system each name their own, since the files in each have the same names |
+| `KONZILO_FOLDER_WORK` | `/work` | `builder` and `preview` | The folder a program keeps its copy of the site's code in, with its checkouts and its home; programs that share a file system each name their own |
+| `KONZILO_LISTEN` | Every address | `editors` and `visitors` | The address the service's roles listen on, such as `127.0.0.1`, which holds them to the loopback where they share a host with what must not reach them |
+| `KONZILO_WEBHOOK_HOST` | `editors` | Forgejo, from `compose.yaml` | The host Forgejo's webhook may reach, its `webhook.ALLOWED_HOST_LIST`: the host of `KONZILO_PEER_EDITORS`, or `loopback` where that is on the loopback |
+
+A peer address is an origin: a scheme, a host and a port, and nothing more. Its port is where the peer is reached: the service listens on 4100 and 4200, and the preview on 4000, with its dev server on 4001, both on the loopback alone, so a peer reached at another port needs something between, such as a published port. The other folders are no settings, since each is one folder for every program that reads it, and two programs never keep different things there: the site's folder, `/site`, read-only for all; `/control`, which `builder` and `editors` share; `/service-data`, which both of the service's roles open; and `/public`, `/state`, `/thumbnails`, `/admin-config`, `/search-route`, the seed's folders and the web server's below `/srv`, each written by one program alone. An arrangement that runs programs together gives up their own networks, read-only file systems and limits, and says so where it does ([ADR 0005](../docs/adr/0005-build-every-container-for-security-and-performance-and-guard-both-with-budgets.md)).
+
 ## What each volume holds
 
 Each volume's data is one of: *authoritative*, the one record of something; *derived*, which can be made again; or *secret*. A test fails on a volume missing here, so that adding one asks the question.

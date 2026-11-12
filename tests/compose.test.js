@@ -9,7 +9,20 @@ import { dirname, resolve } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { ARRANGEMENT } from '../src/arrangement.js';
+
 const read = (path) => readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), 'utf8');
+
+// A table of the guide's, by its section's heading: each variable with its default, or null where
+// the default is said in words.
+const tableOf = (heading) => {
+  const readme = read('compose/README.md');
+  const start = readme.indexOf(`\n## ${heading}\n`);
+  assert.ok(start >= 0, `a section ${heading}`);
+  const end = readme.indexOf('\n## ', start + 1);
+  const rows = readme.slice(start, end < 0 ? undefined : end).matchAll(/^\| `([A-Z_]+)` \| (`[^`]*`|[^|`]+?) \|/gm);
+  return Object.fromEntries([...rows].map(([, name, value]) => [name, value.startsWith('`') ? value.slice(1, -1) : null]));
+};
 
 const compose = read('compose/compose.yaml');
 const versions = read('versions.env');
@@ -61,13 +74,57 @@ test('says what every volume holds, and lists none that is gone', () => {
 });
 
 // What a server sets in place of a local copy's defaults, each in the guide's table with its
-// default, so that a variable with a default no one is told of cannot slip in.
+// default, so that a variable with a default no one is told of cannot slip in. One that only
+// another arrangement sets is in that table instead.
 test('names every variable it has a default for in the guide, with that default', () => {
   const defaults = Object.fromEntries([...compose.matchAll(/\$\{([A-Z_]+):-([^}]*)\}/g)].map(([, name, value]) => [name, value]));
   assert.ok(Object.hasOwn(defaults, 'KONZILO_MAIL_TO_LOG'));
-  const readme = read('compose/README.md');
-  const listed = Object.fromEntries([...readme.matchAll(/^\| `([A-Z_]+)` \| `([^`]*)` \|/gm)].map(([, name, value]) => [name, value]));
-  assert.deepEqual(listed, defaults);
+  const arranged = tableOf('What another arrangement sets');
+  assert.deepEqual(tableOf('What a server sets'), Object.fromEntries(Object.entries(defaults).filter(([name]) => !Object.hasOwn(arranged, name))));
+  for (const [name, value] of Object.entries(defaults)) if (Object.hasOwn(arranged, name)) assert.equal(arranged[name], value, name);
+});
+
+// Where each program finds its peers and its own folders (src/arrangement.js, ADR 0002): settings
+// that Compose sets none of, so that it runs as it always has, and that a hosting layer or a site
+// sets to arrange the same programs otherwise. Forgejo reads its own settings, so the host its
+// webhook may reach is Compose's to pass on, with the host of the service for editors as its
+// default.
+test('sets none of the settings by which another arrangement places the programs', () => {
+  for (const name of Object.keys(ARRANGEMENT)) assert.doesNotMatch(compose, new RegExp(`\\b${name}\\b`), name);
+  assert.deepEqual([...compose.matchAll(/^.*KONZILO_WEBHOOK_HOST.*$/gm)].map(([line]) => line.trim()), ['FORGEJO__webhook__ALLOWED_HOST_LIST: ${KONZILO_WEBHOOK_HOST:-editors}']);
+  assert.equal(new URL(ARRANGEMENT.KONZILO_PEER_EDITORS).hostname, 'editors');
+});
+
+test('reaches each peer in the web server where a setting says, by default where Compose puts it', () => {
+  const caddyfile = read('compose/web/Caddyfile');
+  const upstreams = [...caddyfile.matchAll(/^\t*reverse_proxy (\S+)/gm)].map(([, upstream]) => upstream);
+  assert.ok(upstreams.length >= 5);
+  const seen = {};
+  for (const upstream of upstreams) {
+    const [, name, fallback] = /^\{\$(KONZILO_PEER_[A-Z]+):([^}]+)\}$/.exec(upstream) ?? [];
+    assert.ok(name, `${upstream} is a setting`);
+    assert.equal(fallback, ARRANGEMENT[name], name);
+    seen[name] = fallback;
+  }
+  assert.deepEqual(Object.keys(seen).sort(), ['KONZILO_PEER_EDITORS', 'KONZILO_PEER_FORGEJO', 'KONZILO_PEER_PREVIEW', 'KONZILO_PEER_VISITORS']);
+});
+
+// A peer named outright, or a folder of a program's own, would hold every program to Compose's
+// arrangement again.
+test('names no peer and no folder of a program\'s own but through the settings', () => {
+  const code = (path) => read(path).split('\n').filter((line) => !/^\s*(\/\/|#)/.test(line)).join('\n');
+  const peers = Object.entries(ARRANGEMENT).filter(([name]) => name.startsWith('KONZILO_PEER_')).map(([, origin]) => new URL(origin).host);
+  for (const path of ['compose/seed/seed.js', 'bin/konzilo-builder.js', 'bin/konzilo-preview.js', 'bin/konzilo-service.js', 'src/build/web-server.js', 'src/build/search-index.js', 'compose/web/Caddyfile']) {
+    const text = code(path).replace(/\{\$KONZILO_PEER_[A-Z]+:[^}]+\}/g, '');
+    for (const host of peers) assert.ok(!text.includes(host), `${path} names ${host}`);
+  }
+  for (const path of ['bin/konzilo-builder.js', 'bin/konzilo-preview.js', 'bin/konzilo-service.js', 'compose/builder/prepare-site.sh']) {
+    assert.doesNotMatch(code(path), /['"`]\/(secret|work)\b|\s\/work\b/, path);
+  }
+});
+
+test('lists every setting of another arrangement in the guide, with its default', () => {
+  assert.deepEqual(tableOf('What another arrangement sets'), { ...ARRANGEMENT, KONZILO_WEBHOOK_HOST: 'editors' });
 });
 
 test('publishes ports on the web server alone, and on this machine alone', () => {
@@ -196,7 +253,7 @@ test('lets the service for editors read the forms\' submissions, on the admin ho
   const matcher = /@service path (.*)$/m.exec(admin)?.[1].split(' ');
   assert.ok(matcher, 'a matcher of its own');
   for (const path of ['/_konzilo/submissions', '/_konzilo/submissions/*', '/_konzilo/mail', '/_konzilo/personal-data', '/_konzilo/personal-data.csv']) assert.ok(matcher.includes(path), path);
-  assert.match(/handle @service \{\n([\s\S]*?)\n\t\}/.exec(admin)?.[1] ?? '', /reverse_proxy editors:4100 \{/);
+  assert.match(/handle @service \{\n([\s\S]*?)\n\t\}/.exec(admin)?.[1] ?? '', /reverse_proxy \{\$KONZILO_PEER_EDITORS:http:\/\/editors:4100\} \{/);
 });
 
 // Mail (ADR 0003, ADR 0045): the service in its role for editors mails the forms' submissions, so
@@ -216,7 +273,7 @@ test('mails from the service for editors alone, writes a local copy\'s mail to i
   const made = /if \(!existsSync\(SERVICE_ROLES_TOKEN\)\) \{\n([\s\S]*?)\n {2}\}/.exec(seed)?.[1];
   assert.ok(made, 'made once, at whichever start finds it missing');
   assert.match(made, /scopes: \['read:organization'\]/);
-  assert.match(read('bin/konzilo-service.js'), /\/secret\/roles-token/);
+  assert.match(read('bin/konzilo-service.js'), /join\(secrets, 'roles-token'\)/);
 });
 
 // What the web server passes on to the service (ADR 0044): the request's method, path, query and
@@ -232,7 +289,7 @@ test('passes every path below /_konzilo/ to the service but search and the conse
   const handled = /handle @konzilo_visitors \{\n([\s\S]*?)\n\t\}\n/.exec(host)?.[1];
   assert.ok(handled);
   assert.match(handled, /request_body \{\n\t\t\tmax_size 1MB\n\t\t\}/);
-  assert.match(handled, /reverse_proxy visitors:4200 \{/);
+  assert.match(handled, /reverse_proxy \{\$KONZILO_PEER_VISITORS:http:\/\/visitors:4200\} \{/);
   const passed = [...handled.matchAll(/^\t\t\theader_up (\S+)(?: (.*))?$/gm)].map(([, name, value]) => [name, value ?? null]);
   assert.deepEqual(passed, [
     ['-*', null],

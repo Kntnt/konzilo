@@ -2,7 +2,8 @@
 // The builder container's one program (ADR 0031): it prepares the site's code once, writes the
 // editor's configuration, and then sleeps and builds when asked. It builds once at each start,
 // which costs nothing when nothing has changed, since a new image is new code. A first build
-// that makes no site stops it, so that `up --wait` says so at once.
+// that makes no site stops it, so that `up --wait` says so at once. It finds Forgejo, Typesense,
+// its credentials and the folder it works in where the arrangement says (src/arrangement.js).
 
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -10,6 +11,7 @@ import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { promisify } from 'node:util';
 
+import { arrangement } from '../src/arrangement.js';
 import { astroBuild, intakeCommand, siteBuild } from '../src/build/build.js';
 import { buildControl } from '../src/build/record.js';
 import { releases } from '../src/build/release.js';
@@ -22,14 +24,13 @@ import { readSiteDescription } from '../src/site-description.js';
 
 const run = promisify(execFile);
 
-const SITE_FOLDER = '/work/site';
-const FORGEJO = 'http://forgejo:3000';
-// Typesense, in the network the web server shares with it (compose.yaml).
-const TYPESENSE = 'http://typesense:8108';
+// Forgejo, and Typesense, which the web server's route to search reaches at the same address.
+const { forgejo: FORGEJO, typesense: TYPESENSE, secrets, work } = arrangement();
+const SITE_FOLDER = join(work, 'site');
 // Where the web server reads the route to search from, outside every release.
 const SEARCH_ROUTE_FILE = '/search-route/search-route.caddy';
 const ACCOUNT = 'builder';
-const HOME = '/work/home';
+const HOME = join(work, 'home');
 const INSTANCE = 'konzilo';
 
 const {
@@ -39,7 +40,7 @@ const {
   KONZILO_ADMIN_ORIGIN: adminOrigin,
 } = process.env;
 
-const secret = (name) => readFileSync(`/secret/${name}`, 'utf8').trim();
+const secret = (name) => readFileSync(join(secrets, name), 'utf8').trim();
 const token = secret('token');
 const access = { user: ACCOUNT, token, home: HOME };
 
@@ -57,7 +58,7 @@ function codeOf(site, core) {
   return hash.digest('hex');
 }
 
-await run('sh', ['/konzilo/compose/builder/prepare-site.sh', '--exclude=./content', '--exclude=./demo-content'], { maxBuffer: 1024 * 1024 * 64 });
+await run('sh', ['/konzilo/compose/builder/prepare-site.sh', work, '--exclude=./content', '--exclude=./demo-content'], { maxBuffer: 1024 * 1024 * 64 });
 
 await run(process.execPath, ['/konzilo/bin/konzilo-cms.js', SITE_FOLDER, '/admin-config/config.json'], {
   env: { ...process.env, KONZILO_OAUTH_CLIENT: secret('oauth-client') },
@@ -66,7 +67,7 @@ await run(process.execPath, ['/konzilo/bin/konzilo-cms.js', SITE_FOLDER, '/admin
 const environment = { PATH: process.env.PATH, HOME, ASTRO_TELEMETRY_DISABLED: '1', KONZILO_ORIGIN: origin };
 const control = buildControl('/control');
 const live = releases('/public');
-const source = sourceRepository({ remote: `${FORGEJO}/${repository}.git`, folder: '/work/source', access });
+const source = sourceRepository({ remote: `${FORGEJO}/${repository}.git`, folder: join(work, 'source'), access });
 const content = contentRepository({ remote: `${FORGEJO}/${repository.split('/')[0]}/content.git`, folder: `${SITE_FOLDER}/content`, access });
 
 const build = siteBuild({
@@ -75,7 +76,7 @@ const build = siteBuild({
   code: codeOf('/site', `${SITE_FOLDER}/node_modules/@kntnt/konzilo`),
   source,
   content,
-  roles: forgejoRoles({ forgejo: FORGEJO, repository, token: secret('roles-token'), instance: INSTANCE, folder: '/work/roles' }),
+  roles: forgejoRoles({ forgejo: FORGEJO, repository, token: secret('roles-token'), instance: INSTANCE, folder: join(work, 'roles') }),
   control,
   live,
   intake: intakeCommand({

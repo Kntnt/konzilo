@@ -53,8 +53,9 @@ x-forgejo: &forgejo
     FORGEJO__metrics__ENABLED: "false"
     FORGEJO__packages__ENABLED: "false"
     FORGEJO__actions__ENABLED: "false"
-    # The one address a webhook may reach: the service, which starts a build.
-    FORGEJO__webhook__ALLOWED_HOST_LIST: editors
+    # The one address a webhook may reach: the service, which starts a build. Another arrangement
+    # names its host (README.md, What another arrangement sets).
+    FORGEJO__webhook__ALLOWED_HOST_LIST: ${KONZILO_WEBHOOK_HOST:-editors}
 
 services:
   # Makes the database and the instance's administrator before Forgejo first starts.

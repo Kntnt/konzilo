@@ -155,13 +155,23 @@ describe('a release\'s redirects', () => {
 // Typesense take it in the Compose acceptance suite.
 describe('the route to search', () => {
   const KEY = 'c2NvcGVkLWtleQ+/=';
-  const route = searchRoute({ collection: 'gentle-garden', key: KEY });
+  const route = searchRoute({ collection: 'gentle-garden', key: KEY, upstream: 'http://typesense:8108' });
 
   test('sends a search of the site\'s collection to Typesense, with the scoped key and none of the visitor\'s headers', () => {
     assert.match(route, /^@konzilo_search path \/_konzilo\/search \/_konzilo\/search\/\*\nroute @konzilo_search \{\n/m);
     assert.match(route, /\trewrite \* \/collections\/gentle-garden\/documents\/search\?/);
-    assert.match(route, /\treverse_proxy typesense:8108 \{\n\t\theader_up -\*\n\t\theader_up X-TYPESENSE-API-KEY `c2NvcGVkLWtleQ\+\/=`\n/);
+    assert.match(route, /\treverse_proxy http:\/\/typesense:8108 \{\n\t\theader_up -\*\n\t\theader_up X-TYPESENSE-API-KEY `c2NvcGVkLWtleQ\+\/=`\n/);
     assert.equal(route.split(KEY).length, 2, 'the key once, in the header alone');
+  });
+
+  // Where the web server reaches Typesense is the arrangement's: in Compose, by its name in the
+  // network the two share; in another, wherever that puts it (src/arrangement.js).
+  test('sends it to Typesense where it is given, as an origin and nothing more', () => {
+    assert.match(searchRoute({ collection: 'gentle-garden', key: KEY, upstream: 'http://127.0.0.1:8108' }), /\treverse_proxy http:\/\/127\.0\.0\.1:8108 \{\n/);
+    assert.match(searchRoute({ collection: 'gentle-garden', key: KEY, upstream: 'https://[fd00::8]:8108' }), /\treverse_proxy https:\/\/\[fd00::8\]:8108 \{\n/);
+    for (const upstream of [undefined, 'typesense:8108', 'http://typesense:8108/', 'http://typesense:8108 {\n}', 'http://{$SECRET}:8108', 'http://typesense`:8108']) {
+      assert.throws(() => searchRoute({ collection: 'gentle-garden', key: KEY, upstream }), RefusedRules, String(upstream));
+    }
   });
 
   test('passes on q, page and filter_by alone, which the web server writes into Typesense\'s address encoded, page 1 where none is given', () => {

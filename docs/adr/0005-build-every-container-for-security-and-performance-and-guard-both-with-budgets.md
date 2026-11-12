@@ -1,6 +1,6 @@
 # ADR 0005: Build every container for security and performance, and guard both with budgets
 
-**Date:** 2026-11-02 · **Status:** Accepted, settled by Thomas on 2026-11-02: since Docker runs everything, build it right from the first day. The details are technical choices; Thomas may veto.
+**Date:** 2026-11-02, amended 2026-11-12 · **Status:** Accepted, settled by Thomas on 2026-11-02: since Docker runs everything, build it right from the first day. The details are technical choices; Thomas may veto. Settled on 2026-11-12, as a technical choice Thomas may veto: the separation below is Compose's, and an arrangement that runs the programs together gives up their own networks, read-only file systems and limits, and says so where it does.
 
 ## Decision
 
@@ -13,6 +13,8 @@
 | `preview` | The gate, Astro's dev server, the site's code, the preview's files, a credential that can only read the source | Up and asleep, with the dev server only while someone edits, under a cap | Shares the web server's network, so that nothing else reaches it |
 | Web server | Caddy at a pinned digest, without its file capability: static pages | Always; one per server in hosting | The only one with public ports |
 | Typesense | The vendor's image, with a folder for its data that a user other than root owns: published text alone, with a key per site | Always; one per server in hosting | Its own network |
+
+**The separation is Compose's.** The table is how Compose arranges the programs, and it holds wherever Compose runs them. The programs take their peers and their own folders as settings ([ADR 0002](0002-let-the-core-know-one-site-and-run-it-everywhere-with-docker-compose.md)), so a hosting layer or a site may arrange them otherwise. One that runs several programs in one container, or outside containers, gives up their own networks, `visitors`' and Typesense's with no way out among them, their read-only file systems and their limits, and says so where it does. It holds the service's roles to the loopback by `KONZILO_LISTEN`, and Forgejo and Typesense by their own settings, where something else shares its host.
 
 **Security, on all of them:**
 

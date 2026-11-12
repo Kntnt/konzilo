@@ -5,7 +5,8 @@
 // (ADR 0002, ADR 0007, ADR 0008, ADR 0053). It talks to Forgejo itself, behind the
 // proxy, since the proxy refuses making a token, and there is no API for a second
 // factor, so an account enrols through the forms a person uses. Each step looks first,
-// so that a seed stopped half way can run again.
+// so that a seed stopped half way can run again. It finds Forgejo, and the service for
+// editors that Forgejo's webhook reaches, where the arrangement says (src/arrangement.js).
 
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
@@ -13,13 +14,14 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileS
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
+import { arrangement } from '../../src/arrangement.js';
 import { SIGN_IN_PATH } from '../../src/cms/preview/paths.js';
 import { demoContentOf } from '../../src/demo-content.js';
 import { demoSource, GIT_ATTRIBUTES } from '../../src/demo-source.js';
 import { readSiteDescriptionWithoutTakenComponents } from '../../src/site-description.js';
 import { totp } from '../../src/totp.js';
 
-const FORGEJO = 'http://forgejo:3000';
+const { forgejo: FORGEJO, editors: EDITORS } = arrangement();
 const STATE = '/state';
 // The site repository, read-only.
 const SITE = '/site';
@@ -31,7 +33,7 @@ const {
 } = process.env;
 const REPOSITORY = 'source';
 const CONTENT = 'content';
-const SERVICE_HOOK = 'http://editors:4100/webhook';
+const SERVICE_HOOK = `${EDITORS}/webhook`;
 // Admins and Editors write to the source, and Reviewers read it alone, so that Forgejo refuses
 // whatever a Reviewer pushes (ADR 0008).
 const TEAMS = { admins: 'write', editors: 'write', reviewers: 'read' };
@@ -165,7 +167,10 @@ async function pushDemoContent(token) {
   }
   git('add', '--all');
   git('commit', '--quiet', '--message=Start with the demo content');
-  git('remote', 'add', 'origin', `http://konzilo:${token}@forgejo:3000/${site}/${REPOSITORY}.git`);
+  const remote = new URL(`${FORGEJO}/${site}/${REPOSITORY}.git`);
+  remote.username = 'konzilo';
+  remote.password = token;
+  git('remote', 'add', 'origin', remote.href);
   // Hooks cannot run from a noexec temporary folder, so LFS is pushed by name.
   git('lfs', 'push', '--all', 'origin', 'main');
   git('push', '--quiet', 'origin', 'main');
