@@ -376,6 +376,25 @@ describe('the site template, built by Astro', () => {
     assert.doesNotMatch(page('sitemap.xml'), /not-found/);
   });
 
+  // Its body goes through Konzilo's Body, as every other page's does: a post
+  // list by its presentation and a form by the site's form component.
+  test('renders the chosen 404 page\'s post list by its presentation and its form by the site\'s component', () => {
+    const notFound = post({
+      ID: 3,
+      type: 'page',
+      slug: 'not-found',
+      title: 'Not found',
+      modified: '2026-10-02 09:00:00',
+      body: 'Read the latest instead.\n\n::post-list{type="article" number="3" presentation="list"}\n\n::form{name="contact"}',
+    });
+    const page = build(repository, { title: 'Lantern', logo: null, icon: null }, { given: [...posts, notFound], settings: { notFound: { page: '3' } } });
+
+    const shown = main(page('404.html'));
+    assert.match(shown, /<li><a href="\/harbour-lights\/">Harbour lights<\/a>/);
+    assert.match(shown, /<form class="konzilo-form" id="konzilo-form-contact" method="post" action="\/_konzilo\/forms\/contact"/);
+    assert.doesNotMatch(shown, /data-directive/);
+  });
+
   // Its file lies at the content folder's root, not in a collection's
   // folder, so its images' addresses climb no folder.
   test('builds the core\'s plain text as 404.html where no page is chosen, in the site\'s language, whatever language its editors work in', () => {

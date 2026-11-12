@@ -29,6 +29,14 @@ docker compose down            # stops it, and keeps what is saved
 
 The template's `site-description.json` is the demo model, in British English (`"language": "en_GB"`), with one form, `contact`, which a page of the demo content places. `demo-content/` holds what that model's content files look like, as `content-format.md` describes them.
 
+## A site that takes a design package
+
+A site may take its look from a design package, which holds a design's components, presentations and styles, installed in the site repository and named by its package specifiers ([ADR 0054](../docs/adr/0054-take-a-sites-design-from-the-konzilo-design-system.md), [ADR 0060](../docs/adr/0060-let-a-site-declare-its-components-and-check-what-they-hold.md)):
+
+- **Its components** are the site's by `componentsFrom` in `site-description.json`, the package's JSON file of them, with the site's labels under `componentLabels`, and what they hold is checked by `componentChecks`, the package's module ([`content-format.md`](../content-format.md#a-sites-own-components)). A type's `elements` names those its posts may hold.
+- **Its Astro components draw them,** registered in `astro.config.mjs`: each component's by its directive's name under `konzilo({ directives })`, and each presentation a post list names under `presentations`, as the template registers its own form, list and cards.
+- **Its styles stand in place of the template's own:** its body styles and tokens go to `bodyStyles` and `tokens`, and its stylesheets to the layout, in place of those in `src/styles/`.
+
 ## A site's own demo content
 
 A site that shows itself with posts of its own keeps them in its repository, in `demo-content/` at its root, which Git tracks. They are fictional, as the core's are, and never a live site's content.

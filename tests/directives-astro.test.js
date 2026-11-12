@@ -296,7 +296,7 @@ describe("a site's own components in the live preview", () => {
     'src/components/Bare.astro': '<slot />\n',
   };
   const given = { section: './src/components/Section.astro', kicker: './src/components/Kicker.astro', pair: './src/components/Pair.astro', words: './src/components/Words.astro', bare: './src/components/Bare.astro' };
-  const nested = ['Before', ':::section{tone="bright"}', '::kicker[A _kicker_]', '## Inside', '::::section', 'Deep', '::::', '::pair', '::words', '::::bare', 'Bare', '::::', ':::', '::words', ':::bare', 'Bare too', ':::'].join('\n\n');
+  const nested = ['Before', '::::section{tone="bright"}', '::kicker[A _kicker_]', '## Inside', ':::section', 'Deep', ':::', '::pair', '::words', ':::bare', 'Bare', ':::', '::::', '::words', ':::bare', 'Bare too', ':::'].join('\n\n');
 
   test('puts each mark on the root the component renders, its own or the core\'s, and a wrapper only at the top of the body, where nothing else can hold it', () => {
     const built = build({ ...designed, 'content/articles/hello-world.md': post(nested) }, given, own, { KONZILO_PREVIEW: '1' });
