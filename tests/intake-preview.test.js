@@ -70,3 +70,24 @@ test('gives an address a published post and a draft both want to the published p
   assert.equal(after.ledger.posts['b-live'].address, '/pages/same/');
   assert.match(written(after)['pages/same.md'], /title: "Live"/);
 });
+
+test('says where a refused post\'s page would be, where it can have one that nothing else holds', () => {
+  const files = {
+    'pages/broken.md': sourcePost({ title: 'A <b>bold</b> title', slug: 'broken', status: 'draft' }, 'Words.'),
+    'pages/under.md': sourcePost({ title: '', slug: 'under', parent: 'top', status: 'draft' }, 'Words.'),
+    'pages/top.md': draft('Top'),
+    'pages/no-slug.md': sourcePost({ title: 'No slug', slug: 'Not A Slug', status: 'draft' }, 'Words.'),
+    'pages/taken.md': draft('Taken', { slug: 'live' }),
+    'pages/live.md': sourcePost({ title: 'Live', status: 'published' }, 'Words.'),
+  };
+  const result = run(files, site, { preview: Object.keys(files) });
+  const wanted = Object.fromEntries(result.posts.map(({ file, state, wanted: at }) => [file, [state, at ?? null]]));
+  assert.deepEqual(wanted, {
+    'pages/broken.md': ['refused', '/pages/broken/'],
+    'pages/under.md': ['refused', '/pages/top/under/'],
+    'pages/no-slug.md': ['refused', null],
+    'pages/taken.md': ['refused', null],
+    'pages/live.md': ['live', null],
+    'pages/top.md': ['live', null],
+  });
+});

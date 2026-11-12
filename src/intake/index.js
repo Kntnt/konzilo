@@ -11,7 +11,7 @@ import { isObject } from '../checks.js';
 import { REDIRECTS_FILE } from '../format/redirects.js';
 import { POST_IDS_FILE } from '../format/write.js';
 import { siteDescription } from '../site-description.js';
-import { allOthers, earlier, holdAddresses, oldAddressesOf } from './addresses.js';
+import { addressWanted, allOthers, earlier, holdAddresses, oldAddressesOf } from './addresses.js';
 import { climb, contextFor, handsFor } from './hands.js';
 import { emptyLedger, ledgerFile, nextLedger, normalLedger } from './ledger.js';
 import { bodyProblems, fieldsOf, fileText, momentOf, otherAddressesIn, publishedHash, slugOf, writtenBody } from './post-file.js';
@@ -40,8 +40,9 @@ const MARKUP = /<\/?[a-zA-Z!?][^<>]*>/;
 // content files that stay though no file here writes them, a refused post's own and what
 // it names, and what a refused settings file names; `posts`, what became of each source
 // file of a post, `state` being `live`, `refused`, `waiting` for its moment `at`, or `off`,
-// with its `address`, and whether the site `shown` shows a version of it; `next`, the next
-// scheduled moment, or null.
+// with its `address`, whether the site `shown` shows a version of it, and, while it is
+// refused, the address its page would be at, `wanted`, where it can have one nothing else
+// holds, or null; `next`, the next scheduled moment, or null.
 export function intake({ files, site: described, now, ledger = null, changes = {}, images = () => null, adminHost = null, reader = siteReader, preview = [], components = null }) {
   const site = siteDescription(described);
   const clock = typeof now === 'function' ? now() : now;
@@ -369,6 +370,7 @@ function assemble(run) {
       at: post.waiting ?? null,
       address: updated.posts[post.key]?.address ?? null,
       shown: Boolean(updated.posts[post.key]?.path),
+      ...(run.refused.has(post.key) ? { wanted: addressWanted(post, run) } : {}),
     })),
     next,
   };

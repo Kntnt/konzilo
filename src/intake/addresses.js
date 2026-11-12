@@ -162,6 +162,20 @@ export function holdAddresses(run) {
   return false;
 }
 
+// Where a refused post's page would be were it not refused: its public address, by its slug
+// and its parents', or null where it can have none, or another holds it.
+export function addressWanted(post, run) {
+  if (post.unreadable || post.keepsNothing || post.gone || post.notFound || post.type.address === null) return null;
+  if (slugOf(post).reason) return null;
+  const place = pathOf(post, run);
+  if (place.reason) return null;
+  const address = publicAddress(post.type, place.name, post.language);
+  const key = keyOf(address);
+  const held = run.held && (run.held.byAddress.has(key) || run.held.others.has(key) || run.held.exact.has(key));
+  if (held || siteHolder(address, run.site) || [...(run.termPages?.values() ?? [])].some((page) => keyOf(page) === key)) return null;
+  return address;
+}
+
 // The key of a rule's target, when it is a path on the site.
 const targetKey = (to) => {
   const [path] = to.split('#');
