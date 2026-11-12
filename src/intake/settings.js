@@ -63,7 +63,6 @@ function plainValue(setting, stored, variables) {
 function readSettings(declared, stored, path, into, context) {
   const given = isObject(stored) ? stored : {};
   for (const setting of declared) {
-    if (setting.published === false) continue;
     const at = `${path}${setting.name}`;
     const raw = localised(given[setting.name], setting, context);
     const read = settingValue(setting, raw, at, context);

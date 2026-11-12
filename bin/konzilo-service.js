@@ -4,8 +4,9 @@
 //
 // - `editors`: it takes Forgejo's webhook, keeps time, says how publishing stands, shows small
 //   pictures of images, shows Admins and Editors the forms' submissions from the service's data,
-//   and mails each to its form's recipients through the adapter an Admin chooses (ADR 0003), or,
-//   in a local copy, writes it to its log. It has a credential that can only read the source
+//   mails each to its form's recipients through the adapter an Admin chooses (ADR 0003), or, in a
+//   local copy, writes it to its log, forgets each once its form's retention has passed, and lets
+//   an Admin find, export and erase a person's. It has a credential that can only read the source
 //   repository, and one that can only read who is an Admin.
 // - `visitors`: it takes what visitors' browsers send below /_konzilo/, which the web server
 //   passes on, such as a site's forms (ADR 0045), and keeps it in the service's data. It reaches
@@ -20,6 +21,7 @@ import { editorsService, nextMinute } from '../src/service/editors.js';
 import { liveDescription } from '../src/service/live-description.js';
 import { mailDuty } from '../src/service/mail.js';
 import { mailDelivery } from '../src/service/mail-delivery.js';
+import { retentionDuty } from '../src/service/retention.js';
 import { openStore, STORE_FILE } from '../src/service/store.js';
 import { thumbnails } from '../src/service/thumbnails.js';
 import { visitorsService } from '../src/service/visitors.js';
@@ -90,8 +92,21 @@ function editors(store) {
   };
   mailInAMoment();
 
+  // Each submission older than its form's retention, and spam older than seven days, forgotten at
+  // the start, so that what grew too old while the service was stopped is gone, and each minute.
+  const retention = retentionDuty({ store });
+  const forgetWhatIsOld = () => {
+    try {
+      retention.run();
+    } catch (error) {
+      console.error(`The service's retention broke: ${error.stack ?? error.message}`);
+    }
+  };
+  forgetWhatIsOld();
+
   const atEachMinute = () => {
     setTimeout(async () => {
+      forgetWhatIsOld();
       await service.tick().catch((error) => console.error(`The service's clock broke: ${error.stack ?? error.message}`));
       atEachMinute();
     }, nextMinute(Date.now()));

@@ -1,6 +1,6 @@
 // What the *Mail* page asks of the service (ADR 0003, ADR 0045), and what it makes of the answers:
-// how the site mails each form's submissions, saving it, the recipients as an Admin writes them,
-// and each problem beside its field. The service asks Forgejo who is asking, so each request
+// how the site mails each form's submissions and how long it keeps them, saving it, the recipients
+// as an Admin writes them, and each problem beside its field. The service asks Forgejo who is asking, so each request
 // carries what Sveltia signed in with. It holds no React.
 
 import { say } from '../interface-language.js';
@@ -30,7 +30,7 @@ async function answered(init, { credential, ask }) {
 // How the site sends mail, and to whom: { local, adapter, smtp, forms, failure }, as { settings }.
 export const readMail = ({ credential, ask = fetching() }) => answered({ method: 'GET' }, { credential, ask });
 
-// What an Admin gives, { adapter, smtp, forms: { <form>: { recipients } } }, saved.
+// What an Admin gives, { adapter, smtp, forms: { <form>: { recipients, retention } } }, saved.
 export const saveMail = ({ credential, given, ask = fetching() }) => answered({ method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(given) }, { credential, ask });
 
 // The addresses an Admin writes, one per line, or apart by commas, semicolons or spaces.
@@ -44,19 +44,21 @@ const PROBLEMS = {
   'needs-encryption': 'mail.problemNeedsEncryption',
   'not-email': 'mail.problemNotEmail',
   'too-many': 'mail.problemTooMany',
+  'not-days': 'mail.problemNotDays',
   unknown: 'mail.problemUnknown',
   malformed: 'mail.problemMalformed',
 };
 const problemText = (problem) => say(PROBLEMS[problem] ?? PROBLEMS.malformed);
 
 // The service's problems, by where each is, as the page shows them beside their fields: each SMTP
-// setting's by its name, the adapter's, and each form's as a list, an address by what `given`
-// held there.
+// setting's by its name, the adapter's, each form's recipients' as a list, an address by what
+// `given` held there, and each form's retention's by the form's name.
 export function problemsShown(problems, given) {
   const shown = {};
   for (const [place, problem] of Object.entries(problems)) {
     const [area, name, field, at] = place.split('.');
     if (area === 'smtp') shown[name] = problemText(problem);
+    else if (area === 'forms' && field === 'retention') (shown.retention ??= {})[name] = problemText(problem);
     else if (area === 'forms') {
       const address = at === undefined ? undefined : given?.forms?.[name]?.recipients?.[Number(at)];
       shown.forms ??= {};

@@ -1,9 +1,10 @@
 // The service's part for editors (ADR 0044): what starts a build, what a post's status is, a
-// small picture of an image in the library (ADR 0055), the forms' submissions (ADR 0045), and how
-// the site mails them, which an Admin sets on the *Mail* page (ADR 0003). Forgejo's webhook only
-// says that something may have happened: the build looks for itself, so a request here decides
-// nothing, and needs no secret. Everything an editor asks goes by what Forgejo says of the one
-// asking, each time.
+// small picture of an image in the library (ADR 0055), the forms' submissions (ADR 0045), how the
+// site mails them and how long it keeps them, which an Admin sets on the *Mail* page (ADR 0003),
+// and a person's submissions, which an Admin finds, downloads and erases on the *Personal data*
+// page. Forgejo's webhook only says that something may have happened: the build looks for itself,
+// so a request here decides nothing, and needs no secret. Everything an editor asks goes by what
+// Forgejo says of the one asking, each time.
 
 import { ADMINS_TEAM } from '../build/roles.js';
 import { publishStatus } from '../build/status.js';
@@ -11,7 +12,9 @@ import { CREDENTIAL, mayWrite } from '../forgejo.js';
 import { FORM_NAME } from '../site-description.js';
 import { FAILURE_SETTING, MAIL_SETTING } from './mail.js';
 import { checkMailSettings, mailSettingsShown } from './mail-settings.js';
+import { findSubmissions, idsOf, soughtOf } from './personal-data.js';
 import { bodyOf } from './request-body.js';
+import { retentionDuty } from './retention.js';
 import { SEPARATORS, submissionsCsv, timeZoneOf } from './submissions-csv.js';
 
 const answerJson = (outgoing, status, body) => {
@@ -21,6 +24,7 @@ const answerJson = (outgoing, status, body) => {
 
 const SUBMISSIONS = '/_konzilo/submissions';
 const MAIL = '/_konzilo/mail';
+const PERSONAL_DATA = '/_konzilo/personal-data';
 // The most the *Mail* page's settings take, as JSON.
 const MAIL_BODY_LIMIT = 64 * 1024;
 // A form's submissions are shown this many at a time, newest first.
@@ -90,9 +94,10 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
     return await mayWrite({ forgejo, repository, credential, get }) ? 'writer' : null;
   };
 
-  // How the site mails the forms' submissions, to an Admin alone: an Editor is told only that it is
-  // an Admin's, and whoever may not write nothing. A save makes what waits to be tried again due
-  // at once, since what failed may now go.
+  // How the site mails the forms' submissions, and how long it keeps them, to an Admin alone: an
+  // Editor is told only that it is an Admin's, and whoever may not write nothing. A save makes
+  // what waits to be tried again due at once, since what failed may now go, and forgets at once
+  // what is older than the retention it sets.
   const answerMail = async (incoming, outgoing) => {
     if (!['GET', 'PUT'].includes(incoming.method)) {
       incoming.resume();
@@ -130,10 +135,52 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
     const checked = checkMailSettings(given, { store, forms: forms() });
     if (checked.problems) return answerJson(outgoing, 400, { problems: checked.problems });
     store.setSetting(MAIL_SETTING, checked.mail);
-    for (const [form, recipients] of Object.entries(checked.recipients)) store.setFormSettings(form, { recipients });
+    for (const [form, settings] of Object.entries(checked.forms)) store.setFormSettings(form, settings);
     store.setSetting(FAILURE_SETTING, null);
     store.mailSoon(now());
+    retentionDuty({ store, now }).run();
     return answerJson(outgoing, 200, shown());
+  };
+
+  // A person's submissions (ADR 0045), to an Admin alone, as privacy law asks: those that hold what
+  // the Admin searches by, in every form, spam among them, each with its form's label; those the
+  // Admin chooses as CSV, by the separator, in the time zone and in the interface language the
+  // reader names; and those the Admin chooses erased. An Editor is told only that it is an
+  // Admin's, and whoever may not write nothing.
+  const answerPersonalData = async (incoming, outgoing, asCsv, searchParams) => {
+    incoming.resume();
+    const methods = asCsv ? ['GET'] : ['GET', 'DELETE'];
+    if (!methods.includes(incoming.method)) {
+      outgoing.writeHead(405, { allow: methods.join(', '), 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+      return outgoing.end('{}');
+    }
+    if (!store) return answerJson(outgoing, 404, {});
+    const role = await roleOf(incoming.headers.authorization);
+    if (role !== 'admin') return answerJson(outgoing, role === null ? 401 : 403, {});
+    const declared = forms();
+    const labelOf = (form) => declared[form]?.label ?? form;
+    if (incoming.method === 'GET' && !asCsv) {
+      const text = soughtOf(searchParams.get('text'));
+      if (text === null) return answerJson(outgoing, 400, {});
+      const { submissions, more } = findSubmissions(store, text);
+      return answerJson(outgoing, 200, {
+        submissions: submissions.map(({ id, form, sentAt, language, spam, fields }) => ({ id, form, label: labelOf(form), sentAt, language, spam: spam !== null, fields })),
+        more,
+      });
+    }
+    const ids = idsOf(searchParams.get('ids'));
+    if (ids === null) return answerJson(outgoing, 400, {});
+    if (incoming.method === 'DELETE') return answerJson(outgoing, 200, { erased: store.erase(ids) });
+    const separator = searchParams.get('separator');
+    if (!Object.hasOwn(SEPARATORS, separator ?? '')) return answerJson(outgoing, 400, {});
+    const chosen = store.chosen(ids);
+    return answerCsv(outgoing, 'personal-data', submissionsCsv({
+      labelOf,
+      each: () => chosen,
+      separator,
+      timeZone: timeZoneOf(searchParams.get('timeZone')),
+      language: searchParams.get('language'),
+    }));
   };
 
   const answerPicture = async (incoming, outgoing, of) => {
@@ -182,7 +229,7 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
       const reading = store.snapshot(name);
       try {
         return await answerCsv(outgoing, name, submissionsCsv({
-          label: declared[name]?.label ?? name,
+          labelOf: () => declared[name]?.label ?? name,
           each: () => reading.each(),
           separator,
           timeZone: timeZoneOf(searchParams.get('timeZone')),
@@ -206,7 +253,7 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
   // what breaks after it ends the answer unfinished, which a browser reports as a failed download
   // rather than keep a file cut short. Either is said in the service's log.
   const answerCsv = async (outgoing, name, pieces) => {
-    const broke = (error) => warn(`The service could not write the submissions of ${name}: ${error.stack ?? error.message}`);
+    const broke = (error) => warn(`The service could not write ${name}.csv: ${error.stack ?? error.message}`);
     let piece;
     try {
       piece = pieces.next();
@@ -267,6 +314,7 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
       if (pathname === '/_konzilo/thumbnail') return answerPicture(incoming, outgoing, searchParams.get('of'));
       if (pathname === SUBMISSIONS || pathname.startsWith(`${SUBMISSIONS}/`)) return answerSubmissions(incoming, outgoing, pathname.slice(SUBMISSIONS.length), searchParams);
       if (pathname === MAIL) return answerMail(incoming, outgoing);
+      if (pathname === PERSONAL_DATA || pathname === `${PERSONAL_DATA}.csv`) return answerPersonalData(incoming, outgoing, pathname.endsWith('.csv'), searchParams);
       return answerJson(outgoing, 404, {});
     },
 

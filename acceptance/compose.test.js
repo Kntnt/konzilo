@@ -1133,7 +1133,7 @@ describe('a site in Compose', () => {
       assert.equal((await get(`${site.origin.admin}/_konzilo/mail`)).status, 401);
       assert.equal((await get(`${site.origin.site}/_konzilo/mail`, { headers: { authorization: `token ${token}` } })).status, 404, 'on the editor\'s host alone');
       const off = await (await get(`${site.origin.admin}/_konzilo/mail`, { headers: { authorization: `token ${token}` } })).json();
-      assert.deepEqual([off.local, off.adapter, off.forms], [true, 'none', [{ name: 'contact', label: 'Contact us', recipients: [] }]]);
+      assert.deepEqual([off.local, off.adapter, off.forms], [true, 'none', [{ name: 'contact', label: 'Contact us', recipients: [], retention: 30 }]]);
 
       const formToken = await tokenOf();
       await wait(3500);
@@ -1155,13 +1155,14 @@ describe('a site in Compose', () => {
         await page.getByLabel('Username', { exact: true }).fill('site@example.com');
         await page.getByLabel('Password', { exact: true }).fill('a secret');
         await page.getByLabel('Sender\'s address', { exact: true }).fill('site@example.com');
-        await page.getByLabel('Contact us', { exact: true }).fill(RECIPIENTS.join('\n'));
+        const recipients = () => page.getByRole('group', { name: 'Contact us', exact: true }).getByLabel('Recipients', { exact: true });
+        await recipients().fill(RECIPIENTS.join('\n'));
         await page.getByRole('button', { name: 'Save' }).click();
         await page.getByText('Saved.', { exact: true }).waitFor();
         await page.reload();
         await page.getByRole('radio', { name: 'Mail', exact: true }).click();
-        await page.getByLabel('Contact us', { exact: true }).waitFor();
-        assert.equal(await page.getByLabel('Contact us', { exact: true }).inputValue(), RECIPIENTS.join('\n'));
+        await recipients().waitFor();
+        assert.equal(await recipients().inputValue(), RECIPIENTS.join('\n'));
         assert.equal(await page.getByLabel('Password', { exact: true }).getAttribute('placeholder'), 'Kept: leave it empty to keep it');
         assert.equal(await page.getByLabel('Password', { exact: true }).inputValue(), '', 'never given back');
         assert.deepEqual(session.seen.outside, []);
@@ -1190,6 +1191,115 @@ describe('a site in Compose', () => {
         const text = Buffer.from(content, 'base64').toString();
         for (const kept of [...RECIPIENTS, 'smtp.invalid', 'a secret']) assert.ok(!text.includes(kept), `${kept} in ${name}`);
       }
+    }, { timeout: 300_000 });
+
+    // Retention (ADR 0044, ADR 0045): each form's submissions kept for the days an Admin sets beside
+    // its recipients, 30 until then, and spam for seven, forgotten by the service in its role for
+    // editors at its start and each minute; and a person's submissions, which an Admin finds by
+    // what they wrote on the Personal data page, downloads and erases, after which no page,
+    // download or file of the service holds them.
+    test('keeps each form\'s submissions for the days an Admin sets beside its recipients, and spam for seven, also across a restart, and lets an Admin find, download and erase a person\'s', async () => {
+      const DAY = 24 * 60 * 60_000;
+      const daysAgo = (days) => new Date(Date.now() - days * DAY).toISOString();
+      const submission = (days, words, { name = 'Ada Lovelace', email = 'ada@example.com', spam = null } = {}) => ({
+        form: 'contact',
+        sentAt: daysAgo(days),
+        language: 'en-GB',
+        spam,
+        fields: [
+          { name: 'name', label: 'Name', value: name },
+          { name: 'email', label: 'Email', value: email },
+          { name: 'message', label: 'Message', value: words },
+          { name: 'privacy', label: 'I have read the privacy policy', value: true },
+        ],
+      });
+      // Kept in the service's data as the role for visitors keeps a submission, at the moment given.
+      const keepDirectly = (submissions) => site.compose('exec', '-T', 'visitors', 'node', '--no-warnings', '--input-type=module', '-e', [
+        "import { openStore } from '/konzilo/src/service/store.js';",
+        "const store = openStore('/service-data/service.sqlite');",
+        `for (const one of ${JSON.stringify(submissions)}) store.keep({ ...one, sentAt: new Date(one.sentAt) });`,
+        'store.close();',
+      ].join('\n'));
+      const messages = () => kept().map(message);
+      const dataFiles = () => site.compose('exec', '-T', 'editors', 'sh', '-c', 'cat /service-data/*');
+
+      // What grew too old while the service for editors was stopped is gone once it starts.
+      site.compose('stop', 'editors');
+      try {
+        keepDirectly([
+          submission(40, 'Forty days old'),
+          submission(11, 'Eleven days old'),
+          submission(8, 'Spam of eight days', { spam: 'trap' }),
+          submission(6, 'Spam of six days', { spam: 'trap' }),
+        ]);
+      } finally {
+        site.compose('start', 'editors');
+        await healthy('editors');
+      }
+      const restarted = messages();
+      for (const words of ['Forty days old', 'Spam of eight days']) assert.ok(!restarted.includes(words), `${words}: gone`);
+      for (const words of ['Eleven days old', 'Spam of six days']) assert.ok(restarted.includes(words), `${words}: kept`);
+      assert.ok(!dataFiles().includes('Forty days old'), 'and nothing of it left in the service\'s data');
+
+      keepDirectly([
+        submission(2, 'Grace\'s first message', { name: 'Grace Hopper', email: 'grace@example.com' }),
+        submission(1, 'Grace\'s second message', { name: 'Grace Hopper', email: 'Grace@Example.com' }),
+        submission(1, 'Someone else\'s message', { name: 'Linus', email: 'linus@example.com' }),
+      ]);
+
+      const session = await openEditor('chromium', site);
+      try {
+        await signIn(session, site);
+        const { page } = session;
+
+        // The days an Admin sets beside a form's recipients, and what is older is gone at once.
+        await page.getByRole('radio', { name: 'Mail', exact: true }).click();
+        const days = () => page.getByRole('group', { name: 'Contact us', exact: true }).getByLabel('Days kept', { exact: true });
+        assert.equal(await days().inputValue(), '30');
+        await days().fill('10');
+        await page.getByRole('button', { name: 'Save' }).click();
+        await page.getByText('Saved.', { exact: true }).waitFor();
+        await page.reload();
+        await page.getByRole('radio', { name: 'Mail', exact: true }).click();
+        await days().waitFor();
+        assert.equal(await days().inputValue(), '10');
+        assert.ok(!messages().includes('Eleven days old'), 'gone with the save');
+        assert.ok(messages().includes('Spam of six days'), 'spam kept for seven days, or fewer where its form\'s submissions are');
+
+        // A person's submissions, found by what they wrote in any case, downloaded and erased.
+        await page.getByRole('radio', { name: 'Personal data', exact: true }).click();
+        await page.getByLabel('What the person wrote', { exact: true }).fill('GRACE@example.com');
+        await page.getByRole('button', { name: 'Find', exact: true }).click();
+        await page.getByText('Submissions found: 2.').waitFor();
+        const found = page.getByRole('checkbox', { name: /^Contact us, / });
+        assert.equal(await found.count(), 2);
+        for (const box of await found.all()) assert.equal(await box.isChecked(), true, 'each ticked');
+        const [file] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download as CSV' }).click()]);
+        assert.match(file.suggestedFilename(), /^personal-data-\d{4}-\d\d-\d\d\.csv$/);
+        const [header, ...rows] = readCsv(readFileSync(await file.path()).toString('utf8'), ',');
+        assert.deepEqual(header.slice(1), ['Form', 'Name', 'Email', 'Message', 'I have read the privacy policy']);
+        assert.deepEqual(rows.map((row) => row[4]), ['Grace\'s second message', 'Grace\'s first message']);
+        await page.getByRole('button', { name: 'Erase those ticked' }).click();
+        await page.getByRole('button', { name: 'Erase for good' }).click();
+        await page.getByText('Erased: 2.').waitFor();
+        await page.getByText('No submission holds that.').waitFor();
+
+        // In no page or download after.
+        await page.getByRole('radio', { name: 'Submissions', exact: true }).click();
+        await page.getByText('Someone else\'s message', { exact: true }).waitFor();
+        assert.equal(await page.getByText(/Grace/).count(), 0);
+        const [form] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download as CSV' }).click()]);
+        const text = readFileSync(await form.path()).toString('utf8');
+        assert.ok(text.includes('Someone else\'s message'));
+        assert.doesNotMatch(text, /Grace/);
+        assert.deepEqual(session.seen.outside, []);
+        assert.deepEqual(session.seen.refused, []);
+        assert.deepEqual(session.seen.errors, []);
+      } finally {
+        await session.browser.close();
+      }
+      assert.ok(!messages().some((words) => words.startsWith('Grace')));
+      assert.ok(!dataFiles().includes('Grace'), 'nothing of it left in the service\'s data');
     }, { timeout: 300_000 });
 
     // The service mounts the site's folder whole, so that a site description replaced, as Git
