@@ -60,6 +60,16 @@ test('says what every volume holds, and lists none that is gone', () => {
   assert.deepEqual([...listed].sort(), [...declared].sort());
 });
 
+// What a server sets in place of a local copy's defaults, each in the guide's table with its
+// default, so that a variable with a default no one is told of cannot slip in.
+test('names every variable it has a default for in the guide, with that default', () => {
+  const defaults = Object.fromEntries([...compose.matchAll(/\$\{([A-Z_]+):-([^}]*)\}/g)].map(([, name, value]) => [name, value]));
+  assert.ok(Object.hasOwn(defaults, 'KONZILO_MAIL_TO_LOG'));
+  const readme = read('compose/README.md');
+  const listed = Object.fromEntries([...readme.matchAll(/^\| `([A-Z_]+)` \| `([^`]*)` \|/gm)].map(([, name, value]) => [name, value]));
+  assert.deepEqual(listed, defaults);
+});
+
 test('publishes ports on the web server alone, and on this machine alone', () => {
   const blocks = compose.split(/^ {2}(?=[a-z-]+:\n)/m);
   const withPorts = blocks.filter((block) => /^ {4}ports:/m.test(block));
@@ -195,7 +205,8 @@ test('lets the service for editors read the forms\' submissions, on the admin ho
 // by a credential of its own that reads the teams and nothing else.
 test('mails from the service for editors alone, writes a local copy\'s mail to its log, and lets it read who is an Admin', () => {
   const blocks = servicesOf(compose);
-  assert.match(blocks.editors, /^ {6}KONZILO_MAIL_TO_LOG: "true"$/m);
+  // On by default, as a local copy has it, and turned off by a server, which sends.
+  assert.match(blocks.editors, /^ {6}KONZILO_MAIL_TO_LOG: \$\{KONZILO_MAIL_TO_LOG:-true\}$/m);
   for (const [name, block] of Object.entries(blocks)) {
     if (name !== 'editors') assert.doesNotMatch(block, /KONZILO_MAIL/, name);
   }
