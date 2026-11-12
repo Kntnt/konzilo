@@ -31,6 +31,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A site description the checker refuses stops a build and a dev server at once with the checker's own problems, each by its path in the description, rather than with a fault of something held against it, such as a component the site gives for a directive the description declares.
 - The site template's 404 page renders the chosen page's body through Konzilo's `Body`, as every other page does, so that a post list in it is shown by its presentation and a component by the site's component, rather than as the core's plain rendering.
 - `llms.txt` names the section of a built-in type, a page, an article or a canvas, by its plural label in the content's language, where it wrote `## [object Object]`.
+- A site description read by a relative path, such as `site-description.json` from the site's own folder, now finds the components it takes from a package (`componentsFrom`, `componentChecks`), as when it is read by an absolute path, instead of refusing every element of those components.
 
 ## [0.4.0] – 2026-11-12
 
