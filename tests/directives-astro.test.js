@@ -74,7 +74,9 @@ const body = [
 ].join('\n\n');
 
 // A site repository with `files`, built; { status, output, html(slug) }.
-function build(files, directives = {}, described = site) {
+// `environment`: what the build's environment adds, such as the live
+// preview's KONZILO_PREVIEW.
+function build(files, directives = {}, described = site, environment = {}) {
   const repository = mkdtempSync(join(tmpdir(), 'konzilo-directives-'));
   repositories.push(repository);
   // The core's dependencies, each on its own, for a package of the site's to stand among them.
@@ -91,7 +93,7 @@ function build(files, directives = {}, described = site) {
   write('site-description.json', JSON.stringify(described));
   write('src/pages/[slug].astro', page);
   for (const [path, contents] of Object.entries({ ...components, ...files })) write(path, contents);
-  const built = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
+  const built = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: { ...astroEnvironment, ...environment } });
   const article = (slug) => /<article>(.*)<\/article>/s.exec(readFileSync(join(repository, `dist/${slug}/index.html`), 'utf8'))?.[1];
   return { status: built.status, output: `${built.stdout}\n${built.stderr}`, article };
 }
@@ -172,6 +174,57 @@ describe("a site's own components", () => {
     const given = build({ 'content/articles/hello-world.md': post(ownBody) }, { panel: './src/components/Note.astro' }, own);
     assert.equal(given.status, 0, given.output);
     assert.match(given.article('hello-world'), /<aside class="site-note"><b><\/b><div data-directive="kicker">/);
+  });
+
+  // A panel that lays itself out by what it holds, read from its body as a tree, and draws
+  // the tree; a kicker that reads its label as a tree; a divider, which has no body.
+  const fromTree = {
+    'src/components/Panel.astro': [
+      '---',
+      "import { toHtml } from 'hast-util-to-html';",
+      'const { tone, content } = Astro.props;',
+      "const headings = content.children.filter((node) => node.type === 'element' && /^h[2-6]$/.test(node.tagName)).length;",
+      '---',
+      '<section class="site-panel" data-tone={tone} data-headings={headings}><Fragment set:html={toHtml(content)} /></section>',
+      '',
+    ].join('\n'),
+    'src/components/Kicker.astro': "---\nconst { content } = Astro.props;\n---\n<p class=\"site-kicker\">{content.children.map((node) => node.type).join(' ')}</p>\n",
+    'src/components/Divider.astro': "---\n---\n<hr class=\"site-divider\" data-content={String(Astro.props.content)} />\n",
+  };
+  const withDivider = {
+    ...own,
+    components: { ...own.components, divider: { label: 'Divider', form: 'leaf', body: 'none' } },
+    types: { post: { ...own.types.post, elements: [...own.types.post.elements, 'divider'] } },
+  };
+  const treeBody = ['::kicker[A _kicker_]', ownBody, '::divider'].join('\n\n');
+  const treeComponents = { panel: './src/components/Panel.astro', kicker: './src/components/Kicker.astro', divider: './src/components/Divider.astro' };
+
+  test('gives a component its body as a tree as well, in `content`, a nested component in it as its plain rendering', () => {
+    const built = build({ 'content/articles/hello-world.md': post(treeBody), ...fromTree }, treeComponents, withDivider);
+    assert.equal(built.status, 0, built.output);
+    assert.equal(built.article('hello-world').replaceAll('\n', ''), [
+      '<p class="site-kicker">text element</p>',
+      '<section class="site-panel" data-tone="bright" data-headings="1">',
+      '<div data-directive="kicker">A <em>kicker</em></div>',
+      '<h2 id="inside">Inside</h2>',
+      '<div data-directive="list"><ul><li>One</li><li>Two</li></ul></div>',
+      '</section>',
+      '<hr class="site-divider" data-content="undefined">',
+    ].join(''));
+  });
+
+  test("in the live preview, the tree's blocks hold their marks, so that a component drawn from it keeps them", () => {
+    const built = build({ 'content/articles/hello-world.md': post(treeBody), ...fromTree }, treeComponents, withDivider, { KONZILO_PREVIEW: '1' });
+    assert.equal(built.status, 0, built.output);
+    const article = built.article('hello-world').replaceAll('\n', '');
+    assert.match(article, /<p class="site-kicker">text element<\/p>/);
+    assert.equal(/<section class="site-panel"[^>]*>.*<\/section>/.exec(article)?.[0], [
+      '<section class="site-panel" data-tone="bright" data-headings="1">',
+      '<div data-directive="kicker" data-konzilo-block="1.0">A <em>kicker</em></div>',
+      '<h2 data-konzilo-block="1.1" id="inside">Inside</h2>',
+      '<div data-directive="list" data-konzilo-block="1.2"><ul data-konzilo-block="1.2.0"><li data-konzilo-block="1.2.0.0">One</li><li data-konzilo-block="1.2.0.1">Two</li></ul></div>',
+      '</section>',
+    ].join(''));
   });
 
   test('refuses a value a component does not take, naming the file and the line', () => {
