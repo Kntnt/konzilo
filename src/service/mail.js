@@ -6,6 +6,7 @@
 
 import { catalogueFor, labelIn, text } from '../catalogues.js';
 import { valueText } from '../submission-values.js';
+import { isEmailAddress } from './email-address.js';
 
 // The adapters an Admin chooses among, `none` the one there is until an Admin chooses another.
 export const ADAPTERS = Object.freeze(['none', 'smtp']);
@@ -25,10 +26,6 @@ const FIRST_WAIT = 60_000;
 const LONGEST_WAIT = 60 * 60_000;
 const GIVEN_UP_AFTER = 24 * 60 * 60_000;
 
-// An email address as the forms' kind takes one (forms.js), which a header may hold as it is.
-const ADDRESS = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
-export const isAddress = (value) => typeof value === 'string' && value.length <= 254 && ADDRESS.test(value);
-
 // The mail of a submission, in its page's language: { from, to, replyTo, subject, language, date,
 // text }. `form`: the form as the site declares it, or null for one it no longer does. `sender`:
 // the address an Admin names. `recipients`: the form's. It answers to the address the visitor gave
@@ -39,7 +36,7 @@ export function submissionMail({ submission, form, sender, recipients }) {
   const label = String(labelIn(form?.label ?? submission.form, submission.language));
   const box = { yes: say('submissions.yes'), no: say('submissions.no') };
   const emails = new Set((form?.fields ?? []).filter(({ kind }) => kind === 'email').map(({ name }) => name));
-  const replyTo = submission.fields.find(({ name, value }) => emails.has(name) && isAddress(value))?.value ?? null;
+  const replyTo = submission.fields.find(({ name, value }) => emails.has(name) && isEmailAddress(value))?.value ?? null;
   const fields = submission.fields.map(({ label: named, value }) => `${named}\n${valueText(value, box)}\n`);
   return {
     from: sender,

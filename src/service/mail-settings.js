@@ -4,7 +4,8 @@
 // password, the other where visitors' messages go, and the last how long they are kept. What the
 // page is shown, and what it may save.
 
-import { ADAPTERS, FAILURE_SETTING, isAddress, MAIL_OFF, MAIL_SETTING } from './mail.js';
+import { isEmailAddress } from './email-address.js';
+import { ADAPTERS, FAILURE_SETTING, MAIL_OFF, MAIL_SETTING } from './mail.js';
 import { RETENTION_DAYS, RETENTION_LEAST, RETENTION_MOST } from './retention.js';
 import { SECURITIES } from './smtp.js';
 
@@ -76,7 +77,7 @@ function smtpOf(given, kept, checked) {
     if (smtp.username !== '' && smtp.security === 'none') problems.username ??= 'needs-encryption';
     else if (smtp.username !== '' && smtp.password === '') problems.password = 'missing';
     if (smtp.sender === '') problems.sender = 'missing';
-    else if (!isAddress(smtp.sender)) problems.sender ??= 'not-email';
+    else if (!isEmailAddress(smtp.sender)) problems.sender ??= 'not-email';
   }
   return { smtp: { ...smtp, port: smtp.port ?? SMTP_UNSET.port }, problems };
 }
@@ -110,7 +111,7 @@ export function checkMailSettings(given, { store, forms }) {
     const addresses = [...new Set(list.map((one) => one.trim()))].filter((one) => one !== '');
     if (addresses.length > RECIPIENTS_AT_MOST) problems[`forms.${name}.recipients`] = 'too-many';
     list.forEach((one, at) => {
-      if (one.trim() !== '' && !isAddress(one.trim())) problems[`forms.${name}.recipients.${at}`] = 'not-email';
+      if (one.trim() !== '' && !isEmailAddress(one.trim())) problems[`forms.${name}.recipients.${at}`] = 'not-email';
     });
     const retention = form.retention === undefined ? formsKept[name]?.retention ?? null : wholeOf(form.retention);
     if (form.retention !== undefined && (retention === null || retention < RETENTION_LEAST || retention > RETENTION_MOST)) problems[`forms.${name}.retention`] = 'not-days';
