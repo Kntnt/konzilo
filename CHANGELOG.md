@@ -10,6 +10,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - The live preview opens in a browser tab of its own at its address, for anyone who may see it: a visit leads through Forgejo's sign-in, without a word for someone already signed in there, and back to the page asked for, where the site's links and the browser's history work as they do for a visitor. Someone who may not see it is told that the site's Admins can give access, someone removed from the site loses it within ten minutes, and a preview that has stopped starts at the visit, with a short notice until the page is ready.
 - Each form's submissions are mailed to its recipients, in the language of the page the form was sent from, once an Admin turns mail on and names a mail server on a new Mail page in the editor, where the Admin also gives each form's recipients; mail is off until then, spam is never mailed, and a local copy writes each mail to its log instead of sending it.
+- Each form's submissions are kept for the number of days an Admin sets beside its recipients on the Mail page, 30 until then, and spam for seven, after which the site erases them by itself.
+- An Admin finds a person's submissions by what they wrote, such as their email address, in every form, on a new Personal data page in the editor, and downloads them as a CSV file for the person or erases them, as privacy law asks; an erased submission shows on no page and in no download after, and nothing of it stays in the site's data.
 
 ## [0.2.0] – 2026-11-11
 
