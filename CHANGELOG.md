@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 - A body's post lists are evaluated in the order they are written, those inside a site's components at any depth among them, so that a list that leaves out the posts shown leaves out what the lists written above it showed, the same at every build: a list below a section that holds a list, and lists in sections side by side, no longer show each other's posts. A list in a component that shows nothing of its body counts in its place all the same.
+- An embed's placeholder and the cookie declaration say the same of what a service stores: the placeholder says that a service may store data in the browser only where its facts list what it stores, and otherwise only who receives data about the visit. YouTube, Loom, Spotify, Acast, Apple Podcasts, Speaker Deck, Datawrapper and CodePen, whose providers' documents name nothing their players store, no longer have a placeholder that says they may store data.
 - A click in the body field while the live preview's page is still loading, in the pane or in its window of its own, no longer leaves an error in the browser's console in Safari and Firefox.
 - A site description the checker refuses stops a build and a dev server at once with the checker's own problems, each by its path in the description, rather than with a fault of something held against it, such as a component the site gives for a directive the description declares.
 

@@ -127,7 +127,7 @@ The core's stylesheet makes it work, and it stands inside a body's wrapper, so a
 | `.konzilo-embed` | The panel, a `figure` with `data-embed="<service>"` | Once allowed it holds the player alone |
 | `.konzilo-embed-no-script` | The sentence shown where the script has not run | |
 | `.konzilo-embed-question` | The question asked before consent | |
-| `.konzilo-embed-storage` | What the service stores | |
+| `.konzilo-embed-storage` | What the service may store, where its facts list any, and who receives data about the visit | |
 | `.konzilo-embed-allow` | The button that allows the service | |
 
 ### Forms
