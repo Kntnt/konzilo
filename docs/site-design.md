@@ -239,6 +239,8 @@ The default stylesheet reads these custom properties, each with a default: `--ko
 | `.konzilo-search-snippet` | What it says | |
 | `.konzilo-search-pages` | Its pages | |
 
+The search page narrows by a type and by terms, as a list's filter sends them: `type`, and each taxonomy by its name, `category`, `topics`, `authors` or a site's own, with each of its terms by its slug, `?type=article&topics=rivers&topics=lakes`. What it narrows by has no class or element of its own: the form holds it in hidden fields, the links to its pages in their addresses, and `.konzilo-search-status` says it in words, "3 results for “lantern” in Rivers or Lakes and in News", whose texts a site may give its own of as the others' ([ADR 0053](adr/0053-search-with-typesense-indexed-from-the-published-files.md)).
+
 ### The pager
 
 | Class | On | State |

@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- The search page narrows by terms as a list's filter sends them, each taxonomy by its name with its terms' slugs, `?topics=rivers&topics=lakes`: the terms of one taxonomy by or and the taxonomies by and, every post of them when no words are given. It keeps them in its form and in its links to the other pages, and its status says what it searched within, "3 results for “lantern” in Rivers or Lakes and in News".
+
 ### Fixed
 
 - A click in the body field while the live preview's page is still loading, in the pane or in its window of its own, no longer leaves an error in the browser's console in Safari and Firefox.
