@@ -182,14 +182,14 @@ function notFoundPost(description, { content }, ids, files) {
 }
 
 // A menu's entries by their posts' IDs, with a label only where it differs from the
-// post's title.
+// post's title, and a description where the entry has one.
 function entriesAsSource(items, ids, titled) {
-  return items.map(({ title, url, items: under }) => {
+  return items.map(({ title, url, description, items: under }) => {
     const id = ids.get(url);
     const lead = id
       ? { ...(titled.get(url).fields.title === title ? {} : { title }), post: id }
       : { title, ...(url === undefined ? {} : { url }) };
-    return { ...lead, ...(under ? { items: entriesAsSource(under, ids, titled) } : {}) };
+    return { ...lead, ...(description === undefined ? {} : { description }), ...(under ? { items: entriesAsSource(under, ids, titled) } : {}) };
   });
 }
 

@@ -15,9 +15,9 @@ import { readFileSync } from 'node:fs';
 import { request } from 'node:http';
 import { join, resolve } from 'node:path';
 import { SOURCE_LANGUAGE, textsOf } from '../catalogues.js';
-import { scopedSearchKey, SEARCH_ROUTE, searchParameters } from '../search.js';
+import { scopedSearchKey, SEARCH_ROUTE, searchParameters, searchTaxonomies } from '../search.js';
 import { languageTag, readSiteDescription, SITE_DESCRIPTION_FILE } from '../site-description.js';
-import { pageLanguage } from './languages.js';
+import { describedSite, entryLanguage, entryName, pageLanguage } from './languages.js';
 
 export { SEARCH_ROUTE } from '../search.js';
 
@@ -25,7 +25,10 @@ export { SEARCH_ROUTE } from '../search.js';
 // search page's title and heading, `title`, which a site's search page shows (pageTexts() of
 // `@kntnt/konzilo/astro/languages`), and the rest. A site gives texts of its own to the
 // components (Search.astro, SearchBox.astro) as `texts`, by these names. In `results`,
-// `result` and `page`, {count}, {query}, {page} and {pages} are what they say.
+// `result` and `page`, {count}, {query}, {page} and {pages} are what they say. A search
+// narrowed by terms says them in `resultWithin` and `resultsWithin`, with words, and in
+// `resultIn` and `resultsIn`, without, where {within} is each taxonomy's `within`, its
+// {terms} by their names joined by or, joined by and.
 const SEARCH_TEXTS = 'site.search.';
 
 // The names of search's texts, which a site may give its own of.
@@ -66,6 +69,26 @@ export function searchPage(url = null) {
     languageTag: languageTag(locale),
     language: several ? locale : null,
   });
+}
+
+// What the search page narrows by, beside a type: each taxonomy it takes
+// (searchTaxonomies() in ../search.js), by its name, its parameter on the
+// page, with the names of its terms by their slugs, in the language of the
+// search page `page` (searchPage()), { <taxonomy>: { <slug>: <name> } }, so
+// that the page says by name what it searched within. `getCollection`:
+// Astro's, from astro:content.
+export async function searchTerms(page, { getCollection }) {
+  const site = describedSite();
+  const { languages } = site;
+  const terms = {};
+  for (const name of searchTaxonomies(site)) {
+    terms[name] = {};
+    for (const entry of await getCollection(site.taxonomies[name].collection)) {
+      if (languages.length > 1 && entryLanguage(entry.id, languages)?.locale !== page.locale) continue;
+      terms[name][entryName(entry.id, languages)] = entry.data.name;
+    }
+  }
+  return terms;
 }
 
 // The query parameters the route takes, in this order; any other is left

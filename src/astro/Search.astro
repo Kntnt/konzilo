@@ -6,7 +6,8 @@
 //   import Search from '@kntnt/konzilo/astro/Search.astro';
 //   <Search />                        or <Search texts={{ nothingFound: '…' }} />
 //
-// A form that asks again with the query in `q`, a status that screen
+// A form that asks again with the query in `q`, and with the type and the
+// terms the search was narrowed by (search-client.js), a status that screen
 // readers announce, the list of results and the links to the other pages of
 // them, which the page's script fills (search-client.js), and a message in
 // <noscript> for a browser that runs no script. On a site in several
@@ -18,9 +19,10 @@
 // below a base of their own, it says that search is not
 // in the preview, and its script asks nothing. A site without search shows
 // nothing of it.
+import { getCollection } from 'astro:content';
 import { textsIn } from 'virtual:konzilo/texts';
 import { isPublicBuild, publicSite } from './public-site.js';
-import { SEARCH_ROUTE, searchPage, searchTexts } from './search.js';
+import { SEARCH_ROUTE, searchPage, searchTerms, searchTexts } from './search.js';
 // The script as a file of its own, which the build copies as it is: an
 // Astro <script> in a package that a site links to by path, as a site pinned
 // by path and the converter suite's sites do, fails the build
@@ -34,10 +36,11 @@ const { locale, languageTag } = publicSite(Astro.url);
 const texts = page && searchTexts(locale, { ...textsIn(locale).search, ...given });
 const preview = !isPublicBuild(import.meta.env.BASE_URL);
 const action = page && `${import.meta.env.BASE_URL}${page.address.slice(1)}`;
+const terms = page && !preview ? await searchTerms(page, { getCollection }) : {};
 ---
 {page && preview && <p class="konzilo-search-preview">{texts.notInPreview}</p>}
 {page && !preview && (
-  <div class="konzilo-search" data-konzilo-search={SEARCH_ROUTE} data-language-tag={languageTag} data-language={page.language ?? undefined} data-texts={JSON.stringify(texts)}>
+  <div class="konzilo-search" data-konzilo-search={SEARCH_ROUTE} data-language-tag={languageTag} data-language={page.language ?? undefined} data-taxonomies={JSON.stringify(terms)} data-texts={JSON.stringify(texts)}>
     <form role="search" method="get" action={action}>
       <label for="konzilo-search-query">{texts.label}</label>
       <input id="konzilo-search-query" type="search" name="q" />
