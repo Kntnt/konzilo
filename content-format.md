@@ -76,7 +76,7 @@ The site description, `site-description.json` in the site repository, declares t
 - **`menus`**, each a file of its own, and **`settings`**, the site's own settings, in the order `settings.json` holds them; on a site in several languages a text setting that declares `"translated": true` has a value in each language.
 - **`forms`**, which a form in a body names ([Forms](#forms)) and each of whose confirmation text `settings.json` holds, and **`consent`**, the site's departures from the consent rules, which `consent.json` holds, and `domain`, the domain the consent choice is kept on for every site below it, which the consent's own storage in `consent.json` names.
 - **`images`**, the widths an image is checked against, which decide which images the site refuses, not how a file names them.
-- **`components`**, the site's own components, each a directive a body may hold beside the core's elements, and **`componentChecks`**, the module of the site's that checks what they hold ([A site's own components](#a-sites-own-components)).
+- **`components`**, the site's own components, each a directive a body may hold beside the core's elements, **`componentsFrom`**, the components it takes from a package, with **`componentLabels`**, the labels it gives them, and **`componentChecks`**, the module that checks what they hold ([A site's own components](#a-sites-own-components)).
 
 What the description declares for the editors alone, such as `interfaceLanguage`, a type's `label` and `plural`, and a field's `label` and `control`, is not described here; nor are `security` and a form's fields, which decide no content file.
 
@@ -558,7 +558,9 @@ A site declares components of its own in its site description, under `components
 
 A component is a body element by its name, or by `<name>-directive` where the core has an element of that name, as Markdown's list is `list`; a type's `elements` names it so, and the directive keeps the component's name. A leaf's label holds the inline elements of a heading. A container holds blocks, each an element the type takes, images and other components among them, a blank line after its opening fence and before its closing one, and its fence is one colon longer than the longest fence inside it. An attribute at its default is left out, the others are written in the order the site description declares them, and a value the component does not take is refused, in the site's words where it gives a `refusal`.
 
-`componentChecks`, the path of a JavaScript module in the site repository, checks what a component holds beyond its attributes: its export `componentProblems(name, attributes, blocks)` gives the reasons the site cannot publish a component, in words an editor reads, and the post is refused for each.
+A site may take its components from a package, such as its design system's, by `componentsFrom`: a package specifier, `@` and a scoped package's name and then the path of a JSON file the package exports, such as `@kntnt/konzilo-design/directives/components.json`, or the path of a JSON file in the site repository, from its root. The file holds components as `components` does, and the site takes them whole: their names, forms, bodies and attributes are the package's. Under `componentLabels`, by a component's name, the site gives one it takes labels of its own: the component's `label`, and an attribute's under `attributes`, each one text for every language, or one by interface language over the package's, which need not give British English where the package gives it. The site's own components, under `components`, stand beside those it takes, after them. A name both declare is refused, and so are labels for a component or an attribute the package does not declare.
+
+`componentChecks` names the JavaScript module that checks what a component holds beyond its attributes, by its path in the site repository, from its root, such as `component-checks.js`, or by a package specifier, such as `@kntnt/konzilo-design/directives/checks`: its export `componentProblems(name, attributes, blocks)` gives the reasons the site cannot publish a component, in words an editor reads, and the post is refused for each. A site with components of its own beside a package's names a module of its own, which may ask the package's. A package specifier is found from the site repository, as Node finds a `require()` of it there, so a package exports each file under `default` or by a plain path.
 
 A site with three components of its own:
 
@@ -612,6 +614,28 @@ A section on its raised surface, holding an eyebrow, a heading and a series:
 <li>From 10 to 18</li>
 <li>Closed on midsummer's eve</li>
 </ul></div></div>
+```
+
+The same components taken from a package that declares them, with their check, on a site in Swedish that gives two of them labels of its own:
+
+```json
+{
+  "language": "sv_SE",
+  "images": { "smallestWidth": 400, "displayWidth": 1280 },
+  "componentsFrom": "@kntnt/konzilo-design/directives/components.json",
+  "componentLabels": {
+    "section": { "label": { "sv": "Sektion" }, "attributes": { "surface": { "label": { "sv": "Yta" } } } },
+    "list": { "label": { "sv": "Serie" } }
+  },
+  "componentChecks": "@kntnt/konzilo-design/directives/checks",
+  "types": {
+    "page": {
+      "collection": "pages",
+      "address": "/{slug}/",
+      "elements": ["paragraph", "heading", "list", "section", "eyebrow", "list-directive"]
+    }
+  }
+}
 ```
 
 ### Inline elements

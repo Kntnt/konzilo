@@ -164,8 +164,9 @@ const results = new WeakSet();
 //     security: { includeSubDomains, frameAncestors: [ <origin> ], dataImages },
 //     forms: { <form>: { name, label, fields: [ { name, label, kind, required, maxLength, options, help } ] } },
 //     search: { address } or null,
-//     components: { <component>: { name, element, label, form, body, attributes } },
-//     componentChecks: <path> or null,
+//     components: { <component>: { name, element, label, form, body, attributes } } or null,
+//     componentsFrom: <path or package specifier> or null,
+//     componentChecks: <path or package specifier> or null,
 //     groups: [ { name, label, description, settings, types, each } ] }
 //
 // The language is the one the site's content is written in, a locale,
@@ -212,8 +213,12 @@ const results = new WeakSet();
 // a taxonomy whose terms have no page, which no taxonomy has unless it
 // declares one. `components` are the directives the site declares of its
 // own, as format/components.js reads them, each an element of the rule data
-// that siteRules() gives, and `componentChecks` the module of the site's
-// that checks what they hold. Each field is { name, kind, required } and what its
+// that siteRules() gives: those it takes whole from the JSON file
+// `componentsFrom` names in the site repository, a package's or its own
+// (site-repository.js), with the labels it gives them under `componentLabels`,
+// and its own after them; null where the description is read without what it
+// takes. `componentChecks` is the module that checks what they hold, a
+// package's or the site's own. Each field is { name, kind, required } and what its
 // kind needs: `date`, `modified`, `excerpt` and `image`, the core's own; `seo`
 // ({ keys }, SEO_KEYS), Konzilo's own; `terms` ({ taxonomy }) or `meta`
 // ({ label, type, control, options }). `images`

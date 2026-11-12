@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- A site can take its components and the check of what they hold from a package, such as its design system's, instead of declaring them itself, give them labels of its own in each language its editors work in, and declare components of its own beside them.
+
 ## [0.3.0] – 2026-11-12
 
 ### Added
