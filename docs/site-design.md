@@ -31,6 +31,8 @@ const { content, ...rest } = Astro.props;
 
 The rest it passes on holds the live preview's mark, so its root holds that as well.
 
+A post list in a component's body is evaluated in its place among the body's lists, in the order they are written, whether the component renders its body, part of it or none of it: the lists written below it leave out its posts even where the component shows none of them. In the tree it stands as its plain rendering, so a design that wants its posts shown places the slot.
+
 A post list is drawn by the component the site gives for its presentation through `presentations`. It is given `posts`, the posts of the page it shows, each `{ entry, url }`, the post's entry and its address below the site's base, or null for a type without one; `options`, the presentation's options as the list sets them; `empty`, the text for a list that matches nothing; `pager`, the pager's data for a list with pages of its own, else null; and `list`, what the whole list holds over all its pages, after its offset and the posts it leaves out, in the page's language:
 
 ```js

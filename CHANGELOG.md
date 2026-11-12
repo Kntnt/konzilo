@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- A body's post lists are evaluated in the order they are written, those inside a site's components at any depth among them, so that a list that leaves out the posts shown leaves out what the lists written above it showed, the same at every build: a list below a section that holds a list, and lists in sections side by side, no longer show each other's posts. A list in a component that shows nothing of its body counts in its place all the same.
 - A click in the body field while the live preview's page is still loading, in the pane or in its window of its own, no longer leaves an error in the browser's console in Safari and Firefox.
 
 ## [0.4.0] – 2026-11-12
