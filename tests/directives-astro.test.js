@@ -179,6 +179,26 @@ describe("a site's own components", () => {
     assert.notEqual(built.status, 0);
     assert.match(built.output, /content\/articles\/hello-world\.md: line 5: the site cannot publish the setting "tone" with the value "dark"/);
   });
+
+  test('takes the components a package declares, and draws them by the package\'s components', () => {
+    const taking = {
+      componentsFrom: '@acme/design/components.json',
+      componentLabels: { panel: { label: { sv: 'Panel' } } },
+      types: { post: { ...site.types.post, elements: ['paragraph', 'panel'] } },
+    };
+    const files = {
+      'node_modules/@acme/design/package.json': JSON.stringify({ name: '@acme/design', version: '1.0.0', type: 'module', exports: { './*.astro': './*.astro', './components.json': './components.json' }, peerDependencies: { astro: '*' } }),
+      'node_modules/@acme/design/components.json': JSON.stringify({ panel: own.components.panel }),
+      'node_modules/@acme/design/Panel.astro': '---\nconst { tone } = Astro.props;\n---\n<section class="package-panel" data-tone={tone}><slot /></section>\n',
+      'package.json': JSON.stringify({ name: 'a-site', dependencies: { '@acme/design': '1.0.0' } }),
+    };
+    const built = build({ ...files, 'content/articles/hello-world.md': post(':::panel{tone="bright"}\n\nInside\n\n:::') }, { panel: '@acme/design/Panel.astro' }, taking);
+    assert.equal(built.status, 0, built.output);
+    assert.equal(built.article('hello-world').replaceAll('\n', ''), '<section class="package-panel" data-tone="bright"><p>Inside</p></section>');
+    const refused = build({ ...files, 'content/articles/hello-world.md': post(':::panel{tone="dark"}\n\nText\n\n:::') }, { panel: '@acme/design/Panel.astro' }, taking);
+    assert.notEqual(refused.status, 0);
+    assert.match(refused.output, /content\/articles\/hello-world\.md: line 5: the site cannot publish the setting "tone" with the value "dark"/);
+  });
 });
 
 test('the integration refuses a component for a directive the registry has not got', () => {
