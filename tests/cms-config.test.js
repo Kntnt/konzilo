@@ -130,6 +130,29 @@ test('shows the site\'s settings and groups in one file, and a menu in its own',
   }
 });
 
+// A line under an entry, as a large menu shows it, at every depth of the menu: one line of at
+// most the characters the intake takes, never required.
+test('gives each entry of a menu, at every depth, a line of description, labelled in the interface language', () => {
+  const descriptions = (made) => {
+    const found = [];
+    const walk = (fields) => {
+      for (const one of fields) {
+        if (one.name === 'description') found.push(one);
+        if (one.fields) walk(one.fields);
+      }
+    };
+    walk(made.collections.find((one) => one.name === 'menus').files[0].fields);
+    return found;
+  };
+  const english = descriptions(config);
+  assert.equal(english.length, 3);
+  for (const one of english) {
+    assert.deepEqual({ label: one.label, widget: one.widget, required: one.required, maxlength: one.maxlength }, { label: 'Description', widget: 'string', required: false, maxlength: 160 });
+    assert.equal(one.hint, 'A line under the entry, which a large menu shows. Plain text, at most 160 characters.');
+  }
+  assert.deepEqual(descriptions(cmsConfig(description, { ...place, language: 'sv' })).map((one) => one.label), ['Beskrivning', 'Beskrivning', 'Beskrivning']);
+});
+
 // Sveltia gives a field's default to a setting the settings file lacks only where the file holds
 // its group, and then writes it into the file at the next save; where the file lacks the group it
 // shows a switch off and a number empty. So a setting with a default is the core's field, which

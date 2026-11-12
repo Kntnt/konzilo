@@ -10,6 +10,7 @@
 import { ARTICLE, AUTHORS, BUILT_IN_TYPES, CATEGORY, descriptionLabel, followsParts, keepsOrder, pageTypeOf, TOPICS } from '../format/built-in-types.js';
 import { CANONICAL_PATTERN, publicAddress } from '../format/addresses.js';
 import { IMAGE_LIBRARY_FOLDER } from '../format/masters.js';
+import { MENU_DESCRIPTION_LENGTH } from '../format/menus.js';
 import { DRAFT, POST_STATUSES } from '../format/post-status.js';
 import { declaredNames } from '../site-description.js';
 import { SHARING_SAFE, SHARING_SIZE } from '../format/article-parts.js';
@@ -552,6 +553,8 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     { name: 'title', label: say('label'), widget: 'string', required: false, hint: say('labelHint') },
     ...(among === null ? [] : [{ name: 'post', label: say('post'), ...relation(among.collection, POST_TITLE), required: false }]),
     { name: 'url', label: say('url'), widget: 'string', required: false, hint: say('urlHint') },
+    // A line under the entry, which a large menu shows; the intake refuses more than the form takes.
+    { name: 'description', label: say('description'), widget: 'string', required: false, maxlength: MENU_DESCRIPTION_LENGTH, hint: say('menuDescriptionHint', { most: MENU_DESCRIPTION_LENGTH }) },
     ...(depth > 1 ? [entriesField(depth - 1)] : []),
   ];
   const entriesField = (depth) => ({

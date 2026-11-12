@@ -96,7 +96,7 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Settings group**: Site settings of the core's own, declared with their defaults and the same on every site they apply to, under a name no site setting may take. _Avoid_: core settings.
 
-**Menu**: A list of links a site's design shows, declared in the site description and filled by an Admin; each entry leads to a post's current address or to a link. _Avoid_: navigation.
+**Menu**: A list of links a site's design shows, declared in the site description and filled by an Admin; each entry leads to a post's current address or to a link, and may have a line of description under it. _Avoid_: navigation.
 
 **Local**: The copy of a site a developer runs in Compose. _Avoid_: dev site.
 
