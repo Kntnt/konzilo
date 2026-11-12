@@ -91,3 +91,44 @@ test('says where a refused post\'s page would be, where it can have one that not
     'pages/top.md': ['live', null],
   });
 });
+
+// What the live preview's toolbar says of a page (ADR 0032): the post's own status, and the
+// moment one waits for, whether the preview shows it or the public site's build leaves it out.
+test('says each post\'s own status, and the moment one not yet live waits for', () => {
+  const ahead = '2026-12-24T09:00:00Z';
+  const files = {
+    'pages/a-draft.md': draft('A draft'),
+    'pages/b-none.md': sourcePost({ title: 'No status' }, 'Words.'),
+    'pages/c-ahead.md': draft('Ahead', { status: 'scheduled', date: ahead }),
+    'pages/d-published-ahead.md': sourcePost({ title: 'Published ahead', status: 'published', date: ahead }, 'Words.'),
+    'pages/e-live.md': sourcePost({ title: 'Live', status: 'published' }, 'Words.'),
+    'pages/f-passed.md': sourcePost({ title: 'Passed', status: 'scheduled', date: '2026-11-01T08:00:00Z' }, 'Words.'),
+  };
+  for (const preview of [Object.keys(files), []]) {
+    const result = run(files, site, { preview });
+    assert.deepEqual(Object.fromEntries(result.posts.map(({ file, status, at }) => [file, [status, at]])), {
+      'pages/a-draft.md': ['draft', null],
+      'pages/b-none.md': ['draft', null],
+      'pages/c-ahead.md': ['scheduled', ahead],
+      'pages/d-published-ahead.md': ['published', ahead],
+      'pages/e-live.md': ['published', null],
+      'pages/f-passed.md': ['scheduled', null],
+    }, preview.length > 0 ? 'in a preview' : 'in a build');
+  }
+});
+
+test('says where each term\'s page is, by the term\'s source file and its name', () => {
+  const described = {
+    ...site,
+    types: { page: { ...site.types.page, fields: { topics: { taxonomy: 'topic' } } } },
+    taxonomies: { topic: { label: 'Topic', plural: 'Topics', collection: 'topics', address: '/topics/{slug}/' } },
+  };
+  const files = {
+    'pages/one.md': draft('One', { topics: ['tttttttttttt'] }),
+    'pages/two.md': sourcePost({ title: 'Two', status: 'published' }, 'Words.'),
+    'topics/tttttttttttt.json': { name: 'Harbours', slug: 'harbours' },
+    'topics/uuuuuuuuuuuu.json': { name: 'Unused' },
+  };
+  assert.deepEqual(run(files, described, { preview: Object.keys(files) }).termPages, [{ file: 'topics/tttttttttttt.json', title: 'Harbours', address: '/topics/harbours/' }]);
+  assert.deepEqual(run(files, described).termPages, [], 'a draft\'s term has no page on the public site');
+});

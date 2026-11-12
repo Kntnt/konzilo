@@ -348,8 +348,9 @@ describe('konzilo-intake', () => {
     });
     const { report } = intake(site);
     const by = Object.fromEntries(report.posts.map((one) => [one.file, one]));
-    assert.deepEqual(by['articles/aaaaaaaaaaaa.md'], { file: 'articles/aaaaaaaaaaaa.md', id: 'aaaaaaaaaaaa', type: 'story', title: 'first', state: 'live', at: null, address: '/first/', shown: true });
+    assert.deepEqual(by['articles/aaaaaaaaaaaa.md'], { file: 'articles/aaaaaaaaaaaa.md', id: 'aaaaaaaaaaaa', type: 'story', title: 'first', state: 'live', status: 'published', at: null, address: '/first/', shown: true });
     assert.equal(by['articles/bbbbbbbbbbbb.md'].state, 'off');
+    assert.equal(by['articles/bbbbbbbbbbbb.md'].status, 'draft');
     assert.equal(by['articles/bbbbbbbbbbbb.md'].shown, false);
     assert.equal(by['articles/cccccccccccc.md'].state, 'waiting');
     assert.equal(by['articles/cccccccccccc.md'].at, '2999-01-01T10:00:00Z');

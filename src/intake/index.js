@@ -25,6 +25,8 @@ import { readTerms, termFiles } from './terms.js';
 import { fieldValued, named, say } from './words.js';
 
 const MARKUP = /<\/?[a-zA-Z!?][^<>]*>/;
+// A post's own statuses, of which it is a draft where it names none of them.
+const STATUSES = new Set(['draft', 'scheduled', 'published']);
 
 // `files`: the source files, each { path, contents }. `site`: the site description, as
 // declared or as checked. `now`: a Date or a function that gives one. `ledger`: the
@@ -37,13 +39,15 @@ const MARKUP = /<\/?[a-zA-Z!?][^<>]*>/;
 // where every other draft stays nobody's business; one on its way for the preview alone
 // gives way to a post on its own, as it would once published.
 //
-// Returns { files, refusals, warnings, keep, ledger, posts, next }: `keep`, the paths of the
-// content files that stay though no file here writes them, a refused post's own and what
-// it names, and what a refused settings file names; `posts`, what became of each source
-// file of a post, `state` being `live`, `refused`, `waiting` for its moment `at`, or `off`,
-// with its `address`, whether the site `shown` shows a version of it, and, while it is
-// refused, the address its page would be at, `wanted`, where it can have one nothing else
-// holds, or null; `next`, the next scheduled moment, or null.
+// Returns { files, refusals, warnings, keep, ledger, posts, termPages, next }: `keep`, the
+// paths of the content files that stay though no file here writes them, a refused post's own
+// and what it names, and what a refused settings file names; `posts`, what became of each
+// source file of a post, `state` being `live`, `refused`, `waiting` for its moment `at`, or
+// `off`, with its own `status`, `draft`, `scheduled` or `published`, a draft where it names
+// none of them, its `address`, whether the site `shown` shows a version of it, and, while it
+// is refused, the address its page would be at, `wanted`, where it can have one nothing else
+// holds, or null; `termPages`, each term's page, by the term's source `file`, its name as
+// `title` and its `address`; `next`, the next scheduled moment, or null.
 export function intake({ files, site: described, now, ledger = null, changes = {}, images = () => null, adminHost = null, reader = siteReader, preview = [], components = null }) {
   const site = siteDescription(described);
   const clock = typeof now === 'function' ? now() : now;
@@ -399,11 +403,13 @@ function assemble(run) {
       type: post.type.name,
       title: post.title ?? post.id,
       state: run.refused.has(post.key) ? 'refused' : post.written ? 'live' : post.waiting ? 'waiting' : 'off',
+      status: STATUSES.has(post.fields.status) ? post.fields.status : 'draft',
       at: post.waiting ?? null,
       address: updated.posts[post.key]?.address ?? null,
       shown: Boolean(updated.posts[post.key]?.path),
       ...(run.refused.has(post.key) ? { wanted: addressWanted(post, run) } : {}),
     })),
+    termPages: [...(run.termPages ?? [])].map(([key, address]) => ({ file: run.terms.get(key).file, title: run.terms.get(key).label, address })),
     next,
   };
 }

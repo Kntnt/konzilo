@@ -4,8 +4,10 @@
 // and a tab's by Forgejo's sign-in, whose person may read it, as a Reviewer does (ADR 0008),
 // with a cookie for this host alone, and is asked again at intervals; nothing here holds the
 // token it was shown. A session remembers whether its person may write, and only one that may
-// sends a draft. Its answers frame for the admin host alone and are never indexed or shared by
-// a cache, whatever the dev server behind it would have said.
+// sends a draft. Every page it shows in a tab of its own has the toolbar, which says what the
+// page is built from and leads someone who may write to its form. Its answers frame for the admin
+// host alone and are never indexed or shared by a cache, whatever the dev server behind it would
+// have said.
 
 import { createHash, randomBytes } from 'node:crypto';
 import { request } from 'node:http';
@@ -15,6 +17,7 @@ import { DRAFT_PATH, HEALTH_PATH, SESSION_PATH, SIGN_IN_PATH, WHERE_PATH } from 
 import { accessTo, CREDENTIAL } from '../forgejo.js';
 import { forgejoSignIn, SIGN_IN_LASTS } from './sign-in.js';
 import { refusalIn, TAB_PAGES, tabPage } from './tab-page.js';
+import { toolbarOf, toolbarScript, withToolbar } from './toolbar.js';
 
 // Whether its person may still see the preview is asked again this often: in a tab by the next
 // page they open, which goes through Forgejo's sign-in again, at once while they are signed in
@@ -34,6 +37,10 @@ const REDIRECTS = new Set([301, 302, 303, 307, 308]);
 // As many steps of a redirect as are followed, about what a visitor's browser would take.
 const MOST_STEPS = 10;
 const DROPPED = new Set(['x-frame-options', 'content-security-policy', 'content-security-policy-report-only', 'reporting-endpoints', 'strict-transport-security', 'cache-control', 'x-robots-tag', 'set-cookie', 'connection', 'keep-alive', 'transfer-encoding']);
+// What a page with the toolbar in it is asked for without, so that the dev server gives the whole
+// page, unpacked, and what it says of the page it gave, which the toolbar makes another.
+const ASKED_WHOLE = ['accept-encoding', 'if-none-match', 'if-modified-since'];
+const OF_THE_PAGE = new Set(['content-length', 'etag', 'last-modified']);
 
 const digest = (secret) => createHash('sha256').update(secret).digest('hex');
 
@@ -86,29 +93,31 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
     outgoing.end(`${JSON.stringify(value)}\n`);
   };
 
-  // One of the preview's own pages, which loads nothing and runs nothing.
-  const page = (outgoing, status, which, { again, refresh, values, items, headers = {} } = {}) => {
+  // One of the preview's own pages, which loads nothing and runs nothing, but the toolbar where
+  // it is given, allowed by its hash.
+  const page = (outgoing, status, which, { again, refresh, values, items, toolbar = null, headers = {} } = {}) => {
+    const script = toolbar === null ? null : toolbarScript(toolbar);
+    const scripts = script === null ? '' : ` script-src 'sha256-${createHash('sha256').update(script).digest('base64')}';`;
     outgoing.writeHead(status, {
       ...own,
-      'Content-Security-Policy': `default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors ${adminOrigin}`,
+      'Content-Security-Policy': `default-src 'none';${scripts} style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors ${adminOrigin}`,
       'Content-Type': 'text/html; charset=utf-8',
       ...headers,
     });
-    outgoing.end(tabPage(which, language, { again, refresh, values, items }));
+    outgoing.end(tabPage(which, language, { again, refresh, values, items, script }));
   };
 
   // A page asked for in a tab of its own shows what is saved: the preview reads it first, and
-  // goes on with what it has where that breaks. Gives the saved post refused at `path`, which
-  // the tab is shown in place of a page, or null. A frame keeps the last good page, which its
-  // pane names the refusal above.
-  const refusedAt = async (path) => {
+  // goes on with what it has where that breaks. Gives what the page at `path` is built from, as
+  // the runner's at() gives it: a saved post it refuses is shown in place of a page. A frame keeps
+  // the last good page, which its pane names the refusal above.
+  const builtFrom = async (path) => {
     try {
       await runner.refresh();
     } catch (error) {
       warn(`The preview could not read what is saved: ${error.message}`);
     }
-    const about = runner.at(path);
-    return about !== null && about.refusals.length > 0 ? about : null;
+    return runner.at(path);
   };
 
   // The dev server, started where it is not running, with nobody waiting for it here.
@@ -227,19 +236,26 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
   };
 
   // What the dev server is told: nothing of the session, and nothing of where it was reached.
-  const forwarded = (incoming) => {
+  // `whole`: that the page is wanted whole, for the toolbar.
+  const forwarded = (incoming, whole = false) => {
     const { cookie: _cookie, origin: _origin, referer: _referer, ...headers } = incoming.headers;
+    if (whole) for (const name of ASKED_WHOLE) delete headers[name];
     const others = (incoming.headers.cookie ?? '').split(';').map((pair) => pair.trim()).filter((pair) => pair !== '' && !pair.startsWith(`${cookie}=`));
     return { ...headers, host: `127.0.0.1:${dev.port}`, ...(others.length > 0 ? { cookie: others.join('; ') } : {}) };
   };
+
+  // Whether the dev server's answer is a page the toolbar goes into.
+  const takesToolbar = (from) => from.statusCode >= 200 && ![204, 304].includes(from.statusCode) && !REDIRECTS.has(from.statusCode)
+    && /^text\/html\b/i.test(from.headers['content-type'] ?? '') && from.headers['content-encoding'] === undefined;
 
   // A frame that follows a redirect has left the page its editor works on, and no script in a
   // page can stop that. With nothing to show, a browser leaves the frame as it is, and nothing
   // runs again that could try the same thing.
   const keptFromFollowing = (incoming, from) => incoming.headers['sec-fetch-dest'] === 'iframe' && REDIRECTS.has(from.statusCode);
 
-  const pass = (incoming, outgoing) => {
-    const forward = request({ host: '127.0.0.1', port: dev.port, path: incoming.url, method: incoming.method, headers: forwarded(incoming) }, (from) => {
+  // The dev server's answer, with the toolbar `toolbar` in it where it is a page and one is given.
+  const pass = (incoming, outgoing, toolbar = null) => {
+    const forward = request({ host: '127.0.0.1', port: dev.port, path: incoming.url, method: incoming.method, headers: forwarded(incoming, toolbar !== null) }, async (from) => {
       if (keptFromFollowing(incoming, from)) {
         from.resume();
         outgoing.writeHead(204, own);
@@ -247,8 +263,20 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
       }
       const kept = Object.fromEntries(Object.entries(from.headers).filter(([name]) => !DROPPED.has(name)));
       if (kept.location?.startsWith(`http://127.0.0.1:${dev.port}`)) kept.location = kept.location.slice(`http://127.0.0.1:${dev.port}`.length) || '/';
-      outgoing.writeHead(from.statusCode, { ...kept, ...own });
-      from.pipe(outgoing);
+      if (toolbar === null || !takesToolbar(from)) {
+        outgoing.writeHead(from.statusCode, { ...kept, ...own });
+        return from.pipe(outgoing);
+      }
+      const parts = [];
+      try {
+        for await (const part of from) parts.push(part);
+      } catch {
+        return outgoing.destroy();
+      }
+      const shown = Buffer.from(withToolbar(Buffer.concat(parts).toString('utf8'), toolbar), 'utf8');
+      const rest = Object.fromEntries(Object.entries(kept).filter(([name]) => !OF_THE_PAGE.has(name)));
+      outgoing.writeHead(from.statusCode, { ...rest, ...own, 'Content-Length': String(shown.length) });
+      return outgoing.end(shown);
     });
     forward.on('error', () => {
       if (outgoing.headersSent) outgoing.destroy();
@@ -339,15 +367,16 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
       const sends = incoming.method === 'POST' && pathname.startsWith('/_konzilo/');
       if (incoming.method !== 'GET' && incoming.method !== 'HEAD' && !sends) return answer(outgoing, 405, { message: 'A preview only shows pages.' }, { Allow: 'GET, HEAD' });
       if (isPage(incoming) && !dev.ready()) return starting(incoming, outgoing);
-      const refused = isPage(incoming) ? await refusedAt(pathname) : null;
-      if (refused) return page(outgoing, 200, TAB_PAGES.postRefused, { values: { title: refused.title }, items: refused.refusals.map((one) => refusalIn(language, one)) });
+      const about = isPage(incoming) ? await builtFrom(pathname) : null;
+      const toolbar = isPage(incoming) ? toolbarOf({ about, writes: held.writes, language, adminOrigin }) : null;
+      if (about?.refusals.length > 0) return page(outgoing, 200, TAB_PAGES.postRefused, { values: { title: about.title }, items: about.refusals.map((one) => refusalIn(language, one)), toolbar });
       try {
         await dev.ensure();
       } catch (error) {
         warn(`The preview did not start: ${error.message}`);
         return answer(outgoing, 503, { message: 'The preview did not start.' });
       }
-      return pass(incoming, outgoing);
+      return pass(incoming, outgoing, toolbar);
     },
 
     // A dev server's reloads come through a WebSocket, behind the same session.

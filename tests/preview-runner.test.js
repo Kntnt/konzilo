@@ -143,8 +143,33 @@ describe('the runs', () => {
       assert.equal(about.title, 'A <b>bold</b> title');
       assert.deepEqual(about.refusals.map(({ field, name }) => [field?.name, name]), [['title', 'refusal.title-markup']]);
     }
-    assert.deepEqual(preview.at('/pages/waiting/'), { file: 'pages/waiting.md', title: 'Waiting', refusals: [] });
+    assert.deepEqual(preview.at('/pages/waiting/'), { kind: 'post', file: 'pages/waiting.md', title: 'Waiting', status: 'draft', at: null, refusals: [] });
     assert.equal(preview.at('/pages/nowhere/'), null);
+  });
+
+  // What the toolbar in a tab of its own says of a page, and where it leads (ADR 0032).
+  test('knows each page by what it is built from, a post with its status and the moment it waits for, or a term, its later pages too', async () => {
+    const described = {
+      ...site,
+      types: { ...site.types, post: { ...site.types.post, fields: { image: {}, topics: { taxonomy: 'topic' } } } },
+      taxonomies: { topic: { label: 'Topic', plural: 'Topics', collection: 'topics', address: '/topics/{slug}/' } },
+    };
+    files['pages/waiting.md'] = sourcePost({ title: 'Waiting', status: 'draft', topics: ['tttttttttttt'] }, 'Words.');
+    files['pages/ahead.md'] = sourcePost({ title: 'Ahead', status: 'scheduled', date: '2026-12-24T09:00:00Z' }, 'Words.');
+    files['pages/passed.md'] = sourcePost({ title: 'Passed', status: 'scheduled', date: '2026-11-01T08:00:00Z' }, 'Words.');
+    files['topics/tttttttttttt.json'] = JSON.stringify({ name: 'Harbours', slug: 'harbours' });
+    const preview = runner(described);
+    await preview.refresh();
+    assert.deepEqual(preview.at('/pages/live/'), { kind: 'post', file: 'pages/live.md', title: 'Live', status: 'published', at: null, refusals: [] });
+    assert.deepEqual(preview.at('/pages/waiting/'), { kind: 'post', file: 'pages/waiting.md', title: 'Waiting', status: 'draft', at: null, refusals: [] });
+    assert.deepEqual(preview.at('/pages/ahead/'), { kind: 'post', file: 'pages/ahead.md', title: 'Ahead', status: 'scheduled', at: '2026-12-24T09:00:00Z', refusals: [] });
+    assert.deepEqual(preview.at('/pages/passed/'), { kind: 'post', file: 'pages/passed.md', title: 'Passed', status: 'published', at: null, refusals: [] });
+    assert.deepEqual(preview.at('/topics/harbours/'), { kind: 'term', file: 'topics/tttttttttttt.json', title: 'Harbours', refusals: [] });
+    // A list's later pages are its post's, or its term's.
+    assert.equal(preview.at('/pages/live/page/2/')?.file, 'pages/live.md');
+    assert.equal(preview.at('/topics/harbours/page/3/')?.file, 'topics/tttttttttttt.json');
+    assert.equal(preview.at('/pages/nowhere/page/2/'), null);
+    assert.equal(preview.at('/'), null);
   });
 
   test('brings a save in at the next refresh, and reads the source again only once it or a draft has changed', async () => {
