@@ -1,6 +1,6 @@
 # ADR 0048: Declare each feed, and build it as RSS with the featured image first
 
-**Date:** 2026-10-29 · **Status:** Accepted. Settled by Thomas on 2026-10-29: summary or whole text, the number of posts, and the image first. The rest is a technical choice; Thomas may veto.
+**Date:** 2026-10-29, amended 2026-11-12 · **Status:** Accepted. Settled by Thomas on 2026-10-29: summary or whole text, the number of posts, and the image first. The rest is a technical choice; Thomas may veto.
 
 ## Decision
 
@@ -10,7 +10,7 @@
 - **The document** is RSS 2.0: the channel's `title` is the site's title, with ` – ` and the type's plural label where more than one type has a feed, or the term's name; `link`; `description`; `language`; `lastBuildDate`, the newest item's date; `atom:link` `rel="self"`. Each item has `title`, `link`, `pubDate`, `guid` `<origin>/?p=<ID>` with `isPermaLink="false"`, a `category` per term, `description` and, in whole-text mode, `content:encoded`, and `media:content`.
 - **The featured image** is a JPEG on white, 1200 pixels wide or the master's width, and opens both `description` and `content:encoded`.
 - **The body** is Astro's own rendering, made feed-safe: every `href`, `src`, `srcset`, `cite` and `poster` absolute from the post's address; an embed's panel a paragraph with its link; a directive's plain rendering its body alone, a post list nothing; no `script`, `style`, `template`, `iframe`, `style` attribute or event handler.
-- **Discovery:** every page's head links its type's feed. **Served** as `application/rss+xml; charset=utf-8`, with and without the last slash.
+- **Discovery:** every page's head links its type's feed. **Served** as `application/rss+xml; charset=utf-8`, with and without the last slash: Compose's web server answers an address whose folder holds `index.rss` with that file, since its file server takes `index.html` and `index.txt` alone as a folder's index.
 - **Per language,** each language has every feed after its prefix, holding that language's posts alone, and each address without a prefix is a `301` to the main language's.
 
 ## Why
