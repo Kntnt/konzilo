@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - The live preview opens in a browser tab of its own at its address, for anyone who may see it: a visit leads through Forgejo's sign-in, without a word for someone already signed in there, and back to the page asked for, where the site's links and the browser's history work as they do for a visitor. Someone who may not see it is told that the site's Admins can give access, someone removed from the site loses it within ten minutes, and a preview that has stopped starts at the visit, with a short notice until the page is ready.
+- The live preview shows every saved post, whatever its status: a draft and a scheduled post have their page there, and stand in the post lists and the recommended reading that will hold them once published, while the public site shows neither until it is. A saved post the site cannot publish leaves the rest of the preview as it is, and a visit to its page in a tab of its own says what to change.
 
 ## [0.2.0] – 2026-11-11
 

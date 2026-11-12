@@ -1,6 +1,7 @@
-// The live preview's runs of the intake (ADR 0032): the source repository as it stands, and
-// every draft someone is looking at, into the preview's own content folder. One run at a
-// time, since a run reads what the last one wrote.
+// The live preview's runs of the intake (ADR 0032): the source repository as it stands, every
+// saved post whatever its status and moment, and every draft someone is looking at over its
+// saved version, into the preview's own content folder. One run at a time, since a run reads
+// what the last one wrote.
 
 import { existsSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';

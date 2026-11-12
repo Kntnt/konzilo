@@ -34,7 +34,8 @@ const MARKUP = /<\/?[a-zA-Z!?][^<>]*>/;
 // the host no link may lead to, or null. `reader`: the Markdown reader, the site's own
 // but in a test of what happens when it breaks. `preview`: the paths of the source files
 // a live preview shows, which are checked and written whatever their status and date,
-// where every other draft stays nobody's business.
+// where every other draft stays nobody's business; one on its way for the preview alone
+// gives way to a post on its own, as it would once published.
 //
 // Returns { files, refusals, warnings, keep, ledger, posts, next }: `keep`, the paths of the
 // content files that stay though no file here writes them, a refused post's own and what
