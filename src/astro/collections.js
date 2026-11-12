@@ -301,13 +301,11 @@ function settingsSchema(settings, image) {
 }
 
 // A group of Konzilo's own: its settings, each always there when it has a
-// default but the site's title, which a site may lack, and but those
-// that stay out of the published files, each of its named parts under its name, a group
-// repeated for each form each form's settings by the form's name, and its
-// per-type part as `types`, each post type's settings by the type's name.
+// default but the site's title, which a site may lack, each of its named parts under its name, a
+// group repeated for each form each form's settings by the form's name, and its per-type part as
+// `types`, each post type's settings by the type's name.
 function groupSchema(group, image) {
   const settings = (declared) => settingsSchema(declared
-    .filter((setting) => setting.published !== false)
     .map((setting) => (setting.default === undefined || isSiteTitle(setting.default) ? setting : { ...setting, required: true })), image);
   return z.strictObject({
     ...settings(group.settings),

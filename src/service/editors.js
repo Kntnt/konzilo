@@ -12,6 +12,7 @@ import { FORM_NAME } from '../site-description.js';
 import { FAILURE_SETTING, MAIL_SETTING } from './mail.js';
 import { checkMailSettings, mailSettingsShown } from './mail-settings.js';
 import { bodyOf } from './request-body.js';
+import { retentionDuty } from './retention.js';
 import { SEPARATORS, submissionsCsv, timeZoneOf } from './submissions-csv.js';
 
 const answerJson = (outgoing, status, body) => {
@@ -90,9 +91,10 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
     return await mayWrite({ forgejo, repository, credential, get }) ? 'writer' : null;
   };
 
-  // How the site mails the forms' submissions, to an Admin alone: an Editor is told only that it is
-  // an Admin's, and whoever may not write nothing. A save makes what waits to be tried again due
-  // at once, since what failed may now go.
+  // How the site mails the forms' submissions, and how long it keeps them, to an Admin alone: an
+  // Editor is told only that it is an Admin's, and whoever may not write nothing. A save makes
+  // what waits to be tried again due at once, since what failed may now go, and forgets at once
+  // what is older than the retention it sets.
   const answerMail = async (incoming, outgoing) => {
     if (!['GET', 'PUT'].includes(incoming.method)) {
       incoming.resume();
@@ -130,9 +132,10 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
     const checked = checkMailSettings(given, { store, forms: forms() });
     if (checked.problems) return answerJson(outgoing, 400, { problems: checked.problems });
     store.setSetting(MAIL_SETTING, checked.mail);
-    for (const [form, recipients] of Object.entries(checked.recipients)) store.setFormSettings(form, { recipients });
+    for (const [form, settings] of Object.entries(checked.forms)) store.setFormSettings(form, settings);
     store.setSetting(FAILURE_SETTING, null);
     store.mailSoon(now());
+    retentionDuty({ store, now }).run();
     return answerJson(outgoing, 200, shown());
   };
 

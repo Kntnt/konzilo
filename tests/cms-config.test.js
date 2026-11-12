@@ -168,13 +168,14 @@ test('keeps what the published files never hold out of the form', () => {
   assert.doesNotMatch(JSON.stringify(config), /"recipients"|"retention"/);
 });
 
-// A form's recipients are where its visitors' messages go, which an Admin keeps in the service, on
-// the Mail page, and no file of the site's holds (ADR 0044).
-test('declares no recipients in any settings group, and so in no file of the source', () => {
+// A form's recipients are where its visitors' messages go, and its retention how long they are
+// kept, which an Admin keeps in the service, on the Mail page, and no file of the site's holds
+// (ADR 0044).
+test('declares no recipients or retention in any settings group, and so in no file of the source', () => {
   const groups = JSON.parse(readFileSync(file('src/format/settings-groups.json'), 'utf8'));
-  assert.doesNotMatch(JSON.stringify(groups), /recipient/i);
+  assert.doesNotMatch(JSON.stringify(groups), /recipient|retention/i);
   for (const language of ['en', 'sv']) {
-    assert.deepEqual(Object.keys(JSON.parse(readFileSync(file(`src/catalogues/${language}.json`), 'utf8'))).filter((name) => name.startsWith('settings.') && /recipient/i.test(name)), [], language);
+    assert.deepEqual(Object.keys(JSON.parse(readFileSync(file(`src/catalogues/${language}.json`), 'utf8'))).filter((name) => name.startsWith('settings.') && /recipient|retention/i.test(name)), [], language);
   }
 });
 
@@ -349,9 +350,6 @@ describe('the interface language', () => {
     given.forms = { contact: { label: 'Contact', fields: [{ name: 'email', label: 'Email', kind: 'email', required: true }] } };
     const site = siteDescription(given);
     const catalogue = (language) => JSON.parse(readFileSync(file(`src/catalogues/${language}.json`), 'utf8'));
-    // The days a form's submissions are kept stay out of the published files, and so out of the
-    // form.
-    const unshown = ['settings.forms.retention.label'];
     const groupsIn = (language) => {
       const fields = cmsConfig(site, { ...place, language }).collections.find((one) => one.name === 'settings').files[0].fields;
       return fields.filter((one) => site.groups.some((group) => group.name === one.name));
@@ -368,7 +366,7 @@ describe('the interface language', () => {
     };
     for (const language of ['en', 'sv']) {
       const texts = shown(groupsIn(language));
-      const settings = Object.entries(catalogue(language)).filter(([name]) => name.startsWith('settings.') && !unshown.includes(name));
+      const settings = Object.entries(catalogue(language)).filter(([name]) => name.startsWith('settings.'));
       assert.deepEqual(settings.filter(([, one]) => !texts.has(one)), [], `${language}: settings texts the form does not show`);
     }
     const swedish = new Set(Object.values(catalogue('sv')));

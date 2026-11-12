@@ -1,7 +1,7 @@
-// The *Mail* page (ADR 0003, ADR 0045): how the site mails each form's submissions, and to whom,
-// which an Admin alone sees and sets: the adapter, off until an Admin turns it on, its SMTP
-// settings, and each form's recipients, all kept in the service and none in Git. It is React,
-// since that is what Sveltia takes, with its styles on the elements.
+// The *Mail* page (ADR 0003, ADR 0045): how the site mails each form's submissions, to whom, and how
+// long it keeps them, which an Admin alone sees and sets: the adapter, off until an Admin turns it
+// on, its SMTP settings, and each form's recipients and retention, all kept in the service and
+// none in Git. It is React, since that is what Sveltia takes, with its styles on the elements.
 
 import { signedInCredential } from '../credential.js';
 import { say } from '../interface-language.js';
@@ -18,16 +18,16 @@ const PROBLEM = { ...TEXT, margin: 0, color: '#b3261e' };
 const react = () => globalThis.__SVELTIA_CMS_REACT__;
 
 // What the page's fields hold, from what the service keeps: the password always empty, since the
-// service never gives it back, and each form's recipients one per line.
+// service never gives it back, and each form's recipients one per line, beside its days kept.
 const draftOf = ({ adapter, smtp, forms }) => ({
   adapter,
   smtp: { host: smtp.host, port: String(smtp.port), security: smtp.security, username: smtp.username, password: '', sender: smtp.sender },
-  recipients: Object.fromEntries(forms.map(({ name, recipients }) => [name, recipientsText(recipients)])),
+  forms: Object.fromEntries(forms.map(({ name, recipients, retention }) => [name, { recipients: recipientsText(recipients), retention: String(retention) }])),
 });
-const givenOf = ({ adapter, smtp, recipients }) => ({
+const givenOf = ({ adapter, smtp, forms }) => ({
   adapter,
   smtp,
-  forms: Object.fromEntries(Object.entries(recipients).map(([name, written]) => [name, { recipients: recipientsOf(written) }])),
+  forms: Object.fromEntries(Object.entries(forms).map(([name, { recipients, retention }]) => [name, { recipients: recipientsOf(recipients), retention }])),
 });
 
 // A text field with its label, and its problem beside it. The label names the field by `for`
@@ -69,18 +69,25 @@ function Smtp({ smtp, kept, problems, onChange }) {
     h(Field, { id: 'konzilo-mail-sender', label: say('mail.sender'), type: 'email', value: smtp.sender, problem: problems.sender, onChange: set('sender'), autoComplete: 'off' }));
 }
 
-function Recipients({ forms, recipients, problems, onChange }) {
+// Each form, a group of its own named by its label: its recipients, and the days its submissions
+// are kept beside them.
+function Forms({ forms, draft, problems, retentionProblems, onChange }) {
   const { createElement: h } = react();
   return h('fieldset', { style: SET },
-    h('legend', { style: LEGEND }, say('mail.recipients')),
-    h('p', { style: { ...LINE, margin: 0 } }, say('mail.recipientsHelp')),
+    h('legend', { style: LEGEND }, say('mail.forms')),
+    h('p', { style: { ...LINE, margin: 0 } }, say('mail.formsHelp')),
     forms.map(({ name, label }) => {
       const id = `konzilo-mail-recipients-${name}`;
       const wrong = problems[name] ?? [];
-      return h('div', { key: name, style: FIELD },
-        h('label', { htmlFor: id }, label),
-        h('textarea', { id, rows: 3, value: recipients[name] ?? '', onChange: (event) => onChange({ ...recipients, [name]: event.target.value }), 'aria-invalid': wrong.length > 0 ? 'true' : undefined, 'aria-describedby': wrong.length > 0 ? `${id}-problem` : undefined }),
-        wrong.length > 0 ? h('div', { id: `${id}-problem` }, wrong.map((problem) => h('p', { key: problem, style: PROBLEM }, problem))) : null);
+      const held = draft[name] ?? { recipients: '', retention: '' };
+      const set = (change) => onChange({ ...draft, [name]: { ...held, ...change } });
+      return h('fieldset', { key: name, style: { ...SET, margin: 0, gap: 6 } },
+        h('legend', { style: { ...LEGEND, fontWeight: 500 } }, label),
+        h('div', { style: FIELD },
+          h('label', { htmlFor: id }, say('mail.recipients')),
+          h('textarea', { id, rows: 3, value: held.recipients, onChange: (event) => set({ recipients: event.target.value }), 'aria-invalid': wrong.length > 0 ? 'true' : undefined, 'aria-describedby': wrong.length > 0 ? `${id}-problem` : undefined }),
+          wrong.length > 0 ? h('div', { id: `${id}-problem` }, wrong.map((problem) => h('p', { key: problem, style: PROBLEM }, problem))) : null),
+        h(Field, { id: `konzilo-mail-retention-${name}`, label: say('mail.retention'), value: held.retention, problem: retentionProblems[name], onChange: (retention) => set({ retention }), inputMode: 'numeric', autoComplete: 'off', style: { maxWidth: '8em' } }));
     }));
 }
 
@@ -143,7 +150,7 @@ export function mailPage({ credential = signedInCredential } = {}) {
           onChange: (adapter) => setDraft({ ...draft, adapter }),
         }),
         draft.adapter === 'smtp' ? h(Smtp, { smtp: draft.smtp, kept: settings.smtp.password, problems, onChange: (smtp) => setDraft({ ...draft, smtp }) }) : null,
-        h(Recipients, { forms: settings.forms, recipients: draft.recipients, problems: problems.forms ?? {}, onChange: (recipients) => setDraft({ ...draft, recipients }) }),
+        h(Forms, { forms: settings.forms, draft: draft.forms, problems: problems.forms ?? {}, retentionProblems: problems.retention ?? {}, onChange: (forms) => setDraft({ ...draft, forms }) }),
         h('button', { type: 'submit', disabled: said === 'mail.saving' }, say('mail.save')),
         said ? h('p', { role: said === 'mail.saving' || said === 'mail.saved' ? 'status' : 'alert', style: LINE }, say(said)) : null));
   };

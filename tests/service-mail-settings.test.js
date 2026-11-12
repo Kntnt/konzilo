@@ -1,7 +1,8 @@
 // How the site mails each form's submissions, as an Admin sets it on the *Mail* page (ADR 0003,
 // ADR 0045), through the service in its role for editors: the adapter, off until an Admin turns it
-// on, its settings, and each form's recipients, kept in the service's data and in no file, for an
-// Admin alone, as Forgejo says who is asking each time. Against a stand-in for Forgejo.
+// on, its settings, and each form's recipients and retention, kept in the service's data and in no
+// file, for an Admin alone, as Forgejo says who is asking each time. Against a stand-in for
+// Forgejo.
 
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -93,14 +94,14 @@ describe('the mail settings, for Admins', () => {
     store.close();
   });
 
-  test('shows an Admin that mail is off until an Admin turns it on, with each form the site declares and no recipients yet', async () => {
+  test('shows an Admin that mail is off until an Admin turns it on, with each form the site declares, no recipients yet, and kept for 30 days', async () => {
     const { status, body } = await read();
     assert.equal(status, 200);
     assert.deepEqual(body, {
       local: false,
       adapter: 'none',
       smtp: { host: '', port: 587, security: 'starttls', username: '', password: false, sender: '' },
-      forms: [{ name: 'contact', label: 'Contact us', recipients: [] }, { name: 'note', label: 'A note', recipients: [] }],
+      forms: [{ name: 'contact', label: 'Contact us', recipients: [], retention: 30 }, { name: 'note', label: 'A note', recipients: [], retention: 30 }],
       failure: null,
     });
   });
@@ -121,19 +122,32 @@ describe('the mail settings, for Admins', () => {
     assert.ok(teams.every(({ authorization }) => authorization === ROLES), 'by the service\'s credential alone');
   });
 
-  test('keeps what an Admin saves, the adapter, its settings and each form\'s recipients, and never gives the password back', async () => {
+  test('keeps what an Admin saves, the adapter, its settings and each form\'s recipients and retention, and never gives the password back', async () => {
     const { status, body } = await save({
       adapter: 'smtp',
       smtp: { ...SMTP, host: ' smtp.example.com ', port: '465', security: 'tls' },
-      forms: { contact: { recipients: [' anna@example.com', 'bo@example.com', 'anna@example.com'] } },
+      forms: { contact: { recipients: [' anna@example.com', 'bo@example.com', 'anna@example.com'], retention: ' 90 ' }, note: { recipients: [], retention: 7 } },
     });
     assert.equal(status, 200, JSON.stringify(body));
-    const shown = { local: false, adapter: 'smtp', smtp: { ...SMTP, port: 465, security: 'tls', password: true }, forms: [{ name: 'contact', label: 'Contact us', recipients: ['anna@example.com', 'bo@example.com'] }, { name: 'note', label: 'A note', recipients: [] }], failure: null };
+    const shown = { local: false, adapter: 'smtp', smtp: { ...SMTP, port: 465, security: 'tls', password: true }, forms: [{ name: 'contact', label: 'Contact us', recipients: ['anna@example.com', 'bo@example.com'], retention: 90 }, { name: 'note', label: 'A note', recipients: [], retention: 7 }], failure: null };
     assert.deepEqual(body, shown);
     assert.deepEqual((await read()).body, shown);
     assert.doesNotMatch(JSON.stringify((await read()).body), /a secret/);
     assert.deepEqual(store.setting('mail'), { adapter: 'smtp', smtp: { ...SMTP, port: 465, security: 'tls' } });
-    assert.deepEqual(store.formSettings(), { contact: { recipients: ['anna@example.com', 'bo@example.com'] } });
+    assert.deepEqual(store.formSettings(), { contact: { recipients: ['anna@example.com', 'bo@example.com'], retention: 90 }, note: { recipients: [], retention: 7 } });
+    // A form saved without its retention keeps the one it had.
+    await save({ adapter: 'smtp', smtp: SMTP, forms: { contact: { recipients: ['bo@example.com'] } } });
+    assert.deepEqual(store.formSettings().contact, { recipients: ['bo@example.com'], retention: 90 });
+  });
+
+  test('forgets at once, at a save, the submissions older than the retention it sets', async () => {
+    const keep = (at, form) => store.keep({ form, sentAt: new Date(at), language: 'en-GB', spam: null, fields: [] });
+    keep('2026-11-01T10:00:00Z', 'contact');
+    keep('2026-11-10T10:00:00Z', 'contact');
+    keep('2026-11-01T10:00:00Z', 'note');
+    assert.equal((await save({ adapter: 'none', smtp: SMTP, forms: { contact: { recipients: [], retention: 5 } } })).status, 200);
+    assert.deepEqual(store.submissions('contact').map(({ sentAt }) => sentAt), ['2026-11-10T10:00:00.000Z']);
+    assert.equal(store.submissions('note').length, 1, 'kept for 30 days');
   });
 
   test('keeps the password an Admin leaves empty, forgets it with the username, and keeps the settings of mail turned off', async () => {
@@ -154,7 +168,7 @@ describe('the mail settings, for Admins', () => {
     const { status, body } = await save({
       adapter: 'smtp',
       smtp: { host: 'smtp example', port: 70000, security: 'none', username: 'site', password: 'x', sender: 'site@localhost' },
-      forms: { contact: { recipients: ['anna@example.com', 'bo@'] }, gone: { recipients: [] } },
+      forms: { contact: { recipients: ['anna@example.com', 'bo@'], retention: 0 }, gone: { recipients: [] } },
     });
     assert.equal(status, 400);
     assert.deepEqual(body, {
@@ -164,9 +178,13 @@ describe('the mail settings, for Admins', () => {
         'smtp.username': 'needs-encryption',
         'smtp.sender': 'not-email',
         'forms.contact.recipients.1': 'not-email',
+        'forms.contact.retention': 'not-days',
         'forms.gone': 'unknown',
       },
     });
+    for (const retention of [3651, -1, 1.5, '', 'ten', '1e3', null]) {
+      assert.deepEqual((await save({ adapter: 'none', smtp: SMTP, forms: { note: { recipients: [], retention } } })).body, { problems: { 'forms.note.retention': 'not-days' } }, JSON.stringify(retention));
+    }
     assert.deepEqual((await save({ adapter: 'smtp', smtp: { security: 'starttls' }, forms: {} })).body, {
       problems: { 'smtp.host': 'missing', 'smtp.port': 'missing', 'smtp.sender': 'missing' },
     });

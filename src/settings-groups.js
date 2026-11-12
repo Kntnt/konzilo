@@ -90,8 +90,7 @@ export function coreSettingsGroups() {
 // part's and setting's `label`, a part's `description` and a setting's `help`,
 // and a select's `optionLabels`, the label of each of its `options` by the
 // option. `settings` are the group's settings in the form of a site's own, each with its `default` as settings.json holds it when one is
-// declared, and `published: false` when it stays out of the published files and
-// the site never gets it, such as a form's recipients. `each` names what the group's
+// declared. `each` names what the group's
 // settings are repeated for, `forms`, or is null: such a group has no
 // settings, parts or table of its own, but a part with its settings for
 // each form the site declares, by the form's name, and applies to every
@@ -148,11 +147,7 @@ export function groupsFor(declared, types, groups, language = null, forms = {}) 
   const applies = (group) => (group.each === null
     ? group.when === null || group.when.some((path) => reaches(declared, path.split('.')))
     : each[group.each].length > 0);
-  // A group whose every setting stays out of the published files gives the
-  // site nothing: neither the settings file nor Astro has it.
-  const gives = (group) => group.types !== null
-    || [...group.settings, ...group.parts.flatMap((part) => part.settings)].some((setting) => setting.published !== false);
-  return groups.filter((group) => applies(group) && gives(group)).map((group) => ({
+  return groups.filter(applies).map((group) => ({
     name: group.name,
     label: group.label,
     description: group.description,
@@ -412,11 +407,9 @@ function requiredBy(read, before, path, problems) {
 // value kept must reach. A yes-or-no setting may require another
 // (`requires`, checked by settingsOf()), any setting may have a help text
 // the page shows with its control (`help`, from the catalogues, as its label
-// and its options' labels are, below `named`), and any but one of a part per post
-// type may stay out of the published files (`published: false`). A text a visitor reads
+// and its options' labels are, below `named`). A text a visitor reads
 // is `translated`, as a site's own setting may be
-// (translatedOf()): on a site in several languages it has a value in each,
-// and none that stays out of the published files is.
+// (translatedOf()): on a site in several languages it has a value in each.
 function settingOf(name, setting, path, problems, where, named) {
   if (!fieldName(name, path, problems)) return null;
   if (name === TYPES) {
@@ -427,7 +420,7 @@ function settingOf(name, setting, path, problems, where, named) {
     problems.push(`${path}: must be an object`);
     return null;
   }
-  const { default: given, defaultFor, except, template, metaLine, requires, patterns, format, published, translated, min, structuredDataTypes, ...declared } = setting;
+  const { default: given, defaultFor, except, template, metaLine, requires, patterns, format, translated, min, structuredDataTypes, ...declared } = setting;
   // A label the catalogues lack is a problem already, so the field is read with its name.
   const label = textsOf(`${named}.label`, path, problems);
   const read = ownField(name, { ...withoutTexts(declared, ['label', 'help'], path, named, problems), label: label ?? name }, path, problems, WHOLE);
@@ -437,15 +430,7 @@ function settingOf(name, setting, path, problems, where, named) {
     else if (read.type === 'integer' ? !Number.isSafeInteger(min) : typeof min !== 'number' || !Number.isFinite(min)) problems.push(`${path}.min: must be ${expected[read.type]}`);
     else read.min = min;
   }
-  if (translatedOf(translated, read, path, problems)) {
-    if (published === false) problems.push(`${path}.translated: a setting that stays out of the published files is never written, in any language`);
-    else read.translated = true;
-  }
-  if (published !== undefined) {
-    if (where === 'types') problems.push(`${path}.published: a part per post type is written whole`);
-    else if (published !== false) problems.push(`${path}.published: must be false, for a setting that stays out of the published files, or left out`);
-    else read.published = false;
-  }
+  if (translatedOf(translated, read, path, problems)) read.translated = true;
   const help = textsOf(`${named}.help`, path, problems, false);
   if (help !== null) read.help = help;
   if (requires !== undefined) read.requires = requires;

@@ -584,12 +584,6 @@
         "control": "textarea",
         "translated": true,
         "default": { "text": "site.settings.forms.confirmation" }
-      },
-      "retention": {
-        "type": "integer",
-        "control": "number",
-        "default": 30,
-        "published": false
       }
     }
   },

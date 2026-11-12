@@ -156,7 +156,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     };
   };
 
-  const settingFields = (settings) => settings.filter((setting) => setting.published !== false).map(settingField);
+  const settingFields = (settings) => settings.map(settingField);
 
   const part = (name, label, hint, fields) => ({
     name,

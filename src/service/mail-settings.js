@@ -1,9 +1,11 @@
 // How the site mails each form's submissions, as an Admin sets it on the *Mail* page (ADR 0003,
 // ADR 0045): the adapter, `none` until an Admin chooses another, its settings, and each form's
-// recipients, all kept in the service's data and none in Git, since the one holds a password and
-// the other where visitors' messages go. What the page is shown, and what it may save.
+// recipients and retention, all kept in the service's data and none in Git, since the one holds a
+// password, the other where visitors' messages go, and the last how long they are kept. What the
+// page is shown, and what it may save.
 
 import { ADAPTERS, FAILURE_SETTING, isAddress, MAIL_OFF, MAIL_SETTING } from './mail.js';
+import { RETENTION_DAYS, RETENTION_LEAST, RETENTION_MOST } from './retention.js';
 import { SECURITIES } from './smtp.js';
 
 // The most recipients a form has: a team, not a mailing list.
@@ -18,15 +20,16 @@ const SMTP_UNSET = Object.freeze({ host: '', port: SECURITIES.starttls, security
 
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 const textOf = (value) => (typeof value === 'string' ? value.trim() : '');
-const portOf = (value) => {
+// A whole number as given, or as written, or null.
+const wholeOf = (value) => {
   if (Number.isInteger(value)) return value;
   return typeof value === 'string' && /^[0-9]{1,5}$/.test(value.trim()) ? Number(value) : null;
 };
 
 // What the page is shown: the adapter and its settings, the password by whether there is one;
-// each form the site declares, by its name and label, with its recipients; whether this is a
-// local copy, which writes each mail to its log and sends none; and the last mail that could not
-// be sent, and why, or null.
+// each form the site declares, by its name and label, with its recipients and the days its
+// submissions are kept; whether this is a local copy, which writes each mail to its log and sends
+// none; and the last mail that could not be sent, and why, or null.
 export function mailSettingsShown({ store, forms, local }) {
   const mail = store.setting(MAIL_SETTING) ?? MAIL_OFF;
   const smtp = { ...SMTP_UNSET, ...mail.smtp };
@@ -35,7 +38,7 @@ export function mailSettingsShown({ store, forms, local }) {
     local,
     adapter: mail.adapter,
     smtp: { ...smtp, password: smtp.password !== '' },
-    forms: Object.values(forms).map(({ name, label }) => ({ name, label, recipients: kept[name]?.recipients ?? [] })),
+    forms: Object.values(forms).map(({ name, label }) => ({ name, label, recipients: kept[name]?.recipients ?? [], retention: kept[name]?.retention ?? RETENTION_DAYS })),
     failure: store.setting(FAILURE_SETTING),
   };
 }
@@ -45,7 +48,7 @@ export function mailSettingsShown({ store, forms, local }) {
 function smtpOf(given, kept, checked) {
   const smtp = {
     host: textOf(given.host),
-    port: portOf(given.port),
+    port: wholeOf(given.port),
     security: textOf(given.security) || SMTP_UNSET.security,
     username: textOf(given.username),
     password: typeof given.password === 'string' ? given.password : '',
@@ -71,9 +74,10 @@ function smtpOf(given, kept, checked) {
 }
 
 // What an Admin saves, `given`, checked: { problems }, by where each is, such as `smtp.host` or
-// `forms.contact.recipients.1`, or { mail, recipients }, the settings to keep and each form's
-// recipients by its name, each address once. The SMTP settings are checked where mail goes by
-// SMTP, and kept as they are given where it is off, for when it is turned on again.
+// `forms.contact.recipients.1`, or { mail, forms }, the settings to keep and what to keep of each
+// form by its name, { recipients, retention }, each address once, and the retention it had where
+// none is given. The SMTP settings are checked where mail goes by SMTP, and kept as they are given
+// where it is off, for when it is turned on again.
 export function checkMailSettings(given, { store, forms }) {
   if (!isObject(given)) return { problems: { '': 'malformed' } };
   const problems = {};
@@ -83,7 +87,8 @@ export function checkMailSettings(given, { store, forms }) {
   const read = smtpOf(isObject(given.smtp) ? given.smtp : {}, kept, adapter === 'smtp');
   for (const [name, problem] of Object.entries(read.problems)) problems[`smtp.${name}`] = problem;
 
-  const recipients = {};
+  const formsKept = store.formSettings();
+  const keep = {};
   for (const [name, form] of Object.entries(isObject(given.forms) ? given.forms : {})) {
     if (!Object.hasOwn(forms, name)) {
       problems[`forms.${name}`] = 'unknown';
@@ -99,8 +104,10 @@ export function checkMailSettings(given, { store, forms }) {
     list.forEach((one, at) => {
       if (one.trim() !== '' && !isAddress(one.trim())) problems[`forms.${name}.recipients.${at}`] = 'not-email';
     });
-    recipients[name] = addresses;
+    const retention = form.retention === undefined ? formsKept[name]?.retention ?? null : wholeOf(form.retention);
+    if (form.retention !== undefined && (retention === null || retention < RETENTION_LEAST || retention > RETENTION_MOST)) problems[`forms.${name}.retention`] = 'not-days';
+    keep[name] = { recipients: addresses, retention };
   }
   if (Object.keys(problems).length > 0) return { problems };
-  return { mail: { adapter, smtp: read.smtp }, recipients };
+  return { mail: { adapter, smtp: read.smtp }, forms: keep };
 }
