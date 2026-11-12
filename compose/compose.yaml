@@ -17,11 +17,10 @@ x-hardened: &hardened
 
 x-forgejo: &forgejo
   <<: *hardened
-  image: codeberg.org/forgejo/forgejo:${FORGEJO}-rootless@sha256:${FORGEJO_DIGEST}
+  image: data.forgejo.org/forgejo/forgejo:${FORGEJO}-rootless@sha256:${FORGEJO_DIGEST}
   mem_limit: 1g
   volumes:
     - forgejo-data:/var/lib/gitea
-    - forgejo-config:/etc/gitea
     - ${KONZILO_CORE}/compose/forgejo/templates:/konzilo/templates:ro
     - ${KONZILO_CORE}/compose/forgejo/init.sh:/konzilo/init.sh:ro
   environment:
@@ -365,7 +364,6 @@ networks:
 
 volumes:
   forgejo-data:
-  forgejo-config:
   caddy-data:
   state:
   site-work:
