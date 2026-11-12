@@ -33,7 +33,8 @@ export function searchDocumentsCommand({ program, site, content, environment, co
   };
 }
 
-// `typesense`: Typesense's address, such as http://typesense:8108. `key`: its admin key.
+// `typesense`: Typesense's origin, such as http://typesense:8108, where the builder indexes and
+// the web server's route searches (src/arrangement.js). `key`: its admin key.
 // `searchKey`: the site's search key, which searches its collection alone and which the route's
 // key is made from. `collection`: the site's alias, named as the site. `site`: its site
 // description, as read. `documents()`: as searchDocumentsCommand() gives it. `route`: the file
@@ -54,6 +55,6 @@ export function siteSearch({ typesense, key, searchKey, collection, site, docume
     const made = await documents();
     await ensureSearchKey({ typesense, key, collection, searchKey });
     await indexSearch({ typesense, key, collection, schema: made.schema, documents: made.documents });
-    write(searchRoute({ collection, key: scopedSearchKey(searchKey, made.parameters) }));
+    write(searchRoute({ collection, key: scopedSearchKey(searchKey, made.parameters), upstream: typesense }));
   };
 }

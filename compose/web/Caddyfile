@@ -1,4 +1,6 @@
-# One port per host, each its own origin, as ADR 0002 has it locally.
+# One port per host, each its own origin, as ADR 0002 has it locally. Each peer is reached where
+# a setting of its own says, KONZILO_PEER_*, by default where Compose puts it, which Compose leaves
+# as it is (compose/README.md, What another arrangement sets).
 
 {
 	admin off
@@ -35,7 +37,7 @@
 		request_body {
 			max_size 1MB
 		}
-		reverse_proxy visitors:4200 {
+		reverse_proxy {$KONZILO_PEER_VISITORS:http://visitors:4200} {
 			header_up -*
 			header_up Content-Type {http.request.header.Content-Type}
 			header_up Origin {http.request.header.Origin}
@@ -117,7 +119,7 @@
 	# (ADR 0003), from the service, which asks Forgejo who is asking.
 	@service path /_konzilo/status /_konzilo/thumbnail /_konzilo/submissions /_konzilo/submissions/* /_konzilo/mail /_konzilo/personal-data /_konzilo/personal-data.csv
 	handle @service {
-		reverse_proxy editors:4100 {
+		reverse_proxy {$KONZILO_PEER_EDITORS:http://editors:4100} {
 			header_up -X-Real-IP
 		}
 	}
@@ -131,7 +133,7 @@
 # The live preview (ADR 0032), on an origin of its own, since a page there is written by
 # an editor and this host holds a token. Its gate decides all of what it answers.
 :{$KONZILO_PORT_PREVIEW} {
-	reverse_proxy 127.0.0.1:4000 {
+	reverse_proxy {$KONZILO_PEER_PREVIEW:http://127.0.0.1:4000} {
 		flush_interval -1
 		header_up -X-Real-IP
 	}
@@ -154,14 +156,14 @@
 		path /login/oauth/* /assets/* /avatars/* /api/v1/* /api/forgejo/* /api/healthz
 	}
 	handle @open {
-		reverse_proxy forgejo:3000 {
+		reverse_proxy {$KONZILO_PEER_FORGEJO:http://forgejo:3000} {
 			header_up -X-Real-IP
 		}
 	}
 
 	@repository path_regexp ^/{$KONZILO_REPOSITORY}(\.git/info/lfs|/media|/raw)/
 	handle @repository {
-		reverse_proxy forgejo:3000 {
+		reverse_proxy {$KONZILO_PEER_FORGEJO:http://forgejo:3000} {
 			header_up -X-Real-IP
 		}
 	}
