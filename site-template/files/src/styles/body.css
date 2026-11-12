@@ -129,7 +129,12 @@ h6.body-text :is(h2, h3, h4, h5, h6) { font-size: 0.95em; }
   padding: 0;
 }
 
-/* Tables, simple and structured. */
+/* Tables, simple and structured, each in the box the core writes round it,
+   in which a wide table scrolls while the page does not. */
+.body-text .konzilo-table {
+  overflow-x: auto;
+}
+
 .body-text table {
   border-collapse: collapse;
 }

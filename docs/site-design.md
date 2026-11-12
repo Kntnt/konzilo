@@ -96,6 +96,14 @@ In a tab of its own, the live preview puts its toolbar last in each page's body,
 
 An image is a `figure` with no class of its own, holding its `figcaption` if it has one.
 
+### Tables in a body
+
+| Class | On | State |
+|---|---|---|
+| `.konzilo-table` | The `div` each table of a body stands in, simple and structured alike, holding the `table` and nothing else | |
+
+The box is the core's, written when a body is rendered, and no content file holds it ([ADR 0021](adr/0021-write-a-simple-table-as-a-pipe-table-and-a-structured-table-as-html.md)). A design sizes and scrolls the box, and leaves the table inside it its table layout: `.konzilo-table { overflow-x: auto }` lets a wide table scroll in its own box at a phone's width while the page does not, and a rule on `.konzilo-table > table` lets a narrow one fill its column. A table's caption stays the table's own, `.konzilo-table > table > caption`, inside the box with it. The box is the block: in the live preview its mark stands on the `div`, a component's tree holds the `div` as the page does, and the Markdown alternate writes the table alone. The core gives the box no `tabindex` and no role, since it cannot know whether a design makes it scroll, and a stop for the keyboard at every table that does not scroll would be one too many.
+
 ### The rest of a body
 
 The rest of a body is plain elements with no class of Konzilo's, as `content-format.md` shows each. Three come from the reader, with marks of their own:

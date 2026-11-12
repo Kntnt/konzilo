@@ -20,6 +20,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The editor's application carries the notices of what it holds: its build writes `third-party-notices.txt` beside it, every package it bundles by name and version with its license and its license text, those inside Sveltia's own bundle too, and the admin host serves it at `/third-party-notices.txt`. The build fails on a package whose license it cannot name.
 - Each of the core's programs finds Forgejo, Typesense, the service's two roles and the live preview, and its own credentials and work folder, by settings whose defaults are where Compose puts them, so that a hosting layer or a site can arrange the same programs otherwise, on other machines or several in one container; the service's two roles can be held to the loopback, and Forgejo's webhook let reach another host. Compose sets none of them and runs as before. The Compose guide lists them under *What another arrangement sets*.
 
+### Changed
+
+- Each table of a body, simple or structured, with a caption or without, stands in a box the core writes when it renders the body, `<div class="konzilo-table">`, so that a design can let a wide table scroll in its own box at a phone's width while the page does not, and a narrow one fill its column. Content files are unchanged. A site's styles that reach a table as a body's own child, `.body-text > table`, reach it now as `.body-text > .konzilo-table > table`; the site template's styles let a wide table scroll in the box. In the live preview the block's mark is on the box, and the Markdown alternate writes the table as before.
+
 ### Fixed
 
 - A body's post lists are evaluated in the order they are written, those inside a site's components at any depth among them, so that a list that leaves out the posts shown leaves out what the lists written above it showed, the same at every build: a list below a section that holds a list, and lists in sections side by side, no longer show each other's posts. A list in a component that shows nothing of its body counts in its place all the same.
