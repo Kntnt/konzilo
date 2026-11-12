@@ -331,6 +331,128 @@ describe('the search page\'s script', () => {
   });
 });
 
+// A site with the article, whose built-in taxonomies are `authors`, `category` and `topics`, and
+// a type of its own with a taxonomy of its own, `regions`, each term in a file of its own.
+const withTerms = {
+  language: 'en_GB',
+  images: { smallestWidth: 400, displayWidth: 1280 },
+  search: { address: '/search/' },
+  types: {
+    article: { collection: 'articles', address: '/{slug}/', elements: ['paragraph'] },
+    case: { label: 'Case', plural: 'Cases', collection: 'cases', address: '/cases/{slug}/', elements: ['paragraph'], fields: { regions: { taxonomy: 'regions' } } },
+  },
+  taxonomies: { regions: { label: 'Region', plural: 'Regions', collection: 'regions' } },
+};
+const termFiles = {
+  'content/articles/hello.md': '---\ntitle: "Hello"\ndate: 2026-10-01T08:00:00Z\nmodified: 2026-10-01T08:00:00Z\nheadline: "Hello"\nauthors: []\ncategory: ["harbour-news"]\ntopics: ["lights","rivers"]\n---\n\nA word only this post holds: quetzal.\n',
+  'content/cases/north.md': '---\ntitle: "North"\nregions: ["north"]\n---\n\nA case.\n',
+  'content/categories/harbour-news.json': '{ "name": "Harbour news" }',
+  'content/topics/lights.json': '{ "name": "Lights" }',
+  'content/topics/rivers.json': '{ "name": "Rivers" }',
+  'content/regions/north.json': '{ "name": "The North" }',
+};
+
+describe('the search page\'s script, narrowing by terms as a filtered list sends them', () => {
+  let page;
+  const hits = (count) => Array.from({ length: count }, (_, index) => ({ document: { address: `/p${index}/`, title: `P${index}`, type: 'article', label: 'Article' }, highlights: [] }));
+  const filterOf = (asked) => new URL(asked, ORIGIN).searchParams.get('filter_by');
+
+  before(() => {
+    const built = build(withTerms, searchPage, undefined, termFiles);
+    assert.equal(built.status, 0, built.log);
+    page = built.html('/search/');
+  });
+
+  test('narrows by one term of a taxonomy, its parameter named by the taxonomy and its value the term\'s slug, and says what it searched within by the term\'s name', async () => {
+    const { asked, status } = await searched(page, '?q=lantern&topics=rivers', () => found(hits(2)));
+
+    assert.deepEqual(asked, ['/_konzilo/search?q=lantern&page=1&filter_by=slugs_topics%3A%3D%5B%60rivers%60%5D']);
+    assert.equal(status, '2 results for “lantern” in Rivers');
+  });
+
+  test('joins the terms of one taxonomy by or, once each, and leaves out an empty one', async () => {
+    const { asked, status } = await searched(page, '?q=lantern&topics=rivers&topics=&topics=lights&topics=rivers', () => found(hits(1)));
+
+    assert.equal(filterOf(asked[0]), 'slugs_topics:=[`rivers`,`lights`]');
+    assert.equal(status, '1 result for “lantern” in Rivers or Lights');
+  });
+
+  test('joins two taxonomies by and, beside the type, in the order the page names them, a site\'s own taxonomy among them', async () => {
+    const { asked, status } = await searched(page, '?q=lantern&topics=rivers&topics=lights&regions=north&type=article&category=harbour-news', () => found(hits(3)));
+
+    assert.equal(filterOf(asked[0]), 'type:=article && slugs_category:=[`harbour-news`] && slugs_topics:=[`rivers`,`lights`] && slugs_regions:=[`north`]');
+    assert.equal(status, '3 results for “lantern” in Harbour news, in Rivers or Lights and in The North');
+  });
+
+  test('lists every match when only terms are given, and names a term the page does not know by its slug', async () => {
+    const one = await searched(page, '?topics=rivers', () => found(hits(1)));
+    const several = await searched(page, '?q=%20&category=harbour-news&topics=gone', () => found(hits(4)));
+
+    assert.deepEqual(one.asked, ['/_konzilo/search?q=*&page=1&filter_by=slugs_topics%3A%3D%5B%60rivers%60%5D']);
+    assert.equal(one.status, '1 result in Rivers');
+    assert.equal(one.document.querySelector('[data-konzilo-search] input[name="q"]').value, '');
+    assert.equal(filterOf(several.asked[0]), 'slugs_category:=[`harbour-news`] && slugs_topics:=[`gone`]');
+    assert.equal(several.status, '4 results in Harbour news and in gone');
+  });
+
+  test('takes no parameter that names no taxonomy of the page\'s, and asks nothing with neither words nor terms', async () => {
+    const other = await searched(page, '?q=lantern&colour=red&page=1', () => found(hits(1)));
+    const none = await searched(page, '?colour=red&type=article', () => found(hits(1)));
+
+    assert.deepEqual(other.asked, ['/_konzilo/search?q=lantern&page=1']);
+    assert.deepEqual(none.asked, []);
+    assert.equal(none.status, '');
+  });
+
+  test('keeps the choice in the form, as hidden fields a second search sends, and in the links to the other pages', async () => {
+    const { document, status } = await searched(page, '?type=article&category=harbour-news&topics=rivers&topics=lights&page=2', () => found(hits(10), { found: 25, page: 2 }));
+
+    assert.equal(status, '25 results in Harbour news and in Rivers or Lights, page 2 of 3');
+    const form = document.querySelector('[data-konzilo-search] form');
+    assert.deepEqual([...form.querySelectorAll('input[type="hidden"]')].map((input) => [input.name, input.value]), [
+      ['type', 'article'], ['category', 'harbour-news'], ['topics', 'rivers'], ['topics', 'lights'],
+    ]);
+    form.querySelector('input[name="q"]').value = 'harbour';
+    assert.equal(new URLSearchParams(new document.defaultView.FormData(form)).toString(), 'q=harbour&type=article&category=harbour-news&topics=rivers&topics=lights');
+    assert.deepEqual([...document.querySelectorAll('.konzilo-search-pages a')].map((link) => link.getAttribute('href')), [
+      '?type=article&category=harbour-news&topics=rivers&topics=lights&page=1',
+      '?type=article&category=harbour-news&topics=rivers&topics=lights&page=3',
+    ]);
+  });
+
+  test('says what it searched within in Swedish on a site in Swedish', async () => {
+    const built = build({ ...withTerms, language: 'sv_SE', search: { address: '/sok/' } }, searchPage, undefined, termFiles);
+    assert.equal(built.status, 0, built.log);
+
+    const words = await searched(built.html('/sok/'), '?q=lykta&topics=rivers&topics=lights&regions=north', () => found(hits(2)));
+    const terms = await searched(built.html('/sok/'), '?category=harbour-news', () => found(hits(1)));
+
+    assert.equal(words.status, '2 träffar för ”lykta” inom Rivers eller Lights och inom The North');
+    assert.equal(terms.status, '1 träff inom Harbour news');
+  });
+
+  test('on a site in several languages, names a term in each search page\'s language, by the slug every language shares', async () => {
+    const several = { ...withTerms, language: undefined, languages: ['sv_SE', 'en_GB'] };
+    const built = build(several, searchPage, undefined, {
+      // The posts' own pages are not what this asks.
+      'src/pages/[slug].astro': '---\nexport function getStaticPaths() {\n  return [];\n}\n---\n',
+      'content/articles/sv-SE/om-lyktorna.md': '---\ntitle: "Om lyktorna"\ndate: 2026-10-20T08:00:00Z\nmodified: 2026-10-20T08:00:00Z\nheadline: "Om lyktorna"\nauthors: []\ncategory: ["sv-SE/nyheter"]\ntopics: []\ntranslationKey: "3a1dace55ce438b2"\n---\n\nLyktan vaktar hamnen.\n',
+      'content/articles/en-GB/about-the-lanterns.md': '---\ntitle: "About the lanterns"\ndate: 2026-10-20T08:00:00Z\nmodified: 2026-10-20T08:00:00Z\nheadline: "About the lanterns"\nauthors: []\ncategory: ["en-GB/nyheter"]\ntopics: []\ntranslationKey: "3a1dace55ce438b2"\n---\n\nThe lantern keeps the harbour.\n',
+      'content/categories/sv-SE/nyheter.json': '{ "name": "Nyheter" }',
+      'content/categories/en-GB/nyheter.json': '{ "name": "News" }',
+    });
+    assert.equal(built.status, 0, built.log);
+
+    const swedish = await searched(built.html('/sv/search/'), '?category=nyheter', () => found(hits(1)));
+    const english = await searched(built.html('/en/search/'), '?category=nyheter', () => found(hits(1)));
+
+    assert.equal(filterOf(swedish.asked[0]), 'language:=sv_SE && slugs_category:=[`nyheter`]');
+    assert.equal(swedish.status, '1 träff inom Nyheter');
+    assert.equal(filterOf(english.asked[0]), 'language:=en_GB && slugs_category:=[`nyheter`]');
+    assert.equal(english.status, '1 result in News');
+  });
+});
+
 // Typesense, stood in for: it records each search it gets and answers it
 // as Typesense 30.2 answers one, or with `answer` when that is set.
 function standInSearch() {

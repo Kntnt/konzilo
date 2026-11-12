@@ -825,7 +825,7 @@ An author is a term of the built-in taxonomy `authors`, its description its biog
 
 ### A menu
 
-A menu the site description declares is `menus/<menu>.json`: `items`, its entries in order, each with `title`, its label; `url`, where it leads, a post's current address, a term's page's where its taxonomy has an address, or another address, and none for an entry that only holds others; and `items`, the entries under it, only when it has any. An entry for a post or a term that has no page now is left out, with the entries under it.
+A menu the site description declares is `menus/<menu>.json`: `items`, its entries in order, each with `title`, its label; `url`, where it leads, a post's current address, a term's page's where its taxonomy has an address, or another address, and none for an entry that only holds others; `description`, a line under the entry, as a large menu shows it, only when it has one: one line of plain text, trimmed, of at most 160 characters, and never HTML; and `items`, the entries under it, only when it has any. An entry for a post or a term that has no page now is left out, with the entries under it.
 
 ```json file=menus/main.json
 {
@@ -837,6 +837,7 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
     {
       "title": "About us",
       "url": "/pages/about-us/",
+      "description": "Who we are, and how to reach us.",
       "items": [
         {
           "title": "Our team",
@@ -1276,7 +1277,7 @@ An ID is text, the name of the post's source file, such as `96ba709ec918`, which
   "awaited": {},
   "terms": {},
   "files": {
-    "menus/main.json": "c908ea7d89d8c2d1afbf49c879448e82dce4e5c134daaaa0081d4864777ece69",
+    "menus/main.json": "f84f1a0e3bc087a76f33c39e32840bcd0436641941f14b2b9508d172e2260ba5",
     "redirects.json": "085117efe120292600d9f626c75d16f9653ac63a34b3c343b452d365925dbfc2",
     "settings.json": "3c9694ca5bffd9b33099fcdd1661389867ef6ed864962d520d8f9db97502fa62"
   },
@@ -1436,7 +1437,8 @@ Who we are.
   "items": [
     {
       "title": "Om oss",
-      "url": "/sv/sidor/om-oss/"
+      "url": "/sv/sidor/om-oss/",
+      "description": "Vilka vi är."
     }
   ]
 }
@@ -1447,7 +1449,8 @@ Who we are.
   "items": [
     {
       "title": "About us",
-      "url": "/en/pages/about-us/"
+      "url": "/en/pages/about-us/",
+      "description": "Who we are."
     }
   ]
 }
@@ -1533,7 +1536,7 @@ The source files are what the intake reads: what editors save, one file per thin
 |---|---|
 | `<collection>/<ID>.md` | A post, its fields as YAML frontmatter, then its body as Markdown. On a site in several languages, `<collection>/<tag>/<ID>.md`, with the same ID in each language. |
 | `<taxonomy's collection>/<ID>.json` | A term, `name`, `slug`, `description` and `parent`, whether or not a post uses it. On a site in several languages, `<collection>/<tag>/<ID>.json`. |
-| `menus/<menu>.json`, `menus/<tag>/<menu>.json` | A menu: `items`, each with `title`, `post`, the ID of a post or a term, `url` and `items`. Without a file, a menu has no entries. |
+| `menus/<menu>.json`, `menus/<tag>/<menu>.json` | A menu: `items`, each with `title`, `post`, the ID of a post or a term, `url`, `description` and `items`. Without a file, a menu has no entries. |
 | `settings.json` | The site's identity and settings, and the groups under their names, each holding only what differs from a default; a translated setting as a value by locale. A choice of a post is its ID, and an image `{ "src": "/media/<name>", "alt": "…" }`. |
 | `redirects.json` | `rules`, each `{ "from", "status" }` with `to`, a path on the site or an `https://` address, or `post` or `term`, an ID; a source that starts with `^` is a pattern. A rule that leads to a post goes into its file. |
 | `services.json` | `services`, the services an Admin declares. |

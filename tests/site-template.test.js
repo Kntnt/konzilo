@@ -91,6 +91,24 @@ const title = (html) => /<title>(.*?)<\/title>/s.exec(html)?.[1];
 // A meta line's markup, without Astro's own attributes.
 const metaLine = (html) => /<p class="meta-line"[^>]*>(.*?)<\/p>/s.exec(html ?? '')?.[1].replace(/ data-astro-[^=]+="[^"]*"/g, '');
 
+// A page of the test's own at `path` under src/pages/, which writes what siteMenu() gives the
+// main menu of its language as JSON, read back from the built page at `built` by `menuOf`.
+function menuPage(repository, path) {
+  const file = join(repository, 'src/pages', path);
+  mkdirSync(join(file, '..'), { recursive: true });
+  writeFileSync(file, [
+    '---',
+    "import { siteMenu } from '@kntnt/konzilo/astro/site-settings';",
+    "const menu = await siteMenu('main', Astro.url);",
+    '---',
+    '<pre id="menu" set:html={JSON.stringify(menu)}></pre>',
+    '',
+  ].join('\n'));
+  return file;
+}
+
+const menuOf = (html) => JSON.parse(/<pre id="menu"[^>]*>(.*?)<\/pre>/s.exec(html)[1]);
+
 // The publisher's details in a footer, each line as a visitor reads it.
 const details = (html) => /<address\b[^>]*>(.*?)<\/address>/s.exec(html)?.[1].match(/<p\b[^>]*>.*?<\/p>/gs).map((line) => line.replace(/<[^>]+>/g, '').trim());
 
@@ -315,6 +333,23 @@ describe('the site template, built by Astro', () => {
     const page = build(repository, { title: null, logo: null, icon: null }, { settings: { search: { publisher: { organisationNumber: '556677-8899', email: 'hello@example.com' } } } });
 
     assert.doesNotMatch(footer(page('index.html')), /<address|556677-8899|hello@example\.com/);
+  });
+
+  test('gives a template each menu entry\'s line of description through siteMenu(), and none for an entry without one', () => {
+    const probe = menuPage(repository, 'menu.astro');
+    try {
+      const menu = [
+        { ID: 11, type: 'custom', url: '/pages/about/', title: 'About us', description: 'Who we are, and how to reach us.', menu_item_parent: '0', menu_order: '1' },
+        { ID: 12, type: 'custom', url: '/harbour-lights/', title: 'Harbour lights', menu_item_parent: '0', menu_order: '2' },
+      ];
+      const page = build(repository, { title: 'Lantern', logo: null, icon: null }, { menu });
+      assert.deepEqual(menuOf(page('menu/index.html')), [
+        { title: 'About us', url: '/pages/about/', description: 'Who we are, and how to reach us.', items: [] },
+        { title: 'Harbour lights', url: '/harbour-lights/', items: [] },
+      ]);
+    } finally {
+      rmSync(probe);
+    }
   });
 
   test('builds the chosen 404 page as 404.html, its title and body in the site\'s frame with its menu, and gives it no page of its own', () => {
@@ -573,12 +608,13 @@ describe('the site template in Swedish and English, built by Astro', () => {
     writeFileSync(file, JSON.stringify({ languages: ['sv_SE', 'en_GB'], ...description, settings: { footerText: { ...settings.footerText, translated: true } } }));
     const settingsFile = join(repository, 'site-settings.json');
     writeFileSync(settingsFile, JSON.stringify({
-      menus: { main: [menuEntry(11, 'Verkstaden', '/sv/verkstaden/')] },
+      menus: { main: [menuEntry(11, 'Verkstaden', '/sv/verkstaden/', 'Där lyktorna görs.')] },
       settings: { footerText: 'Öppet varje dag.' },
       redirects: [],
       identity: { title: 'Lyktan', logo: null, icon: null },
-      languages: { en_GB: { title: 'The Lantern', menus: { main: [menuEntry(21, 'The workshop', '/en/workshop/')] }, settings: { footerText: 'Open every day.' } } },
+      languages: { en_GB: { title: 'The Lantern', menus: { main: [menuEntry(21, 'The workshop', '/en/workshop/', 'Where the lanterns are made.')] }, settings: { footerText: 'Open every day.' } } },
     }));
+    for (const tag of ['sv', 'en']) menuPage(repository, `${tag}/menu.astro`);
     const exported = writeContent(repository, given);
     assert.equal(exported.status, 0, exported.stderr);
     built = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
@@ -707,6 +743,11 @@ describe('the site template in Swedish and English, built by Astro', () => {
     assert.match(recommended(page('en/harbour-lights/index.html')), /<h2 id="recommended-reading"[^>]*>Recommended reading<\/h2>/);
     assert.match(recommended(page('en/harbour-lights/index.html')), /href="\/en\/english-only\/"/);
     assert.doesNotMatch(recommended(page('en/harbour-lights/index.html')), /bara-svenska|hamnljus/);
+  });
+
+  test('gives a template each language\'s menu, with its entries\' descriptions, through siteMenu()', () => {
+    assert.deepEqual(menuOf(page('sv/menu/index.html')), [{ title: 'Verkstaden', url: '/sv/verkstaden/', description: 'Där lyktorna görs.', items: [] }]);
+    assert.deepEqual(menuOf(page('en/menu/index.html')), [{ title: 'The workshop', url: '/en/workshop/', description: 'Where the lanterns are made.', items: [] }]);
   });
 
   test('takes the theme colour from the main language\'s start page', () => {
@@ -894,6 +935,6 @@ describe('the site template in Swedish and English, built by Astro', () => {
 });
 
 // A custom link of a menu, as a build hands it out.
-function menuEntry(ID, title, url) {
-  return { ID, menu_order: 1, menu_item_parent: 0, type: 'custom', object: 'custom', object_id: ID, title, url, target: '', attr_title: '', description: '', classes: [''], xfn: '' };
+function menuEntry(ID, title, url, description = '') {
+  return { ID, menu_order: 1, menu_item_parent: 0, type: 'custom', object: 'custom', object_id: ID, title, url, target: '', attr_title: '', description, classes: [''], xfn: '' };
 }

@@ -1620,6 +1620,36 @@ describe('a site in Compose', () => {
       assert.equal(inReleases.trim(), '', 'nor does any release');
     });
 
+    // The demo's articles: in the category meadows, every-element (topic rivers) and
+    // golden-harbours-and-the-harbour (topics orchards and rivers); in orchards,
+    // hidden-meadows-and-the-bridge (topics orchards and rivers).
+    test('narrows by terms by their slugs, as a list\'s filter sends them, one taxonomy\'s by or and two by and, and with terms alone finds every post of them, on the search page too', async () => {
+      const within = async (filter, query = '*') => addresses((await searched({ q: query, filter_by: filter }, { until: (body) => body.found > 0 })).body);
+      const meadows = await within('slugs_category:=[`meadows`]');
+      assert.ok(meadows.includes('/every-element/') && meadows.includes('/golden-harbours-and-the-harbour/'), meadows.join(' '));
+      assert.ok(!meadows.includes('/hidden-meadows-and-the-bridge/'), 'a post of another category is not');
+      const either = await within('slugs_category:=[`meadows`,`orchards`]');
+      assert.ok(['/every-element/', '/golden-harbours-and-the-harbour/', '/hidden-meadows-and-the-bridge/'].every((one) => either.includes(one)), either.join(' '));
+      const both = await within('slugs_category:=[`meadows`] && slugs_topics:=[`orchards`]');
+      assert.ok(both.includes('/golden-harbours-and-the-harbour/') && !both.includes('/every-element/'), both.join(' '));
+      assert.equal((await searched({ q: 'landscape', filter_by: 'slugs_category:=[`no-such-term`]' })).body.found, 0);
+
+      const session = await openEditor('chromium', site);
+      try {
+        const { page } = session;
+        await page.goto(`${site.origin.site}/search/?type=article&category=meadows&topics=orchards`);
+        await page.locator('.konzilo-search-results li a').first().waitFor();
+        assert.match(await page.getByRole('status').textContent(), /^\d+ results? in Meadows and in Orchards$/);
+        const shown = await page.locator('.konzilo-search-results li > a').evaluateAll((links) => links.map((link) => link.getAttribute('href')));
+        assert.ok(shown.includes('/golden-harbours-and-the-harbour/') && !shown.includes('/every-element/'), shown.join(' '));
+        const hidden = await page.locator('[data-konzilo-search] form input[type="hidden"]').evaluateAll((inputs) => inputs.map((input) => [input.name, input.value]));
+        assert.deepEqual(hidden, [['type', 'article'], ['category', 'meadows'], ['topics', 'orchards']]);
+        assert.deepEqual(session.seen.refused, []);
+      } finally {
+        await session.browser.close();
+      }
+    });
+
     test('shows the results on the search page, and says that search does not answer while Typesense is stopped, every other page still there', async () => {
       const session = await openEditor('chromium', site);
       try {
