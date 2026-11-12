@@ -3,7 +3,7 @@
 // in the site's build, as the site's user. The checks are one function with no input or
 // output of its own (src/intake/index.js); this is what reads and writes for it.
 //
-//   konzilo-intake <checkout> (--admins <file> --reviewers <file> --pushers <file> | --no-roles) [--site <folder>] [--content <folder>] [--confirm <code>]
+//   konzilo-intake <checkout> (--admins <file> --reviewers <file> --pushers <file> | --no-roles) [--site <folder>] [--content <folder>] [--confirm <code>] [--now <moment>]
 //
 // --admins    a JSON list of the accounts that are Admins
 // --reviewers a JSON list of the accounts that are Reviewers, who change nothing
@@ -14,6 +14,10 @@
 // --site      the site repository, whose site-description.json it reads; here by default
 // --content   the content folder; $KONZILO_CONTENT or `content` by default
 // --confirm   the code of a deletion the guard stopped, which holds for this build alone
+// --now       the moment it runs at, an ISO 8601 date and time with its offset or Z, as
+//             2026-11-03T12:00:00Z; the clock's by default. What it writes follows the
+//             moment, which posts are published and the service registry's `revised`
+//             among it, so that given one moment it writes the same bytes on any day
 //
 // It prints what the build reports, as JSON: { refusals, warnings, posts, written, removed, next }.
 // A refusal is data, and exits 0, with other posts published. It exits 3 when the guard
@@ -33,13 +37,13 @@ import { deletion, intake } from '../src/intake/index.js';
 import { readSiteDescription, SITE_DESCRIPTION_FILE } from '../src/site-description.js';
 
 const usage = () => {
-  console.error('usage: konzilo-intake <checkout> (--admins <file> --reviewers <file> --pushers <file> | --no-roles) [--site <folder>] [--content <folder>] [--confirm <code>]');
+  console.error('usage: konzilo-intake <checkout> (--admins <file> --reviewers <file> --pushers <file> | --no-roles) [--site <folder>] [--content <folder>] [--confirm <code>] [--now <moment>]');
   process.exit(2);
 };
 
 let parsed;
 try {
-  parsed = parseArgs({ allowPositionals: true, options: { site: { type: 'string' }, content: { type: 'string' }, confirm: { type: 'string' }, admins: { type: 'string' }, reviewers: { type: 'string' }, pushers: { type: 'string' }, 'no-roles': { type: 'boolean' } } });
+  parsed = parseArgs({ allowPositionals: true, options: { site: { type: 'string' }, content: { type: 'string' }, confirm: { type: 'string' }, now: { type: 'string' }, admins: { type: 'string' }, reviewers: { type: 'string' }, pushers: { type: 'string' }, 'no-roles': { type: 'boolean' } } });
 } catch {
   usage();
 }
@@ -47,6 +51,12 @@ const [given] = parsed.positionals;
 if (!given || parsed.positionals.length > 1) usage();
 if (Boolean(parsed.values.admins) === Boolean(parsed.values['no-roles'])) usage();
 if (Boolean(parsed.values.admins) !== Boolean(parsed.values.pushers) || Boolean(parsed.values.admins) !== Boolean(parsed.values.reviewers)) usage();
+
+// A moment in ISO 8601, a date and a time with its offset, so that it is the same moment
+// wherever it runs.
+const MOMENT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})$/;
+const now = parsed.values.now === undefined ? new Date() : new Date(parsed.values.now);
+if (parsed.values.now !== undefined && (!MOMENT.test(parsed.values.now) || Number.isNaN(now.valueOf()))) usage();
 
 const checkout = resolve(given);
 const siteFolder = resolve(parsed.values.site ?? '.');
@@ -91,7 +101,7 @@ try {
   const adminHost = process.env.KONZILO_ADMIN_ORIGIN ? new URL(process.env.KONZILO_ADMIN_ORIGIN).hostname : null;
 
   const components = await componentChecksOf(site, siteFolder);
-  const result = intake({ files, site, now: new Date(), ledger, changes, images, adminHost, components });
+  const result = intake({ files, site, now, ledger, changes, images, adminHost, components });
 
   const guard = deletion(postFiles(content, site), result, { confirmed: parsed.values.confirm ?? null });
   if (guard.stop) {

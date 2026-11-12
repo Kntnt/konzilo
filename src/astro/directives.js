@@ -301,9 +301,12 @@ export function directiveReader(problem, { checks, leaveOut = {}, warn = () => {
 // post's Content, split at each directive's plain rendering whose name is in
 // `names`, the directives the site gives a component of its own. Returns
 // the parts in order: HTML as a text, and each such directive as { name,
-// attributes, body, content, block }, its attributes typed, with their
-// defaults, its body's HTML and its body as a hast tree (bodyTree()), both
-// null for a directive without a body, and the live preview's mark on it.
+// attributes, body, content, parts, block }, its attributes typed, with their
+// defaults, its body's HTML, its body as a hast tree (bodyTree()) and its
+// body's own parts, read as these are, all three null for a directive
+// without a body, and the live preview's mark on it. So a body's parts hold
+// every such directive at any depth, in the order written, and Body.astro
+// evaluates the post lists among them in that order before it renders any.
 // HTML without such a directive is one part, as it is.
 //
 // The HTML is Astro's own rendering of Sätteri's, so a scan of its tags is
@@ -325,7 +328,14 @@ export function bodyParts(html, names, known = siteRegistry()) {
     const entry = known.get(name);
     if (tag.start > from) parts.push(html.slice(from, tag.start));
     const body = entry.body === 'none' ? null : html.slice(tag.end, close.start);
-    parts.push({ name, attributes: attributesOf(entry, tag.attributes), body, content: body === null ? null : bodyTree(body), block: tag.attributes['data-konzilo-block'] ?? null });
+    parts.push({
+      name,
+      attributes: attributesOf(entry, tag.attributes),
+      body,
+      content: body === null ? null : bodyTree(body),
+      parts: body === null ? null : bodyParts(body, names, known),
+      block: tag.attributes['data-konzilo-block'] ?? null,
+    });
     from = at = close.end;
   }
   if (from < html.length) parts.push(html.slice(from));

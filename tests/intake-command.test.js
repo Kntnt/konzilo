@@ -358,6 +358,33 @@ describe('konzilo-intake', () => {
     assert.equal(report.next, '2999-01-01T10:00:00Z');
   });
 
+  // The moment the command runs at, given, so that a site that makes its
+  // content files with it makes the same bytes on any day: the registry's
+  // `revised` among them, and which posts wait.
+  test('runs at the moment it is given, and writes the same bytes each time it is given it', () => {
+    const files = {
+      'articles/aaaaaaaaaaaa.md': post('first', { date: '2025-12-01T10:00:00Z' }),
+      'articles/bbbbbbbbbbbb.md': post('second', { status: 'scheduled', date: '2026-02-01T10:00:00Z' }),
+    };
+    const one = newSite(files);
+    const other = newSite(files);
+    const ran = [one, other].map((site) => intake(site, '--now', '2026-01-15T08:00:00Z'));
+    for (const { status, stderr } of ran) assert.equal(status, 0, stderr);
+
+    assert.equal(JSON.parse(readFileSync(join(one.content, 'consent.json'), 'utf8')).revised, '2026-01-15');
+    assert.equal(ran[0].report.next, '2026-02-01T10:00:00Z');
+    assert.deepEqual(listing(other.content), listing(one.content));
+    for (const path of listing(one.content)) assert.ok(readFileSync(join(other.content, path)).equals(readFileSync(join(one.content, path))), path);
+  });
+
+  test('exits 2 for a moment it cannot read', () => {
+    const site = newSite({ 'articles/aaaaaaaaaaaa.md': post('first') });
+    const { status, stderr } = intake(site, '--now', 'tomorrow');
+    assert.equal(status, 2);
+    assert.match(stderr, /usage/);
+    assert.deepEqual(listing(site.content), []);
+  });
+
   test('takes the content folder from where it is told', () => {
     const site = newSite({ 'articles/aaaaaaaaaaaa.md': post('first') });
     const { status, stderr } = intake(site, '--content', 'elsewhere', '--site', site.root);

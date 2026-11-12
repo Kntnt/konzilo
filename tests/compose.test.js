@@ -63,6 +63,24 @@ test('a digest in versions.env is a whole one', () => {
   }
 });
 
+// codeberg.org's registry serves the same image by the same digest, but refuses it, tag and
+// digest alike, when it is under load, so that a fresh machine cannot bring a site up.
+test('pulls Forgejo from data.forgejo.org, which versions.env says its digest is read from', () => {
+  const image = /^\s+image: (\S*forgejo\S*)$/m.exec(compose)?.[1];
+  assert.equal(image, 'data.forgejo.org/forgejo/forgejo:${FORGEJO}-rootless@sha256:${FORGEJO_DIGEST}');
+  const source = image.slice(0, image.indexOf('@'));
+  assert.ok(versions.split('\n').some((line) => line.startsWith('#') && line.includes(source)), source);
+});
+
+// The rootless image keeps app.ini, with the keys it generates, in its custom folder in the
+// data folder (GITEA_APP_INI), so that a site already running keeps them where they are.
+test('mounts Forgejo one volume, its data folder, which holds its settings too', () => {
+  const forgejo = compose.slice(compose.indexOf('x-forgejo:'), compose.indexOf('\nservices:'));
+  const volumes = [...forgejo.matchAll(/^ {4}- ([a-z-]+):(\S+)$/gm)].map(([, name, path]) => `${name}:${path}`);
+  assert.deepEqual(volumes, ['forgejo-data:/var/lib/gitea']);
+  assert.doesNotMatch(compose, /GITEA_APP_INI|GITEA_CUSTOM|GITEA_WORK_DIR/);
+});
+
 test('says what every volume holds, and lists none that is gone', () => {
   const declared = compose.slice(compose.indexOf('\nvolumes:\n')).split('\n').slice(2)
     .map((line) => /^ {2}([a-z-]+):/.exec(line)?.[1])
@@ -359,8 +377,9 @@ test('gives a form the service does not answer the release\'s page that says it 
 });
 
 // The web image builds the editor's bundle from the files of the core it copies, so each file the
-// bundle's page imports, at any depth, must be among them, or the image cannot be built.
-test('copies into the web image every file of the core the editor\'s bundle imports', () => {
+// bundle's page imports, at any depth, and each the build reads, must be among them, or the image
+// cannot be built.
+test('copies into the web image every file of the core the editor\'s bundle imports, and its build reads', () => {
   const root = fileURLToPath(new URL('../', import.meta.url));
   const copied = [...read('compose/web/Dockerfile').matchAll(/^COPY (?!--)(.+) \S+$/gm)].flatMap(([, sources]) => sources.split(' '));
   const isCopied = (file) => copied.some((source) => file === source || file.startsWith(`${source}/`));
@@ -380,6 +399,8 @@ test('copies into the web image every file of the core the editor\'s bundle impo
   const page = resolve(root, 'src/cms/index.html');
   const entries = [...readFileSync(page, 'utf8').matchAll(/<script [^>]*src="(\.[^"]+)"/g)].map(([, src]) => resolve(dirname(page), src));
   assert.ok(entries.length > 0, 'the page\'s scripts');
+  // The build itself, with what it imports and the license texts its notices take.
+  entries.push(resolve(root, 'scripts/build-editor.js'), resolve(root, 'src/cms/notice-texts.json'));
   for (const entry of entries) walk(entry);
   assert.ok(seen.size > 50, `the bundle's files, ${seen.size} of them`);
   assert.deepEqual(missing, []);

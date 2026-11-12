@@ -18,7 +18,7 @@ A site's own templates write the wrapper around a body, with whatever class its 
 
 A type's `elements` in `site-description.json` decides what its body may hold, and so what its block menu offers: a row that is missing is an element the type does not take.
 
-A component a site declares, or takes from a package such as the design system's (`content-format.md`, *A site's own components*), is drawn by the component the site gives for its directive through `directives`, with its attributes as props, typed, those not given at their defaults, and its body, if it has one, rendered as its default slot and as a tree in the prop `content`. Without one, it is the core's plain rendering: a `div` with `data-directive="<name>"` and `data-<attribute>` for each attribute with a value, its name in kebab case, holding its body. The design system draws the hero, the section, the aside, the list and its five forms, and the text roles so (ADR 0068).
+A component a site declares, or takes from a package such as the design system's (`content-format.md`, *A site's own components*), is drawn by the component the site gives for its directive through `directives`, with its attributes as props, typed, those not given at their defaults, and its body, if it has one, rendered as its default slot and as a tree in the prop `content`. Without one, it is the core's plain rendering: a `div` with `data-directive="<name>"` and `data-<attribute>` for each attribute with a value, its name in kebab case, holding its body. The design system draws the hero, the section, the aside, the list and the five components that show a list in another form, each a directive of its own, and the text roles so (ADR 0068).
 
 The tree is a hast `root` of the body as the core renders it, a container's blocks or a leaf's label, with a component within as its plain rendering, holding its own body. No attribute is called `content`, and each component is given a tree of its own, which it may change. A component that lays itself out by what it holds, such as a list whose items begin at its headings, reads the tree, and a simple one places its slot. What a component draws from the tree it draws itself, a component within as its plain rendering and an image without the lightbox the core adds to the slot, so a design that wants them places the slot. A component that passes the props it does not take on to its root leaves the tree out of them, since Astro writes an object it is given there as an attribute, `content="[object Object]"`, on the public site too, and the core cannot stop it:
 
@@ -30,6 +30,8 @@ const { content, ...rest } = Astro.props;
 ```
 
 The rest it passes on holds the live preview's mark, so its root holds that as well.
+
+A post list in a component's body is evaluated in its place among the body's lists, in the order they are written, whether the component renders its body, part of it or none of it: the lists written below it leave out its posts even where the component shows none of them. In the tree it stands as its plain rendering, so a design that wants its posts shown places the slot.
 
 A post list is drawn by the component the site gives for its presentation through `presentations`. It is given `posts`, the posts of the page it shows, each `{ entry, url }`, the post's entry and its address below the site's base, or null for a type without one; `options`, the presentation's options as the list sets them; `empty`, the text for a list that matches nothing; `pager`, the pager's data for a list with pages of its own, else null; and `list`, what the whole list holds over all its pages, after its offset and the posts it leaves out, in the page's language:
 
@@ -125,7 +127,7 @@ The core's stylesheet makes it work, and it stands inside a body's wrapper, so a
 | `.konzilo-embed` | The panel, a `figure` with `data-embed="<service>"` | Once allowed it holds the player alone |
 | `.konzilo-embed-no-script` | The sentence shown where the script has not run | |
 | `.konzilo-embed-question` | The question asked before consent | |
-| `.konzilo-embed-storage` | What the service stores | |
+| `.konzilo-embed-storage` | What the service may store, where its facts list any, and who receives data about the visit | |
 | `.konzilo-embed-allow` | The button that allows the service | |
 
 ### Forms

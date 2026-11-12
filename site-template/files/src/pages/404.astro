@@ -11,8 +11,12 @@
 // server shows at an address below that prefix: in that language's frame,
 // with the chosen page's translation in that language, or, without one, the
 // plain text in that language, never another language's page; the root's
-// is the main language's. Its links start at the site's base, so that they
-// stay in a preview, which is served below a base of its own.
+// is the main language's. The chosen page's body goes through Konzilo's
+// Body, as every other page's does, which renders each post list in it with
+// its presentation and each directive the site gives a component with it.
+// Its links start at the site's base, so that they stay in a preview, which
+// is served below a base of its own.
+import Body from '@kntnt/konzilo/astro/Body.astro';
 import { pageLanguage, pageTexts, startPage } from '@kntnt/konzilo/astro/languages';
 import { notFoundPage } from '@kntnt/konzilo/astro/site-settings';
 import { render } from 'astro:content';
@@ -26,7 +30,7 @@ const heading = page?.data.title ?? plain.title;
 <Site title={heading}>
   <main class="body-text">
     <h1>{heading}</h1>
-    {Content ? <Content /> : (
+    {Content ? <Body post={page}><Content /></Body> : (
       <>
         <p>{plain.text}</p>
         <p><a href={startPage(pageLanguage(Astro.url))}>{plain.start}</a></p>

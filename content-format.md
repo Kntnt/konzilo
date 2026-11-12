@@ -168,6 +168,56 @@ The site description every example in this document is of:
 }
 ```
 
+A type of the site's own may take a built-in taxonomy, on a site that names `article`, by a field of terms that names it, as it takes a taxonomy of its own: `"topics": { "taxonomy": "topics" }`. Its posts name the same terms as the articles, whose files are in the taxonomy's collection, and where the taxonomy has an `address`, a term's page lists the posts of each type that takes it. These examples are of a site whose events take the articles' topics:
+
+```json site-description=events
+{
+  "language": "en_GB",
+  "images": { "smallestWidth": 400, "displayWidth": 1280 },
+  "types": {
+    "article": {
+      "collection": "articles",
+      "address": "/{slug}/",
+      "elements": ["paragraph"]
+    },
+    "event": {
+      "label": "Event",
+      "plural": "Events",
+      "collection": "events",
+      "address": "/events/{slug}/",
+      "elements": ["paragraph"],
+      "fields": {
+        "topics": { "taxonomy": "topics" }
+      }
+    }
+  },
+  "taxonomies": {
+    "topics": { "address": "/topic/{slug}/" }
+  }
+}
+```
+
+```markdown file=events/lantern-night.md site=events
+---
+title: "Lantern night"
+topics: ["harbours","lanterns"]
+---
+
+Every lantern on the quay is lit at dusk.
+```
+
+```json file=topics/harbours.json site=events
+{
+  "name": "Harbours"
+}
+```
+
+```json file=topics/lanterns.json site=events
+{
+  "name": "Lanterns"
+}
+```
+
 ## A post's file
 
 A post is one Markdown file with YAML frontmatter. Its path names it: its type's collection, then its slug, or its path in a hierarchical type, then `.md`.
@@ -533,6 +583,8 @@ A farm in summer
 ### Post lists
 
 A post list, a list of posts the site picks at every build, is the leaf directive `::post-list{…}` alone on its line. Its attributes come in this order, each only when it is not at its default: `type`, the post type it lists, required; `include` and `exclude`, terms as `<taxonomy>:<slug>,<slug>`, taxonomies apart by a space; `where`, conditions on fields, `<field><op><value>` apart by `;`; `order`, `direction`, `offset` (0 by default) and `number` (10 by default, at most 100); `leaveOutThis` and `leaveOutShown` (`true` by default); `pages` (`false` by default), `true` for the one list in a post that has pages of its own, at the post's address and `<address>page/<n>/`; `presentation`, one the site description declares, required; `empty`, the text shown when no post matches; then the options of the presentations, in the order the site description declares them. [ADR 0039](docs/adr/0039-write-a-post-list-as-a-directive-evaluated-at-every-build.md) gives each attribute's values.
+
+A body's lists are evaluated in the order they are written, those in a site's components at any depth among them, so a list that leaves out the posts shown leaves out the posts of its type that the lists written above it showed, wherever each stands. A list in a component counts in its place whether the component shows its body or not.
 
 A list whose `order` is `related` takes no `direction`, and lists the posts that share a term with the post it sits in, as the recommended reading under a post ranks them ([ADR 0070](docs/adr/0070-rank-related-posts-by-shared-topics-and-category-times-a-freshness-that-halves.md)): in a list of articles, a point for each topic a post shares and half a point for the same category, its authors none; in a list of another type, a point for each term it shares, of any taxonomy. Each score is multiplied by the post's freshness, 2^(-age / half-life), its age from its date to the build and the half-life in days `related.halfLife` in the site settings ([The site settings](#the-site-settings)), unless `related.freshness` is `false`; a post without a date is not decayed. The highest comes first, then the newest, then by title, and a post that scores nothing is not listed. Since every post ages alike, the order is the same whenever the site is built.
 
