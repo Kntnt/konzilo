@@ -11,6 +11,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A site can take its components and the check of what they hold from a package, such as its design system's, instead of declaring them itself, give them labels of its own in each language its editors work in, and declare components of its own beside them.
 - A site's component with a body is given it as a tree as well, in the prop `content` beside its default slot, with the live preview's marks on its blocks, so that a design can lay a component out by what it holds without reading its HTML.
 
+### Fixed
+
+- A site's components look in the live preview as they do on the public site, a component inside another too: the mark that leads a click on it to its block in the form stands on the component's own root, where the component places it from the prop `data-konzilo-block` or the preview puts it, rather than in a wrapper that a design's child selectors could not see past.
+
 ## [0.3.0] – 2026-11-12
 
 ### Added

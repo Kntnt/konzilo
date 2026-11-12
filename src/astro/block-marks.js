@@ -7,8 +7,55 @@
 // A block that holds blocks is marked within as well, each by its path below it, `2.1` for the
 // first block in the third: the blocks of a directive's body, and a list's items. A design that
 // renders a component of its own keeps the marks of the blocks it is given.
+//
+// A component the site renders is given its block's mark as the prop BLOCK_ATTRIBUTE, to place
+// on its root, and where it does not, the core places it there (withBlockMark()), so that no
+// wrapper stands between a component and the one around it, which a design's child selectors
+// would not see past.
+
+import { endOf, nextTag } from './directives.js';
 
 export const BLOCK_PROPERTY = 'dataKonziloBlock';
+export const BLOCK_ATTRIBUTE = 'data-konzilo-block';
+
+// What a component renders at its top that is no part of what is shown, and holds no mark.
+const UNSHOWN = new Set(['script', 'style', 'link', 'meta', 'template', 'noscript']);
+
+// The elements at the top of `html`, as nextTag() gives each start tag, or null where it has
+// text there, beside them or alone, or an end tag of nothing it opened.
+function topElements(html) {
+  const elements = [];
+  for (let at = 0; ;) {
+    const tag = nextTag(html, at);
+    const between = html.slice(at, tag?.start ?? html.length).replace(/<!--[\s\S]*?(?:-->|$)/g, '');
+    if (between.trim() !== '') return null;
+    if (!tag) return elements;
+    if (tag.closing) return null;
+    elements.push(tag);
+    at = tag.void ? tag.end : endOf(html, tag).end;
+  }
+}
+
+// What a component rendered, `html`, with the mark of its block, `block`, on its root: as it is
+// where the component placed the mark itself, on any element it rendered; else with the mark put
+// on the element it rendered at its top, or on each of those it rendered there side by side. Null
+// where it cannot be put there: what the component rendered has text at its top, or no element,
+// or an element there marked already, a block of its body, rendered with no element around it.
+export function withBlockMark(html, block) {
+  for (let at = 0, tag = nextTag(html, at); tag; at = tag.end, tag = nextTag(html, at)) {
+    if (!tag.closing && tag.attributes[BLOCK_ATTRIBUTE] === block) return html;
+  }
+  const roots = topElements(html)?.filter((tag) => !UNSHOWN.has(tag.name)) ?? [];
+  if (roots.length === 0 || roots.some((tag) => Object.hasOwn(tag.attributes, BLOCK_ATTRIBUTE))) return null;
+  // First among its attributes, after its name, which is where its start tag surely is, whatever
+  // its attributes hold.
+  let marked = html;
+  for (const { start, name } of roots.toReversed()) {
+    const at = start + 1 + name.length;
+    marked = `${marked.slice(0, at)} ${BLOCK_ATTRIBUTE}="${block}"${marked.slice(at)}`;
+  }
+  return marked;
+}
 
 const isElement = (node, tagName) => node?.type === 'element' && (tagName === undefined || node.tagName === tagName);
 const isBlank = (node) => node.type === 'text' && node.value.trim() === '';
