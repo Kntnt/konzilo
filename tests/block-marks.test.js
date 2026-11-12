@@ -4,8 +4,8 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { markdownToHtml } from 'satteri';
-import { blockMarks } from '../src/astro/block-marks.js';
+import { htmlToHast, markdownToHtml } from 'satteri';
+import { blockMarks, withBlockMark } from '../src/astro/block-marks.js';
 import { directiveReader, registryOf } from '../src/astro/directives.js';
 import { markdownFeatures, markdownHastPlugins } from '../src/astro/reader.js';
 import { siteDescription } from '../src/site-description.js';
@@ -30,4 +30,13 @@ test("a directive's mark is no attribute of its own, nor an option of a post lis
   const [part] = bodyParts(html, ['post-list'], registry);
   assert.equal(part.block, '1.2');
   assert.equal(Object.hasOwn(part.attributes, 'konziloBlock'), false);
+});
+
+test("a mark the core places on a component's root holds its block as an attribute's value, whatever the block's characters", () => {
+  const block = '1" onclick="alert(1)"><script>alert(2)</script><b a=\'&amp;';
+  const marked = withBlockMark('<p class="kicker">Text</p>', block);
+  const { children } = htmlToHast(marked, { fragment: true });
+  assert.deepEqual(children.map(({ tagName }) => tagName), ['p']);
+  assert.deepEqual(children[0].properties, { dataKonziloBlock: block, className: ['kicker'] });
+  assert.equal(withBlockMark(marked, block), marked, 'and finds it there again');
 });
