@@ -197,8 +197,8 @@ a { color: #bfdbfe; text-decoration: underline; white-space: nowrap; cursor: poi
     keep();
   };
 
-  // Tucked into an edge, the tab where the bar stood; and back from it, a little way from that
-  // edge. The focus goes along with what it was on.
+  // Tucked into an edge, the tab as far from the top or the bottom as the bar stood; and back from
+  // it, a little way from that edge. The focus goes along with what it was on.
   const holdsFocus = () => root.activeElement !== null && root.activeElement !== undefined;
   const tuck = (edge) => {
     const focused = holdsFocus();
@@ -212,67 +212,75 @@ a { color: #bfdbfe; text-decoration: underline; white-space: nowrap; cursor: poi
   };
   const bringBack = () => {
     const focused = holdsFocus();
-    const edge = place.tucked;
-    const { top } = tab.getBoundingClientRect();
-    place = { left: 0, top, tucked: null };
+    const { tucked: edge, ...along } = place;
+    place = { [edge]: EDGE, ...along, tucked: null };
     draw();
-    const { width } = windowSize();
-    const size = bar.getBoundingClientRect();
-    settleAt({ x: edge === 'left' ? EDGE : width - size.width - EDGE, y: top });
+    keep();
     if (focused) grip.focus();
   };
   tab.addEventListener('click', bringBack);
 
-  // Whether a bar whose left side would be at `x` is pushed past an edge, and which.
-  const pushedPast = (x) => {
+  // Whether a bar dragged so that its left side would be at `x`, by a pointer at `pointer`, is
+  // pushed past an edge, and which: by a little way past it, or against it by a pointer that has
+  // gone as far as the window goes, as a mouse does in a window as wide as the screen.
+  const pushedPast = (x, pointer) => {
     const { width } = windowSize();
     const size = bar.getBoundingClientRect();
-    return x < -PAST ? 'left' : x + size.width > width + PAST ? 'right' : null;
+    if (x < -PAST || (x < 0 && pointer <= 1)) return 'left';
+    if (x + size.width > width + PAST || (x + size.width > width && pointer >= width - 1)) return 'right';
+    return null;
   };
 
-  // A drag, by a mouse, a finger or a pen, which starts once a press has moved a little, so that a
-  // click or a tap on the link still follows it.
+  // A drag, by a mouse, a finger or a pen, which starts once a press on the bar has moved a little,
+  // wherever the pointer then is, so that a click or a tap on the link still follows it.
   let press = null;
   let dragged = false;
-  bar.addEventListener('dragstart', (event) => event.preventDefault());
-  bar.addEventListener('pointerdown', (event) => {
-    if (!event.isPrimary || event.button !== 0) return;
-    dragged = false;
-    press = { id: event.pointerId, from: { x: event.clientX, y: event.clientY }, at: corner(), dragging: false, wanted: null };
-  });
-  bar.addEventListener('pointermove', (event) => {
+  const moved = (event) => {
     if (press === null || event.pointerId !== press.id) return;
     const dx = event.clientX - press.from.x;
     const dy = event.clientY - press.from.y;
     if (!press.dragging) {
       if (Math.hypot(dx, dy) < STARTS) return;
       press.dragging = true;
-      bar.setPointerCapture?.(event.pointerId);
+      // Held by the bar, so that the drag goes on wherever the pointer goes, and ends on the bar.
+      // A pointer no longer down cannot be held, and the drag goes on as far as the window's.
+      try {
+        bar.setPointerCapture?.(event.pointerId);
+      } catch {
+        // As above.
+      }
       bar.classList.add('dragged');
     }
     event.preventDefault();
     press.wanted = { x: press.at.x + dx, y: press.at.y + dy };
+    press.pointer = event.clientX;
     const { width, height } = windowSize();
     const size = bar.getBoundingClientRect();
     frame.style.left = `${within(press.wanted.x, width - size.width)}px`;
     frame.style.top = `${within(press.wanted.y, height - size.height)}px`;
     frame.style.right = '';
     frame.style.bottom = '';
-    bar.classList.toggle('tucking', pushedPast(press.wanted.x) !== null);
-  });
-  const release = (event) => {
+    bar.classList.toggle('tucking', pushedPast(press.wanted.x, press.pointer) !== null);
+  };
+  const released = (event) => {
     if (press === null || event.pointerId !== press.id) return;
     const ended = press;
     press = null;
+    for (const [type, listener] of [['pointermove', moved], ['pointerup', released], ['pointercancel', released]]) window.removeEventListener(type, listener, true);
     bar.classList.remove('dragged', 'tucking');
     if (!ended.dragging) return;
     dragged = true;
-    const edge = event.type === 'pointerup' ? pushedPast(ended.wanted.x) : null;
+    const edge = event.type === 'pointerup' ? pushedPast(ended.wanted.x, ended.pointer) : null;
     if (edge) tuck(edge);
     else settleAt(corner());
   };
-  bar.addEventListener('pointerup', release);
-  bar.addEventListener('pointercancel', release);
+  bar.addEventListener('dragstart', (event) => event.preventDefault());
+  bar.addEventListener('pointerdown', (event) => {
+    if (!event.isPrimary || event.button !== 0 || press !== null) return;
+    dragged = false;
+    press = { id: event.pointerId, from: { x: event.clientX, y: event.clientY }, at: corner(), dragging: false, wanted: null, pointer: event.clientX };
+    for (const [type, listener] of [['pointermove', moved], ['pointerup', released], ['pointercancel', released]]) window.addEventListener(type, listener, true);
+  });
   // The click that ends a drag follows nothing.
   bar.addEventListener('click', (event) => {
     if (!dragged) return;

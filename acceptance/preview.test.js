@@ -76,6 +76,15 @@ describe('the live preview', () => {
     else assert.deepEqual(blank.filter(({ brightness }) => brightness < 250), []);
   };
 
+  // The preview's toolbar on a page in a tab of its own: what it says, and the links it holds,
+  // each by its name and where it leads (ADR 0032).
+  const toolbarOn = async (page) => {
+    const region = page.getByRole('region', { name: 'Live preview' });
+    await region.waitFor({ timeout: ON_THE_PAGE });
+    const links = await region.getByRole('link').evaluateAll((all) => all.map((link) => [link.textContent.trim(), link.href]));
+    return { says: (await region.textContent()).replace(/\s+/g, ' ').trim(), links };
+  };
+
   // Forgejo's sign-in in a tab, in place, until the tab is back on the preview's host.
   const signInInTab = (page) => throughForgejo(page, site, page.waitForURL((url) => url.origin === site.origin.preview, { timeout: 120_000 }));
 
@@ -250,9 +259,30 @@ describe('the live preview', () => {
       }
       await page.goto(`${site.origin.preview}/pages/a-refused-page/`);
       await page.getByRole('heading', { level: 1, name: 'This page cannot be published yet' }).waitFor({ timeout: ON_THE_PAGE });
-      const said = await page.locator('body').textContent();
+      const said = await page.locator('main').textContent();
       assert.match(said, /what is saved of “A <b>bold<\/b> page”/);
       assert.match(said, /the field Title: the site cannot publish a title holding HTML/);
+
+      // Each page's toolbar says its status, and leads an Admin to its form, or, where the page is
+      // built from many posts, to the editor's start.
+      const forms = `${site.origin.admin}/#/collections`;
+      const refusedOne = await toolbarOn(page);
+      assert.match(refusedOne.says, /^Draft/);
+      assert.deepEqual(refusedOne.links, [['Edit this page', `${forms}/pages/entries/a42d0000000c`]]);
+      for (const [path, says, entry] of [
+        ['/a-draft-of-the-harbours/', /^Draft/, 'articles/entries/a42d0000000a'],
+        ['/the-harbours-to-come/', /^Scheduled: goes live 1 March 2099 at 08:00 UTC/, 'articles/entries/a42d0000000b'],
+        [ARTICLE, /^Published/, `articles/entries/${idOf('articles', 'golden-harbours-and-the-harbour')}`],
+      ]) {
+        await page.goto(`${site.origin.preview}${path}`);
+        const toolbar = await toolbarOn(page);
+        assert.match(toolbar.says, says, path);
+        assert.deepEqual(toolbar.links, [['Edit this page', `${forms}/${entry}`]], path);
+      }
+      await page.goto(`${site.origin.preview}/`);
+      const start = await toolbarOn(page);
+      assert.match(start.says, /^Not edited in one place/);
+      assert.deepEqual(start.links, [['Open the editor', `${site.origin.admin}/`]]);
       await page.goto(`${site.origin.preview}${ARTICLE}`);
       await page.getByRole('heading', { level: 1, name: ARTICLE_TITLE }).waitFor({ timeout: ON_THE_PAGE });
     });
@@ -327,6 +357,13 @@ describe('the live preview', () => {
       await throughForgejo(page, site, page.waitForURL((url) => url.origin === site.origin.preview, { timeout: 120_000 }), reviewer);
       await page.getByRole('heading', { level: 1, name: ARTICLE_TITLE }).waitFor({ timeout: 240_000 });
       assert.equal(page.url(), `${site.origin.preview}${ARTICLE}`);
+    });
+
+    test('sees each page\'s status in the preview\'s toolbar, and no link to edit it', async () => {
+      await page.goto(`${site.origin.preview}${ARTICLE}`);
+      const toolbar = await toolbarOn(page);
+      assert.match(toolbar.says, /^Published/);
+      assert.deepEqual(toolbar.links, []);
     });
 
     test('is told on the admin host that the account reads the preview only and can save nothing there, and is signed out', async () => {
@@ -573,6 +610,24 @@ describe('the live preview', () => {
         }`);
       assert.doesNotMatch(environment, /TOKEN|PASSWORD|SECRET|KONZILO_ADMIN|KONZILO_REPOSITORY/);
       assert.match(environment, /KONZILO_PREVIEW=1/);
+    });
+
+    test('leads from a page in a tab of its own to its post\'s form, by the toolbar the pane does not show', async () => {
+      assert.equal(await frameOf(page).locator('konzilo-preview-toolbar').count(), 0, 'none in the pane');
+      // Signed in to Forgejo, the editor's browser passes its sign-in without a word.
+      const tab = await session.context.newPage();
+      try {
+        await tab.goto(`${site.origin.preview}${ARTICLE}`);
+        await tab.getByRole('heading', { level: 1, name: ARTICLE_TITLE }).waitFor({ timeout: 120_000 });
+        await tab.getByRole('region', { name: 'Live preview' }).getByRole('link', { name: 'Edit this page' }).click();
+        await tab.waitForURL(`${site.origin.admin}/#/collections/articles/entries/${idOf('articles', 'golden-harbours-and-the-harbour')}`);
+        const headline = tab.getByRole('textbox', { name: 'Main headline', exact: true });
+        await headline.waitFor({ timeout: 60_000 });
+        assert.equal(await headline.inputValue(), ARTICLE_TITLE);
+        assert.equal(session.context.pages().length, 2, 'in the same tab');
+      } finally {
+        await tab.close();
+      }
     });
 
     test('leaves the page that has been saved, and what is published, as they are', async () => {
