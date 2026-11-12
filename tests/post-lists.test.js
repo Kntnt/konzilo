@@ -8,7 +8,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, test } from 'node:test';
-import { evaluate, pageCount } from '@kntnt/konzilo/post-lists';
+import { evaluate, pageCount, wholeList } from '@kntnt/konzilo/post-lists';
 
 const posts = JSON.parse(readFileSync(new URL('./post-lists/posts.json', import.meta.url), 'utf8'));
 
@@ -224,5 +224,29 @@ describe('the evaluator', () => {
       assert.ok(listed.length > 0);
       assert.ok(took < 500, `${one.order}: ${took.toFixed(1)} ms`);
     }
+  });
+
+  // What the whole list holds, over every page, as a presentation that
+  // filters is given it: four posts, one of them shown above.
+  describe('the whole list', () => {
+    const few = [
+      { id: 'a', title: 'A', terms: { category: ['news'], tag: ['local', 'sport'] }, fields: { date: '2026-01-01' } },
+      { id: 'b', title: 'B', terms: { category: ['news'], tag: ['local'] }, fields: { date: '2026-01-02' } },
+      { id: 'c', title: 'C', terms: { category: ['culture'], tag: [] }, fields: { date: '2026-01-03' } },
+      { id: 'd', title: 'D', terms: { category: ['news'], tag: ['sport'] }, fields: { date: '2026-01-04' } },
+    ];
+    const counts = (whole) => Object.fromEntries(Object.entries(whole.terms).map(([taxonomy, terms]) => [taxonomy, Object.fromEntries(terms.map(({ id, count }) => [id, count]))]));
+
+    test('counts every post the list matches on any page, and the posts that hold each term, by taxonomy', () => {
+      const whole = wholeList(query({ number: 1, include: { category: ['news'] } }), few);
+      assert.equal(whole.total, 3);
+      assert.deepEqual(counts(whole), { category: { news: 3 }, tag: { local: 2, sport: 2 } });
+    });
+
+    test('leaves out the posts shown above and those before the offset, as the list does', () => {
+      const whole = wholeList(query({ number: 1, offset: 1 }), few, { shown: new Set(['d']) });
+      assert.equal(whole.total, 2);
+      assert.deepEqual(counts(whole), { category: { news: 2 }, tag: { local: 2, sport: 1 } });
+    });
   });
 });
