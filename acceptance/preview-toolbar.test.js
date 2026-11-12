@@ -110,12 +110,12 @@ describe('the toolbar in the preview\'s tab', () => {
       const toolbar = (page) => page.getByRole('region', { name: 'Live preview' });
       const handle = (page) => toolbar(page).getByRole('button', { name: 'Move the toolbar' });
       const tab = (page) => toolbar(page).getByRole('button', { name: 'Show the toolbar' });
-      // The bar's box, or the tab's while it is tucked away.
+      // Where the bar stands, and the tab that brings it back while it is tucked away.
       const barBox = (page) => handle(page).evaluate((grip) => {
         const { x, y, width, height } = grip.parentElement.getBoundingClientRect();
         return { x, y, width, height };
       });
-      const tabBox = async (page) => tab(page).boundingBox();
+      const tabBox = (page) => tab(page).boundingBox();
       const windowOf = (page) => page.evaluate(() => ({ width: document.documentElement.clientWidth, height: document.documentElement.clientHeight }));
       // A drag of the bar by its status, by `dx` and `dy`, with a mouse, which stops at the
       // window's edges, as it does in a window as wide as the screen.
