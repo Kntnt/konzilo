@@ -6,6 +6,8 @@ import { createHash } from 'node:crypto';
 import { createServer, request as httpRequest } from 'node:http';
 import { after, before, beforeEach, describe, test } from 'node:test';
 
+import { JSDOM } from 'jsdom';
+
 import { isLivePreview, isPublicBuild } from '../src/astro/public-site.js';
 import { text } from '../src/catalogues.js';
 import { DRAFT_PATH, HEALTH_PATH, SESSION_PATH, SIGN_IN_PATH, WHERE_PATH } from '../src/cms/preview/paths.js';
@@ -27,6 +29,11 @@ const CHECK_EVERY = 10 * 60 * 1000;
 const SESSION_LIFE = 60 * 60 * 1000;
 // A code that reaches Forgejo while it does not answer.
 const DOWN = 'code-while-down';
+// A page of the site, as the dev server answers it, and what shows that it is there.
+const A_PAGE = '<!doctype html><html lang="en"><head><title>A page</title></head><body><p>a page</p></body></html>';
+const showsThePage = (html) => html.includes('<p>a page</p>');
+// The post the page at /a-page/ is built from, as the runner knows it.
+const A_POST = { kind: 'post', file: 'pages/a-page.md', title: 'A page', status: 'draft', at: null, refusals: [] };
 
 const listen = (server) => new Promise((resolve) => {
   server.listen(0, '127.0.0.1', () => resolve(server.address().port));
@@ -52,10 +59,11 @@ describe('the preview\'s gate', () => {
   let ready;
   let exchanged;
   let removed;
-  // The runner's refreshes, whether one breaks, and the posts it holds refused, by their page.
+  // The runner's refreshes, whether one breaks, and what it knows each page is built from, by
+  // its path, the post at /a-page/ where it is told nothing else.
   let refreshes;
   let refreshFails;
-  let refusedAt;
+  let built;
 
   before(async () => {
     forgejo = createServer(async (incoming, outgoing) => {
@@ -104,6 +112,10 @@ describe('the preview\'s gate', () => {
         outgoing.writeHead(incoming.url === '/gone/' ? 410 : 404);
         return outgoing.end('no such page');
       }
+      if (incoming.url === '/style.css') {
+        outgoing.writeHead(200, { 'Content-Type': 'text/css' });
+        return outgoing.end('p { color: red; }');
+      }
       outgoing.writeHead(200, {
         'Content-Type': 'text/html',
         'X-Frame-Options': 'SAMEORIGIN',
@@ -112,7 +124,7 @@ describe('the preview\'s gate', () => {
         'Set-Cookie': 'theirs=1',
         'X-Site': 'kept',
       });
-      return outgoing.end('a page');
+      return outgoing.end(A_PAGE);
     });
     inner.on('upgrade', (incoming, socket) => {
       asked.push({ url: incoming.url, method: 'UPGRADE', headers: incoming.headers });
@@ -141,7 +153,7 @@ describe('the preview\'s gate', () => {
           refreshes += 1;
           if (refreshFails) throw new Error('the run broke');
         },
-        at: (path) => refusedAt[path] ?? (path === '/a-page/' ? { file: 'pages/a-page.md', title: 'A page', refusals: [] } : null),
+        at: (path) => (Object.hasOwn(built, path) ? built[path] : path === '/a-page/' ? A_POST : null),
       },
       dev: {
         port: innerPort,
@@ -178,7 +190,7 @@ describe('the preview\'s gate', () => {
     removed = false;
     refreshes = 0;
     refreshFails = false;
-    refusedAt = {};
+    built = {};
   });
 
   const session = (authorization = WRITER, from = ADMIN) => fetch(`${origin}${SESSION_PATH}`, { method: 'POST', headers: { origin: from, authorization } });
@@ -261,7 +273,7 @@ describe('the preview\'s gate', () => {
       assert.match(back.headers.getSetCookie().find((one) => one.startsWith('a_preview_sign_in_')), /Max-Age=0/);
       const shown = await visit('/a-page/?x=1', held);
       assert.equal(shown.status, 200);
-      assert.equal(await shown.text(), 'a page');
+      assert.ok(showsThePage(await shown.text()));
 
       // The code was exchanged by the gate itself, with the verifier its challenge was made from.
       assert.equal(exchanged.length, 1);
@@ -285,7 +297,7 @@ describe('the preview\'s gate', () => {
       assert.match(held, /^a_preview=[\w-]{43}$/);
       const shown = await visit('/a-page/?x=1', held);
       assert.equal(shown.status, 200);
-      assert.equal(await shown.text(), 'a page');
+      assert.ok(showsThePage(await shown.text()));
       assert.equal((await visit('/a-page/', held, { 'sec-fetch-dest': 'image' })).status, 200, 'and what the page asks for itself');
     });
 
@@ -426,7 +438,7 @@ describe('the preview\'s gate', () => {
       ready = true;
       const shown = await visit('/a-page/', held);
       assert.equal(shown.status, 200);
-      assert.equal(await shown.text(), 'a page');
+      assert.ok(showsThePage(await shown.text()));
     });
 
     test('says so when the preview did not start, and starts it anew at the next try', async () => {
@@ -465,7 +477,7 @@ describe('the preview\'s gate', () => {
       for (const dest of ['iframe', 'image']) {
         const answer = await visit('/a-page/', cookie, { 'sec-fetch-dest': dest });
         assert.equal(answer.status, 200, dest);
-        assert.equal(await answer.text(), 'a page');
+        assert.equal(await answer.text(), A_PAGE);
       }
     });
 
@@ -489,7 +501,10 @@ describe('the preview\'s gate', () => {
 
     // A saved post the intake refuses, as the runner holds it at the page it would have.
     const broken = {
+      kind: 'post',
       file: 'pages/broken.md',
+      status: 'draft',
+      at: null,
       title: 'A <b>bold</b> title',
       refusals: [
         { field: { name: 'title', label: { en: 'Title', sv: 'Titel' } }, name: 'refusal.title-markup', values: {}, reason: 'the site cannot publish a title holding HTML; write it as plain text' },
@@ -500,7 +515,7 @@ describe('the preview\'s gate', () => {
     test('names a saved post\'s refusal where its page would be, in the interface language, and shows nothing of the site there', async () => {
       const { back } = await signInAs('/', 'code-writer');
       const held = pairOf(back, 'a_preview=');
-      refusedAt['/pages/broken/'] = broken;
+      built['/pages/broken/'] = broken;
       asked = [];
       const shown = await visit('/pages/broken/?x=1', held);
       assert.equal(shown.status, 200);
@@ -513,17 +528,18 @@ describe('the preview\'s gate', () => {
       assert.ok(page.includes(text('sv', 'previewTab.postRefused', { title: 'A &#60;b&#62;bold&#60;/b&#62; title' })), page);
       assert.ok(page.includes(`<li>${text('sv', 'about.field', { field: 'Titel' })}: ${text('sv', 'refusal.title-markup')}</li>`), page);
       assert.ok(page.includes(`<li>${text('sv', 'about.block', { path: '2', name: 'list' })}: words of the site&#39;s own check</li>`), page);
-      assert.doesNotMatch(page, /<script|<b>/);
+      // Nothing runs there but the toolbar, which is the gate's own.
+      assert.doesNotMatch(page.replace(/<script>\(function previewToolbar\([\s\S]*?<\/script>/, ''), /<script|<b>/);
       assert.deepEqual(asked.map(({ url }) => url), [], 'the dev server is asked nothing');
       assert.equal(refreshes, 1, 'what is saved is read first');
     });
 
     test('lets a frame show the last good page at a refused post\'s address, which its pane names the refusal above', async () => {
       await signedIn();
-      refusedAt['/pages/broken/'] = broken;
+      built['/pages/broken/'] = broken;
       const shown = await visit('/pages/broken/', cookie, { 'sec-fetch-dest': 'iframe' });
       assert.equal(shown.status, 200);
-      assert.equal(await shown.text(), 'a page');
+      assert.equal(await shown.text(), A_PAGE);
     });
 
     test('reads what is saved before each page asked for in a tab, and shows what it has where that breaks', async () => {
@@ -537,13 +553,121 @@ describe('the preview\'s gate', () => {
       refreshFails = true;
       const shown = await visit('/a-page/', held);
       assert.equal(shown.status, 200);
-      assert.equal(await shown.text(), 'a page');
+      assert.ok(showsThePage(await shown.text()));
     });
 
     test('lets someone already signed in to Forgejo in without a word, starting the preview on the way', async () => {
       const { back } = await signInAs('/', 'code-writer');
       assert.equal(back.status, 303);
       assert.equal(starts, 1);
+    });
+  });
+
+  // The toolbar on every page in a tab of its own: what the page is built from, and, for someone
+  // who may write, the way to its form on the admin host (ADR 0032). The page is run here as a
+  // browser runs it, scripts and all.
+  describe('the toolbar in a tab of its own', () => {
+    const shownText = (node) => [...node.childNodes].map((child) => (child.nodeType === 3 ? child.data : child.hidden ? '' : shownText(child))).join('');
+    const toolbarIn = async (answer, path) => {
+      const { window } = new JSDOM(await answer.text(), { url: `${PREVIEW}${path}`, runScripts: 'dangerously' });
+      const hosts = window.document.querySelectorAll('konzilo-preview-toolbar');
+      if (hosts.length === 0) return null;
+      assert.equal(hosts.length, 1);
+      const region = hosts[0].shadowRoot.querySelector('[role="region"]');
+      return {
+        window,
+        name: region.getAttribute('aria-label'),
+        lang: region.lang,
+        says: shownText(region).replace(/\s+/g, ' ').trim(),
+        links: [...region.querySelectorAll('a')].map((link) => ({ name: link.textContent.trim(), href: link.href })),
+      };
+    };
+    const as = async (code) => pairOf((await signInAs('/', code)).back, 'a_preview=');
+
+    test('says on a post\'s page its status, in the interface language, and leads someone who may write to its form on the admin host', async () => {
+      const held = await as('code-writer');
+      const shown = await visit('/a-page/', held);
+      assert.equal(shown.status, 200);
+      const toolbar = await toolbarIn(shown, '/a-page/');
+      assert.equal(toolbar.name, text('sv', 'previewTab.toolbar.label'));
+      assert.equal(toolbar.lang, 'sv');
+      assert.ok(toolbar.says.startsWith(text('sv', 'previewTab.toolbar.draft')), toolbar.says);
+      assert.deepEqual(toolbar.links, [{ name: text('sv', 'previewTab.toolbar.editPost'), href: `${ADMIN}/#/collections/pages/entries/a-page` }]);
+      assert.ok(showsThePage(toolbar.window.document.body.outerHTML), 'and the page');
+    });
+
+    test('says a published post is, and when a scheduled post goes live, in UTC, as its form holds the moment', async () => {
+      const held = await as('code-writer');
+      built['/live/'] = { ...A_POST, file: 'articles/sv/aaaaaaaaaaaa.md', status: 'published' };
+      built['/ahead/'] = { ...A_POST, status: 'scheduled', at: '2026-12-24T09:00:00Z' };
+      const live = await toolbarIn(await visit('/live/', held), '/live/');
+      assert.ok(live.says.startsWith(text('sv', 'previewTab.toolbar.published')), live.says);
+      assert.equal(live.links[0].href, `${ADMIN}/#/collections/articles/entries/aaaaaaaaaaaa`, 'a translation\'s entry is its ID\'s');
+      const ahead = await toolbarIn(await visit('/ahead/', held), '/ahead/');
+      assert.ok(ahead.says.startsWith(text('sv', 'previewTab.toolbar.scheduled', { moment: '24 december 2026 kl. 09:00 UTC' })), ahead.says);
+    });
+
+    test('leads from a term\'s page to the term, and from a page of many posts or of settings to the editor\'s start, which it says is not edited in one place', async () => {
+      const held = await as('code-writer');
+      built['/topics/harbours/'] = { kind: 'term', file: 'topics/tttttttttttt.json', title: 'Hamnar', refusals: [] };
+      const term = await toolbarIn(await visit('/topics/harbours/', held), '/topics/harbours/');
+      assert.ok(term.says.startsWith(text('sv', 'previewTab.toolbar.term', { name: 'Hamnar' })), term.says);
+      assert.deepEqual(term.links, [{ name: text('sv', 'previewTab.toolbar.editTerm'), href: `${ADMIN}/#/collections/topics/entries/tttttttttttt` }]);
+      const many = await toolbarIn(await visit('/', held), '/');
+      assert.ok(many.says.startsWith(text('sv', 'previewTab.toolbar.many')), many.says);
+      assert.deepEqual(many.links, [{ name: text('sv', 'previewTab.toolbar.editor'), href: `${ADMIN}/` }]);
+    });
+
+    test('shows a Reviewer, who may not write, what the page is and no link', async () => {
+      const held = await as('code-reviewer');
+      built['/topics/harbours/'] = { kind: 'term', file: 'topics/tttttttttttt.json', title: 'Hamnar', refusals: [] };
+      for (const path of ['/a-page/', '/topics/harbours/', '/']) {
+        const toolbar = await toolbarIn(await visit(path, held), path);
+        assert.ok(toolbar, path);
+        assert.notEqual(toolbar.says, '', path);
+        assert.deepEqual(toolbar.links, [], path);
+      }
+      const toolbar = await toolbarIn(await visit('/a-page/', held), '/a-page/');
+      assert.ok(toolbar.says.startsWith(text('sv', 'previewTab.toolbar.draft')), toolbar.says);
+    });
+
+    test('is in no frame, in nothing a page asks for itself, and in nothing but a page', async () => {
+      const held = await as('code-writer');
+      for (const dest of ['iframe', 'image', 'script', 'empty']) {
+        const answer = await visit('/a-page/', held, { 'sec-fetch-dest': dest });
+        assert.equal(answer.status, 200, dest);
+        assert.equal(await answer.text(), A_PAGE, dest);
+      }
+      const style = await visit('/style.css', held);
+      assert.equal(await style.text(), 'p { color: red; }');
+      assert.equal(await toolbarIn(await visit('/missing/', held), '/missing/'), null, 'an answer with no HTML');
+    });
+
+    test('asks the dev server for the whole page, unpacked and anew, and says how long it is with the toolbar', async () => {
+      const held = await as('code-writer');
+      asked = [];
+      const answer = await visit('/a-page/', held, { 'accept-encoding': 'gzip, br', 'if-none-match': '"x"', 'if-modified-since': 'Tue, 03 Nov 2026 12:00:00 GMT' });
+      const { headers } = asked.at(-1);
+      for (const name of ['accept-encoding', 'if-none-match', 'if-modified-since']) assert.equal(headers[name], undefined, name);
+      const body = Buffer.from(await answer.arrayBuffer());
+      const length = answer.headers.get('content-length');
+      if (length !== null) assert.equal(Number(length), body.length);
+      assert.ok(body.toString('utf8').endsWith('</body></html>'), 'the toolbar is in the body');
+    });
+
+    test('shows on the page that names a saved post\'s refusal, its one script allowed by its hash, with the way to the post\'s form', async () => {
+      const held = await as('code-writer');
+      built['/pages/broken/'] = { kind: 'post', file: 'pages/broken.md', title: 'Broken', status: 'draft', at: null, refusals: [{ field: null, reason: 'words of the site\'s own check' }] };
+      const shown = await visit('/pages/broken/', held);
+      const policy = shown.headers.get('content-security-policy');
+      const html = await shown.clone().text();
+      const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(([, code]) => code);
+      assert.equal(scripts.length, 1);
+      assert.ok(policy.includes(`script-src 'sha256-${createHash('sha256').update(scripts[0]).digest('base64')}'`), policy);
+      assert.match(policy, /^default-src 'none'; /);
+      const toolbar = await toolbarIn(shown, '/pages/broken/');
+      assert.ok(toolbar.says.startsWith(text('sv', 'previewTab.toolbar.draft')), toolbar.says);
+      assert.deepEqual(toolbar.links, [{ name: text('sv', 'previewTab.toolbar.editPost'), href: `${ADMIN}/#/collections/pages/entries/broken` }]);
     });
   });
 
@@ -623,7 +747,7 @@ describe('the preview\'s gate', () => {
   test('passes the dev server\'s own headers on, but none it must not decide', async () => {
     await signedIn();
     const answer = await fetch(`${origin}/`, { headers: { cookie } });
-    assert.equal(await answer.text(), 'a page');
+    assert.equal(await answer.text(), A_PAGE);
     assert.equal(answer.headers.get('x-site'), 'kept');
     assert.equal(answer.headers.get('set-cookie'), null);
   });
@@ -695,7 +819,7 @@ describe('the preview\'s gate', () => {
       await signedIn();
       const answer = await asked_as('/a-page/', 'iframe');
       assert.equal(answer.status, 200);
-      assert.equal(await answer.text(), 'a page');
+      assert.equal(await answer.text(), A_PAGE);
     });
 
     test('is the only one kept from a redirect: a tab and a page\'s own requests follow theirs', async () => {

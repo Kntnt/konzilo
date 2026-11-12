@@ -1,8 +1,8 @@
 // The preview's own pages, which its gate shows in a tab of its own in place of the site's: a
 // person refused, a sign-in that did not complete, the preview starting or not, and a saved post
 // the site cannot publish. Each is a heading and a sentence in the interface language, with at
-// most a link to try again or a list of what to change, and holds nothing of the site, no script
-// and nothing loaded from elsewhere (ADR 0032).
+// most a link to try again or a list of what to change, and holds nothing of the site, nothing
+// loaded from elsewhere and no script but the preview's toolbar, where it is given (ADR 0032).
 
 import { interfaceLanguageTag, text } from '../catalogues.js';
 import { placeIn, reasonIn } from '../refusals.js';
@@ -34,8 +34,9 @@ export function refusalIn(language, refusal) {
 
 // The page `page` (one of TAB_PAGES) in `language`, its sentence filled from `values`, with a
 // link to `again` where it is given, and a list of `items`, each a text, where they are given,
-// which loads itself again every `refresh` seconds where that is given.
-export function tabPage(page, language, { again = null, refresh = null, values = {}, items = [] } = {}) {
+// which loads itself again every `refresh` seconds where that is given, and runs `script`, the
+// toolbar's, last in its body, where that is given.
+export function tabPage(page, language, { again = null, refresh = null, values = {}, items = [], script = null } = {}) {
   const title = text(language, page.title);
   return `<!doctype html>
 <html lang="${escaped(interfaceLanguageTag(language))}">
@@ -56,7 +57,7 @@ h1 { font-size: 1.375rem; margin: 0 0 0.5rem; }
 <h1>${escaped(title)}</h1>
 <p>${escaped(text(language, page.says, values))}</p>
 ${items.length === 0 ? '' : `<ul>\n${items.map((item) => `<li>${escaped(item)}</li>\n`).join('')}</ul>\n`}${again === null ? '' : `<p><a href="${escaped(again)}">${escaped(text(language, 'previewTab.tryAgain'))}</a></p>\n`}</main>
-</body>
+${script === null ? '' : `<script>${script}</script>\n`}</body>
 </html>
 `;
 }
