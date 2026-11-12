@@ -3,9 +3,10 @@
 // in the site's build, as the site's user. The checks are one function with no input or
 // output of its own (src/intake/index.js); this is what reads and writes for it.
 //
-//   konzilo-intake <checkout> (--admins <file> --pushers <file> | --no-roles) [--site <folder>] [--content <folder>] [--confirm <code>]
+//   konzilo-intake <checkout> (--admins <file> --reviewers <file> --pushers <file> | --no-roles) [--site <folder>] [--content <folder>] [--confirm <code>]
 //
 // --admins    a JSON list of the accounts that are Admins
+// --reviewers a JSON list of the accounts that are Reviewers, who change nothing
 // --pushers   a JSON object giving, by each commit, the account that pushed it, as the host
 //             recorded it, since what a commit says of its author anyone can write
 // --no-roles  hold nothing to a role, as in a developer's own checkout: said out loud,
@@ -32,20 +33,20 @@ import { deletion, intake } from '../src/intake/index.js';
 import { readSiteDescription, SITE_DESCRIPTION_FILE } from '../src/site-description.js';
 
 const usage = () => {
-  console.error('usage: konzilo-intake <checkout> (--admins <file> --pushers <file> | --no-roles) [--site <folder>] [--content <folder>] [--confirm <code>]');
+  console.error('usage: konzilo-intake <checkout> (--admins <file> --reviewers <file> --pushers <file> | --no-roles) [--site <folder>] [--content <folder>] [--confirm <code>]');
   process.exit(2);
 };
 
 let parsed;
 try {
-  parsed = parseArgs({ allowPositionals: true, options: { site: { type: 'string' }, content: { type: 'string' }, confirm: { type: 'string' }, admins: { type: 'string' }, pushers: { type: 'string' }, 'no-roles': { type: 'boolean' } } });
+  parsed = parseArgs({ allowPositionals: true, options: { site: { type: 'string' }, content: { type: 'string' }, confirm: { type: 'string' }, admins: { type: 'string' }, reviewers: { type: 'string' }, pushers: { type: 'string' }, 'no-roles': { type: 'boolean' } } });
 } catch {
   usage();
 }
 const [given] = parsed.positionals;
 if (!given || parsed.positionals.length > 1) usage();
 if (Boolean(parsed.values.admins) === Boolean(parsed.values['no-roles'])) usage();
-if (Boolean(parsed.values.admins) !== Boolean(parsed.values.pushers)) usage();
+if (Boolean(parsed.values.admins) !== Boolean(parsed.values.pushers) || Boolean(parsed.values.admins) !== Boolean(parsed.values.reviewers)) usage();
 
 const checkout = resolve(given);
 const siteFolder = resolve(parsed.values.site ?? '.');
@@ -54,8 +55,9 @@ const content = resolve(parsed.values.content ?? process.env.KONZILO_CONTENT ?? 
 // Who last changed each of the paths: Git's log, newest first, and the first time a
 // path is named is the last time it changed. Without renames, or moving a file away would
 // name only where it went. A shallow clone would blame its one commit for every file, so
-// it stops the check. A commit no one is known to have pushed is no Admin's.
-function lastChanges(admins, pushers) {
+// it stops the check. A commit no one is known to have pushed is no Admin's, and no
+// Reviewer's. A Reviewer is one whatever else their account is (ADR 0008).
+function lastChanges(admins, reviewers, pushers) {
   const shallow = execFileSync('git', ['rev-parse', '--is-shallow-repository'], { cwd: checkout, encoding: 'utf8' }).trim();
   if (shallow !== 'false') throw new Error('a shallow clone cannot say who last changed a file; give the intake the whole history');
   const log = execFileSync('git', ['log', '--no-renames', '--format=%x00%H', '--name-only'], { cwd: checkout, encoding: 'utf8', maxBuffer: 1024 * 1024 * 256 });
@@ -64,7 +66,9 @@ function lastChanges(admins, pushers) {
     const [hash, ...paths] = commit.split('\n');
     const by = Object.hasOwn(pushers, hash) ? pushers[hash] : null;
     for (const path of paths) {
-      if (path !== '' && !Object.hasOwn(changes, path)) changes[path] = { by, admin: by !== null && admins.includes(by) };
+      if (path === '' || Object.hasOwn(changes, path)) continue;
+      const reviewer = by !== null && reviewers.includes(by);
+      changes[path] = { by, admin: !reviewer && by !== null && admins.includes(by), reviewer };
     }
   }
   return changes;
@@ -83,7 +87,7 @@ try {
   const images = await imagesFrom(namedOriginals(originals, files), masters);
   const ledgerFile = join(content, POST_IDS_FILE);
   const ledger = existsSync(ledgerFile) ? JSON.parse(readFileSync(ledgerFile, 'utf8')) : null;
-  const changes = parsed.values.admins ? lastChanges(readJson(parsed.values.admins), readJson(parsed.values.pushers)) : {};
+  const changes = parsed.values.admins ? lastChanges(readJson(parsed.values.admins), readJson(parsed.values.reviewers), readJson(parsed.values.pushers)) : {};
   const adminHost = process.env.KONZILO_ADMIN_ORIGIN ? new URL(process.env.KONZILO_ADMIN_ORIGIN).hostname : null;
 
   const components = await componentChecksOf(site, siteFolder);

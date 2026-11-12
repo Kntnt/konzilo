@@ -1,6 +1,6 @@
-// What the role check goes by, asked of Forgejo at each build: who the Admins are, and who
-// pushed each commit (ADR 0008). What it has learned of old commits it keeps, since a commit's
-// pusher never changes, and it asks only for what has happened since.
+// What the role check goes by, asked of Forgejo at each build: who the Admins and the Reviewers
+// are, and who pushed each commit (ADR 0008). What it has learned of old commits it keeps, since
+// a commit's pusher never changes, and it asks only for what has happened since.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -8,11 +8,13 @@ import { dirname, join } from 'node:path';
 import { addPushers, eventsAfter } from './pushers.js';
 
 const PAGE = 50;
-// The organisation's team of Admins (ADR 0008).
+// The organisation's teams of Admins and of Reviewers (ADR 0008).
 export const ADMINS_TEAM = 'admins';
+const REVIEWERS_TEAM = 'reviewers';
 
 // `token`: a credential that may read the organisation's teams and every account's pushes.
-// `instance`: the account the core itself pushes with, which counts as an Admin. `folder`: where
+// `instance`: the account the core itself pushes with, which counts as an Admin and is never a
+// Reviewer. `folder`: where
 // it keeps what it has learned. `settled`: how long it may wait for a new commit to show in the
 // feed, which Forgejo writes a moment after the push.
 export function forgejoRoles({ forgejo, repository, token, instance, folder, sleep = (ms) => new Promise((go) => setTimeout(go, ms)), settled = 15_000, step = 500, get = fetch }) {
@@ -24,10 +26,10 @@ export function forgejoRoles({ forgejo, repository, token, instance, folder, sle
   const known = join(folder, 'pushers-known.json');
   const organisation = repository.split('/')[0];
 
-  const admins = async () => {
-    const teams = await asked(`/orgs/${organisation}/teams?limit=${PAGE}`);
-    const team = teams.find(({ name }) => name === ADMINS_TEAM);
-    const logins = [instance];
+  // The members of the organisation's team `name`, none where it has no such team.
+  const membersOf = async (teams, name) => {
+    const team = teams.find((one) => one.name === name);
+    const logins = [];
     for (let page = 1; team; page += 1) {
       const members = await asked(`/teams/${team.id}/members?limit=${PAGE}&page=${page}`);
       logins.push(...members.map(({ login }) => login));
@@ -43,9 +45,9 @@ export function forgejoRoles({ forgejo, repository, token, instance, folder, sle
   };
 
   return {
-    // Writes the list of Admins and who pushed what where the intake reads them, and gives
-    // those files. `awaited`: the commits that are new, for which it waits a moment. A commit
-    // that never shows stays unknown, and so is no Admin's.
+    // Writes the lists of Admins and Reviewers and who pushed what where the intake reads them,
+    // and gives those files. `awaited`: the commits that are new, for which it waits a moment. A
+    // commit that never shows stays unknown, and so is no Admin's, and no Reviewer's either.
     async read({ source, awaited }) {
       mkdirSync(folder, { recursive: true });
       const held = existsSync(known) ? JSON.parse(readFileSync(known, 'utf8')) : { last: 0, commits: {} };
@@ -55,9 +57,11 @@ export function forgejoRoles({ forgejo, repository, token, instance, folder, sle
         await learn(held, source.commitsOf);
       }
       writeFileSync(known, JSON.stringify(held));
-      const files = { admins: join(folder, 'admins.json'), pushers: join(folder, 'pushers.json') };
+      const files = { admins: join(folder, 'admins.json'), reviewers: join(folder, 'reviewers.json'), pushers: join(folder, 'pushers.json') };
       mkdirSync(dirname(files.admins), { recursive: true });
-      writeFileSync(files.admins, JSON.stringify(await admins()));
+      const teams = await asked(`/orgs/${organisation}/teams?limit=${PAGE}`);
+      writeFileSync(files.admins, JSON.stringify([instance, ...await membersOf(teams, ADMINS_TEAM)]));
+      writeFileSync(files.reviewers, JSON.stringify((await membersOf(teams, REVIEWERS_TEAM)).filter((login) => login !== instance)));
       writeFileSync(files.pushers, JSON.stringify(held.commits));
       return files;
     },

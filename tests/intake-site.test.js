@@ -684,6 +684,89 @@ describe('what is an Admin\'s alone', () => {
   });
 });
 
+// A Reviewer reads the site and changes nothing in it (ADR 0008): Forgejo refuses their push,
+// and whatever reaches the source by them all the same is refused, file by file, whatever its kind.
+describe('what a Reviewer changes', () => {
+  const reviewer = { by: 'reviewer@example.com', admin: false, reviewer: true };
+  const editor = { by: 'editor@example.com', admin: false };
+  const one = { 'articles/aaaaaaaaaaaa.md': article() };
+  const theirs = (result) => result.refusals.filter((refusal) => refusal.name === 'refusal.reviewer');
+
+  test('a post a Reviewer changed keeps its last published version, until an Editor changes it', () => {
+    const first = run(one, site);
+    const changed = { 'articles/aaaaaaaaaaaa.md': article({}, 'Changed.') };
+    const second = run(changed, site, { ledger: first.ledger, changes: { 'articles/aaaaaaaaaaaa.md': reviewer } });
+    assert.equal(second.refusals.length, 1);
+    assert.equal(theirs(second)[0].post.id, 'aaaaaaaaaaaa');
+    assert.equal(theirs(second)[0].reason, 'reviewer@example.com is a Reviewer, who reads the site and changes nothing in it, so nothing of the change to articles/aaaaaaaaaaaa.md is published; ask an Editor or an Admin to make it');
+    assert.equal(written(second)['articles/an-article.md'], undefined);
+    assert.deepEqual(second.keep, ['articles/an-article.md']);
+    const third = run(changed, site, { ledger: second.ledger, changes: { 'articles/aaaaaaaaaaaa.md': editor } });
+    assert.deepEqual(third.refusals, []);
+    assert.match(written(third)['articles/an-article.md'], /Changed\./);
+  });
+
+  test('a post a Reviewer left as it was published is no change', () => {
+    const first = run(one, site);
+    assert.deepEqual(run(one, site, { ledger: first.ledger, changes: { 'articles/aaaaaaaaaaaa.md': reviewer } }).refusals, []);
+  });
+
+  test('a post a Reviewer set to draft, or deleted, stays on the site', () => {
+    const first = run(one, site);
+    const drafted = run({ 'articles/aaaaaaaaaaaa.md': article({ status: 'draft' }) }, site, { ledger: first.ledger, changes: { 'articles/aaaaaaaaaaaa.md': reviewer } });
+    assert.equal(theirs(drafted).length, 1);
+    assert.deepEqual(drafted.keep, ['articles/an-article.md']);
+    const deleted = run({}, site, { ledger: first.ledger, changes: { 'articles/aaaaaaaaaaaa.md': reviewer } });
+    assert.equal(theirs(deleted)[0]?.post.id, 'aaaaaaaaaaaa');
+    assert.deepEqual(deleted.keep, ['articles/an-article.md']);
+    assert.ok(deleted.ledger.posts.aaaaaaaaaaaa.path, 'the ledger holds on to its file');
+    assert.equal(deletion(['articles/an-article.md'], deleted).paths.length, 0);
+  });
+
+  test('a post a Reviewer wrote is not published, nor a draft of theirs taken', () => {
+    const result = run({
+      ...one,
+      'articles/bbbbbbbbbbbb.md': article({ slug: 'theirs' }),
+      'articles/cccccccccccc.md': article({ slug: 'a-draft', status: 'draft' }),
+    }, site, { changes: { 'articles/bbbbbbbbbbbb.md': reviewer, 'articles/cccccccccccc.md': reviewer } });
+    assert.deepEqual(theirs(result).map((refusal) => refusal.post.id), ['bbbbbbbbbbbb', 'cccccccccccc']);
+    assert.equal(written(result)['articles/theirs.md'], undefined);
+    assert.ok(written(result)['articles/an-article.md'], 'and everyone else\'s goes');
+  });
+
+  test('a term a Reviewer changed holds back the posts that use it', () => {
+    const files = { 'articles/aaaaaaaaaaaa.md': article({ tags: ['tagtagtagtag'] }), 'tags/tagtagtagtag.json': { name: 'A tag' } };
+    const first = run(files, site);
+    const second = run({ ...files, 'tags/tagtagtagtag.json': { name: 'Renamed' } }, site, { ledger: first.ledger, changes: { 'tags/tagtagtagtag.json': reviewer } });
+    assert.equal(theirs(second)[0]?.post.id, 'aaaaaaaaaaaa');
+    assert.match(theirs(second)[0].reason, /the change to tags\/tagtagtagtag\.json/);
+    assert.equal(written(second)['tags/renamed.json'], undefined);
+    assert.deepEqual(second.keep.sort(), ['articles/an-article.md', 'tags/a-tag.json']);
+  });
+
+  test('an image a Reviewer changed holds back the posts that show it', () => {
+    const files = { 'articles/aaaaaaaaaaaa.md': article({ image: { src: '/media/photo-1234567890.jpg', alt: 'A photo' } }) };
+    const first = run(files, site);
+    const second = run(files, site, { ledger: first.ledger, changes: { 'media/photo-1234567890.jpg': reviewer } });
+    assert.equal(theirs(second)[0]?.post.id, 'aaaaaaaaaaaa');
+    assert.match(theirs(second)[0].reason, /the change to media\/photo-1234567890\.jpg/);
+    assert.equal(written(second)['articles/an-article.md'], undefined);
+  });
+
+  for (const [path, contents] of [
+    ['settings.json', { title: 'Mine' }],
+    ['menus/main.json', { items: [] }],
+    ['redirects.json', { rules: [] }],
+    ['services.json', { services: [] }],
+  ]) {
+    test(`${path}: a Reviewer's change is refused in a Reviewer's words, whatever else their account is`, () => {
+      const result = run({ [path]: contents }, site, { changes: { [path]: { ...reviewer, admin: true } } });
+      assert.equal(result.refusals[0].file, path);
+      assert.equal(result.refusals[0].name, 'refusal.reviewer');
+    });
+  }
+});
+
 describe('a site in several languages', () => {
   const several = {
     languages: ['sv_SE', 'en_GB'],

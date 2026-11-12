@@ -29,7 +29,7 @@ const MARKUP = /<\/?[a-zA-Z!?][^<>]*>/;
 // `files`: the source files, each { path, contents }. `site`: the site description, as
 // declared or as checked. `now`: a Date or a function that gives one. `ledger`: the
 // previous `.post-ids.json`, parsed, or null. `changes`: who last changed what, by a
-// source file's path, { by, admin }; a path it does not name is not held to a role.
+// source file's path, { by, admin, reviewer }; a path it does not name is not held to a role.
 // `images(path)`: what an original below `media/` is, as images.js gives it. `adminHost`:
 // the host no link may lead to, or null. `reader`: the Markdown reader, the site's own
 // but in a test of what happens when it breaks. `preview`: the paths of the source files
@@ -52,7 +52,7 @@ export function intake({ files, site: described, now, ledger = null, changes = {
     several: site.languages.length > 1,
     ledger: ledger === null ? emptyLedger() : normalLedger(ledger),
     changes,
-    images,
+    images: heldFromReviewers(images, changes),
     adminHost,
     reader,
     components,
@@ -65,7 +65,7 @@ export function intake({ files, site: described, now, ledger = null, changes = {
   run.refusals.push(...run.source.refusals);
   readTerms(run);
   readAdminFiles(run);
-  holdLegalPagesTaken(run);
+  holdPostsTaken(run);
   run.posts = new Map(run.source.posts.map((post) => [post.key, post]));
   run.postsById = groupBy(run.source.posts, (post) => post.id);
   for (const post of run.source.posts) stateOf(post, run);
@@ -76,12 +76,23 @@ export function intake({ files, site: described, now, ledger = null, changes = {
 
 const PROTECTED = (path) => path === 'settings.json' || path === 'redirects.json' || path === 'services.json' || (path.startsWith('menus/') && path.endsWith('.json'));
 
-// Why a non-Admin's change to one of an Admin's files is refused, or null. A file back
-// at what was last accepted is no change, whoever touched it last.
+// A Reviewer reads the site and changes nothing in it (ADR 0008): the change a Reviewer was the
+// last to make to a source file, whatever its kind, or null.
+const reviewersChange = (run, path) => (run.changes?.[path]?.reviewer === true ? run.changes[path] : null);
+const reviewerReason = (change, path) => say('refusal.reviewer', { by: change.by ?? say('about.someone'), file: path });
+
+// An original a Reviewer changed is none the site takes: the posts and settings that show it are
+// refused, naming it.
+const heldFromReviewers = (images, changes) => (path) => (changes?.[path]?.reviewer === true ? { reason: reviewerReason(changes[path], path) } : images(path));
+
+// Why a Reviewer's or a non-Admin's change to one of an Admin's files is refused, or null. A file
+// back at what was last accepted is no change, whoever touched it last.
 function adminProblem(run, path) {
   const change = run.changes?.[path];
-  if (!change || change.admin !== false) return null;
+  const reviewer = reviewersChange(run, path);
+  if (!change || (change.admin !== false && !reviewer)) return null;
   if (run.source.hashes.get(path) === run.ledger.files[path]) return null;
+  if (reviewer) return reviewerReason(reviewer, path);
   return say('refusal.admin-file', { by: change.by ?? say('about.someone'), file: path });
 }
 
@@ -120,19 +131,29 @@ function legalChangedBy(post, run) {
   return change;
 }
 
-// A legal page on the site whose source file a non-Admin took away is held like any
-// other change of theirs: what it stands on comes from the ledger, as it does for every
-// refused post. An Admin who wants it gone chooses another page first, which frees it.
-function holdLegalPagesTaken(run) {
+// A post's source changed by a Reviewer, which is not back at what was last accepted: the
+// change, or null.
+function reviewersPost(post, run) {
+  const change = reviewersChange(run, post.path);
+  if (!change || post.hash === run.ledger.posts[post.key]?.source) return null;
+  return change;
+}
+
+// A post on the site whose source file a Reviewer took away, or a non-Admin where it is a legal
+// page, is held like any other change of theirs: what it stands on comes from the ledger, as it
+// does for every refused post. An Admin who wants a legal page gone chooses another page
+// first, which frees it.
+function holdPostsTaken(run) {
   const { source, ledger, site } = run;
   const present = new Set(source.posts.map((post) => post.key));
   for (const [key, entry] of Object.entries(ledger.posts)) {
     const id = key.split('/').at(-1);
-    if (!entry.path || present.has(key) || !run.chosen.legalPages.includes(id)) continue;
+    if (!entry.path || present.has(key)) continue;
     const collection = entry.path.split('/')[0];
     const type = Object.values(site.types).find((one) => one.collection === collection);
     const path = `${collection}/${key}.md`;
-    if (!type || run.changes?.[path]?.admin !== false) continue;
+    const legal = run.chosen.legalPages.includes(id) && run.changes?.[path]?.admin === false;
+    if (!type || (!legal && !reviewersChange(run, path))) continue;
     const tag = key.includes('/') ? key.split('/')[0] : null;
     source.posts.push({ key, id, tag, language: tag ? site.languages.find((one) => one.tag === tag) ?? null : site.languages[0] ?? null, type, path, hash: null, fields: {}, body: '', bodyLine: 1, title: entry.title, gone: true });
   }
@@ -144,6 +165,16 @@ function holdLegalPagesTaken(run) {
 function stateOf(post, run) {
   const { status = 'draft' } = post.fields;
   post.on = false;
+  // Nothing a Reviewer changed goes on the site, and nothing they took away leaves it, so this
+  // comes first of all.
+  const reviewer = reviewersPost(post, run);
+  if (reviewer) {
+    post.on = true;
+    post.held = true;
+    post.notFound = run.chosen.notFound === post.id;
+    refuse(run, post, { reason: reviewerReason(reviewer, post.path) });
+    return;
+  }
   if (post.unreadable) {
     post.on = true;
     refuse(run, post, { reason: post.unreadable.reason, line: post.unreadable.line });
@@ -201,7 +232,7 @@ function stateOf(post, run) {
 
 // A post's own problems, what no other post can change.
 function checkPost(post, run) {
-  if (post.unreadable || post.keepsNothing || post.gone) return;
+  if (post.unreadable || post.keepsNothing || post.gone || post.held) return;
   if (post.title === null) refuse(run, post, { field: 'title', reason: say('refusal.title-empty') });
   else if (MARKUP.test(post.title)) refuse(run, post, { field: 'title', reason: say('refusal.title-markup') });
   const slug = slugOf(post);

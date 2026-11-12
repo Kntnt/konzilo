@@ -173,8 +173,8 @@ export function siteBuild({ site, origin, code, source, content, roles, control,
 
 // The intake as a program of its own, so that it can break without taking the builder along.
 export function intakeCommand({ program, siteFolder, contentFolder, environment, command = run }) {
-  return async (checkout, { admins, pushers }, confirmed) => {
-    const args = [program, checkout, '--admins', admins, '--pushers', pushers, '--site', siteFolder, '--content', contentFolder, ...(confirmed ? ['--confirm', confirmed] : [])];
+  return async (checkout, { admins, reviewers, pushers }, confirmed) => {
+    const args = [program, checkout, '--admins', admins, '--reviewers', reviewers, '--pushers', pushers, '--site', siteFolder, '--content', contentFolder, ...(confirmed ? ['--confirm', confirmed] : [])];
     try {
       const { stdout } = await command(process.execPath, args, { env: environment, maxBuffer: BIG });
       return { status: 0, report: JSON.parse(stdout) };

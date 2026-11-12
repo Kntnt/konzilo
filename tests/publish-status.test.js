@@ -145,15 +145,16 @@ describe('who pushed what', () => {
     });
     after(() => rmSync(folder, { recursive: true, force: true }));
 
-    const standIn = (feed) => {
+    const standIn = (feed, reviewers = null) => {
       const seen = [];
       const respond = (body) => ({ ok: true, json: async () => body });
       return {
         seen,
         get: async (url) => {
           seen.push(new URL(url).pathname);
-          if (url.includes('/orgs/')) return respond([{ id: 7, name: 'admins' }, { id: 8, name: 'editors' }]);
+          if (url.includes('/orgs/')) return respond([{ id: 7, name: 'admins' }, { id: 8, name: 'editors' }, ...(reviewers ? [{ id: 9, name: 'reviewers' }] : [])]);
           if (url.includes('/teams/7/members')) return respond([{ login: 'anna' }]);
+          if (url.includes('/teams/9/members')) return respond(reviewers);
           if (url.includes('/activities/feeds')) return respond(new URL(url).searchParams.get('page') === '1' ? feed() : []);
           throw new Error(`nothing to say of ${url}`);
         },
@@ -172,6 +173,13 @@ describe('who pushed what', () => {
       feed.unshift(feedEntry(2, 'anna', 'c2', 'c1'));
       await read(where, { get: forgejo.get });
       assert.deepEqual(JSON.parse(readFileSync(files.pushers, 'utf8')), { c1: 'konzilo', c2: 'anna' });
+    });
+
+    test('writes who the Reviewers are, never the account the core pushes with, and none where the site has no such team', async () => {
+      const files = await read(join(folder, 'reviewers'), { get: standIn(() => [], [{ login: 'rut' }, { login: 'konzilo' }, { login: 'olle' }]).get });
+      assert.deepEqual(JSON.parse(readFileSync(files.reviewers, 'utf8')), ['rut', 'olle']);
+      const none = await read(join(folder, 'no-reviewers'), { get: standIn(() => []).get });
+      assert.deepEqual(JSON.parse(readFileSync(none.reviewers, 'utf8')), []);
     });
 
     test('waits a moment for a new commit, which Forgejo writes down just after the push', async () => {

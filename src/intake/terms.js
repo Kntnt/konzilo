@@ -25,6 +25,9 @@ export function readTerms(run) {
     const name = typeof value?.name === 'string' ? value.name.trim() : '';
     const term = { key, id: first.id, taxonomy: first.taxonomy, name, value, byTag: new Map(group.map((one) => [one.tag, one.value])), problems: [], parentId: null };
     term.label = name || first.id;
+    // A term a Reviewer changed holds back the posts that use it (ADR 0008).
+    const reviewer = group.find((one) => run.changes?.[one.path]?.reviewer === true);
+    if (reviewer) term.problems.push(say('refusal.reviewer', { by: run.changes[reviewer.path].by ?? say('about.someone'), file: reviewer.path }));
     if (group.some((one) => one.refusal)) term.problems.push(group.find((one) => one.refusal).refusal.reason);
     else if (!main && run.several) term.problems.push(say('refusal.term-main', { term: term.label, language: mainTag }));
     else if (name === '') term.problems.push(say('refusal.term-name', { term: first.id }));

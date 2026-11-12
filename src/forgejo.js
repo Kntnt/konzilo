@@ -13,11 +13,19 @@ export const gitEnvironment = ({ user, token, home }) => ({
 // What a browser may send as a credential, and nothing else is passed on to Forgejo.
 export const CREDENTIAL = /^(?:token|Bearer) [\w.~+/=-]+$/;
 
-// Whether Forgejo says that the one holding this credential may write to the repository.
-export async function mayWrite({ forgejo, repository, credential, get = fetch }) {
-  if (!CREDENTIAL.test(credential ?? '')) return false;
+// What Forgejo says the one holding this credential may do with the repository: { reads, writes }.
+// An Admin and an Editor may write to the source repository, a Reviewer may read it alone, and
+// someone in none of the site's teams may do neither, since it is private (ADR 0008).
+export async function accessTo({ forgejo, repository, credential, get = fetch }) {
+  if (!CREDENTIAL.test(credential ?? '')) return { reads: false, writes: false };
   const asked = await get(`${forgejo}/api/v1/repos/${repository}`, { headers: { authorization: credential } });
-  if (!asked.ok) return false;
+  if (!asked.ok) return { reads: false, writes: false };
   const { permissions } = await asked.json();
-  return permissions?.push === true;
+  const writes = permissions?.push === true;
+  return { reads: writes || permissions?.pull === true, writes };
+}
+
+// Whether Forgejo says that the one holding this credential may write to the repository.
+export async function mayWrite(asked) {
+  return (await accessTo(asked)).writes;
 }
