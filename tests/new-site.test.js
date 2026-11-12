@@ -6,12 +6,12 @@
 
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { OWN_DEMO, writeOwnDemoContent } from './lib/demo-content.js';
 
 const core = fileURLToPath(new URL('../', import.meta.url));
@@ -92,7 +92,8 @@ describe('new-site', () => {
     assert.equal(run('git', ['-C', site, 'status', '--porcelain'], folder).stdout, '');
     const pinned = JSON.parse(readFileSync(join(site, 'package.json'), 'utf8'));
     assert.equal(pinned.name, 'lantern');
-    assert.match(pinned.dependencies['@kntnt/konzilo'], /^file:/);
+    assert.equal(pinned.dependencies['@kntnt/konzilo'], `file:${realpathSync(core).replace(/\/$/, '')}`, 'this checkout, by its path');
+    assert.equal(existsSync(join(site, 'vendor')), false, 'no packed core');
     assert.match(pinned.dependencies.astro, /^\d+\.\d+\.\d+$/);
     for (const file of run('git', ['-C', site, 'ls-files'], folder).stdout.trim().split('\n')) {
       assert.doesNotMatch(readFileSync(join(site, file), 'utf8'), /@[A-Z][A-Z0-9_]*@/, file);
@@ -257,5 +258,76 @@ describe('new-site', () => {
         });
       });
     });
+  });
+});
+
+// A site that anyone can install pins a release: new-site fetches the release's package, the
+// tarball `npm pack` makes, into the site's vendor/ and pins it there. A tarball packed from this
+// checkout, in a folder laid out as GitHub lays out a release's files, stands in for the release.
+describe('new-site --release', () => {
+  const { version } = JSON.parse(readFileSync(join(core, 'package.json'), 'utf8'));
+  const release = `v${version}`;
+  const file = `kntnt-konzilo-${version}.tgz`;
+  let folder;
+  let releases;
+  let site;
+  let env;
+
+  before(() => {
+    folder = realpathSync(mkdtempSync(join(tmpdir(), 'konzilo-new-site-release-')));
+    releases = join(folder, 'releases');
+    mkdirSync(join(releases, release), { recursive: true });
+    const packed = run('npm', ['pack', '--pack-destination', join(releases, release)], core);
+    assert.equal(packed.status, 0, packed.stderr);
+    site = join(folder, 'sites', 'beacon');
+    mkdirSync(join(folder, 'sites'));
+    env = { ...environment, KONZILO_RELEASES: pathToFileURL(releases).href };
+  });
+
+  after(() => rmSync(folder, { recursive: true, force: true }));
+
+  test('refuses a release that is no version tag, and makes nothing', () => {
+    const made = run(join(core, 'bin/new-site'), ['--release', version, 'beacon'], join(folder, 'sites'), env);
+    assert.equal(made.status, 2, made.stderr);
+    assert.match(made.stderr, /a release is a tag such as v1\.2\.3/);
+    assert.deepEqual(readdirSync(join(folder, 'sites')), []);
+  });
+
+  test('refuses a release whose package it cannot fetch, and makes nothing', () => {
+    const made = run(join(core, 'bin/new-site'), ['--release', 'v0.0.1', 'beacon'], join(folder, 'sites'), env);
+    assert.equal(made.status, 1, made.stderr);
+    assert.match(made.stderr, /cannot fetch .*v0\.0\.1\/kntnt-konzilo-0\.0\.1\.tgz/);
+    assert.deepEqual(readdirSync(join(folder, 'sites')), []);
+  });
+
+  test('refuses a file that is not the release\'s package, and makes nothing', () => {
+    mkdirSync(join(releases, 'v9.9.9'));
+    copyFileSync(join(releases, release, file), join(releases, 'v9.9.9', 'kntnt-konzilo-9.9.9.tgz'));
+    const made = run(join(core, 'bin/new-site'), ['--release', 'v9.9.9', 'beacon'], join(folder, 'sites'), env);
+    assert.equal(made.status, 1, made.stderr);
+    assert.match(made.stderr, /is not the package of @kntnt\/konzilo 9\.9\.9/);
+    assert.deepEqual(readdirSync(join(folder, 'sites')), []);
+  });
+
+  test('keeps the release\'s package in the site\'s vendor/, pinned by that path and committed', () => {
+    const made = run(join(core, 'bin/new-site'), ['--release', release, 'beacon'], join(folder, 'sites'), env);
+    assert.equal(made.status, 0, made.stderr);
+    assert.deepEqual(readFileSync(join(site, 'vendor', file)), readFileSync(join(releases, release, file)));
+    assert.equal(JSON.parse(readFileSync(join(site, 'package.json'), 'utf8')).dependencies['@kntnt/konzilo'], `file:vendor/${file}`);
+    assert.match(run('git', ['-C', site, 'ls-files'], folder).stdout, new RegExp(`^vendor/${file.replaceAll('.', '\\.')}$`, 'm'));
+    assert.equal(run('git', ['-C', site, 'status', '--porcelain'], folder).stdout, '');
+  });
+
+  test('installs the package with its integrity in the lock, and builds the demo content', () => {
+    const installed = run('npm', ['install', '--no-audit', '--no-fund'], site);
+    assert.equal(installed.status, 0, installed.stderr);
+    const locked = JSON.parse(readFileSync(join(site, 'package-lock.json'), 'utf8')).packages['node_modules/@kntnt/konzilo'];
+    assert.equal(locked.resolved, `file:vendor/${file}`);
+    assert.match(locked.integrity, /^sha512-/);
+    assert.equal(existsSync(join(site, 'node_modules/@kntnt/konzilo/tests')), false, 'the package, not the checkout');
+    const built = run('npm', ['run', 'build'], site);
+    assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
+    assert.match(readFileSync(join(site, 'dist/index.html'), 'utf8'), /The Gentle Garden/);
+    assert.match(readFileSync(join(site, 'dist/quiet-harbours-and-the-lantern/index.html'), 'utf8'), /<h1>Quiet harbours and the lantern<\/h1>/);
   });
 });
