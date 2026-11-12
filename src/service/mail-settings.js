@@ -43,8 +43,14 @@ export function mailSettingsShown({ store, forms, local }) {
   };
 }
 
+// Whether the password kept, `kept`'s, is for the account `smtp` signs in with: the same server,
+// at the same port, and the same username. Carried to another, it would sign in there, and so
+// hand the password to whoever runs it.
+const sameAccount = (smtp, kept) => kept !== null && smtp.host === kept.host && (smtp.port ?? SMTP_UNSET.port) === kept.port && smtp.username === kept.username;
+
 // The SMTP settings as given, each text trimmed, and the password kept where none is given but a
-// username is: { smtp, problems }, the problems by the setting's name, where mail goes by SMTP.
+// username is, for the same account alone: { smtp, problems }, the problems by the setting's
+// name, where mail goes by SMTP, a username's missing password among them.
 function smtpOf(given, kept, checked) {
   const smtp = {
     host: textOf(given.host),
@@ -55,7 +61,7 @@ function smtpOf(given, kept, checked) {
     sender: textOf(given.sender),
   };
   if (smtp.username === '') smtp.password = '';
-  else if (smtp.password === '') smtp.password = kept?.password ?? '';
+  else if (smtp.password === '' && sameAccount(smtp, kept)) smtp.password = kept.password;
   const problems = {};
   for (const [name, value] of Object.entries(smtp)) {
     if (typeof value === 'string' && (value.length > TEXT_AT_MOST || /[\0-\x1f\x7f]/.test(value))) problems[name] = 'malformed';
@@ -67,6 +73,7 @@ function smtpOf(given, kept, checked) {
     if (given.port === undefined || given.port === null || given.port === '') problems.port = 'missing';
     else if (smtp.port === null || smtp.port < 1 || smtp.port > 65535) problems.port = 'not-port';
     if (smtp.username !== '' && smtp.security === 'none') problems.username ??= 'needs-encryption';
+    else if (smtp.username !== '' && smtp.password === '') problems.password = 'missing';
     if (smtp.sender === '') problems.sender = 'missing';
     else if (!isAddress(smtp.sender)) problems.sender ??= 'not-email';
   }

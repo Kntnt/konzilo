@@ -33,6 +33,11 @@ export const readMail = ({ credential, ask = fetching() }) => answered({ method:
 // What an Admin gives, { adapter, smtp, forms: { <form>: { recipients, retention } } }, saved.
 export const saveMail = ({ credential, given, ask = fetching() }) => answered({ method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(given) }, { credential, ask });
 
+// Whether the password the service keeps, by `shown`, the SMTP settings it gave, signs in with
+// `smtp`, as the page's fields hold them: one is kept, and they name the server, the port and the
+// username it was kept for, since the service keeps it for no other.
+export const passwordKeptFor = (smtp, shown) => shown.password === true && smtp.host.trim() === shown.host && smtp.port.trim() === String(shown.port) && smtp.username.trim() === shown.username;
+
 // The addresses an Admin writes, one per line, or apart by commas, semicolons or spaces.
 export const recipientsOf = (written) => written.split(/[\s,;]+/).filter((one) => one !== '');
 export const recipientsText = (recipients) => recipients.join('\n');

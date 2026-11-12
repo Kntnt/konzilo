@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
 import { useInterfaceLanguage } from '../src/cms/interface-language.js';
-import { problemsShown, readMail, recipientsOf, recipientsText, saveMail } from '../src/cms/mail/client.js';
+import { passwordKeptFor, problemsShown, readMail, recipientsOf, recipientsText, saveMail } from '../src/cms/mail/client.js';
 
 const SETTINGS = {
   local: false,
@@ -60,6 +60,19 @@ describe('the recipients', () => {
     assert.deepEqual(recipientsOf(' anna@example.com,bo@example.com\n\ncecilia@example.com; david@example.com  \n'), ['anna@example.com', 'bo@example.com', 'cecilia@example.com', 'david@example.com']);
     assert.deepEqual(recipientsOf('  \n'), []);
     assert.equal(recipientsText(['anna@example.com', 'bo@example.com']), 'anna@example.com\nbo@example.com');
+  });
+});
+
+describe('the password kept', () => {
+  // The service keeps a password for the server, port and username it was given with alone, so the
+  // page says it is kept only while the fields name those.
+  test('is said to be kept while the server, its port and the username are those it was kept for', () => {
+    const shown = { host: 'smtp.example.com', port: 587, security: 'starttls', username: 'site@example.com', password: true, sender: 'site@example.com' };
+    const draft = { host: 'smtp.example.com', port: '587', security: 'tls', username: 'site@example.com', password: '', sender: 'other@example.com' };
+    assert.equal(passwordKeptFor(draft, shown), true);
+    assert.equal(passwordKeptFor({ ...draft, host: ' smtp.example.com ', port: ' 587' }, shown), true);
+    for (const changed of [{ host: 'mail.example.net' }, { port: '465' }, { username: 'other@example.com' }]) assert.equal(passwordKeptFor({ ...draft, ...changed }, shown), false, JSON.stringify(changed));
+    assert.equal(passwordKeptFor(draft, { ...shown, password: false }), false, 'none kept');
   });
 });
 

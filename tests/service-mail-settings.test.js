@@ -164,6 +164,29 @@ describe('the mail settings, for Admins', () => {
     assert.deepEqual(store.setting('mail'), { adapter: 'none', smtp: { ...SMTP, host: '', sender: 'not yet' } });
   });
 
+  // The password kept is for the server and the account it was given for: carried to another, it
+  // would sign in there, and so hand the password to whoever runs it.
+  test('asks for the password again where the server, its port or the username changes, and never sends the one kept elsewhere', async () => {
+    await save({ adapter: 'smtp', smtp: SMTP, forms: {} });
+    for (const changed of [{ host: 'mail.example.net' }, { port: 2525 }, { username: 'other@example.com' }]) {
+      const { status, body } = await save({ adapter: 'smtp', smtp: { ...SMTP, ...changed, password: '' }, forms: {} });
+      assert.deepEqual([status, body], [400, { problems: { 'smtp.password': 'missing' } }], JSON.stringify(changed));
+      assert.deepEqual(store.setting('mail').smtp, SMTP, 'the settings kept stay as they were');
+    }
+    // Given again, it is kept for the new server.
+    assert.equal((await save({ adapter: 'smtp', smtp: { ...SMTP, host: 'mail.example.net', password: 'for the new one' }, forms: {} })).status, 200);
+    assert.equal(store.setting('mail').smtp.password, 'for the new one');
+    // The same server, its encryption changed, keeps it.
+    assert.equal((await save({ adapter: 'smtp', smtp: { ...SMTP, host: 'mail.example.net', port: 587, security: 'starttls', password: '' }, forms: {} })).status, 200);
+    assert.equal(store.setting('mail').smtp.password, 'for the new one');
+    // Turned off, a server changed keeps no password of the one before, for when it is turned on.
+    assert.equal((await save({ adapter: 'none', smtp: { ...SMTP, host: 'smtp.example.org', password: '' }, forms: {} })).status, 200);
+    assert.equal(store.setting('mail').smtp.password, '');
+    assert.equal((await read()).body.smtp.password, false);
+    // A username with no password, and none kept, is no account to sign in with.
+    assert.deepEqual((await save({ adapter: 'smtp', smtp: { ...SMTP, host: 'smtp.example.org', password: '' }, forms: {} })).body, { problems: { 'smtp.password': 'missing' } });
+  });
+
   test('refuses settings it could not send by, naming each problem by its place, and keeps nothing', async () => {
     const { status, body } = await save({
       adapter: 'smtp',
