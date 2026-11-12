@@ -10,6 +10,7 @@
 import { ARTICLE, AUTHORS, BUILT_IN_TYPES, CATEGORY, descriptionLabel, followsParts, keepsOrder, pageTypeOf, TOPICS } from '../format/built-in-types.js';
 import { CANONICAL_PATTERN, publicAddress } from '../format/addresses.js';
 import { IMAGE_LIBRARY_FOLDER } from '../format/masters.js';
+import { DRAFT, POST_STATUSES } from '../format/post-status.js';
 import { declaredNames } from '../site-description.js';
 import { SHARING_SAFE, SHARING_SIZE } from '../format/article-parts.js';
 import { IMAGE_WIDGET } from './image/widget.js';
@@ -419,9 +420,9 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
       name: 'status',
       label: say('status'),
       widget: 'select',
-      default: 'draft',
+      default: DRAFT,
       required: true,
-      options: ['draft', 'scheduled', 'published'].map((value) => ({ value, label: say(value) })),
+      options: POST_STATUSES.map((value) => ({ value, label: say(value) })),
       ...within(SAME_IN_EACH),
     };
     const date = fieldOf('date');

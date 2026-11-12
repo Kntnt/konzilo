@@ -8,12 +8,13 @@
 // is a frame, never on the public site and never in a share link's build.
 
 import { interfaceLanguageTag, text } from '../catalogues.js';
+import { DRAFT, PUBLISHED, SCHEDULED } from '../format/post-status.js';
 
 // A post's status as the toolbar says it, by its text's name.
 const STATUSES = Object.freeze({
-  published: 'previewTab.toolbar.published',
-  draft: 'previewTab.toolbar.draft',
-  scheduled: 'previewTab.toolbar.scheduled',
+  [PUBLISHED]: 'previewTab.toolbar.published',
+  [DRAFT]: 'previewTab.toolbar.draft',
+  [SCHEDULED]: 'previewTab.toolbar.scheduled',
 });
 
 // A scheduled post's moment, in UTC, named, as its form holds it: the site keeps every moment in
@@ -35,8 +36,8 @@ export function toolbarOf({ about, writes, language, adminOrigin }) {
   let link;
   let tone = 'other';
   if (about?.kind === 'post') {
-    tone = Object.hasOwn(STATUSES, about.status) ? about.status : 'draft';
-    const moment = tone === 'scheduled' ? new Date(about.at).toLocaleString(interfaceLanguageTag(language), MOMENT) : '';
+    tone = Object.hasOwn(STATUSES, about.status) ? about.status : DRAFT;
+    const moment = tone === SCHEDULED ? new Date(about.at).toLocaleString(interfaceLanguageTag(language), MOMENT) : '';
     says = text(language, STATUSES[tone], { moment });
     link = { href: entryOf(adminOrigin, about.file), text: text(language, 'previewTab.toolbar.editPost') };
   } else if (about?.kind === 'term') {

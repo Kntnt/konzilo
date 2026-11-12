@@ -6,6 +6,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
+import { DRAFT, PUBLISHED, SCHEDULED } from '../format/post-status.js';
 import { keyOf } from '../format/redirects.js';
 import { POST_IDS_FILE } from '../format/write.js';
 import { walk, writeContent } from '../intake/content-folder.js';
@@ -27,7 +28,7 @@ const shownRefusal = ({ field = null, block, name, values, reason }) => ({ field
 
 // A post's status as a page of the preview shows it: `scheduled` while its moment has not come,
 // whatever it says, and else `published` where it is on its way to the public site by its own.
-const statusOf = ({ status, at }) => (at ? 'scheduled' : status === 'draft' ? 'draft' : 'published');
+const statusOf = ({ status, at }) => (at ? SCHEDULED : status === DRAFT ? DRAFT : PUBLISHED);
 
 // Each page in the preview by its address, as a run left them: a post's, { kind: 'post', file,
 // title, status, at, refusals }, and a term's, { kind: 'term', file, title, refusals }. A refused
@@ -41,7 +42,7 @@ function pagesOf(result) {
   for (const post of posts) {
     const { file, title, state, address, wanted } = post;
     const status = statusOf(post);
-    const about = { kind: 'post', file, title, status, at: status === 'scheduled' ? post.at : null, refusals: state === 'refused' ? (refusals[file] ?? []).map(shownRefusal) : [] };
+    const about = { kind: 'post', file, title, status, at: status === SCHEDULED ? post.at : null, refusals: state === 'refused' ? (refusals[file] ?? []).map(shownRefusal) : [] };
     for (const at of state === 'refused' ? [address, wanted] : state === 'live' ? [address] : []) if (at) pages.set(keyOf(at), about);
   }
   return pages;
