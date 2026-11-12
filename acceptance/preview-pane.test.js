@@ -11,9 +11,9 @@ import { fileURLToPath } from 'node:url';
 
 import { previewLink } from '../src/astro/preview-link.js';
 import { cmsConfig } from '../src/cms/config.js';
-import { PLACE_MESSAGE, SHOW_MESSAGE } from '../src/cms/preview/paths.js';
+import { PLACE_MESSAGE, READY_MESSAGE, SHOW_MESSAGE } from '../src/cms/preview/paths.js';
 import { siteDescription } from '../src/site-description.js';
-import { openNew } from './lib/editor.js';
+import { ENGINES, openNew } from './lib/editor.js';
 import { openFieldPage } from './lib/field-page.js';
 
 const core = fileURLToPath(new URL('../', import.meta.url));
@@ -22,7 +22,7 @@ const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwA
 // A page whose body's blocks are marked as the live preview marks them, with the page's own script
 // for a click on one, as in a page from the dev server.
 const BLOCKS = '<!doctype html><html lang="sv"><head><meta charset="utf-8"><script>'
-  + `(${previewLink})(${JSON.stringify(PLACE_MESSAGE)}, ${JSON.stringify(SHOW_MESSAGE)});`
+  + `(${previewLink})(${JSON.stringify(PLACE_MESSAGE)}, ${JSON.stringify(SHOW_MESSAGE)}, ${JSON.stringify(READY_MESSAGE)});`
   + '</script></head><body><h1>Blocks</h1>'
   + '<p data-konzilo-block="0">Första stycket</p><p data-konzilo-block="1">Andra stycket</p>'
   + '<ul data-konzilo-block="2"><li data-konzilo-block="2.0">Ett</li><li data-konzilo-block="2.1">Två</li></ul>'
@@ -356,3 +356,104 @@ describe('the preview\'s pane, on a site in two languages', () => {
     assert.deepEqual(seen.errors.filter((one) => !/preview/i.test(one)), []);
   });
 });
+
+// Until the preview's page is in the frame, the frame holds an empty document of the editor's own
+// origin, and a message meant for the preview's origin would be refused there, which WebKit and
+// Firefox say in the console. So a block a field shows is asked of the page only once it is there.
+for (const [name, engine] of Object.entries(ENGINES)) {
+  describe(`a block a field shows, in ${name}`, () => {
+    let site;
+    let page;
+    let seen;
+    let answer;
+    let arrived;
+    let arrive;
+
+    before(async () => {
+      const declared = JSON.parse(readFileSync(join(core, 'site-template/files/site-description.json'), 'utf8'));
+      declared.interfaceLanguage = 'en';
+      const config = cmsConfig(siteDescription(declared), { forgejo: 'http://localhost:1', repository: 'a/b', clientId: 'c', site: 'http://localhost:2', preview: PREVIEW });
+      site = await openFieldPage({ engine, config: { ...config, backend: { name: 'test-repo' } } });
+      let context;
+      ({ page, seen, context } = await site.newPage({ viewport: { width: 1600, height: 900 } }));
+      await context.route(`${PREVIEW}/**`, async (route) => {
+        const asked = route.request();
+        const origin = new URL(page.url()).origin;
+        const headers = { 'access-control-allow-origin': origin, 'access-control-allow-credentials': 'true', 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-methods': 'POST' };
+        if (asked.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
+        if (asked.url().endsWith('/session')) return route.fulfill({ status: 200, headers, json: {} });
+        if (asked.url().endsWith('/draft')) return route.fulfill({ status: 200, headers, json: answer });
+        if (asked.url().includes('/where?')) return route.fulfill({ status: 200, headers, json: { status: 200, redirect: null, loop: false } });
+        // The page, once the test lets it arrive, as a dev server's page arrives after a while.
+        await arrived;
+        return route.fulfill({ status: 200, contentType: 'text/html', body: BLOCKS, headers: { 'content-security-policy': `frame-ancestors ${origin}` } });
+      });
+      await page.getByRole('button', { name: 'Work with Test Repository' }).click();
+      await page.getByText('Articles', { exact: true }).first().waitFor();
+      await page.evaluate(() => {
+        const user = JSON.parse(localStorage.getItem('sveltia-cms.user'));
+        localStorage.setItem('sveltia-cms.user', JSON.stringify({ ...user, token: 'a-token' }));
+      });
+    }, { timeout: 120_000 });
+
+    after(() => site?.close());
+
+    beforeEach(() => {
+      arrived = new Promise((resolve) => {
+        arrive = resolve;
+      });
+    });
+
+    // An article whose body has the page's blocks.
+    const openBlocks = async () => {
+      await openNew(page, 'articles');
+      await page.getByRole('textbox', { name: 'Working name' }).first().fill('Block');
+      const field = page.locator('.konzilo-body').first();
+      await field.locator('.konzilo-body-toggle').click();
+      await field.locator('.konzilo-body-source').fill(BLOCKS_BODY);
+      await field.locator('.konzilo-body-toggle').click();
+      return field;
+    };
+
+    // A click in the field while the page is on its way to the frame in `host` asks nothing of the
+    // frame, and once the page is there, a click shows its block in it.
+    const askedOnceThere = async (field, host) => {
+      const errors = seen.errors.length;
+      await host.locator('iframe').waitFor({ state: 'attached' });
+      await field.locator('.ProseMirror p', { hasText: 'Andra stycket' }).click();
+      await page.waitForTimeout(500);
+      assert.deepEqual(seen.errors.slice(errors), [], 'nothing asked of a frame the page has not reached');
+
+      arrive();
+      const shown = host.frameLocator('iframe');
+      await shown.getByText('Första stycket').waitFor();
+      await field.locator('.ProseMirror p', { hasText: 'Första stycket' }).click();
+      await shown.locator('[data-konzilo-block="0"][style*="box-shadow"]').waitFor();
+      assert.deepEqual(seen.errors.slice(errors), []);
+    };
+
+    test('is asked of the page in the pane once it is there, and of nothing before', async () => {
+      answer = { address: '/blocks/', refusals: [] };
+      await askedOnceThere(await openBlocks(), page.frameLocator('iframe.preview'));
+    });
+
+    test('is asked of the page in the window of its own once it is there, and of nothing before', async () => {
+      answer = { address: '/blocks/', refusals: [] };
+      const field = await openBlocks();
+      const view = (words) => page.getByRole('menuitemradio', { name: words });
+      await page.getByRole('button', { name: 'Show Editor Options' }).click();
+      const [popup] = await Promise.all([page.context().waitForEvent('page'), view(/own window/).click()]);
+      // WebKit says a refused message in the console of the window it was meant for.
+      popup.on('console', (message) => {
+        if (message.type() === 'error') seen.errors.push(message.text());
+      });
+      try {
+        await askedOnceThere(field, popup);
+      } finally {
+        await page.getByRole('button', { name: 'Show Editor Options' }).click();
+        await view(/beside/).click();
+        if (!popup.isClosed()) await popup.waitForEvent('close');
+      }
+    });
+  });
+}

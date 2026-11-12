@@ -18,3 +18,6 @@ export const PLACE_EVENT = 'konzilo-preview-place';
 // `path`, the block's place among the body's blocks and within them, and `text`, its text.
 export const SHOW_EVENT = 'konzilo-preview-show';
 export const SHOW_MESSAGE = 'konzilo-preview-show';
+// What a page in the pane says once it is there to be asked to show a block, since until then the
+// frame holds an empty document of the editor's own origin.
+export const READY_MESSAGE = 'konzilo-preview-ready';

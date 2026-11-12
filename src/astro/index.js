@@ -79,7 +79,7 @@
 import { existsSync, mkdirSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { PLACE_MESSAGE, SHOW_MESSAGE, STOPPED_MESSAGE } from '../cms/preview/paths.js';
+import { PLACE_MESSAGE, READY_MESSAGE, SHOW_MESSAGE, STOPPED_MESSAGE } from '../cms/preview/paths.js';
 import { searchPages } from '../format/addresses.js';
 import { declaredProblem, readPostList } from '../format/post-list.js';
 import { british } from '../refusals.js';
@@ -522,7 +522,7 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
         if (isLivePreview()) injectScript('head-inline', `(${previewRedraw})();`);
 
         // A page in the live preview's pane stays there, whatever it tries.
-        if (isLivePreview()) injectScript('head-inline', `(${previewGuard})(${JSON.stringify(STOPPED_MESSAGE)});\n(${previewLink})(${JSON.stringify(PLACE_MESSAGE)}, ${JSON.stringify(SHOW_MESSAGE)});`);
+        if (isLivePreview()) injectScript('head-inline', `(${previewGuard})(${JSON.stringify(STOPPED_MESSAGE)});\n(${previewLink})(${JSON.stringify(PLACE_MESSAGE)}, ${JSON.stringify(SHOW_MESSAGE)}, ${JSON.stringify(READY_MESSAGE)});`);
 
         // Every page loads the body styles.
         if (body !== null) injectScript('page-ssr', pageImports(body));

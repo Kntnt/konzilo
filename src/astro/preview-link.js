@@ -6,11 +6,13 @@
 // as it does on the site. The other way, the pane asks the page to show a block a field shows:
 // the page scrolls to it and marks it, opens the `<details>` it stands in, and tells the design,
 // by the event `konzilo-preview-show` on the block, so that a design's own tab or panel can open
-// too. It is written into the page as it stands, so it holds all it needs, and it is on the live
-// preview's pages alone.
+// too. The page says it is there, once it listens, since the pane asks nothing of a frame that has
+// not said so. It is written into the page as it stands, so it holds all it needs, and it is on the
+// live preview's pages alone.
 
-// `kind`: what the pane knows a click by; `showKind`: what the page knows a block to show by.
-export function previewLink(kind, showKind) {
+// `kind`: what the pane knows a click by; `showKind`: what the page knows a block to show by;
+// `readyKind`: what the pane knows the page to be there by.
+export function previewLink(kind, showKind, readyKind) {
   if (window.parent === window) return;
 
   const BLOCK = '[data-konzilo-block]';
@@ -94,4 +96,5 @@ export function previewLink(kind, showKind) {
     block.style.boxShadow = '0 0 0 3px #2563eb';
     block.scrollIntoView({ block: 'center', behavior: 'instant' });
   });
+  window.parent.postMessage({ type: readyKind }, '*');
 }

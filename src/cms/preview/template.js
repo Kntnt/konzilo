@@ -28,6 +28,12 @@ const STOPPED_WORDS = { link: 'preview.stoppedLink', window: 'preview.stoppedWin
 
 const freshId = () => globalThis.crypto.randomUUID().replaceAll('-', '').slice(0, 12);
 
+// The frames a page of the preview has spoken from, each by its window. Until its page has said
+// it is there, a frame holds an empty document of the editor's own origin, where a message for the
+// preview's origin is refused, which a browser says in its console; and the editor cannot look,
+// since WebKit says that too.
+const spokenFrom = new WeakSet();
+
 // What the pane says of a page kept from leaving: where it would have gone on the public site,
 // and what a visitor would meet there.
 export function stoppedWords({ to, how, where }) {
@@ -63,6 +69,7 @@ export function previewTemplate({ origin, several, credential = signedInCredenti
     React.useEffect(() => {
       const heard = ({ origin: from, source, data }) => {
         if (from !== origin || source !== framed()?.contentWindow) return;
+        spokenFrom.add(source);
         if (data?.type === STOPPED_MESSAGE) client.current.stopped(data);
         // A click on a block of the body, for the field that holds it to frame it: `block`, its
         // place among the body's blocks, and `path`, its place within them.
@@ -73,8 +80,11 @@ export function previewTemplate({ origin, several, credential = signedInCredenti
       };
       paneWindow.addEventListener('message', heard);
       const unheard = previewWindow.heard(heard);
-      // A block a field shows, for the page to show it too.
-      const show = ({ detail }) => framed()?.contentWindow?.postMessage({ type: SHOW_MESSAGE, path: detail.path, text: detail.text ?? '' }, origin);
+      // A block a field shows, for the page to show it too, once the page has said it is there.
+      const show = ({ detail }) => {
+        const page = framed()?.contentWindow;
+        if (spokenFrom.has(page)) page.postMessage({ type: SHOW_MESSAGE, path: detail.path, text: detail.text ?? '' }, origin);
+      };
       globalThis.addEventListener(SHOW_EVENT, show);
       return () => {
         paneWindow.removeEventListener('message', heard);
