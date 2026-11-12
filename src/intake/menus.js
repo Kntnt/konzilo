@@ -1,20 +1,16 @@
 // A menu's published file: each entry leads to a post's or a term's current address, by
 // ID, labelled with its title unless it has its own, or to an address of its own, with a
-// line of description where it has one, one line of plain text. An
-// entry whose target has no page now is left out, with the entries under it, and comes
-// back by itself. A menu the site cannot publish is refused whole, naming each entry by
-// its place, and keeps its last file.
+// line of description where it has one, one line of plain text. An entry whose target has
+// no page now is left out, with the entries under it, and comes back by itself. A menu the
+// site cannot publish is refused whole, naming each entry by its place, and keeps its last
+// file.
 
-import { isObject } from '../checks.js';
+import { isLinkAddress, isObject } from '../checks.js';
 import { MENU_DESCRIPTION_LENGTH } from '../format/menus.js';
 import { say } from './words.js';
 
-const SCHEMES = /^(?:https?:\/\/|mailto:|tel:)/;
-
 // A text holding what reads as HTML.
 const MARKUP = /<\/?[a-zA-Z!?][^<>]*>/;
-
-const validUrl = (url) => typeof url === 'string' && (SCHEMES.test(url) || (url.startsWith('/') && !url.startsWith('//'))) && !/\s/.test(url);
 
 // The entries of a menu as a file writes them: { items, problems, warnings }.
 // `leadsTo(id)` gives { address, title }, { none, words } or { reason }.
@@ -50,7 +46,7 @@ export function menuItems(given, leadsTo) {
         url = target.address;
         title = label || target.title;
       } else if (entry.url) {
-        if (!validUrl(entry.url)) {
+        if (!isLinkAddress(entry.url)) {
           problems.push({ entry: place, reason: say('refusal.menu-url', { url: String(entry.url) }) });
           return;
         }

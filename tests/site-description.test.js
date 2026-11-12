@@ -318,3 +318,41 @@ describe('the settings groups\' texts', () => {
     );
   });
 });
+
+describe('a form field\'s label', () => {
+  const types = { post: { label: 'Post', plural: 'Posts', collection: 'posts', address: '/{slug}/', elements: ['paragraph', 'form'] } };
+  const read = (fields) => siteDescription({ language: 'en_GB', types, forms: { contact: { label: 'Contact us', fields } } }).forms.contact.fields;
+
+  test('may hold links, written as Markdown links, and gives its words without them and its parts with them', () => {
+    const [privacy, reach, name] = read([
+      { name: 'privacy', label: 'I have read the [privacy policy](/privacy-policy/) and the [terms](https://example.com/terms)', kind: 'acceptance' },
+      { name: 'reach', label: 'Reach me [by mail](mailto:hello@example.com) or [phone](tel:+4612345)', kind: 'radio', options: ['Email', 'Phone'] },
+      { name: 'name', label: 'Your *name* [here]', kind: 'text' },
+    ]);
+    assert.equal(privacy.label, 'I have read the privacy policy and the terms');
+    assert.deepEqual(privacy.labelParts, [
+      'I have read the ',
+      { href: '/privacy-policy/', text: 'privacy policy' },
+      ' and the ',
+      { href: 'https://example.com/terms', text: 'terms' },
+    ]);
+    assert.equal(reach.label, 'Reach me by mail or phone');
+    assert.deepEqual(reach.labelParts, ['Reach me ', { href: 'mailto:hello@example.com', text: 'by mail' }, ' or ', { href: 'tel:+4612345', text: 'phone' }]);
+    // Nothing else of Markdown: the rest is words as written.
+    assert.equal(name.label, 'Your *name* [here]');
+    assert.deepEqual(name.labelParts, ['Your *name* [here]']);
+  });
+
+  test('refuses a link to an address a menu\'s entry may not have, and a link without words', () => {
+    for (const [label, problem] of [
+      ['I accept the [policy](javascript:void)', /forms\.contact\.fields\.1\.label: links to "javascript:void", which is no address a link in a label may have: a path of the site's own, such as \/privacy-policy\/, or one that starts with https:\/\/, http:\/\/, mailto: or tel:/],
+      ['I accept the [policy](//elsewhere.example/policy/)', /forms\.contact\.fields\.1\.label: links to "\/\/elsewhere\.example\/policy\/"/],
+      ['I accept the [policy](privacy-policy)', /forms\.contact\.fields\.1\.label: links to "privacy-policy"/],
+      ['I accept the [policy](/privacy policy/)', /forms\.contact\.fields\.1\.label: links to "\/privacy policy\/"/],
+      ['I accept the [policy]()', /forms\.contact\.fields\.1\.label: links to ""/],
+      ['I accept the [ ](/privacy-policy/)', /forms\.contact\.fields\.1\.label: links to \/privacy-policy\/ with no words/],
+    ]) {
+      assert.throws(() => read([{ name: 'privacy', label, kind: 'acceptance' }]), (error) => problem.test(error.message), label);
+    }
+  });
+});

@@ -544,7 +544,7 @@ A directive's name follows `::` for a leaf, a directive with no body, and `:::` 
 
 ### Forms
 
-A form, one of those the site description declares under `forms`, is the leaf directive `::form{name="…"}` alone on its line. Its one attribute, `name`, required, is the form's name; a file that names a form the site description does not declare is refused, naming the form; a post refused so keeps its last file, which the site shows without the form, and the site's build warns of it. What the form asks, its fields, and its texts are not in the file: the site shows the form the site description declares, as its design renders it.
+A form, one of those the site description declares under `forms`, is the leaf directive `::form{name="…"}` alone on its line. Its one attribute, `name`, required, is the form's name; a file that names a form the site description does not declare is refused, naming the form; a post refused so keeps its last file, which the site shows without the form, and the site's build warns of it. What the form asks, its fields, and its texts are not in the file: the site shows the form the site description declares, as its design renders it. A field's label there may hold links, written as Markdown links, `I have read the [privacy policy](/privacy-policy/)`, and nothing else of Markdown, each to an address a menu's entry may have, as *A link's address* says of a body's; the form draws each link, and a submission, its mail and its CSV keep the label's words without them.
 
 ```markdown body
 Write to us, and we answer within a day.

@@ -40,8 +40,8 @@ const forms = {
       { name: 'topic', label: 'Topic', kind: 'select', required: true, options: ['Sales', 'Support'] },
       { name: 'reach', label: 'Reach me by', kind: 'radio', options: ['Email', 'Phone'] },
       { name: 'copy', label: 'Keep me posted', kind: 'checkbox' },
-      { name: 'interests', label: 'Interests', kind: 'checkboxes', required: true, options: ['Web', 'Print'] },
-      { name: 'privacy', label: 'I have read the privacy policy', kind: 'acceptance' },
+      { name: 'interests', label: 'Interests, as the [list](/interests/) names them', kind: 'checkboxes', required: true, options: ['Web', 'Print'] },
+      { name: 'privacy', label: 'I have read the [privacy policy](/privacy-policy/)', kind: 'acceptance' },
     ],
   },
   note: { label: 'A note', fields: [{ name: 'note', label: 'Note', kind: 'textarea', required: true }] },
@@ -161,10 +161,21 @@ describe('a declared form placed on a page', () => {
     assert.equal(text(group('reach').querySelector('legend')), 'Reach me by');
     assert.equal(group('reach').getAttribute('role'), 'radiogroup');
     assert.deepEqual([...group('reach').querySelectorAll('input')].map((input) => [input.type, input.value, label(input), input.required]), [['radio', 'Email', 'Email', false], ['radio', 'Phone', 'Phone', false]]);
-    assert.equal(text(group('interests').querySelector('legend')), 'Interests (required)');
+    assert.equal(text(group('interests').querySelector('legend')), 'Interests, as the list names them (required)');
     assert.deepEqual([...group('interests').querySelectorAll('input')].map((input) => [input.type, input.name, input.value, label(input)]), [['checkbox', 'interests', 'Web', 'Web'], ['checkbox', 'interests', 'Print', 'Print']]);
     assert.deepEqual([control('copy').type, label(control('copy')), control('copy').required], ['checkbox', 'Keep me posted', false]);
     assert.deepEqual([control('privacy').type, label(control('privacy')), control('privacy').required], ['checkbox', 'I have read the privacy policy (required)', true]);
+  });
+
+  test('draws a link a field\'s label holds, in its label or its legend, and no link where it holds none', () => {
+    const links = (element) => [...element.querySelectorAll('a')].map((link) => [link.getAttribute('href'), text(link), link.getAttribute('target')]);
+    const privacy = form.querySelector('label[for="konzilo-form-contact-privacy"]');
+    assert.equal(text(privacy), 'I have read the privacy policy (required)');
+    assert.deepEqual(links(privacy), [['/privacy-policy/', 'privacy policy', null]]);
+    const interests = form.querySelector('[name="interests"]').closest('fieldset').querySelector('legend');
+    assert.equal(text(interests), 'Interests, as the list names them (required)');
+    assert.deepEqual(links(interests), [['/interests/', 'list', null]]);
+    assert.deepEqual([...form.querySelectorAll('.konzilo-form-fields a')].length, 2);
   });
 
   test('ties each help text to its field, and holds the trap field out of sight of people and assistive technology, out of the tab order', () => {
