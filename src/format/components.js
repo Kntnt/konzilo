@@ -86,7 +86,9 @@ function readAttribute(name, setting, path, problems, readLabel) {
 
 // The components a site declares, as read: { <name>: { name, element, label, form, body,
 // attributes } } in the order declared, each attribute as declared, its keys checked.
-// `rules` is the core's rule data, whose directives no component may be named as.
+// `rules` is the core's rule data, whose directives no component may be named as. `path` names
+// where they are declared, each problem's path beginning with it, or with the component's name
+// where it is empty.
 // `readLabel` checks a label, a component's and an attribute's, as the site
 // description's checker checks every label of the site's own (checks.js, label()):
 // one text for every language, or one by interface language.
@@ -98,7 +100,7 @@ export function readComponents(declared, rules, path, problems, readLabel) {
   }
   const read = {};
   for (const [name, component] of Object.entries(declared)) {
-    const at = `${path}.${name}`;
+    const at = path === '' ? name : `${path}.${name}`;
     if (!NAME.test(name)) {
       problems.push(`${at}: a component's name is lowercase letters, digits and hyphens, starting with a letter`);
       continue;
