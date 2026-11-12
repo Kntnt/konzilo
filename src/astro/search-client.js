@@ -1,14 +1,21 @@
 // The search page's script, which Search.astro runs on that page
 // alone, with no framework. It reads the query from the page's own address,
 // `?q=<query>&page=<n>&type=<post type>`, as the search box and the search
-// page's form send it, asks the route /_konzilo/search, and shows the
+// page's form send it, and the terms it is narrowed by, as a list's filter
+// sends them, each taxonomy's parameter named by the taxonomy and repeated
+// for each of its terms by its slug, `&topics=rivers&topics=lakes`. It asks
+// the route /_konzilo/search, the terms of one taxonomy joined by or and the
+// taxonomies by and, every match when only terms are given, and shows the
 // results, a page of them, each with its title linked to its address, its
 // type, its date and a snippet with the matched words marked, and links to
-// the other pages. What it found, or why it found nothing, goes in the
-// page's status, which screen readers announce. Every text is the one the
-// page holds, in the site's language. On a site in several languages the
-// page names its language in `data-language`, and the script asks for that
-// language's documents alone.
+// the other pages, which keep the type and the terms, as the page's form
+// does in hidden fields. What it found, within which terms, or why it found
+// nothing, goes in the page's status, which screen readers announce. Every
+// text is the one the page holds, in the site's language. The page names
+// the taxonomies it narrows by in `data-taxonomies`, each with its terms'
+// names by their slugs; a parameter that names none is no term. On a site in
+// several languages the page names its language in `data-language`, and the
+// script asks for that language's documents alone.
 //
 // Every value of Typesense's answer is put into the page as text; only the
 // <mark> of a snippet's matched words becomes an element.
@@ -33,14 +40,34 @@ export async function searchClient(window, { fetch = (...args) => window.fetch(.
   const query = (asked.get('q') ?? '').trim();
   const page = Math.max(1, Number.parseInt(asked.get('page') ?? '1', 10) || 1);
   const type = asked.get('type') ?? '';
+  // The terms chosen, by taxonomy in the page's order, each slug once; a
+  // value that is empty, or holds a backtick, which quotes a value in
+  // Typesense's filter, is none.
+  const taxonomies = JSON.parse(root.dataset.taxonomies ?? '{}');
+  const chosen = Object.keys(taxonomies)
+    .map((name) => [name, [...new Set(asked.getAll(name).map((slug) => slug.trim()))].filter((slug) => slug !== '' && !slug.includes('`'))])
+    .filter(([, slugs]) => slugs.length > 0);
   const input = root.querySelector('input[name="q"]');
   if (input !== null) input.value = query;
-  if (query === '') return;
+  // The choice, as parameters, which a second search from the form sends
+  // again, and the links to the other pages keep.
+  const choice = [...(type === '' ? [] : [['type', type]]), ...chosen.flatMap(([taxonomy, slugs]) => slugs.map((slug) => [taxonomy, slug]))];
+  const form = root.querySelector('form');
+  for (const [name, value] of choice) {
+    const hidden = document.createElement('input');
+    Object.assign(hidden, { type: 'hidden', name, value });
+    form?.append(hidden);
+  }
+  if (query === '' && chosen.length === 0) return;
 
   // On a site in several languages a language's search page searches that
-  // language's documents alone.
-  const search = new URLSearchParams({ q: query, page: String(page) });
-  const filters = [root.dataset.language ? `language:=${root.dataset.language}` : '', type !== '' ? `type:=${type}` : ''].filter(Boolean);
+  // language's documents alone. With terms alone, every post of them.
+  const search = new URLSearchParams({ q: query === '' ? '*' : query, page: String(page) });
+  const filters = [
+    root.dataset.language ? `language:=${root.dataset.language}` : '',
+    type !== '' ? `type:=${type}` : '',
+    ...chosen.map(([taxonomy, slugs]) => `slugs_${taxonomy}:=[${slugs.map((slug) => `\`${slug}\``).join(',')}]`),
+  ].filter(Boolean);
   if (filters.length > 0) search.set('filter_by', filters.join(' && '));
   let answer;
   try {
@@ -60,14 +87,21 @@ export async function searchClient(window, { fetch = (...args) => window.fetch(.
   const perPage = answer.request_params?.per_page ?? answer.hits.length;
   const last = Math.max(1, Math.ceil(count / perPage));
   const fill = (text, values) => text.replace(/\{(\w+)\}/g, (whole, name) => (Object.hasOwn(values, name) ? String(values[name]) : whole));
-  status.textContent = fill(count === 1 ? texts.result : texts.results, { count, query })
+  // What it searched within: each taxonomy's terms by their names, joined by
+  // or, the taxonomies by and, in the page's language.
+  const lists = (type) => new Intl.ListFormat(root.dataset.languageTag || undefined, { type });
+  const within = lists('conjunction').format(chosen.map(([taxonomy, slugs]) => fill(texts.within, {
+    terms: lists('disjunction').format(slugs.map((slug) => (Object.hasOwn(taxonomies[taxonomy], slug) ? taxonomies[taxonomy][slug] : slug))),
+  })));
+  const said = chosen.length === 0 ? [texts.result, texts.results] : query === '' ? [texts.resultIn, texts.resultsIn] : [texts.resultWithin, texts.resultsWithin];
+  status.textContent = fill(count === 1 ? said[0] : said[1], { count, query, within })
     + (last > 1 ? fill(texts.page, { page, pages: last }) : '');
 
   const dates = new Intl.DateTimeFormat(root.dataset.languageTag || undefined, { dateStyle: 'long', timeZone: 'UTC' });
   for (const hit of answer.hits) list.append(result(document, hit, dates));
 
   if (last > 1) {
-    const to = (number) => `?${new URLSearchParams({ q: query, ...(type === '' ? {} : { type }), page: String(number) })}`;
+    const to = (number) => `?${new URLSearchParams([...(query === '' ? [] : [['q', query]]), ...choice, ['page', String(number)]])}`;
     if (page > 1) nav.append(link(document, texts.previous, to(page - 1), 'prev'));
     if (page < last) nav.append(link(document, texts.next, to(page + 1), 'next'));
     nav.hidden = false;
