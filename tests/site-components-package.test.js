@@ -5,13 +5,15 @@
 // fixture, tests/packages/design, installed in each site repository as npm installs one.
 
 import assert from 'node:assert/strict';
-import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { cmsConfig } from '../src/cms/config.js';
 import { componentChecksOf } from '../src/intake/component-checks.js';
+import { liveDescription } from '../src/service/live-description.js';
 import { readSiteDescription, siteDescription, siteRules } from '../src/site-description.js';
 import { everyElement, pagePath, pageSource, run } from './lib/intake.js';
 
@@ -176,5 +178,44 @@ describe('the check of what the components hold, from a package', () => {
     for (const value of ['/etc/checks.js', '../checks.js', 'checks.json', '@fixture']) {
       assert.throws(() => read(siteRepository(taking({ componentChecks: value }))), /componentChecks: must be the path of a JavaScript module in the site repository, from its root, such as component-checks\.js, or a package specifier/, value);
     }
+  });
+});
+
+describe('the intake\'s command', () => {
+  test('finds the package from the site repository it is given, and refuses what the package\'s check refuses', () => {
+    const root = siteRepository(taking({ componentChecks: CHECKS }), {
+      files: {
+        'source/pages/1a2b3c4d5e6f.md': pageSource(':::list\nNo list\n:::'),
+        'source/pages/6f5e4d3c2b1a.md': pageSource(':::list\n- One\n:::').replace('slug: "hello-world"', 'slug: "series"'),
+      },
+    });
+    const command = fileURLToPath(new URL('../bin/konzilo-intake.js', import.meta.url));
+    const result = spawnSync(process.execPath, [command, join(root, 'source'), '--no-roles', '--site', root, '--content', join(root, 'content')], { cwd: tmpdir(), encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    const report = JSON.parse(result.stdout);
+    assert.deepEqual(report.refusals.map(({ file }) => file), ['pages/1a2b3c4d5e6f.md']);
+    assert.match(report.refusals[0].message, /a series holds one list/);
+    assert.match(readFileSync(join(root, 'content/pages/series.md'), 'utf8'), /:::list\n\n- One\n\n:::/);
+  });
+});
+
+describe('a reader that reads no body', () => {
+  test('reads the description without the components it takes, where the site repository has not installed the package', () => {
+    const root = siteRepository(taking({ componentLabels: { section: { label: { sv: 'Sektion' } } }, components: { booking: { label: 'Booking', form: 'leaf', body: 'none' } } }), { installed: false });
+    const site = read(root, { componentsFrom: false });
+    assert.equal(site.components, null);
+    assert.equal(site.componentsFrom, DECLARATIONS);
+    assert.ok(site.types.page.elements.includes('section'));
+    assert.throws(() => siteRules(site), /the site description was read without the components it takes \(componentsFrom\), so no body can be read against it/);
+  });
+
+  test('refuses all the same what it can tell is wrong', () => {
+    const root = siteRepository(taking({ componentLabels: { section: { label: 42 } }, components: { box: { label: 'Box', form: 'leaf', body: 'blocks' } } }), { installed: false });
+    assert.throws(() => read(root, { componentsFrom: false }), (error) => /componentLabels\.section\.label: must be a non-empty string/.test(error.message) && /components\.box\.body: a leaf's body is none or text/.test(error.message));
+  });
+
+  test('is the service, which reads the forms, and no body', () => {
+    const root = siteRepository({ ...taking(), forms: { contact: { label: 'Contact', fields: [{ name: 'note', label: 'Note', kind: 'textarea' }] } } }, { installed: false });
+    assert.deepEqual(Object.keys(liveDescription(join(root, 'site-description.json'))().forms), ['contact']);
   });
 });
