@@ -9,7 +9,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { catalogueFor, INTERFACE_LANGUAGES, labelIn, SOURCE_LANGUAGE } from './catalogues.js';
-import { freeze, interfaceLanguagesNamed, isObject, label, onlyKeys as checkedKeys, text } from './checks.js';
+import { freeze, interfaceLanguagesNamed, isLinkAddress, isObject, label, onlyKeys as checkedKeys, text } from './checks.js';
 import { ARTICLE, BUILT_IN_TAXONOMIES, BUILT_IN_TYPES, catalogueLabel, EVERY_STRUCTURED_DATA_TYPE, fieldsWith } from './format/built-in-types.js';
 import { IMAGE_LIBRARY_FOLDER, MEDIA_FOLDER } from './format/masters.js';
 import { suffixTakenIn } from './format/public-suffixes.js';
@@ -162,7 +162,7 @@ const results = new WeakSet();
 //     settings: [ { name, label, type, control, options, required, translated } ],
 //     consent: { departures: [ { departure, service, reason } ], domain },
 //     security: { includeSubDomains, frameAncestors: [ <origin> ], dataImages },
-//     forms: { <form>: { name, label, fields: [ { name, label, kind, required, maxLength, options, help } ] } },
+//     forms: { <form>: { name, label, fields: [ { name, label, labelParts, kind, required, maxLength, options, help } ] } },
 //     search: { address } or null,
 //     components: { <component>: { name, element, label, form, body, attributes } } or null,
 //     componentsFrom: <path or package specifier> or null,
@@ -654,7 +654,7 @@ function formFieldOf(field, path, names, problems) {
   } else {
     names.set(name, path);
   }
-  const label = text(field.label, `${path}.label`, problems);
+  const { label, labelParts } = linkedLabel(text(field.label, `${path}.label`, problems), `${path}.label`, problems);
   if (typeof kind !== 'string' || !Object.hasOwn(FIELD_KINDS, kind)) {
     const known = Object.keys(FIELD_KINDS);
     problems.push(`${path}.kind: ${JSON.stringify(kind)} is not one of ${known.slice(0, -1).join(', ')} and ${known.at(-1)}`);
@@ -669,7 +669,7 @@ function formFieldOf(field, path, names, problems) {
       problems.push(`${path}.${rule}: is not a rule ${article} ${kind} field takes${always}; it takes ${taken}`);
     }
   }
-  const read = { name, label, kind, required: rules.required ?? (rules.rules.includes('required') ? flag(field.required, `${path}.required`, problems) : false) };
+  const read = { name, label, labelParts, kind, required: rules.required ?? (rules.rules.includes('required') ? flag(field.required, `${path}.required`, problems) : false) };
   if (rules.rules.includes('maxLength')) {
     const given = field.maxLength ?? rules.maxLength;
     if (!Number.isSafeInteger(given) || given < 1 || given > rules.most) {
@@ -689,6 +689,31 @@ function formFieldOf(field, path, names, problems) {
   }
   read.help = field.help === undefined ? null : text(field.help, `${path}.help`, problems);
   return read;
+}
+
+// A link in a form field's label, written as Markdown writes one: [words](address).
+const LABEL_LINK = /\[([^\]]*)\]\(([^)]*)\)/g;
+
+// A form field's label, which may hold links, written as Markdown links, and nothing else of
+// Markdown, each to an address a menu's entry may have: { label, labelParts }, `label` its words
+// without the links, as a submission keeps them, and `labelParts` the parts a form draws, each a
+// text or { href, text }, as a form's outcomes are given.
+function linkedLabel(given, path, problems) {
+  if (typeof given !== 'string') return { label: given, labelParts: [] };
+  const labelParts = [];
+  let at = 0;
+  for (const { 0: whole, 1: words, 2: href, index } of given.matchAll(LABEL_LINK)) {
+    if (!isLinkAddress(href)) {
+      problems.push(`${path}: links to ${JSON.stringify(href)}, which is no address a link in a label may have: a path of the site's own, such as /privacy-policy/, or one that starts with https://, http://, mailto: or tel:`);
+    } else if (words.trim() === '') {
+      problems.push(`${path}: links to ${href} with no words to follow it by`);
+    }
+    if (index > at) labelParts.push(given.slice(at, index));
+    labelParts.push({ href, text: words });
+    at = index + whole.length;
+  }
+  if (at < given.length) labelParts.push(given.slice(at));
+  return { label: labelParts.map((part) => (typeof part === 'string' ? part : part.text)).join(''), labelParts };
 }
 
 // The departures a site may make from the consent rules, each by

@@ -7,8 +7,10 @@
 // or null for a type without one; `options`, the presentation's options as
 // the list sets them; `empty`, the text for a list that matches nothing; and
 // `pager`, for a list with pages of its own, the pager's data, which
-// Konzilo's Pager renders after the list (src/styles/pager.css). A date is
-// in the page's language, by Konzilo's helper.
+// Konzilo's Pager renders after the list (src/styles/pager.css); and
+// `list`, what the whole list holds, its type, its total and its terms,
+// which this presentation does not show. A date is in the page's language,
+// by Konzilo's helper.
 import { ownSummary } from '@kntnt/konzilo/astro';
 import { longDate } from '@kntnt/konzilo/astro/helpers';
 import Pager from '@kntnt/konzilo/astro/Pager.astro';
