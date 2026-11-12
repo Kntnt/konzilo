@@ -6,6 +6,8 @@
 // ADR 0067).
 
 import assert from 'node:assert/strict';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 
 import { idOf } from '../src/demo-source.js';
@@ -25,6 +27,11 @@ describe('the live preview', () => {
 
   before(async () => {
     site = await makeSite();
+    // The categories have pages here, as a site may give them, so that a term's page is in the
+    // preview; the demo content stays the site template's.
+    const description = join(site.directory, 'site-description.json');
+    const read = JSON.parse(readFileSync(description, 'utf8'));
+    writeFileSync(description, `${JSON.stringify({ ...read, taxonomies: { ...read.taxonomies, category: { ...read.taxonomies.category, address: '/category/{slug}/' } } }, null, 2)}\n`);
     site.up('--build');
   }, { timeout: 900_000 });
 
@@ -625,6 +632,22 @@ describe('the live preview', () => {
         const headline = tab.getByRole('textbox', { name: 'Main headline', exact: true });
         await headline.waitFor({ timeout: 60_000 });
         assert.equal(await headline.inputValue(), ARTICLE_TITLE);
+        assert.equal(session.context.pages().length, 2, 'in the same tab');
+      } finally {
+        await tab.close();
+      }
+    });
+
+    test('leads from a term\'s page in a tab of its own to the term\'s form', async () => {
+      const tab = await session.context.newPage();
+      try {
+        await tab.goto(`${site.origin.preview}/category/meadows/`);
+        await tab.getByRole('heading', { level: 1, name: 'Meadows' }).waitFor({ timeout: 120_000 });
+        await tab.getByRole('region', { name: 'Live preview' }).getByRole('link', { name: 'Edit the term' }).click();
+        await tab.waitForURL(`${site.origin.admin}/#/collections/categories/entries/${idOf('categories', 'meadows')}`);
+        const name = tab.getByRole('textbox', { name: 'Name', exact: true });
+        await name.waitFor({ timeout: 60_000 });
+        assert.equal(await name.inputValue(), 'Meadows');
         assert.equal(session.context.pages().length, 2, 'in the same tab');
       } finally {
         await tab.close();
