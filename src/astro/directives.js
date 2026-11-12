@@ -36,7 +36,7 @@ const DECLARED = Object.freeze(['forms']);
 const NAME = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const ATTRIBUTE = /^[a-z][a-zA-Z0-9]*$/;
 // What an attribute may not be called: the names Sätteri gives `#x` and
-// `.x`, and the setting that holds a text body.
+// `.x`, and the prop that holds a component's body as a tree (bodyTree()).
 const RESERVED = new Set(['id', 'class', 'content']);
 
 // The directives of rule data, by name: { name, element, form, attributes,
