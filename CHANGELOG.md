@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 - A click in the body field while the live preview's page is still loading, in the pane or in its window of its own, no longer leaves an error in the browser's console in Safari and Firefox.
+- The site template's 404 page renders the chosen page's body through Konzilo's `Body`, as every other page does, so that a post list in it is shown by its presentation and a component by the site's component, rather than as the core's plain rendering.
 
 ## [0.4.0] – 2026-11-12
 
