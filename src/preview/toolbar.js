@@ -17,9 +17,9 @@ const STATUSES = Object.freeze({
   [SCHEDULED]: 'previewTab.toolbar.scheduled',
 });
 
-// A scheduled post's moment, in UTC, named, as its form holds it: the site keeps every moment in
-// UTC and declares no time zone of its own.
-const MOMENT = { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC', timeZoneName: 'short' };
+// Where a scheduled post's moment goes in its status, which the page fills in its reader's own
+// time zone.
+const MOMENT_PLACE = '{moment}';
 
 // A source file's entry in the editor on the admin host: its collection, the file's first
 // folder, and its ID, the file's name, in whichever language's folder it is.
@@ -30,15 +30,18 @@ const entryOf = (adminOrigin, file) => {
 
 // What the toolbar shows on a page, all of it in the interface language `language`: `about`, what
 // the page is built from, as the preview's runner gives it, or null; `writes`, whether its person
-// may write to the source, and so edit; `adminOrigin`, where the editor is.
+// may write to the source, and so edit; `adminOrigin`, where the editor is. A scheduled post's
+// status holds `{moment}` where its moment goes, `moment`, which the page says in its reader's own
+// form and time zone, named, since only the browser knows that zone and the site has none.
 export function toolbarOf({ about, writes, language, adminOrigin }) {
   let says;
+  let moment = null;
   let link;
   let tone = 'other';
   if (about?.kind === 'post') {
     tone = Object.hasOwn(STATUSES, about.status) ? about.status : DRAFT;
-    const moment = tone === SCHEDULED ? new Date(about.at).toLocaleString(interfaceLanguageTag(language), MOMENT) : '';
-    says = text(language, STATUSES[tone], { moment });
+    says = text(language, STATUSES[tone], { moment: MOMENT_PLACE });
+    moment = tone === SCHEDULED ? about.at : null;
     link = { href: entryOf(adminOrigin, about.file), text: text(language, 'previewTab.toolbar.editPost') };
   } else if (about?.kind === 'term') {
     says = text(language, 'previewTab.toolbar.term', { name: about.title });
@@ -51,6 +54,7 @@ export function toolbarOf({ about, writes, language, adminOrigin }) {
     language: interfaceLanguageTag(language),
     label: text(language, 'previewTab.toolbar.label'),
     says,
+    moment,
     tone,
     link: writes ? link : null,
     move: text(language, 'previewTab.toolbar.move'),
@@ -124,7 +128,10 @@ a { color: #bfdbfe; text-decoration: underline; white-space: nowrap; cursor: poi
   const hint = make('span', { id: 'hint', hidden: '' }, given.hint);
   const grip = make('button', { type: 'button', class: 'grip', 'aria-label': given.move, 'aria-describedby': 'hint' },
     icon('<svg width="12" height="18" viewBox="0 0 12 18" fill="currentColor" aria-hidden="true"><circle cx="3" cy="3" r="1.5"/><circle cx="9" cy="3" r="1.5"/><circle cx="3" cy="9" r="1.5"/><circle cx="9" cy="9" r="1.5"/><circle cx="3" cy="15" r="1.5"/><circle cx="9" cy="15" r="1.5"/></svg>'));
-  const says = make('span', { class: 'says', 'data-tone': given.tone }, given.says);
+  // A moment in the language's own form, in the reader's time zone, which it names.
+  const MOMENT = { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' };
+  const status = given.moment === null ? given.says : given.says.replace('{moment}', new Date(given.moment).toLocaleString(given.language, MOMENT));
+  const says = make('span', { class: 'says', 'data-tone': given.tone }, status);
   const bar = make('div', { class: 'bar' }, grip, says);
   if (given.link) {
     const link = make('a', { href: given.link.href, draggable: 'false' }, given.link.text);

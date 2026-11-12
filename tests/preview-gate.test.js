@@ -611,15 +611,26 @@ describe('the preview\'s gate', () => {
       assert.ok(showsThePage(toolbar.window.document.body.outerHTML), 'and the page');
     });
 
-    test('says a published post is, and when a scheduled post goes live, in UTC, as its form holds the moment', async () => {
+    // The toolbar runs in the reader's browser, so a moment is said in the reader's own time zone,
+    // which it names, as the Submissions page and a refusal say theirs.
+    test('says a published post is, and when a scheduled post goes live, in the reader\'s own time zone, named', async () => {
       const held = await as('code-writer');
       built['/live/'] = { ...A_POST, file: 'articles/sv/aaaaaaaaaaaa.md', status: 'published' };
       built['/ahead/'] = { ...A_POST, status: 'scheduled', at: '2026-12-24T09:00:00Z' };
       const live = await toolbarIn(await visit('/live/', held), '/live/');
       assert.ok(live.says.startsWith(text('sv', 'previewTab.toolbar.published')), live.says);
       assert.equal(live.links[0].href, `${ADMIN}/#/collections/articles/entries/aaaaaaaaaaaa`, 'a translation\'s entry is its ID\'s');
-      const ahead = await toolbarIn(await visit('/ahead/', held), '/ahead/');
-      assert.ok(ahead.says.startsWith(text('sv', 'previewTab.toolbar.scheduled', { moment: '24 december 2026 kl. 09:00 UTC' })), ahead.says);
+      const zone = process.env.TZ;
+      try {
+        for (const [reader, moment] of [['America/New_York', '24 december 2026 kl. 04:00 GMT−5'], ['Europe/Stockholm', '24 december 2026 kl. 10:00 CET']]) {
+          process.env.TZ = reader;
+          const ahead = await toolbarIn(await visit('/ahead/', held), '/ahead/');
+          assert.ok(ahead.says.startsWith(text('sv', 'previewTab.toolbar.scheduled', { moment })), `${reader}: ${ahead.says}`);
+        }
+      } finally {
+        if (zone === undefined) delete process.env.TZ;
+        else process.env.TZ = zone;
+      }
     });
 
     test('leads from a term\'s page to the term, and from a page of many posts or of settings to the editor\'s start, which it says is not edited in one place', async () => {

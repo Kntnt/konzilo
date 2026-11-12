@@ -136,7 +136,8 @@ describe('the live preview', () => {
 
     before(async () => {
       browser = await ENGINES.chromium.launch();
-      context = await browser.newContext({ locale: 'en-GB' });
+      // A reader in Stockholm, whose browser says a moment in its own time zone.
+      context = await browser.newContext({ locale: 'en-GB', timezoneId: 'Europe/Stockholm' });
       page = await context.newPage();
       page.on('framenavigated', (frame) => {
         if (frame === page.mainFrame()) went.push(frame.url());
@@ -271,7 +272,7 @@ describe('the live preview', () => {
       assert.deepEqual(refusedOne.links, [['Edit this page', `${forms}/pages/entries/a42d0000000c`]]);
       for (const [path, says, entry] of [
         ['/a-draft-of-the-harbours/', /^Draft/, 'articles/entries/a42d0000000a'],
-        ['/the-harbours-to-come/', /^Scheduled: goes live 1 March 2099 at 08:00 UTC/, 'articles/entries/a42d0000000b'],
+        ['/the-harbours-to-come/', /^Scheduled: goes live 1 March 2099 at 09:00 CET/, 'articles/entries/a42d0000000b'],
         [ARTICLE, /^Published/, `articles/entries/${idOf('articles', 'golden-harbours-and-the-harbour')}`],
       ]) {
         await page.goto(`${site.origin.preview}${path}`);
