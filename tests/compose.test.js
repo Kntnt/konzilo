@@ -263,8 +263,9 @@ test('gives a form the service does not answer the release\'s page that says it 
 });
 
 // The web image builds the editor's bundle from the files of the core it copies, so each file the
-// bundle's page imports, at any depth, must be among them, or the image cannot be built.
-test('copies into the web image every file of the core the editor\'s bundle imports', () => {
+// bundle's page imports, at any depth, and each the build reads, must be among them, or the image
+// cannot be built.
+test('copies into the web image every file of the core the editor\'s bundle imports, and its build reads', () => {
   const root = fileURLToPath(new URL('../', import.meta.url));
   const copied = [...read('compose/web/Dockerfile').matchAll(/^COPY (?!--)(.+) \S+$/gm)].flatMap(([, sources]) => sources.split(' '));
   const isCopied = (file) => copied.some((source) => file === source || file.startsWith(`${source}/`));
@@ -284,6 +285,8 @@ test('copies into the web image every file of the core the editor\'s bundle impo
   const page = resolve(root, 'src/cms/index.html');
   const entries = [...readFileSync(page, 'utf8').matchAll(/<script [^>]*src="(\.[^"]+)"/g)].map(([, src]) => resolve(dirname(page), src));
   assert.ok(entries.length > 0, 'the page\'s scripts');
+  // The build itself, with what it imports and the license texts its notices take.
+  entries.push(resolve(root, 'scripts/build-editor.js'), resolve(root, 'src/cms/notice-texts.json'));
   for (const entry of entries) walk(entry);
   assert.ok(seen.size > 50, `the bundle's files, ${seen.size} of them`);
   assert.deepEqual(missing, []);
