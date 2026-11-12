@@ -45,6 +45,7 @@ test('puts the posts in use into the site\'s collection, and writes the route wi
     const written = readFileSync(route, 'utf8');
     assert.ok(written.includes(scopedSearchKey('the-search-key', searchParameters(searching))), 'the key that runs the site\'s search alone');
     assert.match(written, /rewrite \* \/collections\/a-site\/documents\/search\?/);
+    assert.ok(written.includes(`\treverse_proxy ${typesense.url} {\n`), 'to the Typesense it indexed in');
     assert.doesNotMatch(written, /the-search-key|the-admin-key/, 'neither key it is made from');
 
     writeFileSync(join(content, 'articles/later.md'), '---\ntitle: "Later"\ndate: 2026-10-02T08:00:00Z\n---\n\nAnother word.\n');

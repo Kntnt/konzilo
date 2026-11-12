@@ -7,7 +7,7 @@
 // file; a description with any problem is refused whole.
 
 import { readFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { catalogueFor, INTERFACE_LANGUAGES, labelIn, SOURCE_LANGUAGE } from './catalogues.js';
 import { freeze, interfaceLanguagesNamed, isLinkAddress, isObject, label, onlyKeys as checkedKeys, text } from './checks.js';
 import { ARTICLE, BUILT_IN_TAXONOMIES, BUILT_IN_TYPES, catalogueLabel, EVERY_STRUCTURED_DATA_TYPE, fieldsWith } from './format/built-in-types.js';
@@ -323,7 +323,7 @@ export function declaredNames({ forms }) {
 // checks it, with what it names in the site repository, the folder that holds
 // it.
 export function readSiteDescription(file, groups) {
-  return siteDescription(declaredIn(file), groups, (value) => siteJson(value, dirname(file)));
+  return siteDescription(declaredIn(file), groups, (value) => siteJson(value, resolve(dirname(file))));
 }
 
 // The site description in a file, checked as readSiteDescription() checks it,

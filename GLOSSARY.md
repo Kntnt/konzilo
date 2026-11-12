@@ -348,6 +348,10 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Hosting layer**: What runs many customers, one Compose project each, in a private repository. _Avoid_: platform.
 
+**Arrangement**: How and where a site's programs are started: Compose, the one the core ships, documents and tests, or another that a hosting layer or a site makes of the same programs, on other machines or several in one container. _Avoid_: deployment, setup.
+
+**Peer address**: Where one of a site's programs reaches another, or Forgejo or Typesense, inside the site's network, as an origin, such as `http://forgejo:3000` in Compose; never where a browser reaches a host. _Avoid_: internal URL, service name.
+
 **Test zone**: The DNS zone, on a domain of its own, where agents create and remove throwaway test sites. _Avoid_: sandbox.
 
 **Pin**: A package a site repository holds at one exact version. _Avoid_: dependency.

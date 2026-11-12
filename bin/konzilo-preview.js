@@ -2,15 +2,18 @@
 // The preview container's one program (ADR 0032): the gate, which stands at once, and behind
 // it the runs of the intake and Astro's dev server, which wait until someone opens an entry or
 // a page.
-// It takes its settings from the environment, as Compose gives them, and its folders are the
-// container's own. The dev server gets none of this environment, and the credential is never
-// passed to anything but Git.
+// It takes its settings from the environment, as Compose gives them, and finds Forgejo, its
+// credentials and the folder it works in where the arrangement says (src/arrangement.js), by
+// default the container's own. The dev server gets none of this environment, and the credential
+// is never passed to anything but Git.
 
 import { execFile } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
 
+import { arrangement } from '../src/arrangement.js';
 import { readSiteDescriptionWithoutTakenComponents, SITE_DESCRIPTION_FILE } from '../src/site-description.js';
 import { devServer } from '../src/preview/dev-server.js';
 import { previewGate } from '../src/preview/gate.js';
@@ -21,11 +24,12 @@ const run = promisify(execFile);
 
 const PORT = 4000;
 const DEV_PORT = 4001;
-const SITE_FOLDER = '/work/site';
-const FORGEJO = 'http://forgejo:3000';
+const { forgejo: FORGEJO, secrets, work } = arrangement();
+const SITE_FOLDER = join(work, 'site');
+const HOME = join(work, 'home');
 const READER = 'preview-reader';
 // The preview's own OAuth client, which the seed makes, for a sign-in in a tab of its own.
-const CLIENT = '/secret/oauth-client';
+const CLIENT = join(secrets, 'oauth-client');
 
 const {
   KONZILO_SITE: site,
@@ -38,7 +42,7 @@ const {
 
 // The site's code first, without what a site repository may hold of a local copy's content, or
 // its own demo content.
-const prepared = run('sh', ['/konzilo/compose/builder/prepare-site.sh', '--exclude=./content', '--exclude=./demo-content'], { maxBuffer: 1024 * 1024 * 64 }).then(() => {
+const prepared = run('sh', ['/konzilo/compose/builder/prepare-site.sh', work, '--exclude=./content', '--exclude=./demo-content'], { maxBuffer: 1024 * 1024 * 64 }).then(() => {
   mkdirSync(`${SITE_FOLDER}/content`, { recursive: true });
 });
 prepared.catch((error) => console.error(`The preview could not prepare the site: ${error.message}`));
@@ -50,9 +54,9 @@ const adminHost = new URL(siteOrigin).hostname === adminName ? null : adminName;
 const source = gitSource({
   remote: `${FORGEJO}/${repository}.git`,
   user: READER,
-  token: readFileSync('/secret/read-token', 'utf8').trim(),
-  folder: '/work/source',
-  home: '/work/home',
+  token: readFileSync(join(secrets, 'read-token'), 'utf8').trim(),
+  folder: join(work, 'source'),
+  home: HOME,
 });
 
 // The site description as the gate reads it at once, from the site's folder, and the runs of the
@@ -66,7 +70,7 @@ const dev = devServer({
   port: DEV_PORT,
   environment: {
     PATH: process.env.PATH,
-    HOME: '/work/home',
+    HOME,
     KONZILO_PREVIEW: '1',
     KONZILO_ORIGIN: siteOrigin,
     ASTRO_TELEMETRY_DISABLED: '1',
