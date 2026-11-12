@@ -64,6 +64,13 @@ export async function makeSite({ name = `accept-${process.pid}`, people } = {}) 
     code: (login) => compose('run', '--rm', 'code', ...(login ? [login] : [])).trim().split('\n').at(-1),
     state,
     set,
+    // Gives a host, `site`, `admin`, `git` or `preview`, a port of its own, free just now, which
+    // the next start takes, as a developer's copy does whose port was taken.
+    async move(host) {
+      ports[host] = await freePort();
+      env[`KONZILO_PORT_${host.toUpperCase()}`] = String(ports[host]);
+      origin[host] = `http://localhost:${ports[host]}`;
+    },
     remove() {
       spawnSync('docker', ['compose', 'down', '--volumes', '--remove-orphans', '--timeout', '2'], { cwd: directory, env });
       // A site's images go by its name, and Docker's cache keeps what they are made of.

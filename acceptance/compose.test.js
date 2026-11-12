@@ -1865,6 +1865,28 @@ describe('a site in Compose', () => {
       assert.deepEqual({ ebba: site.state('people/ebba-totp'), rut: site.state('people/rut-totp') }, before);
       assert.deepEqual([await members('admins'), await members('editors'), await members('reviewers')], [admins, editors, reviewers]);
     }, { timeout: 900_000 });
+
+    // A copy whose admin port changes after its first start: the seed keeps the editor's OAuth
+    // client at the admin host's new address, with the client ID its configuration holds, so that
+    // Forgejo takes the redirect, and leaves the one webhook as it was (ADR 0007).
+    test('signs in at the admin host after its port has changed, with the same client and one webhook', async () => {
+      const client = site.state('oauth-client');
+      const hooks = (await api(`${repository()}/hooks`)).map(({ id, config }) => ({ id, url: config.url }));
+      assert.equal(hooks.length, 1);
+      site.compose('down');
+      await site.move('admin');
+      site.up();
+      assert.equal(site.state('oauth-client'), client);
+      assert.deepEqual((await api(`${repository()}/hooks`)).map(({ id, config }) => ({ id, url: config.url })), hooks);
+      const session = await openEditor('chromium', site);
+      try {
+        await signIn(session, site);
+        await session.page.getByText('Articles').first().waitFor({ timeout: 60_000 });
+        await session.page.getByText('Quiet harbours and the lantern').waitFor();
+      } finally {
+        await session.browser.close();
+      }
+    }, { timeout: 900_000 });
   });
 });
 
