@@ -169,7 +169,18 @@ describe('a page of the live preview with components within components', () => {
         await page.evaluate((src) => {
           document.getElementById('frame').src = src;
         }, `${preview}/nested/`);
-        await page.frameLocator('#frame').getByText('Deep inside').waitFor({ timeout: 60_000 });
+        // The dev server may reload the page once as it first serves its scripts, as Vite does when
+        // it has prepared what they import: the page is used once it has stayed a second and a half.
+        const html = page.frameLocator('#frame').locator('html');
+        for (let tries = 0; ; tries += 1) {
+          await page.frameLocator('#frame').getByText('Deep inside').waitFor({ timeout: 60_000 });
+          await html.evaluate(() => {
+            window.stayed = true;
+          }).catch(() => {});
+          await page.waitForTimeout(1500);
+          if (await html.evaluate(() => window.stayed === true).catch(() => false)) break;
+          if (tries === 5) throw new Error('the page never stayed');
+        }
       }, { timeout: 120_000 });
       after(() => browser?.close());
 
