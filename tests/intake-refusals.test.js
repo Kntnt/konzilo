@@ -344,6 +344,7 @@ const cases = {
   'menu-url': [() => withFiles({ 'menus/main.json': { items: [{ title: 'Bad', url: 'javascript:alert(1)' }] } }), { entry: '1' }],
   'menu-title': [() => withFiles({ 'menus/main.json': { items: [{ url: '/x/' }] } }), { entry: '1' }],
   'menu-nowhere': [() => withFiles({ 'menus/main.json': { items: [{ title: 'Nowhere', items: [{ title: 'Below', url: '/x/' }] }, { title: 'Alone' }] } }), { entry: '2' }],
+  'menu-description': [() => withFiles({ 'menus/main.json': { items: [{ title: 'Home', url: '/', description: 'A <em>warm</em> welcome.' }] } }), { entry: '1' }],
   'rule-shape': [() => withFiles({ 'redirects.json': { rules: ['not a rule'] } }), { entry: '1' }],
   'rule-pattern-post': [() => withFiles({ 'redirects.json': { rules: [{ from: '^/a/(.*)$', post: 'cccccccccccc', status: 301 }] } }), { entry: '1' }],
   'rule-pattern-long': [() => withFiles({ 'redirects.json': { rules: [{ pattern: `^/${'a'.repeat(600)}$`, to: '/x/', status: 301 }] } }), { entry: '1' }],

@@ -279,6 +279,39 @@ describe('a menu', () => {
     assert.equal(written(result)['menus/footer.json'], '{\n  "items": []\n}\n');
   });
 
+  test('keeps an entry\'s line of description, trimmed, after its address, and leaves out an empty one', () => {
+    const described = run({
+      ...files,
+      'menus/main.json': {
+        items: [
+          { title: 'Home', url: '/', description: '  Where the site begins.  ' },
+          { post: 'contactpage0', description: '', items: [{ title: 'Our team', post: 'childchild00', description: 'Who answers the phone.' }] },
+          { title: 'Elsewhere', description: 'Sites of our own.', items: [{ title: 'Shop', url: 'https://shop.example.com/' }] },
+        ],
+      },
+    }, site);
+    assert.deepEqual(described.refusals, []);
+    assert.equal(written(described)['menus/main.json'], `${JSON.stringify({
+      items: [
+        { title: 'Home', url: '/', description: 'Where the site begins.' },
+        { title: 'The contact', url: '/pages/contact/', items: [{ title: 'Our team', url: '/pages/contact/team/', description: 'Who answers the phone.' }] },
+        { title: 'Elsewhere', description: 'Sites of our own.', items: [{ title: 'Shop', url: 'https://shop.example.com/' }] },
+      ],
+    }, null, 2)}\n`);
+  });
+
+  // A line under an entry, as a large menu shows it: one line of plain text, at most 160
+  // characters as the form counts them, after the trim.
+  test('refuses a description that is not one line of plain text of at most 160 characters', () => {
+    const entry = (description) => ({ title: 'Home', url: '/', description });
+    const at = (...given) => run({ 'menus/main.json': { items: given.map(entry) } }, site);
+    const fits = at(`  ${'å'.repeat(160)}  `, 'Fish & chips, 2 < 3.');
+    assert.deepEqual(fits.refusals, []);
+    const bad = at('A <b>bold</b> line.', 'Two\nlines.', 'ö'.repeat(161), 42, { text: 'no' });
+    assert.deepEqual(bad.refusals.map((one) => [one.file, one.entry]), [1, 2, 3, 4, 5].map((place) => ['menus/main.json', String(place)]));
+    assert.equal(written(bad)['menus/main.json'], undefined);
+  });
+
   test('is refused whole, naming each entry by its place, and keeps its last file', () => {
     const bad = run({ 'menus/main.json': { items: [{ title: 'Fine', url: '/', items: [{ title: 'Bad', url: 'ftp://x/' }, { title: 'Worse', post: 'notenotenote' }] }] }, 'notes/notenotenote.md': sourcePost({ title: 'N', slug: 'n', status: 'published' }) }, site);
     assert.deepEqual(bad.refusals.map((one) => [one.file, one.entry]), [['menus/main.json', '1.1'], ['menus/main.json', '1.2']]);
@@ -817,6 +850,17 @@ describe('a site in several languages', () => {
     assert.deepEqual(JSON.parse(written(result)['menus/en-GB/main.json']).items, [{ title: 'About us', url: '/en/pages/about-us/' }]);
     assert.equal(written(result)['categories/en-GB/nyheter.json'], '{\n  "name": "News"\n}\n');
     assert.equal(written(result)['categories/sv-SE/nyheter.json'], '{\n  "name": "Nyheter"\n}\n');
+  });
+
+  test('each language\'s menu keeps its own entries\' descriptions', () => {
+    const described = run({
+      ...files,
+      'menus/sv-SE/main.json': { items: [{ post: 'aboutabout00', description: 'Vilka vi är.' }] },
+      'menus/en-GB/main.json': { items: [{ post: 'aboutabout00', description: 'Who we are.' }] },
+    }, several);
+    assert.deepEqual(described.refusals, []);
+    assert.deepEqual(JSON.parse(written(described)['menus/sv-SE/main.json']).items, [{ title: 'Om oss', url: '/sv/sidor/om-oss/', description: 'Vilka vi är.' }]);
+    assert.deepEqual(JSON.parse(written(described)['menus/en-GB/main.json']).items, [{ title: 'About us', url: '/en/pages/about-us/', description: 'Who we are.' }]);
   });
 
   test('each language\'s settings hold its texts, its own defaults and its translation of a chosen page', () => {
