@@ -13,6 +13,7 @@
 import { createHmac } from 'node:crypto';
 
 import { formsKind } from './forms.js';
+import { bodyOf } from './request-body.js';
 
 // The headers the web server passes on beside the browser's own (compose/web/Caddyfile, and
 // src/astro/reserved.js locally): the visitor's address, and the host the request came to.
@@ -62,26 +63,6 @@ function write(outgoing, { status, json = {}, location = null, retryAfter = null
   const body = JSON.stringify(json);
   outgoing.writeHead(status, { ...headers, 'content-type': 'application/json; charset=utf-8', 'content-length': Buffer.byteLength(body) });
   return outgoing.end(body);
-}
-
-// A body up to `limit` bytes, or null when it is longer.
-function bodyOf(incoming, limit) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    let length = 0;
-    incoming.on('data', (chunk) => {
-      length += chunk.length;
-      if (length > limit) {
-        incoming.removeAllListeners('data');
-        incoming.resume();
-        resolve(null);
-        return;
-      }
-      chunks.push(chunk);
-    });
-    incoming.on('end', () => resolve(Buffer.concat(chunks)));
-    incoming.on('error', reject);
-  });
 }
 
 // The service for visitors. `site()`: the site description of the code in use, as checked.

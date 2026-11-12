@@ -3,19 +3,23 @@
 // first argument:
 //
 // - `editors`: it takes Forgejo's webhook, keeps time, says how publishing stands, shows small
-//   pictures of images, and shows Admins and Editors the forms' submissions from the service's
-//   data. It has a credential that can only read the source repository.
+//   pictures of images, shows Admins and Editors the forms' submissions from the service's data,
+//   and mails each to its form's recipients through the adapter an Admin chooses (ADR 0003), or,
+//   in a local copy, writes it to its log. It has a credential that can only read the source
+//   repository, and one that can only read who is an Admin.
 // - `visitors`: it takes what visitors' browsers send below /_konzilo/, which the web server
 //   passes on, such as a site's forms (ADR 0045), and keeps it in the service's data. It reaches
 //   nothing.
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 
 import { buildControl } from '../src/build/record.js';
 import { editorsService, nextMinute } from '../src/service/editors.js';
 import { liveDescription } from '../src/service/live-description.js';
+import { mailDuty } from '../src/service/mail.js';
+import { mailDelivery } from '../src/service/mail-delivery.js';
 import { openStore, STORE_FILE } from '../src/service/store.js';
 import { thumbnails } from '../src/service/thumbnails.js';
 import { visitorsService } from '../src/service/visitors.js';
@@ -26,6 +30,9 @@ const DESCRIPTION = `/site/${SITE_DESCRIPTION_FILE}`;
 // The service's data, which both roles open: the role for visitors keeps the forms' submissions
 // there, and the role for editors shows them.
 const SERVICE_DATA = '/service-data';
+
+// How often the duty looks for a submission to mail, in milliseconds.
+const MAIL_EVERY = 5000;
 
 // A request answered, or 500 where the service broke, which it says in its own log, with nothing
 // of the request.
@@ -51,18 +58,37 @@ function editors(store) {
   const described = liveDescription(DESCRIPTION);
 
   const token = readFileSync('/secret/read-token', 'utf8').trim();
+  // The seed makes it at each start where it is missing; without it, no one is an Admin here but
+  // the one who runs the instance.
+  const ROLES_TOKEN = '/secret/roles-token';
+  const rolesToken = existsSync(ROLES_TOKEN) ? readFileSync(ROLES_TOKEN, 'utf8').trim() : null;
+  if (rolesToken === null) console.error(`The service has no ${ROLES_TOKEN}, so it cannot tell who is an Admin`);
+  // A local copy sends no mail, and writes each to the log instead.
+  const local = process.env.KONZILO_MAIL_TO_LOG === 'true';
 
   const service = editorsService({
     forgejo: FORGEJO,
     repository,
     token,
+    rolesToken,
     control: buildControl('/control'),
     pictures: thumbnails({ forgejo: FORGEJO, repository, token, folder: '/thumbnails' }),
     store,
     forms: () => described().forms,
+    local,
     isPost: (file) => file.endsWith('.md') && collections.includes(file.split('/')[0]),
   });
   serve(service, PORT);
+
+  // Each submission whose mail is due, a moment after it is kept, one look after another.
+  const mail = mailDuty({ store, forms: () => described().forms, deliver: mailDelivery({ toLog: local }) });
+  const mailInAMoment = () => {
+    setTimeout(async () => {
+      await mail.run().catch((error) => console.error(`The service's mail broke: ${error.stack ?? error.message}`));
+      mailInAMoment();
+    }, MAIL_EVERY);
+  };
+  mailInAMoment();
 
   const atEachMinute = () => {
     setTimeout(async () => {

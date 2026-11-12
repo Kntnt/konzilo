@@ -239,7 +239,10 @@ services:
   # The service, in its role for editors (ADR 0044): Forgejo's webhook and the clock each ask
   # for a build, and the editor asks how publishing stands, and reads the forms' submissions from
   # the service's data, which the role for visitors keeps (ADR 0045), through the web server. It
-  # has a credential that can only read the source repository.
+  # mails each submission to its form's recipients through the adapter an Admin chooses on the
+  # Mail page, off until then (ADR 0003): this local copy writes each mail to its log instead, and
+  # sends none. It has a credential that can only read the source repository, and one that can
+  # only read who is an Admin.
   editors:
     <<: *hardened
     build: *builder
@@ -258,6 +261,7 @@ services:
     command: ["node", "/konzilo/bin/konzilo-service.js", "editors"]
     environment:
       KONZILO_REPOSITORY: ${KONZILO_SITE}/source
+      KONZILO_MAIL_TO_LOG: "true"
     volumes:
       - editors-secret:/secret:ro
       - build-control:/control
