@@ -1,0 +1,44 @@
+# ADR 0008: Give customers three roles, Admin, Editor and Reviewer
+
+**Date:** 2026-11-02, amended 2026-11-12 · **Status:** Accepted, settled by Thomas on 2026-11-02: two roles, Admin and Editor. Everyone with access reads every draft and may publish. A check on who may set a post to published can come later if a customer needs it. Settled by Thomas on 2026-11-11: a third role, Reviewer, which reads the live preview and nothing else, since a Reviewer never enters Sveltia. Technical choices, which Thomas may veto (2026-11-12): a Reviewer is a member of the team `reviewers`, which reads the source repository and does not write to it; whoever may read the source repository may see the live preview, and only a session of someone who may write sends it a draft; an account in `reviewers` is a Reviewer to the server's check whatever other team it is in, and the account the core pushes with never is; every source file a Reviewer was the last to change is refused, whatever its kind; Sveltia's own refusal of an account that cannot write, which signs it out, is told in Konzilo's words, with the preview's address.
+
+## Decision
+
+- **Admin** is the customer's highest role: it manages the customer's users, changes menus and site settings, redirects and services, and writes the privacy policy. **Editor** writes content. **Reviewer** reads what is coming without changing anything, as a chief executive, a board member or a legal adviser does: a Reviewer signs in to the live preview in a tab of its own, sees there what an Editor sees, and cannot save, publish or comment.
+- **A role is all that limits an editor.** There is no restriction per post type, and none is needed until a site asks for it.
+- **Within a customer's Forgejo:** one organisation and one source repository per site. Teams `admins` and `editors` have write access, never ownership, so no customer reaches webhooks or settings. Team `reviewers` reads the source repository and writes to nothing, so Forgejo itself refuses whatever a Reviewer pushes.
+- **A Reviewer is a person like any other:** an account of their own, with a first password of their own and a second factor before anything else ([ADR 0007](0007-sign-in-through-the-customers-own-forgejo-with-two-factors-and-close-the-rest-at-the-proxy.md)), and no password shared.
+- **The check that counts runs on the server.** The intake reads who pushed each commit, as Forgejo recorded it and not as the commit says, and refuses a change to settings, menus, redirects or services, or to a post chosen as a legal page (ADR 0052), by someone who is not an Admin (Thomas, 2026-11-03). `preSave` says so first. Forms for Admins cannot be hidden per person in Sveltia, so they are labelled.
+- **Nothing a Reviewer pushes reaches the site,** should Forgejo ever let it through. The builder reads the team `reviewers` as it reads `admins`, and the intake refuses every source file a Reviewer was the last to change, whatever its kind, naming the Reviewer and the file: a post keeps the version it was last published with, and one a Reviewer took away stays; a term or an original a Reviewer changed holds back the posts that use it; a file of an Admin's keeps its last accepted version. A file back at what was last accepted is no change, and an Editor's or an Admin's later change to the file is theirs. An account in `reviewers` is a Reviewer here whatever other team it is in, since a Reviewer's change is never meant, and the account the core pushes with is never one.
+- **Only the preview's gate, the admin host and the server's check know the Reviewer,** since a Reviewer never enters Sveltia. The gate lets in, through Forgejo's sign-in, whoever may read the source repository, and only a session of someone who may write sends it a draft ([ADR 0032](0032-preview-live-beside-the-form-and-share-a-draft-through-a-secret-link.md)). Sveltia refuses an account that may read the source and not write to it at its sign-in, and signs it out; Konzilo has it say, in the interface language, that the account reads the live preview only and can save nothing there, and where the preview is. Where the preview's toolbar exists, a Reviewer sees a page's status there and no link to edit it.
+- **Screens that read the service's data ask Forgejo who is asking,** per call, and decide by team. They are for those who may write, and a Reviewer reaches none.
+- **Users.** A *Users* page, through the service, lets an Admin add a colleague and choose a role, Reviewer among them, so that customers do not wait for Kntnt. Until it exists, the instance administrator adds an account and puts it in its role's team.
+- **Kntnt's account is the instance's administrator** and is not listed to others, so that a customer can never lock Kntnt out of a site Kntnt is responsible for, nor make a colleague an administrator. One rule holds for everyone but Kntnt: lists leave it out, and a question about it is answered as about a user who does not exist.
+- **Nobody installs or updates anything through the editing tool.** Only Kntnt or the site's developer changes what a site is: its code and its content model, which come from the site repository.
+
+## Why
+
+- A commit's author and committer are whatever the one making it writes, through Forgejo's API or a push. Who pushed is the signed-in account, in the repository's activity feed, where nobody but Forgejo writes.
+- Customers change what is theirs without asking Kntnt.
+- Sveltia has no roles, and its roadmap rules out such features. A Reviewer needs none of Sveltia's: they read the preview, which shows what the source holds, so reading the source is the right to see it.
+- People outside the Editor role need to read drafts and scheduled posts before they go out, and a share link is turned off for a customer with market-sensitive information ([ADR 0004](0004-close-every-known-path-between-customers.md)).
+
+## Considered and rejected
+
+- **Author, Contributor and Subscriber,** and with them a review step and private drafts. They need a role system Sveltia does not have, and an editor who may not see a colleague's title in a list needs a preview per person.
+- **Customers as owners of their organisation.** They could change webhooks and settings, and Kntnt's accounts.
+- **Editor as the customer's highest role.** Every new user, menu change and footer text would become a request to Kntnt.
+- **The gate asking Forgejo which teams a person is in.** The preview's own sign-in would have to ask for `read:organization` too, and Forgejo refuses a sign-in with other scopes than its grant holds; what the person may do with the source repository says the same, with the scope it has.
+- **Reading a Reviewer's files as the last one who was no Reviewer left them.** It would undo their change in place, but an original in LFS is a pointer in Git's history, and the intake refuses by kind already.
+
+## What practice has shown
+
+- An Admin's address on an Editor's commit, through `POST /contents` with `author` and `committer`, was taken as written, and the feed still named the Editor. A push's entry names its commits only up to a limit, and its comparison's address names what it went from and to, so all it brought can be read from Git.
+- The feed writes a push down a moment after it, so a build waits up to 15 seconds for a new commit. A commit that never shows is no Admin's.
+- The feed leaves out what a private account did for anyone who does not run the instance, and team members are told only to those in the team or running the instance, so the builder reads both with a token of the instance's account that can do nothing but read.
+- A team once given every repository keeps them when told otherwise, with Forgejo's answer a plain 200, unless the change also says what the team may do. So the seed reads the answer.
+- A Reviewer's account in a team made with `read` had `pull` and not `push` on the source repository in Forgejo 17, which refused its `POST /contents`. It signed in to the preview's tab in Chromium and saw the article there, and Sveltia 0.256.1 refused it at its sign-in and signed it out, in Konzilo's words.
+
+## Consequences
+
+- The two names *Admin* (the customer's role) and *administrator* (Kntnt's account on the instance) are easy to confuse; `GLOSSARY.md` keeps them apart.

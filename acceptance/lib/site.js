@@ -53,7 +53,8 @@ export async function makeSite({ name = `accept-${process.pid}` } = {}) {
   // An account of a person's own, `login`, with a password nobody else knows and a second factor
   // it enrols through Forgejo's forms, as a person does, put in the site's team `team` by the
   // instance's administrator, as an Admin will on the Users page (ADR 0007, ADR 0008):
-  // { login, password, code() }.
+  // { login, password, code(), enrolledWith }, the last the code it enrolled with, which Forgejo
+  // may refuse until the next.
   const account = async (login, team) => {
     const token = state('instance-token');
     const api = (method, path, body) => fetch(`${origin.git}/api/v1${path}`, { method, headers: { authorization: `token ${token}`, 'content-type': 'application/json' }, body: body && JSON.stringify(body) });
@@ -76,11 +77,12 @@ export async function makeSite({ name = `accept-${process.pid}` } = {}) {
     if ((await send('/user/login', { user_name: login, password })).status !== 303) throw new Error(`signing in as ${login}`);
     const key = /Or enter the secret: ([A-Z2-7]+)/.exec(await (await send('/user/settings/security/two_factor/enroll')).text())?.[1];
     if (!key) throw new Error(`no secret on the enrolment page of ${login}`);
-    if ((await send('/user/settings/security/two_factor/enroll', { passcode: totp(key) })).status !== 303) throw new Error(`enrolling ${login}`);
+    const enrolledWith = totp(key);
+    if ((await send('/user/settings/security/two_factor/enroll', { passcode: enrolledWith })).status !== 303) throw new Error(`enrolling ${login}`);
     const teams = await (await api('GET', `/orgs/${name}/teams`)).json();
     const joined = await api('PUT', `/teams/${teams.find((one) => one.name === team).id}/members/${login}`);
     if (joined.status !== 204) throw new Error(`putting ${login} in ${team}: ${joined.status}`);
-    return { login, password, code: () => totp(key) };
+    return { login, password, code: () => totp(key), enrolledWith };
   };
 
   return {

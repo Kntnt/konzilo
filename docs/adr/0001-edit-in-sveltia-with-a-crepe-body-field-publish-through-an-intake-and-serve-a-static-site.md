@@ -56,6 +56,6 @@ The stand-in for the intake read each body twice through Sätteri, made masters 
 ## Consequences
 
 - Customers do not meet an editor they already know. Live preview and Crepe are the answer, and only use will show if they suffice.
-- There are two roles and no review step or private drafts (ADR 0008). Forms are made by developers (ADR 0045).
+- There are three roles, the Reviewer reading the live preview alone, and no review step or private drafts (ADR 0008). Forms are made by developers (ADR 0045).
 - Sveltia and Crepe are each in practice the work of one person, and Sveltia has not reached 1.0. Both are MIT-licensed and pinned, and the content files do not depend on them.
 - An editor's write token lies in the browser's storage on the admin host, so that host must never show editor-written HTML (ADR 0032).

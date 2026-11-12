@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
 
 import { sharp } from '../tests/lib/images.js';
-import { ENGINES, freshCode, openEditor, openNew, signIn, throughForgejo } from './lib/editor.js';
+import { ENGINES, freshCode, openEditor, openNew, signIn, throughForgejo, usedCode } from './lib/editor.js';
 import { framesWhile, isBlank } from './lib/frames.js';
 import { makeSite } from './lib/site.js';
 
@@ -225,6 +225,7 @@ describe('the live preview', () => {
 
     before(async () => {
       reviewer = await site.account('rut', 'reviewers');
+      usedCode(reviewer.login, reviewer.enrolledWith);
       browser = await ENGINES.chromium.launch();
       context = await browser.newContext({ locale: 'en-GB' });
       page = await context.newPage();

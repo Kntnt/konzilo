@@ -59,6 +59,9 @@ export async function freshCode(login, make) {
   }
 }
 
+// A code a person has used elsewhere, as at their enrolment, which their next sign-in waits past.
+export const usedCode = (login, code) => lastCodes.set(login, code);
+
 // The account the seed makes, which a site's teams have as an Admin.
 const seeded = (site) => ({ login: 'anna', password: 'local-only-account-password', code: () => site.code() });
 
