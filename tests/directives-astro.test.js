@@ -301,6 +301,17 @@ describe("a site's own components in the live preview", () => {
     ].join(''));
   });
 
+  test('lets a component that passes the props it does not take to its root leave the tree out, so that its root holds no `content` and holds its mark in the live preview', () => {
+    const passing = { ...designed, 'src/components/Section.astro': '---\nconst { content, tone, ...rest } = Astro.props;\n---\n<section class="site-section" data-tone={tone} {...rest}><slot /></section>\n' };
+    const files = { ...passing, 'content/articles/hello-world.md': post(':::section{tone="bright"}\n\nInside\n\n:::') };
+    const published = build(files, given, own);
+    const previewed = build(files, given, own, { KONZILO_PREVIEW: '1' });
+    assert.equal(published.status, 0, published.output);
+    assert.equal(previewed.status, 0, previewed.output);
+    assert.equal(published.article('hello-world').replaceAll('\n', ''), '<section class="site-section" data-tone="bright"><p>Inside</p></section>');
+    assert.equal(previewed.article('hello-world').replaceAll('\n', ''), '<section class="site-section" data-tone="bright" data-konzilo-block="0"><p data-konzilo-block="0.0">Inside</p></section>');
+  });
+
   test('keeps a component\'s script, as the public site has it', () => {
     const scripted = { ...designed, 'src/components/Kicker.astro': '<p class="site-kicker"><slot /></p>\n<script>document.documentElement.dataset.kicker = "ran";</script>\n' };
     const files = { ...scripted, 'content/articles/hello-world.md': post(nested) };
