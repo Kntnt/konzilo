@@ -51,6 +51,16 @@
 			}
 		}
 	}
+	# A feed is the RSS file in the folder of its address (ADR 0048), answered at the address with
+	# and without its last slash, as RSS.
+	@feed file {
+		try_files {path}/index.rss
+	}
+	header @feed {
+		Content-Type `application/rss+xml; charset=utf-8`
+		defer
+	}
+	rewrite @feed {file_match.relative}
 	file_server
 	handle_errors {
 		# Search that Typesense does not answer says so, as the dev server's does.
