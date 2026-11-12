@@ -6,16 +6,17 @@
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { cmsConfig } from '../src/cms/config.js';
 import { componentChecksOf } from '../src/intake/component-checks.js';
+import { runnerOncePrepared } from '../src/preview/runner.js';
 import { liveDescription } from '../src/service/live-description.js';
-import { readSiteDescription, siteDescription, siteRules } from '../src/site-description.js';
-import { everyElement, pagePath, pageSource, run } from './lib/intake.js';
+import { readSiteDescription, readSiteDescriptionWithoutTakenComponents, siteDescription, siteRules } from '../src/site-description.js';
+import { everyElement, namedImages, pagePath, pageSource, run } from './lib/intake.js';
 
 const PACKAGE = fileURLToPath(new URL('./packages/design/', import.meta.url));
 const DECLARATIONS = '@fixture/design/directives/components.json';
@@ -41,7 +42,8 @@ function siteRepository(declared, { files = {}, installed = true } = {}) {
   return root;
 }
 
-const read = (root, options) => readSiteDescription(join(root, 'site-description.json'), undefined, options);
+const read = (root) => readSiteDescription(join(root, 'site-description.json'));
+const readForNoBody = (root) => readSiteDescriptionWithoutTakenComponents(join(root, 'site-description.json'));
 
 // A site of every core element, which takes the package's components, and whose page takes them.
 const taking = (extra = {}) => ({
@@ -111,6 +113,21 @@ describe('a site description that takes its components from a package', () => {
     assert.deepEqual(Object.keys(read(siteRepository(declared, { files, installed: false })).components), ['eyebrow']);
   });
 
+  test('finds a package as Node finds a require() of it, linked into the site repository from elsewhere, or in a folder above it', () => {
+    const elsewhere = mkdtempSync(join(tmpdir(), 'konzilo-package-elsewhere-'));
+    folders.push(elsewhere);
+    cpSync(PACKAGE, elsewhere, { recursive: true });
+    const linked = siteRepository(taking(), { installed: false });
+    mkdirSync(join(linked, 'node_modules/@fixture'), { recursive: true });
+    symlinkSync(elsewhere, join(linked, 'node_modules/@fixture/design'));
+    assert.deepEqual(Object.keys(read(linked).components), ['section', 'eyebrow', 'list']);
+    const above = siteRepository({}, { installed: true });
+    const below = join(above, 'sites/one');
+    mkdirSync(below, { recursive: true });
+    writeFileSync(join(below, 'site-description.json'), JSON.stringify(taking()));
+    assert.deepEqual(Object.keys(read(below).components), ['section', 'eyebrow', 'list']);
+  });
+
   test('refuses a package the site repository has not installed, naming it', () => {
     assert.throws(() => read(siteRepository(taking(), { installed: false })), /componentsFrom: @fixture\/design\/directives\/components\.json cannot be found in the site repository's packages: Cannot find module/);
   });
@@ -133,12 +150,14 @@ describe('a site description that takes its components from a package', () => {
 
   test('refuses a value that is neither a JSON file\'s path in the site repository nor a package specifier', () => {
     for (const value of ['/etc/components.json', '../components.json', 'components.js', '@fixture', '@fixture/design/../other/components.json', '@fixture/design/./components.json', '@fixture/design/directives/', 42]) {
-      assert.throws(() => read(siteRepository(taking({ componentsFrom: value }))), /componentsFrom: must be the path of a JSON file in the site repository, from its root, such as components\.json, or a package specifier/, String(value));
+      assert.throws(() => read(siteRepository(taking({ componentsFrom: value }))), /componentsFrom: must be the path of a JSON file in the site repository, from its root, such as components\.json, or a package specifier, a scoped package's name and the path of a file it exports, such as @example\/design\/directives\/components\.json$/m, String(value));
     }
   });
 
-  test('refuses what it takes where it is checked without a site repository', () => {
-    assert.throws(() => siteDescription(taking()), /componentsFrom: @fixture\/design\/directives\/components\.json is in the site repository, and the description is read without one/);
+  test('is read without what it takes where it is checked without a site repository, and reads no body so', () => {
+    const site = siteDescription(taking());
+    assert.equal(site.components, null);
+    assert.throws(() => siteRules(site), /the site description was read without the components it takes \(componentsFrom\), so no body can be read against it/);
   });
 
   test('refuses labels for components it takes none of', () => {
@@ -184,7 +203,7 @@ describe('the check of what the components hold, from a package', () => {
 
   test('refuses a value that is neither a module\'s path in the site repository nor a package specifier', () => {
     for (const value of ['/etc/checks.js', '../checks.js', 'checks.json', '@fixture']) {
-      assert.throws(() => read(siteRepository(taking({ componentChecks: value }))), /componentChecks: must be the path of a JavaScript module in the site repository, from its root, such as component-checks\.js, or a package specifier/, value);
+      assert.throws(() => read(siteRepository(taking({ componentChecks: value }))), /componentChecks: must be the path of a JavaScript module in the site repository, from its root, such as component-checks\.js, or a package specifier, a scoped package's name and the path of a file it exports, such as @example\/design\/directives\/checks$/m, value);
     }
   });
 });
@@ -210,7 +229,7 @@ describe('the intake\'s command', () => {
 describe('a reader that reads no body', () => {
   test('reads the description without the components it takes, where the site repository has not installed the package', () => {
     const root = siteRepository(taking({ componentLabels: { section: { label: { sv: 'Sektion' } } }, components: { booking: { label: 'Booking', form: 'leaf', body: 'none' } } }), { installed: false });
-    const site = read(root, { componentsFrom: false });
+    const site = readForNoBody(root);
     assert.equal(site.components, null);
     assert.equal(site.componentsFrom, DECLARATIONS);
     assert.ok(site.types.page.elements.includes('section'));
@@ -219,11 +238,49 @@ describe('a reader that reads no body', () => {
 
   test('refuses all the same what it can tell is wrong', () => {
     const root = siteRepository(taking({ componentLabels: { section: { label: 42 } }, components: { box: { label: 'Box', form: 'leaf', body: 'blocks' } } }), { installed: false });
-    assert.throws(() => read(root, { componentsFrom: false }), (error) => /componentLabels\.section\.label: must be a non-empty string/.test(error.message) && /components\.box\.body: a leaf's body is none or text/.test(error.message));
+    assert.throws(() => readForNoBody(root), (error) => /componentLabels\.section\.label: must be a non-empty string/.test(error.message) && /components\.box\.body: a leaf's body is none or text/.test(error.message));
   });
 
   test('is the service, which reads the forms, and no body', () => {
     const root = siteRepository({ ...taking(), forms: { contact: { label: 'Contact', fields: [{ name: 'note', label: 'Note', kind: 'textarea' }] } } }, { installed: false });
     assert.deepEqual(Object.keys(liveDescription(join(root, 'site-description.json'))().forms), ['contact']);
+  });
+});
+
+describe('the live preview, whose gate stands before the site\'s code is prepared', () => {
+  test('answers a draft at once by the description without what it takes, and runs the intake with the package\'s components and check once the code is prepared', async () => {
+    const declared = taking({ componentChecks: CHECKS, componentLabels: { section: { label: { sv: 'Sektion' } } } });
+    // The site's folder, as the preview's container mounts it, with no package installed, and the
+    // copy of its code the container prepares, with its packages.
+    const described = readForNoBody(siteRepository(declared, { installed: false }));
+    const work = siteRepository(declared);
+    const content = join(work, 'content');
+    mkdirSync(content);
+    let prepare;
+    const prepared = new Promise((resolve) => {
+      prepare = resolve;
+    });
+    const source = { refresh: async () => {}, head: () => 'a-commit', files: () => [{ path: pagePath, contents: pageSource(':::section\n\n::eyebrow[Over]\n\n:::') }], originals: () => [] };
+    const runner = runnerOncePrepared({ described, prepared, folder: work, content, source, images: async () => namedImages() });
+    assert.equal(runner.problem({ path: pagePath, fields: {} }), null);
+    assert.match(runner.problem({ path: 'elsewhere/1a2b3c4d5e6f.md', fields: {} }), /./);
+    assert.equal(runner.at('/hello-world/'), null);
+    prepare();
+    await runner.refresh();
+    assert.equal(runner.at('/hello-world/').refusals.length, 0);
+    assert.match(readFileSync(join(content, 'pages/hello-world.md'), 'utf8'), /:::section\n\n::eyebrow\[Over\]\n\n:::/);
+    const { refusals } = await runner.take({ path: pagePath, fields: { title: 'Hello world', slug: 'hello-world', status: 'published', body: ':::list\nNo list\n:::' } });
+    assert.ok(refusals.some(({ reason }) => /a series holds one list/.test(reason)), JSON.stringify(refusals));
+  });
+
+  test('says what the package lacks once the code is prepared, and answers a draft all the same', async () => {
+    const declared = taking();
+    const described = readForNoBody(siteRepository(declared, { installed: false }));
+    const work = siteRepository(declared, { installed: false });
+    const source = { refresh: async () => {}, head: () => 'a-commit', files: () => [], originals: () => [] };
+    const runner = runnerOncePrepared({ described, prepared: Promise.resolve(), folder: work, content: join(work, 'content'), source });
+    await assert.rejects(runner.ready, /componentsFrom: @fixture\/design\/directives\/components\.json cannot be found in the site repository's packages/);
+    await assert.rejects(runner.refresh(), /cannot be found in the site repository's packages/);
+    assert.equal(runner.problem({ path: pagePath, fields: {} }), null);
   });
 });

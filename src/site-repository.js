@@ -1,11 +1,12 @@
 // What a site description names beside itself in the site repository: the components it takes,
 // `componentsFrom`, and the module that checks what they hold, `componentChecks`. Each is a path
 // in the site repository, from its root, or a package specifier, a scoped package's name and the
-// path of a file it exports, such as `@kntnt/konzilo-design/directives/checks`, which is found
-// as Node finds a `require()` of it in the site repository: in the repository's node_modules, by
-// the package's `exports`, under `default` or a plain path, since Node resolves an import from
-// another folder only behind a flag. Every reader finds the same file so, whichever copy of the
-// core it runs.
+// path of a file it exports, such as `@example/design/directives/checks`, which is found as Node
+// finds a `require()` of it from the site repository's root: in the node_modules there, and then
+// in that of each folder above it, a package linked there from elsewhere too, as `new-site` links
+// the core, by the package's `exports`, under `default` or a plain path, since Node resolves an
+// import from another folder only behind a flag. Every reader finds the same file so, whichever
+// copy of the core it runs.
 
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';

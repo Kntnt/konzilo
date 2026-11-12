@@ -127,15 +127,15 @@ export const IDENTITY = Object.freeze(['title', 'logo', 'icon']);
 export const EDITORS = Object.freeze(['text', 'structure']);
 
 // The elements a type's posts may hold in their bodies, by the names in the rule data
-// with the site's components (`known`), or any name where the components the site takes are
-// `unread`.
-function elementsOf(elements, path, known, unread, problems) {
+// with the site's components (`known`), or any name where `known` is null, the description read
+// without the components it takes.
+function elementsOf(elements, path, known, problems) {
   if (!Array.isArray(elements) || !elements.every((element) => typeof element === 'string')) {
     problems.push(`${path}: must list the elements the type takes, by name`);
     return [];
   }
   for (const element of elements) {
-    if (!unread && !Object.hasOwn(known.elements, element)) problems.push(`${path}: the core cannot publish the element ${JSON.stringify(element)}`);
+    if (known !== null && !Object.hasOwn(known.elements, element)) problems.push(`${path}: the core cannot publish the element ${JSON.stringify(element)}`);
   }
   if (new Set(elements).size !== elements.length) problems.push(`${path}: names an element twice`);
   return [...elements];
@@ -248,10 +248,10 @@ const results = new WeakSet();
 // groupsFor() gives them. `fromSite` gives the JSON of a file of the site
 // repository that the description names, the components it takes
 // (`componentsFrom`), by its path or its package specifier, and throws where it
-// cannot (site-repository.js, siteJson()); readSiteDescription() gives it. Where
-// it is false, the description is read without the components it takes, for a
-// reader that reads no body: its `components` are null, a type may name any
-// element beside the core's and the site's own, and siteRules() refuses it.
+// cannot (site-repository.js, siteJson()); readSiteDescription() gives it.
+// Without it, the description is read without the components it takes: its
+// `components` are null, a type may name any element beside the core's and the
+// site's own, and siteRules() refuses it, so that no body is read against it.
 // Throws an Error naming every problem. What it returns it takes back as it is.
 export function siteDescription(declared, groups = coreSettingsGroups(), fromSite = null) {
   if (results.has(declared)) return declared;
@@ -313,10 +313,22 @@ export function declaredNames({ forms }) {
 
 // The site description in a file, checked with `groups` as siteDescription()
 // checks it, with what it names in the site repository, the folder that holds
-// it; or without the components it takes, where `componentsFrom` is false, for a
-// reader that reads no body, in a folder that may not have installed the
-// site's packages.
-export function readSiteDescription(file, groups, { componentsFrom = true } = {}) {
+// it.
+export function readSiteDescription(file, groups) {
+  return siteDescription(declaredIn(file), groups, (value) => siteJson(value, dirname(file)));
+}
+
+// The site description in a file, checked as readSiteDescription() checks it,
+// but without the components it takes (`componentsFrom`), for a reader that
+// reads no body, such as the service, the seed and the live preview's gate: the
+// folder that holds it need not have installed the packages they come from.
+// Its `components` are null, and siteRules() refuses it.
+export function readSiteDescriptionWithoutTakenComponents(file, groups) {
+  return siteDescription(declaredIn(file), groups);
+}
+
+// The site description in a file as declared, its JSON.
+function declaredIn(file) {
   let text;
   try {
     text = readFileSync(file, 'utf8');
@@ -329,7 +341,7 @@ export function readSiteDescription(file, groups, { componentsFrom = true } = {}
   } catch (error) {
     throw new Error(`the site description ${file} is not JSON: ${error.message}`);
   }
-  return siteDescription(declared, groups, componentsFrom === false ? false : (value) => siteJson(value, dirname(file)));
+  return declared;
 }
 
 function description(declared, groups, fromSite, problems) {
@@ -338,8 +350,8 @@ function description(declared, groups, fromSite, problems) {
     return null;
   }
   onlyKeys(declared, ['language', 'languages', 'interfaceLanguage', 'images', 'types', 'taxonomies', 'presentations', 'menus', 'settings', 'consent', 'security', 'forms', 'search', 'components', 'componentsFrom', 'componentLabels', 'componentChecks'], '', problems);
-  const { components, componentsFrom, own } = componentsOf(declared, fromSite, problems);
-  const known = withComponents(rules, components ?? own);
+  const { components, componentsFrom } = componentsOf(declared, fromSite, problems);
+  const known = components === null ? null : withComponents(rules, components);
   const componentChecks = componentChecksOf(declared.componentChecks, components, problems);
   const languages = languagesOf(declared, problems);
   const language = languages.length > 0 ? languages[0].locale : null;
@@ -360,7 +372,7 @@ function description(declared, groups, fromSite, problems) {
   }
   const types = {};
   for (const [name, type] of entries(declared.types, 'types', problems, true)) {
-    types[name] = typeOf(name, type, `types.${name}`, { collections, taxonomies, addresses, rules: known, unread: components === null }, problems);
+    types[name] = typeOf(name, type, `types.${name}`, { collections, taxonomies, addresses, rules: known }, problems);
   }
   feedsOf(types, taxonomies, problems);
   ownFieldsOf(types, problems);
@@ -391,18 +403,19 @@ function description(declared, groups, fromSite, problems) {
 
 // The site's components: those it takes from a package or a file of its repository, named by
 // `componentsFrom`, whole, each with the labels the site gives it under `componentLabels`, and
-// its own, under `components`, after them; null where `fromSite` is false. `own` are its own.
+// its own, under `components`, after them; null where it takes some and there is no `fromSite`
+// to take them by.
 function componentsOf(declared, fromSite, problems) {
   const own = readComponents(declared.components, rules, 'components', problems, label);
-  const componentsFrom = siteFileOf(declared.componentsFrom, 'componentsFrom', ['.json'], 'a JSON file', 'components.json', '@kntnt/konzilo-design/directives/components.json', problems);
+  const componentsFrom = siteFileOf(declared.componentsFrom, 'componentsFrom', JSON_FILE, problems);
   const labels = componentLabelsOf(declared.componentLabels, problems);
   if (componentsFrom === null) {
     if (declared.componentLabels !== undefined) problems.push('componentLabels: gives labels to the components the site takes, and it takes none (componentsFrom)');
-    return { components: own, componentsFrom, own };
+    return { components: own, componentsFrom };
   }
-  if (fromSite === false) return { components: null, componentsFrom, own };
+  if (fromSite === null) return { components: null, componentsFrom };
   const taken = takenComponents(componentsFrom, fromSite, problems);
-  if (taken === null) return { components: own, componentsFrom, own };
+  if (taken === null) return { components: own, componentsFrom };
   for (const name of Object.keys(own)) {
     if (Object.hasOwn(taken, name)) problems.push(`components.${name}: ${componentsFrom} declares ${name} too, and a site gives a component it takes its labels alone, under componentLabels`);
   }
@@ -420,16 +433,12 @@ function componentsOf(declared, fromSite, problems) {
       else problems.push(`${at}.attributes.${attribute}: ${name}, as ${componentsFrom} declares it, has no attribute ${attribute}`);
     }
   }
-  return { components: { ...taken, ...own }, componentsFrom, own };
+  return { components: { ...taken, ...own }, componentsFrom };
 }
 
 // The components a site takes from the file `componentsFrom` names, as readComponents() reads
 // them, each problem named by the file, or null where the file cannot be had.
 function takenComponents(componentsFrom, fromSite, problems) {
-  if (typeof fromSite !== 'function') {
-    problems.push(`componentsFrom: ${componentsFrom} is in the site repository, and the description is read without one`);
-    return null;
-  }
   let declared;
   try {
     declared = fromSite(componentsFrom);
@@ -447,12 +456,18 @@ function takenComponents(componentsFrom, fromSite, problems) {
   return taken;
 }
 
-// A file of the site repository a key names, a path from its root with one of `extensions`, or
-// a package specifier (site-repository.js), or null where the key is left out.
-function siteFileOf(given, key, extensions, kind, path, specifier, problems) {
+// The files a site description may name in the site repository, each by what it is, `kind`,
+// the `extensions` its path ends with, and what the description's checker gives as examples
+// where it refuses a value, a path, `pathExample`, and a package specifier, `specifierExample`.
+const JSON_FILE = { kind: 'a JSON file', extensions: ['.json'], pathExample: 'components.json', specifierExample: '@example/design/directives/components.json' };
+const MODULE = { kind: 'a JavaScript module', extensions: ['.js', '.mjs'], pathExample: 'component-checks.js', specifierExample: '@example/design/directives/checks' };
+
+// A file of the site repository a key names, of a kind above, a path from its root or a package
+// specifier (site-repository.js), or null where the key is left out.
+function siteFileOf(given, key, { kind, extensions, pathExample, specifierExample }, problems) {
   if (given === undefined) return null;
   if (!isSiteFile(given, extensions)) {
-    problems.push(`${key}: must be the path of ${kind} in the site repository, from its root, such as ${path}, or a package specifier, a scoped package's name and the path of a file it exports, such as ${specifier}`);
+    problems.push(`${key}: must be the path of ${kind} in the site repository, from its root, such as ${pathExample}, or a package specifier, a scoped package's name and the path of a file it exports, such as ${specifierExample}`);
     return null;
   }
   return given;
@@ -526,7 +541,7 @@ export function siteRules(site) {
 // none. Its `componentProblems(name, attributes, blocks)` gives the reasons the site cannot
 // publish what a component holds.
 function componentChecksOf(given, components, problems) {
-  const checks = siteFileOf(given, 'componentChecks', ['.js', '.mjs'], 'a JavaScript module', 'component-checks.js', '@kntnt/konzilo-design/directives/checks', problems);
+  const checks = siteFileOf(given, 'componentChecks', MODULE, problems);
   if (checks !== null && components !== null && Object.keys(components).length === 0) problems.push('componentChecks: checks what the site\'s components hold, and the site declares none');
   return checks;
 }
@@ -1033,7 +1048,7 @@ function typeOf(name, type, path, site, problems) {
     feed: feedAddressOf(type.feed, `${path}.feed`, false, problems),
     hierarchical,
     search: takesPart(type.search, address, site.addresses.searched, `${path}.search`, problems),
-    elements: elementsOf(type.elements, `${path}.elements`, site.rules, site.unread, problems),
+    elements: elementsOf(type.elements, `${path}.elements`, site.rules, problems),
     editor: EDITORS.includes(type.editor) ? type.editor : 'text',
     structuredDataTypes: structuredDataTypesOf(name, type.structuredDataTypes, builtIn, `${path}.structuredDataTypes`, problems),
     fields: [],
