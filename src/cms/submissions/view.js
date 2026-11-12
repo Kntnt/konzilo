@@ -33,19 +33,26 @@ function useAnswer(read, deps) {
   return [answer, setAnswer];
 }
 
-function Submission({ submission }) {
+// A submission's moment and fields, as they came.
+export function SubmissionFields({ submission }) {
   const { createElement: h } = react();
-  return h('li', { style: SUBMISSION },
-    h('dl', { style: FIELDS },
-      h('dt', { style: LABEL }, say('submissions.sentAt', { timeZone: browserTimeZone() })),
-      h('dd', { style: VALUE }, momentShown(submission.sentAt)),
-      submission.fields.flatMap(({ name, label, value }, at) => [
-        h('dt', { key: `${at}-${name}-label`, style: LABEL }, label),
-        h('dd', { key: `${at}-${name}-value`, style: VALUE }, valueShown(value)),
-      ])));
+  return h('dl', { style: FIELDS },
+    h('dt', { style: LABEL }, say('submissions.sentAt', { timeZone: browserTimeZone() })),
+    h('dd', { style: VALUE }, momentShown(submission.sentAt)),
+    submission.fields.flatMap(({ name, label, value }, at) => [
+      h('dt', { key: `${at}-${name}-label`, style: LABEL }, label),
+      h('dd', { key: `${at}-${name}-value`, style: VALUE }, valueShown(value)),
+    ]));
 }
 
-function Download({ form, credential }) {
+function Submission({ submission }) {
+  const { createElement: h } = react();
+  return h('li', { style: SUBMISSION }, h(SubmissionFields, { submission }));
+}
+
+// The separator to choose, and a button that downloads by it: `download(separator)` gives whether
+// the file was saved.
+export function Download({ download, disabled = false }) {
   const { createElement: h, useState } = react();
   const [separator, setSeparator] = useState(offeredSeparator);
   const [failed, setFailed] = useState(false);
@@ -56,7 +63,7 @@ function Download({ form, credential }) {
       h('legend', { style: { ...TEXT, padding: 0 } }, say('submissions.separator')),
       choice('comma', say('submissions.comma')),
       choice('semicolon', say('submissions.semicolon'))),
-    h('button', { type: 'button', onClick: async () => setFailed(!await downloadCsv({ credential, form, separator })) }, say('submissions.download')),
+    h('button', { type: 'button', disabled, onClick: async () => setFailed(!await download(separator)) }, say('submissions.download')),
     failed ? h('p', { role: 'alert', style: LINE }, say('submissions.downloadFailed')) : null);
 }
 
@@ -97,7 +104,7 @@ export function submissionsPage({ credential = signedInCredential } = {}) {
           say('submissions.form'),
           h('select', { value: form, onChange: (event) => setChosen(event.target.value) },
             forms.map(({ name, label, count }) => h('option', { key: name, value: name }, `${label} (${count})`))))),
-      h(Download, { key: `${form}-download`, form, credential }),
+      h(Download, { key: `${form}-download`, download: (separator) => downloadCsv({ credential, form, separator }) }),
       h(FormSubmissions, { key: form, form, credential }));
   };
 }

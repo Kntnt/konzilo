@@ -148,11 +148,7 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Release**: One complete set of a site's built static pages; the one its `current` link points to is what visitors get. _Avoid_: version, deployment.
 
-<<<<<<< HEAD
-**Live preview**: The site from its own templates, with every saved post whatever its status, from Astro's dev server on an origin of its own: the page beside the form in Sveltia, about a second after an editor stops typing, and the site in a tab of its own, browsed as a visitor would, by anyone who may see it, signed in through Forgejo. _Avoid_: staging, test copy.
-=======
-**Live preview**: The site from its own templates, from Astro's dev server on an origin of its own: the page beside the form in Sveltia, about a second after an editor stops typing, and the site in a tab of its own, browsed as a visitor would, by anyone who may read the site's source, a Reviewer too, signed in through Forgejo. _Avoid_: staging, test copy.
->>>>>>> spec-51
+**Live preview**: The site from its own templates, with every saved post whatever its status, from Astro's dev server on an origin of its own: the page beside the form in Sveltia, about a second after an editor stops typing, and the site in a tab of its own, browsed as a visitor would, by anyone who may read the site's source, a Reviewer too, signed in through Forgejo. _Avoid_: staging, test copy.
 
 **Share link**: A secret link to one post not yet published, which lets someone without a login read it in a static preview build for three days, or until revoked. _Avoid_: public preview, magic link.
 
@@ -299,6 +295,10 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 **Mail adapter**: How the Node service sends the forms' mail, which an Admin chooses on the *Mail* page: none, which is how a site starts, or SMTP, through a mail server the Admin names. A local copy writes each mail to the service's log instead, and sends none. _Avoid_: mailer, mail provider.
 
 **Submission**: One sent form, kept in the service for its form's retention. _Avoid_: entry, lead.
+
+**Retention**: The days a form's submissions are kept, which an Admin sets for each form beside its recipients on the *Mail* page, 30 until then, after which the service forgets them; spam is kept 7 days, or its form's retention where that is shorter. _Avoid_: expiry, TTL.
+
+**Erasure**: Removing a person's submissions at their request, which an Admin does on the *Personal data* page after finding them by what the person wrote, leaving nothing of them in the service's data. _Avoid_: deletion (of a person's data), purge.
 
 **Timing token**: A signed token a form's page asks for once the form comes into use; a submission too soon after it is held as spam. _Avoid_: CSRF token.
 

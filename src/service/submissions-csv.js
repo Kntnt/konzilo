@@ -1,6 +1,7 @@
-// A form's submissions as CSV (ADR 0045), which Admins and Editors download from the
-// *Submissions* page: UTF-8 with a byte-order mark, its rows ended by CRLF, written a row at a time
-// as the submissions are read, and never stored. Each value is written safe to open: what a
+// Submissions as CSV (ADR 0045), a form's, which Admins and Editors download from the *Submissions*
+// page, or a person's, which an Admin downloads from the *Personal data* page: UTF-8 with a
+// byte-order mark, its rows ended by CRLF, written a row at a time as the submissions are read,
+// and never stored. Each value is written safe to open: what a
 // spreadsheet would take as the start of a formula, by either separator, is written after an
 // apostrophe.
 
@@ -52,17 +53,17 @@ function* columnsOf({ fields }) {
   }
 }
 
-// A form's submissions as CSV, a piece at a time: the header row, after the byte-order mark, and
-// then a row for each submission. `label`: the form's. `each()`: its submissions, spam left out,
+// Submissions as CSV, a piece at a time: the header row, after the byte-order mark, and then a row
+// for each submission. `labelOf(form)`: a form's label, by its name. `each()`: the submissions,
 // newest first, as the store reads them, which is asked for twice: once for the columns and once
 // for the rows. `separator`: a name of SEPARATORS. `timeZone`: the one the moments are in.
 // `language`: the reader's interface language, which the column names and a box's words are in.
 //
 // Columns: when it was sent, in the time zone its heading names by its IANA name, since a
-// spreadsheet takes `YYYY-MM-DD HH:MM:SS` as a moment and the same with an offset as text; the
-// form; then each field's label, the newest submission's in its order, then each label only older
+// spreadsheet takes `YYYY-MM-DD HH:MM:SS` as a moment and the same with an offset as text; its
+// form's label; then each field's label, the newest submission's in its order, then each label only older
 // ones hold.
-export function* submissionsCsv({ label, each, separator, timeZone, language }) {
+export function* submissionsCsv({ labelOf, each, separator, timeZone, language }) {
   const by = SEPARATORS[separator];
   const words = (name, values) => text(catalogueFor(language), `submissions.${name}`, values);
   const columns = new Map();
@@ -76,6 +77,6 @@ export function* submissionsCsv({ label, each, separator, timeZone, language }) 
   const shown = (value) => valueText(value, box);
   for (const submission of each()) {
     const values = new Map([...columnsOf(submission)].map(({ column, value }) => [column, shown(value)]));
-    yield row([moment(submission.sentAt), label, ...[...columns.keys()].map((column) => values.get(column) ?? '')], by);
+    yield row([moment(submission.sentAt), labelOf(submission.form), ...[...columns.keys()].map((column) => values.get(column) ?? '')], by);
   }
 }

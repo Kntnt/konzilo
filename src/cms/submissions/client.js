@@ -89,18 +89,22 @@ function saveInBrowser(blob, name) {
   setTimeout(() => URL.revokeObjectURL(address), 60_000);
 }
 
-// A form's submissions as CSV, by the separator chosen, a name of the service's, in the browser's
-// time zone and the interface language, saved as `<form>-<day>.csv`. Whether it was.
-export async function downloadCsv({ credential, form, separator, timeZone = browserTimeZone(), today = () => new Date(), get = fetching(), save = saveInBrowser }) {
+// Submissions as CSV from the service at `path`, by the separator chosen, a name of the
+// service's, in the browser's time zone and the interface language, with what `query` adds, saved
+// as `<named>-<day>.csv`. Whether it was.
+export async function downloadCsvFrom({ credential, path, query = {}, named, separator, timeZone = browserTimeZone(), today = () => new Date(), get = fetching(), save = saveInBrowser }) {
   const held = credential();
   if (!held) return false;
-  const query = new URLSearchParams({ separator, timeZone, language: interfaceLanguage() });
+  const asked = new URLSearchParams({ ...query, separator, timeZone, language: interfaceLanguage() });
   try {
-    const answer = await get(`${SUBMISSIONS_PATH}/${encodeURIComponent(form)}.csv?${query}`, { headers: { authorization: held }, cache: 'no-store' });
+    const answer = await get(`${path}?${asked}`, { headers: { authorization: held }, cache: 'no-store' });
     if (!answer.ok) return false;
-    save(await answer.blob(), `${form}-${dayIn(today(), timeZone)}.csv`);
+    save(await answer.blob(), `${named}-${dayIn(today(), timeZone)}.csv`);
     return true;
   } catch {
     return false;
   }
 }
+
+// A form's submissions as CSV, saved as `<form>-<day>.csv`. Whether it was.
+export const downloadCsv = ({ form, ...options }) => downloadCsvFrom({ ...options, path: `${SUBMISSIONS_PATH}/${encodeURIComponent(form)}.csv`, named: form });
