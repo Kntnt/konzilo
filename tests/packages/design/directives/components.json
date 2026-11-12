@@ -1,0 +1,13 @@
+{
+  "section": {
+    "label": "Section",
+    "form": "container",
+    "body": "blocks",
+    "attributes": {
+      "surface": { "type": "string", "label": "Surface", "values": ["page", "raised"], "default": "page" },
+      "anchor": { "type": "string", "default": "", "pattern": "^[a-z-]*$" }
+    }
+  },
+  "eyebrow": { "label": "Eyebrow", "form": "leaf", "body": "text" },
+  "list": { "label": "Series", "form": "container", "body": "blocks" }
+}

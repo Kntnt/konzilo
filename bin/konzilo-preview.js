@@ -15,7 +15,7 @@ import { componentChecksOf } from '../src/intake/component-checks.js';
 import { readSiteDescription, SITE_DESCRIPTION_FILE } from '../src/site-description.js';
 import { devServer } from '../src/preview/dev-server.js';
 import { previewGate } from '../src/preview/gate.js';
-import { previewRunner } from '../src/preview/runner.js';
+import { draftProblem, previewRunner } from '../src/preview/runner.js';
 import { gitSource } from '../src/preview/source.js';
 
 const run = promisify(execFile);
@@ -56,8 +56,20 @@ const source = gitSource({
   home: '/work/home',
 });
 
-const described = readSiteDescription(`/site/${SITE_DESCRIPTION_FILE}`);
-const runner = previewRunner({ site: described, source, content: `${SITE_FOLDER}/content`, adminHost, components: await componentChecksOf(described, '/site') });
+// The site description as the gate reads it at once, from the site's folder, which need not have
+// installed the site's packages: without the components it takes from one, which the gate does not
+// read.
+const described = readSiteDescription(`/site/${SITE_DESCRIPTION_FILE}`, undefined, { componentsFrom: false });
+
+// The runs of the intake, once the site's code is prepared: its description and the check of what
+// its components hold read from there, where its packages are installed, as the builder reads them.
+let runner = null;
+const ready = prepared.then(async () => {
+  const site = readSiteDescription(`${SITE_FOLDER}/${SITE_DESCRIPTION_FILE}`);
+  runner = previewRunner({ site, source, content: `${SITE_FOLDER}/content`, adminHost, components: await componentChecksOf(site, SITE_FOLDER) });
+  return runner;
+});
+ready.catch((error) => console.error(`The preview could not read the site: ${error.message}`));
 
 const dev = devServer({
   root: SITE_FOLDER,
@@ -72,8 +84,7 @@ const dev = devServer({
   },
   // A dev server finds a content folder with something in it.
   before: async () => {
-    await prepared;
-    await runner.refresh();
+    await (await ready).refresh();
   },
 });
 
@@ -88,17 +99,11 @@ const gate = previewGate({
   cookieName: `${site}_preview`,
   dev,
   runner: {
-    problem: runner.problem,
-    take: async (draft) => {
-      await prepared;
-      return runner.take(draft);
-    },
-    refresh: async () => {
-      await prepared;
-      return runner.refresh();
-    },
-    at: runner.at,
-    notFoundAt: runner.notFoundAt,
+    problem: (draft) => draftProblem(described, draft),
+    take: async (draft) => (await ready).take(draft),
+    refresh: async () => (await ready).refresh(),
+    at: (path) => (runner === null ? null : runner.at(path)),
+    notFoundAt: (path) => (runner === null ? null : runner.notFoundAt(path)),
   },
 });
 

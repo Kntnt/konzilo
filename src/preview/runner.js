@@ -73,6 +73,17 @@ const decoded = (name) => {
   }
 };
 
+// Why a draft cannot be looked at on a site, `site` as siteDescription() gives it, or null: it
+// asks only where the draft's file lies and what it is given, so a description read without the
+// components it takes answers it too.
+export function draftProblem(site, { path, fields, images: given = [] } = {}) {
+  const about = pathProblem(path, site);
+  if (about) return about;
+  if (fields === null || typeof fields !== 'object' || Array.isArray(fields)) return 'a draft needs its fields';
+  if (!Array.isArray(given)) return 'a draft\'s images are a list';
+  return given.map(unsavedImage).find(({ reason }) => reason)?.reason ?? null;
+}
+
 // `site`: the site description. `source`: where the source files come from, as source.js
 // gives it. `content`: the preview's content folder. `adminHost`: as the intake takes it.
 // `components`: the site's check of what its components hold, as intake/component-checks.js
@@ -146,13 +157,7 @@ export function previewRunner({ site: described, source, content, adminHost = nu
 
   return {
     // Why this draft cannot be looked at, or null.
-    problem({ path, fields, images: given = [] } = {}) {
-      const about = pathProblem(path, site);
-      if (about) return about;
-      if (fields === null || typeof fields !== 'object' || Array.isArray(fields)) return 'a draft needs its fields';
-      if (!Array.isArray(given)) return 'a draft\'s images are a list';
-      return given.map(unsavedImage).find(({ reason }) => reason)?.reason ?? null;
-    },
+    problem: (draft) => draftProblem(site, draft),
 
     // The content folder brought up to what is saved, with any drafts still kept: a preview's
     // first run, before its dev server starts, and the run before a page asked for in a tab of

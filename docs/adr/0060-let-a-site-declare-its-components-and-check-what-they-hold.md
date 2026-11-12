@@ -1,6 +1,6 @@
 # ADR 0060: Let a site declare its components, and check what they hold
 
-**Date:** 2026-11-10 · **Status:** Accepted. That a site declares components of its own in its site description is settled (ADR 0019; Thomas, 2026-11-02). How they are declared, named and checked is a technical choice; Thomas may veto.
+**Date:** 2026-11-10, amended 2026-11-12 · **Status:** Accepted. That a site declares components of its own in its site description is settled (ADR 0019; Thomas, 2026-11-02). Settled by Thomas on 2026-11-11: a site may take its components' declarations and their check from a package, such as the design system's, and keeps labels of its own per language. How they are declared, named, taken and checked is a technical choice; Thomas may veto, among them, on 2026-11-12: a site takes a package's components whole and gives them only labels, by language, under `componentLabels`, beside components of its own under `components`, a name both declare refused, rather than merging declarations; `componentsFrom` names one JSON file, rather than a module; a value starting with `@` is a package specifier and any other a path from the site repository's root, as before, rather than Node's `./` for a path; a specifier is found as Node finds a `require()` of it from the site repository, so a package's `exports` gives the file under `default` or plainly; the builder and the live preview find it in their own copy of the site's code, with its packages installed, while the seed, the service and the preview's gate, which read no body, read the description without the components it takes, so the site's folder needs no installed packages; and the editor's early check takes the package's components from its configuration and runs no check, a package's no more than a site's.
 
 ## Decision
 
@@ -10,6 +10,10 @@
 - **A container holds blocks, and a leaf holds text.** A container's blocks are read and written as a body's are, each with its path below the container's, images and other components among them, each held to the elements the post's type takes. Its fence is one colon longer than the longest inside. A leaf's label holds a heading's inline elements. The read-back compares them as it does every other block.
 - **A site checks what its components hold in a module of its own,** named by `componentChecks`: `componentProblems(name, attributes, blocks)` gives the reasons, in the editor's words, and the intake refuses the post for each. The command and the preview load the module from the site repository and hand it to the intake. The editor's early check does not run it, since the editor is built before any site.
 - **The editor gets the components from its configuration,** in Konzilo's own part, and its field reads them as the intake does.
+- **A site may take its components from a package,** named by `componentsFrom`: a JSON file of components declared as under `components`, by a package specifier, such as `@kntnt/konzilo-design/directives/components.json`, or by a path from the site repository's root. It takes them whole, their names, forms, bodies and attributes as the package declares them. It gives them labels of its own under `componentLabels`, each component's and each attribute's, one text for every language, or one by interface language over the package's British English. It declares components of its own under `components`, beside them. A name both declare is refused, naming the package, and so are labels for a component or an attribute the package does not declare, and labels with nothing to take.
+- **`componentChecks` names its module by a package specifier too,** such as `@kntnt/konzilo-design/directives/checks`. A site with components of its own beside a package's names a module of its own, which may ask the package's.
+- **A specifier starts with `@`,** a scoped package's name, then the path of a file the package exports; any other value is a path from the site repository's root. Every reader finds a specifier from the site repository, as Node finds a `require()` of it there, so the same file whichever copy of the core reads it: the intake's command, the editor's configuration and the search documents in the builder's copy of the site's code, with its packages installed, the preview's runs of the intake in the preview's own copy, and Astro from the site's root. The seed, the service and the preview's gate read no body, so they read the description in the site's folder without the components it takes: a type may name any element beside the core's and the site's own, and `siteRules()` refuses the description so read.
+- **The editor's early check** takes the components a site takes, with the site's labels, from its configuration, as it takes the site's own, and runs no check, a package's no more than a site's.
 
 ## Why
 
@@ -17,6 +21,10 @@
 - The format already described containers and labels, and the reader read them. Only the body check dropped what a directive held, so no container could pass the intake.
 - A site whose `list` replaced the core's `list` broke every list with formatting. Two names for two things, an element and a directive, keep both.
 - What a component must hold, every action a link or every logo an image, is the site's design's to say, and a check in code says it exactly. The rule data's patterns still check the attributes with no code.
+- A design system declares, checks and draws its components in one package, so nothing drifts between what is declared, checked and drawn, and a fix reaches every site with its version. Taking them whole keeps what the intake checks the same as what the package draws; the labels are what an editor reads, in a language the package cannot know.
+- A JSON file is read where the description is, at once, by every reader, the editor's configuration among them, and is a declaration, never code.
+- `@` tells a specifier from a path without a guess, and leaves every path a site description holds as it was. Node resolves an `import` from another folder only behind a flag, and `require.resolve` from the site repository finds the file npm installed there, by the package's `exports`.
+- Only the builder and the live preview need a site's packages, and each installs them in a copy of the site's code of its own. A service that read them in the site's folder would need them installed there too, on every server, for a body it never reads.
 
 ## Considered and rejected
 
@@ -24,9 +32,18 @@
 - **Separate registries per reader.** The editor, the intake and the build would drift apart.
 - **Declared rules in place of a module for what a component holds.** The checks a site needs differ by component and are easier to say as code. Declared rules may come when the same checks recur across sites.
 - **Running the site's checks in the editor's early check.** The editor's application is built before any site and cannot import a site's code. The intake remains the check that counts.
+- **Merging a site's declarations into a package's,** a component of the site's own by a package's name overriding parts of it. What the intake checks would drift from what the package draws, and the checker would have to say which keys may be overridden.
+- **Labels under `components`, by the package's names.** An entry would be a component or labels by whether the package declares its name, which a reader without the package cannot tell.
+- **The declarations as a module of the package's.** Several readers take the description at once, with no `await`, and a declaration is data.
+- **Node's convention, `./` for a path and any other value a package's.** Every path from the root a site description holds would become a package's name.
+- **Resolving a package's `exports` with `import`'s conditions in the core's own code.** A resolver of the core's would drift from Node's.
 
 ## Consequences
 
 - A site's component is a body element like the core's, so a type's `elements` must name it, by `<name>-directive` where the names meet.
 - The module named by `componentChecks` refuses content, so it changes what the core does, and is under the license by `SITE-EXCEPTION.md`'s terms, as any extension through a way in of the core's is.
 - Removing a component from a description makes every post that holds it refused, as removing a core element would.
+- A package that a site takes its components from ships their declarations as a JSON file and its check as a module, each exported under `default` or by a plain path. Raising its version may change what the site takes, and the site's posts are checked against it at the next build.
+- A package's check refuses content, as a site's does, so it is under the license by `SITE-EXCEPTION.md`'s terms wherever it is kept, while its declarations are a declaration, site material, wherever they are kept. Taking them from a package moves no line between the core and the site.
+- The reasons a package's check gives, and its attributes' refusals, are the package's words, in British English, until the package gives them by language.
+- A site's own component named as one it takes is refused by the readers that read the package, the builder, the preview's runs and Astro; the service, which reads no body, does not see the clash.

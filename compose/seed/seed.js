@@ -157,7 +157,9 @@ async function pushDemoContent(token) {
   git('config', 'user.email', 'konzilo@localhost.invalid');
   git('lfs', 'install', '--local', '--skip-repo');
   writeFileSync(join(folder, '.gitattributes'), GIT_ATTRIBUTES);
-  const description = readSiteDescription(`${SITE}/site-description.json`);
+  // The demo content's bodies are copied as they are, so the seed reads none, nor the components
+  // the site takes from a package, which the site's folder need not have installed.
+  const description = readSiteDescription(`${SITE}/site-description.json`, undefined, { componentsFrom: false });
   for (const { path, content } of demoSource(description, demoContentOf(SITE))) {
     mkdirSync(dirname(join(folder, path)), { recursive: true });
     writeFileSync(join(folder, path), content);
