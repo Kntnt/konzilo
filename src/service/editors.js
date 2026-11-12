@@ -8,7 +8,7 @@
 
 import { ADMINS_TEAM } from '../build/roles.js';
 import { publishStatus } from '../build/status.js';
-import { CREDENTIAL, mayWrite } from '../forgejo.js';
+import { CREDENTIAL, mayWrite, organisationTeams } from '../forgejo.js';
 import { FORM_NAME } from '../site-description.js';
 import { FAILURE_SETTING, MAIL_SETTING } from './mail.js';
 import { checkMailSettings, mailSettingsShown } from './mail-settings.js';
@@ -68,31 +68,26 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
     return may;
   };
 
-  // Who is asking, as Forgejo says: `admin`, one in the organisation's team of Admins or the one
-  // who runs the instance (ADR 0008); `writer`, anyone else who may write; or null. Who is in a
-  // team Forgejo tells only those in it and the one who runs it, so the service asks by a
+  // Who is asking, as Forgejo says: `admin`, one in the organisation's team of Admins;
+  // `instanceAdministrator`, Kntnt's account on the instance, which is no Admin and may use the
+  // Admin's pages all the same (ADR 0044); `writer`, anyone else who may write; or null. Who is in
+  // a team Forgejo tells only those in it and the instance administrator, so the service asks by a
   // credential of its own that can read the teams and nothing else.
   const organisation = repository.split('/')[0];
   const asked = (path, credential) => get(`${forgejo}/api/v1${path}`, { headers: { authorization: credential } });
-  const inAdmins = async (login) => {
-    if (rolesToken === null) return false;
-    const teams = await asked(`/orgs/${encodeURIComponent(organisation)}/teams?limit=50`, `token ${rolesToken}`);
-    if (!teams.ok) throw new Error(`Forgejo answered ${teams.status} about the teams`);
-    const team = (await teams.json()).find(({ name }) => name === ADMINS_TEAM);
-    if (!team) return false;
-    const member = await asked(`/teams/${team.id}/members/${encodeURIComponent(login)}`, `token ${rolesToken}`);
-    if (member.status === 404) return false;
-    if (!member.ok) throw new Error(`Forgejo answered ${member.status} about the team of Admins`);
-    return true;
-  };
+  const inAdmins = async (login) => rolesToken !== null && (await organisationTeams({ forgejo, organisation, token: rolesToken, get }).members(ADMINS_TEAM)).includes(login);
   const roleOf = async (credential) => {
     if (!CREDENTIAL.test(credential ?? '')) return null;
     const me = await asked('/user', credential);
     if (!me.ok) return null;
-    const { login, is_admin: runsTheInstance } = await me.json();
-    if (runsTheInstance === true || (typeof login === 'string' && await inAdmins(login))) return 'admin';
+    const { login, is_admin: isInstanceAdministrator } = await me.json();
+    if (isInstanceAdministrator === true) return 'instanceAdministrator';
+    if (typeof login === 'string' && await inAdmins(login)) return 'admin';
     return await mayWrite({ forgejo, repository, credential, get }) ? 'writer' : null;
   };
+  // Whether a role may use the Admin's pages, *Mail* and *Personal data*: an Admin's, and the
+  // instance administrator's.
+  const usesAdminPages = (role) => role === 'admin' || role === 'instanceAdministrator';
 
   // How the site mails the forms' submissions, and how long it keeps them, to an Admin alone: an
   // Editor is told only that it is an Admin's, and whoever may not write nothing. A save makes
@@ -106,7 +101,7 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
     }
     if (!store) return answerJson(outgoing, 404, {});
     const role = await roleOf(incoming.headers.authorization);
-    if (role !== 'admin') {
+    if (!usesAdminPages(role)) {
       incoming.resume();
       return answerJson(outgoing, role === null ? 401 : 403, {});
     }
@@ -156,7 +151,7 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
     }
     if (!store) return answerJson(outgoing, 404, {});
     const role = await roleOf(incoming.headers.authorization);
-    if (role !== 'admin') return answerJson(outgoing, role === null ? 401 : 403, {});
+    if (!usesAdminPages(role)) return answerJson(outgoing, role === null ? 401 : 403, {});
     const declared = forms();
     const labelOf = (form) => declared[form]?.label ?? form;
     if (incoming.method === 'GET' && !asCsv) {

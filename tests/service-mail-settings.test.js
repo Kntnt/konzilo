@@ -20,8 +20,8 @@ const forms = {
   note: { name: 'note', label: 'A note', fields: [] },
 };
 
-// Who each credential is, to Forgejo: an Admin in the team `admins`, an Editor, the one who runs
-// the instance, and a reader of the repository who may not write.
+// Who each credential is, to Forgejo: an Admin in the team `admins`, an Editor, the instance
+// administrator, and a reader of the repository who may not write.
 const PEOPLE = {
   'token anna': { login: 'anna', is_admin: false, push: true },
   'token erik': { login: 'erik', is_admin: false, push: true },
@@ -40,17 +40,30 @@ describe('the mail settings, for Admins', () => {
   let origin;
   let asked;
 
+  // Forgejo lists a page at a time, as many as `limit` asks for, 50 at most. `crowded`: an
+  // organisation with more teams than one page holds, its team of Admins on the second, and more
+  // Admins than one page holds, Anna the last.
+  let crowded = false;
+  const TEAMS = [{ id: 8, name: 'editors' }, { id: 7, name: 'admins' }];
+  const CROWDED_TEAMS = [...Array.from({ length: 50 }, (_, at) => ({ id: 100 + at, name: `team-${at}` })), ...TEAMS];
+  const ADMINS = [{ login: 'anna' }];
+  const CROWDED_ADMINS = [...Array.from({ length: 50 }, (_, at) => ({ login: `admin-${at}` })), ...ADMINS];
+  const paged = (all, searchParams) => {
+    const limit = Math.min(Number(searchParams.get('limit') ?? 30), 50);
+    const page = Number(searchParams.get('page') ?? 1);
+    return all.slice((page - 1) * limit, page * limit);
+  };
   const answerOf = (body, status = 200) => ({ ok: status < 400, status, json: async () => body });
   const forgejo = async (url, { headers }) => {
-    const { pathname } = new URL(url);
+    const { pathname, searchParams } = new URL(url);
     asked.push({ path: pathname, authorization: headers.authorization });
     const person = PEOPLE[headers.authorization];
     if (pathname === '/api/v1/user') return person ? answerOf(person) : answerOf({}, 401);
     if (pathname === '/api/v1/repos/org/source') return person ? answerOf({ permissions: { push: person.push } }) : answerOf({}, 401);
     if (headers.authorization !== ROLES) return answerOf({}, 404);
-    if (pathname === '/api/v1/orgs/org/teams') return answerOf([{ id: 8, name: 'editors' }, { id: 7, name: 'admins' }]);
-    if (pathname === '/api/v1/teams/7/members/anna') return answerOf({ login: 'anna' });
-    if (/^\/api\/v1\/teams\/\d+\/members\//.test(pathname)) return answerOf({}, 404);
+    if (pathname === '/api/v1/orgs/org/teams') return answerOf(paged(crowded ? CROWDED_TEAMS : TEAMS, searchParams));
+    if (pathname === '/api/v1/teams/7/members') return answerOf(paged(crowded ? CROWDED_ADMINS : ADMINS, searchParams));
+    if (pathname === '/api/v1/teams/8/members') return answerOf(paged([{ login: 'erik' }], searchParams));
     throw new Error(`nothing to say of ${pathname}`);
   };
 
@@ -87,6 +100,7 @@ describe('the mail settings, for Admins', () => {
     rmSync(join(folder, 'service.sqlite'), { force: true });
     store = openStore(join(folder, 'service.sqlite'));
     asked = [];
+    crowded = false;
     await serving();
   });
   afterEach(async () => {
@@ -116,10 +130,16 @@ describe('the mail settings, for Admins', () => {
       assert.equal((await save({ adapter: 'smtp', smtp: SMTP, forms: {} }, headers)).status, 401);
     }
     assert.equal(store.setting('mail'), null, 'nothing kept');
-    assert.equal((await read({ authorization: 'token instance' })).status, 200, 'the one who runs the instance');
+    assert.equal((await read({ authorization: 'token instance' })).status, 200, 'the instance administrator, who is no Admin');
     const teams = asked.filter(({ path }) => path.includes('/teams'));
     assert.ok(teams.length > 0);
     assert.ok(teams.every(({ authorization }) => authorization === ROLES), 'by the service\'s credential alone');
+  });
+
+  test('finds an Admin in an organisation of more teams than a page of Forgejo\'s lists, and among more Admins than one holds', async () => {
+    crowded = true;
+    assert.equal((await read()).status, 200);
+    assert.equal((await read({ authorization: 'token erik' })).status, 403);
   });
 
   test('keeps what an Admin saves, the adapter, its settings and each form\'s recipients and retention, and never gives the password back', async () => {
