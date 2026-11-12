@@ -215,6 +215,7 @@ const cases = {
     'settings.json': { ...settled, legalPages: { privacyPolicy: 'cccccccccccc' } },
     ...Object.fromEntries([pagePost('cccccccccccc', { slug: 'privacy' })]),
   }, { changes: { 'pages/cccccccccccc.md': { by: 'editor@example.com', admin: false } } }), { post: true }],
+  reviewer: [() => withFiles({ 'articles/aaaaaaaaaaaa.md': article() }, { changes: { 'articles/aaaaaaaaaaaa.md': { by: 'reviewer@example.com', admin: false, reviewer: true } } }), { post: true }],
   'title-empty': [() => onePost({ title: '' }), { field: 'title' }],
   'title-markup': [() => onePost({ title: 'A <b>bold</b> title' }), { field: 'title' }],
   slug: [() => onePost({ slug: 'Not A Slug' }), { field: 'slug' }],
