@@ -73,9 +73,10 @@ const body = [
   '::callout[Read **this**]{tone="warning"}',
 ].join('\n\n');
 
-// A site repository with `files`, built, as the public site's or, with `preview`, as the live
-// preview's dev server renders it; { status, output, article(slug), html(slug) }.
-function build(files, directives = {}, described = site, { preview = false } = {}) {
+// A site repository with `files`, built; { status, output, html(slug) }.
+// `environment`: what the build's environment adds, such as the live
+// preview's KONZILO_PREVIEW.
+function build(files, directives = {}, described = site, environment = {}) {
   const repository = mkdtempSync(join(tmpdir(), 'konzilo-directives-'));
   repositories.push(repository);
   // The core's dependencies, each on its own, for a package of the site's to stand among them.
@@ -92,10 +93,9 @@ function build(files, directives = {}, described = site, { preview = false } = {
   write('site-description.json', JSON.stringify(described));
   write('src/pages/[slug].astro', page);
   for (const [path, contents] of Object.entries({ ...components, ...files })) write(path, contents);
-  const built = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: preview ? { ...astroEnvironment, KONZILO_PREVIEW: '1' } : astroEnvironment });
-  const html = (slug) => readFileSync(join(repository, `dist/${slug}/index.html`), 'utf8');
-  const article = (slug) => /<article>(.*)<\/article>/s.exec(html(slug))?.[1];
-  return { status: built.status, output: `${built.stdout}\n${built.stderr}`, article, html };
+  const built = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: { ...astroEnvironment, ...environment } });
+  const article = (slug) => /<article>(.*)<\/article>/s.exec(readFileSync(join(repository, `dist/${slug}/index.html`), 'utf8'))?.[1];
+  return { status: built.status, output: `${built.stdout}\n${built.stderr}`, article };
 }
 
 describe('Astro', () => {
@@ -176,6 +176,57 @@ describe("a site's own components", () => {
     assert.match(given.article('hello-world'), /<aside class="site-note"><b><\/b><div data-directive="kicker">/);
   });
 
+  // A panel that lays itself out by what it holds, read from its body as a tree, and draws
+  // the tree; a kicker that reads its label as a tree; a divider, which has no body.
+  const fromTree = {
+    'src/components/Panel.astro': [
+      '---',
+      "import { toHtml } from 'hast-util-to-html';",
+      'const { tone, content } = Astro.props;',
+      "const headings = content.children.filter((node) => node.type === 'element' && /^h[2-6]$/.test(node.tagName)).length;",
+      '---',
+      '<section class="site-panel" data-tone={tone} data-headings={headings}><Fragment set:html={toHtml(content)} /></section>',
+      '',
+    ].join('\n'),
+    'src/components/Kicker.astro': "---\nconst { content } = Astro.props;\n---\n<p class=\"site-kicker\">{content.children.map((node) => node.type).join(' ')}</p>\n",
+    'src/components/Divider.astro': "---\n---\n<hr class=\"site-divider\" data-content={String(Astro.props.content)} />\n",
+  };
+  const withDivider = {
+    ...own,
+    components: { ...own.components, divider: { label: 'Divider', form: 'leaf', body: 'none' } },
+    types: { post: { ...own.types.post, elements: [...own.types.post.elements, 'divider'] } },
+  };
+  const treeBody = ['::kicker[A _kicker_]', ownBody, '::divider'].join('\n\n');
+  const treeComponents = { panel: './src/components/Panel.astro', kicker: './src/components/Kicker.astro', divider: './src/components/Divider.astro' };
+
+  test('gives a component its body as a tree as well, in `content`, a nested component in it as its plain rendering', () => {
+    const built = build({ 'content/articles/hello-world.md': post(treeBody), ...fromTree }, treeComponents, withDivider);
+    assert.equal(built.status, 0, built.output);
+    assert.equal(built.article('hello-world').replaceAll('\n', ''), [
+      '<p class="site-kicker">text element</p>',
+      '<section class="site-panel" data-tone="bright" data-headings="1">',
+      '<div data-directive="kicker">A <em>kicker</em></div>',
+      '<h2 id="inside">Inside</h2>',
+      '<div data-directive="list"><ul><li>One</li><li>Two</li></ul></div>',
+      '</section>',
+      '<hr class="site-divider" data-content="undefined">',
+    ].join(''));
+  });
+
+  test("in the live preview, the tree's blocks hold their marks, so that a component drawn from it keeps them", () => {
+    const built = build({ 'content/articles/hello-world.md': post(treeBody), ...fromTree }, treeComponents, withDivider, { KONZILO_PREVIEW: '1' });
+    assert.equal(built.status, 0, built.output);
+    const article = built.article('hello-world').replaceAll('\n', '');
+    assert.match(article, /<p class="site-kicker" data-konzilo-block="0">text element<\/p>/);
+    assert.equal(/<section class="site-panel"[^>]*>.*<\/section>/.exec(article)?.[0], [
+      '<section class="site-panel" data-tone="bright" data-headings="1" data-konzilo-block="1">',
+      '<div data-directive="kicker" data-konzilo-block="1.0">A <em>kicker</em></div>',
+      '<h2 data-konzilo-block="1.1" id="inside">Inside</h2>',
+      '<div data-directive="list" data-konzilo-block="1.2"><ul data-konzilo-block="1.2.0"><li data-konzilo-block="1.2.0.0">One</li><li data-konzilo-block="1.2.0.1">Two</li></ul></div>',
+      '</section>',
+    ].join(''));
+  });
+
   test('refuses a value a component does not take, naming the file and the line', () => {
     const built = build({ 'content/articles/hello-world.md': post(':::panel{tone="dark"}\n\nText\n\n:::') }, {}, own);
     assert.notEqual(built.status, 0);
@@ -196,11 +247,11 @@ describe("a site's own components in the live preview", () => {
     },
     types: { post: { ...site.types.post, elements: ['paragraph', 'heading', 'section', 'kicker', 'pair', 'words', 'bare'] } },
   };
-  // A section that places its mark itself, by passing on what it is not told of; a kicker, one
+  // A section that places its mark itself, on its root; a kicker, one
   // element, and a pair, two side by side, that place none; words, which render no element; and
   // a bare container, which renders its blocks with nothing around them.
   const designed = {
-    'src/components/Section.astro': '---\nconst { tone, ...rest } = Astro.props;\n---\n<section class="site-section" {...rest}><div class="site-band"><slot /></div></section>\n',
+    'src/components/Section.astro': '<section class="site-section" data-konzilo-block={Astro.props["data-konzilo-block"]}><div class="site-band"><slot /></div></section>\n',
     'src/components/Kicker.astro': '<p class="site-kicker"><slot /></p>\n',
     'src/components/Pair.astro': '<b class="site-pair">One</b><i class="site-pair">Two</i>\n',
     'src/components/Words.astro': 'Only words\n',
@@ -210,15 +261,15 @@ describe("a site's own components in the live preview", () => {
   const nested = ['Before', ':::section{tone="bright"}', '::kicker[A _kicker_]', '## Inside', '::::section', 'Deep', '::::', '::pair', '::words', '::::bare', 'Bare', '::::', ':::', '::words', ':::bare', 'Bare too', ':::'].join('\n\n');
 
   test('puts each mark on the root the component renders, its own or the core\'s, and a wrapper only at the top of the body, where nothing else can hold it', () => {
-    const built = build({ ...designed, 'content/articles/hello-world.md': post(nested) }, given, own, { preview: true });
+    const built = build({ ...designed, 'content/articles/hello-world.md': post(nested) }, given, own, { KONZILO_PREVIEW: '1' });
     assert.equal(built.status, 0, built.output);
     assert.equal(built.article('hello-world').replaceAll('\n', ''), [
       '<p data-konzilo-block="0">Before</p>',
       '<section class="site-section" data-konzilo-block="1"><div class="site-band">',
-      '<p data-konzilo-block="1.0" class="site-kicker">A <em>kicker</em></p>',
+      '<p class="site-kicker" data-konzilo-block="1.0">A <em>kicker</em></p>',
       '<h2 data-konzilo-block="1.1" id="inside">Inside</h2>',
       '<section class="site-section" data-konzilo-block="1.2"><div class="site-band"><p data-konzilo-block="1.2.0">Deep</p></div></section>',
-      '<b data-konzilo-block="1.3" class="site-pair">One</b><i data-konzilo-block="1.3" class="site-pair">Two</i>',
+      '<b class="site-pair" data-konzilo-block="1.3">One</b><i class="site-pair" data-konzilo-block="1.3">Two</i>',
       'Only words',
       '<p data-konzilo-block="1.5.0">Bare</p>',
       '</div></section>',
@@ -232,11 +283,11 @@ describe("a site's own components in the live preview", () => {
     const files = { ...scripted, 'content/articles/hello-world.md': post(nested) };
     const scripts = (built) => built.article('hello-world').match(/<script\b[^>]*>[^<]*<\/script>/g);
     const published = build(files, given, own);
-    const previewed = build(files, given, own, { preview: true });
+    const previewed = build(files, given, own, { KONZILO_PREVIEW: '1' });
     assert.equal(previewed.status, 0, previewed.output);
     assert.equal(scripts(published).length, 1, published.article('hello-world'));
     assert.deepEqual(scripts(previewed), scripts(published));
-    assert.match(previewed.article('hello-world'), /<p data-konzilo-block="1.0" class="site-kicker">/);
+    assert.match(previewed.article('hello-world'), /<p class="site-kicker" data-konzilo-block="1.0">/);
   });
 
   test('gives a component no mark on the public site', () => {

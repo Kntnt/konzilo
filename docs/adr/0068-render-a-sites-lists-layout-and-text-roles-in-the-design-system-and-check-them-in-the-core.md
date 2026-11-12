@@ -1,6 +1,6 @@
 # ADR 0068: Render a site's lists, layout and text roles in the design system, and check them in the core
 
-**Date:** 2026-11-10, amended 2026-11-11 · **Status:** Accepted, settled by Thomas on 2026-11-10: these components render in the design system, a site declares them, and the core checks them. The markup is agreed with the design system's session on 2026-11-10, and is its own, in its `docs/spec/directives.md`, with classes and attributes of its own.
+**Date:** 2026-11-10, amended 2026-11-11 and 2026-11-12 · **Status:** Accepted, settled by Thomas on 2026-11-10: these components render in the design system, a site declares them, and the core checks them. The markup is agreed with the design system's session on 2026-11-10, and is its own, in its `docs/spec/directives.md`, with classes and attributes of its own. That a component is given its body as a tree as well, with the block marks on it, is settled by Thomas (issue #34, 2026-11-11); that the tree is hast, in the prop `content` of every component with a body, is a technical choice he may veto.
 
 ## Decision
 
@@ -9,6 +9,7 @@
 - **The core checks what they hold,** their attributes by the rule data's patterns, and the rest by the site's `componentChecks` module, in the intake, before anything is published.
 - **The core keeps their plain rendering,** a `div` with the directive's name and attributes as `data-` attributes, holding its body, so that a site without the design system builds, and its own styles can draw them.
 - **What the core writes stays the core's** (ADR 0054): consent, embeds, forms, post lists, search, the pager and the breadcrumbs' levels. The design system styles them by the classes and custom properties in `docs/site-design.md`, and renders its own components around them.
+- **A component is given its body as a tree as well,** beside its default slot: a hast `root` in the prop `content`, for every component with a body, read by Sätteri from the body's HTML as the core renders it, with the live preview's marks on its blocks as `dataKonziloBlock`, and a component within as its plain rendering, holding its own body. A design lays a component out by the tree, such as a list whose items begin at its headings, a deck's length, whether every heading is a question, or a lone `tel:` or `mailto:` link in a paragraph, and a simple component places its slot. A component drawn from the tree keeps the marks by drawing each element with its properties.
 - **The contracts between the two are in `docs/site-design.md`:** the breadcrumbs' last level, given with `hidden: true` where the type leaves it out; the marks of each block in the live preview, which a component the design renders keeps on the blocks it is given; and the opening of the `<details>` a block stands in, with the event `konzilo-preview-show` for a design that opens anything else. The design system draws each tab and each answer as a `<details>` of an exclusive group, so it needs no script for this.
 
 ## Why
@@ -16,15 +17,19 @@
 - How a list of cards, an accordion or a section's layout looks is design, decided once for every site, and a fix reaches every site when it raises the design system's version (ADR 0054). In the core, a new look would need a release of the core; in the site template, every site would hold a copy that drifts.
 - What a component may hold is content, which the intake must check before it is published, whoever draws it. The core already has one registry for the intake, the reader and the editor (ADR 0060), so declaring the design system's components there costs nothing new.
 - The core cannot know a design's markup. Marks on the blocks and an event let it lead an editor to a block without knowing what a tab or an answer looks like.
+- A design that reads what a component holds from its rendered HTML must parse a string. Hast carries the marks, which are properties of the rendered elements, and `Body` holds the rendering, not the source. Every component with a body is given it, since an Astro component cannot say what it wants before it is rendered, and reading a body's HTML costs little beside rendering it. No attribute may be called `content` already, so the prop hides none.
 
 ## Considered and rejected
 
 - **Rendering them in the core.** Every site would get the same components whether its design wants them or not, and every change of look would be a release of the core.
 - **Rendering them in the site template** (`SITE-EXCEPTION.md`). Each site would carry its own copy from the day it was made, and a fix would reach one site at a time.
+- **The body as mdast, the tree of its Markdown.** It holds no marks, which are the rendering's, and a design would draw the core's elements itself.
+- **A tree only for a component that asks for it,** by a setting beside its path in `konzilo({ directives })`. One more setting for every site, to save a parse that costs little.
 
 ## Consequences
 
 - The recommended reading is ranked by the core, which gives a template from none to three related posts by default; the design system draws them by its rule for a series of cards: one card keeps a column's width, two stand in two columns and three in three, and with none the template writes neither heading nor list.
 - A design's small interface icons may stand inline in its stylesheet as SVG, since a page's policy allows `data:` images by default (ADR 0051); anything larger is a file. The design system's own marks are CSS shapes or inline `<svg>` in its markup, so a site that switches `data:` images off loses none of them.
-- The design system asks for three changes of these contracts, each for Thomas to settle: that a site take the components' declarations and checks from the package (issue #33), that a component be given its body as a tree with the block marks on it (issue #34), and that a component's mark in the preview stand on its own root rather than in a wrapper inside another component, which its layout's child selectors cannot see past (issue #35).
+- The design system asks for three changes of these contracts, each for Thomas to settle: that a site take the components' declarations and checks from the package (issue #33), that a component be given its body as a tree with the block marks on it (issue #34, given as `content` above), and that a component's mark in the preview stand on its own root rather than in a wrapper inside another component, which its layout's child selectors cannot see past (issue #35).
+- What a component draws from its tree it draws itself: a component within stands there as its plain rendering, and an image without its lightbox, which the core adds to the slot alone. A design that wants them places the slot. A way for a component to have the core render a part of its tree, such as one item's blocks, waits until a design asks for it.
 - Until the design system has a first release, a site either declares these components and draws them with styles of its own, or does without them.

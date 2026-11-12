@@ -15,7 +15,7 @@
 const NAME = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const ATTRIBUTE = /^[a-z][a-zA-Z0-9]*$/;
 // What an attribute may not be called: the names the reader gives `#x` and `.x`, and the
-// setting that holds a text body.
+// prop that holds a component's body as a tree.
 const RESERVED = new Set(['id', 'class', 'content']);
 const BODIES = Object.freeze({ leaf: Object.freeze(['none', 'text']), container: Object.freeze(['blocks']) });
 const TYPES = Object.freeze(['string', 'integer', 'boolean']);

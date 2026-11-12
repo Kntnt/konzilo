@@ -47,10 +47,11 @@ export function withBlockMark(html, block) {
   }
   const roots = topElements(html)?.filter((tag) => !UNSHOWN.has(tag.name)) ?? [];
   if (roots.length === 0 || roots.some((tag) => Object.hasOwn(tag.attributes, BLOCK_ATTRIBUTE))) return null;
+  // Last among its attributes, as a component that passed it on after its own would have it.
   let marked = html;
-  for (const { start, name } of roots.toReversed()) {
-    const after = start + 1 + name.length;
-    marked = `${marked.slice(0, after)} ${BLOCK_ATTRIBUTE}="${block}"${marked.slice(after)}`;
+  for (const { end } of roots.toReversed()) {
+    const at = html[end - 2] === '/' ? end - 2 : end - 1;
+    marked = `${marked.slice(0, at)} ${BLOCK_ATTRIBUTE}="${block}"${marked.slice(at)}`;
   }
   return marked;
 }

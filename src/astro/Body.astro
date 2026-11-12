@@ -12,8 +12,11 @@
 // given the directive's attributes as its props, typed, those not given at
 // their defaults, and its body, if it has one, as its default slot,
 // rendered here again, so that a directive in a container's body gets its
-// component too. The lists are evaluated in the body's order, before any is
-// rendered, so that each leaves out the posts the lists above it showed. A
+// component too, and as a hast tree in the prop `content`, for a component
+// that lays itself out by what it holds (bodyTree() in directives.js), with
+// the live preview's marks on its blocks. The lists are evaluated in the
+// body's order, before any is rendered, so that each leaves out the posts
+// the lists above it showed. A
 // body without such a directive comes out as Content renders it, but for each image's lightbox
 // (lightbox.js), which is the page's and no part of the body's own HTML.
 //
@@ -58,5 +61,5 @@ const lightboxes = {
     return marked(<Presentation posts={posts} options={options} empty={empty} pager={pager} {...mark} />);
   }
   const Component = components[part.name];
-  return marked(part.body === null ? <Component {...part.attributes} {...mark} /> : <Component {...part.attributes} {...mark}><Astro.self html={part.body} post={post} shown={shown} page={page} /></Component>);
+  return marked(part.body === null ? <Component {...part.attributes} {...mark} /> : <Component {...part.attributes} {...mark} content={part.content}><Astro.self html={part.body} post={post} shown={shown} page={page} /></Component>);
 })}

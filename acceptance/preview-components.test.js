@@ -35,9 +35,9 @@ const freePort = async () => {
   return port;
 };
 
-// A section, which places its mark itself by passing on what it is not told of, holding a
-// kicker, which places none, and another section; the design lays them out by child selectors,
-// as the design system does, which a wrapper between them would break.
+// A section, which places its mark itself on its root, holding a kicker, which places none, and
+// another section; the design lays them out by child selectors, as the design system does, which
+// a wrapper between them would break.
 const SITE = {
   language: 'en_GB',
   components: {
@@ -56,7 +56,7 @@ const FILES = {
   'astro.config.mjs': astroConfig(integration, { directives: { section: './src/components/Section.astro', kicker: './src/components/Kicker.astro' } }),
   'src/content.config.mjs': `import { collections as konziloCollections } from ${JSON.stringify(integration)};\n\nexport const collections = konziloCollections();\n`,
   'site-description.json': JSON.stringify(SITE),
-  'src/components/Section.astro': '---\nconst { ...rest } = Astro.props;\n---\n<section class="site-section" {...rest}><div class="site-band"><slot /></div></section>\n',
+  'src/components/Section.astro': '<section class="site-section" data-konzilo-block={Astro.props["data-konzilo-block"]}><div class="site-band"><slot /></div></section>\n',
   'src/components/Kicker.astro': '<p class="site-kicker"><slot /></p>\n',
   'src/pages/[slug].astro': [
     '---',
