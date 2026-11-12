@@ -30,7 +30,7 @@
 import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { ensureSearchKey, indexSearch, searchDocuments, searchParameters } from '../src/search.js';
-import { SITE_DESCRIPTION_FILE, siteDescription } from '../src/site-description.js';
+import { readSiteDescription, SITE_DESCRIPTION_FILE } from '../src/site-description.js';
 
 const usage = [
   'usage: konzilo-search index --typesense <address> --key-file <file> --collection <name> [--search-key-file <file>] [--site <file>] [--content <folder>]',
@@ -66,9 +66,9 @@ if (command === 'index' && (!options.typesense || !options['key-file'] || !optio
 
 let site;
 try {
-  site = siteDescription(JSON.parse(readFileSync(options.site, 'utf8')));
+  site = readSiteDescription(options.site);
 } catch (error) {
-  fail(`the site description cannot be read: ${error.message}`);
+  fail(error.message.startsWith('the site description') ? error.message : `the site description cannot be read: ${error.message}`);
 }
 
 const { documents, schema } = searchDocuments({ site, content: options.content });

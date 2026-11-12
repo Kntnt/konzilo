@@ -55,7 +55,9 @@ function editors(store) {
   const FORGEJO = 'http://forgejo:3000';
   const { KONZILO_REPOSITORY: repository } = process.env;
 
-  const site = readSiteDescription(DESCRIPTION);
+  // The service reads no body, so not the components the site takes from a package either,
+  // which the site's folder need not have installed.
+  const site = readSiteDescription(DESCRIPTION, undefined, { componentsFrom: false });
   const collections = Object.values(site.types).map(({ collection }) => collection);
   const described = liveDescription(DESCRIPTION);
 

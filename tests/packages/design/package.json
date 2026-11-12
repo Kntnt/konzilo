@@ -1,0 +1,10 @@
+{
+  "name": "@fixture/design",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./directives/components.json": "./directives/components.json",
+    "./directives/checks": "./directives/checks.js"
+  }
+}
