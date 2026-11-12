@@ -316,12 +316,13 @@ describe('a site in Compose', () => {
     assert.match(Buffer.from(lfs.content, 'base64').toString(), /media\/\*\* filter=lfs/);
   });
 
-  test('gives the account write access through its team, and no ownership', async () => {
+  test('gives the account write access through its team, and no ownership, and Reviewers a team that reads', async () => {
     const teams = await api(`/orgs/${site.name}/teams`);
-    assert.deepEqual(teams.map((team) => team.name).sort(), ['Owners', 'admins', 'editors']);
+    assert.deepEqual(teams.map((team) => team.name).sort(), ['Owners', 'admins', 'editors', 'reviewers']);
     const permission = (name) => teams.find((team) => team.name === name).permission;
     assert.equal(permission('admins'), 'write');
     assert.equal(permission('editors'), 'write');
+    assert.equal(permission('reviewers'), 'read');
     const member = (name) => api(`/teams/${teams.find((team) => team.name === name).id}/members`);
     assert.deepEqual((await member('admins')).map((user) => user.login), ['anna']);
     assert.deepEqual((await member('Owners')).map((user) => user.login), ['konzilo']);

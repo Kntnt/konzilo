@@ -1,5 +1,5 @@
 // Fill a new Forgejo: the instance's second factor and credential, an account with a
-// known password and a second factor, an organisation with its two teams, a source
+// known password and a second factor, an organisation with its three teams, a source
 // repository holding the demo content, the site repository's own where it has any, else
 // the core's (ADR 0025), the editor's OAuth client and the live preview's, and Typesense's keys
 // (ADR 0002, ADR 0007, ADR 0008, ADR 0053). It talks to Forgejo itself, behind the
@@ -32,7 +32,9 @@ const {
 const REPOSITORY = 'source';
 const CONTENT = 'content';
 const SERVICE_HOOK = 'http://editors:4100/webhook';
-const TEAMS = { admins: 'write', editors: 'write' };
+// Admins and Editors write to the source, and Reviewers read it alone, so that Forgejo refuses
+// whatever a Reviewer pushes (ADR 0008).
+const TEAMS = { admins: 'write', editors: 'write', reviewers: 'read' };
 const READER = 'preview-reader';
 const READ_TOKEN = '/preview-secret/read-token';
 // The live preview's own OAuth client, for a sign-in in a tab of its own (ADR 0032): apart from

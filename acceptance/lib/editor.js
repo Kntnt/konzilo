@@ -45,19 +45,25 @@ export async function openEditor(engine, site, { locale = 'en-GB' } = {}) {
   return { browser, context, page, seen, watch };
 }
 
-let lastCode = null;
+const lastCodes = new Map();
 
-// A code once used is refused until the next one, so wait for a new one.
-async function freshCode(site) {
+// A code once used is refused until the next one, so wait for a new one, each person's own.
+export async function freshCode(login, make) {
   for (;;) {
-    const code = site.code();
-    if (code !== lastCode) {
-      lastCode = code;
+    const code = make();
+    if (code !== lastCodes.get(login)) {
+      lastCodes.set(login, code);
       return code;
     }
     await new Promise((resolve) => setTimeout(resolve, 2000));
   }
 }
+
+// A code a person has used elsewhere, as at their enrolment, which their next sign-in waits past.
+export const usedCode = (login, code) => lastCodes.set(login, code);
+
+// The account the seed makes, which a site's teams have as an Admin.
+const seeded = (site) => ({ login: 'anna', password: 'local-only-account-password', code: () => site.code() });
 
 // A new post of `collection` in Sveltia, once its own form is shown, with `ready` in it. Sveltia
 // changes its view inside a view transition, a frame or more after the address changes, and
@@ -76,21 +82,22 @@ export async function openNew(page, collection, ready = '.konzilo-body-visual .P
   await page.locator(ready).first().waitFor();
 }
 
-// Forgejo's sign-in on `page`, as a person goes through it, with both factors. `through` settles
-// once it has gone through, which is all that says a code was taken.
-export async function throughForgejo(page, site, through) {
+// Forgejo's sign-in on `page`, as a person goes through it, with both factors: the seeded
+// account's, or `person`'s, { login, password, code() }. `through` settles once it has gone
+// through, which is all that says a code was taken.
+export async function throughForgejo(page, site, through, person = seeded(site)) {
   let done = false;
   through.then(() => {
     done = true;
   }, () => {});
   await page.locator('#user_name').waitFor();
-  await page.locator('#user_name').fill('anna');
-  await page.locator('#password').fill('local-only-account-password');
+  await page.locator('#user_name').fill(person.login);
+  await page.locator('#password').fill(person.password);
   await page.locator('#password').press('Enter');
   await page.waitForURL(/two_factor/);
   // A code from the seconds around a change of period can miss, so it may take two.
   for (let attempt = 0; attempt < 3 && !done; attempt += 1) {
-    await page.locator('input[name=passcode]').fill(await freshCode(site));
+    await page.locator('input[name=passcode]').fill(await freshCode(person.login, person.code));
     await page.locator('input[name=passcode]').press('Enter');
     await Promise.race([through, new Promise((resolve) => setTimeout(resolve, 8000))]);
   }

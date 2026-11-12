@@ -148,5 +148,11 @@
     "why": "The editor's view settings within reach of the preview's window, which needs to know whether it is chosen.",
     "find": "d8=Yk(),f8=(e,t=!1)=>",
     "replace": "d8=globalThis.konziloEditorView=Yk(),f8=(e,t=!1)=>"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "A Reviewer's account may read the source and not write to it, which Sveltia refuses at its sign-in, signing them out, in words that say only that the account cannot write; Konzilo's say that the account reads the live preview only, and where it is, in the interface language (ADR 0008).",
+    "find": "Wje=e=>yG(_G,`repository_no_write_access`,{repo:e})",
+    "replace": "Wje=e=>globalThis.__KONZILO_READS_ONLY__?Error(_G,{cause:new vG(globalThis.__KONZILO_READS_ONLY__)}):yG(_G,`repository_no_write_access`,{repo:e})"
   }
 ]

@@ -46,6 +46,9 @@ function start() {
   useInterfaceLanguage(konzilo.language);
   // The words of the editor's choice of where the preview stands, which the patched menu reads.
   globalThis.__KONZILO_VIEW_WORDS__ = { beside: say('preview.viewBeside'), window: say('preview.viewWindow'), toggle: say('preview.viewToggle'), off: say('preview.viewOff') };
+  // What Sveltia's sign-in says to an account that may read the source and not write to it, a
+  // Reviewer's, which it signs out: what the account is for, and where (patches.json, ADR 0008).
+  globalThis.__KONZILO_READS_ONLY__ = konzilo.preview ? say('preview.readsOnlyAt', { address: konzilo.preview.origin }) : say('preview.readsOnly');
   useComponents(konzilo.components);
   registerBodyField(CMS, config);
   registerPublishing(CMS, config);

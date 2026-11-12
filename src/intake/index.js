@@ -11,7 +11,7 @@ import { isObject } from '../checks.js';
 import { REDIRECTS_FILE } from '../format/redirects.js';
 import { POST_IDS_FILE } from '../format/write.js';
 import { siteDescription } from '../site-description.js';
-import { allOthers, earlier, holdAddresses, oldAddressesOf } from './addresses.js';
+import { addressWanted, allOthers, earlier, holdAddresses, oldAddressesOf } from './addresses.js';
 import { climb, contextFor, handsFor } from './hands.js';
 import { emptyLedger, ledgerFile, nextLedger, normalLedger } from './ledger.js';
 import { bodyProblems, fieldsOf, fileText, momentOf, otherAddressesIn, publishedHash, slugOf, writtenBody } from './post-file.js';
@@ -29,19 +29,21 @@ const MARKUP = /<\/?[a-zA-Z!?][^<>]*>/;
 // `files`: the source files, each { path, contents }. `site`: the site description, as
 // declared or as checked. `now`: a Date or a function that gives one. `ledger`: the
 // previous `.post-ids.json`, parsed, or null. `changes`: who last changed what, by a
-// source file's path, { by, admin }; a path it does not name is not held to a role.
+// source file's path, { by, admin, reviewer }; a path it does not name is not held to a role.
 // `images(path)`: what an original below `media/` is, as images.js gives it. `adminHost`:
 // the host no link may lead to, or null. `reader`: the Markdown reader, the site's own
 // but in a test of what happens when it breaks. `preview`: the paths of the source files
 // a live preview shows, which are checked and written whatever their status and date,
-// where every other draft stays nobody's business.
+// where every other draft stays nobody's business; one on its way for the preview alone
+// gives way to a post on its own, as it would once published.
 //
 // Returns { files, refusals, warnings, keep, ledger, posts, next }: `keep`, the paths of the
 // content files that stay though no file here writes them, a refused post's own and what
 // it names, and what a refused settings file names; `posts`, what became of each source
 // file of a post, `state` being `live`, `refused`, `waiting` for its moment `at`, or `off`,
-// with its `address`, and whether the site `shown` shows a version of it; `next`, the next
-// scheduled moment, or null.
+// with its `address`, whether the site `shown` shows a version of it, and, while it is
+// refused, the address its page would be at, `wanted`, where it can have one nothing else
+// holds, or null; `next`, the next scheduled moment, or null.
 export function intake({ files, site: described, now, ledger = null, changes = {}, images = () => null, adminHost = null, reader = siteReader, preview = [], components = null }) {
   const site = siteDescription(described);
   const clock = typeof now === 'function' ? now() : now;
@@ -52,7 +54,7 @@ export function intake({ files, site: described, now, ledger = null, changes = {
     several: site.languages.length > 1,
     ledger: ledger === null ? emptyLedger() : normalLedger(ledger),
     changes,
-    images,
+    images: heldFromReviewers(images, changes),
     adminHost,
     reader,
     components,
@@ -65,7 +67,7 @@ export function intake({ files, site: described, now, ledger = null, changes = {
   run.refusals.push(...run.source.refusals);
   readTerms(run);
   readAdminFiles(run);
-  holdLegalPagesTaken(run);
+  holdPostsTaken(run);
   run.posts = new Map(run.source.posts.map((post) => [post.key, post]));
   run.postsById = groupBy(run.source.posts, (post) => post.id);
   for (const post of run.source.posts) stateOf(post, run);
@@ -76,12 +78,23 @@ export function intake({ files, site: described, now, ledger = null, changes = {
 
 const PROTECTED = (path) => path === 'settings.json' || path === 'redirects.json' || path === 'services.json' || (path.startsWith('menus/') && path.endsWith('.json'));
 
-// Why a non-Admin's change to one of an Admin's files is refused, or null. A file back
-// at what was last accepted is no change, whoever touched it last.
+// A Reviewer reads the site and changes nothing in it (ADR 0008): the change a Reviewer was the
+// last to make to a source file, whatever its kind, or null.
+const reviewersChange = (run, path) => (run.changes?.[path]?.reviewer === true ? run.changes[path] : null);
+const reviewerReason = (change, path) => say('refusal.reviewer', { by: change.by ?? say('about.someone'), file: path });
+
+// An original a Reviewer changed is none the site takes: the posts and settings that show it are
+// refused, naming it.
+const heldFromReviewers = (images, changes) => (path) => (changes?.[path]?.reviewer === true ? { reason: reviewerReason(changes[path], path) } : images(path));
+
+// Why a Reviewer's or a non-Admin's change to one of an Admin's files is refused, or null. A file
+// back at what was last accepted is no change, whoever touched it last.
 function adminProblem(run, path) {
   const change = run.changes?.[path];
-  if (!change || change.admin !== false) return null;
+  const reviewer = reviewersChange(run, path);
+  if (!change || (change.admin !== false && !reviewer)) return null;
   if (run.source.hashes.get(path) === run.ledger.files[path]) return null;
+  if (reviewer) return reviewerReason(reviewer, path);
   return say('refusal.admin-file', { by: change.by ?? say('about.someone'), file: path });
 }
 
@@ -120,30 +133,66 @@ function legalChangedBy(post, run) {
   return change;
 }
 
-// A legal page on the site whose source file a non-Admin took away is held like any
-// other change of theirs: what it stands on comes from the ledger, as it does for every
-// refused post. An Admin who wants it gone chooses another page first, which frees it.
-function holdLegalPagesTaken(run) {
+// A post's source changed by a Reviewer, which is not back at what was last accepted: the
+// change, or null.
+function reviewersPost(post, run) {
+  const change = reviewersChange(run, post.path);
+  if (!change || post.hash === run.ledger.posts[post.key]?.source) return null;
+  return change;
+}
+
+// A post on the site whose source file a Reviewer took away, or a non-Admin where it is a legal
+// page, is held like any other change of theirs: what it stands on comes from the ledger, as it
+// does for every refused post. An Admin who wants a legal page gone chooses another page
+// first, which frees it.
+function holdPostsTaken(run) {
   const { source, ledger, site } = run;
   const present = new Set(source.posts.map((post) => post.key));
   for (const [key, entry] of Object.entries(ledger.posts)) {
     const id = key.split('/').at(-1);
-    if (!entry.path || present.has(key) || !run.chosen.legalPages.includes(id)) continue;
+    if (!entry.path || present.has(key)) continue;
     const collection = entry.path.split('/')[0];
     const type = Object.values(site.types).find((one) => one.collection === collection);
     const path = `${collection}/${key}.md`;
-    if (!type || run.changes?.[path]?.admin !== false) continue;
+    const legal = run.chosen.legalPages.includes(id) && run.changes?.[path]?.admin === false;
+    if (!type || (!legal && !reviewersChange(run, path))) continue;
     const tag = key.includes('/') ? key.split('/')[0] : null;
     source.posts.push({ key, id, tag, language: tag ? site.languages.find((one) => one.tag === tag) ?? null : site.languages[0] ?? null, type, path, hash: null, fields: {}, body: '', bodyLine: 1, title: entry.title, gone: true });
   }
   source.posts.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 }
 
-// Whether a post is on the site's way: published, its date come. A draft is nobody's
-// business but its editor's, and is not checked.
+// Whether a post is on the site's way: published, its date come, or shown by a live preview
+// whatever its status and moment. A draft is otherwise nobody's business but its editor's,
+// and is not checked.
 function stateOf(post, run) {
+  ownStateOf(post, run);
+  if (post.on || !run.preview.has(post.path)) return;
+  // On the preview alone, where it yields to every post on its own way, as it would once
+  // published.
+  post.on = true;
+  post.forPreview = true;
+  post.notFound = run.chosen.notFound === post.id;
+  if (run.several && post.language === null) {
+    refuse(run, post, { reason: say('refusal.language-folder', { folder: post.tag ?? say('about.collection-folder') }) });
+    post.keepsNothing = true;
+  }
+}
+
+// Whether a post is on the site's way by its own status and moment.
+function ownStateOf(post, run) {
   const { status = 'draft' } = post.fields;
   post.on = false;
+  // Nothing a Reviewer changed goes on the site, and nothing they took away leaves it, so this
+  // comes first of all.
+  const reviewer = reviewersPost(post, run);
+  if (reviewer) {
+    post.on = true;
+    post.held = true;
+    post.notFound = run.chosen.notFound === post.id;
+    refuse(run, post, { reason: reviewerReason(reviewer, post.path) });
+    return;
+  }
   if (post.unreadable) {
     post.on = true;
     refuse(run, post, { reason: post.unreadable.reason, line: post.unreadable.line });
@@ -156,15 +205,6 @@ function stateOf(post, run) {
     post.on = true;
     post.notFound = run.chosen.notFound === post.id;
     refuse(run, post, { reason: say(post.gone ? 'refusal.admin-legal-gone' : 'refusal.admin-legal', { by: taking.by ?? say('about.someone') }) });
-    return;
-  }
-  if (run.preview.has(post.path)) {
-    post.on = true;
-    post.notFound = run.chosen.notFound === post.id;
-    if (run.several && post.language === null) {
-      refuse(run, post, { reason: say('refusal.language-folder', { folder: post.tag ?? say('about.collection-folder') }) });
-      post.keepsNothing = true;
-    }
     return;
   }
   if (status === 'draft' || status === null) return;
@@ -201,7 +241,7 @@ function stateOf(post, run) {
 
 // A post's own problems, what no other post can change.
 function checkPost(post, run) {
-  if (post.unreadable || post.keepsNothing || post.gone) return;
+  if (post.unreadable || post.keepsNothing || post.gone || post.held) return;
   if (post.title === null) refuse(run, post, { field: 'title', reason: say('refusal.title-empty') });
   else if (MARKUP.test(post.title)) refuse(run, post, { field: 'title', reason: say('refusal.title-markup') });
   const slug = slugOf(post);
@@ -362,6 +402,7 @@ function assemble(run) {
       at: post.waiting ?? null,
       address: updated.posts[post.key]?.address ?? null,
       shown: Boolean(updated.posts[post.key]?.path),
+      ...(run.refused.has(post.key) ? { wanted: addressWanted(post, run) } : {}),
     })),
     next,
   };

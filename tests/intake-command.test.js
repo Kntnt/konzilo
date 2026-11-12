@@ -52,7 +52,7 @@ describe('konzilo-intake', () => {
     const env = { ...process.env };
     delete env.KONZILO_CONTENT;
     delete env.KONZILO_ADMIN_ORIGIN;
-    const roles = args.includes('--admins') ? ['--pushers', join(root, 'pushers.json')] : args.includes('--bare') ? [] : ['--no-roles'];
+    const roles = args.includes('--admins') ? ['--pushers', join(root, 'pushers.json'), '--reviewers', join(root, 'reviewers.json')] : args.includes('--bare') ? [] : ['--no-roles'];
     const result = spawnSync(process.execPath, [command, checkout, ...roles, ...args.filter((arg) => arg !== '--bare')], { cwd: root, env, encoding: 'utf8' });
     return { ...result, report: result.status === 0 || result.status === 3 ? JSON.parse(result.stdout) : null };
   };
@@ -178,6 +178,11 @@ describe('konzilo-intake', () => {
     assert.equal(intake(site, '--admins', admins, '--no-roles').status, 2);
     const asked = spawnSync(process.execPath, [command, site.checkout, '--admins', admins], { cwd: site.root, encoding: 'utf8' });
     assert.equal(asked.status, 2, 'a list of Admins says nothing without who pushed what');
+    writeFileSync(join(site.root, 'pushers.json'), '{}');
+    const noReviewers = spawnSync(process.execPath, [command, site.checkout, '--admins', admins, '--pushers', join(site.root, 'pushers.json')], { cwd: site.root, encoding: 'utf8' });
+    assert.equal(noReviewers.status, 2, 'nor without who the Reviewers are');
+    assert.match(noReviewers.stderr, /--reviewers/);
+    assert.deepEqual(listing(site.content), []);
   });
 
   // A checkout with Git history: `commit` adds what is there as pushed by this person, whose
@@ -188,6 +193,7 @@ describe('konzilo-intake', () => {
     git('init', '--quiet');
     const admins = join(site.root, 'admins.json');
     writeFileSync(admins, '["admin"]');
+    writeFileSync(join(site.root, 'reviewers.json'), '["reviewer"]');
     const pushers = {};
     const made = (address) => {
       git('add', '--all');
@@ -259,6 +265,7 @@ describe('konzilo-intake', () => {
     commit('admin');
     const site = newSite();
     writeFileSync(join(site.root, 'pushers.json'), '{}');
+    writeFileSync(join(site.root, 'reviewers.json'), '[]');
     rmSync(site.checkout, { recursive: true });
     execFileSync('git', ['clone', '--quiet', '--depth=1', `file://${whole.checkout}`, site.checkout], { stdio: 'ignore', env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' } });
     const { status, stderr } = intake(site, '--admins', admins);
@@ -278,6 +285,34 @@ describe('konzilo-intake', () => {
     assert.equal(report.refusals[0].file, 'menus/main.json');
     assert.match(report.refusals[0].reason, /^editor is no Admin/);
     assert.equal(readFileSync(join(site.content, 'menus/main.json'), 'utf8'), '{\n  "items": []\n}\n');
+  });
+
+  test('refuses whatever a Reviewer pushed, a post, its deletion or a menu, and keeps what was published', () => {
+    const site = newSite({ 'menus/main.json': '{"items":[]}', 'articles/aaaaaaaaaaaa.md': post('first'), 'articles/bbbbbbbbbbbb.md': post('second') });
+    const { git, admins, commit } = inGit(site);
+    commit('admin');
+    assert.deepEqual(intake(site, '--admins', admins).report.refusals, []);
+    put(site.checkout, { 'articles/aaaaaaaaaaaa.md': post('first', {}, 'Theirs.'), 'articles/cccccccccccc.md': post('third'), 'menus/main.json': '{"items":[{"title":"Mine","url":"/"}]}' });
+    git('rm', '--quiet', 'articles/bbbbbbbbbbbb.md');
+    commit('reviewer', { address: 'editor@example.com' });
+    const { status, report } = intake(site, '--admins', admins);
+    assert.equal(status, 0);
+    assert.deepEqual(report.refusals.map((one) => [one.file, one.reason.split(',')[0]]), [
+      ['menus/main.json', 'reviewer is a Reviewer'],
+      ['articles/aaaaaaaaaaaa.md', 'reviewer is a Reviewer'],
+      ['articles/bbbbbbbbbbbb.md', 'reviewer is a Reviewer'],
+      ['articles/cccccccccccc.md', 'reviewer is a Reviewer'],
+    ]);
+    assert.doesNotMatch(readFileSync(join(site.content, 'articles/first.md'), 'utf8'), /Theirs/);
+    assert.ok(existsSync(join(site.content, 'articles/second.md')));
+    assert.ok(!existsSync(join(site.content, 'articles/third.md')));
+    assert.deepEqual(report.removed, []);
+    // An Editor who makes the change makes it theirs.
+    put(site.checkout, { 'articles/aaaaaaaaaaaa.md': post('first', {}, 'Mine.') });
+    commit('editor');
+    const later = intake(site, '--admins', admins).report;
+    assert.ok(!later.refusals.some((one) => one.file === 'articles/aaaaaaaaaaaa.md'));
+    assert.match(readFileSync(join(site.content, 'articles/first.md'), 'utf8'), /Mine\./);
   });
 
   test('believes nothing a commit says of who made it', () => {

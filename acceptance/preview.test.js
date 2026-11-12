@@ -1,6 +1,6 @@
-// The live preview in a site in Compose, as an editor and a stranger meet it: nothing without
-// a session but the way to Forgejo's sign-in, the site as a visitor browses it in a tab of its
-// own once signed in there, the page itself in the pane, a draft on the page within seconds
+// The live preview in a site in Compose, as an editor, a Reviewer and a stranger meet it: nothing
+// without a session but the way to Forgejo's sign-in, the site as a visitor browses it in a tab of
+// its own once signed in there, the page itself in the pane, a draft on the page within seconds
 // of a pause, drawn again in place, in the pane and in the window of its own alike, a refusal
 // above the last good page, and none of what the public site offers the world (ADR 0032,
 // ADR 0067).
@@ -8,8 +8,9 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
 
+import { idOf } from '../src/demo-source.js';
 import { sharp } from '../tests/lib/images.js';
-import { ENGINES, openEditor, openNew, signIn, throughForgejo } from './lib/editor.js';
+import { ENGINES, freshCode, openEditor, openNew, signIn, throughForgejo, usedCode } from './lib/editor.js';
 import { framesWhile, isBlank } from './lib/frames.js';
 import { makeSite } from './lib/site.js';
 
@@ -183,6 +184,79 @@ describe('the live preview', () => {
       await page.getByText('This is a preview: the form sends nothing.').waitFor({ timeout: ON_THE_PAGE });
     });
 
+    test('shows every saved post, a draft and a scheduled one in the lists that will hold them, and a refused one\'s refusal at its page, while the public site shows none of them', async () => {
+      const token = site.state('instance-token');
+      const contents = `${site.origin.git}/api/v1/repos/${site.name}/source/contents`;
+      const headers = { authorization: `token ${token}`, 'content-type': 'application/json' };
+      // A save as anna makes it, from the source of an article of the demo content.
+      const save = async (path, text) => {
+        const answer = await fetch(`${contents}/${path}?sudo=anna`, { method: 'POST', headers, body: JSON.stringify({ content: Buffer.from(text).toString('base64'), message: 'A save' }) });
+        assert.equal(answer.status, 201, path);
+      };
+      const golden = Buffer.from((await (await fetch(`${contents}/articles/${idOf('articles', 'golden-harbours-and-the-harbour')}.md`, { headers })).json()).content, 'base64').toString('utf8');
+      const article = (title, slug, status, date) => golden
+        .replace(/^title: .*$/m, `title: ${JSON.stringify(title)}`)
+        .replace(/^headline: .*$/m, `headline: ${JSON.stringify(title)}`)
+        .replace(/^slug: .*$/m, `slug: ${JSON.stringify(slug)}`)
+        .replace(/^status: .*$/m, `status: ${JSON.stringify(status)}`)
+        .replace(/^date: .*\n/m, date ? `date: ${date}\n` : '')
+        // A teaser's headline follows an eyebrow, which would stand before the title.
+        .replace(/^eyebrow: .*\n/m, '');
+      const DRAFT = 'A draft of the harbours';
+      const SCHEDULED = 'The harbours to come';
+      const saved = {
+        'articles/a42d0000000a.md': ['draft', article(DRAFT, 'a-draft-of-the-harbours', 'draft', null)],
+        'articles/a42d0000000b.md': ['scheduled', article(SCHEDULED, 'the-harbours-to-come', 'scheduled', '2099-03-01T08:00:00Z')],
+        'pages/a42d0000000c.md': ['draft', '---\ntitle: "A <b>bold</b> page"\nslug: "a-refused-page"\nstatus: "draft"\n---\n\nWords of a page.\n'],
+      };
+      for (const [path, [, text]] of Object.entries(saved)) await save(path, text);
+
+      // Once the public site has been built from them, it shows none of them.
+      const deadline = Date.now() + 180_000;
+      for (;;) {
+        const answer = await fetch(`${site.origin.admin}/_konzilo/status`, { headers });
+        const { posts } = answer.status === 200 ? await answer.json() : { posts: [] };
+        if (Object.entries(saved).every(([file, [status]]) => posts.find((one) => one.file === file)?.status === status)) break;
+        assert.ok(Date.now() < deadline, `the public site was never built from them: ${JSON.stringify(posts.filter(({ file }) => file in saved))}`);
+        await new Promise((go) => setTimeout(go, 1000));
+      }
+      for (const path of ['/a-draft-of-the-harbours/', '/the-harbours-to-come/', '/pages/a-refused-page/']) assert.equal((await fetch(`${site.origin.site}${path}`)).status, 404, path);
+      for (const path of ['/', ARTICLE]) {
+        const answer = await fetch(`${site.origin.site}${path}`);
+        assert.equal(answer.status, 200, path);
+        assert.doesNotMatch(await answer.text(), new RegExp(`${DRAFT}|${SCHEDULED}`), path);
+      }
+      // The articles' feed, as the release holds it.
+      const feed = site.compose('exec', '-T', 'web', 'cat', '/srv/site/current/pages/feed/index.rss');
+      assert.ok(feed.includes(ARTICLE_TITLE), 'the feed of the published articles');
+      assert.doesNotMatch(feed, new RegExp(`${DRAFT}|${SCHEDULED}`));
+
+      // The preview reads what is saved at the next page asked for in a tab, and its dev server
+      // draws the page again once it has the change.
+      const shown = async (path, locator) => {
+        const until = Date.now() + ON_THE_PAGE * 2;
+        for (;;) {
+          await page.goto(`${site.origin.preview}${path}`);
+          if (await locator().count() > 0) return;
+          assert.ok(Date.now() < until, `${path} never showed it`);
+          await page.waitForTimeout(2000);
+        }
+      };
+      await shown('/a-draft-of-the-harbours/', () => page.getByRole('heading', { level: 1, name: DRAFT, exact: true }));
+      await shown('/the-harbours-to-come/', () => page.getByRole('heading', { level: 1, name: SCHEDULED, exact: true }));
+      for (const title of [DRAFT, SCHEDULED]) {
+        await shown('/', () => page.locator('main .post-list').getByRole('link', { name: title, exact: true }));
+        await shown(ARTICLE, () => page.locator('aside.recommended-reading').getByText(title, { exact: true }));
+      }
+      await page.goto(`${site.origin.preview}/pages/a-refused-page/`);
+      await page.getByRole('heading', { level: 1, name: 'This page cannot be published yet' }).waitFor({ timeout: ON_THE_PAGE });
+      const said = await page.locator('body').textContent();
+      assert.match(said, /what is saved of “A <b>bold<\/b> page”/);
+      assert.match(said, /the field Title: the site cannot publish a title holding HTML/);
+      await page.goto(`${site.origin.preview}${ARTICLE}`);
+      await page.getByRole('heading', { level: 1, name: ARTICLE_TITLE }).waitFor({ timeout: ON_THE_PAGE });
+    });
+
     test('lets someone already signed in to Forgejo in without typing anything', async () => {
       await noSession();
       const from = went.length;
@@ -212,6 +286,69 @@ describe('the live preview', () => {
       } finally {
         assert.equal((await api('PUT', `/teams/${id}/members/anna`)).status, 204);
       }
+    });
+  });
+
+  // A Reviewer, who reads what is coming and changes nothing (ADR 0008): an account of their own,
+  // in the site's team that reads the source.
+  describe('to a Reviewer', () => {
+    let browser;
+    let context;
+    let page;
+    let reviewer;
+
+    before(async () => {
+      reviewer = await site.account('rut', 'reviewers');
+      usedCode(reviewer.login, reviewer.enrolledWith);
+      browser = await ENGINES.chromium.launch();
+      context = await browser.newContext({ locale: 'en-GB' });
+      page = await context.newPage();
+    }, { timeout: 120_000 });
+
+    after(() => browser?.close());
+
+    test('has an account of their own, with a second factor, which may read the source and write nothing to it', async () => {
+      const basic = `Basic ${Buffer.from(`${reviewer.login}:${reviewer.password}`).toString('base64')}`;
+      const source = `${site.origin.git}/api/v1/repos/${site.name}/source`;
+      assert.notEqual((await fetch(source, { headers: { authorization: basic } })).status, 200, 'not without the second factor');
+      const code = await freshCode(reviewer.login, reviewer.code);
+      const as = (path, init = {}) => fetch(`${source}${path}`, { ...init, headers: { authorization: basic, 'x-forgejo-otp': code, 'content-type': 'application/json' } });
+      const asked = await as('');
+      assert.equal(asked.status, 200);
+      const { permissions } = await asked.json();
+      assert.deepEqual([permissions.pull, permissions.push], [true, false]);
+      const writing = await as('/contents/pages/a-reviewers.md', { method: 'POST', body: JSON.stringify({ content: 'eA==', message: 'A Reviewer\'s change' }) });
+      assert.ok([403, 404].includes(writing.status), String(writing.status));
+    });
+
+    test('signs in to the preview\'s tab, and sees the page an Editor sees there', async () => {
+      await page.goto(`${site.origin.preview}${ARTICLE}`);
+      assert.ok(page.url().startsWith(`${site.origin.git}/user/login`), page.url());
+      await throughForgejo(page, site, page.waitForURL((url) => url.origin === site.origin.preview, { timeout: 120_000 }), reviewer);
+      await page.getByRole('heading', { level: 1, name: ARTICLE_TITLE }).waitFor({ timeout: 240_000 });
+      assert.equal(page.url(), `${site.origin.preview}${ARTICLE}`);
+    });
+
+    test('is told on the admin host that the account reads the preview only and can save nothing there, and is signed out', async () => {
+      const editor = await context.newPage();
+      await editor.goto(`${site.origin.admin}/`);
+      const button = editor.getByRole('button', { name: /Forgejo/ });
+      await button.waitFor();
+      // Safari opened no popup for a click right after a load (ADR 0007).
+      await editor.waitForTimeout(1000);
+      // Signed in to Forgejo by the tab, the sign-in passes without a word.
+      const [popup] = await Promise.all([context.waitForEvent('page'), button.click()]);
+      await popup.waitForEvent('close', { timeout: 120_000 });
+      await editor.getByText(`This account reads the site's live preview only, and can save nothing here. The preview is at ${site.origin.preview}.`).waitFor({ timeout: 60_000 });
+      assert.equal(await editor.locator('.konzilo-body-visual').count(), 0);
+      const held = await editor.evaluate(() => {
+        try {
+          return JSON.parse(localStorage.getItem('sveltia-cms.user'))?.token ?? null;
+        } catch {
+          return null;
+        }
+      });
+      assert.equal(held, null, 'the browser keeps no token of theirs');
     });
   });
 

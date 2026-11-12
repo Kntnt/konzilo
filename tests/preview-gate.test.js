@@ -17,8 +17,10 @@ const PREVIEW = 'http://localhost:7004';
 const CLIENT = 'the-previews-client';
 const WRITER = 'token may-write';
 const READER = 'Bearer may-read';
-// What Forgejo gives a browser back after its sign-in, and the token the gate is given for each.
-const CODES = { 'code-writer': 'oauth.may-write', 'code-reader': 'oauth.may-read' };
+// What Forgejo gives a browser back after its sign-in, and the token the gate is given for each:
+// an Editor's, which may write to the source, a Reviewer's, which may read it alone, and that of
+// someone in none of the site's teams, to whom Forgejo does not say the repository is there.
+const CODES = { 'code-writer': 'oauth.may-write', 'code-reviewer': 'oauth.may-read', 'code-stranger': 'oauth.stranger' };
 // How often the right to see the preview is asked again, and how long a session lasts after it
 // was last asked, for what is not a page of its own.
 const CHECK_EVERY = 10 * 60 * 1000;
@@ -50,6 +52,10 @@ describe('the preview\'s gate', () => {
   let ready;
   let exchanged;
   let removed;
+  // The runner's refreshes, whether one breaks, and the posts it holds refused, by their page.
+  let refreshes;
+  let refreshFails;
+  let refusedAt;
 
   before(async () => {
     forgejo = createServer(async (incoming, outgoing) => {
@@ -68,9 +74,11 @@ describe('the preview\'s gate', () => {
       }
       const { authorization } = incoming.headers;
       const push = (authorization === WRITER || authorization === `Bearer ${CODES['code-writer']}`) && !removed;
-      const known = push || [WRITER, READER, `Bearer ${CODES['code-writer']}`, `Bearer ${CODES['code-reader']}`].includes(authorization);
-      outgoing.writeHead(known ? 200 : 401, { 'Content-Type': 'application/json' });
-      return outgoing.end(JSON.stringify(known && incoming.url === '/api/v1/repos/a/source' ? { permissions: { push } } : {}));
+      const pull = push || authorization === READER || authorization === `Bearer ${CODES['code-reviewer']}`;
+      const known = pull || [WRITER, `Bearer ${CODES['code-writer']}`, `Bearer ${CODES['code-stranger']}`].includes(authorization);
+      const status = !known ? 401 : !pull ? 404 : 200;
+      outgoing.writeHead(status, { 'Content-Type': 'application/json' });
+      return outgoing.end(JSON.stringify(status === 200 && incoming.url === '/api/v1/repos/a/source' ? { permissions: { admin: false, push, pull } } : {}));
     });
     const forgejoPort = await listen(forgejo);
     inner = createServer((incoming, outgoing) => {
@@ -129,6 +137,11 @@ describe('the preview\'s gate', () => {
           taken.push(draft);
           return { address: '/a-page/', refusals: [] };
         },
+        refresh: async () => {
+          refreshes += 1;
+          if (refreshFails) throw new Error('the run broke');
+        },
+        at: (path) => refusedAt[path] ?? (path === '/a-page/' ? { file: 'pages/a-page.md', title: 'A page', refusals: [] } : null),
       },
       dev: {
         port: innerPort,
@@ -163,6 +176,9 @@ describe('the preview\'s gate', () => {
     ready = true;
     exchanged = [];
     removed = false;
+    refreshes = 0;
+    refreshFails = false;
+    refusedAt = {};
   });
 
   const session = (authorization = WRITER, from = ADMIN) => fetch(`${origin}${SESSION_PATH}`, { method: 'POST', headers: { origin: from, authorization } });
@@ -261,8 +277,31 @@ describe('the preview\'s gate', () => {
       assert.doesNotMatch(JSON.stringify(asked), /may-write|never-kept/);
     });
 
+    test('brings a Reviewer, who may read the source and not write to it, back with a session, and shows them the page an Editor sees', async () => {
+      const { back } = await signInAs('/a-page/?x=1', 'code-reviewer');
+      assert.equal(back.status, 303);
+      assert.equal(back.headers.get('location'), '/a-page/?x=1');
+      const held = pairOf(back, 'a_preview=');
+      assert.match(held, /^a_preview=[\w-]{43}$/);
+      const shown = await visit('/a-page/?x=1', held);
+      assert.equal(shown.status, 200);
+      assert.equal(await shown.text(), 'a page');
+      assert.equal((await visit('/a-page/', held, { 'sec-fetch-dest': 'image' })).status, 200, 'and what the page asks for itself');
+    });
+
+    test('takes no draft from a Reviewer\'s session, which changes nothing anyone sees', async () => {
+      const { back } = await signInAs('/', 'code-reviewer');
+      const held = pairOf(back, 'a_preview=');
+      const answer = await fetch(`${origin}${DRAFT_PATH}`, { method: 'POST', headers: { origin: ADMIN, cookie: held, 'content-type': 'application/json' }, body: JSON.stringify({ path: 'pages/a.md', fields: {} }) });
+      assert.equal(answer.status, 403);
+      assert.deepEqual(taken, []);
+      // An Editor's tab is the session of someone who may write, as the pane's is.
+      const editor = pairOf((await signInAs('/', 'code-writer')).back, 'a_preview=');
+      assert.equal((await fetch(`${origin}${DRAFT_PATH}`, { method: 'POST', headers: { origin: ADMIN, cookie: editor, 'content-type': 'application/json' }, body: JSON.stringify({ path: 'pages/a.md', fields: {} }) })).status, 200);
+    });
+
     test('meets someone signed in who may not see it with a plain page in the interface language, which says who can grant access, and nothing of the site', async () => {
-      const { back } = await signInAs('/a-page/', 'code-reader');
+      const { back } = await signInAs('/a-page/', 'code-stranger');
       assert.equal(back.status, 403);
       assert.match(back.headers.get('content-type'), /^text\/html; charset=utf-8$/);
       assert.ok(givesNone(back), 'no session');
@@ -434,7 +473,7 @@ describe('the preview\'s gate', () => {
       const away = await visit('/a-page/');
       const { back } = await signInAs('/a-page/', 'code-writer');
       const held = pairOf(back, 'a_preview=');
-      const refused = (await signInAs('/a-page/', 'code-reader')).back;
+      const refused = (await signInAs('/a-page/', 'code-stranger')).back;
       const unfinishedOne = await visit(`${SIGN_IN_PATH}?code=code-writer&state=never-given`);
       ready = false;
       const notice = await visit('/a-page/', held);
@@ -446,6 +485,59 @@ describe('the preview\'s gate', () => {
       }
       // Its own pages load nothing and run nothing.
       for (const answer of [refused, unfinishedOne, notice]) assert.match(answer.headers.get('content-security-policy'), /^default-src 'none'; /);
+    });
+
+    // A saved post the intake refuses, as the runner holds it at the page it would have.
+    const broken = {
+      file: 'pages/broken.md',
+      title: 'A <b>bold</b> title',
+      refusals: [
+        { field: { name: 'title', label: { en: 'Title', sv: 'Titel' } }, name: 'refusal.title-markup', values: {}, reason: 'the site cannot publish a title holding HTML; write it as plain text' },
+        { field: null, block: { path: '2', name: 'list' }, reason: 'words of the site\'s own check' },
+      ],
+    };
+
+    test('names a saved post\'s refusal where its page would be, in the interface language, and shows nothing of the site there', async () => {
+      const { back } = await signInAs('/', 'code-writer');
+      const held = pairOf(back, 'a_preview=');
+      refusedAt['/pages/broken/'] = broken;
+      asked = [];
+      const shown = await visit('/pages/broken/?x=1', held);
+      assert.equal(shown.status, 200);
+      assert.match(shown.headers.get('content-type'), /^text\/html; charset=utf-8$/);
+      assert.match(shown.headers.get('content-security-policy'), /^default-src 'none'; /);
+      assert.equal(shown.headers.get('x-robots-tag'), 'noindex, nofollow');
+      const page = await shown.text();
+      assert.match(page, /<html lang="sv">/);
+      assert.ok(page.includes(text('sv', 'previewTab.postRefusedTitle')));
+      assert.ok(page.includes(text('sv', 'previewTab.postRefused', { title: 'A &#60;b&#62;bold&#60;/b&#62; title' })), page);
+      assert.ok(page.includes(`<li>${text('sv', 'about.field', { field: 'Titel' })}: ${text('sv', 'refusal.title-markup')}</li>`), page);
+      assert.ok(page.includes(`<li>${text('sv', 'about.block', { path: '2', name: 'list' })}: words of the site&#39;s own check</li>`), page);
+      assert.doesNotMatch(page, /<script|<b>/);
+      assert.deepEqual(asked.map(({ url }) => url), [], 'the dev server is asked nothing');
+      assert.equal(refreshes, 1, 'what is saved is read first');
+    });
+
+    test('lets a frame show the last good page at a refused post\'s address, which its pane names the refusal above', async () => {
+      await signedIn();
+      refusedAt['/pages/broken/'] = broken;
+      const shown = await visit('/pages/broken/', cookie, { 'sec-fetch-dest': 'iframe' });
+      assert.equal(shown.status, 200);
+      assert.equal(await shown.text(), 'a page');
+    });
+
+    test('reads what is saved before each page asked for in a tab, and shows what it has where that breaks', async () => {
+      const { back } = await signInAs('/', 'code-writer');
+      const held = pairOf(back, 'a_preview=');
+      refreshes = 0;
+      assert.equal((await visit('/a-page/', held)).status, 200);
+      assert.equal(refreshes, 1);
+      for (const dest of ['image', 'script', 'iframe']) await visit('/a-page/', held, { 'sec-fetch-dest': dest });
+      assert.equal(refreshes, 1, 'not for what a page asks for itself, or a frame');
+      refreshFails = true;
+      const shown = await visit('/a-page/', held);
+      assert.equal(shown.status, 200);
+      assert.equal(await shown.text(), 'a page');
     });
 
     test('lets someone already signed in to Forgejo in without a word, starting the preview on the way', async () => {
@@ -469,7 +561,7 @@ describe('the preview\'s gate', () => {
     assert.equal(starts, 0);
   });
 
-  test('gives a session to a credential that may write, and to none other', async () => {
+  test('gives the pane a session for a credential that may write, and for none other, a Reviewer\'s among them', async () => {
     assert.equal((await session(READER)).status, 403, 'may read');
     assert.equal((await session('token nobody')).status, 403, 'unknown');
     assert.equal((await session('nonsense')).status, 401, 'no credential');

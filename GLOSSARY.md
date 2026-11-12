@@ -12,7 +12,9 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Admin**: The customer's highest role: manages the customer's users and changes menus, site settings, redirects and services. _Avoid_: site owner, administrator.
 
-**Editor role**: The customer's other role: writes content, reads every draft and may publish.
+**Editor role**: The customer's role for writing: writes content, reads every draft and may publish.
+
+**Reviewer**: The customer's role for someone who must read what is coming without changing anything, such as a chief executive, a board member or a legal adviser: an account of their own, with a second factor, in the site's team `reviewers`, which signs in to the live preview in a tab of its own and sees there what an Editor sees, never enters Sveltia, and cannot save, publish or comment. Not an editor. _Avoid_: viewer, guest, read-only editor, approver.
 
 **Instance administrator**: Kntnt's account on a customer's Forgejo, listed to nobody else. _Avoid_: Admin.
 
@@ -146,7 +148,7 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Release**: One complete set of a site's built static pages; the one its `current` link points to is what visitors get. _Avoid_: version, deployment.
 
-**Live preview**: The site from its own templates, from Astro's dev server on an origin of its own: the page beside the form in Sveltia, about a second after an editor stops typing, and the site in a tab of its own, browsed as a visitor would, by anyone who may see it, signed in through Forgejo. _Avoid_: staging, test copy.
+**Live preview**: The site from its own templates, with every saved post whatever its status, from Astro's dev server on an origin of its own: the page beside the form in Sveltia, about a second after an editor stops typing, and the site in a tab of its own, browsed as a visitor would, by anyone who may read the site's source, a Reviewer too, signed in through Forgejo. _Avoid_: staging, test copy.
 
 **Share link**: A secret link to one post not yet published, which lets someone without a login read it in a static preview build for three days, or until revoked. _Avoid_: public preview, magic link.
 
