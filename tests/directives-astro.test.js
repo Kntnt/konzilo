@@ -14,6 +14,7 @@ import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync,
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { CACHE_DIR, astroEnvironment } from './lib/astro.js';
 import { testCore } from './lib/test-core.js';
 
@@ -28,6 +29,8 @@ after(() => {
 const { default: konzilo } = await import(core.url('src/astro/index.js'));
 
 const integration = join(core.root, 'src/astro/index.js');
+// What the tests' own components draw a body's tree with.
+const treeHtmlFile = fileURLToPath(new URL('./lib/tree-html.js', import.meta.url));
 const astro = join(core.root, 'node_modules/astro/bin/astro.mjs');
 const site = {
   types: {
@@ -181,11 +184,11 @@ describe("a site's own components", () => {
   const fromTree = {
     'src/components/Panel.astro': [
       '---',
-      "import { toHtml } from 'hast-util-to-html';",
+      `import { treeHtml } from ${JSON.stringify(treeHtmlFile)};`,
       'const { tone, content } = Astro.props;',
       "const headings = content.children.filter((node) => node.type === 'element' && /^h[2-6]$/.test(node.tagName)).length;",
       '---',
-      '<section class="site-panel" data-tone={tone} data-headings={headings}><Fragment set:html={toHtml(content)} /></section>',
+      '<section class="site-panel" data-tone={tone} data-headings={headings}><Fragment set:html={treeHtml(content)} /></section>',
       '',
     ].join('\n'),
     'src/components/Kicker.astro': "---\nconst { content } = Astro.props;\n---\n<p class=\"site-kicker\">{content.children.map((node) => node.type).join(' ')}</p>\n",
