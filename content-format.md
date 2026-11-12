@@ -540,6 +540,8 @@ A list whose `order` is `related` takes no `direction`, and lists the posts that
 ::post-list{type="article" order="title" presentation="cards" columns="3"}
 ```
 
+The site's design shows a list by the presentation it names, a component that is given the posts of the page it shows, the presentation's options as the list sets them, the text for a list that matches nothing, the pager of a list with pages, and what the whole list holds, in the page's language: its type, how many posts it matches on all its pages, after its offset and what it leaves out, and the terms those posts hold in each of the type's taxonomies, each with how many of them hold it ([`docs/site-design.md`](docs/site-design.md#what-a-site-gives-the-integration)). Which rows of terms a list that filters shows is an option the site declares for its presentation. A taxonomy's key in a query, in such a row and on the search page, is the taxonomy's name, `category`, `topics` or `authors`.
+
 A directive's name follows `::` for a leaf, a directive with no body, and `:::` for a container, which holds blocks, then a blank line, the blocks, a blank line and its closing fence, a colon more than any fence inside. Its attributes are `name="value"`, apart by a space, a value with `&`, `"` and `}` written as `&amp;`, `&quot;` and `&#125;`, and a line feed and a carriage return as `&#10;` and `&#13;`. The rule data registers each directive the core knows, the post list and the [form](#forms), and a site adds [its own](#a-sites-own-components); a directive neither registers reads as its text, and the intake escapes every colon that would begin one ([Escapes and fallbacks](#escapes-and-fallbacks)).
 
 ### Forms
