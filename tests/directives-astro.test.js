@@ -78,8 +78,9 @@ const body = [
 
 // A site repository with `files`, built; { status, output, html(slug) }.
 // `environment`: what the build's environment adds, such as the live
-// preview's KONZILO_PREVIEW.
-function build(files, directives = {}, described = site, environment = {}) {
+// preview's KONZILO_PREVIEW. `command`: Astro's, `build` or `dev`; a dev
+// server that has not stopped within a minute is ended, its status null.
+function build(files, directives = {}, described = site, environment = {}, command = 'build') {
   const repository = mkdtempSync(join(tmpdir(), 'konzilo-directives-'));
   repositories.push(repository);
   // The core's dependencies, each on its own, for a package of the site's to stand among them.
@@ -96,7 +97,10 @@ function build(files, directives = {}, described = site, environment = {}) {
   write('site-description.json', JSON.stringify(described));
   write('src/pages/[slug].astro', page);
   for (const [path, contents] of Object.entries({ ...components, ...files })) write(path, contents);
-  const built = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: { ...astroEnvironment, ...environment } });
+  // A dev server in the foreground, which Astro leaves for the background when it finds itself
+  // run by an agent, unless told to ignore its lock file.
+  const args = command === 'dev' ? ['dev', '--host', '127.0.0.1', '--port', '0', '--ignore-lock'] : [command];
+  const built = spawnSync(process.execPath, [astro, ...args], { cwd: repository, encoding: 'utf8', env: { ...astroEnvironment, ...environment }, timeout: 60_000 });
   const article = (slug) => /<article>(.*)<\/article>/s.exec(readFileSync(join(repository, `dist/${slug}/index.html`), 'utf8'))?.[1];
   return { status: built.status, output: `${built.stdout}\n${built.stderr}`, article };
 }
@@ -229,6 +233,17 @@ describe("a site's own components", () => {
       '</section>',
     ].join(''));
   });
+
+  for (const command of ['build', 'dev']) {
+    test(`stops ${command === 'dev' ? 'a dev server' : 'a build'} at a site description the checker refuses with the checker's own problems, before it holds the site's components against it`, () => {
+      const twice = { ...own, types: { ...own.types, news: { ...own.types.post, label: 'News item', plural: 'News', collection: 'news' } } };
+      const started = build({ 'content/articles/hello-world.md': post('Fine') }, { panel: './src/components/Note.astro' }, twice, {}, command);
+      assert.equal(typeof started.status, 'number', started.output);
+      assert.notEqual(started.status, 0);
+      assert.match(started.output, /the site description is not valid:\n\s+types\.news\.address: \/\{slug\}\/ is also the address of types\.post/);
+      assert.doesNotMatch(started.output, /the site gives a component for the directive/);
+    });
+  }
 
   test('refuses a value a component does not take, naming the file and the line', () => {
     const built = build({ 'content/articles/hello-world.md': post(':::panel{tone="dark"}\n\nText\n\n:::') }, {}, own);
