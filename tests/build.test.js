@@ -95,8 +95,9 @@ describe('a build', () => {
     const roles = givenRoles ?? {
       read: async () => {
         writeFileSync(join(rolesFile, 'admins.json'), '[]');
+        writeFileSync(join(rolesFile, 'reviewers.json'), '[]');
         writeFileSync(join(rolesFile, 'pushers.json'), '{}');
-        return { admins: join(rolesFile, 'admins.json'), pushers: join(rolesFile, 'pushers.json') };
+        return { admins: join(rolesFile, 'admins.json'), reviewers: join(rolesFile, 'reviewers.json'), pushers: join(rolesFile, 'pushers.json') };
       },
     };
     const build = (options = {}) => siteBuild({
