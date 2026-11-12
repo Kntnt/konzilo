@@ -8,6 +8,10 @@
 // `wasm-reader.js` brings it as the lockfile pins it. The `browser` condition makes `satteri`
 // take it, and it creates workers at start, which are modules.
 //
+// Beside the bundle it writes `third-party-notices.txt`: every package the bundler put into it,
+// with its license and its text, from the bundler's own record of the modules and files that went
+// in, the workers' among them (ADR 0072). A package it cannot give notice of fails the build.
+//
 //   build-editor <folder to write>
 
 import { readFileSync } from 'node:fs';
@@ -16,13 +20,18 @@ import { fileURLToPath } from 'node:url';
 
 import { build } from 'vite';
 
+import { editorNotices, noticesFile } from './notices.js';
 import { WASM_READER, wasmReaderFolder } from './wasm-reader.js';
 
-const editorRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../src/cms');
+const core = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const editorRoot = join(core, 'src/cms');
+const NOTICES = 'third-party-notices.txt';
 
 // `input` is an HTML page to build instead of the editor's own; a test's page has no Sveltia,
-// so it takes only the other patches.
-export async function buildEditor(out, { input = join(editorRoot, 'index.html') } = {}) {
+// so it takes only the other patches. `kept` is the license texts that packages do not ship
+// (`notice-texts.js`); `onMissing`, given, is handed what the notices lack instead of failing,
+// and no notices are written.
+export async function buildEditor(out, { input = join(editorRoot, 'index.html'), kept = readKept(), onMissing } = {}) {
   const every = JSON.parse(readFileSync(join(editorRoot, 'patches.json'), 'utf8'));
   const patches = input === join(editorRoot, 'index.html') ? every : every.filter((patch) => !patch.module.startsWith('@sveltia/'));
 
@@ -52,16 +61,40 @@ export async function buildEditor(out, { input = join(editorRoot, 'index.html') 
     },
   };
 
+  // What went into the bundle: each chunk's modules, the workers' too, and the files of each asset.
+  const bundled = new Set();
+  const record = (bundle) => {
+    for (const file of Object.values(bundle)) {
+      if (file.type === 'chunk') for (const id of file.moduleIds) bundled.add(id);
+      else for (const name of file.originalFileNames ?? []) bundled.add(resolve(dirname(input), name));
+    }
+  };
+  const notices = {
+    name: 'konzilo-notices',
+    generateBundle(options, bundle) {
+      record(bundle);
+      const given = { core, files: [...bundled], kept };
+      if (onMissing) onMissing(editorNotices(given).missing);
+      else this.emitFile({ type: 'asset', fileName: NOTICES, source: noticesFile(given) });
+    },
+  };
+
   await build({
     root: dirname(input),
     configFile: false,
     logLevel: 'warn',
-    plugins: [patched],
+    plugins: [patched, notices],
     resolve: {
       conditions: ['browser', 'module', 'import', 'default'],
       alias: { [WASM_READER]: await wasmReaderFolder() },
     },
-    worker: { format: 'es', plugins: () => [{ name: 'konzilo-patches-in-workers', enforce: 'pre', transform }] },
+    worker: {
+      format: 'es',
+      plugins: () => [
+        { name: 'konzilo-patches-in-workers', enforce: 'pre', transform },
+        { name: 'konzilo-notices-in-workers', generateBundle: (options, bundle) => record(bundle) },
+      ],
+    },
     build: {
       outDir: resolve(out),
       emptyOutDir: true,
@@ -71,6 +104,10 @@ export async function buildEditor(out, { input = join(editorRoot, 'index.html') 
       rollupOptions: { input },
     },
   });
+}
+
+function readKept() {
+  return JSON.parse(readFileSync(join(editorRoot, 'notice-texts.json'), 'utf8'));
 }
 
 if (import.meta.main) {
