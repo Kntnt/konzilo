@@ -14,7 +14,9 @@
 // rendered here again, so that a directive in a container's body gets its
 // component too, and as a hast tree in the prop `content`, for a component
 // that lays itself out by what it holds (bodyTree() in directives.js), with
-// the live preview's marks on its blocks. The lists are evaluated in the
+// the live preview's marks on its blocks. In the live preview, a component
+// and a presentation are given their own block's mark as well, in the prop
+// `data-konzilo-block`, to place on their root (BlockMark.astro). The lists are evaluated in the
 // body's order, before any is rendered, so that each leaves out the posts
 // the lists above it showed. A
 // body without such a directive comes out as Content renders it, but for each image's lightbox
