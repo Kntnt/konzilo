@@ -397,6 +397,8 @@
   "preview.viewWindow": "Förhandsvisning: eget fönster",
   "preview.viewToggle": "Förhandsvisning: växla",
   "preview.viewOff": "Förhandsvisning: av",
+  "preview.readsOnly": "Det här kontot läser bara webbplatsens förhandsvisning och kan inte spara något här.",
+  "preview.readsOnlyAt": "Det här kontot läser bara webbplatsens förhandsvisning och kan inte spara något här. Förhandsvisningen finns på {address}.",
   "previewTab.refusedTitle": "Det här kontot får inte se förhandsvisningen",
   "previewTab.refused": "Du är inloggad, men det här kontot får inte se förhandsvisningen av den här webbplatsen. En Admin för webbplatsen kan ge kontot tillgång.",
   "previewTab.signInFailedTitle": "Inloggningen blev inte klar",

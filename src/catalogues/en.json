@@ -397,6 +397,8 @@
   "preview.viewWindow": "Preview: own window",
   "preview.viewToggle": "Preview: switch",
   "preview.viewOff": "Preview: off",
+  "preview.readsOnly": "This account reads the site's live preview only, and can save nothing here.",
+  "preview.readsOnlyAt": "This account reads the site's live preview only, and can save nothing here. The preview is at {address}.",
   "previewTab.refusedTitle": "This account may not see the preview",
   "previewTab.refused": "You are signed in, but this account may not see the live preview of this site. The site's Admins can give it access.",
   "previewTab.signInFailedTitle": "The sign-in did not complete",
