@@ -36,6 +36,9 @@ const STEPS = [
    CREATE INDEX submission_mail_due ON submission (mail_at) WHERE mail = 'pending';
    CREATE TABLE form (name TEXT PRIMARY KEY, recipients TEXT NOT NULL DEFAULT '[]') STRICT;
    CREATE TABLE setting (name TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT;`,
+  // Retention (ADR 0045): the days each form's submissions are kept, where an Admin has set them,
+  // beside its recipients.
+  'ALTER TABLE form ADD COLUMN retention INTEGER;',
 ];
 
 // The store in `file`, made where there is none, and brought up to the last step. Two programs may
@@ -69,6 +72,8 @@ export function openStore(file) {
   const database = new DatabaseSync(file);
   database.exec('PRAGMA busy_timeout = 5000');
   database.exec('PRAGMA journal_mode = WAL');
+  // What is forgotten is overwritten where it stood, rather than left in a page's free space.
+  database.exec('PRAGMA secure_delete = ON');
   database.exec('BEGIN IMMEDIATE');
   try {
     const done = database.prepare('PRAGMA user_version').get().user_version;
@@ -95,11 +100,36 @@ export function openStore(file) {
   const done = database.prepare("UPDATE submission SET mail = ? WHERE id = ? AND mail = 'pending'");
   const again = database.prepare("UPDATE submission SET mail_tries = mail_tries + 1, mail_at = ? WHERE id = ? AND mail = 'pending'");
   const soon = database.prepare("UPDATE submission SET mail_at = ? WHERE mail = 'pending' AND mail_at > ?");
-  const formsKept = database.prepare('SELECT name, recipients FROM form ORDER BY name');
-  const keepForm = database.prepare('INSERT INTO form (name, recipients) VALUES (?, ?) ON CONFLICT (name) DO UPDATE SET recipients = excluded.recipients');
+  const formsKept = database.prepare('SELECT name, recipients, retention FROM form ORDER BY name');
+  const keepForm = database.prepare(`INSERT INTO form (name, recipients, retention) VALUES (?, ?, ?)
+    ON CONFLICT (name) DO UPDATE SET recipients = excluded.recipients, retention = excluded.retention`);
+  const formsHeld = database.prepare('SELECT DISTINCT form FROM submission ORDER BY form');
+  const expireSent = database.prepare('DELETE FROM submission WHERE form = ? AND sent_at < ?');
+  const expireSpam = database.prepare('DELETE FROM submission WHERE form = ? AND sent_at < ? AND spam IS NOT NULL');
   const settingOf = database.prepare('SELECT value FROM setting WHERE name = ?');
   const keepSetting = database.prepare('INSERT INTO setting (name, value) VALUES (?, ?) ON CONFLICT (name) DO UPDATE SET value = excluded.value');
   const forgetSetting = database.prepare('DELETE FROM setting WHERE name = ?');
+
+  // Whether something forgotten may still stand in the log of writes, until a checkpoint has
+  // written the log into the database and emptied it. A checkpoint waits for no one: one that a
+  // reading in progress holds back, such as a file being downloaded, is tried again later.
+  let unsettled = false;
+  const settle = () => {
+    if (!unsettled) return;
+    database.exec('PRAGMA busy_timeout = 0');
+    try {
+      if (Number(database.prepare('PRAGMA wal_checkpoint(TRUNCATE)').get().busy) === 0) unsettled = false;
+    } finally {
+      database.exec('PRAGMA busy_timeout = 5000');
+    }
+  };
+  const forgot = (count) => {
+    if (count > 0) {
+      unsettled = true;
+      settle();
+    }
+    return count;
+  };
 
   const submissionOf = (row) => ({
     id: Number(row.id),
@@ -161,11 +191,18 @@ export function openStore(file) {
       soon.run(now.toISOString(), now.toISOString());
     },
     formSettings() {
-      return Object.fromEntries(formsKept.all().map(({ name, recipients }) => [name, { recipients: JSON.parse(recipients) }]));
+      return Object.fromEntries(formsKept.all().map(({ name, recipients, retention }) => [name, { recipients: JSON.parse(recipients), retention: retention === null ? null : Number(retention) }]));
     },
-    setFormSettings(form, { recipients }) {
-      keepForm.run(form, JSON.stringify(recipients));
+    setFormSettings(form, { recipients, retention = null }) {
+      keepForm.run(form, JSON.stringify(recipients), retention);
     },
+    formsHeld() {
+      return formsHeld.all().map(({ form }) => form);
+    },
+    expire(form, { before, spamBefore }) {
+      return forgot(Number(expireSent.run(form, before.toISOString()).changes) + Number(expireSpam.run(form, spamBefore.toISOString()).changes));
+    },
+    settle,
     setting(name) {
       const row = settingOf.get(name);
       return row ? JSON.parse(row.value) : null;
