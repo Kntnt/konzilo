@@ -290,7 +290,9 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Form**: A set of fields visitors fill in and send, made by a developer as a component, simple or advanced, and chosen by an editor. _Avoid_: contact form, form builder.
 
-**Recipients list**: A named list of email addresses an Admin keeps in the service, which no file holds. _Avoid_: mailing list.
+**Recipients list**: The email addresses a form's submissions are mailed to, which an Admin keeps in the service for each form, on the *Mail* page, and no file holds. _Avoid_: mailing list.
+
+**Mail adapter**: How the Node service sends the forms' mail, which an Admin chooses on the *Mail* page: none, which is how a site starts, or SMTP, through a mail server the Admin names. A local copy writes each mail to the service's log instead, and sends none. _Avoid_: mailer, mail provider.
 
 **Submission**: One sent form, kept in the service for its form's retention. _Avoid_: entry, lead.
 

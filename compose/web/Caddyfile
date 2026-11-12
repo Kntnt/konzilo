@@ -102,9 +102,10 @@
 		header Cache-Control "no-store"
 		file_server
 	}
-	# How publishing stands (ADR 0031), small pictures of images (ADR 0055), and the forms'
-	# submissions (ADR 0045), from the service, which asks Forgejo who is asking.
-	@service path /_konzilo/status /_konzilo/thumbnail /_konzilo/submissions /_konzilo/submissions/*
+	# How publishing stands (ADR 0031), small pictures of images (ADR 0055), the forms'
+	# submissions (ADR 0045), and how the site mails them (ADR 0003), from the service, which
+	# asks Forgejo who is asking.
+	@service path /_konzilo/status /_konzilo/thumbnail /_konzilo/submissions /_konzilo/submissions/* /_konzilo/mail
 	handle @service {
 		reverse_proxy editors:4100 {
 			header_up -X-Real-IP

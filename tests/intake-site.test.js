@@ -97,7 +97,7 @@ describe('the site settings', () => {
     assert.equal(values.search.home.title, '{{ site.title }}');
     assert.equal(values.consent.bannerAccept, 'Accept all');
     assert.equal(values.forms.contact.confirmation, 'Thank you. Your message has been sent.');
-    assert.equal(values.forms.contact.recipients, undefined, 'what stays out of the published files');
+    assert.equal(values.forms.contact.retention, undefined, 'what stays out of the published files');
     assert.equal(values.ai.types.story.markdown, false);
     assert.equal(values.ai.types.page.markdown, true);
     assert.equal(values.notFound, undefined);

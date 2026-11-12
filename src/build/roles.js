@@ -8,7 +8,8 @@ import { dirname, join } from 'node:path';
 import { addPushers, eventsAfter } from './pushers.js';
 
 const PAGE = 50;
-const ADMINS_TEAM = 'admins';
+// The organisation's teams of Admins and of Reviewers (ADR 0008).
+export const ADMINS_TEAM = 'admins';
 const REVIEWERS_TEAM = 'reviewers';
 
 // `token`: a credential that may read the organisation's teams and every account's pushes.

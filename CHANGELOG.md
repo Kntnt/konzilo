@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - The live preview opens in a browser tab of its own at its address, for anyone who may see it: a visit leads through Forgejo's sign-in, without a word for someone already signed in there, and back to the page asked for, where the site's links and the browser's history work as they do for a visitor. Someone who may not see it is told that the site's Admins can give access, someone removed from the site loses it within ten minutes, and a preview that has stopped starts at the visit, with a short notice until the page is ready.
+- Each form's submissions are mailed to its recipients, in the language of the page the form was sent from, once an Admin turns mail on and names a mail server on a new Mail page in the editor, where the Admin also gives each form's recipients; mail is off until then, spam is never mailed, and a local copy writes each mail to its log instead of sending it.
 - A Reviewer role, for people who must read what is coming without changing anything, such as a chief executive or a legal adviser: a Reviewer has an account of their own with a second factor, signs in to the live preview in a tab of its own and sees there what an Editor sees, and is told on the editor's sign-in that the account reads the preview only. A Reviewer can save, publish or change nothing: Forgejo refuses what they push, and a build refuses whatever reaches the site's source by them all the same, keeping what was published.
 
 ## [0.2.0] – 2026-11-11
