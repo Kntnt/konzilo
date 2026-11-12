@@ -115,6 +115,14 @@ describe('a site description that takes its components from a package', () => {
     assert.throws(() => read(siteRepository(taking(), { installed: false })), /componentsFrom: @fixture\/design\/directives\/components\.json cannot be found in the site repository's packages: Cannot find module/);
   });
 
+  test('says how a package exports a file it is to find, where it exports it for import alone', () => {
+    const files = {
+      'node_modules/@fixture/esm/package.json': JSON.stringify({ name: '@fixture/esm', type: 'module', exports: { './components.json': { import: './components.json' } } }),
+      'node_modules/@fixture/esm/components.json': '{}',
+    };
+    assert.throws(() => read(siteRepository(taking({ componentsFrom: '@fixture/esm/components.json' }), { files })), /componentsFrom: @fixture\/esm\/components\.json cannot be found in the site repository's packages: .*; a package exports the file under "default", or by a plain path/);
+  });
+
   test('names a problem of what it takes by the file it is in', () => {
     const files = { 'design/components.json': JSON.stringify({ eyebrow: { label: 'Eyebrow', form: 'leaf', body: 'blocks' } }) };
     const declared = { ...everyElement, componentsFrom: 'design/components.json' };

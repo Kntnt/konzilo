@@ -41,7 +41,8 @@ export function siteFile(value, folder) {
     return createRequire(join(folder, 'package.json')).resolve(value);
   } catch (error) {
     const [first] = String(error.message).split('\n');
-    throw new Error(`${value} cannot be found in the site repository's packages: ${first}`);
+    const how = error.code === 'ERR_PACKAGE_PATH_NOT_EXPORTED' ? '; a package exports the file under "default", or by a plain path' : '';
+    throw new Error(`${value} cannot be found in the site repository's packages: ${first}${how}`);
   }
 }
 
