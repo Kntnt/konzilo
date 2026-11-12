@@ -358,6 +358,25 @@ describe('konzilo-intake', () => {
     assert.equal(report.next, '2999-01-01T10:00:00Z');
   });
 
+  // As a site that makes its demo content through the intake does, to have a file for a post
+  // dated ahead, which demo content holds as a scheduled post (ADR 0025).
+  test('takes the moment it is told for now, and writes a post dated before it', () => {
+    const site = newSite({ 'articles/aaaaaaaaaaaa.md': post('later', { date: '2999-01-01T10:00:00Z' }) });
+    const { status, stderr, report } = intake(site, '--now', '2999-01-02T00:00:00Z');
+    assert.equal(status, 0, stderr);
+    assert.deepEqual(report.warnings.filter((one) => one.post), []);
+    assert.equal(report.posts[0].state, 'live');
+    assert.ok(existsSync(join(site.content, 'articles/later.md')));
+  });
+
+  test('exits 2 for a moment it cannot read, and writes nothing', () => {
+    const site = newSite({ 'articles/aaaaaaaaaaaa.md': post('first') });
+    const { status, stderr } = intake(site, '--now', 'tomorrow');
+    assert.equal(status, 2);
+    assert.match(stderr, /--now/);
+    assert.deepEqual(listing(site.content), []);
+  });
+
   test('takes the content folder from where it is told', () => {
     const site = newSite({ 'articles/aaaaaaaaaaaa.md': post('first') });
     const { status, stderr } = intake(site, '--content', 'elsewhere', '--site', site.root);

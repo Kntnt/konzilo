@@ -3,12 +3,14 @@
 // image by its place in the media folder, and only the settings that differ from a
 // default. The published demo content is the fiction's one record, and this reads it, so
 // that the two cannot tell different stories, and a local copy's Forgejo starts with it.
+// A post dated after the moment it is read is scheduled for its date (ADR 0025).
 // An ID comes from the file's place, so that seeding twice gives the same files.
 
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { isObject } from './checks.js';
+import { isScheduled } from './demo-content.js';
 import { publicAddress } from './format/addresses.js';
 import { pageTypeOf } from './format/built-in-types.js';
 import { IMAGE_LIBRARY_FOLDER } from './format/masters.js';
@@ -50,8 +52,8 @@ const toMedia = (image) => {
 
 const mediaPath = (src) => `/media/${src.split('/').at(-1)}`;
 
-// A post's place on a site: { collection, tag, language, place, address, id, title }.
-function postsOf(description, published) {
+// A post's place on a site: { type, tag, language, place, fields, body, id, address, scheduled }.
+function postsOf(description, published, now) {
   const several = description.languages.length > 1;
   const posts = [];
   for (const type of Object.values(description.types)) {
@@ -62,7 +64,7 @@ function postsOf(description, published) {
       const language = several ? description.languages.find((one) => one.tag === tag) : description.languages[0] ?? null;
       const place = several ? within.slice(tag.length + 1) : within;
       const { fields, body } = parsePost(content);
-      posts.push({ type, tag, language, place, fields, body, id: idOf(type.collection, place), address: type.address === null ? null : publicAddress(type, place, language) });
+      posts.push({ type, tag, language, place, fields, body, id: idOf(type.collection, place), address: type.address === null ? null : publicAddress(type, place, language), scheduled: isScheduled(content, now) });
     }
   }
   return posts;
@@ -79,11 +81,11 @@ function bodyAsSource(body, ids) {
 }
 
 // Published content as source files. `published`: each { path, content }, as the content
-// folder holds them.
-export function sourceFrom(description, published) {
+// folder holds them; `now`, the moment after which a post's date makes it scheduled.
+export function sourceFrom(description, published, { now = new Date() } = {}) {
   const files = [];
   const several = description.languages.length > 1;
-  const posts = postsOf(description, published);
+  const posts = postsOf(description, published, now);
   const ids = new Map(posts.filter((post) => post.address).map((post) => [post.address, post.id]));
   const titled = new Map(posts.filter((post) => post.address).map((post) => [post.address, post]));
   const fieldsTaking = new Map();
@@ -118,11 +120,11 @@ export function sourceFrom(description, published) {
   }));
 
   for (const post of posts) {
-    const { type, tag, place, fields, body, id } = post;
+    const { type, tag, place, fields, body, id, scheduled } = post;
     const segments = place.split('/');
     const slug = segments.at(-1);
     const { modified: _modified, oldAddresses: _old, ...kept } = fields;
-    const written = { title: kept.title, slug, status: 'published' };
+    const written = { title: kept.title, slug, status: scheduled ? 'scheduled' : 'published' };
     if (segments.length > 1) written.parent = idOf(type.collection, segments.slice(0, -1).join('/'));
     for (const [key, value] of Object.entries(kept)) {
       if (key === 'title') continue;
@@ -246,15 +248,16 @@ function settingsAsSource(description, published, titled) {
 /**
  * @param {object} description the form siteDescription() returns
  * @param {string} demo the folder of published demo content
+ * @param {{ now?: Date }} [options] `now`, the moment of seeding, after which a post's date makes it scheduled
  * @returns {{ path: string, content: string|Buffer }[]} every source file, sorted by path
  */
-export function demoSource(description, demo) {
+export function demoSource(description, demo, { now = new Date() } = {}) {
   const published = [];
   for (const path of walk(demo)) {
     const inner = relative(demo, path);
     published.push({ path: inner, content: inner.startsWith('media/') ? readFileSync(path) : readFileSync(path, 'utf8') });
   }
-  return sourceFrom(description, published);
+  return sourceFrom(description, published, { now });
 }
 
 // Originals live in Git LFS (ADR 0026).

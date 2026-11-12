@@ -13,6 +13,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A post list's presentation is given what the whole list holds beside the posts of its page, in the prop `list`: the list's type with its label and plural, how many posts the list matches on all its pages, the terms of those posts in each of the type's taxonomies with how many hold each and the address of each term's page, and the search page's address. A presentation that filters can draw rows of terms and say how many posts it shows of how many, the same on every page. `listedPosts()` gives the same as the property `list` of the posts it returns.
 - The search page narrows by terms as a list's filter sends them, each taxonomy by its name with its terms' slugs, `?topics=rivers&topics=lakes`: the terms of one taxonomy by or and the taxonomies by and, every post of them when no words are given. It keeps them in its form and in its links to the other pages, and its status says what it searched within, "3 results for “lantern” in Rivers or Lakes and in News".
 
+- A site's demo content can hold a scheduled post, as a post dated ahead: a local copy in Compose starts with it scheduled for its moment, so that the editor lists it and the site publishes it then, and `npm run dev` and `npm run build` leave it out of the content folder they fill, and say so. `konzilo-intake --now <moment>` takes that moment for now, so that a site that makes its demo content through the intake gets a file for such a post.
+
 ### Fixed
 
 - A click in the body field while the live preview's page is still loading, in the pane or in its window of its own, no longer leaves an error in the browser's console in Safari and Firefox.
