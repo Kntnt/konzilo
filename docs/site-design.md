@@ -126,7 +126,7 @@ The core's stylesheet makes it work, and it stands inside a body's wrapper, so a
 | `.konzilo-form-help` | A field's help | |
 | `.konzilo-form-problem` | What is wrong with a field | `[hidden]` until then |
 | `.konzilo-form-outcome`, `.konzilo-form-<outcome>` | What came of sending, by the outcome, one of `sent`, `invalid`, `too-many`, `refused` and `unavailable` | `[hidden]` until then where the script runs, `:target` where it does not |
-| `.konzilo-form-send` | The button | |
+| `.konzilo-form-send` | The button, its text the form's own, an editor's where the form allows one, or the site's word for sending; a design that sizes it leaves room for a longer text | |
 | `.konzilo-form-trap` | The field only a robot fills in, which must stay out of sight | |
 
 A field's label is in its `label`, or a group's of choices in its `legend`, before the mark of a required field. A link the label holds, such as an acceptance line's to its policy, is a plain `a` inside it, with no class and no `target`, so a design reaches it as `.konzilo-form-field label a` or `.konzilo-form-field legend a`. A choice's own label holds none.

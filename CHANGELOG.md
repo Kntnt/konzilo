@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - A form field's label can hold links, written as Markdown links in the site description, such as `I have read the [privacy policy](/privacy-policy/)` for an acceptance line, each to an address a menu's entry may have: the form draws the link in the field's label, and a submission, its mail, its CSV and the Submissions page show the label's words without it.
+- A form can have a button text of its own in the site description, `button`, one text or, on a site in several languages, one in each, in place of the site's word for sending. Where the form lists `button` under `editable`, an editor changes the text where the form is placed, `::form{name="contact" button="Book the assessment"}`, or in the structure editor's box for the form; the intake refuses such a text where the form does not allow it. A site whose own form component (the site template's `src/components/Form.astro`) passes on only `name` must pass on `button` too for an editor's text to show.
 
 ### Fixed
 

@@ -64,8 +64,18 @@ test('edits a body in Konzilo\'s own field, which knows what its type takes and 
     assert.equal(body.widget, 'konzilo-body');
     assert.deepEqual(body.elements, type.elements);
     assert.deepEqual(body.forms, Object.keys(description.forms ?? {}));
+    assert.deepEqual(body.editable, { forms: { contact: [] } });
     assert.equal(body.required, false);
   }
+});
+
+test('tells a body\'s field which texts an editor may change of each form where it is placed', () => {
+  const fields = [{ name: 'email', label: 'Email', kind: 'email', required: true }];
+  const declared = JSON.parse(readFileSync(file('site-template/files/site-description.json'), 'utf8'));
+  declared.forms = { contact: { label: 'Contact', fields }, booking: { label: 'Booking', button: 'Book', editable: ['button'], fields } };
+  const body = field(cmsConfig(siteDescription(declared), place).collections.find((one) => one.name === 'pages').fields, 'body');
+  assert.deepEqual(body.forms, ['contact', 'booking']);
+  assert.deepEqual(body.editable, { forms: { contact: [], booking: ['button'] } });
 });
 
 test('refers to a term and a parent by ID', () => {
