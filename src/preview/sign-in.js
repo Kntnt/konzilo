@@ -16,6 +16,10 @@ const SCOPE = 'read:repository';
 
 const random = () => randomBytes(32).toString('base64url');
 
+// What a state is, as start() gives one: 32 random bytes in base64url. Nothing else that comes
+// back as one is a sign-in this gate began.
+export const STATE = /^[A-Za-z0-9_-]{43}$/;
+
 // `forgejo`: where the gate reaches Forgejo; `forgejoOrigin`: where a browser does. `clientId`:
 // the preview's OAuth client. `redirectUri`: the gate's address that Forgejo sends a browser
 // back to.

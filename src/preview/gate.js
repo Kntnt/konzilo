@@ -15,7 +15,7 @@ import { connect } from 'node:net';
 
 import { DRAFT_PATH, HEALTH_PATH, SESSION_PATH, SIGN_IN_PATH, WHERE_PATH } from '../cms/preview/paths.js';
 import { accessTo, CREDENTIAL } from '../forgejo.js';
-import { forgejoSignIn, SIGN_IN_LASTS } from './sign-in.js';
+import { forgejoSignIn, SIGN_IN_LASTS, STATE } from './sign-in.js';
 import { refusalIn, TAB_PAGES, tabPage } from './tab-page.js';
 import { toolbarOf, toolbarScript, withToolbar } from './toolbar.js';
 
@@ -74,8 +74,11 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
   const secure = new URL(origin).protocol === 'https:';
   const cookie = secure ? '__Host-konzilo-preview' : cookieName;
   // A browser's own sign-in, one cookie for each, so that tabs that sign in at once keep theirs; a
-  // `__Host-` name would have to be for every path.
+  // `__Host-` name would have to be for every path. `state` is one the gate gave (STATE).
   const signInCookie = (state) => `${secure ? '__Secure-konzilo-preview-sign-in' : `${cookieName}_sign_in`}_${state.slice(0, 12)}`;
+  // A cookie for this host alone, which no page's script reads and no other site's page sends, at
+  // `path`, for `lasts` milliseconds, and ended where that is none.
+  const cookieOf = (name, value, { path = '/', lasts }) => [`${name}=${value}`, `Path=${path}`, 'HttpOnly', 'SameSite=Lax', `Max-Age=${lasts / 1000}`, ...(secure ? ['Secure'] : [])].join('; ');
   const signIn = clientId && forgejoOrigin ? forgejoSignIn({ forgejo, forgejoOrigin, clientId, redirectUri: `${origin}${SIGN_IN_PATH}`, now }) : null;
   const sessions = new Map();
   // When the dev server last failed to start, while a page waiting for it may tell of it.
@@ -139,8 +142,7 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
   // To Forgejo's sign-in, to come back to the page asked for.
   const toSignIn = (incoming, outgoing) => {
     const { location, state } = signIn.start(pathOn(new URL(incoming.url, origin)));
-    const binding = [`${signInCookie(state)}=${state}`, `Path=${SIGN_IN_PATH}`, 'HttpOnly', 'SameSite=Lax', `Max-Age=${SIGN_IN_LASTS / 1000}`, ...(secure ? ['Secure'] : [])];
-    outgoing.writeHead(303, { ...own, Location: location, 'Set-Cookie': binding.join('; ') });
+    outgoing.writeHead(303, { ...own, Location: location, 'Set-Cookie': cookieOf(signInCookie(state), state, { path: SIGN_IN_PATH, lasts: SIGN_IN_LASTS }) });
     outgoing.end();
   };
 
@@ -166,14 +168,14 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
     const secret = randomBytes(32).toString('base64url');
     sessions.set(digest(secret), { checked: now(), writes });
     start();
-    return [`${cookie}=${secret}`, 'Path=/', 'HttpOnly', 'SameSite=Lax', `Max-Age=${SESSION_LIFE / 1000}`, ...(secure ? ['Secure'] : [])].join('; ');
+    return cookieOf(cookie, secret, { lasts: SESSION_LIFE });
   };
 
   // No session, for someone who may no longer see the preview.
   const ended = (incoming) => {
     const held = sessionIn(incoming);
     if (held) sessions.delete(held.key);
-    return [`${cookie}=`, 'Path=/', 'HttpOnly', 'SameSite=Lax', 'Max-Age=0', ...(secure ? ['Secure'] : [])].join('; ');
+    return cookieOf(cookie, '', { lasts: 0 });
   };
 
   const openSession = async (incoming, outgoing) => {
@@ -193,13 +195,15 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
 
   // A browser back from Forgejo's sign-in: to the page it set out for, with a session, where its
   // person may see the preview, which whoever may read the source may. Whatever Forgejo gave is
-  // used for that question alone.
+  // used for that question alone. A state of another shape than the gate gives is no sign-in it
+  // began, and nothing is made of it, not even the name of a cookie to end.
   const backFromSignIn = async (incoming, outgoing) => {
     const query = new URL(incoming.url, origin).searchParams;
     const state = query.get('state') ?? '';
+    if (!STATE.test(state)) return page(outgoing, 400, TAB_PAGES.signInFailed, { again: '/' });
     const name = signInCookie(state);
-    const used = [`${name}=`, `Path=${SIGN_IN_PATH}`, 'HttpOnly', 'SameSite=Lax', 'Max-Age=0', ...(secure ? ['Secure'] : [])].join('; ');
-    const { path, credential, unanswered } = await signIn.finish({ state, code: query.get('code'), bound: state !== '' && cookieIn(incoming, name) === state });
+    const used = cookieOf(name, '', { path: SIGN_IN_PATH, lasts: 0 });
+    const { path, credential, unanswered } = await signIn.finish({ state, code: query.get('code'), bound: cookieIn(incoming, name) === state });
     const again = path ?? '/';
     if (!credential) return page(outgoing, unanswered ? 502 : 400, unanswered ? TAB_PAGES.forgejoDown : TAB_PAGES.signInFailed, { again, headers: { 'Set-Cookie': used } });
     let access;

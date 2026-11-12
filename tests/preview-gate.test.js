@@ -370,6 +370,21 @@ describe('the preview\'s gate', () => {
       await unfinished(unknown, '/');
     });
 
+    test('takes no state but one of the shape it gives as a sign-in, and derives nothing from another', async () => {
+      const { state, binding } = await (async () => {
+        const away = await visit('/a-page/');
+        return { state: new URL(away.headers.get('location')).searchParams.get('state'), binding: pairOf(away, 'a_preview_sign_in_') };
+      })();
+      for (const given of [`${state.slice(0, 6)}%0d%0aX-Given:%201${state.slice(6)}`, `${state.slice(0, 4)};Domain=example.com;${state.slice(4)}`, `${state.slice(0, 5)}=${state.slice(5)}`, `${state}x`, state.slice(1), `${state.slice(0, -1)}.`]) {
+        const back = await visit(`${SIGN_IN_PATH}?code=code-writer&state=${given}`, binding);
+        assert.equal(back.status, 400, given);
+        assert.deepEqual(back.headers.getSetCookie(), [], given);
+        assert.equal(back.headers.get('x-given'), null, given);
+        await unfinished(back, '/');
+      }
+      assert.deepEqual(exchanged, [], 'no code is exchanged');
+    });
+
     test('says so when Forgejo does not answer', async () => {
       const { back } = await signInAs('/a-page/?x=1', DOWN);
       assert.equal(back.status, 502);
