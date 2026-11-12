@@ -9,10 +9,13 @@ import { spawnSync } from 'node:child_process';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { after, describe, test } from 'node:test';
+import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { handsFor, refusalsOf } from '../src/cms/body/check.js';
+import { useComponents } from '../src/cms/body/components.js';
 import { cmsConfig } from '../src/cms/config.js';
 import { componentChecksOf } from '../src/intake/component-checks.js';
+import { reader } from '../src/intake/reader.js';
 import { runnerOncePrepared } from '../src/preview/runner.js';
 import { liveDescription } from '../src/service/live-description.js';
 import { readSiteDescription, readSiteDescriptionWithoutTakenComponents, siteDescription, siteRules } from '../src/site-description.js';
@@ -205,6 +208,45 @@ describe('the check of what the components hold, from a package', () => {
     for (const value of ['/etc/checks.js', '../checks.js', 'checks.json', '@fixture']) {
       assert.throws(() => read(siteRepository(taking({ componentChecks: value }))), /componentChecks: must be the path of a JavaScript module in the site repository, from its root, such as component-checks\.js, or a package specifier, a scoped package's name and the path of a file it exports, such as @example\/design\/directives\/checks$/m, value);
     }
+  });
+});
+
+describe('the editor\'s configuration, as konzilo-cms writes it, and its early check', () => {
+  let root;
+  let written;
+  before(() => {
+    root = siteRepository(taking({
+      componentChecks: CHECKS,
+      componentLabels: { section: { label: { sv: 'Sektion' }, attributes: { surface: { label: { sv: 'Yta' } } } } },
+    }));
+    const command = fileURLToPath(new URL('../bin/konzilo-cms.js', import.meta.url));
+    const ran = spawnSync(process.execPath, [command, root, join(root, 'out/config.json')], {
+      cwd: tmpdir(),
+      encoding: 'utf8',
+      env: { ...process.env, KONZILO_FORGEJO_ORIGIN: 'http://localhost:1', KONZILO_SITE_ORIGIN: 'http://localhost:2', KONZILO_REPOSITORY: 'a/b', KONZILO_OAUTH_CLIENT: 'c' },
+    });
+    assert.equal(ran.status, 0, ran.stderr);
+    written = (name) => JSON.parse(readFileSync(join(root, 'out', name), 'utf8'));
+  });
+  after(() => useComponents({}));
+
+  test('gives the editor the components the site takes from the package, with the site\'s labels in each language', () => {
+    const { section, eyebrow, list } = written('config.sv.json').konzilo.components;
+    assert.equal(section.label, 'Sektion');
+    assert.equal(section.attributes.surface.label, 'Yta');
+    assert.deepEqual(section.attributes.surface.values, ['page', 'raised']);
+    assert.equal(eyebrow.label, 'Eyebrow');
+    assert.equal(list.element, 'list-directive');
+    assert.equal(written('config.en.json').konzilo.components.section.label, 'Section');
+  });
+
+  test('has the early check read the package\'s components from the configuration, refuse by the site\'s labels, and run no check of the package\'s', () => {
+    useComponents(written('config.sv.json').konzilo.components);
+    const { elements } = read(root).types.page;
+    assert.deepEqual(refusalsOf(':::section{surface="raised"}\n\n::eyebrow[Over]\n\n:::', handsFor(reader, { elements })), []);
+    const refused = refusalsOf(':::section\n\nText\n\n:::', handsFor(reader, { elements: ['paragraph'] }));
+    assert.deepEqual(refused.map(({ reason }) => reason.values.element), [{ label: 'Sektion' }]);
+    assert.deepEqual(refusalsOf(':::list\n\nNo list\n\n:::', handsFor(reader, { elements })), [], 'the intake alone refuses what the package\'s check refuses');
   });
 });
 
