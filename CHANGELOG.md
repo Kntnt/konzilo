@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A site comes up on a machine without Forgejo's image while `codeberg.org`'s registry refuses it under load: Compose pulls Forgejo from `data.forgejo.org`, which serves the same image by the same digest.
 - The Compose guide says where Forgejo keeps its settings: `app.ini`, with the keys it generated, is in the volume `forgejo-data`, where the vendor's image writes it. The volume `forgejo-config`, which nothing wrote to, is gone. A site brought up before keeps its accounts, repositories and settings, and may remove its empty `<site>_forgejo-config` with `docker volume rm`, since Compose no longer does.
 - A click in the body field while the live preview's page is still loading, in the pane or in its window of its own, no longer leaves an error in the browser's console in Safari and Firefox.
+- A site description the checker refuses stops a build and a dev server at once with the checker's own problems, each by its path in the description, rather than with a fault of something held against it, such as a component the site gives for a directive the description declares.
 
 ## [0.4.0] – 2026-11-12
 

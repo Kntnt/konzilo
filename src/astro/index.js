@@ -312,15 +312,15 @@ function declaredChecks(declared, known) {
 }
 
 // The site description of the site at `root`, as checked, or null when it
-// has none, or one the checker refuses, which the content collections then
-// name.
+// has none. One the checker refuses stops Astro's start with the checker's
+// problems, each by its path, before anything is held against it.
 function describedSiteAt(root) {
   const file = join(root, SITE_DESCRIPTION_FILE);
   if (!existsSync(file)) return null;
   try {
     return readSiteDescription(file);
-  } catch {
-    return null;
+  } catch (error) {
+    throw new Error(`Konzilo: ${error.message}`);
   }
 }
 
@@ -443,8 +443,7 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
         described = describedSiteAt(fileURLToPath(config.root));
         language = described?.language ?? null;
         languages = described?.languages ?? [];
-        // Without a description it can read, there is nothing to hold them against, and what is
-        // wrong with it comes from where it is read.
+        // Without a description, there is nothing to hold them against.
         if (described) checkPresentations(described, presentations);
         // The site's directives: the core's, and the components its description declares.
         const known = registryOf(described);
