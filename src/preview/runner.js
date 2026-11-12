@@ -6,6 +6,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
+import { pageLanguage } from '../astro/languages.js';
+import { NOT_FOUND_FILE, NOT_FOUND_FOLDER } from '../format/not-found.js';
 import { DRAFT, PUBLISHED, SCHEDULED } from '../format/post-status.js';
 import { keyOf } from '../format/redirects.js';
 import { POST_IDS_FILE } from '../format/write.js';
@@ -33,9 +35,10 @@ const statusOf = ({ status, at }) => (at ? SCHEDULED : status === DRAFT ? DRAFT 
 // Each page in the preview by its address, as a run left them: a post's, { kind: 'post', file,
 // title, status, at, refusals }, and a term's, { kind: 'term', file, title, refusals }. A refused
 // post is at the address its kept page has and at the one it would have, and a post shown there
-// comes first.
+// comes first. `notFound`: the post each 404 page is built from, by its content file.
 function pagesOf(result) {
   const pages = new Map();
+  const notFound = new Map();
   const refusals = Object.groupBy(result.refusals.filter(({ file }) => file !== undefined), ({ file }) => file);
   for (const { file, title, address } of result.termPages) pages.set(keyOf(address), { kind: 'term', file, title, refusals: [] });
   const posts = [...result.posts].sort((a, b) => Number(a.state !== 'refused') - Number(b.state !== 'refused'));
@@ -44,8 +47,9 @@ function pagesOf(result) {
     const status = statusOf(post);
     const about = { kind: 'post', file, title, status, at: status === SCHEDULED ? post.at : null, refusals: state === 'refused' ? (refusals[file] ?? []).map(shownRefusal) : [] };
     for (const at of state === 'refused' ? [address, wanted] : state === 'live' ? [address] : []) if (at) pages.set(keyOf(at), about);
+    if (post.notFound) notFound.set(post.notFound, about);
   }
-  return pages;
+  return { pages, notFound };
 }
 
 // The keys a path asked for may be known by: its own, and, for a list's later page,
@@ -81,6 +85,7 @@ export function previewRunner({ site: described, source, content, adminHost = nu
   let changes = 0;
   let made = null;
   let pages = new Map();
+  let notFound = new Map();
   let images = { key: null, of: () => null };
   let queue = Promise.resolve();
 
@@ -128,7 +133,7 @@ export function previewRunner({ site: described, source, content, adminHost = nu
       result = intake({ ...given, preview: [...drafts.keys()] });
     }
     writeContent(content, site, result);
-    pages = pagesOf(result);
+    ({ pages, notFound } = pagesOf(result));
     made = from;
     return result;
   };
@@ -160,6 +165,14 @@ export function previewRunner({ site: described, source, content, adminHost = nu
     // published, as take() gives them; a term, { kind: 'term', file, title, refusals }; or null,
     // for a page built from many posts or from settings, or none.
     at: (path) => pageKeys(path).map((key) => pages.get(key)).find(Boolean) ?? null,
+
+    // What the 404 page at `path` is built from, a page that nothing else answers: the post an
+    // Admin chose for it, in the language whose prefix `path` is below, the main language's below
+    // none, as at() gives a post, or null where none serves.
+    notFoundAt(path) {
+      const language = pageLanguage(path, site.languages);
+      return notFound.get(language === null || language.main ? NOT_FOUND_FILE : `${NOT_FOUND_FOLDER}/${language.tag}.md`) ?? null;
+    },
 
     // Takes one draft, and gives what its pane shows: { address, refusals }, its page's
     // address, or null while it has none, and each reason it cannot be published, by its field

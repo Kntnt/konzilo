@@ -34,6 +34,8 @@ const FAILURE_TOLD = 60 * 1000;
 // A draft with its unsaved images, each at most what an original may be, in base64.
 const MOST_BYTES = 64 * 1024 * 1024;
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
+// What the dev server answers the 404 page with, wherever nothing else answers or a rule says so.
+const NOT_FOUND = new Set([404, 410]);
 // As many steps of a redirect as are followed, about what a visitor's browser would take.
 const MOST_STEPS = 10;
 const DROPPED = new Set(['x-frame-options', 'content-security-policy', 'content-security-policy-report-only', 'reporting-endpoints', 'strict-transport-security', 'cache-control', 'x-robots-tag', 'set-cookie', 'connection', 'keep-alive', 'transfer-encoding']);
@@ -257,9 +259,10 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
   // runs again that could try the same thing.
   const keptFromFollowing = (incoming, from) => incoming.headers['sec-fetch-dest'] === 'iframe' && REDIRECTS.has(from.statusCode);
 
-  // The dev server's answer, with the toolbar `toolbar` in it where it is a page and one is given.
-  const pass = (incoming, outgoing, toolbar = null) => {
-    const forward = request({ host: '127.0.0.1', port: dev.port, path: incoming.url, method: incoming.method, headers: forwarded(incoming, toolbar !== null) }, async (from) => {
+  // The dev server's answer, with the toolbar `toolbarFor(status)` gives for its status in it, where
+  // it is a page and one is given.
+  const pass = (incoming, outgoing, toolbarFor = null) => {
+    const forward = request({ host: '127.0.0.1', port: dev.port, path: incoming.url, method: incoming.method, headers: forwarded(incoming, toolbarFor !== null) }, async (from) => {
       if (keptFromFollowing(incoming, from)) {
         from.resume();
         outgoing.writeHead(204, own);
@@ -267,7 +270,7 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
       }
       const kept = Object.fromEntries(Object.entries(from.headers).filter(([name]) => !DROPPED.has(name)));
       if (kept.location?.startsWith(`http://127.0.0.1:${dev.port}`)) kept.location = kept.location.slice(`http://127.0.0.1:${dev.port}`.length) || '/';
-      if (toolbar === null || !takesToolbar(from)) {
+      if (toolbarFor === null || !takesToolbar(from)) {
         outgoing.writeHead(from.statusCode, { ...kept, ...own });
         return from.pipe(outgoing);
       }
@@ -277,7 +280,7 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
       } catch {
         return outgoing.destroy();
       }
-      const shown = Buffer.from(withToolbar(Buffer.concat(parts).toString('utf8'), toolbar), 'utf8');
+      const shown = Buffer.from(withToolbar(Buffer.concat(parts).toString('utf8'), toolbarFor(from.statusCode)), 'utf8');
       const rest = Object.fromEntries(Object.entries(kept).filter(([name]) => !OF_THE_PAGE.has(name)));
       outgoing.writeHead(from.statusCode, { ...rest, ...own, 'Content-Length': String(shown.length) });
       return outgoing.end(shown);
@@ -372,15 +375,17 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
       if (incoming.method !== 'GET' && incoming.method !== 'HEAD' && !sends) return answer(outgoing, 405, { message: 'A preview only shows pages.' }, { Allow: 'GET, HEAD' });
       if (isPage(incoming) && !dev.ready()) return starting(incoming, outgoing);
       const about = isPage(incoming) ? await builtFrom(pathname) : null;
-      const toolbar = isPage(incoming) ? toolbarOf({ about, writes: held.writes, language, adminOrigin }) : null;
-      if (about?.refusals.length > 0) return page(outgoing, 200, TAB_PAGES.postRefused, { values: { title: about.title }, items: about.refusals.map((one) => refusalIn(language, one)), toolbar });
+      // The toolbar of the page the dev server answers with `status`: what it is built from, and
+      // the 404 page's, the post an Admin chose for it, where nothing else answers.
+      const toolbarFor = isPage(incoming) ? (status) => toolbarOf({ about: about ?? (NOT_FOUND.has(status) ? runner.notFoundAt(pathname) : null), writes: held.writes, language, adminOrigin }) : null;
+      if (about?.refusals.length > 0) return page(outgoing, 200, TAB_PAGES.postRefused, { values: { title: about.title }, items: about.refusals.map((one) => refusalIn(language, one)), toolbar: toolbarFor(200) });
       try {
         await dev.ensure();
       } catch (error) {
         warn(`The preview did not start: ${error.message}`);
         return answer(outgoing, 503, { message: 'The preview did not start.' });
       }
-      return pass(incoming, outgoing, toolbar);
+      return pass(incoming, outgoing, toolbarFor);
     },
 
     // A dev server's reloads come through a WebSocket, behind the same session.

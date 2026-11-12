@@ -409,6 +409,8 @@ function assemble(run) {
       address: updated.posts[post.key]?.address ?? null,
       shown: Boolean(updated.posts[post.key]?.path),
       ...(run.refused.has(post.key) ? { wanted: addressWanted(post, run) } : {}),
+      // The post the 404 page is written from, by its content file, in its language.
+      ...(post.written?.notFound ? { notFound: post.written.path } : {}),
     })),
     termPages: [...(run.termPages ?? [])].map(([key, address]) => ({ file: run.terms.get(key).file, title: run.terms.get(key).label, address })),
     next,

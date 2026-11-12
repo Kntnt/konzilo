@@ -64,6 +64,8 @@ describe('the preview\'s gate', () => {
   let refreshes;
   let refreshFails;
   let built;
+  // The post an Admin chose as the 404 page, as the runner knows it, or null.
+  let notFoundChosen;
 
   before(async () => {
     forgejo = createServer(async (incoming, outgoing) => {
@@ -107,6 +109,12 @@ describe('the preview\'s gate', () => {
       if (moved || incoming.url.startsWith('/on/')) {
         outgoing.writeHead(moved?.[0] ?? 301, { Location: moved?.[1] ?? `/on/${Number(incoming.url.slice(4)) + 1}` });
         return outgoing.end();
+      }
+      // The 404 page, which the dev server shows wherever nothing else answers, and where a rule
+      // answers 410.
+      if (incoming.url === '/nowhere/' || incoming.url === '/taken-away/') {
+        outgoing.writeHead(incoming.url === '/nowhere/' ? 404 : 410, { 'Content-Type': 'text/html' });
+        return outgoing.end(A_PAGE);
       }
       if (incoming.url === '/missing/' || incoming.url === '/gone/') {
         outgoing.writeHead(incoming.url === '/gone/' ? 410 : 404);
@@ -154,6 +162,7 @@ describe('the preview\'s gate', () => {
           if (refreshFails) throw new Error('the run broke');
         },
         at: (path) => (Object.hasOwn(built, path) ? built[path] : path === '/a-page/' ? A_POST : null),
+        notFoundAt: () => notFoundChosen,
       },
       dev: {
         port: innerPort,
@@ -191,6 +200,7 @@ describe('the preview\'s gate', () => {
     refreshes = 0;
     refreshFails = false;
     built = {};
+    notFoundChosen = null;
   });
 
   const session = (authorization = WRITER, from = ADMIN) => fetch(`${origin}${SESSION_PATH}`, { method: 'POST', headers: { origin: from, authorization } });
@@ -642,6 +652,24 @@ describe('the preview\'s gate', () => {
       const many = await toolbarIn(await visit('/', held), '/');
       assert.ok(many.says.startsWith(text('sv', 'previewTab.toolbar.many')), many.says);
       assert.deepEqual(many.links, [{ name: text('sv', 'previewTab.toolbar.editor'), href: `${ADMIN}/` }]);
+    });
+
+    test('leads from the 404 page to the post an Admin chose for it, and else says it is not edited in one place', async () => {
+      const held = await as('code-writer');
+      notFoundChosen = { kind: 'post', file: 'pages/gone.md', title: 'Not here', status: 'published', at: null, refusals: [] };
+      for (const [path, status] of [['/nowhere/', 404], ['/taken-away/', 410]]) {
+        const answer = await visit(path, held);
+        assert.equal(answer.status, status, path);
+        const toolbar = await toolbarIn(answer, path);
+        assert.ok(toolbar.says.startsWith(text('sv', 'previewTab.toolbar.published')), toolbar.says);
+        assert.deepEqual(toolbar.links, [{ name: text('sv', 'previewTab.toolbar.editPost'), href: `${ADMIN}/#/collections/pages/entries/gone` }], path);
+      }
+      const many = await toolbarIn(await visit('/', held), '/');
+      assert.ok(many.says.startsWith(text('sv', 'previewTab.toolbar.many')), 'a page that is no 404 page');
+      notFoundChosen = null;
+      const plain = await toolbarIn(await visit('/nowhere/', held), '/nowhere/');
+      assert.ok(plain.says.startsWith(text('sv', 'previewTab.toolbar.many')), plain.says);
+      assert.deepEqual(plain.links, [{ name: text('sv', 'previewTab.toolbar.editor'), href: `${ADMIN}/` }]);
     });
 
     test('shows a Reviewer, who may not write, what the page is and no link', async () => {

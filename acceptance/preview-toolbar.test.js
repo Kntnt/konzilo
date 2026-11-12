@@ -65,7 +65,7 @@ describe('the toolbar in the preview\'s tab', () => {
       language: 'en',
       repository: 'a/source',
       cookieName: 'a_preview',
-      runner: { refresh: async () => {}, at: (path) => BUILT[path] ?? null },
+      runner: { refresh: async () => {}, at: (path) => BUILT[path] ?? null, notFoundAt: () => null },
       dev: { port: sitePort, ensure: async () => {}, ready: () => true },
     });
   });
