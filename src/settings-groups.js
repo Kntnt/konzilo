@@ -82,7 +82,7 @@ export function coreSettingsGroups() {
 // A declaration as declared (the parsed JSON, group name to group) to the
 // form the readers use, the groups in the order declared:
 //
-//   [ { name, label, description, when, settings, parts: [ { name, label, description, settings } ],
+//   [ { name, label, description, when, unless, settings, parts: [ { name, label, description, settings } ],
 //       types: { only, settings } or null, table, each } ]
 //
 // `label` and `description` are texts by interface language, as a site's own
@@ -104,8 +104,10 @@ export function coreSettingsGroups() {
 // when the page shows each part on its own.
 // `when` lists the paths into the site description of which one must lead
 // to a value for the group to apply to a site; null when the group applies
-// to every site. Throws an Error naming every problem. What it returns it
-// takes back as it is.
+// to every site. `unless` lists those of which none may, such as `languages`
+// for a group a site in several languages is not offered; null for none.
+// Throws an Error naming every problem. What it returns it takes back as it
+// is.
 export function settingsGroups(declared) {
   if (checked.has(declared)) return declared;
   const problems = [];
@@ -145,7 +147,7 @@ export function groupsFor(declared, types, groups, language = null, forms = {}) 
     : setting));
   const each = { forms: Object.values(forms).filter((form) => form !== null) };
   const applies = (group) => (group.each === null
-    ? group.when === null || group.when.some((path) => reaches(declared, path.split('.')))
+    ? (group.when === null || group.when.some((path) => reaches(declared, path.split('.')))) && !(group.unless ?? []).some((path) => reaches(declared, path.split('.')))
     : each[group.each].length > 0);
   return groups.filter(applies).map((group) => ({
     name: group.name,
@@ -233,14 +235,14 @@ function groupOf(name, group, path, problems) {
     return null;
   }
   const named = `${TEXTS}.${name}`;
-  onlyKeys(withoutTexts(group, ['label', 'description'], path, named, problems), ['when', 'table', 'settings', 'parts', 'types', 'each'], path, problems);
+  onlyKeys(withoutTexts(group, ['label', 'description'], path, named, problems), ['when', 'unless', 'table', 'settings', 'parts', 'types', 'each'], path, problems);
   const each = group.each === undefined ? null : group.each;
   if (each !== null && !EACH.includes(each)) {
     problems.push(`${path}.each: must be ${EACH.join(' or ')}, the declarations the group is repeated for`);
   }
   const repeated = each !== null && EACH.includes(each);
   if (repeated) {
-    if (group.when !== undefined) problems.push(`${path}.when: a group repeated for each form applies to every site that declares one`);
+    if (group.when !== undefined || group.unless !== undefined) problems.push(`${path}.${group.when !== undefined ? 'when' : 'unless'}: a group repeated for each form applies to every site that declares one`);
     for (const key of ['parts', 'types', 'table']) {
       if (group[key] !== undefined) problems.push(`${path}.${key}: a group repeated for each form has its settings alone`);
     }
@@ -250,6 +252,7 @@ function groupOf(name, group, path, problems) {
     label: textsOf(`${named}.label`, path, problems),
     description: textsOf(`${named}.description`, path, problems),
     when: repeated ? null : whenOf(group.when, `${path}.when`, problems),
+    unless: repeated ? null : whenOf(group.unless, `${path}.unless`, problems),
     settings: group.settings === undefined ? [] : settingsOf(group.settings, `${path}.settings`, problems, repeated ? 'each' : 'group', named),
     each: repeated ? each : null,
   };

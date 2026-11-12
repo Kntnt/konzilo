@@ -180,6 +180,20 @@ describe('the runs', () => {
     assert.equal(preview.at('/'), null);
   });
 
+  // The start page an Admin chose is the post's page, at /, which the toolbar leads to the post's
+  // form from, its list's later pages too, and so is a draft chosen, as the preview shows it.
+  test('knows the start page by the post an Admin chose for it, whatever its status, its later pages too', async () => {
+    files['pages/front.md'] = sourcePost({ title: 'Front', slug: 'front', status: 'draft' }, 'Words.');
+    files['settings.json'] = JSON.stringify({ startPage: { page: 'front' } });
+    const preview = runner();
+    await preview.refresh();
+    const chosen = { kind: 'post', file: 'pages/front.md', title: 'Front', status: 'draft', at: null, refusals: [] };
+    assert.deepEqual(preview.at('/'), chosen);
+    assert.deepEqual(preview.at('/page/2/'), chosen);
+    assert.equal(preview.at('/pages/front/'), null);
+    assert.ok(existsSync(join(content, 'start.post.md')));
+  });
+
   // The 404 page is built from the one post an Admin chose for it, which the toolbar leads to.
   test('knows the 404 page by the post an Admin chose for it, whatever its status, in each language, and none where none is chosen', async () => {
     files['pages/gone.md'] = sourcePost({ title: 'Not here', slug: 'gone', status: 'draft' }, 'Words.');

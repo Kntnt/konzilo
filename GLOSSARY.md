@@ -252,6 +252,8 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Reserved path**: A path below `/_konzilo/`, which no page may take, through which visitors' browsers reach a site's services. _Avoid_: API.
 
+**Start page**: The page at a site's root, or at each language's prefix: the page an Admin chooses in the site settings, which an editor writes as any page, or else the site's own design's. _Avoid_: home page, front page.
+
 **404 page**: The page an Admin chooses in the site settings, which the site shows with `404` or `410` wherever nothing else answers, with no address of its own. _Avoid_: error page.
 
 **Log of addresses not found**: The counts of the addresses visitors asked for in vain: each address, how often, and when last, kept 30 days. _Avoid_: access log.

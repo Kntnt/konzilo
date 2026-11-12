@@ -13,7 +13,7 @@
 import { isObject } from '../checks.js';
 import { keyOf } from '../format/redirects.js';
 
-export const emptyLedger = () => ({ posts: {}, awaited: {}, terms: {}, files: {}, chosen: { legalPages: [], notFound: null }, settingsMedia: [], consent: null });
+export const emptyLedger = () => ({ posts: {}, awaited: {}, terms: {}, files: {}, chosen: { legalPages: [], notFound: null, startPage: null }, settingsMedia: [], consent: null });
 
 // A ledger read from a file: only the shape the intake writes is believed. A file written
 // by another hand is not assumed to be right, and counts for nothing.
@@ -25,7 +25,7 @@ export function normalLedger(given) {
     awaited: isObject(given.awaited) ? given.awaited : empty.awaited,
     terms: isObject(given.terms) ? given.terms : empty.terms,
     files: isObject(given.files) ? given.files : empty.files,
-    chosen: isObject(given.chosen) ? { legalPages: given.chosen.legalPages ?? [], notFound: given.chosen.notFound ?? null } : empty.chosen,
+    chosen: isObject(given.chosen) ? { legalPages: given.chosen.legalPages ?? [], notFound: given.chosen.notFound ?? null, startPage: given.chosen.startPage ?? null } : empty.chosen,
     settingsMedia: Array.isArray(given.settingsMedia) ? given.settingsMedia : empty.settingsMedia,
     consent: isObject(given.consent) ? given.consent : null,
   };
@@ -129,4 +129,9 @@ const blank = (post, run) => ({
   names: {},
 });
 
-export const ledgerFile = (ledger) => `${JSON.stringify(ledger, null, 2)}\n`;
+// The ledger's file. A start page is named among what the settings chose only where one is,
+// so that a site that chooses none keeps the file it had.
+export const ledgerFile = (ledger) => {
+  const { startPage = null, ...chosen } = ledger.chosen ?? {};
+  return `${JSON.stringify({ ...ledger, chosen: startPage === null ? chosen : { ...chosen, startPage } }, null, 2)}\n`;
+};

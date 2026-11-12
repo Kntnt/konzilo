@@ -29,6 +29,10 @@ docker compose down            # stops it, and keeps what is saved
 
 The template's `site-description.json` is the demo model, in British English (`"language": "en_GB"`), with one form, `contact`, which a page of the demo content places. `demo-content/` holds what that model's content files look like, as `content-format.md` describes them.
 
+## The start page
+
+An Admin may choose a page as the start page in the editor's *Site settings*, under *Start page*, and edit it as any page. `src/pages/[...start].astro` draws it at the root, through Konzilo's `Body`, from the `entry` that Konzilo's `startPages()` gives it, a canvas without header and footer, and its post list's later pages at `/page/2/` and on; where none is chosen, as on a site in several languages, it draws the template's own start page, the newest articles ([ADR 0033](../docs/adr/0033-keep-menus-settings-and-the-sites-identity-in-files-an-admin-edits.md)). A site whose start route draws only a page of its own shows that, and the chosen page nowhere, so a design's start route draws `entry` where it has one.
+
 ## A site that takes a design package
 
 A site may take its look from a design package, which holds a design's components, presentations and styles, installed in the site repository and named by its package specifiers ([ADR 0054](../docs/adr/0054-take-a-sites-design-from-the-konzilo-design-system.md), [ADR 0060](../docs/adr/0060-let-a-site-declare-its-components-and-check-what-they-hold.md)):

@@ -16,6 +16,8 @@ A site's design comes from its own stylesheets and components, which the templat
 
 A site's own templates write the wrapper around a body, with whatever class its styles are scoped to, and render the body through `Body.astro`. A layout places `ConsentBanner.astro`, or an embed shows only as its address, which the build warns of.
 
+A site's start route, `src/pages/[...start].astro`, takes its pages from `startPages()`. Where an Admin has chosen a page as the start page, each is given its `entry`, a post of its type, and its `page`, from 1, which the route draws as its type's route draws a post, through `Body.astro`, at `/` and its list's later pages at `/page/<n>/`; where none is chosen, `entry` is null, and the route draws a start page of its own design. The chosen page has no page anywhere else, so a start route that never draws `entry` shows it nowhere.
+
 A type's `elements` in `site-description.json` decides what its body may hold, and so what its block menu offers: a row that is missing is an element the type does not take.
 
 A component a site declares, or takes from a package such as the design system's (`content-format.md`, *A site's own components*), is drawn by the component the site gives for its directive through `directives`, with its attributes as props, typed, those not given at their defaults, and its body, if it has one, rendered as its default slot and as a tree in the prop `content`. Without one, it is the core's plain rendering: a `div` with `data-directive="<name>"` and `data-<attribute>` for each attribute with a value, its name in kebab case, holding its body. The design system draws the hero, the section, the aside, the list and the five components that show a list in another form, each a directive of its own, and the text roles so (ADR 0068).
@@ -272,6 +274,6 @@ The current page is a link with `[aria-current=page]`, in an `li` with no class.
 
 ### Breadcrumbs
 
-They have no class of their own: `nav[aria-label] > ol > li`, the last with `[aria-current=page]`. A design can style them through its own wrapper, or use its own component with `breadcrumbs()`.
+They have no class of their own: `nav[aria-label] > ol > li`, the last with `[aria-current=page]`. A design can style them through its own wrapper, or use its own component with `breadcrumbs()`. The first level is the start page, named by the name in breadcrumbs of the page an Admin chose for it where it has one, and the start page has none.
 
 Whether they end with the page itself is the type's setting, in the group `breadcrumbs`, off by default. Off, `Breadcrumbs` ends at the level above the page, each level a link, and shows nothing for a page right under the start page. `breadcrumbs()` still gives the page's own level, last, with `hidden: true`, so that a design whose narrow form counts on that level can keep it in its markup and hide it, and the structured data always holds it.

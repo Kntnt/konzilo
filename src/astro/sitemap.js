@@ -27,14 +27,16 @@
 // language has none, and its sitemap no `xhtml` namespace.
 //
 // `lastmod` is a post's last change, else its date, where its type declares
-// them; the start page has none. One file holds up to LIMIT addresses;
+// them; the site's own start page has none. The page an Admin chose as the
+// start page is listed at the root alone, with its last change, and not
+// while it is kept from search engines, as any post. One file holds up to LIMIT addresses;
 // beyond that, `/sitemap.xml` is a sitemap index of numbered files, each in
 // the site's root, so that it may list any address on the site.
 
 import { resolve } from 'node:path';
 import { listPageOwners } from '../format/addresses.js';
 import { readSiteDescription, SITE_DESCRIPTION_FILE, TRANSLATION_KEY } from '../site-description.js';
-import { alternatesAmong, entryAddress, indexed, startAddress } from './languages.js';
+import { alternatesAmong, entryAddress, indexed, isStartEntry, startAddress } from './languages.js';
 import { postListsIn } from './reader.js';
 import { termsWithPages } from './term-pages.js';
 
@@ -73,6 +75,9 @@ export async function sitemapAddresses(types, entries, taxonomies = {}, language
   const several = languages.length > 1;
   const posts = [];
   const withPages = new Set();
+  // The start page, at the root: the site's own, or the page an Admin chose, with its last
+  // change, unless it is kept from search engines.
+  let home = { path: '/' };
   // Each term's page, its first page alone.
   for (const taxonomy of Object.values(taxonomies).filter((one) => one?.address != null)) {
     for (const { address } of termsWithPages(taxonomy, await entries(taxonomy.collection))) posts.push({ path: address });
@@ -88,8 +93,12 @@ export async function sitemapAddresses(types, entries, taxonomies = {}, language
       const path = entryAddress(type, entry.id, languages);
       if (path === null) continue;
       if (postListsIn(entry.body).some((list) => list.pages === true)) withPages.add(path);
-      if (!indexed(entry, type, languages, origin)) continue;
       const lastmod = (modified && entry.data[modified]) || (date && entry.data[date]) || undefined;
+      if (isStartEntry(entry.id)) {
+        home = indexed(entry, type, languages, origin) ? { path, lastmod } : null;
+        continue;
+      }
+      if (!indexed(entry, type, languages, origin)) continue;
       if (!several) {
         posts.push({ path, lastmod });
         continue;
@@ -100,7 +109,7 @@ export async function sitemapAddresses(types, entries, taxonomies = {}, language
   }
   const listed = posts.filter(({ path }) => !listPageOwners(path).some((owner) => withPages.has(owner)));
   listed.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
-  if (!several) return [{ path: '/' }, ...listed];
+  if (!several) return [...(home === null ? [] : [home]), ...listed];
   const starts = languages.map((language) => ({ language, path: startAddress(language, languages) }));
   const addresses = [...starts.map(({ path }) => ({ path, alternates: starts })), ...listed];
   const shown = new Set(addresses.map(({ path }) => path));

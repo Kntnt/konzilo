@@ -6,6 +6,7 @@
 
 import { isObject } from '../checks.js';
 import { ownValue } from '../format/frontmatter.js';
+import { START_PAGE } from '../format/start-page.js';
 import { metaLineProblems, metaLineVariables } from '../meta-line.js';
 import { templateProblems, variablesOf } from '../metadata-templates.js';
 import { groupsIn, isSiteTitle, leastProblem, TYPES } from '../settings-groups.js';
@@ -141,7 +142,7 @@ export function settingsFor(site, source, language, hands) {
   readSettings(site.settings, source, '', values, context);
   const applied = main ? site.groups : groupsIn(site.groups, language.locale, hands.title);
   for (const group of applied) {
-    if (group.name === NOT_FOUND) continue;
+    if (group.name === NOT_FOUND || group.name === START_PAGE) continue;
     const stored = isObject(source[group.name]) ? source[group.name] : {};
     const into = {};
     const path = `${group.name}.`;
@@ -168,11 +169,14 @@ export function settingsFor(site, source, language, hands) {
   return { values, problems: context.problems, warnings: context.warnings };
 }
 
-// The IDs a settings file chooses as legal pages, and as the page for addresses not
-// found.
+// The IDs a settings file chooses as legal pages, as the page for addresses not found, and
+// as the start page.
 export function chosenIn(source) {
   const legal = source?.legalPages;
   const ids = isObject(legal) ? ['privacyPolicy', 'cookiePolicy', 'accessibilityStatement'].map((name) => legal[name]).filter((id) => typeof id === 'string' && id !== '') : [];
-  const page = source?.[NOT_FOUND]?.page;
-  return { legalPages: [...new Set(ids)].sort(), notFound: typeof page === 'string' && page !== '' ? page : null };
+  const chosen = (group) => {
+    const page = source?.[group]?.page;
+    return typeof page === 'string' && page !== '' ? page : null;
+  };
+  return { legalPages: [...new Set(ids)].sort(), notFound: chosen(NOT_FOUND), startPage: chosen(START_PAGE) };
 }

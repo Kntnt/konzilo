@@ -80,6 +80,9 @@ export function writeSite(folder, declared, posts, { menus = {}, settings = {}, 
   };
   const localeOf = (one) => one.locale ?? one.meta?._locale?.[0] ?? site.languages[0]?.locale ?? null;
   const notFoundId = groups.notFound?.page;
+  // The start page's post, on a site in one language: its file at the root, named by its
+  // type, at the start page's address, its own before among its old addresses.
+  const startId = site.languages.length > 1 ? undefined : groups.startPage?.page;
   for (const one of posts) {
     const type = site.types[one.type];
     if (!type || one.status !== 'publish') continue;
@@ -122,7 +125,9 @@ export function writeSite(folder, declared, posts, { menus = {}, settings = {}, 
     const old = [...(one.oldAddresses ?? []), ...(one.rules ?? []).filter((rule) => rule.automatic).map((rule) => rule.address), ...unprefixed].filter((address) => language?.main || address !== own);
     if (type.address !== null && old.length > 0) front.oldAddresses = [...new Set(old)].sort();
     if (type.address !== null && rules.length > 0) front.otherAddresses = rules.map(({ address, answer }) => ({ address, answer })).sort((a, b) => (a.address < b.address ? -1 : 1));
-    const path = `${type.collection}/${language ? `${language.tag}/` : ''}${pathOf(one)}.md`;
+    const start = startId !== undefined && String(one.ID) === String(startId);
+    if (start && own) front.oldAddresses = [...new Set([...(front.oldAddresses ?? []), own])].sort();
+    const path = start ? `start.${one.type}.md` : `${type.collection}/${language ? `${language.tag}/` : ''}${pathOf(one)}.md`;
     files[path] = postFile({ ...front, body: one.body });
     ids[path] = one.ID;
   }
