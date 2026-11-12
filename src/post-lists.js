@@ -67,6 +67,25 @@ export function pageCount(query, posts, options = {}) {
   return Math.max(1, Math.ceil(matches(query, posts, options).length / query.number));
 }
 
+// What the whole of a list holds, over all its pages, after its offset and
+// what it leaves out, as a presentation that filters it is given it: {
+// total, terms: { <taxonomy>: [{ id, count }] } }, how many posts it
+// matches, and each term those posts hold, of each taxonomy they hold terms
+// of, with how many of them hold it, in no order of its own. The options
+// are evaluate()'s.
+export function wholeList(query, posts, options = {}) {
+  const all = matches(query, posts, options);
+  const counted = {};
+  for (const post of all) {
+    for (const [taxonomy, ids] of Object.entries(post.terms ?? {})) {
+      const counts = (counted[taxonomy] ??= new Map());
+      for (const id of new Set(ids)) counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+  }
+  const terms = Object.fromEntries(Object.entries(counted).map(([taxonomy, counts]) => [taxonomy, [...counts].map(([id, count]) => ({ id, count }))]));
+  return { total: all.length, terms };
+}
+
 // Every post a list shows on any page, in order, from its offset.
 function matches(query, posts, { current = null, shown = new Set(), locale, points = null, halfLife = null, now = Date.now() } = {}) {
   const collator = new Intl.Collator(locale, { numeric: true });

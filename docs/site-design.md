@@ -31,6 +31,19 @@ const { content, ...rest } = Astro.props;
 
 The rest it passes on holds the live preview's mark, so its root holds that as well.
 
+A post list is drawn by the component the site gives for its presentation through `presentations`. It is given `posts`, the posts of the page it shows, each `{ entry, url }`, the post's entry and its address below the site's base, or null for a type without one; `options`, the presentation's options as the list sets them; `empty`, the text for a list that matches nothing; `pager`, the pager's data for a list with pages of its own, else null; and `list`, what the whole list holds over all its pages, after its offset and the posts it leaves out, in the page's language:
+
+```js
+{
+  type: { name, label, plural },                       // the list's type
+  total,                                               // every post the list matches, over all its pages
+  terms: { <taxonomy>: [{ id, name, count, url }] },   // of every post the list matches, most posts first, then by name
+  search,                                              // the search page's address, or null
+}
+```
+
+`terms` holds every taxonomy the type takes, by its name, and in each the terms those posts hold: a term's ID, its slug; its name; how many of the posts hold it; and its page's address below the site's base, or null for a term without a page, as every term of a taxonomy without an address is. `search` is the search page's address below the site's base, or null on a site without search and for a type whose posts are not in it. So a presentation that filters draws a row of each taxonomy's terms and says *Showing 9 of 17 articles*, the same on every page of its list. Which rows it draws is the site's to say, as an option it declares for the presentation. A taxonomy's key in a query, in a filter's row and on the search page, is its name, `category`, `topics` or `authors`. A template's own list, from `listedPosts()` of `@kntnt/konzilo/astro/post-lists`, has the same as the property `list` of the posts it gives.
+
 A layout is told which of the core's built-in types a post is, `canvas`, `page` or `article`, by `builtInType(entry)` from `@kntnt/konzilo/astro/helpers`, null for a type of the site's own or a page that shows no post. A canvas is a blank page, which a layout draws without the site's header and footer. A built-in type's fields are the same on every site (`content-format.md`, *The built-in types*), an article's parts and a page's and a canvas's date, name in breadcrumbs and teaser among them, so a design can draw its parts by their names.
 
 An article's byline is told its authors by `authorsOf(entry)` from the helpers, in the order the editor gave them, the first author first: each `{ name, url, slug, entry }`, `url` the author's page below the site's base where the authors taxonomy declares an address, else null, and `entry` its term, its biography in `data.description`. A post of a type of the site's own has none.
