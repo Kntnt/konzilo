@@ -15,8 +15,45 @@ const ANSWER_WITHIN = 30_000;
 // What of a server's answer is said where it is refused: enough to tell why.
 const SAID_AT_MOST = 200;
 
-// An answer refused, with what the server said.
-class Refused extends Error {}
+// Why a mail could not be handed over, by its kind, which the *Mail* page names in the interface
+// language, with `reply`, the server's answer, its code and its text, where it gave one, and nothing
+// else of the server's or of Node's: those words are the service's log's, in English.
+//   unreachable    no connection to the server
+//   timeout        the server took too long over an answer
+//   closed         the server ended the connection
+//   certificate    the server's certificate cannot be trusted
+//   encryption     the connection could not be encrypted
+//   no-starttls    STARTTLS was chosen, and the server offers none
+//   no-sign-in     the server offers no way of signing in the service knows
+//   unencrypted    a password would have gone unencrypted
+//   greeting       the server refused the connection or its greeting (reply)
+//   starttls       the server refused to encrypt the connection (reply)
+//   sign-in        the server refused the username or the password (reply)
+//   sender         the server refused the sender's address (reply)
+//   recipients     the server refused every recipient (reply)
+//   message        the server refused the message (reply)
+//   other          anything else
+export class MailFailure extends Error {
+  constructor(kind, message, { reply = null, cause } = {}) {
+    super(message, cause === undefined ? undefined : { cause });
+    this.kind = kind;
+    this.reply = reply;
+  }
+}
+
+// What Node's own errors say of a connection, by their codes.
+const UNREACHABLE = new Set(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'EHOSTUNREACH', 'ENETUNREACH', 'EHOSTDOWN', 'EADDRNOTAVAIL', 'ETIMEDOUT']);
+const CLOSED = new Set(['ECONNRESET', 'EPIPE']);
+const CERTIFICATE = /CERT|ALTNAME|HOSTNAME_MISMATCH|INVALID_CA|SELF_SIGNED|UNABLE_TO_VERIFY|UNABLE_TO_GET_ISSUER|PATH_LENGTH/;
+const ENCRYPTION = /^ERR_SSL|^ERR_TLS|^EPROTO$/;
+
+// Any error a send ends with, as a MailFailure.
+function failureOf(error) {
+  if (error instanceof MailFailure) return error;
+  const code = typeof error?.code === 'string' ? error.code : '';
+  const kind = UNREACHABLE.has(code) ? 'unreachable' : CLOSED.has(code) ? 'closed' : CERTIFICATE.test(code) ? 'certificate' : ENCRYPTION.test(code) ? 'encryption' : 'other';
+  return new MailFailure(kind, error?.message ?? String(error), { cause: error });
+}
 
 // The server's answers on a socket, each whole, its lines joined: { code, text }. Whatever ends the
 // socket, an error, a close or the time running out, rejects the answer waited for, and each after.
@@ -47,7 +84,7 @@ function answers(socket) {
     settle();
   };
   const onEnd = (error) => {
-    broken ??= error instanceof Error ? error : new Error('the server closed the connection');
+    broken ??= error instanceof Error ? error : new MailFailure('closed', 'the server closed the connection');
     settle();
   };
   socket.on('data', onData);
@@ -70,7 +107,7 @@ function answers(socket) {
 // A socket that ends with an error where the server takes longer than `timeout` over anything,
 // connecting among it, opened: once it is connected, or encrypted where it is to be.
 function opening(socket, event, timeout) {
-  socket.setTimeout(timeout, () => socket.destroy(new Error('the server did not answer in time')));
+  socket.setTimeout(timeout, () => socket.destroy(new MailFailure('timeout', 'the server did not answer in time')));
   return new Promise((resolve, reject) => {
     socket.once(event, resolve);
     socket.once('error', reject);
@@ -81,21 +118,22 @@ function opening(socket, event, timeout) {
 // server `host` at `port`: `security` one of SECURITIES, and `username` and `password` where it
 // signs in. `tls`: what the check of the server's certificate is given beside its name, such as a
 // test's own `ca`. Gives { refused }, the recipients the server refused, where it took the message
-// for one at least; throws, saying why, where it took it for none.
+// for one at least; throws a MailFailure, saying why, where it took it for none.
 export async function sendBySmtp({ host, port, security, username = '', password = '' }, { from, to, data }, { tls = {}, timeout = ANSWER_WITHIN } = {}) {
   const servername = isIP(host) ? undefined : host;
   const encrypt = (options) => connectTls({ ...tls, ...options, servername });
   let socket = security === 'tls' ? encrypt({ host, port }) : connectPlain({ host, port });
   let read = null;
   const said = ({ code, text }) => `${code} ${text}`.slice(0, SAID_AT_MOST);
-  const expect = async (what, ...codes) => {
+  // An answer to `what`, of `kind` where it is none of `codes`, which the server refused.
+  const expect = async (kind, what, ...codes) => {
     const answer = await read.next();
-    if (!codes.includes(answer.code)) throw new Refused(`${host} answered ${said(answer)} to ${what}`);
+    if (!codes.includes(answer.code)) throw new MailFailure(kind, `${host} answered ${said(answer)} to ${what}`, { reply: said(answer) });
     return answer;
   };
-  const ask = (line, what, ...codes) => {
+  const ask = (line, kind, what, ...codes) => {
     socket.write(`${line}\r\n`);
-    return expect(what, ...codes);
+    return expect(kind, what, ...codes);
   };
   // The name it greets by: the sender's domain, which is the one thing of its own it knows.
   const greeting = `EHLO ${from.split('@').at(-1)}`;
@@ -104,33 +142,33 @@ export async function sendBySmtp({ host, port, security, username = '', password
   try {
     await opening(socket, security === 'tls' ? 'secureConnect' : 'connect', timeout);
     read = answers(socket);
-    await expect('the connection', 220);
-    let offered = offers(await ask(greeting, 'the greeting', 250));
+    await expect('greeting', 'the connection', 220);
+    let offered = offers(await ask(greeting, 'greeting', 'the greeting', 250));
     if (security === 'starttls') {
-      if (!offered.includes('STARTTLS')) throw new Refused(`${host} offers no STARTTLS`);
-      await ask('STARTTLS', 'STARTTLS', 220);
+      if (!offered.includes('STARTTLS')) throw new MailFailure('no-starttls', `${host} offers no STARTTLS`);
+      await ask('STARTTLS', 'starttls', 'STARTTLS', 220);
       read.release();
       socket.setTimeout(0);
       socket = encrypt({ socket });
       await opening(socket, 'secureConnect', timeout);
       read = answers(socket);
-      offered = offers(await ask(greeting, 'the greeting', 250));
+      offered = offers(await ask(greeting, 'greeting', 'the greeting', 250));
     }
     if (username !== '') {
-      if (security === 'none') throw new Refused('a password is sent only on an encrypted connection');
+      if (security === 'none') throw new MailFailure('unencrypted', 'a password is sent only on an encrypted connection');
       const at = offered.indexOf('AUTH');
       const mechanisms = at < 0 ? [] : offered.slice(at + 1);
       if (mechanisms.includes('PLAIN')) {
-        await ask(`AUTH PLAIN ${Buffer.from(`\0${username}\0${password}`).toString('base64')}`, 'signing in', 235);
+        await ask(`AUTH PLAIN ${Buffer.from(`\0${username}\0${password}`).toString('base64')}`, 'sign-in', 'signing in', 235);
       } else if (mechanisms.includes('LOGIN')) {
-        await ask('AUTH LOGIN', 'signing in', 334);
-        await ask(Buffer.from(username).toString('base64'), 'signing in', 334);
-        await ask(Buffer.from(password).toString('base64'), 'signing in', 235);
+        await ask('AUTH LOGIN', 'sign-in', 'signing in', 334);
+        await ask(Buffer.from(username).toString('base64'), 'sign-in', 'signing in', 334);
+        await ask(Buffer.from(password).toString('base64'), 'sign-in', 'signing in', 235);
       } else {
-        throw new Refused(`${host} offers no way of signing in that the service knows`);
+        throw new MailFailure('no-sign-in', `${host} offers no way of signing in that the service knows`);
       }
     }
-    await ask(`MAIL FROM:<${from}>`, 'the sender', 250);
+    await ask(`MAIL FROM:<${from}>`, 'sender', 'the sender', 250);
     const refused = [];
     let last = null;
     for (const recipient of to) {
@@ -140,14 +178,16 @@ export async function sendBySmtp({ host, port, security, username = '', password
       refused.push(recipient);
       last = answer;
     }
-    if (refused.length === to.length) throw new Refused(`${host} answered ${said(last)} to every recipient`);
-    await ask('DATA', 'the message', 354);
+    if (refused.length === to.length) throw new MailFailure('recipients', `${host} answered ${said(last)} to every recipient`, { reply: said(last) });
+    await ask('DATA', 'message', 'the message', 354);
     const body = data.endsWith('\r\n') ? data : `${data}\r\n`;
     socket.write(`${body.replace(/^\./gm, '..')}.\r\n`);
-    await expect('the message', 250);
+    await expect('message', 'the message', 250);
     socket.write('QUIT\r\n');
     await read.next().catch(() => null);
     return { refused };
+  } catch (error) {
+    throw failureOf(error);
   } finally {
     socket.destroy();
   }

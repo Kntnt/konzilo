@@ -6,7 +6,7 @@
 import { signedInCredential } from '../credential.js';
 import { say } from '../interface-language.js';
 import { momentShown } from '../submissions/client.js';
-import { passwordKeptFor, problemsShown, readMail, recipientsOf, recipientsText, saveMail } from './client.js';
+import { failureShown, passwordKeptFor, problemsShown, readMail, recipientsOf, recipientsText, saveMail } from './client.js';
 
 const TEXT = { font: '14px/1.4 system-ui, sans-serif', overflowWrap: 'anywhere' };
 const LINE = { ...TEXT, margin: '4px 0 12px', maxWidth: '60em' };
@@ -139,7 +139,7 @@ export function mailPage({ credential = signedInCredential } = {}) {
     return page(
       h('p', { style: LINE }, say('mail.intro')),
       settings.local ? h('p', { style: LINE }, say('mail.local')) : null,
-      settings.failure ? h('p', { role: 'alert', style: { ...LINE, ...PROBLEM } }, say('mail.failure', { at: momentShown(settings.failure.at), reason: settings.failure.reason })) : null,
+      settings.failure ? h('p', { role: 'alert', style: { ...LINE, ...PROBLEM } }, say('mail.failure', { at: momentShown(settings.failure.at), reason: failureShown(settings.failure) })) : null,
       h('form', { onSubmit: save, noValidate: true },
         h(Choices, {
           name: 'konzilo-mail-adapter',

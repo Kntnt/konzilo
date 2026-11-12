@@ -11,7 +11,8 @@ import { valueText } from '../submission-values.js';
 export const ADAPTERS = Object.freeze(['none', 'smtp']);
 
 // The service's settings these are kept under (store.js): the adapter with its settings, and the
-// last mail that could not be sent, with why, which the *Mail* page shows.
+// last mail that could not be sent, { at, kind, reply }, why by its kind and the server's reply
+// where it gave one (smtp.js), which the *Mail* page names in the interface language.
 export const MAIL_SETTING = 'mail';
 export const FAILURE_SETTING = 'mail-failure';
 
@@ -51,9 +52,18 @@ export function submissionMail({ submission, form, sender, recipients }) {
   };
 }
 
+// Why a mail could not be sent, as it is kept for the *Mail* page: its kind, and the server's reply,
+// where the adapter gave them, else `other`; never the words of the error, which the log has.
+const failureOf = (error, at) => ({
+  at: at.toISOString(),
+  kind: typeof error?.kind === 'string' ? error.kind : 'other',
+  reply: typeof error?.reply === 'string' ? error.reply : null,
+});
+
 // The duty. `store`: as store.js opens it. `forms()`: the forms the site description in use
 // declares. `deliver(settings, mail)`: hands a mail to the adapter `settings` name, and gives
-// { refused }, the recipients it was not given to, or throws, saying why it was given to none.
+// { refused }, the recipients it was not given to, or throws, saying why it was given to none, by
+// a `kind` and a `reply` where it can (smtp.js).
 //
 // Gives { run() }, which mails each submission whose mail is due, one after another.
 export function mailDuty({ store, forms, deliver, now = () => new Date(), warn = console.error }) {
@@ -81,7 +91,7 @@ export function mailDuty({ store, forms, deliver, now = () => new Date(), warn =
           if (refused.length > 0) warn(`The mail server took the mail of submission ${id} of ${form}, but not for ${refused.join(', ')}`);
         } catch (error) {
           const at = now();
-          store.setSetting(FAILURE_SETTING, { at: at.toISOString(), reason: error.message });
+          store.setSetting(FAILURE_SETTING, failureOf(error, at));
           if (at.getTime() - new Date(sentAt).getTime() >= GIVEN_UP_AFTER) {
             store.mailDone(id, 'failed');
             warn(`The service gave up mailing submission ${id} of ${form}, a day after it was sent: ${error.message}`);

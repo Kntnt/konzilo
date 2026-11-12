@@ -232,13 +232,13 @@ describe('the mail settings, for Admins', () => {
     assert.equal(store.setting('mail'), null);
   });
 
-  test('says that a local copy writes each mail to its log, and shows the last mail that could not be sent, and why', async () => {
+  test('says that a local copy writes each mail to its log, and shows the last mail that could not be sent, and why, by its kind and the server\'s reply', async () => {
     await stop();
     await serving({ local: true });
-    store.setSetting('mail-failure', { at: '2026-11-12T09:00:00.000Z', reason: 'smtp.example.com answered 535 Wrong to signing in' });
+    store.setSetting('mail-failure', { at: '2026-11-12T09:00:00.000Z', kind: 'sign-in', reply: '535 Wrong' });
     const { body } = await read();
     assert.equal(body.local, true);
-    assert.deepEqual(body.failure, { at: '2026-11-12T09:00:00.000Z', reason: 'smtp.example.com answered 535 Wrong to signing in' });
+    assert.deepEqual(body.failure, { at: '2026-11-12T09:00:00.000Z', kind: 'sign-in', reply: '535 Wrong' });
   });
 
   test('tries at once, after a save, a mail that waits to be tried again', async () => {

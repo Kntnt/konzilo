@@ -27,7 +27,8 @@ async function answered(init, { credential, ask }) {
   }
 }
 
-// How the site sends mail, and to whom: { local, adapter, smtp, forms, failure }, as { settings }.
+// How the site sends mail, and to whom: { local, adapter, smtp, forms, failure }, as { settings },
+// `failure` the last mail that could not be sent, { at, kind, reply }, or null.
 export const readMail = ({ credential, ask = fetching() }) => answered({ method: 'GET' }, { credential, ask });
 
 // What an Admin gives, { adapter, smtp, forms: { <form>: { recipients, retention } } }, saved.
@@ -41,6 +42,30 @@ export const passwordKeptFor = (smtp, shown) => shown.password === true && smtp.
 // The addresses an Admin writes, one per line, or apart by commas, semicolons or spaces.
 export const recipientsOf = (written) => written.split(/[\s,;]+/).filter((one) => one !== '');
 export const recipientsText = (recipients) => recipients.join('\n');
+
+// Why the last mail could not be sent, by its kind as the service keeps it (src/service/smtp.js),
+// each a text of its own.
+const FAILURES = {
+  unreachable: 'mail.failureUnreachable',
+  timeout: 'mail.failureTimeout',
+  closed: 'mail.failureClosed',
+  certificate: 'mail.failureCertificate',
+  encryption: 'mail.failureEncryption',
+  'no-starttls': 'mail.failureNoStarttls',
+  'no-sign-in': 'mail.failureNoSignIn',
+  unencrypted: 'mail.failureUnencrypted',
+  greeting: 'mail.failureGreeting',
+  starttls: 'mail.failureStarttls',
+  'sign-in': 'mail.failureSignIn',
+  sender: 'mail.failureSender',
+  recipients: 'mail.failureRecipients',
+  message: 'mail.failureMessage',
+  other: 'mail.failureOther',
+};
+
+// Why the last mail could not be sent, { kind, reply }, as the page says it, in the interface
+// language: its kind's text, with the server's reply, its code and its text, where it gave one.
+export const failureShown = ({ kind, reply }) => say(Object.hasOwn(FAILURES, kind) ? FAILURES[kind] : FAILURES.other, { reply: reply ?? '' });
 
 const PROBLEMS = {
   missing: 'mail.problemMissing',

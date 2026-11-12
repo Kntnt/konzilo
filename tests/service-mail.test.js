@@ -12,6 +12,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { after, afterEach, before, beforeEach, describe, test } from 'node:test';
 
 import { mailDuty } from '../src/service/mail.js';
+import { MailFailure } from '../src/service/smtp.js';
 import { openStore } from '../src/service/store.js';
 
 const forms = {
@@ -37,7 +38,7 @@ describe('mailing a form\'s submissions', () => {
     now: () => clock,
     warn: (line) => warned.push(line),
     deliver: async (settings, mail) => {
-      if (failing) throw new Error(failing);
+      if (failing) throw failing;
       delivered.push({ settings, mail });
       return { refused: [] };
     },
@@ -144,9 +145,10 @@ describe('mailing a form\'s submissions', () => {
     store.setSetting('mail', SMTP);
     store.setFormSettings('contact', { recipients: ['anna@example.com'] });
     store.keep(submission('2026-11-12T10:00:00Z'));
-    failing = 'smtp.example.com answered 535 Wrong to signing in';
+    failing = new MailFailure('sign-in', 'smtp.example.com answered 535 Wrong to signing in', { reply: '535 Wrong' });
     await duty().run();
-    assert.deepEqual(store.setting('mail-failure'), { at: '2026-11-12T10:00:00.000Z', reason: failing });
+    // The page names why by its kind, with the server's reply alone; the log has the words.
+    assert.deepEqual(store.setting('mail-failure'), { at: '2026-11-12T10:00:00.000Z', kind: 'sign-in', reply: '535 Wrong' });
     assert.match(warned.at(-1), /could not mail submission 1 of contact, and tries again at 2026-11-12T10:01:00.000Z: smtp\.example\.com answered 535/);
     later(0.5);
     await duty().run();
@@ -162,7 +164,7 @@ describe('mailing a form\'s submissions', () => {
     assert.equal(store.setting('mail-failure'), null, 'and the failure is no longer shown');
 
     store.keep(submission('2026-11-12T10:03:00Z'));
-    failing = 'smtp.example.com answered 421 Busy';
+    failing = new MailFailure('sender', 'smtp.example.com answered 421 Busy to the sender', { reply: '421 Busy' });
     for (let hours = 0; hours <= 25; hours += 1) {
       await duty().run();
       later(60);
@@ -173,6 +175,16 @@ describe('mailing a form\'s submissions', () => {
     await duty().run();
     assert.equal(delivered.length, 1, 'given up');
     assert.ok(tries < 30, `${tries} tries, an hour apart at most`);
+  });
+
+  test('keeps nothing of the words of a failure of no kind the page names, which the log has', async () => {
+    store.setSetting('mail', SMTP);
+    store.setFormSettings('contact', { recipients: ['anna@example.com'] });
+    store.keep(submission('2026-11-12T10:00:00Z'));
+    failing = new Error('Something only Node would say, at /konzilo/src/service/smtp.js:1');
+    await duty().run();
+    assert.deepEqual(store.setting('mail-failure'), { at: '2026-11-12T10:00:00.000Z', kind: 'other', reply: null });
+    assert.match(warned.at(-1), /Something only Node would say/);
   });
 
   test('after an Admin changes the settings, tries at once what waits to be tried again', async () => {

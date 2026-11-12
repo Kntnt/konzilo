@@ -29,7 +29,8 @@ const wholeOf = (value) => {
 // What the page is shown: the adapter and its settings, the password by whether there is one;
 // each form the site declares, by its name and label, with its recipients and the days its
 // submissions are kept; whether this is a local copy, which writes each mail to its log and sends
-// none; and the last mail that could not be sent, and why, or null.
+// none; and the last mail that could not be sent, { at, kind, reply }, why by its kind and the
+// server's reply where it gave one (mail.js), or null.
 export function mailSettingsShown({ store, forms, local }) {
   const mail = store.setting(MAIL_SETTING) ?? MAIL_OFF;
   const smtp = { ...SMTP_UNSET, ...mail.smtp };
