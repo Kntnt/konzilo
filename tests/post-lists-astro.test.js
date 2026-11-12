@@ -2,8 +2,8 @@
 // whose pages hold post lists. The integration evaluates each list against
 // the content collections, in the body's order, and renders it with the
 // presentation the site registers for it (`konzilo({ presentations })`),
-// given the posts as their entries with their addresses, the options and
-// the empty text, through `<Body post={entry}><Content /></Body>`. A list
+// given the posts as their entries with their addresses, the options, the
+// empty text and what the whole list holds, through `<Body post={entry}><Content /></Body>`. A list
 // leaves out the post it sits in and the posts the lists above showed, a
 // list that matches nothing shows its text or the site's, and a build of a
 // site description that declares a presentation the design does not
@@ -429,4 +429,161 @@ describe('a list with pages', () => {
 
 test('the integration refuses a component of its own for the post list, which it renders through the presentations', () => {
   assert.throws(() => konzilo({ directives: { 'post-list': './src/components/List.astro' } }), /renders the directive post-list itself, through the presentations the site registers/);
+});
+
+// What the whole list holds, which a presentation is given beside its page's
+// posts, in a probe presentation that writes out its props: on a site in
+// Swedish with articles, its topics at an address of their own and its
+// categories without one, and a search page. Seven articles, Artikel 1 to
+// Artikel 7, by title; the page Insikter lists the first of them, then the
+// rest, which it leaves out the first from, three a page on pages of their
+// own. Each term's name is its Swedish one, which orders otherwise than its
+// slug: `vind` is Blåst, `batteri` Lagring.
+describe('what the whole list holds', () => {
+  const described = {
+    language: 'sv_SE',
+    images: { smallestWidth: 400, displayWidth: 1280 },
+    search: { address: '/sok/' },
+    types: {
+      article: { collection: 'articles', address: '/{slug}/', elements: ['paragraph', 'post-list'] },
+      page: { collection: 'pages', hierarchical: true, address: '/pages/{path}/', elements: ['paragraph', 'post-list'] },
+      note: { label: { en: 'Note', sv: 'Notis' }, plural: { en: 'Notes', sv: 'Notiser' }, collection: 'notes', elements: ['paragraph'], fields: {} },
+    },
+    taxonomies: { topics: { address: '/amne/{slug}/' } },
+    presentations: { probe: { label: 'Probe', options: {} } },
+  };
+  const piece = (n, { topics = [], category = [] }) => [
+    '---',
+    `title: "Artikel ${n}"`,
+    `date: 2026-01-0${n}T08:00:00Z`,
+    `modified: 2026-01-0${n}T08:00:00Z`,
+    `headline: "Artikel ${n}"`,
+    'authors: []',
+    `category: ${JSON.stringify(category)}`,
+    `topics: ${JSON.stringify(topics)}`,
+    '---',
+    '',
+    'Text.',
+    '',
+  ].join('\n');
+  const page = (title, body) => `---\ntitle: ${JSON.stringify(title)}\ndate: 2026-01-01T08:00:00Z\nmodified: 2026-01-01T08:00:00Z\n---\n\n${body}\n`;
+  const files = {
+    'site-description.json': JSON.stringify(described),
+    'src/pages/[...slug].astro': template('articles', '[]'),
+    'src/components/Probe.astro': [
+      '---',
+      'const { posts, list } = Astro.props;',
+      '---',
+      '<output data-posts={posts.map(({ entry }) => entry.data.title).join(", ")} data-list={JSON.stringify(list)}></output>',
+      '',
+    ].join('\n'),
+    'src/components/TermPage.astro': [
+      '---',
+      `import { termPages } from ${JSON.stringify(join(core, 'src/astro/post-lists.js'))};`,
+      'export async function getStaticPaths({ routePattern }) {',
+      '  return termPages(routePattern);',
+      '}',
+      '---',
+      '<html><body><main>{Astro.props.term.data.name}</main></body></html>',
+      '',
+    ].join('\n'),
+    'src/components/SearchPage.astro': '<html><body><main>Sök</main></body></html>\n',
+    // A template's own list, through listedPosts().
+    'src/pages/listed.astro': [
+      '---',
+      `import { listedPosts } from ${JSON.stringify(join(core, 'src/astro/post-lists.js'))};`,
+      "const posts = await listedPosts({ type: 'article', include: 'topics:sol', order: 'title', number: 2 });",
+      '---',
+      '<html><body><main><output data-posts={posts.map(({ entry }) => entry.data.title).join(", ")} data-list={JSON.stringify(posts.list)}></output></main></body></html>',
+      '',
+    ].join('\n'),
+    'content/topics/sol.json': term('Solenergi'),
+    'content/topics/vind.json': term('Blåst'),
+    'content/topics/batteri.json': term('Lagring'),
+    'content/categories/nyheter.json': term('Nyheter'),
+    'content/categories/analys.json': term('Analys'),
+    'content/articles/a1.md': piece(1, { topics: ['sol', 'vind'], category: ['nyheter'] }),
+    'content/articles/a2.md': piece(2, { topics: ['sol'], category: ['nyheter'] }),
+    'content/articles/a3.md': piece(3, { topics: ['vind'], category: ['analys'] }),
+    'content/articles/a4.md': piece(4, { topics: ['sol'], category: ['analys'] }),
+    'content/articles/a5.md': piece(5, { topics: ['batteri'], category: ['nyheter'] }),
+    'content/articles/a6.md': piece(6, { topics: ['sol', 'batteri'] }),
+    'content/articles/a7.md': piece(7, { topics: ['vind'], category: ['analys'] }),
+    'content/notes/first.md': '---\ntitle: "Första notisen"\n---\n\nEn notis.\n',
+    'content/pages/insikter.md': page('Insikter', [
+      '::post-list{type="article" order="title" number="1" presentation="probe"}',
+      '',
+      '::post-list{type="article" order="title" number="3" pages="true" presentation="probe"}',
+      '',
+      '::post-list{type="note" presentation="probe"}',
+    ].join('\n')),
+  };
+  const built = build(files, { presentations: { probe: './src/components/Probe.astro' }, termPage: './src/components/TermPage.astro', searchPage: './src/components/SearchPage.astro' }, { base: {} });
+  // What each probe on a page was given: its posts' titles and its `list`.
+  const probes = (path) => [...built.main(path).matchAll(/<output data-posts="([^"]*)" data-list="([^"]*)"><\/output>/g)].map(([, posts, list]) => ({
+    posts,
+    list: JSON.parse(list.replaceAll('&quot;', '"').replaceAll('&#39;', "'").replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&amp;', '&')),
+  }));
+  const article = { name: 'article', label: 'Artikel', plural: 'Artiklar' };
+  const topic = (id, name, count) => ({ id, name, count, url: `/amne/${id}/` });
+  const category = (id, name, count) => ({ id, name, count, url: null });
+
+  test('gives a presentation the type, the total and the terms of every post its list matches, most posts first, then by name', () => {
+    assert.equal(built.status, 0, built.output);
+    const [first] = probes('pages/insikter');
+    assert.equal(first.posts, 'Artikel 1');
+    assert.deepEqual(first.list, {
+      type: article,
+      total: 7,
+      terms: {
+        authors: [],
+        category: [category('analys', 'Analys', 3), category('nyheter', 'Nyheter', 3)],
+        topics: [topic('sol', 'Solenergi', 4), topic('vind', 'Blåst', 3), topic('batteri', 'Lagring', 2)],
+      },
+      search: '/sok/',
+    });
+  });
+
+  test('gives the same on every page of a list with pages, without the posts the lists above it showed', () => {
+    assert.equal(built.status, 0, built.output);
+    const rest = {
+      type: article,
+      total: 6,
+      terms: {
+        authors: [],
+        category: [category('analys', 'Analys', 3), category('nyheter', 'Nyheter', 2)],
+        topics: [topic('sol', 'Solenergi', 3), topic('vind', 'Blåst', 2), topic('batteri', 'Lagring', 2)],
+      },
+      search: '/sok/',
+    };
+    const [, one] = probes('pages/insikter');
+    assert.equal(one.posts, 'Artikel 2, Artikel 3, Artikel 4');
+    assert.deepEqual(one.list, rest);
+    const [, two] = probes('pages/insikter/page/2');
+    assert.equal(two.posts, 'Artikel 5, Artikel 6, Artikel 7');
+    assert.deepEqual(two.list, rest);
+  });
+
+  test('gives a type of the site\'s own its labels in the site\'s language, and no search page where its posts are not in the search', () => {
+    assert.equal(built.status, 0, built.output);
+    const [, , notes] = probes('pages/insikter');
+    assert.equal(notes.posts, 'Första notisen');
+    assert.deepEqual(notes.list, { type: { name: 'note', label: 'Notis', plural: 'Notiser' }, total: 1, terms: {}, search: null });
+  });
+
+  test("gives a template's list the same, beside the posts listedPosts() gives it", () => {
+    assert.equal(built.status, 0, built.output);
+    const [listed] = probes('listed');
+    assert.equal(listed.posts, 'Artikel 1, Artikel 2');
+    assert.deepEqual(listed.list, {
+      type: article,
+      total: 4,
+      terms: {
+        authors: [],
+        category: [category('nyheter', 'Nyheter', 2), category('analys', 'Analys', 1)],
+        topics: [topic('sol', 'Solenergi', 4), topic('vind', 'Blåst', 1), topic('batteri', 'Lagring', 1)],
+      },
+      search: '/sok/',
+    });
+  });
 });

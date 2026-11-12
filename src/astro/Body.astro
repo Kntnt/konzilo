@@ -59,8 +59,8 @@ const lightboxes = {
   const mark = part.block === null ? {} : { [BLOCK_ATTRIBUTE]: part.block };
   const marked = (rendered) => (part.block === null ? rendered : <BlockMark block={part.block}>{rendered}</BlockMark>);
   if (part.list) {
-    const { component: Presentation, posts, options, empty, pager } = part.list;
-    return marked(<Presentation posts={posts} options={options} empty={empty} pager={pager} {...mark} />);
+    const { component: Presentation, posts, options, empty, pager, list } = part.list;
+    return marked(<Presentation posts={posts} options={options} empty={empty} pager={pager} list={list} {...mark} />);
   }
   const Component = components[part.name];
   return marked(part.body === null ? <Component {...part.attributes} {...mark} /> : <Component {...part.attributes} {...mark} content={part.content}><Astro.self html={part.body} post={post} shown={shown} page={page} /></Component>);

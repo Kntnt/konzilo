@@ -28,13 +28,13 @@
 import { getCollection } from 'astro:content';
 import { presentations, site } from 'virtual:konzilo/post-lists';
 import { textsIn } from 'virtual:konzilo/texts';
-import { textsOf } from '../catalogues.js';
+import { labelIn, textsOf } from '../catalogues.js';
 import { listPageAddress } from '../format/addresses.js';
 import { readPostList, SECOND_PAGED_LIST } from '../format/post-list.js';
 import { british } from '../refusals.js';
 import { relatedPoints } from '../format/built-in-types.js';
 import rules from '../format/rules.json' with { type: 'json' };
-import { evaluate, pageCount } from '../post-lists.js';
+import { evaluate, pageCount, wholeList } from '../post-lists.js';
 import { coreSettingsGroups } from '../settings-groups.js';
 import { describedSite, entryAddress, entryLanguage, entryName, siteLanguages } from './languages.js';
 import { postListsIn } from './reader.js';
@@ -59,8 +59,9 @@ export function shownOnPage() {
 const paged = new WeakSet();
 
 // A list, by its attributes as Body reads them from the list's plain
-// rendering: { component, posts, options, empty, pager }, the
-// presentation's component and what it is given. `post`: the entry of the
+// rendering: { component, posts, options, empty, pager, list }, the
+// presentation's component and what it is given, `list` what the whole
+// list holds (wholeListOf()). `post`: the entry of the
 // post the list sits in, if any. `shown`: shownOnPage() of the page, which
 // the list's own posts join. `page`: the page of the post shown, from 1,
 // which a list with pages of its own shows; every other list shows its
@@ -76,13 +77,13 @@ export async function postList(given, { post, shown = shownOnPage(), page = 1 } 
     address = post ? addressOf(post) : null;
     if (address !== null) at = page;
   }
-  const { posts, pages } = await listed(read.query, { post, shown, page: at, counting: address !== null });
+  const { posts, pages, list } = await listed(read.query, { post, shown, page: at, counting: address !== null, whole: true });
   const component = presentations[read.settings.presentation];
   const declared = site.lists.presentations[read.settings.presentation];
   const options = Object.fromEntries(declared.options.map((option) => [option.name, read.settings[option.name] ?? (option.type === 'boolean' ? false : undefined)]));
   const locale = languageOf(post)?.locale ?? null;
   const pager = address === null ? null : pagerOf(address, at, pages, locale);
-  return { component, posts, options, empty: read.settings.empty ?? textsIn(locale).emptyList, pager };
+  return { component, posts, options, empty: read.settings.empty ?? textsIn(locale).emptyList, pager, list };
 }
 
 // The posts a list with these settings shows, as a template may ask for
@@ -91,10 +92,16 @@ export async function postList(given, { post, shown = shownOnPage(), page = 1 } 
 // with no presentation needed. Each is { entry, url }, the post's entry of
 // its collection and its address on the site, below the site's base, or
 // null for a type without one. Throws, naming why, for settings the site
-// cannot list by. Such a list shows its first slice.
+// cannot list by. Such a list shows its first slice. What the whole list
+// holds, which a presentation is given as `list`, is the property `list`
+// of the posts given (wholeListOf()):
+//
+//   const posts = await listedPosts({ type: 'article', number: 9 });
+//   <Cards posts={posts} list={posts.list} options={{}} empty="" pager={null} />
 export async function listedPosts(settings, { post, shown = shownOnPage() } = {}) {
   const [first] = Object.keys(site.lists.presentations);
-  return (await listed(settingsOf({ presentation: first, ...settings }, post).query, { post, shown })).posts;
+  const { posts, list } = await listed(settingsOf({ presentation: first, ...settings }, post).query, { post, shown, whole: true });
+  return Object.assign(posts, { list });
 }
 
 // The number of related posts relatedPosts() gives, by default.
@@ -298,8 +305,10 @@ function settingsOf(given, post) {
 }
 
 // The posts a query lists on page `page`, each joining `shown`, as { posts,
-// pages }: `pages`, with `counting`, how many pages the list fills, else 1.
-async function listed(query, { post, shown, page = 1, counting = false }) {
+// pages, list }: `pages`, with `counting`, how many pages the list fills,
+// else 1; `list`, with `whole`, what the whole list holds
+// (wholeListOf()), else undefined.
+async function listed(query, { post, shown, page = 1, counting = false, whole = false }) {
   const type = site.types[query.type];
   const languages = siteLanguages();
   const language = languageOf(post);
@@ -314,6 +323,7 @@ async function listed(query, { post, shown, page = 1, counting = false }) {
   const options = { current, shown: seen, locale: site.locale, ...related };
   const pages = counting ? pageCount(query, listable, options) : 1;
   const posts = evaluate(query, listable, { ...options, page });
+  const list = whole ? await wholeListOf(query, wholeList(query, listable, options), language) : undefined;
   for (const one of posts) seen.add(one.id);
   const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL.slice(0, -1) : import.meta.env.BASE_URL;
   // An entry's id is its path in the collection, which a hierarchical type's
@@ -325,6 +335,54 @@ async function listed(query, { post, shown, page = 1, counting = false }) {
       return { entry: byId.get(id), url: address === null ? null : `${base}${address}` };
     }),
     pages,
+    list,
+  };
+}
+
+// What the whole of a list holds, over all its pages, after its offset and
+// what it leaves out, from wholeList() of ../post-lists.js, `counted`, in
+// `language`, the page's, as a presentation is given it:
+//
+//   { type: { name, label, plural },
+//     total,
+//     terms: { <taxonomy>: [{ id, name, count, url }] },
+//     search }
+//
+// The type's name, and its label and plural in the language. How many
+// posts the list matches. For each taxonomy the type takes, by its name,
+// which is the taxonomy's key in a query, in a filter's row and on the
+// search page, the terms those posts hold: each by its ID, its slug, its
+// name in the language, how many of the posts hold it, and its page's
+// address below the site's base, or null for a term without one, as every
+// term of a taxonomy without an address is; most posts first, then by name.
+// A term whose file the site has not got is left out. `search`: the
+// address of the search page in the language, below the site's base, or
+// null for a site without search and for a type whose posts are not in it.
+async function wholeListOf(query, counted, language) {
+  const described = describedSite();
+  const languages = siteLanguages();
+  const type = described.types[query.type];
+  const locale = language?.locale ?? described.language;
+  const collator = new Intl.Collator(language?.tag ?? site.locale, { numeric: true });
+  const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+  const terms = {};
+  for (const { taxonomy: name } of site.types[query.type].terms) {
+    const taxonomy = described.taxonomies[name];
+    const entries = await getCollection(taxonomy.collection);
+    const byId = new Map(entries.map((entry) => [entry.id, entry]));
+    const pages = new Map(typeof taxonomy.address === 'string' ? termsWithPages(taxonomy, entries).map(({ entry, address }) => [entry.id, `${base}${address}`]) : []);
+    terms[name] = (counted.terms[name] ?? [])
+      .filter(({ id }) => byId.has(id))
+      .map(({ id, count }) => ({ id: entryName(id, languages), name: byId.get(id).data.name, count, url: pages.get(id) ?? null }))
+      .sort((a, b) => b.count - a.count || collator.compare(a.name, b.name));
+  }
+  const searched = described.search !== null && type.search;
+  const prefix = languages.length > 1 ? `/${(language ?? languages[0]).prefix}` : '';
+  return {
+    type: { name: query.type, label: labelIn(type.label, locale), plural: labelIn(type.plural, locale) },
+    total: counted.total,
+    terms,
+    search: searched ? `${base}${prefix}${described.search.address}` : null,
   };
 }
 
