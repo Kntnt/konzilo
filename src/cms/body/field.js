@@ -63,7 +63,7 @@ const sameBytes = (one, other) => one.replace(/\r\n?/g, '\n').trimEnd() === othe
 
 // `withPreview: false` for a field within another, the structure field's, which answers the
 // preview's clicks and tells it of its own.
-export function mountBodyField(host, { value: given, changed, elements, forms, adminHost, library = null, smallestWidth = null, withPreview = true }) {
+export function mountBodyField(host, { value: given, changed, elements, forms, editable, adminHost, library = null, smallestWidth = null, withPreview = true }) {
   const images = library && { choose: () => chooseImage({ library, smallestWidth }), chooseSeveral: () => chooseImage({ library, smallestWidth, several: true }), picture: library.picture };
   const frame = element('div', 'konzilo-body', host);
   const bar = element('div', 'konzilo-body-bar', frame);
@@ -183,7 +183,7 @@ export function mountBodyField(host, { value: given, changed, elements, forms, a
     let made;
     try {
       const reader = await loadReader();
-      hands = reader ? handsFor(reader, { elements, forms, adminHost }) : null;
+      hands = reader ? handsFor(reader, { elements, forms, editable, adminHost }) : null;
       showNote(offNote, reader ? null : say('body.checkOff'));
       made = await makeEditor({ root: visual, value: opening, elements, changed: () => schedule(), images });
     } catch (error) {

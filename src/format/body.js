@@ -12,7 +12,8 @@
 //   rules      the rule data (rules.json)
 //   elements   the names of the body elements the post's type takes
 //   embedOf    (address, rules) gives the embed, or { reason } (embeds.js)
-//   declared   what an attribute may name, by its `declared` key: { forms: [...] }
+//   declared   what an attribute may name, by its `declared` key: { forms: [...] }, and
+//              what an editor may change of each, { editable: { forms: { <form>: [...] } } }
 //   directive  (name, values) gives { reasons, warnings, values }, the site's own
 //              check of a directive, its values in the order they are written;
 //              optional
@@ -1024,6 +1025,17 @@ function attributesFrom(node, directive, element, scope) {
   }
   for (const [name, setting] of Object.entries(directive.attributes)) {
     if (setting.required && !Object.hasOwn(given, name)) fail('directive-required', { name: node.name, attribute: name, label: labelOf(rules, element) });
+  }
+  // A text an editor gives where what another attribute names lets an editor change it, such as
+  // a form's button text: `editable` in the rule data, and what the site lets an editor change
+  // of each, by the key it declares it under, in `declared.editable`.
+  for (const [name, setting] of Object.entries(directive.attributes)) {
+    if (!setting.editable || !Object.hasOwn(values, name) || !Object.hasOwn(values, setting.editable.of)) continue;
+    const named = values[setting.editable.of];
+    const key = directive.attributes[setting.editable.of].declared;
+    if ((scope.declared?.editable?.[key]?.[named] ?? []).includes(name)) continue;
+    scope.problems.push({ path: scope.path, name: element, line: lineOf(node), reason: said(setting.editable.refusal.name, { form: named, attribute: name }) });
+    wrong = true;
   }
   return wrong ? null : values;
 }
