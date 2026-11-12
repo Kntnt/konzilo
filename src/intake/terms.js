@@ -23,7 +23,7 @@ export function readTerms(run) {
     const main = group.find((one) => one.tag === mainTag);
     const value = main?.value;
     const name = typeof value?.name === 'string' ? value.name.trim() : '';
-    const term = { key, id: first.id, taxonomy: first.taxonomy, name, value, byTag: new Map(group.map((one) => [one.tag, one.value])), problems: [], parentId: null };
+    const term = { key, id: first.id, file: (main ?? first).path, taxonomy: first.taxonomy, name, value, byTag: new Map(group.map((one) => [one.tag, one.value])), problems: [], parentId: null };
     term.label = name || first.id;
     // A term a Reviewer changed holds back the posts that use it (ADR 0008).
     const reviewer = group.find((one) => run.changes?.[one.path]?.reviewer === true);

@@ -25,27 +25,39 @@ const NAMED_IMAGE = /\/media\/([^\s)"'>?#\\]+)/g;
 // name and values, which they show in the interface language.
 const shownRefusal = ({ field = null, block, name, values, reason }) => ({ field, ...(block ? { block } : {}), ...(name ? { name, values } : {}), reason });
 
-// Each post with a page in the preview by its address, as a run left them: { file, title,
-// refusals }. A refused post is at the address its kept page has and at the one it would have,
-// and a post shown there comes first.
+// A post's status as a page of the preview shows it: `scheduled` while its moment has not come,
+// whatever it says, and else `published` where it is on its way to the public site by its own.
+const statusOf = ({ status, at }) => (at ? 'scheduled' : status === 'draft' ? 'draft' : 'published');
+
+// Each page in the preview by its address, as a run left them: a post's, { kind: 'post', file,
+// title, status, at, refusals }, and a term's, { kind: 'term', file, title, refusals }. A refused
+// post is at the address its kept page has and at the one it would have, and a post shown there
+// comes first.
 function pagesOf(result) {
   const pages = new Map();
   const refusals = Object.groupBy(result.refusals.filter(({ file }) => file !== undefined), ({ file }) => file);
+  for (const { file, title, address } of result.termPages) pages.set(keyOf(address), { kind: 'term', file, title, refusals: [] });
   const posts = [...result.posts].sort((a, b) => Number(a.state !== 'refused') - Number(b.state !== 'refused'));
-  for (const { file, title, state, address, wanted } of posts) {
-    const about = { file, title, refusals: state === 'refused' ? (refusals[file] ?? []).map(shownRefusal) : [] };
+  for (const post of posts) {
+    const { file, title, state, address, wanted } = post;
+    const status = statusOf(post);
+    const about = { kind: 'post', file, title, status, at: status === 'scheduled' ? post.at : null, refusals: state === 'refused' ? (refusals[file] ?? []).map(shownRefusal) : [] };
     for (const at of state === 'refused' ? [address, wanted] : state === 'live' ? [address] : []) if (at) pages.set(keyOf(at), about);
   }
   return pages;
 }
 
-// The key of a path asked for, or null for one no page can be at.
-const pageKey = (path) => {
+// The keys a path asked for may be known by: its own, and, for a list's later page,
+// `<address>page/<n>/`, its post's or its term's. None for a path no page can be at.
+const pageKeys = (path) => {
+  let pathname;
   try {
-    return keyOf(new URL(path, 'http://preview').pathname);
+    pathname = new URL(path, 'http://preview').pathname;
   } catch {
-    return null;
+    return [];
   }
+  const later = /^(.*\/)page\/\d+\/?$/.exec(pathname);
+  return [keyOf(pathname), ...(later ? [keyOf(later[1])] : [])];
 };
 
 const decoded = (name) => {
@@ -141,9 +153,12 @@ export function previewRunner({ site: described, source, content, adminHost = nu
     // its own. A run with no new commit and no draft changed reads nothing.
     refresh: () => inTurn(once),
 
-    // The post whose page is at `path` in the preview, as the last run left it: { file, title,
-    // refusals }, each reason it cannot be published, as take() gives them, or null.
-    at: (path) => pages.get(pageKey(path)) ?? null,
+    // What the page at `path` in the preview is built from, as the last run left it, a list's
+    // later pages too: a post, { kind: 'post', file, title, status, at, refusals }, its status
+    // `published`, `draft` or `scheduled` for the moment `at`, and each reason it cannot be
+    // published, as take() gives them; a term, { kind: 'term', file, title, refusals }; or null,
+    // for a page built from many posts or from settings, or none.
+    at: (path) => pageKeys(path).map((key) => pages.get(key)).find(Boolean) ?? null,
 
     // Takes one draft, and gives what its pane shows: { address, refusals }, its page's
     // address, or null while it has none, and each reason it cannot be published, by its field
