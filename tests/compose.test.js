@@ -50,6 +50,24 @@ test('a digest in versions.env is a whole one', () => {
   }
 });
 
+// codeberg.org's registry serves the same image by the same digest, but refuses it, tag and
+// digest alike, when it is under load, so that a fresh machine cannot bring a site up.
+test('pulls Forgejo from data.forgejo.org, which versions.env says its digest is read from', () => {
+  const image = /^\s+image: (\S*forgejo\S*)$/m.exec(compose)?.[1];
+  assert.equal(image, 'data.forgejo.org/forgejo/forgejo:${FORGEJO}-rootless@sha256:${FORGEJO_DIGEST}');
+  const source = image.slice(0, image.indexOf('@'));
+  assert.ok(versions.split('\n').some((line) => line.startsWith('#') && line.includes(source)), source);
+});
+
+// The rootless image keeps app.ini, with the keys it generates, in its custom folder in the
+// data folder (GITEA_APP_INI), so that a site already running keeps them where they are.
+test('mounts Forgejo one volume, its data folder, which holds its settings too', () => {
+  const forgejo = compose.slice(compose.indexOf('x-forgejo:'), compose.indexOf('\nservices:'));
+  const volumes = [...forgejo.matchAll(/^ {4}- ([a-z-]+):(\S+)$/gm)].map(([, name, path]) => `${name}:${path}`);
+  assert.deepEqual(volumes, ['forgejo-data:/var/lib/gitea']);
+  assert.doesNotMatch(compose, /GITEA_APP_INI|GITEA_CUSTOM|GITEA_WORK_DIR/);
+});
+
 test('says what every volume holds, and lists none that is gone', () => {
   const declared = compose.slice(compose.indexOf('\nvolumes:\n')).split('\n').slice(2)
     .map((line) => /^ {2}([a-z-]+):/.exec(line)?.[1])

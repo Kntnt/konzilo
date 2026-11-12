@@ -38,8 +38,7 @@ Each volume's data is one of: *authoritative*, the one record of something; *der
 
 | Volume | Kind | Holds | Lost, then |
 |---|---|---|---|
-| `forgejo-data` | Authoritative | Forgejo's database, accounts, the source repository with its LFS objects, and the content repository | The site's content and accounts are gone: this is what the archive must carry |
-| `forgejo-config` | Secret | Forgejo's `app.ini`, with the keys it generated | Sessions and second factors stop working |
+| `forgejo-data` | Authoritative | Forgejo's database, accounts, the source repository with its LFS objects, the content repository, and Forgejo's settings, `custom/conf/app.ini`, with the keys it generated, where the vendor's rootless image keeps them | The site's content and accounts are gone, and without the keys sessions and second factors stop working: this is what the archive must carry |
 | `state` | Secret | The account's and the instance's second-factor keys, the instance's token, the editor's OAuth client | Forgejo must be seeded again from empty |
 | `caddy-data` | Derived | Caddy's own data, on a server its certificates | Caddy obtains them again |
 | `site-work` | Derived | The site's code and dependencies for building, checkouts of the source and content repositories, and what the build has learned of who pushed what | Made again at the next start |
