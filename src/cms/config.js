@@ -55,7 +55,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
   const inPhrase = (label) => labelInPhrase(label, interfaceLanguage);
   const several = description.languages.length > 1;
   const within = (extra) => (several ? extra : {});
-  const { forms } = declaredNames(description);
+  const { forms, editable } = declaredNames(description);
 
   const required = (field) => ({ required: field === true });
 
@@ -462,7 +462,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
       // type of the site's own has it.
       publishing: () => ({ name: 'publishing', label: say('publishing'), widget: PUBLISHING_WIDGET, required: false, ...within(SAME_IN_EACH) }),
       parent: () => (type.hierarchical ? { name: 'parent', label: say('parent'), ...relation(type.collection, POST_TITLE), required: false, ...within(SAME_IN_EACH) } : null),
-      body: () => ({ name: 'body', label: say('body'), widget: type.editor === 'structure' ? STRUCTURE_WIDGET : BODY_WIDGET, required: false, elements: type.elements, forms, ...(description.images?.smallestWidth ? { smallestWidth: description.images.smallestWidth } : {}), ...within(TRANSLATED) }),
+      body: () => ({ name: 'body', label: say('body'), widget: type.editor === 'structure' ? STRUCTURE_WIDGET : BODY_WIDGET, required: false, elements: type.elements, forms, editable, ...(description.images?.smallestWidth ? { smallestWidth: description.images.smallestWidth } : {}), ...within(TRANSLATED) }),
       headline: () => (headline.length === 0 ? null : coreGroup('headline', say('groupHeadline'), headline)),
       terms: () => (terms.length === 0 ? null : termsGroup(terms)),
       own: () => (mine.length === 0 ? null : coreGroup('own', say('groupOwn'), mine)),

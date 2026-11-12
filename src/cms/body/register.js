@@ -17,7 +17,7 @@ export function registerBodyField(CMS, config) {
   const bodies = new Map();
   for (const collection of config.collections) {
     const field = collection.fields?.find((one) => one.widget === BODY_WIDGET || one.widget === STRUCTURE_WIDGET);
-    if (field) bodies.set(collection.name, { elements: field.elements, forms: field.forms, adminHost });
+    if (field) bodies.set(collection.name, { elements: field.elements, forms: field.forms, editable: field.editable, adminHost });
   }
 
   const { api_root: api, repo: repository, branch } = config.backend;

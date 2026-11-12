@@ -45,7 +45,9 @@ const RESERVED = new Set(['id', 'class', 'content']);
 // value it does not take, the site's own or the core's by their name in the
 // catalogues, `{ name }`; `declared`, the key of the site description whose
 // names the attribute takes one of, such as `forms`, with the `refusal` for
-// any other (format/post-list.js, declaredProblem()). `optionsOf` names the attribute
+// any other (format/post-list.js, declaredProblem()); `editable`, { of, refusal }, a text an
+// editor gives only where what the attribute `of` names lets an editor change it, such as a
+// form's button text, with the `refusal` for any other (format/body.js). `optionsOf` names the attribute
 // that names one of the site's presentations, whose options the directive
 // takes as attributes beside its own (the post list), or is null.
 // Throws, naming every problem, for a registry the reader cannot follow.
@@ -73,6 +75,11 @@ export function directiveRegistry({ elements }) {
         if (!DECLARED.includes(setting.declared)) problems.push(`${where}: declared names ${DECLARED.join(', ')}, what the site description declares that an attribute may name`);
         else if (setting.type !== 'string') problems.push(`${where}: declared names a text`);
         else if (typeof setting.refusal?.name !== 'string') problems.push(`${where}: declared needs the refusal for a name the site does not declare`);
+      }
+      if (Object.hasOwn(setting, 'editable')) {
+        if (setting.type !== 'string') problems.push(`${where}: editable is a text's`);
+        if (!Object.hasOwn(attributes[setting.editable?.of] ?? {}, 'declared')) problems.push(`${where}: editable names the attribute that names what the site declares`);
+        if (typeof setting.editable?.refusal?.name !== 'string') problems.push(`${where}: editable needs the refusal for a text the site does not let an editor change`);
       }
     }
     if (optionsOf !== null && attributes[optionsOf]?.type !== 'string') problems.push(`${at}: optionsOf names an attribute of the type string`);

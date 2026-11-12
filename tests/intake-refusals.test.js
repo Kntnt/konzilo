@@ -66,7 +66,10 @@ const site = Object.freeze({
     open: { label: 'Open', type: 'boolean', control: 'toggle' },
     opens: { label: 'Opens', type: 'date', control: 'date' },
   },
-  forms: { contact: { label: 'Contact us', fields: [{ name: 'email', label: 'Email', kind: 'email', required: true }] } },
+  forms: {
+    contact: { label: 'Contact us', fields: [{ name: 'email', label: 'Email', kind: 'email', required: true }] },
+    booking: { label: 'Book a call', button: 'Book', editable: ['button'], fields: [{ name: 'email', label: 'Email', kind: 'email', required: true }] },
+  },
 });
 
 const settled = { seats: 40 };
@@ -157,6 +160,7 @@ const cases = {
   'list-offset': [() => inArticle('::post-list{type="story" presentation="list" offset="-1"}'), inBlock('post-list')],
   'list-number': [() => inArticle('::post-list{type="story" presentation="list" number="101"}'), inBlock('post-list')],
   'form-name': [() => inArticle('::form{name="order"}'), inBlock('form')],
+  'form-button': [() => inArticle('::form{name="contact" button="Write to us"}'), inBlock('form')],
   'list-paged-twice': [() => inArticle('::post-list{type="story" pages="true" presentation="list"}\n\n::post-list{type="story" pages="true" presentation="list"}'), inBlock('post-list')],
   'list-type': [() => inArticle('::post-list{type="nothing" presentation="list"}'), inBlock('post-list')],
   'list-presentation': [() => inArticle('::post-list{type="story" presentation="slides"}'), inBlock('post-list')],
@@ -605,8 +609,20 @@ test('a link\'s target and rel are refused in their own words', () => {
 });
 
 test('a form the site no longer offers, and a second list with pages', () => {
-  assert.deepEqual(body('::form{name="order"}'), ['the site declares no form "order"; it declares contact']);
+  assert.deepEqual(body('::form{name="order"}'), ['the site declares no form "order"; it declares contact and booking']);
   assert.deepEqual(body('::post-list{type="story" pages="true" presentation="list"}\n\n::post-list{type="story" pages="true" presentation="list"}'), ['the site cannot publish a second list with pages of its own; turn off Pages in one of them']);
+});
+
+test('a form\'s button text is an editor\'s where the form allows it, and refused where it does not, or where it is empty', () => {
+  assert.deepEqual(body('::form{name="booking" button="Book the assessment"}'), []);
+  const { files } = inArticle('::form{name="booking" button="Book the assessment"}');
+  assert.match(files.find(({ path }) => path === 'articles/an-article.md').contents, /^::form\{name="booking" button="Book the assessment"\}$/m);
+  assert.deepEqual(body('::form{button="Write to us" name="contact"}'), ['the form "contact" keeps its own button text, which an editor may not change; take out the setting "button"']);
+  const [refused] = inArticle('::form{name="contact" button="Write to us"}').refusals;
+  assert.equal(reasonIn('sv', refused), 'formuläret "contact" behåller sin egen knapptext, som en redaktör inte får ändra; ta bort inställningen "button"');
+  assert.deepEqual(body('::form{name="booking" button=" "}'), ['the site cannot publish the setting "button" with the value " "; choose another']);
+  // A form the site does not declare is refused for that alone.
+  assert.deepEqual(body('::form{name="order" button="Order"}'), ['the site declares no form "order"; it declares contact and booking']);
 });
 
 test('an embed the rule data does not take is refused in its words', () => {

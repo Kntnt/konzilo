@@ -31,13 +31,13 @@ export function loadReader() {
   return reader;
 }
 
-export const handsFor = (tree, { elements, forms = [], adminHost = null }) => ({
+export const handsFor = (tree, { elements, forms = [], editable = {}, adminHost = null }) => ({
   reader: tree,
   rules: withComponents(rules, siteComponents()),
   elements,
   embedOf,
   adminHost,
-  declared: { forms },
+  declared: { forms, editable },
   link: (id, fragment) => ({ href: `/${id}/${fragment === null ? '' : `#${fragment}`}` }),
   image: (address) => ({ src: address }),
 });
