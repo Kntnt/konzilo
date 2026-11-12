@@ -129,6 +129,88 @@ describe('the runs', () => {
     for (const path of ['pages/live.md', 'pages/waiting.md', 'pages/ahead.md', 'pages/plain.md']) assert.ok(existsSync(join(content, path)), path);
   });
 
+  test('a saved post it refuses leaves the rest standing, and is known by where its page would be', async () => {
+    files['pages/broken.md'] = sourcePost({ title: 'A <b>bold</b> title', slug: 'broken', status: 'draft' }, 'Words.');
+    files['pages/waiting.md'] = sourcePost({ title: 'Waiting', status: 'draft' }, 'Words.');
+    const preview = runner();
+    await preview.refresh();
+    assert.ok(existsSync(join(content, 'pages/live.md')));
+    assert.ok(existsSync(join(content, 'pages/waiting.md')));
+    assert.equal(existsSync(join(content, 'pages/broken.md')), false);
+    for (const path of ['/pages/broken/', '/pages/broken']) {
+      const about = preview.at(path);
+      assert.equal(about?.file, 'pages/broken.md', path);
+      assert.equal(about.title, 'A <b>bold</b> title');
+      assert.deepEqual(about.refusals.map(({ field, name }) => [field?.name, name]), [['title', 'refusal.title-markup']]);
+    }
+    assert.deepEqual(preview.at('/pages/waiting/'), { file: 'pages/waiting.md', title: 'Waiting', refusals: [] });
+    assert.equal(preview.at('/pages/nowhere/'), null);
+  });
+
+  test('brings a save in at the next refresh, and reads the source again only once it or a draft has changed', async () => {
+    let head = 1;
+    let reads = 0;
+    const preview = previewRunner({
+      site,
+      content,
+      now: () => new Date(moment),
+      images: async () => namedImages(),
+      source: {
+        refresh: async () => {},
+        head: () => `commit-${head}`,
+        files: () => {
+          reads += 1;
+          return Object.entries(files).map(([path, contents]) => ({ path, contents }));
+        },
+        originals: () => [],
+      },
+    });
+    await preview.refresh();
+    await preview.refresh();
+    assert.equal(reads, 1);
+    files['pages/saved.md'] = sourcePost({ title: 'Saved', status: 'draft' }, 'Words.');
+    head = 2;
+    await preview.refresh();
+    assert.equal(reads, 2);
+    assert.ok(existsSync(join(content, 'pages/saved.md')));
+    await preview.take({ path: 'pages/one.md', fields: { title: 'One' } });
+    await preview.refresh();
+    assert.equal(reads, 3);
+    moment = '2026-11-03T12:16:00Z';
+    await preview.refresh();
+    assert.equal(reads, 4);
+    assert.equal(existsSync(join(content, 'pages/one.md')), false, 'a draft left for a while goes');
+  });
+
+  test('a saved draft whose check breaks leaves the rest of the preview as it was before every draft was shown', async () => {
+    files['pages/odd.md'] = sourcePost({ title: 'Odd', status: 'draft', image: { src: '/media/breaks.png', alt: 'A picture' } }, 'Words.');
+    const warned = [];
+    const preview = previewRunner({
+      site,
+      content,
+      now: () => new Date(moment),
+      warn: (line) => warned.push(line),
+      images: async () => {
+        const named = namedImages();
+        return (path) => {
+          if (path.includes('breaks')) throw new Error('the check broke');
+          return named(path);
+        };
+      },
+      source: {
+        refresh: async () => {},
+        head: () => 'a-commit',
+        files: () => Object.entries(files).map(([path, contents]) => ({ path, contents })),
+        originals: () => [{ path: 'media/breaks.png', contents: () => Buffer.from('') }],
+      },
+    });
+    const shown = await preview.take({ path: 'pages/one.md', fields: { title: 'One' } });
+    assert.deepEqual(shown, { address: '/pages/one/', refusals: [] });
+    assert.ok(existsSync(join(content, 'pages/live.md')));
+    assert.equal(existsSync(join(content, 'pages/odd.md')), false);
+    assert.match(warned.join('\n'), /the check broke/);
+  });
+
   test('a draft gets a page and an address, and its source file need not exist', async () => {
     const shown = await runner().take({ path: 'pages/new-one.md', fields: { title: 'New one', body: 'Words of mine.' } });
     assert.deepEqual(shown, { address: '/pages/new-one/', refusals: [] });
