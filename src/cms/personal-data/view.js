@@ -65,7 +65,19 @@ function Found({ found, credential, onErased }) {
 
 export function personalDataPage({ credential = signedInCredential } = {}) {
   return function KonziloPersonalDataPage() {
-    const { createElement: h, useState } = react();
+    const { createElement: h, useEffect, useState } = react();
+    // Whether the one signed in may search, asked as the page opens by a search of nothing:
+    // undefined until it is told, else as findTheirs() answers.
+    const [may, setMay] = useState(undefined);
+    useEffect(() => {
+      let gone = false;
+      findTheirs({ credential, text: '' }).then((given) => {
+        if (!gone) setMay(given);
+      });
+      return () => {
+        gone = true;
+      };
+    }, []);
     const [text, setText] = useState('');
     // What the last search was by, which a search after an erasure is by again.
     const [sought, setSought] = useState('');
@@ -84,7 +96,9 @@ export function personalDataPage({ credential = signedInCredential } = {}) {
       setRound((one) => one + 1);
     };
     const page = (...children) => h('div', { style: { padding: 16, overflow: 'auto', height: '100%', boxSizing: 'border-box' } }, ...children);
-    if (answer?.adminOnly) return page(h('p', { style: LINE }, say('personalData.adminOnly')));
+    if (may === undefined) return null;
+    if (may === null) return page(h('p', { style: LINE }, say('personalData.unknown')));
+    if (may.adminOnly || answer?.adminOnly) return page(h('p', { style: LINE }, say('personalData.adminOnly')));
     return page(
       h('p', { style: LINE }, say('personalData.intro')),
       h('form', {

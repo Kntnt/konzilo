@@ -1,14 +1,14 @@
 // The service's data (ADR 0044): one SQLite database in a volume of the site's own, which the
 // archive, backups and restores carry. It holds the service's key, made once, from which its
 // timing tokens and its digests of clients are derived; each form's submissions (ADR 0045), with
-// how each one's mail stands; what an Admin keeps of each form, its recipients; and the service's
-// settings, such as the mail adapter an Admin chooses (ADR 0003), none of which is in Git.
-// Nothing in it holds a visitor's address, browser or referrer.
+// how each one's mail stands; what an Admin keeps of each form, its recipients and its retention;
+// and the service's settings, such as the mail adapter an Admin chooses (ADR 0003), none of which
+// is in Git. Nothing in it holds a visitor's address, browser or referrer, and nothing it forgets
+// stays in it: a submission forgotten is overwritten where it stood, and the log of writes emptied.
 //
 // Each change to what it holds is one step in STEPS, taken once, in order, and counted in the
-// database's own `user_version`, so that a later duty, such as retention, adds a step of its own,
-// such as a column of the form's, and a database made before it is brought up to it at the next
-// start.
+// database's own `user_version`, so that a later duty adds a step of its own, such as a column of
+// the form's, and a database made before it is brought up to it at the next start.
 
 import { randomBytes } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
@@ -46,7 +46,8 @@ const STEPS = [
 //
 // Gives { key, keep(submission), submissions(form), snapshot(form), counts(), mailDue(now),
 // mailDone(id, outcome), mailLater(id, at), mailSoon(now), formSettings(), setFormSettings(form,
-// settings), setting(name), setSetting(name, value), close() }:
+// settings), formsHeld(), expire(form, moments), everything(), chosen(ids), erase(ids), settle(),
+// setting(name), setSetting(name, value), close() }:
 // `key`, 32 bytes, the same from the first opening on; `keep` takes { form, sentAt, language,
 // spam, fields }, `sentAt` a Date, `spam` null or why it was held as spam, and `fields` each
 // { name, label, value }, and gives its number, its mail pending unless it is spam;
@@ -65,9 +66,17 @@ const STEPS = [
 // first, each as `submissions` gives it with `tries`, how often its mail has failed; `mailDone`
 // says how its mail ended, and `mailLater` that it failed and is due again at `at`; `mailSoon`
 // makes every pending one due at `now`. `formSettings` gives what an Admin keeps of each form that
-// has any, { recipients }, by the form's name, and `setFormSettings` keeps a form's. `setting`
-// gives a setting by its name, as it was kept, or null, and `setSetting` keeps one, or forgets it
-// for null.
+// has any, { recipients, retention }, by the form's name, `retention` in days or null for none
+// set, and `setFormSettings` keeps a form's. `setting` gives a setting by its name, as it was kept,
+// or null, and `setSetting` keeps one, or forgets it for null.
+//
+// `formsHeld` gives the name of each form that holds a submission, spam among them; `expire`
+// forgets a form's submissions sent before `before`, and its spam sent before `spamBefore`, both
+// Dates, and gives how many. `everything` gives every submission, one at a time, newest first, as
+// `submissions` does with spam among them; `chosen` gives those numbered `ids`, newest first; and
+// `erase` forgets them, and gives how many. What `expire` and `erase` forget is overwritten where
+// it stood, and the log of writes emptied, unless a reading in progress holds that back: `settle`
+// tries it again.
 export function openStore(file) {
   const database = new DatabaseSync(file);
   database.exec('PRAGMA busy_timeout = 5000');

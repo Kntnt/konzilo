@@ -171,8 +171,18 @@ describe('a person\'s submissions, for Admins', () => {
     assert.equal(store.submissions('contact').length, 2, 'nothing erased');
   });
 
-  test('refuses a search of nothing or of too much, ids that are not a hundred numbers at most, and a method or a path it does not take', async () => {
-    for (const path of ['/_konzilo/personal-data', '/_konzilo/personal-data?text=%20%20', `/_konzilo/personal-data?text=${'x'.repeat(257)}`,
+  // Which the page asks as it opens, to tell an Editor at once that it is an Admin's.
+  test('finds nothing by nothing, for an Admin alone', async () => {
+    keepAdaAndBea();
+    for (const path of ['/_konzilo/personal-data', '/_konzilo/personal-data?text=%20%20']) {
+      const answer = await ask(path);
+      assert.deepEqual([answer.status, await answer.json()], [200, { submissions: [], more: false }], path);
+      assert.equal((await ask(path, { headers: { authorization: 'token erik' } })).status, 403, path);
+    }
+  });
+
+  test('refuses a search of too much, ids that are not a hundred numbers at most, and a method or a path it does not take', async () => {
+    for (const path of [`/_konzilo/personal-data?text=${'x'.repeat(257)}`,
       '/_konzilo/personal-data.csv?separator=comma', '/_konzilo/personal-data.csv?ids=1,two&separator=comma', '/_konzilo/personal-data.csv?ids=1', '/_konzilo/personal-data.csv?ids=1&separator=tab']) {
       assert.equal((await ask(path)).status, 400, path);
     }

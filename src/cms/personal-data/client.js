@@ -25,8 +25,9 @@ async function answered(method, query, { credential, ask }) {
 
 // The submissions that hold `text`, newest first, at most a hundred: { found: { submissions, more } },
 // each submission { id, form, label, sentAt, language, spam, fields }, or { adminOnly }, or null.
+// An empty text finds nothing, and so asks only whether the one signed in may search.
 export async function findTheirs({ credential, text, ask = fetching() }) {
-  const given = await answered('GET', { text }, { credential, ask });
+  const given = await answered('GET', text === '' ? {} : { text }, { credential, ask });
   return given?.answer ? { found: given.answer } : given;
 }
 

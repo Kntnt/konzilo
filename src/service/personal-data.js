@@ -14,10 +14,10 @@ export const SEARCH_AT_MOST = 256;
 // ring apart, in small letters.
 const folded = (text) => text.normalize('NFKC').toLowerCase();
 
-// The text searched by, from what an Admin gave, or null for none or too long.
+// The text searched by, from what an Admin gave, empty for none, or null for one too long.
 export function soughtOf(given) {
   const text = typeof given === 'string' ? given.trim() : '';
-  return text === '' || [...text].length > SEARCH_AT_MOST ? null : text;
+  return [...text].length > SEARCH_AT_MOST ? null : text;
 }
 
 // The submissions numbered by a list such as `3,7,9`, as given, or null for no list of at most
@@ -30,8 +30,9 @@ export function idsOf(given) {
 
 // The submissions in `store` that hold `text` in a value written in them, a text, in any case,
 // newest first, spam among them: { submissions, more }, at most FOUND_AT_MOST, `more` whether
-// there are others.
+// there are others. Nothing is found by nothing.
 export function findSubmissions(store, text) {
+  if (text === '') return { submissions: [], more: false };
   const sought = folded(text);
   const found = [];
   for (const submission of store.everything()) {

@@ -29,6 +29,12 @@ describe('asking the service', () => {
     assert.deepEqual(stand.asked, [{ path: '/_konzilo/personal-data', query: { text: 'ada@example.com' }, method: 'GET', authorization: 'token mine' }]);
   });
 
+  test('asks, by a search of nothing, whether the one signed in may search, as the page opens', async () => {
+    const stand = service(200, { submissions: [], more: false });
+    assert.deepEqual(await findTheirs({ credential: () => 'token mine', text: '', ask: stand.ask }), { found: { submissions: [], more: false } });
+    assert.deepEqual(stand.asked, [{ path: '/_konzilo/personal-data', query: {}, method: 'GET', authorization: 'token mine' }]);
+  });
+
   test('erases the submissions chosen, and says how many', async () => {
     const stand = service(200, { erased: 2 });
     assert.deepEqual(await eraseTheirs({ credential: () => 'token mine', ids: [3, 7], ask: stand.ask }), { erased: 2 });
