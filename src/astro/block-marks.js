@@ -18,6 +18,13 @@ import { endOf, nextTag } from './directives.js';
 export const BLOCK_PROPERTY = 'dataKonziloBlock';
 export const BLOCK_ATTRIBUTE = 'data-konzilo-block';
 
+// Whether a block's mark, its path, is of a block at the top of a body, `2`, rather than one
+// within another block, `2.1`.
+export const isAtTopOfBody = (block) => !block.includes('.');
+
+// A value between an attribute's double quotes, as HTML reads it back.
+const quoted = (text) => text.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+
 // What a component renders at its top that is no part of what is shown, and holds no mark.
 const UNSHOWN = new Set(['script', 'style', 'link', 'meta', 'template', 'noscript']);
 
@@ -49,10 +56,11 @@ export function withBlockMark(html, block) {
   if (roots.length === 0 || roots.some((tag) => Object.hasOwn(tag.attributes, BLOCK_ATTRIBUTE))) return null;
   // First among its attributes, after its name, which is where its start tag surely is, whatever
   // its attributes hold.
+  const mark = ` ${BLOCK_ATTRIBUTE}="${quoted(block)}"`;
   let marked = html;
   for (const { start, name } of roots.toReversed()) {
     const at = start + 1 + name.length;
-    marked = `${marked.slice(0, at)} ${BLOCK_ATTRIBUTE}="${block}"${marked.slice(at)}`;
+    marked = `${marked.slice(0, at)}${mark}${marked.slice(at)}`;
   }
   return marked;
 }

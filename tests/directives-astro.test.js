@@ -14,6 +14,7 @@ import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync,
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { CACHE_DIR, astroEnvironment } from './lib/astro.js';
 import { testCore } from './lib/test-core.js';
 
@@ -28,6 +29,8 @@ after(() => {
 const { default: konzilo } = await import(core.url('src/astro/index.js'));
 
 const integration = join(core.root, 'src/astro/index.js');
+// What the tests' own components draw a body's tree with.
+const treeHtmlFile = fileURLToPath(new URL('./lib/tree-html.js', import.meta.url));
 const astro = join(core.root, 'node_modules/astro/bin/astro.mjs');
 const site = {
   types: {
@@ -181,11 +184,11 @@ describe("a site's own components", () => {
   const fromTree = {
     'src/components/Panel.astro': [
       '---',
-      "import { toHtml } from 'hast-util-to-html';",
+      `import { treeHtml } from ${JSON.stringify(treeHtmlFile)};`,
       'const { tone, content } = Astro.props;',
       "const headings = content.children.filter((node) => node.type === 'element' && /^h[2-6]$/.test(node.tagName)).length;",
       '---',
-      '<section class="site-panel" data-tone={tone} data-headings={headings}><Fragment set:html={toHtml(content)} /></section>',
+      '<section class="site-panel" data-tone={tone} data-headings={headings}><Fragment set:html={treeHtml(content)} /></section>',
       '',
     ].join('\n'),
     'src/components/Kicker.astro': "---\nconst { content } = Astro.props;\n---\n<p class=\"site-kicker\">{content.children.map((node) => node.type).join(' ')}</p>\n",
@@ -296,6 +299,17 @@ describe("a site's own components in the live preview", () => {
       '<div class="konzilo-preview-part" data-konzilo-block="2">Only words</div>',
       '<div class="konzilo-preview-part" data-konzilo-block="3"><p data-konzilo-block="3.0">Bare too</p></div>',
     ].join(''));
+  });
+
+  test('lets a component that passes the props it does not take to its root leave the tree out, so that its root holds no `content` and holds its mark in the live preview', () => {
+    const passing = { ...designed, 'src/components/Section.astro': '---\nconst { content, tone, ...rest } = Astro.props;\n---\n<section class="site-section" data-tone={tone} {...rest}><slot /></section>\n' };
+    const files = { ...passing, 'content/articles/hello-world.md': post(':::section{tone="bright"}\n\nInside\n\n:::') };
+    const published = build(files, given, own);
+    const previewed = build(files, given, own, { KONZILO_PREVIEW: '1' });
+    assert.equal(published.status, 0, published.output);
+    assert.equal(previewed.status, 0, previewed.output);
+    assert.equal(published.article('hello-world').replaceAll('\n', ''), '<section class="site-section" data-tone="bright"><p>Inside</p></section>');
+    assert.equal(previewed.article('hello-world').replaceAll('\n', ''), '<section class="site-section" data-tone="bright" data-konzilo-block="0"><p data-konzilo-block="0.0">Inside</p></section>');
   });
 
   test('keeps a component\'s script, as the public site has it', () => {

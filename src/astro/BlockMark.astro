@@ -7,11 +7,10 @@
 // holds lead to it there. Body.astro renders each component it marks through this.
 //
 //   <BlockMark block="2.1"><Component data-konzilo-block="2.1" … /></BlockMark>
-import { withBlockMark } from './block-marks.js';
+import { isAtTopOfBody, withBlockMark } from './block-marks.js';
 
 const { block } = Astro.props;
 const rendered = (await Astro.slots.render('default')) ?? '';
 const marked = withBlockMark(rendered, block);
-const atTheTop = !block.includes('.');
 ---
-{marked !== null ? <Fragment set:html={marked} /> : atTheTop ? <div class="konzilo-preview-part" data-konzilo-block={block}><Fragment set:html={rendered} /></div> : <Fragment set:html={rendered} />}
+{marked !== null ? <Fragment set:html={marked} /> : isAtTopOfBody(block) ? <div class="konzilo-preview-part" data-konzilo-block={block}><Fragment set:html={rendered} /></div> : <Fragment set:html={rendered} />}

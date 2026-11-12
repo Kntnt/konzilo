@@ -1,8 +1,9 @@
 // A page of the live preview whose body holds components within components, the site's own,
 // from Astro's dev server as the preview runs it, behind the real gate, in each browser engine:
 // its design's child selectors find what they find on the public site, and a click on a nested
-// component, and a field's request to show one, find it (ADR 0032, ADR 0064). The components and
-// the design are this test's own; preview.test.js has the live preview in a real site.
+// component, and a field's request to show one, find it, and so do they a block that a component
+// drew from its body's tree (ADR 0032, ADR 0064, ADR 0068). The components and the design are
+// this test's own; preview.test.js has the live preview in a real site.
 
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -37,27 +38,38 @@ const freePort = async () => {
 
 // A section, which places its mark itself on its root, holding a kicker, which places none, and
 // another section; the design lays them out by child selectors, as the design system does, which
-// a wrapper between them would break.
+// a wrapper between them would break. Then a deck, which draws its body from its tree, `content`,
+// rather than its slot, and passes the rest of its props, its mark among them, to its root.
 const SITE = {
   language: 'en_GB',
   components: {
     section: { label: 'Section', form: 'container', body: 'blocks' },
     kicker: { label: 'Kicker', form: 'leaf', body: 'text' },
+    deck: { label: 'Deck', form: 'container', body: 'blocks' },
   },
-  types: { post: { label: 'Article', plural: 'Articles', collection: 'articles', address: '/{slug}/', elements: ['paragraph', 'heading', 'section', 'kicker'], fields: {} } },
+  types: { post: { label: 'Article', plural: 'Articles', collection: 'articles', address: '/{slug}/', elements: ['paragraph', 'heading', 'section', 'kicker', 'deck'], fields: {} } },
 };
-const BODY = ['Before', ':::section', '::kicker[A kicker]', '## Inside', '::::section', 'Deep inside', '::::', ':::', 'After'].join('\n\n');
+const BODY = ['Before', ':::section', '::kicker[A kicker]', '## Inside', '::::section', 'Deep inside', '::::', ':::', ':::deck', '## A question', 'An answer from the tree', ':::', 'After'].join('\n\n');
 const DESIGN = `
 .site-section { padding: 24px; }
 .site-section > .site-band > .site-kicker { color: rgb(200, 0, 0); }
 .site-section > .site-band > .site-section { border-left: 7px solid rgb(0, 0, 200); }
 `;
 const FILES = {
-  'astro.config.mjs': astroConfig(integration, { directives: { section: './src/components/Section.astro', kicker: './src/components/Kicker.astro' } }),
+  'astro.config.mjs': astroConfig(integration, { directives: { section: './src/components/Section.astro', kicker: './src/components/Kicker.astro', deck: './src/components/Deck.astro' } }),
   'src/content.config.mjs': `import { collections as konziloCollections } from ${JSON.stringify(integration)};\n\nexport const collections = konziloCollections();\n`,
   'site-description.json': JSON.stringify(SITE),
   'src/components/Section.astro': '<section class="site-section" data-konzilo-block={Astro.props["data-konzilo-block"]}><div class="site-band"><slot /></div></section>\n',
   'src/components/Kicker.astro': '<p class="site-kicker"><slot /></p>\n',
+  'src/components/Deck.astro': [
+    '---',
+    `import { treeHtml } from ${JSON.stringify(join(core, 'tests/lib/tree-html.js'))};`,
+    'const { content, ...rest } = Astro.props;',
+    "const cards = content.children.filter((node) => node.type === 'element' && node.tagName === 'h2').length;",
+    '---',
+    '<div class="site-deck" data-cards={cards} {...rest}><Fragment set:html={treeHtml(content)} /></div>',
+    '',
+  ].join('\n'),
   'src/pages/[slug].astro': [
     '---',
     "import { getCollection, render } from 'astro:content';",
@@ -187,6 +199,7 @@ describe('a page of the live preview with components within components', () => {
       const frame = () => page.frameLocator('#frame');
       const kicker = () => frame().locator('.site-kicker');
       const inner = () => frame().locator('.site-section .site-section');
+      const answer = () => frame().locator('.site-deck p');
       const toldBy = async (count) => {
         for (let waited = 0; waited < 3000 && (await page.evaluate(() => window.told.length)) < count; waited += 50) await page.waitForTimeout(50);
         return page.evaluate(() => window.told.splice(0));
@@ -208,18 +221,24 @@ describe('a page of the live preview with components within components', () => {
         assert.deepEqual(await toldBy(1), [{ block: 1, path: '1.2.0' }]);
       });
 
-      test('shows a nested component a field asks for, marked, and tells the design', async () => {
+      test('tells the editor which block a click on a block a component drew from its tree is', async () => {
+        assert.equal(await frame().locator('.site-deck').getAttribute('data-cards'), '1');
+        await answer().click();
+        assert.deepEqual(await toldBy(1), [{ block: 2, path: '2.1' }]);
+      });
+
+      test('shows a nested component, and a block a component drew from its tree, a field asks for, marked, and tells the design', async () => {
         await frame().locator('html').evaluate(() => {
           window.shown = [];
-          document.addEventListener('konzilo-preview-show', ({ target }) => window.shown.push(target.className));
+          document.addEventListener('konzilo-preview-show', ({ target }) => window.shown.push(target));
         });
         const marked = (element) => element().evaluate((one) => one.style.boxShadow !== '');
-        for (const [path, element, name] of [['1.2', inner, 'site-section'], ['1.0', kicker, 'site-kicker']]) {
+        for (const [path, element] of [['1.2', inner], ['1.0', kicker], ['2.1', answer]]) {
           await page.evaluate(([to, origin]) => window.show(to, origin), [path, preview]);
           for (let waited = 0; waited < 3000 && !(await marked(element)); waited += 50) await page.waitForTimeout(50);
-          assert.equal(await marked(element), true, `${path}: the component itself is marked`);
+          assert.equal(await marked(element), true, `${path}: the block itself is marked`);
           assert.equal(await frame().locator('[style*="box-shadow"]').count(), 1, `${path}: and nothing else`);
-          assert.equal(await frame().locator('html').evaluate(() => window.shown.at(-1)), name);
+          assert.equal(await element().evaluate((one) => window.shown.at(-1) === one), true, `${path}: the design is told of it`);
         }
       });
     });

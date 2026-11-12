@@ -16,7 +16,7 @@ import { dirname, join } from 'node:path';
 import { SIGN_IN_PATH } from '../../src/cms/preview/paths.js';
 import { demoContentOf } from '../../src/demo-content.js';
 import { demoSource, GIT_ATTRIBUTES } from '../../src/demo-source.js';
-import { readSiteDescription } from '../../src/site-description.js';
+import { readSiteDescriptionWithoutTakenComponents } from '../../src/site-description.js';
 import { totp } from '../../src/totp.js';
 
 const FORGEJO = 'http://forgejo:3000';
@@ -157,9 +157,8 @@ async function pushDemoContent(token) {
   git('config', 'user.email', 'konzilo@localhost.invalid');
   git('lfs', 'install', '--local', '--skip-repo');
   writeFileSync(join(folder, '.gitattributes'), GIT_ATTRIBUTES);
-  // The demo content's bodies are copied as they are, so the seed reads none, nor the components
-  // the site takes from a package, which the site's folder need not have installed.
-  const description = readSiteDescription(`${SITE}/site-description.json`, undefined, { componentsFrom: false });
+  // The demo content's bodies are copied as they are, so the seed reads none.
+  const description = readSiteDescriptionWithoutTakenComponents(`${SITE}/site-description.json`);
   for (const { path, content } of demoSource(description, demoContentOf(SITE))) {
     mkdirSync(dirname(join(folder, path)), { recursive: true });
     writeFileSync(join(folder, path), content);

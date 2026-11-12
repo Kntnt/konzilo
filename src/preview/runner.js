@@ -11,10 +11,11 @@ import { NOT_FOUND_FILE, NOT_FOUND_FOLDER } from '../format/not-found.js';
 import { DRAFT, PUBLISHED, SCHEDULED } from '../format/post-status.js';
 import { keyOf } from '../format/redirects.js';
 import { POST_IDS_FILE } from '../format/write.js';
+import { componentChecksOf } from '../intake/component-checks.js';
 import { walk, writeContent } from '../intake/content-folder.js';
 import { imagesFrom, namedOriginals } from '../intake/images.js';
 import { intake } from '../intake/index.js';
-import { siteDescription } from '../site-description.js';
+import { readSiteDescription, SITE_DESCRIPTION_FILE, siteDescription } from '../site-description.js';
 import { draftFile, keyOfPath, pathProblem, unsavedImage } from './draft.js';
 
 // How long a draft nobody has touched stays on the preview.
@@ -191,5 +192,31 @@ export function previewRunner({ site: described, source, content, adminHost = nu
         return { address: result.ledger.posts[keyOfPath(path)]?.address ?? null, refusals };
       });
     },
+  };
+}
+
+// The runs of a preview whose gate stands before the site's code is prepared, as the preview's
+// container does (bin/konzilo-preview.js). `described`: the site description as read at once, in
+// the site's folder, without the components it takes, which that folder need not have installed
+// (site-description.js, readSiteDescriptionWithoutTakenComponents()). `prepared`: settles once the
+// site's code is in `folder`, with its packages installed, from where its description is read
+// again, with the components it takes, and the check of what they hold, as the builder reads them,
+// and the runs begin. The rest as previewRunner() takes it. Until then a draft's problem is
+// answered by `described`, take() and refresh() wait, and at() and notFoundAt() know no page.
+// `ready` gives the runs, or why there are none.
+export function runnerOncePrepared({ described, prepared, folder, ...options }) {
+  let runner = null;
+  const ready = prepared.then(async () => {
+    const site = readSiteDescription(join(folder, SITE_DESCRIPTION_FILE));
+    runner = previewRunner({ ...options, site, components: await componentChecksOf(site, folder) });
+    return runner;
+  });
+  return {
+    ready,
+    problem: (draft) => draftProblem(described, draft),
+    take: async (draft) => (await ready).take(draft),
+    refresh: async () => (await ready).refresh(),
+    at: (path) => (runner === null ? null : runner.at(path)),
+    notFoundAt: (path) => (runner === null ? null : runner.notFoundAt(path)),
   };
 }

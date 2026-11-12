@@ -11,11 +11,10 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { promisify } from 'node:util';
 
-import { componentChecksOf } from '../src/intake/component-checks.js';
-import { readSiteDescription, SITE_DESCRIPTION_FILE } from '../src/site-description.js';
+import { readSiteDescriptionWithoutTakenComponents, SITE_DESCRIPTION_FILE } from '../src/site-description.js';
 import { devServer } from '../src/preview/dev-server.js';
 import { previewGate } from '../src/preview/gate.js';
-import { draftProblem, previewRunner } from '../src/preview/runner.js';
+import { runnerOncePrepared } from '../src/preview/runner.js';
 import { gitSource } from '../src/preview/source.js';
 
 const run = promisify(execFile);
@@ -56,20 +55,11 @@ const source = gitSource({
   home: '/work/home',
 });
 
-// The site description as the gate reads it at once, from the site's folder, which need not have
-// installed the site's packages: without the components it takes from one, which the gate does not
-// read.
-const described = readSiteDescription(`/site/${SITE_DESCRIPTION_FILE}`, undefined, { componentsFrom: false });
-
-// The runs of the intake, once the site's code is prepared: its description and the check of what
-// its components hold read from there, where its packages are installed, as the builder reads them.
-let runner = null;
-const ready = prepared.then(async () => {
-  const site = readSiteDescription(`${SITE_FOLDER}/${SITE_DESCRIPTION_FILE}`);
-  runner = previewRunner({ site, source, content: `${SITE_FOLDER}/content`, adminHost, components: await componentChecksOf(site, SITE_FOLDER) });
-  return runner;
-});
-ready.catch((error) => console.error(`The preview could not read the site: ${error.message}`));
+// The site description as the gate reads it at once, from the site's folder, and the runs of the
+// intake, once the site's code is prepared, with the components it takes.
+const described = readSiteDescriptionWithoutTakenComponents(`/site/${SITE_DESCRIPTION_FILE}`);
+const runner = runnerOncePrepared({ described, prepared, folder: SITE_FOLDER, source, content: `${SITE_FOLDER}/content`, adminHost });
+runner.ready.catch((error) => console.error(`The preview could not read the site: ${error.message}`));
 
 const dev = devServer({
   root: SITE_FOLDER,
@@ -84,7 +74,7 @@ const dev = devServer({
   },
   // A dev server finds a content folder with something in it.
   before: async () => {
-    await (await ready).refresh();
+    await runner.refresh();
   },
 });
 
@@ -98,13 +88,7 @@ const gate = previewGate({
   repository,
   cookieName: `${site}_preview`,
   dev,
-  runner: {
-    problem: (draft) => draftProblem(described, draft),
-    take: async (draft) => (await ready).take(draft),
-    refresh: async () => (await ready).refresh(),
-    at: (path) => (runner === null ? null : runner.at(path)),
-    notFoundAt: (path) => (runner === null ? null : runner.notFoundAt(path)),
-  },
+  runner,
 });
 
 const server = createServer((incoming, outgoing) => {

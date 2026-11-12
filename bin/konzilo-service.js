@@ -25,7 +25,7 @@ import { retentionDuty } from '../src/service/retention.js';
 import { openStore, STORE_FILE } from '../src/service/store.js';
 import { thumbnails } from '../src/service/thumbnails.js';
 import { visitorsService } from '../src/service/visitors.js';
-import { readSiteDescription, SITE_DESCRIPTION_FILE } from '../src/site-description.js';
+import { readSiteDescriptionWithoutTakenComponents, SITE_DESCRIPTION_FILE } from '../src/site-description.js';
 
 // In the site's folder, which Compose mounts whole, so that a description replaced is seen.
 const DESCRIPTION = `/site/${SITE_DESCRIPTION_FILE}`;
@@ -55,9 +55,7 @@ function editors(store) {
   const FORGEJO = 'http://forgejo:3000';
   const { KONZILO_REPOSITORY: repository } = process.env;
 
-  // The service reads no body, so not the components the site takes from a package either,
-  // which the site's folder need not have installed.
-  const site = readSiteDescription(DESCRIPTION, undefined, { componentsFrom: false });
+  const site = readSiteDescriptionWithoutTakenComponents(DESCRIPTION);
   const collections = Object.values(site.types).map(({ collection }) => collection);
   const described = liveDescription(DESCRIPTION);
 

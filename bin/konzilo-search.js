@@ -68,7 +68,8 @@ let site;
 try {
   site = readSiteDescription(options.site);
 } catch (error) {
-  fail(error.message.startsWith('the site description') ? error.message : `the site description cannot be read: ${error.message}`);
+  // Each reason it gives names the site description.
+  fail(error.message);
 }
 
 const { documents, schema } = searchDocuments({ site, content: options.content });
