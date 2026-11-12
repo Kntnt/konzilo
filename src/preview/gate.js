@@ -112,6 +112,18 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
     outgoing.end(tabPage(which, language, { again, refresh, values, items, script }));
   };
 
+  // What the page at `path` is built from, as `read` asks the runner, or null where the runner
+  // cannot say, which is told of: the page is shown either way, as one not edited in one place,
+  // since a browser that asked for it would otherwise wait for an answer that never comes.
+  const builtOf = (path, read) => {
+    try {
+      return read();
+    } catch (error) {
+      warn(`The preview could not tell what the page at ${path} is built from: ${error.message}`);
+      return null;
+    }
+  };
+
   // A page asked for in a tab of its own shows what is saved: the preview reads it first, and
   // goes on with what it has where that breaks. Gives what the page at `path` is built from, as
   // the runner's at() gives it: a saved post it refuses is shown in place of a page. A frame keeps
@@ -122,7 +134,7 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
     } catch (error) {
       warn(`The preview could not read what is saved: ${error.message}`);
     }
-    return runner.at(path);
+    return builtOf(path, () => runner.at(path));
   };
 
   // The dev server, started where it is not running, with nobody waiting for it here.
@@ -377,7 +389,7 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
       const about = isPage(incoming) ? await builtFrom(pathname) : null;
       // The toolbar of the page the dev server answers with `status`: what it is built from, and
       // the 404 page's, the post an Admin chose for it, where nothing else answers.
-      const toolbarFor = isPage(incoming) ? (status) => toolbarOf({ about: about ?? (NOT_FOUND.has(status) ? runner.notFoundAt(pathname) : null), writes: held.writes, language, adminOrigin }) : null;
+      const toolbarFor = isPage(incoming) ? (status) => toolbarOf({ about: about ?? (NOT_FOUND.has(status) ? builtOf(pathname, () => runner.notFoundAt(pathname)) : null), writes: held.writes, language, adminOrigin }) : null;
       if (about?.refusals.length > 0) return page(outgoing, 200, TAB_PAGES.postRefused, { values: { title: about.title }, items: about.refusals.map((one) => refusalIn(language, one)), toolbar: toolbarFor(200) });
       try {
         await dev.ensure();
