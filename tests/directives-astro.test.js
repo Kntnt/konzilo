@@ -217,9 +217,9 @@ describe("a site's own components", () => {
     const built = build({ 'content/articles/hello-world.md': post(treeBody), ...fromTree }, treeComponents, withDivider, { KONZILO_PREVIEW: '1' });
     assert.equal(built.status, 0, built.output);
     const article = built.article('hello-world').replaceAll('\n', '');
-    assert.match(article, /<p class="site-kicker" data-konzilo-block="0">text element<\/p>/);
-    assert.equal(/<section class="site-panel"[^>]*>.*<\/section>/.exec(article)?.[0], [
-      '<section class="site-panel" data-tone="bright" data-headings="1" data-konzilo-block="1">',
+    assert.match(article, /<p data-konzilo-block="0" class="site-kicker">text element<\/p>/);
+    assert.equal(/<section [^>]*class="site-panel"[^>]*>.*<\/section>/.exec(article)?.[0], [
+      '<section data-konzilo-block="1" class="site-panel" data-tone="bright" data-headings="1">',
       '<div data-directive="kicker" data-konzilo-block="1.0">A <em>kicker</em></div>',
       '<h2 data-konzilo-block="1.1" id="inside">Inside</h2>',
       '<div data-directive="list" data-konzilo-block="1.2"><ul data-konzilo-block="1.2.0"><li data-konzilo-block="1.2.0.0">One</li><li data-konzilo-block="1.2.0.1">Two</li></ul></div>',
@@ -266,10 +266,10 @@ describe("a site's own components in the live preview", () => {
     assert.equal(built.article('hello-world').replaceAll('\n', ''), [
       '<p data-konzilo-block="0">Before</p>',
       '<section class="site-section" data-konzilo-block="1"><div class="site-band">',
-      '<p class="site-kicker" data-konzilo-block="1.0">A <em>kicker</em></p>',
+      '<p data-konzilo-block="1.0" class="site-kicker">A <em>kicker</em></p>',
       '<h2 data-konzilo-block="1.1" id="inside">Inside</h2>',
       '<section class="site-section" data-konzilo-block="1.2"><div class="site-band"><p data-konzilo-block="1.2.0">Deep</p></div></section>',
-      '<b class="site-pair" data-konzilo-block="1.3">One</b><i class="site-pair" data-konzilo-block="1.3">Two</i>',
+      '<b data-konzilo-block="1.3" class="site-pair">One</b><i data-konzilo-block="1.3" class="site-pair">Two</i>',
       'Only words',
       '<p data-konzilo-block="1.5.0">Bare</p>',
       '</div></section>',
@@ -287,7 +287,7 @@ describe("a site's own components in the live preview", () => {
     assert.equal(previewed.status, 0, previewed.output);
     assert.equal(scripts(published).length, 1, published.article('hello-world'));
     assert.deepEqual(scripts(previewed), scripts(published));
-    assert.match(previewed.article('hello-world'), /<p class="site-kicker" data-konzilo-block="1.0">/);
+    assert.match(previewed.article('hello-world'), /<p data-konzilo-block="1.0" class="site-kicker">/);
   });
 
   test('gives a component no mark on the public site', () => {
