@@ -41,6 +41,8 @@ export const SEARCH_ROUTE = '/_konzilo/search';
 //             text, images' alt text and captions, code, tables and
 //             footnotes; no markup, no embed and no address
 //   terms_<taxonomy>  the names of its terms in each taxonomy its type has
+//   slugs_<taxonomy>  their slugs, which a list's filter and the search
+//             page narrow by, the same in every language
 //   language  the post's language, its locale, where the site
 //             declares one
 //
@@ -93,6 +95,8 @@ export function searchDocuments({ site, content }) {
       for (const field of type.fields) {
         if (field.kind !== 'terms' || !field.taxonomy) continue;
         document[`terms_${field.taxonomy.name}`] = (data[field.name] ?? []).map((reference) => termName(field.taxonomy, reference)).filter((name) => name !== null);
+        // A reference names the term's file, `sv-SE/nyheter` on a site in several languages.
+        document[`slugs_${field.taxonomy.name}`] = (data[field.name] ?? []).map((reference) => reference.slice(reference.lastIndexOf('/') + 1));
       }
       if (locale !== null) document.language = locale;
       documents.push(several ? inItsLanguage(document, locale) : document);
@@ -218,6 +222,18 @@ function searchedTaxonomies(described) {
   return taxonomies;
 }
 
+// The search page's own parameters, which no taxonomy's can be.
+const SEARCH_PAGE_PARAMETERS = Object.freeze(['q', 'page', 'type']);
+
+// The taxonomies the search page narrows by, by their names, which are their
+// parameters on the search page, as a list's filter sends them: each
+// taxonomy whose terms are in the documents (searchedTaxonomies()), in that
+// order, but one named as a parameter of the search page's own, `q`, `page`
+// or `type`.
+export function searchTaxonomies(site) {
+  return searchedTaxonomies(siteDescription(site)).filter((name) => !SEARCH_PAGE_PARAMETERS.includes(name));
+}
+
 // The fields a query is matched against, in the order of their weight, each
 // { name, text, infix, weight }: the title, each taxonomy's terms, the
 // excerpt and the body, on a site in several languages each in every
@@ -254,8 +270,10 @@ function searchedFields(described) {
 //   never matched (`index: false`);
 // - the type, the terms and the language can filter a search and count
 //   its results by value (`facet`), as a site's lists and a language's search
-//   page do; the date is a number, which Typesense can always filter and
-//   sort by.
+//   page do; so can each taxonomy's slugs, `slugs_<taxonomy>`, which a query
+//   is never matched against and which are the same in every language, so
+//   one field holds them; the date is a number, which Typesense can always
+//   filter and sort by.
 export function collectionSchema(site) {
   const described = siteDescription(site);
   const several = described.languages.length > 1;
@@ -265,6 +283,7 @@ export function collectionSchema(site) {
     return { name, type: terms ? 'string[]' : 'string', ...(optional ? { optional: true } : {}), ...(terms ? { facet: true } : {}), ...text, ...(infix ? { infix: true } : {}) };
   };
   const searched = searchedFields(described).map(field);
+  const slugs = searchedTaxonomies(described).map((taxonomy) => ({ name: `slugs_${taxonomy}`, type: 'string[]', optional: true, facet: true }));
   if (several) {
     return {
       fields: [
@@ -275,6 +294,7 @@ export function collectionSchema(site) {
         { name: 'date', type: 'int64', optional: true },
         { name: 'excerpt', type: 'string', optional: true, index: false },
         ...searched,
+        ...slugs,
         { name: 'language', type: 'string', optional: true, facet: true },
       ],
     };
@@ -290,6 +310,7 @@ export function collectionSchema(site) {
       ...named('excerpt'),
       ...named('body'),
       ...searched.filter((one) => one.name.startsWith('terms_')),
+      ...slugs,
       { name: 'language', type: 'string', optional: true, facet: true },
     ],
   };
