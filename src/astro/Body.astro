@@ -16,11 +16,15 @@
 // that lays itself out by what it holds (bodyTree() in directives.js), with
 // the live preview's marks on its blocks. In the live preview, a component
 // and a presentation are given their own block's mark as well, in the prop
-// `data-konzilo-block`, to place on their root (BlockMark.astro). The lists are evaluated in the
-// body's order, before any is rendered, so that each leaves out the posts
-// the lists above it showed. A
-// body without such a directive comes out as Content renders it, but for each image's lightbox
-// (lightbox.js), which is the page's and no part of the body's own HTML.
+// `data-konzilo-block`, to place on their root (BlockMark.astro). The body is
+// read once, components' bodies within at any depth (bodyParts()), and its
+// lists are evaluated in the order they are written, before any is rendered
+// (bodyPostLists() in post-lists.js), so that each leaves out the posts the
+// lists above it showed wherever each stands; a component's body is rendered
+// from its parts as read here, since Astro renders components side by side
+// in no order of the body's. A body without such a directive comes out as
+// Content renders it, but for each image's lightbox (lightbox.js), which is
+// the page's and no part of the body's own HTML.
 //
 // `page`: the page of the post shown, from 1, as the site's route has it
 // from postPages() (post-lists.js): the one list with pages of its own shows
@@ -34,15 +38,13 @@ import BlockMark from './BlockMark.astro';
 import { BLOCK_ATTRIBUTE } from './block-marks.js';
 import { bodyParts } from './directives.js';
 import { withLightboxes } from './lightbox.js';
-import { postList, shownOnPage } from './post-lists.js';
+import { bodyPostLists } from './post-lists.js';
 import { publicSite } from './public-site.js';
 
 const LIST = 'post-list';
-const { html = await Astro.slots.render('default'), post, shown = shownOnPage(), page = 1 } = Astro.props;
-const parts = bodyParts(html, [...Object.keys(components), LIST]);
-for (const part of parts) {
-  if (typeof part !== 'string' && part.name === LIST) part.list = await postList(part.attributes, { post, shown, page });
-}
+// `parts`: a component's body, as the Body around it read it, its lists evaluated there.
+const { parts: within, post, page = 1 } = Astro.props;
+const parts = within ?? (await bodyPostLists(bodyParts(await Astro.slots.render('default'), [...Object.keys(components), LIST]), { post, page }));
 // A number for each dialog on the page, however many bodies it renders.
 const lightboxes = {
   locale: publicSite(Astro.url).locale,
@@ -63,5 +65,5 @@ const lightboxes = {
     return marked(<Presentation posts={posts} options={options} empty={empty} pager={pager} list={list} {...mark} />);
   }
   const Component = components[part.name];
-  return marked(part.body === null ? <Component {...part.attributes} {...mark} /> : <Component {...part.attributes} {...mark} content={part.content}><Astro.self html={part.body} post={post} shown={shown} page={page} /></Component>);
+  return marked(part.body === null ? <Component {...part.attributes} {...mark} /> : <Component {...part.attributes} {...mark} content={part.content}><Astro.self parts={part.parts} /></Component>);
 })}

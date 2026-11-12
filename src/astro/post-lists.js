@@ -2,9 +2,10 @@
 // build against the content collections of the content folder the build
 // reads, the public site's or a preview's, and handed to the presentation
 // the site registers for it (`konzilo({ presentations })`). Body.astro
-// evaluates a body's lists in the body's order, so that a list can leave out
-// the posts the lists above it showed. A site's template may call
-// listedPosts() too, for the posts a list's settings name, and
+// evaluates a body's lists in the order they are written, those in its
+// components among them, before it renders any (bodyPostLists()), so that a
+// list can leave out the posts the lists above it showed. A site's template
+// may call listedPosts() too, for the posts a list's settings name, and
 // relatedPosts(), for the recommended reading under an article, from
 // `@kntnt/konzilo/astro/post-lists`. A list ordered as related and
 // relatedPosts() rank alike, by the score and the freshness of
@@ -41,7 +42,7 @@ import { postListsIn } from './reader.js';
 import { siteSettings } from './site-settings.js';
 import { termRoute, termsBelow, termsWithPages } from './term-pages.js';
 
-const { attributes } = rules.elements['post-list'].directive;
+const { name: LIST, attributes } = rules.elements['post-list'].directive;
 
 // The pager's texts, in the catalogues (ADR 0066) under `site.pager.`: the
 // label of its `nav`, a page's link's name, `{n}` its number, and the links to
@@ -84,6 +85,22 @@ export async function postList(given, { post, shown = shownOnPage(), page = 1 } 
   const locale = languageOf(post)?.locale ?? null;
   const pager = address === null ? null : pagerOf(address, at, pages, locale);
   return { component, posts, options, empty: read.settings.empty ?? textsIn(locale).emptyList, pager, list };
+}
+
+// Every post list of a body, as Body.astro reads it into parts (bodyParts()
+// of directives.js), evaluated by postList() in the order the lists are
+// written, those in a component's body at any depth among them, each the
+// `list` of its part: a list leaves out what the lists written above it
+// showed, wherever each stands. A list in a component's body is evaluated in
+// its place whether the component renders its body or not, as postPages()
+// counts a list's pages from the body as written. Gives the parts.
+export async function bodyPostLists(parts, { post, shown = shownOnPage(), page = 1 } = {}) {
+  for (const part of parts) {
+    if (typeof part === 'string') continue;
+    if (part.name === LIST) part.list = await postList(part.attributes, { post, shown, page });
+    else if (part.parts) await bodyPostLists(part.parts, { post, shown, page });
+  }
+  return parts;
 }
 
 // The posts a list with these settings shows, as a template may ask for
