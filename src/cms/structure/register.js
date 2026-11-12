@@ -26,6 +26,7 @@ export function registerStructureField(CMS, config) {
           changed: (next) => latest.current(next),
           key: `${entry?.get?.('collection')}/${entry?.get?.('slug')}`,
           forms: plain(field.get('forms')) ?? [],
+          editable: plain(field.get('editable')) ?? {},
           elements: plain(field.get('elements')) ?? [],
           adminHost,
           library,

@@ -74,11 +74,11 @@ The site description, `site-description.json` in the site repository, declares t
 - **`taxonomies`**, each with its `collection`, the folder of its terms' files, and `hierarchical`, whether its terms have parents. A taxonomy's `address`, such as `/category/{slug}/`, or with `{path}/`, its parents' slugs and its own, in a hierarchical one, gives each term that has a file a page there, the site design's; it holds no file of its own, but a post at a term's page's address is refused, and links, menu entries and rules may lead to the page. A taxonomy without one has no pages.
 - **`presentations`**, the ways the site's design shows a post list, each with its options, which a post list in a body takes as attributes ([Post lists](#post-lists)).
 - **`menus`**, each a file of its own, and **`settings`**, the site's own settings, in the order `settings.json` holds them; on a site in several languages a text setting that declares `"translated": true` has a value in each language.
-- **`forms`**, which a form in a body names ([Forms](#forms)) and each of whose confirmation text `settings.json` holds, and **`consent`**, the site's departures from the consent rules, which `consent.json` holds, and `domain`, the domain the consent choice is kept on for every site below it, which the consent's own storage in `consent.json` names.
+- **`forms`**, which a form in a body names ([Forms](#forms)), with each form's `editable`, the texts an editor may change where it is placed, and each of whose confirmation text `settings.json` holds, and **`consent`**, the site's departures from the consent rules, which `consent.json` holds, and `domain`, the domain the consent choice is kept on for every site below it, which the consent's own storage in `consent.json` names.
 - **`images`**, the widths an image is checked against, which decide which images the site refuses, not how a file names them.
 - **`components`**, the site's own components, each a directive a body may hold beside the core's elements, **`componentsFrom`**, the components it takes from a package, with **`componentLabels`**, the labels it gives them, and **`componentChecks`**, the module that checks what they hold ([A site's own components](#a-sites-own-components)).
 
-What the description declares for the editors alone, such as `interfaceLanguage`, a type's `label` and `plural`, and a field's `label` and `control`, is not described here; nor are `security` and a form's fields, which decide no content file.
+What the description declares for the editors alone, such as `interfaceLanguage`, a type's `label` and `plural`, and a field's `label` and `control`, is not described here; nor are `security`, a form's fields and its own `button` text, which decide no content file.
 
 ### The built-in types
 
@@ -157,6 +157,8 @@ The site description every example in this document is of:
   "forms": {
     "contact": {
       "label": "Contact us",
+      "button": "Send the message",
+      "editable": ["button"],
       "fields": [
         { "name": "email", "label": "Email", "kind": "email", "required": true },
         { "name": "message", "label": "Message", "kind": "textarea", "required": true }
@@ -546,12 +548,20 @@ A directive's name follows `::` for a leaf, a directive with no body, and `:::` 
 
 ### Forms
 
-A form, one of those the site description declares under `forms`, is the leaf directive `::form{name="…"}` alone on its line. Its one attribute, `name`, required, is the form's name; a file that names a form the site description does not declare is refused, naming the form; a post refused so keeps its last file, which the site shows without the form, and the site's build warns of it. What the form asks, its fields, and its texts are not in the file: the site shows the form the site description declares, as its design renders it. A field's label there may hold links, written as Markdown links, `I have read the [privacy policy](/privacy-policy/)`, and nothing else of Markdown, each to an address a menu's entry may have, as *A link's address* says of a body's; the form draws each link, and a submission, its mail and its CSV keep the label's words without them.
+A form, one of those the site description declares under `forms`, is the leaf directive `::form{name="…"}` alone on its line. Its attribute `name`, required, is the form's name; a file that names a form the site description does not declare is refused, naming the form; a post refused so keeps its last file, which the site shows without the form, and the site's build warns of it. What the form asks, its fields, and its texts are not in the file: the site shows the form the site description declares, as its design renders it; its button says the `button` text the description gives the form, one text or one by locale, or else the site's word for sending. Where the form lists `button` under its `editable`, a file may give the button a text of its own where it places the form, the attribute `button`, after `name`, some text other than white space, in the post's language; a file that gives it where the form does not list it is refused, naming the form, and the site shows the form's own text where a post's last file still gives one. `button` is the one text an editor may change yet. A field's label there may hold links, written as Markdown links, `I have read the [privacy policy](/privacy-policy/)`, and nothing else of Markdown, each to an address a menu's entry may have, as *A link's address* says of a body's; the form draws each link, and a submission, its mail and its CSV keep the label's words without them.
 
 ```markdown body
 Write to us, and we answer within a day.
 
 ::form{name="contact"}
+```
+
+The contact form lists `button` under its `editable`, so a post may give it a text of its own:
+
+```markdown body
+Book a call, and we ring you within a day.
+
+::form{name="contact" button="Book the call"}
 ```
 
 ### A site's own components

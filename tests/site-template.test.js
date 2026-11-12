@@ -509,16 +509,18 @@ describe('the site template, built by Astro', () => {
   });
 });
 
-describe('the site template\'s form component, placed by a template', () => {
+describe('the site template\'s form component, placed by a template and by a post\'s body', () => {
   let repository;
   let page;
+  let placed;
 
   before(() => {
     repository = siteRepository();
-    // The demo model declares no form: a contact form, and a page of the
-    // site's design that places it.
+    // The demo model declares no form: a contact form, whose button text an
+    // editor may change, a page of the site's design that places it, and a
+    // page whose body places it with an editor's text.
     const description = join(repository, 'site-description.json');
-    const form = { label: 'Contact us', fields: [{ name: 'message', label: 'Message', kind: 'textarea', required: true }] };
+    const form = { label: 'Contact us', button: 'Write to us', editable: ['button'], fields: [{ name: 'message', label: 'Message', kind: 'textarea', required: true }] };
     writeFileSync(description, JSON.stringify({ ...JSON.parse(readFileSync(description, 'utf8')), forms: { contact: form } }));
     writeFileSync(join(repository, 'src/pages/contact.astro'), [
       '---',
@@ -528,7 +530,11 @@ describe('the site template\'s form component, placed by a template', () => {
       '<Site title="Contact"><main><h1>Contact</h1><Form name="contact" /></main></Site>',
       '',
     ].join('\n'));
-    page = build(repository, { title: 'Lantern', logo: null, icon: null })('contact/index.html');
+    const built = build(repository, { title: 'Lantern', logo: null, icon: null }, {
+      given: [...posts, post({ ID: 3, type: 'page', slug: 'book', title: 'Book', modified: '2026-10-02 09:00:00', body: paragraphs('Book a call.', '::form{name="contact" button="Book a call"}') })],
+    });
+    page = built('contact/index.html');
+    placed = built('pages/book/index.html');
   });
 
   after(() => {
@@ -537,6 +543,12 @@ describe('the site template\'s form component, placed by a template', () => {
 
   test('renders the declared form, posting to its address on the endpoint', () => {
     assert.match(page, /<form class="konzilo-form" id="konzilo-form-contact" method="post" action="\/_konzilo\/forms\/contact" aria-label="Contact us"/);
+  });
+
+  test('says on its button the form\'s own text where a template places it, and the editor\'s where a post\'s body does', () => {
+    const button = (html) => /<button type="submit" class="konzilo-form-send"[^>]*>(.*?)<\/button>/s.exec(html ?? '')?.[1];
+    assert.equal(button(page), 'Write to us');
+    assert.equal(button(placed), 'Book a call');
   });
 
   test('styles it: an outcome shows when its fragment is the page\'s, the trap field stays out of sight, and what the script has not shown stays hidden', () => {

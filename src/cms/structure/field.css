@@ -74,6 +74,7 @@
 .konzilo-tree-problem { margin: 8px 0 0; padding: 8px 10px; border-radius: 6px; background: var(--sui-warning-background-color); color: var(--sui-warning-foreground-color); font-size: 13px; }
 .konzilo-tree-body .konzilo-body { border: 1px solid var(--sui-control-border-color); border-radius: 5px; }
 .konzilo-tree-form .konzilo-body-source[hidden] { display: none; }
+.konzilo-tree-form label[hidden] { display: none; }
 .konzilo-tree-body .konzilo-body-visual { min-height: 0; }
 .konzilo-tree-body .ProseMirror { padding: 8px 12px !important; min-height: 44px !important; font-size: 15px !important; }
 .konzilo-tree-body .milkdown { min-height: 0 !important; }

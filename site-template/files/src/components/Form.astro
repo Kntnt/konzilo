@@ -1,6 +1,8 @@
 ---
 // A form the site description declares, by its name, wherever a template
-// places it: `<Form name="contact" />`. Konzilo's form component renders it
+// places it: `<Form name="contact" />`, and wherever a post's body places it,
+// with the button text an editor gives where the form allows it, `button`.
+// Konzilo's form component renders it
 // in the site's language, a plain HTML form that also sends without
 // JavaScript, and the page's script sends it where JavaScript runs ;
 // src/styles/forms.css styles it from the demo design's tokens. A
@@ -9,6 +11,6 @@
 import KonziloForm from '@kntnt/konzilo/astro/Form.astro';
 import '../styles/forms.css';
 
-const { name } = Astro.props;
+const { name, button } = Astro.props;
 ---
-<KonziloForm name={name} />
+<KonziloForm name={name} button={button} />

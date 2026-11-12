@@ -162,7 +162,7 @@ const results = new WeakSet();
 //     settings: [ { name, label, type, control, options, required, translated } ],
 //     consent: { departures: [ { departure, service, reason } ], domain },
 //     security: { includeSubDomains, frameAncestors: [ <origin> ], dataImages },
-//     forms: { <form>: { name, label, fields: [ { name, label, labelParts, kind, required, maxLength, options, help } ] } },
+//     forms: { <form>: { name, label, button, editable, fields: [ { name, label, labelParts, kind, required, maxLength, options, help } ] } },
 //     search: { address } or null,
 //     components: { <component>: { name, element, label, form, body, attributes } } or null,
 //     componentsFrom: <path or package specifier> or null,
@@ -237,7 +237,9 @@ const results = new WeakSet();
 // origins, each `https://` and a host, that may frame its pages beside its
 // own; none for a site that declares none. `forms` are the forms the site
 // declares, each by the last segment of its address on the endpoint,
-// /_konzilo/forms/<form>, with its label and its fields in order: each field
+// /_konzilo/forms/<form>, with its label, its button's text, one text, or one
+// by locale as declared, or null for the site's word for sending, the texts an
+// editor may change where it is placed (EDITABLE_FORM_TEXTS), and its fields in order: each field
 // of one of FIELD_KINDS, with whether it is required, a text's `maxLength` in
 // characters, a choice's `options` and a `help` text or null. `search` is the
 // site's search, the public address of its search page, or null for
@@ -306,9 +308,15 @@ export function postListModel({ types, presentations }) {
 // What the site declares that a directive's attribute may name (`declared`
 // in the rule data), as format/post-list.js checks such an attribute against
 // it: the names of what it declares, by the key they are declared under, `forms` the names
-// of its forms.
+// of its forms; and under `editable`, by the same key, what an editor may change of each where
+// it is placed, by its name, such as `{ forms: { contact: ['button'] } }` (`editable` in the
+// rule data).
 export function declaredNames({ forms }) {
-  return { forms: Object.keys(forms ?? {}) };
+  const declared = Object.values(forms ?? {}).filter(Boolean);
+  return {
+    forms: Object.keys(forms ?? {}),
+    editable: { forms: Object.fromEntries(declared.map((form) => [form.name, [...form.editable]])) },
+  };
 }
 
 // The site description in a file, checked with `groups` as siteDescription()
@@ -396,7 +404,7 @@ function description(declared, groups, fromSite, problems) {
   const security = securityOf(declared.security, problems);
   const forms = {};
   for (const [name, form] of entries(declared.forms, 'forms', problems, false)) {
-    forms[name] = formOf(name, form, `forms.${name}`, problems);
+    forms[name] = formOf(name, form, `forms.${name}`, languages, problems);
   }
   return freeze({ language, languages, interfaceLanguage, types, taxonomies, presentations, images, menus, settings, consent, security, forms, search, components, componentsFrom, componentChecks, groups: groupsFor(declared, types, groups, language, forms) });
 }
@@ -616,9 +624,16 @@ export const FORM_NAME = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 // an underscore, which no declared field may.
 const FORM_FIELD_NAME = /^[a-z][a-z0-9_]*$/;
 
+// The texts of a form an editor may change where the form is placed, each as the attribute of
+// the form's directive that gives it (rules.json). A placeholder's and a label's wait until a
+// site asks for them.
+export const EDITABLE_FORM_TEXTS = Object.freeze(['button']);
+
 // A form: its label, which names it to editors, in a notification's subject
-// and on the Site settings page, and its fields in order.
-function formOf(name, form, path, problems) {
+// and on the Site settings page; its button's text, null for the site's word
+// for sending; the texts an editor may change where the form is placed, of
+// EDITABLE_FORM_TEXTS; and its fields in order.
+function formOf(name, form, path, languages, problems) {
   if (!FORM_NAME.test(name)) {
     problems.push(`${path}: a form's name must be lowercase letters and digits, with single hyphens inside, starting with a letter`);
   }
@@ -626,8 +641,14 @@ function formOf(name, form, path, problems) {
     problems.push(`${path}: must be an object`);
     return null;
   }
-  onlyKeys(form, ['label', 'fields'], path, problems);
-  const result = { name, label: text(form.label, `${path}.label`, problems), fields: [] };
+  onlyKeys(form, ['label', 'button', 'editable', 'fields'], path, problems);
+  const result = {
+    name,
+    label: text(form.label, `${path}.label`, problems),
+    button: buttonOf(form.button, `${path}.button`, languages, problems),
+    editable: editableOf(form.editable, `${path}.editable`, problems),
+    fields: [],
+  };
   if (!Array.isArray(form.fields) || form.fields.length === 0 || !form.fields.every(isObject)) {
     problems.push(`${path}.fields: must list the form's fields, at least one, each an object`);
     return result;
@@ -642,6 +663,40 @@ function formOf(name, form, path, problems) {
     problems.push(`${path}.fields: take ${characters} characters together, and a form takes at most ${FORM_CHARACTERS}`);
   }
   return result;
+}
+
+// A form's button text, as declared: one text, or on a site in several languages one by locale,
+// one for each language, as a type's address may be; null where it declares none.
+function buttonOf(button, path, languages, problems) {
+  if (button === undefined) return null;
+  if (!isObject(button)) return text(button, path, problems);
+  if (languages.length < 2) {
+    problems.push(`${path}: only a site with several languages gives a form's button a text in each language; give it one text`);
+    return null;
+  }
+  for (const locale of Object.keys(button)) {
+    if (!languages.some((language) => language.locale === locale)) problems.push(`${path}.${locale}: is not one of the site's languages`);
+  }
+  const read = {};
+  for (const { locale } of languages) {
+    if (Object.hasOwn(button, locale)) read[locale] = text(button[locale], `${path}.${locale}`, problems);
+    else problems.push(`${path}: must give a text in each of the site's languages, and gives none in ${locale}`);
+  }
+  return read;
+}
+
+// The texts of a form an editor may change where it is placed, as declared, none by default.
+function editableOf(editable, path, problems) {
+  if (editable === undefined) return [];
+  const known = EDITABLE_FORM_TEXTS.join(', ');
+  if (!Array.isArray(editable) || new Set(editable).size !== editable.length) {
+    problems.push(`${path}: must list the texts an editor may change where the form is placed, of ${known}, each once`);
+    return [];
+  }
+  for (const name of editable.filter((one) => !EDITABLE_FORM_TEXTS.includes(one))) {
+    problems.push(`${path}: ${JSON.stringify(name)} is no text an editor may change where the form is placed; an editor may change its ${known}`);
+  }
+  return editable.filter((one) => EDITABLE_FORM_TEXTS.includes(one));
 }
 
 function formFieldOf(field, path, names, problems) {

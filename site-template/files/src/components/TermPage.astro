@@ -13,7 +13,15 @@
 // their dates and excerpts, and the layout gives Konzilo's Head the term,
 // so that its head says the term's name and description, links its feed,
 // makes a later page noindex and gives the page its breadcrumbs. The page
-// is no post's body, so it is not in the body class.
+// is no post's body, so it is not in the body class. Konzilo gives it
+// `term`, the term's entry; `page`, from 1; `posts`, `pager` and `empty`, as
+// a presentation's; `taxonomy`, { name, label }, the taxonomy's name, its
+// key in a query, and its label; `settled`, { taxonomy, term }, the
+// taxonomy's name and the term's slug; and `list`, what the term's whole
+// list holds, as a presentation's, its `type` null where several types take
+// the taxonomy, which a presentation that filters is handed, to leave out
+// the row `settled.taxonomy`, send the settled term with a search and say
+// how many posts the term holds. This page uses none of these three.
 import { termPages } from '@kntnt/konzilo/astro/post-lists';
 import Site from '../layouts/Site.astro';
 import List from './List.astro';

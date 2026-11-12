@@ -39,8 +39,9 @@ const summary = (node) => summaryOf(node, counted);
 // What is open and selected lives on while the same entry is opened again.
 const remembered = new Map();
 
-// `elements`: what the post's type takes. `forms`: the site's forms by name.
-export function mountStructureField(host, { value: given, changed, key, forms = [], elements = [], adminHost = null, library = null }) {
+// `elements`: what the post's type takes. `forms`: the site's forms by name. `editable`: what an
+// editor may change of each where it is placed, `{ forms: { <form>: ['button'] } }`.
+export function mountStructureField(host, { value: given, changed, key, forms = [], editable = {}, elements = [], adminHost = null, library = null }) {
   const known = withComponents(rules, siteComponents());
   const directiveRule = (name) => Object.entries(known.elements).find(([, rule]) => rule.directive?.name === name) ?? null;
   const own = siteComponents();
@@ -222,6 +223,7 @@ export function mountStructureField(host, { value: given, changed, key, forms = 
         },
         elements,
         forms,
+        editable,
         adminHost,
         library,
         withPreview: false,
@@ -277,11 +279,25 @@ export function mountStructureField(host, { value: given, changed, key, forms = 
         if (node.name === 'form') {
           const choice = el('select', {}, forms.map((one) => el('option', { value: one }, one)));
           choice.value = node.attrs.name;
+          // The button's text, where the form lets an editor change it: empty, the form's own.
+          const allowsButton = () => (editable.forms?.[node.attrs.name] ?? []).includes('button');
+          const button = textField(say('structure.buttonText'), () => node.attrs.button ?? '', (next) => {
+            const text = next.replace(/\n/g, ' ');
+            if (text.trim() === '') delete node.attrs.button;
+            else node.attrs.button = text;
+          });
+          // A text the form no longer allows shows too, so that the editor can take it out.
+          button.hidden = !allowsButton() && node.attrs.button === undefined;
           choice.addEventListener('change', () => {
             node.attrs.name = choice.value;
+            if (!allowsButton()) {
+              delete node.attrs.button;
+              button.querySelector('textarea').value = '';
+            }
+            button.hidden = !allowsButton();
             edited();
           });
-          fields.push(el('label', {}, say('structure.whichForm'), choice));
+          fields.push(el('label', {}, say('structure.whichForm'), choice), button);
           note(say('structure.formNote'));
         } else if (node.name === 'post-list') {
           note(say('structure.postListNote'));
