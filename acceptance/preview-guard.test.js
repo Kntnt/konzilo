@@ -14,6 +14,7 @@ import { SANDBOX } from '../src/cms/preview/template.js';
 import { previewGate } from '../src/preview/gate.js';
 import { ENGINES } from './lib/editor.js';
 import { framesWhile, isBlank } from './lib/frames.js';
+import { runnerStandIn } from './lib/runner.js';
 
 const listen = (server) => new Promise((resolve) => {
   server.listen(0, '127.0.0.1', () => resolve(server.address().port));
@@ -117,7 +118,7 @@ describe('a page in the preview\'s pane', () => {
       forgejo: `http://127.0.0.1:${forgejoPort}`,
       repository: 'a/source',
       cookieName: 'a_preview',
-      runner: {},
+      runner: runnerStandIn(),
       dev: { port: sitePort, ensure: async () => {}, ready: () => true },
     });
   });

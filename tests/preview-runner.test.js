@@ -9,6 +9,7 @@ import { after, beforeEach, describe, test } from 'node:test';
 
 import { parse } from 'yaml';
 
+import { runnerStandIn } from '../acceptance/lib/runner.js';
 import { draftFile, keyOfPath, pathProblem, unsavedImage } from '../src/preview/draft.js';
 import { previewRunner } from '../src/preview/runner.js';
 import { gitSource } from '../src/preview/source.js';
@@ -119,6 +120,13 @@ describe('the runs', () => {
     refreshes = 0;
     imageRuns = [];
     moment = '2026-11-03T12:00:00Z';
+  });
+
+  // The acceptance suites run the real gate before a runner of their own, in which the gate must
+  // find everything it asks of the real one, or a page it is asked for is never answered.
+  test('is what the acceptance suites\' stand-in stands in for, call by call', () => {
+    const calls = (one) => Object.fromEntries(Object.entries(one).map(([name, value]) => [name, typeof value]));
+    assert.deepEqual(calls(runnerStandIn()), calls(runner()));
   });
 
   test('its first run writes every saved post, a draft and one scheduled ahead too', async () => {

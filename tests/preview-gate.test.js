@@ -59,13 +59,17 @@ describe('the preview\'s gate', () => {
   let ready;
   let exchanged;
   let removed;
-  // The runner's refreshes, whether one breaks, and what it knows each page is built from, by
-  // its path, the post at /a-page/ where it is told nothing else.
+  // The runner's refreshes, whether one breaks, whether it breaks when asked what a page is built
+  // from, and what it knows each page is built from, by its path, the post at /a-page/ where it is
+  // told nothing else.
   let refreshes;
   let refreshFails;
+  let readFails;
   let built;
   // The post an Admin chose as the 404 page, as the runner knows it, or null.
   let notFoundChosen;
+  // What the gate has told of.
+  let warned;
 
   before(async () => {
     forgejo = createServer(async (incoming, outgoing) => {
@@ -149,7 +153,7 @@ describe('the preview\'s gate', () => {
       repository: 'a/source',
       cookieName: 'a_preview',
       now: () => clock,
-      warn: () => {},
+      warn: (message) => warned.push(message),
       runner: {
         problem: ({ path } = {}) => (path === 'wrong' ? 'not a path' : null),
         take: async (draft) => {
@@ -161,8 +165,14 @@ describe('the preview\'s gate', () => {
           refreshes += 1;
           if (refreshFails) throw new Error('the run broke');
         },
-        at: (path) => (Object.hasOwn(built, path) ? built[path] : path === '/a-page/' ? A_POST : null),
-        notFoundAt: () => notFoundChosen,
+        at: (path) => {
+          if (readFails) throw new Error('the runner broke');
+          return Object.hasOwn(built, path) ? built[path] : path === '/a-page/' ? A_POST : null;
+        },
+        notFoundAt: () => {
+          if (readFails) throw new Error('the runner broke');
+          return notFoundChosen;
+        },
       },
       dev: {
         port: innerPort,
@@ -199,8 +209,10 @@ describe('the preview\'s gate', () => {
     removed = false;
     refreshes = 0;
     refreshFails = false;
+    readFails = false;
     built = {};
     notFoundChosen = null;
+    warned = [];
   });
 
   const session = (authorization = WRITER, from = ADMIN) => fetch(`${origin}${SESSION_PATH}`, { method: 'POST', headers: { origin: from, authorization } });
@@ -579,6 +591,22 @@ describe('the preview\'s gate', () => {
       const shown = await visit('/a-page/', held);
       assert.equal(shown.status, 200);
       assert.ok(showsThePage(await shown.text()));
+    });
+
+    // A browser that asked for a page is answered with it, whatever breaks on the way: it would
+    // otherwise wait for an answer that never comes.
+    test('shows the page where the runner cannot say what it is built from, and tells why', { timeout: 10_000 }, async () => {
+      const { back } = await signInAs('/', 'code-writer');
+      const held = pairOf(back, 'a_preview=');
+      refreshFails = true;
+      readFails = true;
+      for (const [path, status] of [['/a-page/', 200], ['/nowhere/', 404]]) {
+        const shown = await visit(path, held);
+        assert.equal(shown.status, status, path);
+        assert.ok(showsThePage(await shown.text()), path);
+        assert.ok(warned.some((told) => told.includes(path) && told.includes('the runner broke')), `${path}: ${warned.join(' | ')}`);
+      }
+      assert.ok(warned.some((told) => told.includes('the run broke')), 'nor what is saved');
     });
 
     test('lets someone already signed in to Forgejo in without a word, starting the preview on the way', async () => {

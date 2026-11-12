@@ -12,6 +12,7 @@ import { SESSION_PATH } from '../src/cms/preview/paths.js';
 import { SANDBOX } from '../src/cms/preview/template.js';
 import { previewGate } from '../src/preview/gate.js';
 import { ENGINES } from './lib/editor.js';
+import { runnerStandIn } from './lib/runner.js';
 
 const listen = (server) => new Promise((resolve) => {
   server.listen(0, '127.0.0.1', () => resolve(server.address().port));
@@ -65,7 +66,7 @@ describe('the toolbar in the preview\'s tab', () => {
       language: 'en',
       repository: 'a/source',
       cookieName: 'a_preview',
-      runner: { refresh: async () => {}, at: (path) => BUILT[path] ?? null, notFoundAt: () => null },
+      runner: runnerStandIn({ built: BUILT }),
       dev: { port: sitePort, ensure: async () => {}, ready: () => true },
     });
   });
