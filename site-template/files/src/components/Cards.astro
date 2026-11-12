@@ -6,9 +6,10 @@
 // says nothing. Konzilo gives it `posts`, each { entry,
 // url }, the post's entry and its address, or null for a type without one;
 // `options`, the presentation's options as the list sets them; `empty`, the
-// text for a list that matches nothing; and `pager`, for a list with pages
-// of its own, the pager's data, which Konzilo's Pager renders after the
-// cards (src/styles/pager.css).
+// text for a list that matches nothing; `pager`, for a list with pages of
+// its own, the pager's data, which Konzilo's Pager renders after the cards
+// (src/styles/pager.css); and `list`, what the whole list holds, its type,
+// its total and its terms, which this presentation does not show.
 import { ownSummary } from '@kntnt/konzilo/astro';
 import Pager from '@kntnt/konzilo/astro/Pager.astro';
 import { Image } from 'astro:assets';

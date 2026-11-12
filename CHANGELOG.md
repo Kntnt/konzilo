@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- A post list's presentation is given what the whole list holds beside the posts of its page, in the prop `list`: the list's type with its label and plural, how many posts the list matches on all its pages, the terms of those posts in each of the type's taxonomies with how many hold each and the address of each term's page, and the search page's address. A presentation that filters can draw rows of terms and say how many posts it shows of how many, the same on every page. `listedPosts()` gives the same as the property `list` of the posts it returns.
+
 ### Fixed
 
 - A click in the body field while the live preview's page is still loading, in the pane or in its window of its own, no longer leaves an error in the browser's console in Safari and Firefox.
