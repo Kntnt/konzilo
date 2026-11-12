@@ -124,7 +124,7 @@ describe('a site description that takes its components from a package', () => {
   });
 
   test('refuses a value that is neither a JSON file\'s path in the site repository nor a package specifier', () => {
-    for (const value of ['/etc/components.json', '../components.json', 'components.js', '@fixture', 42]) {
+    for (const value of ['/etc/components.json', '../components.json', 'components.js', '@fixture', '@fixture/design/../other/components.json', '@fixture/design/./components.json', '@fixture/design/directives/', 42]) {
       assert.throws(() => read(siteRepository(taking({ componentsFrom: value }))), /componentsFrom: must be the path of a JSON file in the site repository, from its root, such as components\.json, or a package specifier/, String(value));
     }
   });

@@ -11,12 +11,14 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 
-// A path's segments: none empty, none `.` or `..`, and no backslash or colon, so that a path
-// stays in the repository.
-const SEGMENTS = String.raw`(?!.*(?:^|\/)\.\.?(?:\/|$))(?!.*\/\/)[^\\:]+`;
+// Segments of a path, none empty, none `.` or `..`, and no backslash or colon, so that a path
+// stays where it is meant to, checked from the start of the whole value.
+const SEGMENTS = String.raw`(?!.*(?:^|\/)\.\.?(?:\/|$))(?!.*\/\/)(?!.*\/$)[^\\:]+`;
 
 // A package specifier: `@`, a scope, a package's name, and the path of a file it exports.
-const PACKAGE_SPECIFIER = new RegExp(String.raw`^@[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*(?:\/${SEGMENTS})?$`);
+const PACKAGE_SPECIFIER = new RegExp(String.raw`^(?=${SEGMENTS}$)@[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*(?:\/[^\\:]+)?$`);
+// A path in the site repository, from its root.
+const PATH = new RegExp(String.raw`^(?!@)(?!\/)${SEGMENTS}$`);
 
 // Whether a value names a file of a package, rather than a path in the site repository.
 export function isPackageSpecifier(value) {
@@ -27,8 +29,7 @@ export function isPackageSpecifier(value) {
 // such as `checks/components.js`, or a package specifier.
 export function isSiteFile(value, extensions) {
   if (isPackageSpecifier(value)) return true;
-  return typeof value === 'string' && !value.startsWith('@') && !value.startsWith('/')
-    && new RegExp(`^${SEGMENTS}$`).test(value) && extensions.some((extension) => value.endsWith(extension));
+  return typeof value === 'string' && PATH.test(value) && extensions.some((extension) => value.endsWith(extension));
 }
 
 // The file a value names, from the site repository at `folder`: a path joined to it, and a

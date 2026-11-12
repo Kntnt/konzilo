@@ -441,9 +441,9 @@ function takenComponents(componentsFrom, fromSite, problems) {
     problems.push(`componentsFrom: ${componentsFrom}: must be an object of components, by name`);
     return null;
   }
-  const own = [];
-  const taken = readComponents(declared, rules, '', own, label);
-  problems.push(...own.map((problem) => `componentsFrom: ${componentsFrom}: ${problem}`));
+  const inFile = [];
+  const taken = readComponents(declared, rules, '', inFile, label);
+  problems.push(...inFile.map((problem) => `componentsFrom: ${componentsFrom}: ${problem}`));
   return taken;
 }
 
