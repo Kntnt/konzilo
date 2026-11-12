@@ -2,10 +2,9 @@
 // small picture of an image in the library (ADR 0055), the forms' submissions (ADR 0045), how the
 // site mails them and how long it keeps them, which an Admin sets on the *Mail* page (ADR 0003),
 // and a person's submissions, which an Admin finds, downloads and erases on the *Personal data*
-// page. Forgejo's webhook only
-// says that something may have happened: the build looks for itself, so a request here decides
-// nothing, and needs no secret. Everything an editor asks goes by what Forgejo says of the one
-// asking, each time.
+// page. Forgejo's webhook only says that something may have happened: the build looks for itself,
+// so a request here decides nothing, and needs no secret. Everything an editor asks goes by what
+// Forgejo says of the one asking, each time.
 
 import { ADMINS_TEAM } from '../build/roles.js';
 import { publishStatus } from '../build/status.js';
