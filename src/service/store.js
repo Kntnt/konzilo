@@ -1,11 +1,14 @@
 // The service's data (ADR 0044): one SQLite database in a volume of the site's own, which the
 // archive, backups and restores carry. It holds the service's key, made once, from which its
-// timing tokens and its digests of clients are derived, and each form's submissions (ADR 0045).
+// timing tokens and its digests of clients are derived; each form's submissions (ADR 0045), with
+// how each one's mail stands; what an Admin keeps of each form, its recipients; and the service's
+// settings, such as the mail adapter an Admin chooses (ADR 0003), none of which is in Git.
 // Nothing in it holds a visitor's address, browser or referrer.
 //
 // Each change to what it holds is one step in STEPS, taken once, in order, and counted in the
-// database's own `user_version`, so that a later duty, such as mail or retention, adds a step of
-// its own and a database made before it is brought up to it at the next start.
+// database's own `user_version`, so that a later duty, such as retention, adds a step of its own,
+// such as a column of the form's, and a database made before it is brought up to it at the next
+// start.
 
 import { randomBytes } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
@@ -24,15 +27,27 @@ const STEPS = [
      fields TEXT NOT NULL
    ) STRICT;
    CREATE INDEX submission_by_form ON submission (form, sent_at);`,
+  // Mail (ADR 0045): how each submission's mail stands, `pending` until the duty takes it, then
+  // `sent`, `off`, `unaddressed` or `failed`, and none for spam and for what was kept before mail;
+  // each form's recipients; and the service's settings, by name, each as JSON.
+  `ALTER TABLE submission ADD COLUMN mail TEXT;
+   ALTER TABLE submission ADD COLUMN mail_tries INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE submission ADD COLUMN mail_at TEXT;
+   CREATE INDEX submission_mail_due ON submission (mail_at) WHERE mail = 'pending';
+   CREATE TABLE form (name TEXT PRIMARY KEY, recipients TEXT NOT NULL DEFAULT '[]') STRICT;
+   CREATE TABLE setting (name TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT;`,
 ];
 
 // The store in `file`, made where there is none, and brought up to the last step. Two programs may
 // hold it open at once, the service's two roles, each waiting a moment for the other's write.
 //
-// Gives { key, keep(submission), submissions(form), snapshot(form), counts(), close() }:
-// `key`, 32 bytes, the same from the first opening on; `keep` takes { form, sentAt, language, spam, fields }, `sentAt` a Date,
-// `spam` null or why it was held as spam, and `fields` each { name, label, value }, and gives its
-// number; `submissions` gives a form's, newest first, each as kept with its `id` and `sentAt` in
+// Gives { key, keep(submission), submissions(form), snapshot(form), counts(), mailDue(now),
+// mailDone(id, outcome), mailLater(id, at), mailSoon(now), formSettings(), setFormSettings(form,
+// settings), setting(name), setSetting(name, value), close() }:
+// `key`, 32 bytes, the same from the first opening on; `keep` takes { form, sentAt, language,
+// spam, fields }, `sentAt` a Date, `spam` null or why it was held as spam, and `fields` each
+// { name, label, value }, and gives its number, its mail pending unless it is spam;
+// `submissions` gives a form's, newest first, each as kept with its `id` and `sentAt` in
 // ISO 8601, UTC, spam among them unless `spam` is false, from after the submission numbered
 // `before` where it is given, and at most `limit`; `counts` gives how many each form holds that
 // are not spam, by the form's name, of each form that holds one; and `snapshot` gives a form's as
@@ -42,6 +57,14 @@ const STEPS = [
 // them, such as a file's columns and then its rows, and `close()` once they are read. It reads on
 // a connection of its own, so that anything else asked of the store meanwhile is answered as the
 // data stands.
+//
+// `mailDue` gives the submissions whose mail is pending and due by `now`, a Date, the oldest due
+// first, each as `submissions` gives it with `tries`, how often its mail has failed; `mailDone`
+// says how its mail ended, and `mailLater` that it failed and is due again at `at`; `mailSoon`
+// makes every pending one due at `now`. `formSettings` gives what an Admin keeps of each form that
+// has any, { recipients }, by the form's name, and `setFormSettings` keeps a form's. `setting`
+// gives a setting by its name, as it was kept, or null, and `setSetting` keeps one, or forgets it
+// for null.
 export function openStore(file) {
   const database = new DatabaseSync(file);
   database.exec('PRAGMA busy_timeout = 5000');
@@ -60,13 +83,23 @@ export function openStore(file) {
   }
   const key = Buffer.from(database.prepare("SELECT value FROM secret WHERE name = 'key'").get().value);
 
-  const insert = database.prepare('INSERT INTO submission (form, sent_at, language, spam, fields) VALUES (?, ?, ?, ?, ?)');
+  const insert = database.prepare('INSERT INTO submission (form, sent_at, language, spam, fields, mail, mail_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
   const BY_FORM = `SELECT id, form, sent_at, language, spam, fields FROM submission
     WHERE form = :form AND (:spam OR spam IS NULL)
       AND (:before IS NULL OR (sent_at, id) < (SELECT sent_at, id FROM submission WHERE id = :before))
     ORDER BY sent_at DESC, id DESC LIMIT :limit`;
   const byForm = database.prepare(BY_FORM);
   const counted = database.prepare('SELECT form, COUNT(*) AS count FROM submission WHERE spam IS NULL GROUP BY form ORDER BY form');
+  const due = database.prepare(`SELECT id, form, sent_at, language, spam, fields, mail_tries FROM submission
+    WHERE mail = 'pending' AND mail_at <= ? ORDER BY mail_at, id LIMIT ?`);
+  const done = database.prepare("UPDATE submission SET mail = ? WHERE id = ? AND mail = 'pending'");
+  const again = database.prepare("UPDATE submission SET mail_tries = mail_tries + 1, mail_at = ? WHERE id = ? AND mail = 'pending'");
+  const soon = database.prepare("UPDATE submission SET mail_at = ? WHERE mail = 'pending' AND mail_at > ?");
+  const formsKept = database.prepare('SELECT name, recipients FROM form ORDER BY name');
+  const keepForm = database.prepare('INSERT INTO form (name, recipients) VALUES (?, ?) ON CONFLICT (name) DO UPDATE SET recipients = excluded.recipients');
+  const settingOf = database.prepare('SELECT value FROM setting WHERE name = ?');
+  const keepSetting = database.prepare('INSERT INTO setting (name, value) VALUES (?, ?) ON CONFLICT (name) DO UPDATE SET value = excluded.value');
+  const forgetSetting = database.prepare('DELETE FROM setting WHERE name = ?');
 
   const submissionOf = (row) => ({
     id: Number(row.id),
@@ -80,7 +113,8 @@ export function openStore(file) {
   return {
     key,
     keep({ form, sentAt, language, spam = null, fields }) {
-      return Number(insert.run(form, sentAt.toISOString(), language, spam, JSON.stringify(fields)).lastInsertRowid);
+      const at = sentAt.toISOString();
+      return Number(insert.run(form, at, language, spam, JSON.stringify(fields), spam === null ? 'pending' : null, spam === null ? at : null).lastInsertRowid);
     },
     submissions(form, { spam = true, before = null, limit = null } = {}) {
       return byForm.all({ form, spam: spam ? 1 : 0, before, limit: limit ?? -1 }).map(submissionOf);
@@ -113,6 +147,32 @@ export function openStore(file) {
     },
     counts() {
       return Object.fromEntries(counted.all().map(({ form, count }) => [form, Number(count)]));
+    },
+    mailDue(now, limit = 50) {
+      return due.all(now.toISOString(), limit).map((row) => ({ ...submissionOf(row), tries: Number(row.mail_tries) }));
+    },
+    mailDone(id, outcome) {
+      done.run(outcome, id);
+    },
+    mailLater(id, at) {
+      again.run(at.toISOString(), id);
+    },
+    mailSoon(now) {
+      soon.run(now.toISOString(), now.toISOString());
+    },
+    formSettings() {
+      return Object.fromEntries(formsKept.all().map(({ name, recipients }) => [name, { recipients: JSON.parse(recipients) }]));
+    },
+    setFormSettings(form, { recipients }) {
+      keepForm.run(form, JSON.stringify(recipients));
+    },
+    setting(name) {
+      const row = settingOf.get(name);
+      return row ? JSON.parse(row.value) : null;
+    },
+    setSetting(name, value) {
+      if (value === null) forgetSetting.run(name);
+      else keepSetting.run(name, JSON.stringify(value));
     },
     close() {
       database.close();

@@ -1107,6 +1107,90 @@ describe('a site in Compose', () => {
       }
     }, { timeout: 300_000 });
 
+    // Mail (ADR 0003, ADR 0045): off until an Admin turns it on, on the Mail page, with each form's
+    // recipients, which the service keeps and no file of the source holds; and then each
+    // submission once, in its page's language, which this local copy writes to the service's log
+    // and sends nowhere.
+    test('mails nothing until an Admin turns mail on, on the Mail page, and then each submission to its form\'s recipients, which a local copy writes to its log and sends nowhere', async () => {
+      const RECIPIENTS = ['recipient-one@example.com', 'recipient-two@example.com'];
+      const LOCAL = 'A local copy sends no mail.';
+      const mailLog = () => site.compose('logs', '--no-color', 'editors').split('\n').map((line) => line.replace(/^[^|]*\| ?/, '')).join('\n');
+      // How each of the contact form's submissions stands, read from the service's data.
+      const mailOf = () => JSON.parse(site.compose('exec', '-T', 'editors', 'node', '--no-warnings', '--input-type=module', '-e', [
+        "import { DatabaseSync } from 'node:sqlite';",
+        "const data = new DatabaseSync('/service-data/service.sqlite', { readOnly: true });",
+        "console.log(JSON.stringify(data.prepare(\"SELECT fields, spam, mail FROM submission WHERE form = 'contact' ORDER BY id\").all().map(({ fields, spam, mail }) => ({ message: JSON.parse(fields).find(({ name }) => name === 'message').value, spam, mail }))));",
+      ].join('\n')));
+      const settled = async (holds, within = 30_000) => {
+        const deadline = Date.now() + within;
+        for (let held = mailOf(); ; held = mailOf()) {
+          if (holds(held) || Date.now() > deadline) return held;
+          await wait(500);
+        }
+      };
+
+      assert.equal((await get(`${site.origin.admin}/_konzilo/mail`)).status, 401);
+      assert.equal((await get(`${site.origin.site}/_konzilo/mail`, { headers: { authorization: `token ${token}` } })).status, 404, 'on the editor\'s host alone');
+      const off = await (await get(`${site.origin.admin}/_konzilo/mail`, { headers: { authorization: `token ${token}` } })).json();
+      assert.deepEqual([off.local, off.adapter, off.forms], [true, 'none', [{ name: 'contact', label: 'Contact us', recipients: [] }]]);
+
+      const formToken = await tokenOf();
+      await wait(3500);
+      assert.equal((await sendJson({ ...filledIn, _token: formToken, message: 'Sent before mail was on.' })).json.outcome, 'sent');
+      const before = await settled((held) => held.every(({ mail }) => mail !== 'pending'));
+      assert.equal(before.at(-1).message, 'Sent before mail was on.');
+      for (const { message: words, spam, mail } of before) assert.equal(mail, spam === null ? 'off' : null, `${words}: mailed to no one while mail is off, and spam never`);
+      assert.ok(!mailLog().includes(LOCAL));
+
+      const session = await openEditor('chromium', site);
+      try {
+        await signIn(session, site);
+        const { page } = session;
+        await page.getByRole('radio', { name: 'Mail', exact: true }).click();
+        await page.getByText('This is a local copy: it sends no mail').waitFor();
+        await page.getByRole('radio', { name: 'By SMTP, through a mail server' }).check();
+        await page.getByLabel('Mail server', { exact: true }).fill('smtp.invalid');
+        await page.getByLabel('Port', { exact: true }).fill('587');
+        await page.getByLabel('Username', { exact: true }).fill('site@example.com');
+        await page.getByLabel('Password', { exact: true }).fill('a secret');
+        await page.getByLabel('Sender\'s address', { exact: true }).fill('site@example.com');
+        await page.getByLabel('Contact us', { exact: true }).fill(RECIPIENTS.join('\n'));
+        await page.getByRole('button', { name: 'Save' }).click();
+        await page.getByText('Saved.', { exact: true }).waitFor();
+        await page.reload();
+        await page.getByRole('radio', { name: 'Mail', exact: true }).click();
+        await page.getByLabel('Contact us', { exact: true }).waitFor();
+        assert.equal(await page.getByLabel('Contact us', { exact: true }).inputValue(), RECIPIENTS.join('\n'));
+        assert.equal(await page.getByLabel('Password', { exact: true }).getAttribute('placeholder'), 'Kept: leave it empty to keep it');
+        assert.equal(await page.getByLabel('Password', { exact: true }).inputValue(), '', 'never given back');
+        assert.deepEqual(session.seen.outside, []);
+        assert.deepEqual(session.seen.refused, []);
+        assert.deepEqual(session.seen.errors, []);
+      } finally {
+        await session.browser.close();
+      }
+
+      const sent = { ...filledIn, name: 'Ada Lovelace', message: 'Sent once mail was on.\nOn two lines.' };
+      assert.equal((await sendJson({ ...sent, _token: formToken })).json.outcome, 'sent');
+      const after = await settled((held) => held.at(-1).mail === 'sent');
+      assert.equal(after.at(-1).mail, 'sent');
+      assert.deepEqual(after.slice(0, -1).map(({ mail }) => mail), before.map(({ mail }) => mail), 'nothing kept while mail was off is mailed once it is on');
+      const log = mailLog();
+      assert.equal(log.split(LOCAL).length - 1, 1, 'one mail');
+      const mail = log.slice(log.indexOf(LOCAL));
+      assert.match(mail, /^A local copy sends no mail\. This is what it would have sent through smtp\.invalid:587:\nFrom: site@example\.com\nTo: recipient-one@example\.com, recipient-two@example\.com\nReply-To: ada@example\.com\nSubject: New submission: Contact us\nDate: [A-Z][a-z]{2}, \d\d [A-Z][a-z]{2} \d{4} \d\d:\d\d:\d\d \+0000\nContent-Language: en-GB\n\nThis was sent with the form Contact us\.\n\nName\nAda Lovelace\n\nEmail\nada@example\.com\n\nMessage\nSent once mail was on\.\nOn two lines\.\n\nI have read the privacy policy\nYes\n\nEvery submission is on the Submissions page in the editor\.\n/);
+      assert.doesNotMatch(log, /could not mail|gave up mailing/);
+
+      // What the Admin set is in no file of the source.
+      const { tree } = await api(`${repository()}/git/trees/main?recursive=true`);
+      for (const { path: name, type } of tree) {
+        if (type !== 'blob' || name.startsWith('media/')) continue;
+        const { content } = await api(`${repository()}/contents/${name}`);
+        const text = Buffer.from(content, 'base64').toString();
+        for (const kept of [...RECIPIENTS, 'smtp.invalid', 'a secret']) assert.ok(!text.includes(kept), `${kept} in ${name}`);
+      }
+    }, { timeout: 300_000 });
+
     // The service mounts the site's folder whole, so that a site description replaced, as Git
     // writes one, reaches both its roles without a restart (ADR 0044).
     test('takes a form its site description declares once the file is replaced, in both of the service\'s roles, without a restart', async () => {

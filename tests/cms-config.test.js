@@ -168,6 +168,16 @@ test('keeps what the published files never hold out of the form', () => {
   assert.doesNotMatch(JSON.stringify(config), /"recipients"|"retention"/);
 });
 
+// A form's recipients are where its visitors' messages go, which an Admin keeps in the service, on
+// the Mail page, and no file of the site's holds (ADR 0044).
+test('declares no recipients in any settings group, and so in no file of the source', () => {
+  const groups = JSON.parse(readFileSync(file('src/format/settings-groups.json'), 'utf8'));
+  assert.doesNotMatch(JSON.stringify(groups), /recipient/i);
+  for (const language of ['en', 'sv']) {
+    assert.deepEqual(Object.keys(JSON.parse(readFileSync(file(`src/catalogues/${language}.json`), 'utf8'))).filter((name) => name.startsWith('settings.') && /recipient/i.test(name)), [], language);
+  }
+});
+
 test('gives a field only a plain value as its default, which is all Sveltia takes, and a field group its fields\' defaults', () => {
   const plainValue = (value) => ['string', 'number', 'boolean'].includes(typeof value);
   const walk = (fields) => {
@@ -339,9 +349,9 @@ describe('the interface language', () => {
     given.forms = { contact: { label: 'Contact', fields: [{ name: 'email', label: 'Email', kind: 'email', required: true }] } };
     const site = siteDescription(given);
     const catalogue = (language) => JSON.parse(readFileSync(file(`src/catalogues/${language}.json`), 'utf8'));
-    // A form's recipients and the days its submissions are kept stay out of the published files,
-    // and so out of the form.
-    const unshown = ['settings.forms.recipients.label', 'settings.forms.retention.label'];
+    // The days a form's submissions are kept stay out of the published files, and so out of the
+    // form.
+    const unshown = ['settings.forms.retention.label'];
     const groupsIn = (language) => {
       const fields = cmsConfig(site, { ...place, language }).collections.find((one) => one.name === 'settings').files[0].fields;
       return fields.filter((one) => site.groups.some((group) => group.name === one.name));

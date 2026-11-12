@@ -41,6 +41,7 @@ const PREVIEW_CLIENT = '/preview-secret/oauth-client';
 const PREVIEW_CLIENT_NAME = 'Konzilo live preview';
 const SERVICE_READER = 'service-reader';
 const SERVICE_TOKEN = '/editors-secret/read-token';
+const SERVICE_ROLES_TOKEN = '/editors-secret/roles-token';
 const BUILDER = 'builder';
 const BUILDER_TOKEN = '/builder-secret/token';
 const BUILDER_CLIENT = '/builder-secret/oauth-client';
@@ -251,6 +252,12 @@ async function publishing(call, instancePassword, instanceKey) {
     scopes: ['read:repository'],
     grant: async () => must('letting the preview read', await call('PUT', `/repos/${site}/${REPOSITORY}/collaborators/${READER}`, { permission: 'read' }), 204),
   });
+  // Who is an Admin, which only an Admin may set the site's mail by, the service asks by a token of
+  // the instance's account that can read the teams and nothing else.
+  if (!existsSync(SERVICE_ROLES_TOKEN)) {
+    const { sha1 } = must('making the token that reads who is an Admin', await request('/users/konzilo/tokens', { name: `service-roles-${randomBytes(4).toString('hex')}`, scopes: ['read:organization'] }, basic('konzilo', instancePassword), totp(instanceKey)), 201);
+    writeFileSync(SERVICE_ROLES_TOKEN, `${sha1}\n`, { mode: 0o600 });
+  }
   await previewClient(call);
   await machineAccount(call, {
     name: SERVICE_READER,
