@@ -294,9 +294,10 @@ export function directiveReader(problem, { checks, leaveOut = {}, warn = () => {
 // post's Content, split at each directive's plain rendering whose name is in
 // `names`, the directives the site gives a component of its own. Returns
 // the parts in order: HTML as a text, and each such directive as { name,
-// attributes, body }, its attributes typed, with their defaults, and its
-// body's HTML, null for a directive without a body. HTML without such a
-// directive is one part, as it is.
+// attributes, body, content, block }, its attributes typed, with their
+// defaults, its body's HTML and its body as a hast tree (bodyTree()), both
+// null for a directive without a body, and the live preview's mark on it.
+// HTML without such a directive is one part, as it is.
 //
 // The HTML is Astro's own rendering of Sätteri's, so a scan of its tags is
 // enough: comments and the text of raw text elements are skipped, a void
@@ -316,11 +317,21 @@ export function bodyParts(html, names, known = siteRegistry()) {
     const close = endOf(html, tag);
     const entry = known.get(name);
     if (tag.start > from) parts.push(html.slice(from, tag.start));
-    parts.push({ name, attributes: attributesOf(entry, tag.attributes), body: entry.body === 'none' ? null : html.slice(tag.end, close.start), block: tag.attributes['data-konzilo-block'] ?? null });
+    const body = entry.body === 'none' ? null : html.slice(tag.end, close.start);
+    parts.push({ name, attributes: attributesOf(entry, tag.attributes), body, content: body === null ? null : bodyTree(body), block: tag.attributes['data-konzilo-block'] ?? null });
     from = at = close.end;
   }
   if (from < html.length) parts.push(html.slice(from));
   return parts;
+}
+
+// A component's body as a hast tree, a `root` of what its HTML holds, as Sätteri reads it:
+// a container's blocks, each a node, with the live preview's marks on them where the build
+// put them (block-marks.js), as `dataKonziloBlock`, and a component within as its plain
+// rendering, holding its own body; a leaf's label, as its inline nodes. A new tree each
+// time, which the component may change as it likes.
+export function bodyTree(html) {
+  return htmlToHast(html, { fragment: true });
 }
 
 const VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);

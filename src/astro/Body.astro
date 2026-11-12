@@ -55,5 +55,5 @@ const lightboxes = {
     return marked(<Presentation posts={posts} options={options} empty={empty} pager={pager} />);
   }
   const Component = components[part.name];
-  return marked(part.body === null ? <Component {...part.attributes} /> : <Component {...part.attributes}><Astro.self html={part.body} post={post} shown={shown} page={page} /></Component>);
+  return marked(part.body === null ? <Component {...part.attributes} /> : <Component {...part.attributes} content={part.content}><Astro.self html={part.body} post={post} shown={shown} page={page} /></Component>);
 })}
