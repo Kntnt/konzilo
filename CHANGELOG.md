@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- An embed's placeholder and the cookie declaration say the same of what a service stores: the placeholder says that a service may store data in the browser only where its facts list what it stores, and otherwise only who receives data about the visit. YouTube, Loom, Spotify, Acast, Apple Podcasts, Speaker Deck, Datawrapper and CodePen, whose providers' documents name nothing their players store, no longer have a placeholder that says they may store data.
 - A click in the body field while the live preview's page is still loading, in the pane or in its window of its own, no longer leaves an error in the browser's console in Safari and Firefox.
 
 ## [0.4.0] – 2026-11-12

@@ -31,8 +31,9 @@
         "checked": "2026-10-30"
       },
       "storage": {
-        "url": "https://policies.google.com/technologies/cookies",
-        "checked": "2026-10-30"
+        "url": "https://support.google.com/youtube/answer/171780",
+        "checked": "2026-11-12",
+        "note": "Google's help on the privacy-enhanced player, youtube-nocookie.com, says what a view in it is not used for, personalising YouTube and advertising, and nothing of what the player stores in the browser. Google's cookie notice, https://policies.google.com/technologies/cookies, names YouTube's cookies, such as __Secure-YNID, VISITOR_INFO1_LIVE, YSC and PREF, for YouTube as a whole, not for this player. Reports by others than Google, not checked here, say that the player keeps items in local storage and IndexedDB, such as yt-remote-device-id. Google documents none of them, so none is listed."
       },
       "transfers": {
         "url": "https://policies.google.com/privacy/frameworks",
@@ -319,7 +320,8 @@
       },
       "storage": {
         "url": "https://www.atlassian.com/legal/cookies",
-        "checked": "2026-10-30"
+        "checked": "2026-11-12",
+        "note": "Atlassian's cookies and tracking notice covers its websites and services as a whole, local storage among them, and names nothing the embedded Loom player stores. Its article on Loom embeds in Firefox, https://support.atlassian.com/loom/kb/i-cant-watch-loom-embeds-on-firefox, says that an embed of a video with restricted privacy settings detects the visitor's Loom login by a cookie it does not name, and says nothing of what the player itself stores."
       },
       "transfers": {
         "url": "https://www.atlassian.com/legal/data-transfer-impact-assessment",
@@ -360,7 +362,8 @@
       },
       "storage": {
         "url": "https://www.spotify.com/ie/legal/cookies-policy/",
-        "checked": "2026-10-30"
+        "checked": "2026-11-12",
+        "note": "Spotify's cookie policy covers its services and websites as a whole, by kind of cookie, and names none. Spotify's documents of Embeds, https://developer.spotify.com/documentation/embeds, say nothing of what the embedded player stores."
       },
       "transfers": {
         "url": "https://www.spotify.com/ie/legal/privacy-policy/",
@@ -401,7 +404,8 @@
       },
       "storage": {
         "url": "https://learn.acast.com/en/articles/4631949-embed-player-faq",
-        "checked": "2026-10-30"
+        "checked": "2026-11-12",
+        "note": "Acast's embed player FAQ says that the embed player sets no cookies of any type, and that Google Analytics is turned off in it for now. It says nothing of local storage, session storage or IndexedDB."
       },
       "transfers": {
         "url": "https://www.acast.com/en/privacy/general-data-protection-regulation-gdpr-privacy-policy",
@@ -441,7 +445,8 @@
       },
       "storage": {
         "url": "https://www.apple.com/legal/privacy/en-ww/",
-        "checked": "2026-10-30"
+        "checked": "2026-11-12",
+        "note": "Apple's privacy policy says that its websites and online services may use cookies and other technologies, such as web beacons, and names none for the Apple Podcasts embed player. Apple's page on that player, https://podcasters.apple.com/support/5619-apple-podcasts-embed-player, says nothing of what it stores."
       },
       "transfers": {
         "url": "https://www.apple.com/legal/privacy/en-ww/",
@@ -479,7 +484,8 @@
       },
       "storage": {
         "url": "https://speakerdeck.com/privacy",
-        "checked": "2026-10-30"
+        "checked": "2026-11-12",
+        "note": "Speaker Deck's privacy policy says that it uses cookies to record current session information, which generally last two weeks, and names none. Nothing in its documents says what an embedded deck stores."
       },
       "transfers": {
         "url": "https://speakerdeck.com/tos",
@@ -512,7 +518,8 @@
       },
       "storage": {
         "url": "https://www.datawrapper.de/embed-privacy",
-        "checked": "2026-10-30"
+        "checked": "2026-11-12",
+        "note": "Datawrapper's page on embed privacy says that embedded visualisations set no cookies and use no trackers. Its privacy policy, https://www.datawrapper.de/privacy, says that it counts the views of published charts with a self-hosted tracking system with cookies, and names none. The two disagree, neither names an item, and neither says anything of local storage, session storage or IndexedDB, so none is listed."
       },
       "transfers": {
         "url": "https://www.datawrapper.de/embed-privacy",
@@ -550,7 +557,8 @@
       },
       "storage": {
         "url": "https://blog.codepen.io/legal/privacy-policy/",
-        "checked": "2026-10-30"
+        "checked": "2026-11-12",
+        "note": "CodePen's privacy policy says that CodePen uses cookies and similar technologies, such as localStorage, to keep a member signed in, remember preferences and measure how its features are used, and names none. Its documents of embedded Pens, https://blog.codepen.io/documentation/embedded-pens/, say nothing of what an embed stores."
       },
       "transfers": {
         "url": "https://blog.codepen.io/legal/terms-of-service/",

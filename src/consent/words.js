@@ -63,7 +63,9 @@ function below(catalogue, prefix) {
 // `placeholder` is a placeholder's sentence on what its service may store
 // and where its data goes, with no provider, `alone`, with one,
 // `provided`, and with one whose data may leave the EU and EEA,
-// `transferred`; `on`, `thisHost`, `shared` and `unnamedDomain` say where
+// `transferred`, each for a service whose facts list what it stores, and
+// each with `WithoutStorage` after it, such as `providedWithoutStorage`,
+// for one whose facts list nothing, which says nothing of storing; `on`, `thisHost`, `shared` and `unnamedDomain` say where
 // an item is stored; and `objectionLinks` are the words of the link for a
 // text of the right to object that marks none.
 export function wordsFor(language, catalogues) {

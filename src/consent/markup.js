@@ -138,10 +138,14 @@ export function consentView({ registry, texts = registry.texts, legalPages = {},
     storage: service.storage.map((item) => ({ name: item.name, kind: kind(item.kind), lifetime: lifetime(item.lifetime), where: { party: item.party, domain: item.domain ?? null } })),
   });
   const optional = registry.services.filter((service) => !isNecessary(service));
-  const { alone, provided, transferred } = words.placeholder;
+  // What a placeholder says of its service follows its facts, as the
+  // cookie declaration does: that it may store data in the browser only
+  // where its facts list what it stores, and else no more than who receives
+  // data about the visit, or, for a service of the site's own, that it is.
   const sentence = (service) => {
-    const shape = !service.provider ? alone : service.transfers.length > 0 ? transferred : provided;
-    return fill(shape, { service: service.name, provider: service.provider?.name, country: service.provider && country(service.provider.country) });
+    const shape = !service.provider ? 'alone' : service.transfers.length > 0 ? 'transferred' : 'provided';
+    const said = words.placeholder[service.storage.length > 0 ? shape : `${shape}WithoutStorage`];
+    return fill(said, { service: service.name, provider: service.provider?.name, country: service.provider && country(service.provider.country) });
   };
   const objection = objectionOf(registry, texts, words);
   const data = {

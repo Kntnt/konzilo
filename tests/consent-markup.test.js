@@ -90,7 +90,7 @@ describe('the consent\'s markup functions', () => {
     assert.deepEqual(templates.map((template) => template.dataset.konziloConsentPlaceholder), ['video']);
     const content = templates[0].content;
     assert.equal(text(content.querySelector('.konzilo-embed-question')), 'Allow Video to play this content?');
-    assert.equal(text(content.querySelector('.konzilo-embed-storage')), 'Video may store data in your browser, and Video Inc. (United States) receives data about your visit, which may be processed outside the EU and EEA. Cookies');
+    assert.equal(text(content.querySelector('.konzilo-embed-storage')), 'Video Inc. (United States) receives data about your visit, which may be processed outside the EU and EEA. Cookies');
     assert.equal(content.querySelector('.konzilo-embed-storage a').getAttribute('href'), 'https://www.example.com/cookies/');
   });
 
