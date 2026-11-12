@@ -166,6 +166,56 @@ The site description every example in this document is of:
 }
 ```
 
+A type of the site's own may take a built-in taxonomy, on a site that names `article`, by a field of terms that names it, as it takes a taxonomy of its own: `"topics": { "taxonomy": "topics" }`. Its posts name the same terms as the articles, whose files are in the taxonomy's collection, and where the taxonomy has an `address`, a term's page lists the posts of each type that takes it. These examples are of a site whose events take the articles' topics:
+
+```json site-description=events
+{
+  "language": "en_GB",
+  "images": { "smallestWidth": 400, "displayWidth": 1280 },
+  "types": {
+    "article": {
+      "collection": "articles",
+      "address": "/{slug}/",
+      "elements": ["paragraph"]
+    },
+    "event": {
+      "label": "Event",
+      "plural": "Events",
+      "collection": "events",
+      "address": "/events/{slug}/",
+      "elements": ["paragraph"],
+      "fields": {
+        "topics": { "taxonomy": "topics" }
+      }
+    }
+  },
+  "taxonomies": {
+    "topics": { "address": "/topic/{slug}/" }
+  }
+}
+```
+
+```markdown file=events/lantern-night.md site=events
+---
+title: "Lantern night"
+topics: ["harbours","lanterns"]
+---
+
+Every lantern on the quay is lit at dusk.
+```
+
+```json file=topics/harbours.json site=events
+{
+  "name": "Harbours"
+}
+```
+
+```json file=topics/lanterns.json site=events
+{
+  "name": "Lanterns"
+}
+```
+
 ## A post's file
 
 A post is one Markdown file with YAML frontmatter. Its path names it: its type's collection, then its slug, or its path in a hierarchical type, then `.md`.
