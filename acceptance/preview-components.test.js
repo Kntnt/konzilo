@@ -202,13 +202,12 @@ describe('a page of the live preview with components within components', () => {
           window.shown = [];
           document.addEventListener('konzilo-preview-show', ({ target }) => window.shown.push(target.className));
         });
+        const marked = (element) => element().evaluate((one) => one.style.boxShadow !== '');
         for (const [path, element, name] of [['1.2', inner, 'site-section'], ['1.0', kicker, 'site-kicker']]) {
           await page.evaluate(([to, origin]) => window.show(to, origin), [path, preview]);
-          await element().evaluate((one) => new Promise((resolve) => {
-            const look = () => (one.style.boxShadow ? resolve() : requestAnimationFrame(look));
-            look();
-          }));
-          assert.equal(await frame().locator('[style*="box-shadow"]').count(), 1, `${path}: the one block shown is marked`);
+          for (let waited = 0; waited < 3000 && !(await marked(element)); waited += 50) await page.waitForTimeout(50);
+          assert.equal(await marked(element), true, `${path}: the component itself is marked`);
+          assert.equal(await frame().locator('[style*="box-shadow"]').count(), 1, `${path}: and nothing else`);
           assert.equal(await frame().locator('html').evaluate(() => window.shown.at(-1)), name);
         }
       });
