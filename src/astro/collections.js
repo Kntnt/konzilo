@@ -272,11 +272,13 @@ function alternatives(names) {
   return names.length === 1 ? names[0] : `{${names.join(',')}}`;
 }
 
-// A menu's entry: its label, its address unless it only holds others, and
-// the entries under it, a list in every entry.
+// A menu's entry: its label, its address unless it only holds others, its
+// line of description where it has one, and the entries under it, a list in
+// every entry.
 const menuEntry = z.strictObject({
   title: z.string(),
   url: z.string().optional(),
+  description: z.string().optional(),
   get items() {
     return z.array(menuEntry).default([]);
   },

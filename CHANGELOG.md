@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- A menu's entry may have a line of description, which an Admin writes under the entry's address in the menu's form and a site's design gets from `siteMenu()` as `description`, to show under the entry as a large menu does: one line of plain text, of at most 160 characters.
 - A form field's label can hold links, written as Markdown links in the site description, such as `I have read the [privacy policy](/privacy-policy/)` for an acceptance line, each to an address a menu's entry may have: the form draws the link in the field's label, and a submission, its mail, its CSV and the Submissions page show the label's words without it.
 - A post list's presentation is given what the whole list holds beside the posts of its page, in the prop `list`: the list's type with its label and plural, how many posts the list matches on all its pages, the terms of those posts in each of the type's taxonomies with how many hold each and the address of each term's page, and the search page's address. A presentation that filters can draw rows of terms and say how many posts it shows of how many, the same on every page. `listedPosts()` gives the same as the property `list` of the posts it returns.
 - The search page narrows by terms as a list's filter sends them, each taxonomy by its name with its terms' slugs, `?topics=rivers&topics=lakes`: the terms of one taxonomy by or and the taxonomies by and, every post of them when no words are given. It keeps them in its form and in its links to the other pages, and its status says what it searched within, "3 results for “lantern” in Rivers or Lakes and in News".
@@ -16,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 - A click in the body field while the live preview's page is still loading, in the pane or in its window of its own, no longer leaves an error in the browser's console in Safari and Firefox.
+- A site description the checker refuses stops a build and a dev server at once with the checker's own problems, each by its path in the description, rather than with a fault of something held against it, such as a component the site gives for a directive the description declares.
 
 ## [0.4.0] – 2026-11-12
 
