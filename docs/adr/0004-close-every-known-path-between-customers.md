@@ -20,12 +20,12 @@ No one can honestly promise a risk of zero. So the bar means that every known pa
 
 ## Why
 
-- A Forgejo per customer costs little and removes much. One measured 114 MB of memory when idle and started in 1.1 seconds. In return, restoring, erasing and backing up never touch another customer.
+- A Forgejo per customer costs little and removes much. One measured 114 MB of memory when idle and started in 1.1 seconds. In return, restoring, purging and backing up never touch another customer.
 - Sharing stays the default for everything else, since administration time grows with every server.
 
 ## Considered and rejected
 
-- **One Forgejo shared by a server's customers,** or on a server of its own. It is cheaper, and one thing to patch, but a fault in one program could expose every customer's drafts and accounts, and customers' restores and erasures would touch shared state.
+- **One Forgejo shared by a server's customers,** or on a server of its own. It is cheaper, and one thing to patch, but a fault in one program could expose every customer's drafts and accounts, and customers' restores and purges would touch shared state.
 - **Sveltia on a customer's public address, such as `www.namn.tld/konzilo/`.** Every script on the public site could read the write token. A redirect gives the same ease.
 - **`/admin` as the shortcut.** Bots scan it, and a customer may have a page there.
 

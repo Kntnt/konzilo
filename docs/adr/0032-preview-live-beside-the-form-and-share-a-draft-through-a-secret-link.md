@@ -34,7 +34,7 @@
 - **Following the link.** `/share/` answers a page that loads nothing (`default-src 'none'`, its one script allowed by its hash), sends no referrer and is never kept. Its script takes the secret out of the address bar and posts it. An open link sets a cookie for the share's own address alone (a `__Secure-` name, since `__Host-` needs the path `/`; `Path=/share/<ID>/`, `HttpOnly`, `Secure`, `SameSite=Lax`), expiring with the link, and leads on with 303. The service answers below `/share/` from the share's static build, so a link never reaches the dev server on that host. Any other secret gets 403.
 - **What it shows:** a static preview build of the published posts and that one draft, as its latest saved version, nothing else of any draft, and never the dev server. It is the exact build, under the enforced policy.
 - **Checked on every request.** A link refused, expired or revoked gets 403 at the next request, a page with no word of the draft. The log never holds the cookie or the post.
-- **A field in the post's form makes, lists and revokes them.** Whoever may edit a post may share it while it is not yet published. Erasing a post deletes its links. A customer with market-sensitive information turns them off (ADR 0004).
+- **A field in the post's form makes, lists and revokes them.** Whoever may edit a post may share it while it is not yet published. Purging a post deletes its links. A customer with market-sensitive information turns them off (ADR 0004).
 
 ## Why
 

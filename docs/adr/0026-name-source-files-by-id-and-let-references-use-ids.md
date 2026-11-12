@@ -17,7 +17,7 @@ The source repository holds one file per thing an editor edits, under `<collecti
 
 - **The ID** comes from Sveltia's `{{uuid_short}}`, with the slug not editable, so it never changes and duplicating an entry makes a new one. `slug` and `parent` are ordinary fields.
 - **References use IDs.** A relation's stored value is the target's file name by default. An internal link in a body is `[text](konzilo:<id>)`, and the Crepe field shows the target's title. The intake writes references out as addresses and slugs.
-- **A move touches one file,** and erasing a post starts from one path.
+- **A move touches one file,** and purging a post starts from one path.
 - **Existing Markdown enters a site through the same files,** with a generated ID each. Importing from other editors comes later.
 
 ## Why

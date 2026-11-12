@@ -13,19 +13,19 @@
 - **Checks.** Refused: a loop, a held source, a reserved source, a source with more than ten query parameters, a pattern that does not compile, matches its own target (each group filled with `x`, nothing, `X`, `1` or `x/x`), names a group it has not, leads to a post or is already in the list, a 101st, and a *show* from a source with a query or to anything but a post. Warned of: a chain, a target post not published, and the start page as a target. `preSave` and the intake run the same checks.
 - **Astro and the web server.** The dev server answers every rule. A build writes a redirect page for each 3xx rule from a path, in the language of the section its source lies in, else the site's main language, its words the core's catalogues' (`site.redirect.`, [ADR 0066](0066-translate-the-editors-texts-through-catalogues-in-an-interface-language-of-its-own.md)), which only a static host shows, a copy of the post's page for each *show*, and `_redirects`, sorted: `<source> <target> <status>`, or `<source> <status>`, then patterns as `^<pattern> <target> <status>`. The web server answers them before any file, by the address as the browser sent it. **`_redirects` is untrusted:** the host takes only lines it can tell are safe, every character one a Caddyfile gives no meaning, checks the result, and puts a refused file back. No sitemap, list or link holds a rule.
 - **CSV** on the Redirects page: the columns `from`, `to` and `status`, named on the first line in any order, `status` `301` when left out; UTF-8 with or without a BOM; commas or semicolons, whichever the first line uses; at most 50,000 rows. **A preview** before anything changes: each row *added*, *unchanged*, *replaces a rule* or *refused*, with the reason. A row whose source has another rule is refused unless the Admin ticks *Replace*. The import commits to the source repository and asks for one build. **The export** gives the whole list in the same columns, and imports back unchanged.
-- **Erasure** removes the rules that lead to the post and the site's rules from or to any address it had (hosting).
+- **A purge** removes the rules that lead to the post and the site's rules from or to any address it had (hosting).
 
 ## Why
 
 - The live address is what visitors knew, whatever a slug history says.
-- A post's rules in its own file go with an erased post, and since a target is written as the post's current address, nothing chains.
+- A post's rules in its own file go with a purged post, and since a target is written as the post's current address, nothing chains.
 - RE2 runs in linear time and is Caddy's own syntax, so no pattern can be slow online.
 - CSV needs no library, and every spreadsheet saves it.
 
 ## Considered and rejected
 
 - **Old slugs alone.** They miss a post renamed while unpublished, a page moved under another parent and a change of a type's address.
-- **Every rule in one file.** Every rename would change two files, and erasure would rewrite a shared file for every post.
+- **Every rule in one file.** Every rename would change two files, and a purge would rewrite a shared file for every post.
 - **The meta refresh alone online.** It answers with `200`, and only browsers and some crawlers follow it.
 - **Astro's `redirects` in the dev server.** They are read when it starts.
 - **PCRE's syntax.** Patterns could be slow online, and Caddy does not read it.

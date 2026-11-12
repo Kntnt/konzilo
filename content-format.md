@@ -1065,7 +1065,7 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
 
 ### The post IDs
 
-`.post-ids.json`, the *ledger*, says which post each post's file is, by the post's ID, and what the intake remembers of it from one build to the next. Only the intake writes it. Every build does, and the content repository keeps it in every commit, so that a post can be erased from every commit of the history. Its name starts with a dot, so no collection reads it, and a file written by another tool has no entry in it. A feed's `guid` is the one thing the site takes from it, `<origin>/?p=<ID>`, so that a moved post is no new item to a feed reader.
+`.post-ids.json`, the *ledger*, says which post each post's file is, by the post's ID, and what the intake remembers of it from one build to the next. Only the intake writes it. Every build does, and the content repository keeps it in every commit, so that a post can be purged from every commit of the history. Its name starts with a dot, so no collection reads it, and a file written by another tool has no entry in it. A feed's `guid` is the one thing the site takes from it, `<origin>/?p=<ID>`, so that a moved post is no new item to a feed reader.
 
 An ID is text, the name of the post's source file, such as `96ba709ec918`, which never changes. A post's translations share it, so on a site in several languages an entry's key is `<tag>/<ID>`. The file holds, each sorted by its keys:
 
