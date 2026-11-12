@@ -22,7 +22,7 @@
 
 **Colons.** Wherever text holds a colon that would begin a directive, the field's writer and the intake write `\:`: a colon that begins a name and does not follow another colon, unless a colon ends the name (`10\:30`, `\:x`, but `:smile:`), and at a line start the first of two or more colons (`\::x`, `\:::`). Code, inline code and a structured table's HTML take no escape.
 
-**The rendering seam.** The reader renders a registered directive as its plain rendering, by default a `<div>` with `data-directive="<name>"` and a `data-<attribute>` per attribute that has a value, holding its body. A site gives its own component in `konzilo({ directives: { <name>: './src/components/<Component>.astro' } })`. A template renders a body as `<Body><Content /></Body>`, and `Body` puts the site's component, given the attributes as typed props and the body as its slot, in place of each plain rendering.
+**The rendering seam.** The reader renders a registered directive as its plain rendering, by default a `<div>` with `data-directive="<name>"` and a `data-<attribute>` per attribute that has a value, holding its body. A site gives its own component in `konzilo({ directives: { <name>: './src/components/<Component>.astro' } })`. A template renders a body as `<Body><Content /></Body>`, and `Body` puts the site's component, given the attributes as typed props and the body as its slot and as a tree in the prop `content` (ADR 0068), in place of each plain rendering.
 
 ## Why
 
