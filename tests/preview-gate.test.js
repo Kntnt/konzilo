@@ -64,6 +64,8 @@ describe('the preview\'s gate', () => {
   let refreshes;
   let refreshFails;
   let built;
+  // The post an Admin chose as the 404 page, as the runner knows it, or null.
+  let notFoundChosen;
 
   before(async () => {
     forgejo = createServer(async (incoming, outgoing) => {
@@ -107,6 +109,12 @@ describe('the preview\'s gate', () => {
       if (moved || incoming.url.startsWith('/on/')) {
         outgoing.writeHead(moved?.[0] ?? 301, { Location: moved?.[1] ?? `/on/${Number(incoming.url.slice(4)) + 1}` });
         return outgoing.end();
+      }
+      // The 404 page, which the dev server shows wherever nothing else answers, and where a rule
+      // answers 410.
+      if (incoming.url === '/nowhere/' || incoming.url === '/taken-away/') {
+        outgoing.writeHead(incoming.url === '/nowhere/' ? 404 : 410, { 'Content-Type': 'text/html' });
+        return outgoing.end(A_PAGE);
       }
       if (incoming.url === '/missing/' || incoming.url === '/gone/') {
         outgoing.writeHead(incoming.url === '/gone/' ? 410 : 404);
@@ -154,6 +162,7 @@ describe('the preview\'s gate', () => {
           if (refreshFails) throw new Error('the run broke');
         },
         at: (path) => (Object.hasOwn(built, path) ? built[path] : path === '/a-page/' ? A_POST : null),
+        notFoundAt: () => notFoundChosen,
       },
       dev: {
         port: innerPort,
@@ -191,6 +200,7 @@ describe('the preview\'s gate', () => {
     refreshes = 0;
     refreshFails = false;
     built = {};
+    notFoundChosen = null;
   });
 
   const session = (authorization = WRITER, from = ADMIN) => fetch(`${origin}${SESSION_PATH}`, { method: 'POST', headers: { origin: from, authorization } });
@@ -368,6 +378,21 @@ describe('the preview\'s gate', () => {
       const unknown = await visit(`${SIGN_IN_PATH}?code=code-writer&state=never-given`);
       assert.equal(unknown.status, 400);
       await unfinished(unknown, '/');
+    });
+
+    test('takes no state but one of the shape it gives as a sign-in, and derives nothing from another', async () => {
+      const { state, binding } = await (async () => {
+        const away = await visit('/a-page/');
+        return { state: new URL(away.headers.get('location')).searchParams.get('state'), binding: pairOf(away, 'a_preview_sign_in_') };
+      })();
+      for (const given of [`${state.slice(0, 6)}%0d%0aX-Given:%201${state.slice(6)}`, `${state.slice(0, 4)};Domain=example.com;${state.slice(4)}`, `${state.slice(0, 5)}=${state.slice(5)}`, `${state}x`, state.slice(1), `${state.slice(0, -1)}.`]) {
+        const back = await visit(`${SIGN_IN_PATH}?code=code-writer&state=${given}`, binding);
+        assert.equal(back.status, 400, given);
+        assert.deepEqual(back.headers.getSetCookie(), [], given);
+        assert.equal(back.headers.get('x-given'), null, given);
+        await unfinished(back, '/');
+      }
+      assert.deepEqual(exchanged, [], 'no code is exchanged');
     });
 
     test('says so when Forgejo does not answer', async () => {
@@ -596,15 +621,26 @@ describe('the preview\'s gate', () => {
       assert.ok(showsThePage(toolbar.window.document.body.outerHTML), 'and the page');
     });
 
-    test('says a published post is, and when a scheduled post goes live, in UTC, as its form holds the moment', async () => {
+    // The toolbar runs in the reader's browser, so a moment is said in the reader's own time zone,
+    // which it names, as the Submissions page and a refusal say theirs.
+    test('says a published post is, and when a scheduled post goes live, in the reader\'s own time zone, named', async () => {
       const held = await as('code-writer');
       built['/live/'] = { ...A_POST, file: 'articles/sv/aaaaaaaaaaaa.md', status: 'published' };
       built['/ahead/'] = { ...A_POST, status: 'scheduled', at: '2026-12-24T09:00:00Z' };
       const live = await toolbarIn(await visit('/live/', held), '/live/');
       assert.ok(live.says.startsWith(text('sv', 'previewTab.toolbar.published')), live.says);
       assert.equal(live.links[0].href, `${ADMIN}/#/collections/articles/entries/aaaaaaaaaaaa`, 'a translation\'s entry is its ID\'s');
-      const ahead = await toolbarIn(await visit('/ahead/', held), '/ahead/');
-      assert.ok(ahead.says.startsWith(text('sv', 'previewTab.toolbar.scheduled', { moment: '24 december 2026 kl. 09:00 UTC' })), ahead.says);
+      const zone = process.env.TZ;
+      try {
+        for (const [reader, moment] of [['America/New_York', '24 december 2026 kl. 04:00 GMT−5'], ['Europe/Stockholm', '24 december 2026 kl. 10:00 CET']]) {
+          process.env.TZ = reader;
+          const ahead = await toolbarIn(await visit('/ahead/', held), '/ahead/');
+          assert.ok(ahead.says.startsWith(text('sv', 'previewTab.toolbar.scheduled', { moment })), `${reader}: ${ahead.says}`);
+        }
+      } finally {
+        if (zone === undefined) delete process.env.TZ;
+        else process.env.TZ = zone;
+      }
     });
 
     test('leads from a term\'s page to the term, and from a page of many posts or of settings to the editor\'s start, which it says is not edited in one place', async () => {
@@ -616,6 +652,24 @@ describe('the preview\'s gate', () => {
       const many = await toolbarIn(await visit('/', held), '/');
       assert.ok(many.says.startsWith(text('sv', 'previewTab.toolbar.many')), many.says);
       assert.deepEqual(many.links, [{ name: text('sv', 'previewTab.toolbar.editor'), href: `${ADMIN}/` }]);
+    });
+
+    test('leads from the 404 page to the post an Admin chose for it, and else says it is not edited in one place', async () => {
+      const held = await as('code-writer');
+      notFoundChosen = { kind: 'post', file: 'pages/gone.md', title: 'Not here', status: 'published', at: null, refusals: [] };
+      for (const [path, status] of [['/nowhere/', 404], ['/taken-away/', 410]]) {
+        const answer = await visit(path, held);
+        assert.equal(answer.status, status, path);
+        const toolbar = await toolbarIn(answer, path);
+        assert.ok(toolbar.says.startsWith(text('sv', 'previewTab.toolbar.published')), toolbar.says);
+        assert.deepEqual(toolbar.links, [{ name: text('sv', 'previewTab.toolbar.editPost'), href: `${ADMIN}/#/collections/pages/entries/gone` }], path);
+      }
+      const many = await toolbarIn(await visit('/', held), '/');
+      assert.ok(many.says.startsWith(text('sv', 'previewTab.toolbar.many')), 'a page that is no 404 page');
+      notFoundChosen = null;
+      const plain = await toolbarIn(await visit('/nowhere/', held), '/nowhere/');
+      assert.ok(plain.says.startsWith(text('sv', 'previewTab.toolbar.many')), plain.says);
+      assert.deepEqual(plain.links, [{ name: text('sv', 'previewTab.toolbar.editor'), href: `${ADMIN}/` }]);
     });
 
     test('shows a Reviewer, who may not write, what the page is and no link', async () => {

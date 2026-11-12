@@ -98,6 +98,7 @@ const gate = previewGate({
       return runner.refresh();
     },
     at: runner.at,
+    notFoundAt: runner.notFoundAt,
   },
 });
 

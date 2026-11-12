@@ -6,6 +6,8 @@
 // ADR 0067).
 
 import assert from 'node:assert/strict';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 
 import { idOf } from '../src/demo-source.js';
@@ -25,6 +27,11 @@ describe('the live preview', () => {
 
   before(async () => {
     site = await makeSite();
+    // The categories have pages here, as a site may give them, so that a term's page is in the
+    // preview; the demo content stays the site template's.
+    const description = join(site.directory, 'site-description.json');
+    const read = JSON.parse(readFileSync(description, 'utf8'));
+    writeFileSync(description, `${JSON.stringify({ ...read, taxonomies: { ...read.taxonomies, category: { ...read.taxonomies.category, address: '/category/{slug}/' } } }, null, 2)}\n`);
     site.up('--build');
   }, { timeout: 900_000 });
 
@@ -136,7 +143,8 @@ describe('the live preview', () => {
 
     before(async () => {
       browser = await ENGINES.chromium.launch();
-      context = await browser.newContext({ locale: 'en-GB' });
+      // A reader in Stockholm, whose browser says a moment in its own time zone.
+      context = await browser.newContext({ locale: 'en-GB', timezoneId: 'Europe/Stockholm' });
       page = await context.newPage();
       page.on('framenavigated', (frame) => {
         if (frame === page.mainFrame()) went.push(frame.url());
@@ -271,7 +279,7 @@ describe('the live preview', () => {
       assert.deepEqual(refusedOne.links, [['Edit this page', `${forms}/pages/entries/a42d0000000c`]]);
       for (const [path, says, entry] of [
         ['/a-draft-of-the-harbours/', /^Draft/, 'articles/entries/a42d0000000a'],
-        ['/the-harbours-to-come/', /^Scheduled: goes live 1 March 2099 at 08:00 UTC/, 'articles/entries/a42d0000000b'],
+        ['/the-harbours-to-come/', /^Scheduled: goes live 1 March 2099 at 09:00 CET/, 'articles/entries/a42d0000000b'],
         [ARTICLE, /^Published/, `articles/entries/${idOf('articles', 'golden-harbours-and-the-harbour')}`],
       ]) {
         await page.goto(`${site.origin.preview}${path}`);
@@ -624,6 +632,22 @@ describe('the live preview', () => {
         const headline = tab.getByRole('textbox', { name: 'Main headline', exact: true });
         await headline.waitFor({ timeout: 60_000 });
         assert.equal(await headline.inputValue(), ARTICLE_TITLE);
+        assert.equal(session.context.pages().length, 2, 'in the same tab');
+      } finally {
+        await tab.close();
+      }
+    });
+
+    test('leads from a term\'s page in a tab of its own to the term\'s form', async () => {
+      const tab = await session.context.newPage();
+      try {
+        await tab.goto(`${site.origin.preview}/category/meadows/`);
+        await tab.getByRole('heading', { level: 1, name: 'Meadows' }).waitFor({ timeout: 120_000 });
+        await tab.getByRole('region', { name: 'Live preview' }).getByRole('link', { name: 'Edit the term' }).click();
+        await tab.waitForURL(`${site.origin.admin}/#/collections/categories/entries/${idOf('categories', 'meadows')}`);
+        const name = tab.getByRole('textbox', { name: 'Name', exact: true });
+        await name.waitFor({ timeout: 60_000 });
+        assert.equal(await name.inputValue(), 'Meadows');
         assert.equal(session.context.pages().length, 2, 'in the same tab');
       } finally {
         await tab.close();

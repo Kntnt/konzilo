@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
 import { useInterfaceLanguage } from '../src/cms/interface-language.js';
-import { problemsShown, readMail, recipientsOf, recipientsText, saveMail } from '../src/cms/mail/client.js';
+import { failureShown, passwordKeptFor, problemsShown, readMail, recipientsOf, recipientsText, saveMail } from '../src/cms/mail/client.js';
 
 const SETTINGS = {
   local: false,
@@ -60,6 +60,37 @@ describe('the recipients', () => {
     assert.deepEqual(recipientsOf(' anna@example.com,bo@example.com\n\ncecilia@example.com; david@example.com  \n'), ['anna@example.com', 'bo@example.com', 'cecilia@example.com', 'david@example.com']);
     assert.deepEqual(recipientsOf('  \n'), []);
     assert.equal(recipientsText(['anna@example.com', 'bo@example.com']), 'anna@example.com\nbo@example.com');
+  });
+});
+
+describe('the password kept', () => {
+  // The service keeps a password for the server, port and username it was given with alone, so the
+  // page says it is kept only while the fields name those.
+  test('is said to be kept while the server, its port and the username are those it was kept for', () => {
+    const shown = { host: 'smtp.example.com', port: 587, security: 'starttls', username: 'site@example.com', password: true, sender: 'site@example.com' };
+    const draft = { host: 'smtp.example.com', port: '587', security: 'tls', username: 'site@example.com', password: '', sender: 'other@example.com' };
+    assert.equal(passwordKeptFor(draft, shown), true);
+    assert.equal(passwordKeptFor({ ...draft, host: ' smtp.example.com ', port: ' 587' }, shown), true);
+    for (const changed of [{ host: 'mail.example.net' }, { port: '465' }, { username: 'other@example.com' }]) assert.equal(passwordKeptFor({ ...draft, ...changed }, shown), false, JSON.stringify(changed));
+    assert.equal(passwordKeptFor(draft, { ...shown, password: false }), false, 'none kept');
+  });
+});
+
+describe('the last mail that could not be sent', () => {
+  // Named by its kind, each a text of the catalogues, with the server's reply as a value where it
+  // gave one, and nothing else of the server's or of Node's.
+  test('says why in the interface language, with the server\'s reply where it gave one', () => {
+    assert.equal(failureShown({ kind: 'sign-in', reply: '535 5.7.8 Authentication failed' }), 'the mail server refused the username or the password: 535 5.7.8 Authentication failed');
+    assert.equal(failureShown({ kind: 'unreachable', reply: null }), 'the mail server could not be reached');
+    assert.equal(failureShown({ kind: 'what-nobody-knows', reply: null }), failureShown({ kind: 'other', reply: null }), 'a kind the page does not know');
+    const kinds = ['unreachable', 'timeout', 'closed', 'certificate', 'encryption', 'no-starttls', 'no-sign-in', 'unencrypted', 'greeting', 'starttls', 'sign-in', 'sender', 'recipients', 'message', 'other'];
+    assert.equal(new Set(kinds.map((kind) => failureShown({ kind, reply: '550 x' }))).size, kinds.length, 'each kind its own text');
+    try {
+      useInterfaceLanguage('sv');
+      assert.equal(failureShown({ kind: 'recipients', reply: '550 No such mailbox' }), 'e-postservern tog inte emot någon av mottagarna: 550 No such mailbox');
+    } finally {
+      useInterfaceLanguage('en');
+    }
   });
 });
 

@@ -29,3 +29,32 @@ export async function accessTo({ forgejo, repository, credential, get = fetch })
 export async function mayWrite(asked) {
   return (await accessTo(asked)).writes;
 }
+
+// Forgejo lists a page at a time, and this many at most on each.
+const LISTED = 50;
+
+// The teams of `organisation`, as Forgejo shows them to `token`, a credential that may read them
+// (ADR 0008): members(name), the logins of the members of the team `name`, none where it has no
+// such team. Who is in a team Forgejo tells only those in it and the instance administrator, so
+// the token is one of the instance's account that can read the teams and nothing else. The teams,
+// and a team's members, are read page after page, so that none past the first is missed.
+export function organisationTeams({ forgejo, organisation, token, get = fetch }) {
+  const every = async (path) => {
+    const found = [];
+    for (let page = 1; ; page += 1) {
+      const answer = await get(`${forgejo}/api/v1${path}?limit=${LISTED}&page=${page}`, { headers: { authorization: `token ${token}` } });
+      if (!answer.ok) throw new Error(`Forgejo answered ${answer.status} to ${path}`);
+      const listed = await answer.json();
+      found.push(...listed);
+      if (listed.length < LISTED) return found;
+    }
+  };
+  let teams = null;
+  return {
+    async members(name) {
+      teams ??= every(`/orgs/${encodeURIComponent(organisation)}/teams`);
+      const team = (await teams).find((one) => one.name === name);
+      return team ? (await every(`/teams/${team.id}/members`)).map(({ login }) => login) : [];
+    },
+  };
+}

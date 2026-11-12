@@ -8,6 +8,7 @@
 // itself breaks it throws, and nothing is written.
 
 import { isObject } from '../checks.js';
+import { DRAFT, POST_STATUSES, PUBLISHED, SCHEDULED } from '../format/post-status.js';
 import { REDIRECTS_FILE } from '../format/redirects.js';
 import { POST_IDS_FILE } from '../format/write.js';
 import { siteDescription } from '../site-description.js';
@@ -26,7 +27,7 @@ import { fieldValued, named, say } from './words.js';
 
 const MARKUP = /<\/?[a-zA-Z!?][^<>]*>/;
 // A post's own statuses, of which it is a draft where it names none of them.
-const STATUSES = new Set(['draft', 'scheduled', 'published']);
+const STATUSES = new Set(POST_STATUSES);
 
 // `files`: the source files, each { path, contents }. `site`: the site description, as
 // declared or as checked. `now`: a Date or a function that gives one. `ledger`: the
@@ -185,7 +186,7 @@ function stateOf(post, run) {
 
 // Whether a post is on the site's way by its own status and moment.
 function ownStateOf(post, run) {
-  const { status = 'draft' } = post.fields;
+  const { status = DRAFT } = post.fields;
   post.on = false;
   // Nothing a Reviewer changed goes on the site, and nothing they took away leaves it, so this
   // comes first of all.
@@ -211,14 +212,14 @@ function ownStateOf(post, run) {
     refuse(run, post, { reason: say(post.gone ? 'refusal.admin-legal-gone' : 'refusal.admin-legal', { by: taking.by ?? say('about.someone') }) });
     return;
   }
-  if (status === 'draft' || status === null) return;
-  if (status !== 'published' && status !== 'scheduled') {
+  if (status === DRAFT || status === null) return;
+  if (status !== PUBLISHED && status !== SCHEDULED) {
     post.on = true;
     refuse(run, post, { field: 'status', reason: say('refusal.status', { status: String(status) }) });
     return;
   }
   const date = post.fields.date === undefined || post.fields.date === null || post.fields.date === '' ? undefined : momentOf(post.fields.date);
-  if (status === 'scheduled' && !date) {
+  if (status === SCHEDULED && !date) {
     post.on = true;
     refuse(run, post, { field: date === null ? 'date' : 'status', reason: date === null ? say('refusal.field-moment', { field: fieldValued(post.type, 'date'), value: String(post.fields.date) }) : say('refusal.scheduled-date') });
     return;
@@ -226,13 +227,13 @@ function ownStateOf(post, run) {
   // A scheduled post seen waiting for its moment is remembered with it, so that it goes
   // live at it with nothing to say. One whose moment had passed when it was first read
   // goes live at once, with that moment as its date, and says so (ADR 0069).
-  if (status === 'scheduled' && (new Date(date) > run.now || run.ledger.awaited[post.key] === date)) post.awaited = date;
+  if (status === SCHEDULED && (new Date(date) > run.now || run.ledger.awaited[post.key] === date)) post.awaited = date;
   if (date && new Date(date) > run.now) {
     post.waiting = date;
     return;
   }
   post.on = true;
-  if (status === 'scheduled' && !post.awaited) post.passed = date;
+  if (status === SCHEDULED && !post.awaited) post.passed = date;
   if (run.several && post.language === null) {
     refuse(run, post, { reason: say('refusal.language-folder', { folder: post.tag ?? say('about.collection-folder') }) });
     post.keepsNothing = true;
@@ -403,11 +404,13 @@ function assemble(run) {
       type: post.type.name,
       title: post.title ?? post.id,
       state: run.refused.has(post.key) ? 'refused' : post.written ? 'live' : post.waiting ? 'waiting' : 'off',
-      status: STATUSES.has(post.fields.status) ? post.fields.status : 'draft',
+      status: STATUSES.has(post.fields.status) ? post.fields.status : DRAFT,
       at: post.waiting ?? null,
       address: updated.posts[post.key]?.address ?? null,
       shown: Boolean(updated.posts[post.key]?.path),
       ...(run.refused.has(post.key) ? { wanted: addressWanted(post, run) } : {}),
+      // The post the 404 page is written from, by its content file, in its language.
+      ...(post.written?.notFound ? { notFound: post.written.path } : {}),
     })),
     termPages: [...(run.termPages ?? [])].map(([key, address]) => ({ file: run.terms.get(key).file, title: run.terms.get(key).label, address })),
     next,

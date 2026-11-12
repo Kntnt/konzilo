@@ -6,7 +6,7 @@
 import { signedInCredential } from '../credential.js';
 import { say } from '../interface-language.js';
 import { momentShown } from '../submissions/client.js';
-import { problemsShown, readMail, recipientsOf, recipientsText, saveMail } from './client.js';
+import { failureShown, passwordKeptFor, problemsShown, readMail, recipientsOf, recipientsText, saveMail } from './client.js';
 
 const TEXT = { font: '14px/1.4 system-ui, sans-serif', overflowWrap: 'anywhere' };
 const LINE = { ...TEXT, margin: '4px 0 12px', maxWidth: '60em' };
@@ -139,7 +139,7 @@ export function mailPage({ credential = signedInCredential } = {}) {
     return page(
       h('p', { style: LINE }, say('mail.intro')),
       settings.local ? h('p', { style: LINE }, say('mail.local')) : null,
-      settings.failure ? h('p', { role: 'alert', style: { ...LINE, ...PROBLEM } }, say('mail.failure', { at: momentShown(settings.failure.at), reason: settings.failure.reason })) : null,
+      settings.failure ? h('p', { role: 'alert', style: { ...LINE, ...PROBLEM } }, say('mail.failure', { at: momentShown(settings.failure.at), reason: failureShown(settings.failure) })) : null,
       h('form', { onSubmit: save, noValidate: true },
         h(Choices, {
           name: 'konzilo-mail-adapter',
@@ -149,7 +149,7 @@ export function mailPage({ credential = signedInCredential } = {}) {
           options: [['none', say('mail.off')], ['smtp', say('mail.smtp')]],
           onChange: (adapter) => setDraft({ ...draft, adapter }),
         }),
-        draft.adapter === 'smtp' ? h(Smtp, { smtp: draft.smtp, kept: settings.smtp.password, problems, onChange: (smtp) => setDraft({ ...draft, smtp }) }) : null,
+        draft.adapter === 'smtp' ? h(Smtp, { smtp: draft.smtp, kept: passwordKeptFor(draft.smtp, settings.smtp), problems, onChange: (smtp) => setDraft({ ...draft, smtp }) }) : null,
         h(Forms, { forms: settings.forms, draft: draft.forms, problems: problems.forms ?? {}, retentionProblems: problems.retention ?? {}, onChange: (forms) => setDraft({ ...draft, forms }) }),
         h('button', { type: 'submit', disabled: said === 'mail.saving' }, say('mail.save')),
         said ? h('p', { role: said === 'mail.saving' || said === 'mail.saved' ? 'status' : 'alert', style: LINE }, say(said)) : null));

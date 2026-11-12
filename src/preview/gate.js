@@ -15,7 +15,7 @@ import { connect } from 'node:net';
 
 import { DRAFT_PATH, HEALTH_PATH, SESSION_PATH, SIGN_IN_PATH, WHERE_PATH } from '../cms/preview/paths.js';
 import { accessTo, CREDENTIAL } from '../forgejo.js';
-import { forgejoSignIn, SIGN_IN_LASTS } from './sign-in.js';
+import { forgejoSignIn, SIGN_IN_LASTS, STATE } from './sign-in.js';
 import { refusalIn, TAB_PAGES, tabPage } from './tab-page.js';
 import { toolbarOf, toolbarScript, withToolbar } from './toolbar.js';
 
@@ -34,6 +34,8 @@ const FAILURE_TOLD = 60 * 1000;
 // A draft with its unsaved images, each at most what an original may be, in base64.
 const MOST_BYTES = 64 * 1024 * 1024;
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
+// What the dev server answers the 404 page with, wherever nothing else answers or a rule says so.
+const NOT_FOUND = new Set([404, 410]);
 // As many steps of a redirect as are followed, about what a visitor's browser would take.
 const MOST_STEPS = 10;
 const DROPPED = new Set(['x-frame-options', 'content-security-policy', 'content-security-policy-report-only', 'reporting-endpoints', 'strict-transport-security', 'cache-control', 'x-robots-tag', 'set-cookie', 'connection', 'keep-alive', 'transfer-encoding']);
@@ -74,8 +76,11 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
   const secure = new URL(origin).protocol === 'https:';
   const cookie = secure ? '__Host-konzilo-preview' : cookieName;
   // A browser's own sign-in, one cookie for each, so that tabs that sign in at once keep theirs; a
-  // `__Host-` name would have to be for every path.
+  // `__Host-` name would have to be for every path. `state` is one the gate gave (STATE).
   const signInCookie = (state) => `${secure ? '__Secure-konzilo-preview-sign-in' : `${cookieName}_sign_in`}_${state.slice(0, 12)}`;
+  // A cookie for this host alone, which no page's script reads and no other site's page sends, at
+  // `path`, for `lasts` milliseconds, and ended where that is none.
+  const cookieOf = (name, value, { path = '/', lasts }) => [`${name}=${value}`, `Path=${path}`, 'HttpOnly', 'SameSite=Lax', `Max-Age=${lasts / 1000}`, ...(secure ? ['Secure'] : [])].join('; ');
   const signIn = clientId && forgejoOrigin ? forgejoSignIn({ forgejo, forgejoOrigin, clientId, redirectUri: `${origin}${SIGN_IN_PATH}`, now }) : null;
   const sessions = new Map();
   // When the dev server last failed to start, while a page waiting for it may tell of it.
@@ -139,8 +144,7 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
   // To Forgejo's sign-in, to come back to the page asked for.
   const toSignIn = (incoming, outgoing) => {
     const { location, state } = signIn.start(pathOn(new URL(incoming.url, origin)));
-    const binding = [`${signInCookie(state)}=${state}`, `Path=${SIGN_IN_PATH}`, 'HttpOnly', 'SameSite=Lax', `Max-Age=${SIGN_IN_LASTS / 1000}`, ...(secure ? ['Secure'] : [])];
-    outgoing.writeHead(303, { ...own, Location: location, 'Set-Cookie': binding.join('; ') });
+    outgoing.writeHead(303, { ...own, Location: location, 'Set-Cookie': cookieOf(signInCookie(state), state, { path: SIGN_IN_PATH, lasts: SIGN_IN_LASTS }) });
     outgoing.end();
   };
 
@@ -166,14 +170,14 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
     const secret = randomBytes(32).toString('base64url');
     sessions.set(digest(secret), { checked: now(), writes });
     start();
-    return [`${cookie}=${secret}`, 'Path=/', 'HttpOnly', 'SameSite=Lax', `Max-Age=${SESSION_LIFE / 1000}`, ...(secure ? ['Secure'] : [])].join('; ');
+    return cookieOf(cookie, secret, { lasts: SESSION_LIFE });
   };
 
   // No session, for someone who may no longer see the preview.
   const ended = (incoming) => {
     const held = sessionIn(incoming);
     if (held) sessions.delete(held.key);
-    return [`${cookie}=`, 'Path=/', 'HttpOnly', 'SameSite=Lax', 'Max-Age=0', ...(secure ? ['Secure'] : [])].join('; ');
+    return cookieOf(cookie, '', { lasts: 0 });
   };
 
   const openSession = async (incoming, outgoing) => {
@@ -193,13 +197,15 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
 
   // A browser back from Forgejo's sign-in: to the page it set out for, with a session, where its
   // person may see the preview, which whoever may read the source may. Whatever Forgejo gave is
-  // used for that question alone.
+  // used for that question alone. A state of another shape than the gate gives is no sign-in it
+  // began, and nothing is made of it, not even the name of a cookie to end.
   const backFromSignIn = async (incoming, outgoing) => {
     const query = new URL(incoming.url, origin).searchParams;
     const state = query.get('state') ?? '';
+    if (!STATE.test(state)) return page(outgoing, 400, TAB_PAGES.signInFailed, { again: '/' });
     const name = signInCookie(state);
-    const used = [`${name}=`, `Path=${SIGN_IN_PATH}`, 'HttpOnly', 'SameSite=Lax', 'Max-Age=0', ...(secure ? ['Secure'] : [])].join('; ');
-    const { path, credential, unanswered } = await signIn.finish({ state, code: query.get('code'), bound: state !== '' && cookieIn(incoming, name) === state });
+    const used = cookieOf(name, '', { path: SIGN_IN_PATH, lasts: 0 });
+    const { path, credential, unanswered } = await signIn.finish({ state, code: query.get('code'), bound: cookieIn(incoming, name) === state });
     const again = path ?? '/';
     if (!credential) return page(outgoing, unanswered ? 502 : 400, unanswered ? TAB_PAGES.forgejoDown : TAB_PAGES.signInFailed, { again, headers: { 'Set-Cookie': used } });
     let access;
@@ -253,9 +259,10 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
   // runs again that could try the same thing.
   const keptFromFollowing = (incoming, from) => incoming.headers['sec-fetch-dest'] === 'iframe' && REDIRECTS.has(from.statusCode);
 
-  // The dev server's answer, with the toolbar `toolbar` in it where it is a page and one is given.
-  const pass = (incoming, outgoing, toolbar = null) => {
-    const forward = request({ host: '127.0.0.1', port: dev.port, path: incoming.url, method: incoming.method, headers: forwarded(incoming, toolbar !== null) }, async (from) => {
+  // The dev server's answer, with the toolbar `toolbarFor(status)` gives for its status in it, where
+  // it is a page and one is given.
+  const pass = (incoming, outgoing, toolbarFor = null) => {
+    const forward = request({ host: '127.0.0.1', port: dev.port, path: incoming.url, method: incoming.method, headers: forwarded(incoming, toolbarFor !== null) }, async (from) => {
       if (keptFromFollowing(incoming, from)) {
         from.resume();
         outgoing.writeHead(204, own);
@@ -263,7 +270,7 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
       }
       const kept = Object.fromEntries(Object.entries(from.headers).filter(([name]) => !DROPPED.has(name)));
       if (kept.location?.startsWith(`http://127.0.0.1:${dev.port}`)) kept.location = kept.location.slice(`http://127.0.0.1:${dev.port}`.length) || '/';
-      if (toolbar === null || !takesToolbar(from)) {
+      if (toolbarFor === null || !takesToolbar(from)) {
         outgoing.writeHead(from.statusCode, { ...kept, ...own });
         return from.pipe(outgoing);
       }
@@ -273,7 +280,7 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
       } catch {
         return outgoing.destroy();
       }
-      const shown = Buffer.from(withToolbar(Buffer.concat(parts).toString('utf8'), toolbar), 'utf8');
+      const shown = Buffer.from(withToolbar(Buffer.concat(parts).toString('utf8'), toolbarFor(from.statusCode)), 'utf8');
       const rest = Object.fromEntries(Object.entries(kept).filter(([name]) => !OF_THE_PAGE.has(name)));
       outgoing.writeHead(from.statusCode, { ...rest, ...own, 'Content-Length': String(shown.length) });
       return outgoing.end(shown);
@@ -368,15 +375,17 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
       if (incoming.method !== 'GET' && incoming.method !== 'HEAD' && !sends) return answer(outgoing, 405, { message: 'A preview only shows pages.' }, { Allow: 'GET, HEAD' });
       if (isPage(incoming) && !dev.ready()) return starting(incoming, outgoing);
       const about = isPage(incoming) ? await builtFrom(pathname) : null;
-      const toolbar = isPage(incoming) ? toolbarOf({ about, writes: held.writes, language, adminOrigin }) : null;
-      if (about?.refusals.length > 0) return page(outgoing, 200, TAB_PAGES.postRefused, { values: { title: about.title }, items: about.refusals.map((one) => refusalIn(language, one)), toolbar });
+      // The toolbar of the page the dev server answers with `status`: what it is built from, and
+      // the 404 page's, the post an Admin chose for it, where nothing else answers.
+      const toolbarFor = isPage(incoming) ? (status) => toolbarOf({ about: about ?? (NOT_FOUND.has(status) ? runner.notFoundAt(pathname) : null), writes: held.writes, language, adminOrigin }) : null;
+      if (about?.refusals.length > 0) return page(outgoing, 200, TAB_PAGES.postRefused, { values: { title: about.title }, items: about.refusals.map((one) => refusalIn(language, one)), toolbar: toolbarFor(200) });
       try {
         await dev.ensure();
       } catch (error) {
         warn(`The preview did not start: ${error.message}`);
         return answer(outgoing, 503, { message: 'The preview did not start.' });
       }
-      return pass(incoming, outgoing, toolbar);
+      return pass(incoming, outgoing, toolbarFor);
     },
 
     // A dev server's reloads come through a WebSocket, behind the same session.

@@ -8,6 +8,7 @@ import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
 import { pageLanguage } from '../astro/languages.js';
 import { languageTag } from '../site-description.js';
+import { isEmailAddress } from './email-address.js';
 
 export const FORMS_PATH = '/_konzilo/forms';
 
@@ -79,11 +80,7 @@ const pageOf = (given) => {
   return /^\/(?![/\\])[\x21-\x5b\x5d-\x7e]*$/.test(page) && page.length <= 2048 ? page : '/';
 };
 
-// An email address as the browser checks one, with a dot in its domain, as every address mail
-// reaches has, and a phone number as the page's script checks one (src/astro/forms.js). The
-// script lets an address with no dot in its domain through, as the browser does, and names
-// it beside its field when the service refuses it.
-const EMAIL = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+// A phone number as the page's script checks one (src/astro/forms.js).
 const TEL = /^\+?[0-9 ().\/-]*[0-9][0-9 ().\/-]*$/;
 
 // A field's value as a submission's fields give it: a text, its lines ended alike; a box ticked
@@ -120,7 +117,7 @@ function checked(field, fields) {
   if (text === '') return field.required ? { problem: 'missing' } : { value: text };
   if (CHOICES.includes(field.kind)) return field.options.includes(text) ? { value: text } : { problem: 'not-an-option' };
   if ([...text].length > field.maxLength) return { problem: 'too-long' };
-  if (field.kind === 'email' && !(EMAIL.test(text) && text.split('@')[1].includes('.'))) return { problem: 'not-email' };
+  if (field.kind === 'email' && !isEmailAddress(text)) return { problem: 'not-email' };
   if (field.kind === 'tel' && !TEL.test(text)) return { problem: 'not-tel' };
   return { value: text };
 }

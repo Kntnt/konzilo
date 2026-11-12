@@ -17,6 +17,15 @@ const account = { username: 'site@example.com', password: 'a secret' };
 const message = ['From: site@example.com', 'To: anna@example.com', 'Subject: Hello', '', 'One line.', '.A line that starts with a dot.', ''].join('\r\n');
 const envelope = { from: 'site@example.com', to: ['anna@example.com'], data: message };
 
+// A send that fails, as the *Mail* page names why: by its kind, with the server's reply, its code
+// and its text, where it gave one, and nothing else of the server's or of Node's; the service's
+// log has its words, in English.
+const failsWith = (sending, kind, reply = null, words = /./) => assert.rejects(sending, (error) => {
+  assert.deepEqual({ kind: error.kind, reply: error.reply }, { kind, reply });
+  assert.match(error.message, words);
+  return true;
+});
+
 describe('sending by SMTP', () => {
   let server;
   afterEach(() => server?.close());
@@ -34,7 +43,7 @@ describe('sending by SMTP', () => {
   test('speaks TLS from the first byte, and signs in by LOGIN where the server offers no PLAIN', async () => {
     server = await smtpServer({ tls: certificate, implicit: true, account, answer: (line) => (/^AUTH PLAIN/i.test(line) ? '504 Not that one' : null) });
     // The test's server offers both, and refuses PLAIN, as one offering LOGIN alone would be met.
-    await assert.rejects(sendBySmtp({ host: 'localhost', port: server.port, security: 'tls', ...account }, envelope, { tls: trusted }), /localhost answered 504 Not that one to signing in/);
+    await failsWith(sendBySmtp({ host: 'localhost', port: server.port, security: 'tls', ...account }, envelope, { tls: trusted }), 'sign-in', '504 Not that one', /localhost answered 504 Not that one to signing in/);
     await server.close();
 
     server = await smtpServer({ tls: certificate, implicit: true, account, answer: (line) => (/^EHLO/i.test(line) ? '250-localhost\r\n250 AUTH LOGIN' : null) });
@@ -45,25 +54,34 @@ describe('sending by SMTP', () => {
 
   test('never goes on unencrypted where STARTTLS was asked for and the server offers none, nor with a certificate it cannot trust', async () => {
     server = await smtpServer({ tls: certificate, starttls: false, account });
-    await assert.rejects(sendBySmtp({ host: 'localhost', port: server.port, security: 'starttls', ...account }, envelope, { tls: trusted }), /localhost offers no STARTTLS/);
+    await failsWith(sendBySmtp({ host: 'localhost', port: server.port, security: 'starttls', ...account }, envelope, { tls: trusted }), 'no-starttls', null, /localhost offers no STARTTLS/);
     assert.deepEqual(server.commands.map((line) => line.split(' ')[0]), ['EHLO']);
     await server.close();
 
     server = await smtpServer({ tls: certificate, account });
-    await assert.rejects(sendBySmtp({ host: 'localhost', port: server.port, security: 'starttls', ...account }, envelope), /self-signed|self signed/i);
+    await failsWith(sendBySmtp({ host: 'localhost', port: server.port, security: 'starttls', ...account }, envelope), 'certificate', null, /self-signed|self signed/i);
     assert.ok(!server.commands.some((line) => /^AUTH|^MAIL/.test(line)), 'neither signed in nor sent');
     assert.deepEqual(server.received, []);
   });
 
   test('sends a password only on an encrypted connection, and nothing where the server refuses it', async () => {
     server = await smtpServer({ account });
-    await assert.rejects(sendBySmtp({ host: '127.0.0.1', port: server.port, security: 'none', ...account }, envelope), /a password is sent only on an encrypted connection/);
+    await failsWith(sendBySmtp({ host: '127.0.0.1', port: server.port, security: 'none', ...account }, envelope), 'unencrypted', null, /a password is sent only on an encrypted connection/);
     assert.ok(!server.commands.some((line) => /^AUTH/.test(line)));
     await server.close();
 
     server = await smtpServer({ tls: certificate, account });
-    await assert.rejects(sendBySmtp({ host: 'localhost', port: server.port, security: 'starttls', username: account.username, password: 'wrong' }, envelope, { tls: trusted }), /localhost answered 535 Wrong to signing in/);
+    await failsWith(sendBySmtp({ host: 'localhost', port: server.port, security: 'starttls', username: account.username, password: 'wrong' }, envelope, { tls: trusted }), 'sign-in', '535 Wrong', /localhost answered 535 Wrong to signing in/);
     assert.deepEqual(server.received, []);
+  });
+
+  test('says that the connection could not be encrypted where TLS meets a server that does not speak it, and what a server answers to STARTTLS', async () => {
+    server = await smtpServer({});
+    await failsWith(sendBySmtp({ host: '127.0.0.1', port: server.port, security: 'tls' }, envelope, { timeout: 2000 }), 'encryption');
+    await server.close();
+
+    server = await smtpServer({ tls: certificate, answer: (line) => (/^STARTTLS/.test(line) ? '454 TLS not available now' : null) });
+    await failsWith(sendBySmtp({ host: 'localhost', port: server.port, security: 'starttls' }, envelope, { tls: trusted }), 'starttls', '454 TLS not available now');
   });
 
   test('sends to a relay unencrypted with no account, and to the recipients the server takes, naming those it refuses', async () => {
@@ -75,28 +93,36 @@ describe('sending by SMTP', () => {
 
   test('says why where the server takes the message for no one, or does not answer, or is not there', async () => {
     server = await smtpServer({ refuse: ['gone@example.com'] });
-    await assert.rejects(sendBySmtp({ host: '127.0.0.1', port: server.port, security: 'none' }, { ...envelope, to: ['gone@example.com'] }), /127\.0\.0\.1 answered 550 No such mailbox to every recipient/);
+    await failsWith(sendBySmtp({ host: '127.0.0.1', port: server.port, security: 'none' }, { ...envelope, to: ['gone@example.com'] }), 'recipients', '550 No such mailbox', /127\.0\.0\.1 answered 550 No such mailbox to every recipient/);
     assert.deepEqual(server.received, []);
     await server.close();
 
     server = await smtpServer({ answer: (line) => (/^MAIL/.test(line) ? '421 Busy, try later' : null) });
-    await assert.rejects(sendBySmtp({ host: '127.0.0.1', port: server.port, security: 'none' }, envelope), /127\.0\.0\.1 answered 421 Busy, try later to the sender/);
+    await failsWith(sendBySmtp({ host: '127.0.0.1', port: server.port, security: 'none' }, envelope), 'sender', '421 Busy, try later', /127\.0\.0\.1 answered 421 Busy, try later to the sender/);
     await server.close();
 
     server = await smtpServer({ answer: (line) => (/^DATA/.test(line) ? false : null) });
-    await assert.rejects(sendBySmtp({ host: '127.0.0.1', port: server.port, security: 'none' }, envelope, { timeout: 200 }), /did not answer in time/);
+    await failsWith(sendBySmtp({ host: '127.0.0.1', port: server.port, security: 'none' }, envelope, { timeout: 200 }), 'timeout', null, /did not answer in time/);
+    await server.close();
+
+    server = await smtpServer({ answer: (line) => (/^DATA/.test(line) ? '554 Not this message' : null) });
+    await failsWith(sendBySmtp({ host: '127.0.0.1', port: server.port, security: 'none' }, envelope), 'message', '554 Not this message');
+    await server.close();
+
+    server = await smtpServer({ answer: (line) => (/^EHLO/.test(line) ? '554 Not from you' : null) });
+    await failsWith(sendBySmtp({ host: '127.0.0.1', port: server.port, security: 'none' }, envelope), 'greeting', '554 Not from you');
     const { port } = server;
     await server.close();
     server = null;
-    await assert.rejects(sendBySmtp({ host: '127.0.0.1', port, security: 'none' }, envelope), /ECONNREFUSED/);
+    await failsWith(sendBySmtp({ host: '127.0.0.1', port, security: 'none' }, envelope), 'unreachable', null, /ECONNREFUSED/);
 
     // One that takes the connection and never greets, as a port that leads nowhere would.
     const sockets = [];
     const silent = createServer((socket) => sockets.push(socket));
     await new Promise((go) => silent.listen(0, '127.0.0.1', go));
     try {
-      await assert.rejects(sendBySmtp({ host: '127.0.0.1', port: silent.address().port, security: 'tls' }, envelope, { timeout: 200 }), /did not answer in time/);
-      await assert.rejects(sendBySmtp({ host: '127.0.0.1', port: silent.address().port, security: 'none' }, envelope, { timeout: 200 }), /did not answer in time/);
+      await failsWith(sendBySmtp({ host: '127.0.0.1', port: silent.address().port, security: 'tls' }, envelope, { timeout: 200 }), 'timeout', null, /did not answer in time/);
+      await failsWith(sendBySmtp({ host: '127.0.0.1', port: silent.address().port, security: 'none' }, envelope, { timeout: 200 }), 'timeout', null, /did not answer in time/);
     } finally {
       for (const socket of sockets) socket.destroy();
       await new Promise((go) => silent.close(go));

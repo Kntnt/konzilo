@@ -20,8 +20,8 @@ const forms = {
   note: { name: 'note', label: 'A note', fields: [] },
 };
 
-// Who each credential is, to Forgejo: an Admin in the team `admins`, an Editor, the one who runs
-// the instance, and a reader of the repository who may not write.
+// Who each credential is, to Forgejo: an Admin in the team `admins`, an Editor, the instance
+// administrator, and a reader of the repository who may not write.
 const PEOPLE = {
   'token anna': { login: 'anna', is_admin: false, push: true },
   'token erik': { login: 'erik', is_admin: false, push: true },
@@ -40,17 +40,30 @@ describe('the mail settings, for Admins', () => {
   let origin;
   let asked;
 
+  // Forgejo lists a page at a time, as many as `limit` asks for, 50 at most. `crowded`: an
+  // organisation with more teams than one page holds, its team of Admins on the second, and more
+  // Admins than one page holds, Anna the last.
+  let crowded = false;
+  const TEAMS = [{ id: 8, name: 'editors' }, { id: 7, name: 'admins' }];
+  const CROWDED_TEAMS = [...Array.from({ length: 50 }, (_, at) => ({ id: 100 + at, name: `team-${at}` })), ...TEAMS];
+  const ADMINS = [{ login: 'anna' }];
+  const CROWDED_ADMINS = [...Array.from({ length: 50 }, (_, at) => ({ login: `admin-${at}` })), ...ADMINS];
+  const paged = (all, searchParams) => {
+    const limit = Math.min(Number(searchParams.get('limit') ?? 30), 50);
+    const page = Number(searchParams.get('page') ?? 1);
+    return all.slice((page - 1) * limit, page * limit);
+  };
   const answerOf = (body, status = 200) => ({ ok: status < 400, status, json: async () => body });
   const forgejo = async (url, { headers }) => {
-    const { pathname } = new URL(url);
+    const { pathname, searchParams } = new URL(url);
     asked.push({ path: pathname, authorization: headers.authorization });
     const person = PEOPLE[headers.authorization];
     if (pathname === '/api/v1/user') return person ? answerOf(person) : answerOf({}, 401);
     if (pathname === '/api/v1/repos/org/source') return person ? answerOf({ permissions: { push: person.push } }) : answerOf({}, 401);
     if (headers.authorization !== ROLES) return answerOf({}, 404);
-    if (pathname === '/api/v1/orgs/org/teams') return answerOf([{ id: 8, name: 'editors' }, { id: 7, name: 'admins' }]);
-    if (pathname === '/api/v1/teams/7/members/anna') return answerOf({ login: 'anna' });
-    if (/^\/api\/v1\/teams\/\d+\/members\//.test(pathname)) return answerOf({}, 404);
+    if (pathname === '/api/v1/orgs/org/teams') return answerOf(paged(crowded ? CROWDED_TEAMS : TEAMS, searchParams));
+    if (pathname === '/api/v1/teams/7/members') return answerOf(paged(crowded ? CROWDED_ADMINS : ADMINS, searchParams));
+    if (pathname === '/api/v1/teams/8/members') return answerOf(paged([{ login: 'erik' }], searchParams));
     throw new Error(`nothing to say of ${pathname}`);
   };
 
@@ -87,6 +100,7 @@ describe('the mail settings, for Admins', () => {
     rmSync(join(folder, 'service.sqlite'), { force: true });
     store = openStore(join(folder, 'service.sqlite'));
     asked = [];
+    crowded = false;
     await serving();
   });
   afterEach(async () => {
@@ -116,10 +130,16 @@ describe('the mail settings, for Admins', () => {
       assert.equal((await save({ adapter: 'smtp', smtp: SMTP, forms: {} }, headers)).status, 401);
     }
     assert.equal(store.setting('mail'), null, 'nothing kept');
-    assert.equal((await read({ authorization: 'token instance' })).status, 200, 'the one who runs the instance');
+    assert.equal((await read({ authorization: 'token instance' })).status, 200, 'the instance administrator, who is no Admin');
     const teams = asked.filter(({ path }) => path.includes('/teams'));
     assert.ok(teams.length > 0);
     assert.ok(teams.every(({ authorization }) => authorization === ROLES), 'by the service\'s credential alone');
+  });
+
+  test('finds an Admin in an organisation of more teams than a page of Forgejo\'s lists, and among more Admins than one holds', async () => {
+    crowded = true;
+    assert.equal((await read()).status, 200);
+    assert.equal((await read({ authorization: 'token erik' })).status, 403);
   });
 
   test('keeps what an Admin saves, the adapter, its settings and each form\'s recipients and retention, and never gives the password back', async () => {
@@ -162,6 +182,29 @@ describe('the mail settings, for Admins', () => {
     const { status } = await save({ adapter: 'none', smtp: { ...SMTP, host: '', sender: 'not yet' }, forms: {} });
     assert.equal(status, 200);
     assert.deepEqual(store.setting('mail'), { adapter: 'none', smtp: { ...SMTP, host: '', sender: 'not yet' } });
+  });
+
+  // The password kept is for the server and the account it was given for: carried to another, it
+  // would sign in there, and so hand the password to whoever runs it.
+  test('asks for the password again where the server, its port or the username changes, and never sends the one kept elsewhere', async () => {
+    await save({ adapter: 'smtp', smtp: SMTP, forms: {} });
+    for (const changed of [{ host: 'mail.example.net' }, { port: 2525 }, { username: 'other@example.com' }]) {
+      const { status, body } = await save({ adapter: 'smtp', smtp: { ...SMTP, ...changed, password: '' }, forms: {} });
+      assert.deepEqual([status, body], [400, { problems: { 'smtp.password': 'missing' } }], JSON.stringify(changed));
+      assert.deepEqual(store.setting('mail').smtp, SMTP, 'the settings kept stay as they were');
+    }
+    // Given again, it is kept for the new server.
+    assert.equal((await save({ adapter: 'smtp', smtp: { ...SMTP, host: 'mail.example.net', password: 'for the new one' }, forms: {} })).status, 200);
+    assert.equal(store.setting('mail').smtp.password, 'for the new one');
+    // The same server, its encryption changed, keeps it.
+    assert.equal((await save({ adapter: 'smtp', smtp: { ...SMTP, host: 'mail.example.net', port: 587, security: 'starttls', password: '' }, forms: {} })).status, 200);
+    assert.equal(store.setting('mail').smtp.password, 'for the new one');
+    // Turned off, a server changed keeps no password of the one before, for when it is turned on.
+    assert.equal((await save({ adapter: 'none', smtp: { ...SMTP, host: 'smtp.example.org', password: '' }, forms: {} })).status, 200);
+    assert.equal(store.setting('mail').smtp.password, '');
+    assert.equal((await read()).body.smtp.password, false);
+    // A username with no password, and none kept, is no account to sign in with.
+    assert.deepEqual((await save({ adapter: 'smtp', smtp: { ...SMTP, host: 'smtp.example.org', password: '' }, forms: {} })).body, { problems: { 'smtp.password': 'missing' } });
   });
 
   test('refuses settings it could not send by, naming each problem by its place, and keeps nothing', async () => {
@@ -209,13 +252,13 @@ describe('the mail settings, for Admins', () => {
     assert.equal(store.setting('mail'), null);
   });
 
-  test('says that a local copy writes each mail to its log, and shows the last mail that could not be sent, and why', async () => {
+  test('says that a local copy writes each mail to its log, and shows the last mail that could not be sent, and why, by its kind and the server\'s reply', async () => {
     await stop();
     await serving({ local: true });
-    store.setSetting('mail-failure', { at: '2026-11-12T09:00:00.000Z', reason: 'smtp.example.com answered 535 Wrong to signing in' });
+    store.setSetting('mail-failure', { at: '2026-11-12T09:00:00.000Z', kind: 'sign-in', reply: '535 Wrong' });
     const { body } = await read();
     assert.equal(body.local, true);
-    assert.deepEqual(body.failure, { at: '2026-11-12T09:00:00.000Z', reason: 'smtp.example.com answered 535 Wrong to signing in' });
+    assert.deepEqual(body.failure, { at: '2026-11-12T09:00:00.000Z', kind: 'sign-in', reply: '535 Wrong' });
   });
 
   test('tries at once, after a save, a mail that waits to be tried again', async () => {

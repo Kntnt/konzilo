@@ -172,6 +172,34 @@ describe('the runs', () => {
     assert.equal(preview.at('/'), null);
   });
 
+  // The 404 page is built from the one post an Admin chose for it, which the toolbar leads to.
+  test('knows the 404 page by the post an Admin chose for it, whatever its status, in each language, and none where none is chosen', async () => {
+    files['pages/gone.md'] = sourcePost({ title: 'Not here', slug: 'gone', status: 'draft' }, 'Words.');
+    files['settings.json'] = JSON.stringify({ notFound: { page: 'gone' } });
+    const preview = runner();
+    await preview.refresh();
+    const chosen = { kind: 'post', file: 'pages/gone.md', title: 'Not here', status: 'draft', at: null, refusals: [] };
+    assert.deepEqual(preview.notFoundAt('/pages/nowhere/'), chosen);
+    assert.deepEqual(preview.notFoundAt('/'), chosen);
+    delete files['settings.json'];
+    const none = runner();
+    await none.refresh();
+    assert.equal(none.notFoundAt('/pages/nowhere/'), null);
+
+    const translated = makeFolder();
+    content = translated;
+    files = {
+      'pages/sv-SE/gone.md': sourcePost({ title: 'Inte här', slug: 'borta', status: 'published' }, 'Ord.'),
+      'pages/en-GB/gone.md': sourcePost({ title: 'Not here', slug: 'gone', status: 'draft' }, 'Words.'),
+      'settings.json': JSON.stringify({ notFound: { page: 'gone' } }),
+    };
+    const inTwo = runner(several);
+    await inTwo.refresh();
+    assert.equal(inTwo.notFoundAt('/sv/nowhere/')?.file, 'pages/sv-SE/gone.md');
+    assert.equal(inTwo.notFoundAt('/nowhere/')?.file, 'pages/sv-SE/gone.md', 'below no prefix, the main language\'s');
+    assert.equal(inTwo.notFoundAt('/en/nowhere/')?.file, 'pages/en-GB/gone.md');
+  });
+
   test('brings a save in at the next refresh, and reads the source again only once it or a draft has changed', async () => {
     let head = 1;
     let reads = 0;

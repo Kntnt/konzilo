@@ -55,10 +55,11 @@ for (const name of files.filter((one) => one !== `${SOURCE_LANGUAGE}.json`)) {
 
 // The editor's own code in the browser, the body field's, the image field's, the structure
 // field's, the preview's, the publish status's, the Submissions page's, the Mail page's, the
-// article parts' fields', the authors field's and the field groups', names each text whole, as
-// `say('body.loading')`, so that a name it asks for and the source can be held side by side: a
-// name the source lacks would throw in the editor, and a text no code names is dead.
-const EDITOR_AREAS = ['body', 'image', 'structure', 'preview', 'publishing', 'submissions', 'mail', 'parts', 'authors', 'groups'];
+// Personal data page's, the article parts' fields', the authors field's and the field groups',
+// names each text whole, as `say('body.loading')`, so that a name it asks for and the source can
+// be held side by side: a name the source lacks would throw in the editor, and a text no code
+// names is dead.
+const EDITOR_AREAS = ['body', 'image', 'structure', 'preview', 'publishing', 'submissions', 'mail', 'personalData', 'parts', 'authors', 'groups'];
 const editorCode = fileURLToPath(new URL('../src/cms/', import.meta.url));
 const namedInCode = () => {
   const name = new RegExp(String.raw`(['"\`])((?:${EDITOR_AREAS.join('|')})\.[a-zA-Z0-9.-]+)\1`, 'g');
@@ -87,6 +88,19 @@ test('every text the preview\'s own pages name is in the source, and every text 
   assert.ok(named.size > 0);
   assert.deepEqual([...named].filter((key) => !Object.hasOwn(source, key)), [], 'names the source does not have');
   assert.deepEqual(Object.keys(source).filter((key) => key.startsWith('previewTab.') && !named.has(key)), [], 'texts no code names');
+});
+
+// The mail a form's submission is sent in, which the service writes in the page's language, names
+// its texts whole in the service's code, as the editor's code does.
+test('every text of a submission\'s mail is named in the service\'s code, and every name it asks for is in the source', () => {
+  const serviceCode = fileURLToPath(new URL('../src/service/', import.meta.url));
+  const named = new Set();
+  for (const file of readdirSync(serviceCode).filter((one) => one.endsWith('.js'))) {
+    for (const [, found] of readFileSync(`${serviceCode}${file}`, 'utf8').matchAll(/['"`](notification\.[a-zA-Z0-9.-]+)['"`]/g)) named.add(found);
+  }
+  assert.ok(named.size > 0);
+  assert.deepEqual([...named].filter((key) => !Object.hasOwn(source, key)), [], 'names the source does not have');
+  assert.deepEqual(Object.keys(source).filter((key) => key.startsWith('notification.') && !named.has(key)), [], 'texts no code names');
 });
 
 test('the source is written in British English, not American', () => {

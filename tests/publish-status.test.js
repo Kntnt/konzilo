@@ -182,6 +182,28 @@ describe('who pushed what', () => {
       assert.deepEqual(JSON.parse(readFileSync(none.reviewers, 'utf8')), []);
     });
 
+    test('reads every page of the organisation\'s teams and of each team\'s members, as Forgejo lists them a page at a time', async () => {
+      const paged = (all, url) => {
+        const { searchParams } = new URL(url);
+        const limit = Math.min(Number(searchParams.get('limit') ?? 30), 50);
+        const page = Number(searchParams.get('page') ?? 1);
+        return all.slice((page - 1) * limit, page * limit);
+      };
+      const teams = [...Array.from({ length: 50 }, (_, at) => ({ id: 100 + at, name: `team-${at}` })), { id: 7, name: 'admins' }, { id: 9, name: 'reviewers' }];
+      const admins = [...Array.from({ length: 60 }, (_, at) => ({ login: `admin-${at}` })), { login: 'anna' }];
+      const get = async (url) => {
+        const respond = (body) => ({ ok: true, json: async () => body });
+        if (url.includes('/orgs/')) return respond(paged(teams, url));
+        if (url.includes('/teams/7/members')) return respond(paged(admins, url));
+        if (url.includes('/teams/9/members')) return respond(paged([{ login: 'rut' }], url));
+        if (url.includes('/activities/feeds')) return respond([]);
+        throw new Error(`nothing to say of ${url}`);
+      };
+      const files = await read(join(folder, 'crowded'), { get });
+      assert.deepEqual(JSON.parse(readFileSync(files.admins, 'utf8')), ['konzilo', ...admins.map(({ login }) => login)]);
+      assert.deepEqual(JSON.parse(readFileSync(files.reviewers, 'utf8')), ['rut']);
+    });
+
     test('waits a moment for a new commit, which Forgejo writes down just after the push', async () => {
       const where = join(folder, 'waits');
       mkdirSync(where);

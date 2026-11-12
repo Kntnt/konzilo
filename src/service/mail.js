@@ -6,12 +6,14 @@
 
 import { catalogueFor, labelIn, text } from '../catalogues.js';
 import { valueText } from '../submission-values.js';
+import { isEmailAddress } from './email-address.js';
 
 // The adapters an Admin chooses among, `none` the one there is until an Admin chooses another.
 export const ADAPTERS = Object.freeze(['none', 'smtp']);
 
 // The service's settings these are kept under (store.js): the adapter with its settings, and the
-// last mail that could not be sent, with why, which the *Mail* page shows.
+// last mail that could not be sent, { at, kind, reply }, why by its kind and the server's reply
+// where it gave one (smtp.js), which the *Mail* page names in the interface language.
 export const MAIL_SETTING = 'mail';
 export const FAILURE_SETTING = 'mail-failure';
 
@@ -24,10 +26,6 @@ const FIRST_WAIT = 60_000;
 const LONGEST_WAIT = 60 * 60_000;
 const GIVEN_UP_AFTER = 24 * 60 * 60_000;
 
-// An email address as the forms' kind takes one (forms.js), which a header may hold as it is.
-const ADDRESS = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
-export const isAddress = (value) => typeof value === 'string' && value.length <= 254 && ADDRESS.test(value);
-
 // The mail of a submission, in its page's language: { from, to, replyTo, subject, language, date,
 // text }. `form`: the form as the site declares it, or null for one it no longer does. `sender`:
 // the address an Admin names. `recipients`: the form's. It answers to the address the visitor gave
@@ -38,7 +36,7 @@ export function submissionMail({ submission, form, sender, recipients }) {
   const label = String(labelIn(form?.label ?? submission.form, submission.language));
   const box = { yes: say('submissions.yes'), no: say('submissions.no') };
   const emails = new Set((form?.fields ?? []).filter(({ kind }) => kind === 'email').map(({ name }) => name));
-  const replyTo = submission.fields.find(({ name, value }) => emails.has(name) && isAddress(value))?.value ?? null;
+  const replyTo = submission.fields.find(({ name, value }) => emails.has(name) && isEmailAddress(value))?.value ?? null;
   const fields = submission.fields.map(({ label: named, value }) => `${named}\n${valueText(value, box)}\n`);
   return {
     from: sender,
@@ -51,9 +49,18 @@ export function submissionMail({ submission, form, sender, recipients }) {
   };
 }
 
+// Why a mail could not be sent, as it is kept for the *Mail* page: its kind, and the server's reply,
+// where the adapter gave them, else `other`; never the words of the error, which the log has.
+const failureOf = (error, at) => ({
+  at: at.toISOString(),
+  kind: typeof error?.kind === 'string' ? error.kind : 'other',
+  reply: typeof error?.reply === 'string' ? error.reply : null,
+});
+
 // The duty. `store`: as store.js opens it. `forms()`: the forms the site description in use
 // declares. `deliver(settings, mail)`: hands a mail to the adapter `settings` name, and gives
-// { refused }, the recipients it was not given to, or throws, saying why it was given to none.
+// { refused }, the recipients it was not given to, or throws, saying why it was given to none, by
+// a `kind` and a `reply` where it can (smtp.js).
 //
 // Gives { run() }, which mails each submission whose mail is due, one after another.
 export function mailDuty({ store, forms, deliver, now = () => new Date(), warn = console.error }) {
@@ -81,7 +88,7 @@ export function mailDuty({ store, forms, deliver, now = () => new Date(), warn =
           if (refused.length > 0) warn(`The mail server took the mail of submission ${id} of ${form}, but not for ${refused.join(', ')}`);
         } catch (error) {
           const at = now();
-          store.setSetting(FAILURE_SETTING, { at: at.toISOString(), reason: error.message });
+          store.setSetting(FAILURE_SETTING, failureOf(error, at));
           if (at.getTime() - new Date(sentAt).getTime() >= GIVEN_UP_AFTER) {
             store.mailDone(id, 'failed');
             warn(`The service gave up mailing submission ${id} of ${form}, a day after it was sent: ${error.message}`);

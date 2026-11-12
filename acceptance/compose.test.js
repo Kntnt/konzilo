@@ -1540,6 +1540,17 @@ describe('a site in Compose', () => {
       for (const address of ['/_headers', '/_redirects', '/_markdown', '/web-rules.caddy', '/../web-rules.caddy']) assert.equal((await get(`${site.origin.site}${address}`)).status, 404, address);
     });
 
+    // A feed is a file in the folder of its address, which the web server answers at the address,
+    // with and without its last slash, as RSS (ADR 0048).
+    test('answers each feed the site declares at its address, with and without its last slash, as RSS', async () => {
+      for (const address of ['/feed/', '/feed', '/category/meadows/feed/', '/category/meadows/feed']) {
+        const answer = await get(`${site.origin.site}${address}`, { redirect: 'manual' });
+        assert.equal(answer.status, 200, address);
+        assert.equal(answer.headers.get('content-type'), 'application/rss+xml; charset=utf-8', address);
+        assert.match(await answer.text(), /^<\?xml[^>]*\?>\s*<rss /, address);
+      }
+    });
+
     // Search (ADR 0053): what is published, through the web server's route to Typesense, which
     // every build indexes and writes the route to. What a search answers, once it answers so.
     const searched = async (query, { within = 60_000, until = () => true } = {}) => {

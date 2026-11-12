@@ -47,8 +47,7 @@ describe('a person\'s submissions, for Admins', () => {
     if (pathname === '/api/v1/repos/org/source') return person ? answerOf({ permissions: { push: person.push } }) : answerOf({}, 401);
     if (headers.authorization !== ROLES) return answerOf({}, 404);
     if (pathname === '/api/v1/orgs/org/teams') return answerOf([{ id: 7, name: 'admins' }]);
-    if (pathname === '/api/v1/teams/7/members/anna') return answerOf({ login: 'anna' });
-    if (/^\/api\/v1\/teams\/\d+\/members\//.test(pathname)) return answerOf({}, 404);
+    if (pathname === '/api/v1/teams/7/members') return answerOf([{ login: 'anna' }]);
     throw new Error(`nothing to say of ${pathname}`);
   };
 

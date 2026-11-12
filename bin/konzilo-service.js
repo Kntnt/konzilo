@@ -60,8 +60,8 @@ function editors(store) {
   const described = liveDescription(DESCRIPTION);
 
   const token = readFileSync('/secret/read-token', 'utf8').trim();
-  // The seed makes it at each start where it is missing; without it, no one is an Admin here but
-  // the one who runs the instance.
+  // The seed makes it at each start where it is missing; without it, no one is an Admin here, and
+  // only the instance administrator uses the Admin's pages.
   const ROLES_TOKEN = '/secret/roles-token';
   const rolesToken = existsSync(ROLES_TOKEN) ? readFileSync(ROLES_TOKEN, 'utf8').trim() : null;
   if (rolesToken === null) console.error(`The service has no ${ROLES_TOKEN}, so it cannot tell who is an Admin`);

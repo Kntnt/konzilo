@@ -4,7 +4,8 @@
 // password, the other where visitors' messages go, and the last how long they are kept. What the
 // page is shown, and what it may save.
 
-import { ADAPTERS, FAILURE_SETTING, isAddress, MAIL_OFF, MAIL_SETTING } from './mail.js';
+import { isEmailAddress } from './email-address.js';
+import { ADAPTERS, FAILURE_SETTING, MAIL_OFF, MAIL_SETTING } from './mail.js';
 import { RETENTION_DAYS, RETENTION_LEAST, RETENTION_MOST } from './retention.js';
 import { SECURITIES } from './smtp.js';
 
@@ -29,7 +30,8 @@ const wholeOf = (value) => {
 // What the page is shown: the adapter and its settings, the password by whether there is one;
 // each form the site declares, by its name and label, with its recipients and the days its
 // submissions are kept; whether this is a local copy, which writes each mail to its log and sends
-// none; and the last mail that could not be sent, and why, or null.
+// none; and the last mail that could not be sent, { at, kind, reply }, why by its kind and the
+// server's reply where it gave one (mail.js), or null.
 export function mailSettingsShown({ store, forms, local }) {
   const mail = store.setting(MAIL_SETTING) ?? MAIL_OFF;
   const smtp = { ...SMTP_UNSET, ...mail.smtp };
@@ -43,8 +45,14 @@ export function mailSettingsShown({ store, forms, local }) {
   };
 }
 
+// Whether the password kept, `kept`'s, is for the account `smtp` signs in with: the same server,
+// at the same port, and the same username. Carried to another, it would sign in there, and so
+// hand the password to whoever runs it.
+const sameAccount = (smtp, kept) => kept !== null && smtp.host === kept.host && (smtp.port ?? SMTP_UNSET.port) === kept.port && smtp.username === kept.username;
+
 // The SMTP settings as given, each text trimmed, and the password kept where none is given but a
-// username is: { smtp, problems }, the problems by the setting's name, where mail goes by SMTP.
+// username is, for the same account alone: { smtp, problems }, the problems by the setting's
+// name, where mail goes by SMTP, a username's missing password among them.
 function smtpOf(given, kept, checked) {
   const smtp = {
     host: textOf(given.host),
@@ -55,7 +63,7 @@ function smtpOf(given, kept, checked) {
     sender: textOf(given.sender),
   };
   if (smtp.username === '') smtp.password = '';
-  else if (smtp.password === '') smtp.password = kept?.password ?? '';
+  else if (smtp.password === '' && sameAccount(smtp, kept)) smtp.password = kept.password;
   const problems = {};
   for (const [name, value] of Object.entries(smtp)) {
     if (typeof value === 'string' && (value.length > TEXT_AT_MOST || /[\0-\x1f\x7f]/.test(value))) problems[name] = 'malformed';
@@ -67,8 +75,9 @@ function smtpOf(given, kept, checked) {
     if (given.port === undefined || given.port === null || given.port === '') problems.port = 'missing';
     else if (smtp.port === null || smtp.port < 1 || smtp.port > 65535) problems.port = 'not-port';
     if (smtp.username !== '' && smtp.security === 'none') problems.username ??= 'needs-encryption';
+    else if (smtp.username !== '' && smtp.password === '') problems.password = 'missing';
     if (smtp.sender === '') problems.sender = 'missing';
-    else if (!isAddress(smtp.sender)) problems.sender ??= 'not-email';
+    else if (!isEmailAddress(smtp.sender)) problems.sender ??= 'not-email';
   }
   return { smtp: { ...smtp, port: smtp.port ?? SMTP_UNSET.port }, problems };
 }
@@ -102,7 +111,7 @@ export function checkMailSettings(given, { store, forms }) {
     const addresses = [...new Set(list.map((one) => one.trim()))].filter((one) => one !== '');
     if (addresses.length > RECIPIENTS_AT_MOST) problems[`forms.${name}.recipients`] = 'too-many';
     list.forEach((one, at) => {
-      if (one.trim() !== '' && !isAddress(one.trim())) problems[`forms.${name}.recipients.${at}`] = 'not-email';
+      if (one.trim() !== '' && !isEmailAddress(one.trim())) problems[`forms.${name}.recipients.${at}`] = 'not-email';
     });
     const retention = form.retention === undefined ? formsKept[name]?.retention ?? null : wholeOf(form.retention);
     if (form.retention !== undefined && (retention === null || retention < RETENTION_LEAST || retention > RETENTION_MOST)) problems[`forms.${name}.retention`] = 'not-days';
