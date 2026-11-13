@@ -10,6 +10,13 @@ export const gitEnvironment = ({ user, token, home }) => ({
   GIT_CONFIG_VALUE_0: `Authorization: Basic ${Buffer.from(`${user}:${token}`).toString('base64')}`,
 });
 
+// The body of an answer of Forgejo's API, { status, body }, whose status is one of `expected`;
+// else throws, saying `what` was asked, with the status and the body Forgejo answered.
+export function must(what, { status, body }, ...expected) {
+  if (!expected.includes(status)) throw new Error(`${what}: ${status} ${JSON.stringify(body)}`);
+  return body;
+}
+
 // What a browser may send as a credential, and nothing else is passed on to Forgejo.
 export const CREDENTIAL = /^(?:token|Bearer) [\w.~+/=-]+$/;
 

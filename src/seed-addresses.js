@@ -4,10 +4,7 @@
 // through `call(method, path, body)`, which answers { status, body } from Forgejo's API as the
 // instance's account, and changes nothing that is already so.
 
-const must = (what, { status, body }, ...expected) => {
-  if (!expected.includes(status)) throw new Error(`${what}: ${status} ${JSON.stringify(body)}`);
-  return body;
-};
+import { must } from './forgejo.js';
 
 // An OAuth client of the instance's account, public, with PKCE only, whose one address is
 // `address`: the one whose client ID is `id` where one is given, else the one named `name`, made

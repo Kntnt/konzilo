@@ -21,6 +21,7 @@ import { arrangement } from '../../src/arrangement.js';
 import { SIGN_IN_PATH } from '../../src/cms/preview/paths.js';
 import { demoContentOf } from '../../src/demo-content.js';
 import { demoSource, GIT_ATTRIBUTES } from '../../src/demo-source.js';
+import { must } from '../../src/forgejo.js';
 import { ACCOUNT_NAME, keyFileOf, passwordFilesOf, peopleOf, seat } from '../../src/people.js';
 import { keepClient, keepHook } from '../../src/seed-addresses.js';
 import { readSiteDescriptionWithoutTakenComponents } from '../../src/site-description.js';
@@ -148,11 +149,6 @@ const request = async (path, body, authorization, otp) => {
   });
   const text = await answer.text();
   return { status: answer.status, body: text && answer.headers.get('content-type')?.includes('json') ? JSON.parse(text) : text };
-};
-
-const must = (what, { status, body }, ...expected) => {
-  if (!expected.includes(status)) throw new Error(`${what}: ${status} ${JSON.stringify(body)}`);
-  return body;
 };
 
 async function pushDemoContent(token) {

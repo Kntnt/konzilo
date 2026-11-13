@@ -24,6 +24,9 @@ export function text(value, path, problems) {
   return value;
 }
 
+// What reads as HTML in a title or a plain text, which the intake refuses there.
+export const MARKUP = /<\/?[a-zA-Z!?][^<>]*>/;
+
 // Whether `url` is an address a link of a site's own may lead to, a menu's entry's or one in a
 // form field's label: a path of the site's, from its root, or an address that starts with
 // https://, http://, mailto: or tel:, and no white space in it.

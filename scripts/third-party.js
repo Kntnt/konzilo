@@ -11,10 +11,9 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-const root = new URL('../', import.meta.url);
+import { byText } from './notices.js';
 
-// By code units, since a sort by the machine's language would differ between machines.
-const byText = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+const root = new URL('../', import.meta.url);
 
 // A package's name is what follows the last `node_modules/` of its path in the lock.
 // One that is installed at two places in the same version has one line.

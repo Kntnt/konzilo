@@ -17,14 +17,11 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { buildEditor } from './build-editor.js';
-import { isLicenseFile, licenseOf } from './notices.js';
+import { byText, isLicenseFile, licenseOf } from './notices.js';
 import { matchesIntegrity } from './wasm-reader.js';
 
 const store = fileURLToPath(new URL('../src/cms/notice-texts.json', import.meta.url));
 const REGISTRY = 'https://registry.npmjs.org';
-
-// By code units, since a sort by the machine's language would differ between machines.
-const byText = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
 const get = async (address) => {
   const answer = await fetch(address);
