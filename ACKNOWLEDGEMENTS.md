@@ -49,7 +49,7 @@ Konzilo's own files are under Konzilo's license ([`LICENSE`](LICENSE), with [`SI
 | File | From | License |
 |---|---|---|
 | [`src/format/public-suffixes.json`](src/format/public-suffixes.json) | The rules of the [Public Suffix List](https://publicsuffix.org), `publicsuffix/list` on GitHub, at the commit the file names, in another shape | MPL-2.0, whose text is at <https://mozilla.org/MPL/2.0/> |
-| [`src/cms/notice-texts.json`](src/cms/notice-texts.json) | The license texts of the packages the editor's application holds that no installed package carries, each from the package's tarball, its repository or SPDX's list of licenses, as the file says of each | Each text's own license |
+| [`src/cms/notice-texts.json`](src/cms/notice-texts.json) | The license texts of the packages the editor's application holds that no installed package carries, each from the package's tarball, its repository or the SPDX License List at the release `versions.env` pins, as the file says of each | Each text's own license |
 | [`compose/forgejo/templates/user/auth/grant.tmpl`](compose/forgejo/templates/user/auth/grant.tmpl) | Forgejo's template at the same path, changed | Forgejo's: GPL-3.0-or-later, with the parts that came from Gitea under MIT |
 
 ## How the licenses fit

@@ -2,7 +2,7 @@
 // declares, typed and in the order declared, with its body in the exact form. Derived
 // fields stay derived: nothing in source sets `modified`, `oldAddresses` or a master.
 
-import { isObject } from '../checks.js';
+import { isObject, MARKUP } from '../checks.js';
 import { checkBody, readBody } from '../format/body.js';
 import { canonicalAddress } from '../format/addresses.js';
 import { embedOf } from '../format/embeds.js';
@@ -13,9 +13,6 @@ import rules from '../format/rules.json' with { type: 'json' };
 import { declaredNames, postListModel, SCHEMA_TYPES, SEO_KEYS, SEO_PARTS, siteRules, TEXT_FIELDS } from '../site-description.js';
 import { sha256 } from './source.js';
 import { fieldValued, notOffered, say } from './words.js';
-
-// A title or a plain text holding what reads as HTML.
-const MARKUP = /<\/?[a-zA-Z!?][^<>]*>/;
 
 // A slug: its own, or made from the title, in lowercase letters, digits, hyphens and
 // underscores; anything else given is refused.

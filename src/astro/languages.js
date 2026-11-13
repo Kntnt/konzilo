@@ -112,6 +112,20 @@ export function isStartEntry(id) {
   return id === START_ENTRY;
 }
 
+// The page an Admin chose as the start page (ADR 0033), as { entry, type }, or null where none
+// is chosen, as on a site in several languages, which chooses none: the entry START_ENTRY of the
+// collection of a type with an address of `site`, the site description as checked.
+// `getCollection`: Astro's, from astro:content, or what answers as it does.
+export async function chosenStartPage(site, getCollection) {
+  if ((site.languages ?? []).length > 1) return null;
+  for (const type of Object.values(site.types)) {
+    if (type?.address == null) continue;
+    const entry = (await getCollection(type.collection)).find((one) => isStartEntry(one.id));
+    if (entry) return { entry, type };
+  }
+  return null;
+}
+
 // The address of a language's start page, a path from the site's root: its
 // prefix on a site in several languages, and the root on any other.
 export function startAddress(language, languages) {

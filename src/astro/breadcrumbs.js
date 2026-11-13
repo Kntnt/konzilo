@@ -27,9 +27,12 @@ export async function breadcrumbs(entry, url, { title, texts = {} } = {}) {
   const { pathname } = url;
   const path = base !== '' && pathname.startsWith(base) ? pathname.slice(base.length) || '/' : pathname;
   const read = import.meta.env.DEV ? new Map() : built;
-  const getEntry = async (collection, id) => (await entriesOf(collection, read)).get(id);
+  const entries = {
+    getEntry: async (collection, id) => (await entriesOf(collection, read)).get(id),
+    getCollection: async (collection) => [...(await entriesOf(collection, read)).values()],
+  };
   const site = describedSite();
-  const levels = await breadcrumbLevels({ entry, path, title }, { site, texts: breadcrumbTexts(publicSite(url).locale, texts), getEntry });
+  const levels = await breadcrumbLevels({ entry, path, title }, { site, texts: breadcrumbTexts(publicSite(url).locale, texts), ...entries });
   // Whether the page itself ends its breadcrumbs is its type's setting, off by default: the
   // level stays, marked hidden, for the structured data and for a design that counts on it.
   const type = entry === null ? null : Object.values(site.types).find((one) => one?.collection === entry.collection) ?? null;

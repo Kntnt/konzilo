@@ -10,21 +10,18 @@
 //
 //   notice-texts    write src/cms/notice-texts.json for what the editor's build bundles
 
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { buildEditor } from './build-editor.js';
-import { isLicenseFile, licenseOf } from './notices.js';
+import { byText, isLicenseFile, licenseOf } from './notices.js';
 import { matchesIntegrity } from './wasm-reader.js';
 
 const store = fileURLToPath(new URL('../src/cms/notice-texts.json', import.meta.url));
 const REGISTRY = 'https://registry.npmjs.org';
-
-// By code units, since a sort by the machine's language would differ between machines.
-const byText = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
 const get = async (address) => {
   const answer = await fetch(address);
@@ -74,9 +71,10 @@ async function fromRepository({ name, version, repository, gitHead }) {
 }
 
 // A package that ships no license text anywhere, and names one license, gets that license's
-// standard text from SPDX's list, at a fixed release, with a note that says so and names the
-// author its manifest gives, since such a text holds no copyright line of its own.
-const SPDX = 'https://raw.githubusercontent.com/spdx/license-list-data/v3.29.0/text';
+// standard text from SPDX's list, at the release versions.env pins, with a note that says so and
+// names the author its manifest gives, since such a text holds no copyright line of its own.
+const SPDX_RELEASE = execFileSync('sh', [fileURLToPath(new URL('versions', import.meta.url)), 'SPDX_LICENSE_LIST'], { encoding: 'utf8' }).trim();
+const SPDX = `https://raw.githubusercontent.com/spdx/license-list-data/${SPDX_RELEASE}/text`;
 
 async function fromSpdx(license, { author }) {
   if (!/^[A-Za-z0-9.+-]+$/.test(license)) return null;

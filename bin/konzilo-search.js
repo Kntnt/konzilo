@@ -29,6 +29,7 @@
 
 import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
+import { exitOnceWritten } from '../src/exit-once-written.js';
 import { ensureSearchKey, indexSearch, searchDocuments, searchParameters } from '../src/search.js';
 import { readSiteDescription, SITE_DESCRIPTION_FILE } from '../src/site-description.js';
 
@@ -76,12 +77,12 @@ const { documents, schema } = searchDocuments({ site, content: options.content }
 
 if (command === 'documents') {
   process.stdout.write(`${JSON.stringify({ schema, parameters: searchParameters(site), documents })}\n`);
-  process.exit(0);
+  await exitOnceWritten(0);
 }
 
 if (site.search === null) {
   process.stdout.write('konzilo-search: the site has no search, so there is nothing to index\n');
-  process.exit(0);
+  await exitOnceWritten(0);
 }
 
 // A key file holds the key alone, maybe with a final newline.

@@ -40,7 +40,7 @@ import { PATTERNS, patternMatcher } from '../format/patterns.js';
 import {
   feedHolding, feedReason, fileRuleProblem, inOrder, isSource, keyOf, location, matcher, OTHER_ANSWERS, REDIRECT_STATUSES, REDIRECTS_FILE, reservedBy, SHOW,
 } from '../format/redirects.js';
-import { startFile } from '../format/start-page.js';
+import { startPageFiles } from '../format/start-page.js';
 import { textsOf } from '../catalogues.js';
 import { languageTag, OLD_ADDRESSES, OTHER_ADDRESSES, readSiteDescription, SITE_DESCRIPTION_FILE } from '../site-description.js';
 import { contentFolder } from './collections.js';
@@ -74,10 +74,9 @@ export function siteRules(root, { pages = new Set() } = {}) {
         posts.push({ address, ...addressesIn(join(folder, name)) });
       }
     }
-    // The start page an Admin chose, on a site in one language, at the root.
-    const start = join(content, startFile(type));
-    if (!several && existsSync(start)) posts.push({ address: ROOT, ...addressesIn(start) });
   }
+  // The start page an Admin chose, on a site in one language, at the root.
+  for (const { file } of several ? [] : startPageFiles(content, { types })) posts.push({ address: ROOT, ...addressesIn(join(content, file)) });
   // Each language's start page is a page of the site's design.
   const starts = several ? languages.map((language) => keyOf(startAddress(language, languages))) : [];
   const shown = new Set(posts.map(({ address }) => keyOf(address)));

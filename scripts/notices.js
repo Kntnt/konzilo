@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 const MODULES = `node_modules${sep}`;
 
 // By code units, since a sort by the machine's language would differ between machines.
-const byText = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+export const byText = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 const byPackage = (a, b) => byText(a.name, b.name) || byText(a.version ?? '', b.version ?? '');
 
 // A file that holds a license or a notice, by its name: `LICENSE`, `LICENSE.md`, `LICENCE-MIT`,

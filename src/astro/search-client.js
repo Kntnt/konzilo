@@ -89,12 +89,13 @@ export async function searchClient(window, { fetch = (...args) => window.fetch(.
   const fill = (text, values) => text.replace(/\{(\w+)\}/g, (whole, name) => (Object.hasOwn(values, name) ? String(values[name]) : whole));
   // What it searched within: each taxonomy's terms by their names, joined by
   // or, the taxonomies by and, in the page's language.
-  const lists = (type) => new Intl.ListFormat(root.dataset.languageTag || undefined, { type });
-  const within = lists('conjunction').format(chosen.map(([taxonomy, slugs]) => fill(texts.within, {
-    terms: lists('disjunction').format(slugs.map((slug) => (Object.hasOwn(taxonomies[taxonomy], slug) ? taxonomies[taxonomy][slug] : slug))),
+  const listFormat = (joined) => new Intl.ListFormat(root.dataset.languageTag || undefined, { type: joined });
+  const within = listFormat('conjunction').format(chosen.map(([taxonomy, slugs]) => fill(texts.within, {
+    terms: listFormat('disjunction').format(slugs.map((slug) => (Object.hasOwn(taxonomies[taxonomy], slug) ? taxonomies[taxonomy][slug] : slug))),
   })));
-  const said = chosen.length === 0 ? [texts.result, texts.results] : query === '' ? [texts.resultIn, texts.resultsIn] : [texts.resultWithin, texts.resultsWithin];
-  status.textContent = fill(count === 1 ? said[0] : said[1], { count, query, within })
+  // The status's text for one result and for several: with words, within terms, or both.
+  const [oneResult, results] = chosen.length === 0 ? [texts.result, texts.results] : query === '' ? [texts.resultIn, texts.resultsIn] : [texts.resultWithin, texts.resultsWithin];
+  status.textContent = fill(count === 1 ? oneResult : results, { count, query, within })
     + (last > 1 ? fill(texts.page, { page, pages: last }) : '');
 
   const dates = new Intl.DateTimeFormat(root.dataset.languageTag || undefined, { dateStyle: 'long', timeZone: 'UTC' });

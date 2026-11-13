@@ -18,7 +18,7 @@
 - **Old addresses give way:** a post that goes live at one takes it, and the rule goes.
 - **A rule that leads to a post** belongs to it, and answers only while the post is published.
 - **Reserved addresses.** One list, in the rule data: `/`, everything below `/_konzilo/` and `/_astro/`, and the files the core writes, `/_redirects` first; `{n}` stands for a whole number from 1. Each feature that writes a file adds its address.
-- **The start page an Admin chose** ([ADR 0033](0033-keep-menus-settings-and-the-sites-identity-in-files-an-admin-edits.md)) is a post at `/`, its own address, at level 2, the one post the reserved `/` is open to; no other post, other address or rule may take it, as before. A list with pages of its own on it holds every address below `/page/`.
+- **The start page an Admin chose** ([ADR 0033](0033-keep-menus-settings-and-the-sites-identity-in-files-an-admin-edits.md)) is a post at `/`, its own address, at level 2, the one post the reserved `/` is open to; no other post, other address or rule may take it. A list with pages of its own on it holds every address below `/page/`.
 - **Patterns** never apply below `/_konzilo/`.
 
 ## Why

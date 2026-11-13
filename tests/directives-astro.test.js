@@ -128,6 +128,18 @@ describe('Astro', () => {
     assert.match(built.article('hello-world'), /<mark class="package-badge">New<\/mark>/);
   });
 
+  // A template may place Body with no slot, or with a post whose body is empty.
+  test('renders an empty body where Body\'s slot renders nothing, or where it has none', () => {
+    const built = build({
+      'content/articles/hello-world.md': post(body),
+      'content/articles/empty.md': '---\ntitle: "Empty"\n---\n',
+      'src/pages/bare.astro': `---\nimport Body from ${JSON.stringify(join(core.root, 'src/astro/Body.astro'))};\n---\n<article><Body /></article>\n`,
+    }, { badge: './src/components/Badge.astro', note: './src/components/Note.astro' });
+    assert.equal(built.status, 0, built.output);
+    assert.equal(built.article('empty').trim(), '');
+    assert.equal(built.article('bare').trim(), '');
+  });
+
   test('renders every directive as its plain rendering when the site gives no component', () => {
     const built = build({ 'content/articles/hello-world.md': post(body) });
     assert.equal(built.status, 0, built.output);

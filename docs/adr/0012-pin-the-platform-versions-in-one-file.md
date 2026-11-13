@@ -1,11 +1,11 @@
 # ADR 0012: Pin the platform versions in one file
 
-**Date:** 2026-11-03 · **Status:** Accepted as a technical choice; Thomas may veto. Forgejo pulled from `data.forgejo.org` (2026-11-12), a technical choice Thomas may veto.
+**Date:** 2026-11-03, amended 2026-11-12 and 2026-11-13 · **Status:** Accepted as a technical choice; Thomas may veto. Forgejo pulled from `data.forgejo.org` (2026-11-12), and SPDX's license list pinned by its release beside the rest (2026-11-13), technical choices Thomas may veto.
 
 ## Decision
 
 - **`versions.env` at the repository root is the one source of the core's pinned versions,** read only through `scripts/versions` (POSIX `sh` and `awk`), and never sourced. The reader refuses anything but `KEY=value` with a plain version, and checks the whole file before it prints.
-- **It holds:** Node, Astro, Forgejo, Caddy, Typesense, Sveltia, Milkdown and the Public Suffix List's commit, images by digest. A file that must hold a pinned version of its own gets it from the reader when it is built, or is checked against it in CI.
+- **It holds:** Node, Astro, Forgejo, Caddy, Typesense, Sveltia, Milkdown, the Public Suffix List's commit and the release of SPDX's license list whose standard texts the editor's notices keep ([ADR 0072](0072-write-the-notices-of-what-the-editors-application-holds-from-the-bundlers-record.md)), images by digest. A file that must hold a pinned version of its own gets it from the reader when it is built, or is checked against it in CI.
 - **An image pulled by Compose names its registry,** and a comment beside its digest in `versions.env` says which registry and tag the digest is read from, so that a raise reads it from the same place. Forgejo's is `data.forgejo.org`, Forgejo's own, which serves the image `codeberg.org` does by the same digest.
 - **What npm reads only in `package.json` and its lock is pinned there,** Sätteri, sharp and the rest.
 - **Every download is checked** against a checksum kept in the repository, recorded when its version was pinned. A test fails when a pin is raised without one.

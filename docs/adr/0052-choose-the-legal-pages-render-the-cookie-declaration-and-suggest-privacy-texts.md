@@ -1,6 +1,6 @@
 # ADR 0052: Choose the legal pages, render the cookie declaration, and suggest privacy texts
 
-**Date:** 2026-11-02, amended 2026-11-12 · **Status:** Accepted. Settled by Thomas: suggested privacy texts (2026-10-29), now on a page in the editing tool (2026-11-02). The rest is a technical choice; Thomas may veto, among it, on 2026-11-12, that an embed service's facts list only what its provider's own documents name, so that a service whose documents name nothing has a placeholder that says only who receives data about the visit.
+**Date:** 2026-11-02, amended 2026-11-10 and 2026-11-12 · **Status:** Accepted. Settled by Thomas: suggested privacy texts (2026-10-29), now on a page in the editing tool (2026-11-02). The rest is a technical choice; Thomas may veto, among it, on 2026-11-12, that an embed service's facts list only what its provider's own documents name, so that a service whose documents name nothing has a placeholder that says only who receives data about the visit.
 
 ## Decision
 

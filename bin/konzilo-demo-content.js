@@ -3,13 +3,16 @@
 // none, so that a fresh clone of a site repository has something to build and to
 // design with: the site repository's own, in its demo-content/, else the core's.
 // A post dated ahead is left out: it is scheduled, and only Compose has a clock
-// that publishes it (ADR 0025). A site that has a content folder keeps it as it
-// is. Builds run this too, so a public host with no content is refused: no live
+// that publishes it (ADR 0025), and each link and menu entry that leads to it is
+// named, since it leads to no page here. A site that has a content folder keeps
+// it as it is. Builds run this too, so a public host with no content is refused: no live
 // site may show fictional posts, the site's own as little as the core's.
 
 import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { copyDemoContent } from '../src/demo-content.js';
+import { leadsToLeftOut } from '../src/demo-source.js';
+import { readSiteDescriptionWithoutTakenComponents, SITE_DESCRIPTION_FILE } from '../src/site-description.js';
 
 const content = resolve(process.env.KONZILO_CONTENT ?? 'content');
 
@@ -24,4 +27,14 @@ if (!existsSync(content)) {
   const { from, scheduled } = copyDemoContent(process.cwd(), content);
   console.log(`konzilo: copied the demo content in ${from} into ${content}`);
   for (const path of scheduled) console.log(`konzilo: left out ${path}, a post dated ahead, which only Compose schedules`);
+  // A site description that cannot be read is Astro's to report, at its start.
+  let description = null;
+  if (scheduled.length > 0) {
+    try {
+      description = readSiteDescriptionWithoutTakenComponents(join(process.cwd(), SITE_DESCRIPTION_FILE));
+    } catch {
+      description = null;
+    }
+  }
+  for (const warning of description ? leadsToLeftOut(description, from, scheduled) : []) console.log(`konzilo: ${warning}`);
 }

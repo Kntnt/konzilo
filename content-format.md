@@ -601,7 +601,7 @@ A directive's name follows `::` for a leaf, a directive with no body, and `:::` 
 
 ### Forms
 
-A form, one of those the site description declares under `forms`, is the leaf directive `::form{name="…"}` alone on its line. Its attribute `name`, required, is the form's name; a file that names a form the site description does not declare is refused, naming the form; a post refused so keeps its last file, which the site shows without the form, and the site's build warns of it. What the form asks, its fields, and its texts are not in the file: the site shows the form the site description declares, as its design renders it; its button says the `button` text the description gives the form, one text or one by locale, or else the site's word for sending. Where the form lists `button` under its `editable`, a file may give the button a text of its own where it places the form, the attribute `button`, after `name`, some text other than white space, in the post's language; a file that gives it where the form does not list it is refused, naming the form, and the site shows the form's own text where a post's last file still gives one. `button` is the one text an editor may change yet. A field's label there may hold links, written as Markdown links, `I have read the [privacy policy](/privacy-policy/)`, and nothing else of Markdown, each to an address a menu's entry may have, as *A link's address* says of a body's; the form draws each link, and a submission, its mail and its CSV keep the label's words without them.
+A form, one of those the site description declares under `forms`, is the leaf directive `::form{name="…"}` alone on its line. Its attribute `name`, required, is the form's name; a file that names a form the site description does not declare is refused, naming the form; a post refused so keeps its last file, which the site shows without the form, and the site's build warns of it. What the form asks, its fields, and its texts are not in the file: the site shows the form the site description declares, as its design renders it; its button says the `button` text the description gives the form, one text or one by locale, or else the site's word for sending. Where the form lists `button` under its `editable`, a file may give the button a text of its own where it places the form, the attribute `button`, after `name`, some text other than white space, in the post's language; a file that gives it where the form does not list it is refused, naming the form, and the site shows the form's own text where a post's last file still gives one. `button` is the one text an editor may change yet. A field's label there may hold links, written as Markdown links, `I have read the [privacy policy](/privacy-policy/)`, and nothing else of Markdown, each to an address a menu's entry may have, as *A link's address* says of a body's; the form draws each link, one to a path on the site below the site's base as a body's is, and a submission, its mail and its CSV keep the label's words without them.
 
 ```markdown body
 Write to us, and we answer within a day.
@@ -1254,6 +1254,24 @@ An ID is text, the name of the post's source file, such as `96ba709ec918`, which
       "modified": "2026-05-01T08:00:00Z",
       "names": {}
     },
+    "a7be960c8ef2": {
+      "path": "start.page.md",
+      "paths": [
+        "pages/welcome.md",
+        "start.page.md"
+      ],
+      "address": "/",
+      "addresses": [
+        "/pages/welcome/",
+        "/"
+      ],
+      "title": "Welcome",
+      "source": "23e71b981f3fed50e7b4f65d16a9c82a1ac2e4f626ea1d18566ed99978123e60",
+      "published": "6d8b18fc7ab00fe845791147893cd8c61eb287ef182dcb0fcee6189c93329a72",
+      "taken": "2026-05-01T08:00:00Z",
+      "modified": "2026-05-01T08:00:00Z",
+      "names": {}
+    },
     "de6aeaae949d": {
       "path": "articles/harbour-lights.md",
       "paths": [
@@ -1285,24 +1303,6 @@ An ID is text, the name of the post's source file, such as `96ba709ec918`, which
           "topics/lanterns.json"
         ]
       }
-    },
-    "f6788ed8259d": {
-      "path": "start.page.md",
-      "paths": [
-        "pages/welcome.md",
-        "start.page.md"
-      ],
-      "address": "/",
-      "addresses": [
-        "/pages/welcome/",
-        "/"
-      ],
-      "title": "Welcome",
-      "source": "9bc42308d0e4789dfae08fdb5abc25513f96c08e11f96bc416f2bd3c56c6ecc4",
-      "published": "01999bfa9169a322916c7942050f5f2aa1bdb179be25500d8dbfa536f3b501c6",
-      "taken": "2026-05-01T08:00:00Z",
-      "modified": "2026-05-01T08:00:00Z",
-      "names": {}
     }
   },
   "awaited": {},
@@ -1310,14 +1310,14 @@ An ID is text, the name of the post's source file, such as `96ba709ec918`, which
   "files": {
     "menus/main.json": "f84f1a0e3bc087a76f33c39e32840bcd0436641941f14b2b9508d172e2260ba5",
     "redirects.json": "085117efe120292600d9f626c75d16f9653ac63a34b3c343b452d365925dbfc2",
-    "settings.json": "e21541d275905c4b8416edcbe0a276a2b75daf6f9c1eba4bf9b0275524a1a80b"
+    "settings.json": "b87272d0a3028d7249bd446e947b92bf1991dd8751825f6fb2ad5f7c4ea4ac2d"
   },
   "chosen": {
     "legalPages": [
       "9c39c3b2be4e"
     ],
     "notFound": "84d238eb4622",
-    "startPage": "f6788ed8259d"
+    "startPage": "a7be960c8ef2"
   },
   "settingsMedia": [
     "media/hero-image-dc2dd17407.webp",
@@ -1333,11 +1333,12 @@ An ID is text, the name of the post's source file, such as `96ba709ec918`, which
 
 ## The start page
 
-`start.<type>.md`, where `<type>` is a post type's name, is the start page an Admin chooses among the posts, which the site shows at its root, `/`, in place of the start page of its own design: the chosen post's file as its type writes it ([A post's file](#a-posts-file)), at the content folder's root, its images named from there, `media/<name>`. The site reads it as a post of that type, at the root and at no other address: the address it had before is among its old addresses, an other address leads there and never shows it, and a link, a menu entry, a chosen page or a redirect rule that names it by its ID leads to `/`. Its children in a hierarchical type keep their paths, which hold its slug, and their files stay in its collection's folder. A list with pages of its own has its later pages at `/page/<n>/`. Without one, the site shows its own start page, and so does a site in several languages, which chooses none.
+`start.<type>.md`, where `<type>` is a post type's name, is the start page an Admin chooses among the posts, which the site shows at its root, `/`, in place of the start page of its own design: the chosen post's file as its type writes it ([A post's file](#a-posts-file)), at the content folder's root, its images named from there, `media/<name>`, with its own `slug` after its `title`, and in a hierarchical type its parent's path, `parent`, where it has one, which its file's name does not hold, so that whatever reads the content files back, such as Compose's seed reading demo content, gives the post its own place again, and the site puts it at its own address once it is no longer chosen. The site reads it as a post of that type, at the root and at no other address: the address it had before is among its old addresses, an other address leads there and never shows it, and a link, a menu entry, a chosen page or a redirect rule that names it by its ID leads to `/`. Its children in a hierarchical type keep their paths, which hold its slug, and their files stay in its collection's folder. A list with pages of its own has its later pages at `/page/<n>/`. Without one, the site shows its own start page, and so does a site in several languages, which chooses none.
 
 ```markdown file=start.page.md read
 ---
 title: "Welcome"
+slug: "welcome"
 date: 2026-05-01T08:00:00Z
 modified: 2026-05-01T08:00:00Z
 breadcrumb: "Home"
@@ -1596,7 +1597,7 @@ The source files are what the intake reads: what editors save, one file per thin
 
 A post's frontmatter holds `title`; `slug`, made from the title if left empty; `parent`, the ID of a post of its type, in a hierarchical type; `status`, `draft`, `scheduled` or `published`, a draft when left out; `date`, which also says when a scheduled post goes live, and a scheduled post whose moment had passed when the intake first read it goes live at once, with that moment as its date and a warning; each field its type declares, a taxonomy's terms by their IDs, a list or, for a field of one term at most, the ID alone, an image by `/media/<name>`; where the type has the search and sharing fields, `search` (`title`, `description`, `canonical`, `noindex`, `nofollow`), `sharing` (`image`, `{ "src", "alt" }`, `title`, `description`) and `structured` (`schema`), three groups the intake writes as the one `seo` map, and never `seo` itself, which is refused; `otherAddresses`, each `{ "address", "answer" }`; and on a site in several languages `translationKey` where the same ID does not tie a translation set. What the intake derives is in no source file: `modified`, `oldAddresses`, masters, `consent.json` and `not-found.md`.
 
-A site's demo content, the fictional content a local copy starts with, is content files, never source files, and holds a scheduled post as a post whose `date` lies ahead. Compose's seed makes each post a source file with `status: published`, but one dated after the moment it seeds, which it makes `scheduled` for that `date`. A copy without Compose leaves such a post out of the content folder it fills, and one filled after the post's moment holds it as published.
+A site's demo content, the fictional content a local copy starts with, is content files, never source files, and holds a scheduled post as a post whose `date` lies ahead. Compose's seed makes each post a source file with `status: published`, but one dated after the moment it seeds, which it makes `scheduled` for that `date`. A copy without Compose leaves such a post out of the content folder it fills, and one filled after the post's moment holds it as published. The page for addresses not found, `not-found.md`, is never scheduled, whatever its date: the seed makes it `published`, and a copy holds it.
 
 In a body, a link to a post or to a term's page is `[text](konzilo:<ID>)`, with `#<anchor>` or not, and `konzilo:<tag>/<ID>` for one in another language. An image is `![alt](/media/<name>)`. A post list names its terms by their IDs. A file named with a leading dot, another kind of file, and a folder no collection names are left alone.
 

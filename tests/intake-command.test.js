@@ -167,6 +167,19 @@ describe('konzilo-intake', () => {
     assert.deepEqual(confirmed.report.removed, ['articles/first.md', 'articles/second.md', 'articles/third.md']);
   });
 
+  // The builder reads the report through a pipe, which holds less than a report of a large site.
+  test('exits 3 only once a report of more than a pipe holds has been taken whole', () => {
+    const long = `The longest title ${'of all '.repeat(12_000)}`.trim();
+    const site = newSite({ 'articles/aaaaaaaaaaaa.md': post('first'), 'articles/bbbbbbbbbbbb.md': post('second'), 'articles/cccccccccccc.md': post('third', { title: long }) });
+    intake(site);
+    rmSync(join(site.checkout, 'articles/aaaaaaaaaaaa.md'));
+    rmSync(join(site.checkout, 'articles/bbbbbbbbbbbb.md'));
+    const stopped = intake(site);
+    assert.equal(stopped.status, 3);
+    assert.ok(stopped.stdout.length > 80_000, `a report of ${stopped.stdout.length} characters`);
+    assert.ok(stopped.report.posts.some(({ title }) => title === long));
+  });
+
   test('exits 1 when the check itself breaks, with nothing written', () => {
     const site = newSite({ 'articles/aaaaaaaaaaaa.md': post('first') });
     writeFileSync(join(site.content, '.post-ids.json'), '{ not json');

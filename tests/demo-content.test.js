@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { copyDemoContent } from '../src/demo-content.js';
-import { demoSource } from '../src/demo-source.js';
+import { demoSource, leadsToLeftOut } from '../src/demo-source.js';
 import { intake } from '../src/intake/index.js';
 import { siteDescription } from '../src/site-description.js';
 import { namedImages } from './lib/intake.js';
@@ -70,15 +70,121 @@ describe('a demo content file dated ahead, which is a scheduled post', () => {
     assert.equal(statusOf(source, 'The winter lamps'), 'published');
   });
 
+  // A copy that leaves the post out has no page at its address, which nothing else says.
+  test('is named, where a copy leaves it out, by each link and menu entry of what it copies that leads to it, refusing nothing', () => {
+    const demo = mkdtempSync(join(tmpdir(), 'konzilo-demo-leading-'));
+    try {
+      mkdirSync(join(demo, 'articles'));
+      mkdirSync(join(demo, 'menus'));
+      writeFileSync(join(demo, 'articles/the-winter-lamps.md'), contentFile('The winter lamps', MOMENT));
+      writeFileSync(join(demo, 'articles/lamps-along-the-quay.md'), `---\ntitle: "Lamps along the quay"\ndate: 2026-10-20T08:00:00Z\n---\n\nSee [the winter lamps](/the-winter-lamps/), <a href="/the-winter-lamps/#first">the first</a> and [the quay](/lamps-along-the-quay/).\n`);
+      writeFileSync(join(demo, 'menus/main.json'), JSON.stringify({ items: [{ title: 'Quay', url: '/lamps-along-the-quay/', items: [{ title: 'Winter', url: '/the-winter-lamps/' }] }] }));
+      assert.deepEqual(leadsToLeftOut(description, demo, ['articles/the-winter-lamps.md']), [
+        'articles/lamps-along-the-quay.md: a link leads to /the-winter-lamps/, The winter lamps, a post dated ahead that is left out, so it leads to no page',
+        'articles/lamps-along-the-quay.md: a link leads to /the-winter-lamps/, The winter lamps, a post dated ahead that is left out, so it leads to no page',
+        'menus/main.json: the entry "Winter" leads to /the-winter-lamps/, The winter lamps, a post dated ahead that is left out, so it leads to no page',
+      ]);
+      assert.deepEqual(leadsToLeftOut(description, demo, []), []);
+    } finally {
+      rmSync(demo, { recursive: true, force: true });
+    }
+  });
+
   // A copy without Compose has no clock that publishes: what it copies is what it shows.
   test('is left out of a content folder filled before its moment, and copied as published after it', () => {
     const before = join(site, 'content-before');
-    assert.deepEqual(copyDemoContent(site, before, BEFORE).scheduled, ['articles/the-winter-lamps.md']);
+    assert.deepEqual(copyDemoContent(site, before, { now: BEFORE }).scheduled, ['articles/the-winter-lamps.md']);
     assert.deepEqual(readdirSync(join(before, 'articles')), ['lamps-along-the-quay.md']);
     const after = join(site, 'content-after');
-    assert.deepEqual(copyDemoContent(site, after, AFTER).scheduled, []);
+    assert.deepEqual(copyDemoContent(site, after, { now: AFTER }).scheduled, []);
     assert.deepEqual(readdirSync(join(after, 'articles')).sort(), ['lamps-along-the-quay.md', 'the-winter-lamps.md']);
   });
+});
+
+// A date as YAML may write it, in single quotes, with a comment after it, or with Windows line
+// endings: the seed and a copy without Compose read each as the content format does, and agree
+// that the post is scheduled.
+test('reads a date dated ahead as the content format does, quoted singly, with a comment, or with Windows line endings', () => {
+  const site = mkdtempSync(join(tmpdir(), 'konzilo-demo-dates-'));
+  try {
+    mkdirSync(join(site, 'demo-content/articles'), { recursive: true });
+    const forms = {
+      'quoted.md': `---\ntitle: "Quoted"\ndate: '${MOMENT}'\n---\n\nAhead.\n`,
+      'commented.md': `---\ntitle: "Commented"\ndate: "${MOMENT}" # the first of winter\n---\n\nAhead.\n`,
+      'windows.md': `---\r\ntitle: "Windows"\r\ndate: ${MOMENT}\r\n---\r\n\r\nAhead.\r\n`,
+    };
+    for (const [name, text] of Object.entries(forms)) writeFileSync(join(site, 'demo-content/articles', name), text);
+    assert.deepEqual(copyDemoContent(site, join(site, 'content'), { now: BEFORE }).scheduled, ['articles/commented.md', 'articles/quoted.md', 'articles/windows.md']);
+    const source = demoSource(description, join(site, 'demo-content'), { now: BEFORE });
+    for (const title of ['Quoted', 'Commented', 'Windows']) {
+      assert.match(source.find(({ content }) => content.includes(`title: "${title}"`)).content, /^status: "scheduled"$/m, title);
+    }
+  } finally {
+    rmSync(site, { recursive: true, force: true });
+  }
+});
+
+// The page for addresses not found has no address at which it could wait, so it is never
+// scheduled, whatever its date; the start page an Admin chose, dated ahead, waits in the seed and
+// is left out by a copy, as any post dated ahead.
+test('never schedules the page for addresses not found, dated ahead, in the seed or a copy, and schedules a chosen start page in both alike', () => {
+  const site = mkdtempSync(join(tmpdir(), 'konzilo-demo-root-'));
+  try {
+    mkdirSync(join(site, 'demo-content/articles'), { recursive: true });
+    writeFileSync(join(site, 'demo-content/articles/lamps-along-the-quay.md'), contentFile('Lamps along the quay', '2026-10-20T08:00:00Z'));
+    writeFileSync(join(site, 'demo-content/not-found.md'), contentFile('Not here', MOMENT));
+    writeFileSync(join(site, 'demo-content/start.story.md'), contentFile('Welcome', MOMENT));
+    const copied = copyDemoContent(site, join(site, 'content'), { now: BEFORE });
+    assert.deepEqual(copied.scheduled, ['start.story.md']);
+    assert.ok(existsSync(join(site, 'content/not-found.md')), 'the page for addresses not found is copied');
+    const source = demoSource(description, join(site, 'demo-content'), { now: BEFORE });
+    const statusOf = (title) => /^status: "?([a-z]+)"?$/m.exec(source.find(({ content }) => content.includes(`title: "${title}"`)).content)[1];
+    assert.deepEqual(['Not here', 'Welcome', 'Lamps along the quay'].map(statusOf), ['published', 'scheduled', 'published']);
+  } finally {
+    rmSync(site, { recursive: true, force: true });
+  }
+});
+
+// A chosen start page's file holds its own slug, so the seed gives it back to the source, and the
+// site puts it at its own address again once it is no longer chosen.
+test('takes a chosen start page through the seed with its own slug, which it has again once no longer chosen', () => {
+  const site = mkdtempSync(join(tmpdir(), 'konzilo-demo-start-'));
+  try {
+    mkdirSync(join(site, 'demo-content/articles'), { recursive: true });
+    writeFileSync(join(site, 'demo-content/articles/lamps-along-the-quay.md'), contentFile('Lamps along the quay', '2026-10-20T08:00:00Z'));
+    writeFileSync(join(site, 'demo-content/start.story.md'), '---\ntitle: "Welcome to the almanac of the lamplighters"\nslug: "home"\ndate: 2026-10-01T08:00:00Z\nmodified: 2026-10-01T08:00:00Z\n---\n\nWelcome.\n');
+    const source = demoSource(description, join(site, 'demo-content'), { now: BEFORE });
+    const seeded = source.find(({ content }) => content.includes('title: "Welcome to the almanac of the lamplighters"'));
+    assert.match(seeded.content, /^slug: "home"$/m);
+    const files = (from) => from.map(({ path, content }) => ({ path, contents: content }));
+    const chosen = intake({ files: files(source), site: description, now: BEFORE, images: namedImages() });
+    assert.deepEqual(chosen.refusals, []);
+    assert.match(chosen.files.find(({ path }) => path === 'start.story.md').contents, /^slug: "home"$/m);
+    const unchosen = source.map((file) => (file.path === 'settings.json' ? { ...file, content: '{}\n' } : file));
+    const left = intake({ files: files(unchosen), site: description, now: BEFORE, ledger: chosen.ledger, images: namedImages() });
+    assert.ok(left.files.some(({ path }) => path === 'articles/home.md'), 'at its own address, /home/');
+  } finally {
+    rmSync(site, { recursive: true, force: true });
+  }
+});
+
+// In a hierarchical type the start page keeps its parent too, and its children their parent.
+test('takes a chosen start page below another, with children of its own, through the seed to the same places', () => {
+  const site = mkdtempSync(join(tmpdir(), 'konzilo-demo-start-'));
+  const pages = siteDescription({ language: 'en_GB', types: { section: { label: 'Section', plural: 'Sections', collection: 'pages', address: '/{path}/', hierarchical: true, elements: ['paragraph'], fields: { date: {} } } } });
+  try {
+    mkdirSync(join(site, 'demo-content/pages/about/welcome'), { recursive: true });
+    writeFileSync(join(site, 'demo-content/pages/about.md'), contentFile('About', '2026-10-01T08:00:00Z'));
+    writeFileSync(join(site, 'demo-content/start.section.md'), '---\ntitle: "Welcome"\nslug: "welcome"\nparent: "about"\ndate: 2026-10-01T08:00:00Z\n---\n\nWelcome.\n');
+    writeFileSync(join(site, 'demo-content/pages/about/welcome/team.md'), contentFile('The team', '2026-10-01T08:00:00Z'));
+    const source = demoSource(pages, join(site, 'demo-content'), { now: BEFORE });
+    const chosen = intake({ files: source.map(({ path, content }) => ({ path, contents: content })), site: pages, now: BEFORE, images: namedImages() });
+    assert.deepEqual(chosen.refusals, []);
+    assert.deepEqual(chosen.files.map(({ path }) => path).filter((path) => path.endsWith('.md')).sort(), ['pages/about.md', 'pages/about/welcome/team.md', 'start.section.md']);
+    assert.match(chosen.files.find(({ path }) => path === 'start.section.md').contents, /^slug: "welcome"\nparent: "about"$/m);
+  } finally {
+    rmSync(site, { recursive: true, force: true });
+  }
 });
 
 describe('konzilo-demo-content', () => {
@@ -141,6 +247,19 @@ describe('konzilo-demo-content', () => {
     assert.equal(status, 0, stderr);
     assert.deepEqual(readdirSync(join(content, 'articles')), ['lamps-along-the-quay.md']);
     assert.match(stdout, /left out articles\/the-last-lamp\.md, a post dated ahead, which only Compose schedules/);
+  });
+
+  test('says of each link and menu entry it copies that leads to a post it leaves out, and copies them all the same', () => {
+    const { status, content, stdout, stderr } = run(undefined, (cwd) => {
+      ownDemoContent(cwd);
+      writeFileSync(join(cwd, 'site-description.json'), JSON.stringify({ language: 'en_GB', types: { story: { label: 'Article', plural: 'Articles', collection: 'articles', address: '/{slug}/', elements: ['paragraph'], fields: { date: {} } } } }));
+      writeFileSync(join(cwd, 'demo-content/articles/the-last-lamp.md'), contentFile('The last lamp', '2999-01-01T07:00:00Z'));
+      mkdirSync(join(cwd, 'demo-content/menus'));
+      writeFileSync(join(cwd, 'demo-content/menus/main.json'), JSON.stringify({ items: [{ title: 'Last', url: '/the-last-lamp/' }] }));
+    });
+    assert.equal(status, 0, stderr);
+    assert.match(stdout, /^konzilo: menus\/main\.json: the entry "Last" leads to \/the-last-lamp\/, The last lamp, a post dated ahead that is left out, so it leads to no page$/m);
+    assert.ok(existsSync(join(content, 'menus/main.json')));
   });
 
   test('leaves a site that has content as it is, on any host', () => {

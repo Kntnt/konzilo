@@ -1,6 +1,6 @@
 # ADR 0027: Let the intake read source files, and write content files or refusals
 
-**Date:** 2026-11-03, amended 2026-11-12 · **Status:** Accepted as a technical choice, within Thomas's decision of an intake (ADR 0001); Thomas may veto.
+**Date:** 2026-11-03, amended 2026-11-10 and 2026-11-12 · **Status:** Accepted as a technical choice, within Thomas's decision of an intake (ADR 0001); Thomas may veto.
 
 ## Decision
 

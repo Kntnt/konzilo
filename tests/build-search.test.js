@@ -60,6 +60,22 @@ test('puts the posts in use into the site\'s collection, and writes the route wi
   }
 });
 
+// The builder reads the documents through a pipe, which holds far less than a site's documents:
+// the command ends only once what it wrote has been taken.
+test('makes documents of more than a pipe holds, and the builder reads them whole', async () => {
+  const { root, content } = folders();
+  try {
+    const words = Array.from({ length: 40_000 }, (_, at) => `word${at}`).join(' ');
+    writeFileSync(join(content, 'articles/long.md'), `---\ntitle: "Long"\ndate: 2026-10-03T08:00:00Z\n---\n\n${words}\n`);
+    const made = await searchDocumentsCommand({ program, site: join(root, 'site-description.json'), content, environment: { PATH: process.env.PATH } })();
+    const long = made.documents.find(({ id }) => id === 'articles/long');
+    assert.ok(long.body.length > 300_000, `a body of ${long.body.length} characters`);
+    assert.ok(long.body.endsWith('word39999'));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('asks Typesense nothing on a site without search, and writes a route that says so', async () => {
   const { root, route } = folders();
   try {
@@ -123,16 +139,38 @@ test('holds each taxonomy\'s terms by their slugs beside their names, in a field
   }
 });
 
+// A term's page lists the posts of the terms below it too (term-pages.js), so a search within a
+// term, as its page's filter sends it, finds them: a post's slugs hold its terms' ancestors.
+test('holds, beside the slugs of a post\'s own terms, those of the terms above them, so that a search within a term finds what its page lists', () => {
+  const { content, documents } = articleSite(withArticles, {
+    'articles/harbour.md': '---\ntitle: "Harbour"\ndate: 2026-10-01T08:00:00Z\nheadline: "Harbour"\nauthors: []\ncategory: ["harbour"]\ntopics: ["lights"]\n---\n\nThe harbour light.\n',
+    'articles/news.md': '---\ntitle: "News"\ndate: 2026-10-02T08:00:00Z\nheadline: "News"\nauthors: []\ncategory: ["news","local"]\ntopics: []\n---\n\nThe news.\n',
+    'categories/news.json': '{ "name": "News" }',
+    'categories/local.json': '{ "name": "Local", "parent": "news" }',
+    'categories/harbour.json': '{ "name": "Harbour", "parent": "local" }',
+    'topics/lights.json': '{ "name": "Lights" }',
+  });
+  try {
+    const [harbour, news] = documents;
+    assert.deepEqual([harbour.terms_category, harbour.slugs_category, harbour.slugs_topics], [['Harbour'], ['harbour', 'local', 'news'], ['lights']]);
+    assert.deepEqual([news.terms_category, news.slugs_category], [['News', 'Local'], ['news', 'local']]);
+  } finally {
+    rmSync(content, { recursive: true, force: true });
+  }
+});
+
 test('on a site in several languages, holds a term by its slug alone, which every language shares, in one field', () => {
   const several = { ...withArticles, language: undefined, languages: ['sv_SE', 'en_GB'] };
   const { content, documents, schema } = articleSite(several, {
     'articles/sv-SE/om-lyktorna.md': '---\ntitle: "Om lyktorna"\ndate: 2026-10-20T08:00:00Z\nheadline: "Om lyktorna"\nauthors: []\ncategory: ["sv-SE/nyheter"]\ntopics: []\ntranslationKey: "3a1dace55ce438b2"\n---\n\nLyktan vaktar hamnen.\n',
     'articles/en-GB/about-the-lanterns.md': '---\ntitle: "About the lanterns"\ndate: 2026-10-20T08:00:00Z\nheadline: "About the lanterns"\nauthors: []\ncategory: ["en-GB/nyheter"]\ntopics: []\ntranslationKey: "3a1dace55ce438b2"\n---\n\nThe lantern keeps the harbour.\n',
+    'articles/sv-SE/hamnen.md': '---\ntitle: "Hamnen"\ndate: 2026-10-21T08:00:00Z\nheadline: "Hamnen"\nauthors: []\ncategory: ["sv-SE/hamnar"]\ntopics: []\n---\n\nHamnen.\n',
     'categories/sv-SE/nyheter.json': '{ "name": "Nyheter" }',
+    'categories/sv-SE/hamnar.json': '{ "name": "Hamnar", "parent": "sv-SE/nyheter" }',
     'categories/en-GB/nyheter.json': '{ "name": "News" }',
   });
   try {
-    assert.deepEqual(documents.map((document) => [document.terms_category_sv ?? document.terms_category_en, document.slugs_category]), [[['News'], ['nyheter']], [['Nyheter'], ['nyheter']]]);
+    assert.deepEqual(documents.map((document) => [document.terms_category_sv ?? document.terms_category_en, document.slugs_category]), [[['News'], ['nyheter']], [['Hamnar'], ['hamnar', 'nyheter']], [['Nyheter'], ['nyheter']]]);
     assert.deepEqual(schema.fields.filter((field) => field.name.startsWith('slugs_')).map((field) => field.name), ['slugs_authors', 'slugs_category', 'slugs_topics']);
   } finally {
     rmSync(content, { recursive: true, force: true });

@@ -10,10 +10,11 @@ import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { isObject } from './checks.js';
-import { isScheduled } from './demo-content.js';
+import { isScheduled, readPost } from './demo-content.js';
 import { publicAddress } from './format/addresses.js';
 import { pageTypeOf } from './format/built-in-types.js';
 import { IMAGE_LIBRARY_FOLDER } from './format/masters.js';
+import { NOT_FOUND_FILE } from './format/not-found.js';
 import { START_ENTRY, START_PAGE, startFile } from './format/start-page.js';
 import { isSiteTitle } from './settings-groups.js';
 import { SEO_PARTS } from './site-description.js';
@@ -27,21 +28,6 @@ const walk = (folder) => readdirSync(folder).flatMap((name) => {
   return statSync(path).isDirectory() ? walk(path) : [path];
 });
 
-// The frontmatter of a content file has one key per line, each value JSON or a date.
-function parsePost(text) {
-  const [, head, body] = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(text);
-  const fields = {};
-  for (const line of head.split('\n')) {
-    const [, key, value] = /^([A-Za-z]+): (.*)$/.exec(line);
-    try {
-      fields[key] = JSON.parse(value);
-    } catch {
-      fields[key] = value;
-    }
-  }
-  return { fields, body };
-}
-
 const scalar = (value) => (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}(?:T|$)/.test(value) ? value : JSON.stringify(value));
 
 const writePost = (fields, body) => `---\n${Object.entries(fields).map(([key, value]) => `${key}: ${scalar(value)}`).join('\n')}\n---\n${body}`;
@@ -53,17 +39,22 @@ const toMedia = (image) => {
 
 const mediaPath = (src) => `/media/${src.split('/').at(-1)}`;
 
-// A post's place on a site: { type, tag, language, place, fields, body, id, address, scheduled }.
-// The start page an Admin chose, at the content folder's root, has no place of its own:
-// `start`, and an ID no other post's can be.
+// A post's place on a site: { path, type, tag, language, place, fields, body, id, address,
+// scheduled, start }, its path in the published content, `scheduled` true where it is dated
+// after `now`. The start page an Admin chose, at the content folder's root, `start` true, has
+// no address of its own, and its place is the one its file holds, its `slug` after its
+// `parent`'s path, so that its ID is the one its children's parent has, and it has its own
+// address again once it is no longer chosen; a file that holds none gives it no place, and
+// an ID no other post's can be.
 function postsOf(description, published, now) {
   const several = description.languages.length > 1;
   const posts = [];
   for (const type of Object.values(description.types)) {
     const start = several || type.address === null ? undefined : published.find(({ path }) => path === startFile(type));
     if (start) {
-      const { fields, body } = parsePost(start.content);
-      posts.push({ type, tag: null, language: description.languages[0] ?? null, place: null, fields, body, id: idOf(type.collection, START_ENTRY), address: null, start: true, scheduled: isScheduled(start.content, now) });
+      const { fields: { slug, parent, ...fields }, body } = readPost(start.content);
+      const place = typeof slug === 'string' && slug !== '' ? [parent, slug].filter((part) => typeof part === 'string' && part !== '').join('/') : null;
+      posts.push({ path: start.path, type, tag: null, language: description.languages[0] ?? null, place, fields, body, id: idOf(type.collection, place ?? START_ENTRY), address: null, start: true, scheduled: isScheduled(fields, now) });
     }
     for (const { path, content } of published) {
       if (!path.startsWith(`${type.collection}/`) || !path.endsWith('.md')) continue;
@@ -71,21 +62,26 @@ function postsOf(description, published, now) {
       const tag = several ? within.split('/')[0] : null;
       const language = several ? description.languages.find((one) => one.tag === tag) : description.languages[0] ?? null;
       const place = several ? within.slice(tag.length + 1) : within;
-      const { fields, body } = parsePost(content);
-      posts.push({ type, tag, language, place, fields, body, id: idOf(type.collection, place), address: type.address === null ? null : publicAddress(type, place, language), scheduled: isScheduled(content, now) });
+      const { fields, body } = readPost(content);
+      posts.push({ path, type, tag, language, place, fields, body, id: idOf(type.collection, place), address: type.address === null ? null : publicAddress(type, place, language), scheduled: isScheduled(fields, now) });
     }
   }
   return posts;
 }
 
+// A body's links to an address on the site, written in Markdown and as raw HTML, each match its
+// opening, the address and any fragment. They read the text alone, so a code block that shows
+// such a link counts too; the demo's show none.
+const MARKDOWN_LINK = /(?<!!)(\]\()(\/[^)\s#]*)(#[^)\s]*)?\)/g;
+const HTML_LINK = /(<a href=")(\/[^"#]*)(#[^"]*)?"/g;
+
 // Body links that lead to a post by its address, as references by its ID, and images by
-// their place in the media folder, as the editing tool stores them. It reads the text
-// alone, so a code block that shows such a link would change too; the demo's show none.
+// their place in the media folder, as the editing tool stores them.
 function bodyAsSource(body, ids) {
   return body
     .replace(/(!\[[^\]\n]*\]\()(?:\.\.\/)*media\/([^)\s]+)\)/g, (_, open, name) => `${open}/media/${name})`)
-    .replace(/(?<!!)(\]\()(\/[^)\s#]*)(#[^)\s]*)?\)/g, (whole, open, address, fragment = '') => (ids.has(address) ? `${open}konzilo:${ids.get(address)}${fragment})` : whole))
-    .replace(/(<a href=")(\/[^"#]*)(#[^"]*)?"/g, (whole, open, address, fragment = '') => (ids.has(address) ? `${open}konzilo:${ids.get(address)}${fragment}"` : whole));
+    .replace(MARKDOWN_LINK, (whole, open, address, fragment = '') => (ids.has(address) ? `${open}konzilo:${ids.get(address)}${fragment})` : whole))
+    .replace(HTML_LINK, (whole, open, address, fragment = '') => (ids.has(address) ? `${open}konzilo:${ids.get(address)}${fragment}"` : whole));
 }
 
 // Published content as source files. `published`: each { path, content }, as the content
@@ -131,9 +127,9 @@ export function sourceFrom(description, published, { now = new Date() } = {}) {
     const { type, tag, place, fields, body, id, scheduled } = post;
     const { modified: _modified, oldAddresses: _old, ...kept } = fields;
     const status = scheduled ? 'scheduled' : 'published';
-    // The start page's slug is made from its title, as a new post's is.
-    const segments = post.start ? [] : place.split('/');
-    const written = post.start ? { title: kept.title, status } : { title: kept.title, slug: segments.at(-1), status };
+    // A start page whose file holds no place has its slug made from its title, as a new post's is.
+    const segments = place === null ? [] : place.split('/');
+    const written = place === null ? { title: kept.title, status } : { title: kept.title, slug: segments.at(-1), status };
     if (segments.length > 1) written.parent = idOf(type.collection, segments.slice(0, -1).join('/'));
     for (const [key, value] of Object.entries(kept)) {
       if (key === 'title') continue;
@@ -161,8 +157,9 @@ export function sourceFrom(description, published, { now = new Date() } = {}) {
     files.push({ path: `${IMAGE_LIBRARY_FOLDER}/${idOf(IMAGE_LIBRARY_FOLDER, hash)}.json`, content: `${JSON.stringify({ src, alt }, null, 2)}\n` });
   }
 
-  // The page for addresses not found is a post an Admin chooses, of a type with an address.
-  const notFound = published.find(({ path }) => path === 'not-found.md');
+  // The page for addresses not found is a post an Admin chooses, of a type with an address,
+  // published whatever its date, since it has no address at which it could wait.
+  const notFound = published.find(({ path }) => path === NOT_FOUND_FILE);
   const notFoundId = notFound ? notFoundPost(description, notFound, ids, files) : null;
 
   // The start page an Admin chose is the post at the content folder's root.
@@ -190,7 +187,7 @@ export function sourceFrom(description, published, { now = new Date() } = {}) {
 
 function notFoundPost(description, { content }, ids, files) {
   const type = pageTypeOf(description.types);
-  const { fields, body } = parsePost(content);
+  const { fields, body } = readPost(content);
   const id = idOf(type.collection, 'not-found');
   files.push({ path: `${type.collection}/${id}.md`, content: writePost({ title: fields.title, slug: 'not-found', status: 'published' }, bodyAsSource(body, ids)) });
   return id;
@@ -258,6 +255,15 @@ function settingsAsSource(description, published, titled) {
   return out;
 }
 
+// The published demo content in the folder `demo`, each file { path, content }, by its path
+// there, an original's content as bytes and every other's as text.
+function publishedIn(demo) {
+  return walk(demo).map((path) => {
+    const inner = relative(demo, path);
+    return { path: inner, content: inner.startsWith('media/') ? readFileSync(path) : readFileSync(path, 'utf8') };
+  });
+}
+
 /**
  * @param {object} description the form siteDescription() returns
  * @param {string} demo the folder of published demo content
@@ -265,12 +271,42 @@ function settingsAsSource(description, published, titled) {
  * @returns {{ path: string, content: string|Buffer }[]} every source file, sorted by path
  */
 export function demoSource(description, demo, { now = new Date() } = {}) {
-  const published = [];
-  for (const path of walk(demo)) {
-    const inner = relative(demo, path);
-    published.push({ path: inner, content: inner.startsWith('media/') ? readFileSync(path) : readFileSync(path, 'utf8') });
+  return sourceFrom(description, publishedIn(demo), { now });
+}
+
+/**
+ * What in published demo content leads to a post a copy without Compose leaves out, dated ahead
+ * (copyDemoContent() of demo-content.js), which has no page there: each link of a body, the
+ * page for addresses not found's too, and each entry of a menu, at any depth, whose address is
+ * that post's, as a warning naming its file. It refuses nothing; the intake, which Compose runs,
+ * drops such a link and entry with a warning of its own.
+ * @param {object} description the form siteDescription() returns
+ * @param {string} demo the folder of published demo content
+ * @param {string[]} left each post left out, by its path in `demo`
+ * @returns {string[]} the warnings, file by file in the order of their paths
+ */
+export function leadsToLeftOut(description, demo, left) {
+  if (left.length === 0) return [];
+  const published = publishedIn(demo).filter(({ path }) => !left.includes(path)).sort((a, b) => (a.path < b.path ? -1 : 1));
+  const gone = new Map(postsOf(description, publishedIn(demo).filter(({ path }) => left.includes(path)), new Date())
+    .filter((post) => post.address !== null)
+    .map((post) => [post.address, post.fields.title]));
+  const said = (address) => `${address}, ${gone.get(address)}, a post dated ahead that is left out, so it leads to no page`;
+  const warnings = [];
+  for (const { path, content } of published) {
+    if (path.endsWith('.md')) {
+      const { body } = readPost(content);
+      for (const [, , address] of [...body.matchAll(MARKDOWN_LINK), ...body.matchAll(HTML_LINK)]) {
+        if (gone.has(address)) warnings.push(`${path}: a link leads to ${said(address)}`);
+      }
+    } else if (path.startsWith('menus/') && path.endsWith('.json')) {
+      const entries = (items) => (items ?? []).flatMap((entry) => [entry, ...entries(entry.items)]);
+      for (const { title, url } of entries(JSON.parse(content).items)) {
+        if (gone.has(url)) warnings.push(`${path}: the entry ${JSON.stringify(title)} leads to ${said(url)}`);
+      }
+    }
   }
-  return sourceFrom(description, published, { now });
+  return warnings;
 }
 
 // Originals live in Git LFS (ADR 0026).

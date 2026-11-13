@@ -5,12 +5,9 @@
 // site cannot publish is refused whole, naming each entry by its place, and keeps its last
 // file.
 
-import { isLinkAddress, isObject } from '../checks.js';
+import { isLinkAddress, isObject, MARKUP } from '../checks.js';
 import { MENU_DESCRIPTION_LENGTH } from '../format/menus.js';
 import { say } from './words.js';
-
-// A text holding what reads as HTML.
-const MARKUP = /<\/?[a-zA-Z!?][^<>]*>/;
 
 // The entries of a menu as a file writes them: { items, problems, warnings }.
 // `leadsTo(id)` gives { address, title }, { none, words } or { reason }.

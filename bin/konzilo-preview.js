@@ -7,20 +7,17 @@
 // default the container's own. The dev server gets none of this environment, and the credential
 // is never passed to anything but Git.
 
-import { execFile } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
 
 import { arrangement } from '../src/arrangement.js';
+import { prepareSiteCode } from '../src/site-code.js';
 import { readSiteDescriptionWithoutTakenComponents, SITE_DESCRIPTION_FILE } from '../src/site-description.js';
 import { devServer } from '../src/preview/dev-server.js';
 import { previewGate } from '../src/preview/gate.js';
 import { runnerOncePrepared } from '../src/preview/runner.js';
 import { gitSource } from '../src/preview/source.js';
-
-const run = promisify(execFile);
 
 const PORT = 4000;
 const DEV_PORT = 4001;
@@ -43,7 +40,7 @@ const {
 // The site's code first, as it now is, without what a site repository may hold of a local copy's
 // content, or its own demo content, with its dependencies installed only when what they are
 // installed from has changed.
-const prepared = run('sh', ['/konzilo/compose/builder/prepare-site.sh', work, '--exclude=./content', '--exclude=./demo-content'], { cwd: '/site', maxBuffer: 1024 * 1024 * 64 }).then(() => {
+const prepared = prepareSiteCode(work).then(() => {
   mkdirSync(`${SITE_FOLDER}/content`, { recursive: true });
 });
 prepared.catch((error) => console.error(`The preview could not prepare the site: ${error.message}`));

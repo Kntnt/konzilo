@@ -8,7 +8,10 @@
 //   <Body post={entry}><Content /></Body>
 //
 // with Content from Astro's render(entry), and `post` the post's entry,
-// which a list leaves out and ranks related posts by. Each component is
+// which a list leaves out and ranks related posts by. The body is the slot
+// alone, so that HTML of a site's own goes in as
+// `<Body post={entry}><Fragment set:html={html} /></Body>`, and a slot that
+// renders nothing, or none, is an empty body. Each component is
 // given the directive's attributes as its props, typed, those not given at
 // their defaults, and its body, if it has one, as its default slot,
 // rendered here again, so that a directive in a container's body gets its
@@ -44,7 +47,8 @@ import { publicSite } from './public-site.js';
 const LIST = 'post-list';
 // `parts`: a component's body, as the Body around it read it, its lists evaluated there.
 const { parts: within, post, page = 1 } = Astro.props;
-const parts = within ?? (await bodyPostLists(bodyParts(await Astro.slots.render('default'), [...Object.keys(components), LIST]), { post, page }));
+// A body without a slot, or whose slot renders nothing, is empty.
+const parts = within ?? (await bodyPostLists(bodyParts((await Astro.slots.render('default')) ?? '', [...Object.keys(components), LIST]), { post, page }));
 // A number for each dialog on the page, however many bodies it renders.
 const lightboxes = {
   locale: publicSite(Astro.url).locale,

@@ -23,11 +23,11 @@
 //
 // Free of Astro's own modules, so that Head's search-and-sharing.js and the
 // tests read it too: it finds a post by its entry through the `getEntry` it
-// is given, Astro's from astro:content in a build (breadcrumbs.js).
+// is given, and the start page an Admin chose through the `getCollection`,
+// each as Astro's from astro:content answers in a build (breadcrumbs.js).
 
 import { SOURCE_LANGUAGE, textsOf } from '../catalogues.js';
-import { START_ENTRY } from '../format/start-page.js';
-import { entryAddress as addressIn, pageLanguage, startAddress, typeAddress } from './languages.js';
+import { chosenStartPage, entryAddress as addressIn, pageLanguage, startAddress, typeAddress } from './languages.js';
 import { taxonomyWithPages } from './term-pages.js';
 
 // What a visitor reads of breadcrumbs, in the catalogues (ADR 0066) under
@@ -53,8 +53,9 @@ export function breadcrumbTexts(locale, given = {}) {
 // page of the site's own, at `path`, its path from the site's root, named
 // `title`; a post's or a term's later page of a list has the
 // levels of its first. `site`: the site description, as checked; `texts`:
-// breadcrumbTexts() of the site; `getEntry`: Astro's, from astro:content.
-export async function breadcrumbLevels({ entry = null, path, title }, { site, texts, getEntry }) {
+// breadcrumbTexts() of the site; `getEntry` and `getCollection`: Astro's, from
+// astro:content.
+export async function breadcrumbLevels({ entry = null, path, title }, { site, texts, getEntry, getCollection }) {
   const own = entry === null ? { name: title, path } : { name: nameOf(entry), path: (await entryAddress(entry, site, getEntry)) ?? path };
   const languages = site.languages ?? [];
   const language = pageLanguage(own.path, languages);
@@ -69,18 +70,8 @@ export async function breadcrumbLevels({ entry = null, path, title }, { site, te
     const found = await postAt(address, site, getEntry, language);
     if (found) above.push({ name: nameOf(found), path: address });
   }
-  const chosen = languages.length > 1 ? null : await startEntryOf(site, getEntry);
-  return [{ name: chosen?.data.breadcrumb || texts.home, path: home }, ...above, own];
-}
-
-// The page an Admin chose as the start page, its entry, or null.
-async function startEntryOf(site, getEntry) {
-  for (const type of Object.values(site.types)) {
-    if (type?.address == null) continue;
-    const found = await getEntry(type.collection, START_ENTRY);
-    if (found) return found;
-  }
-  return null;
+  const chosen = await chosenStartPage(site, getCollection);
+  return [{ name: chosen?.entry.data.breadcrumb || texts.home, path: home }, ...above, own];
 }
 
 // A post's name in breadcrumbs: its own, else its title; a term's, its

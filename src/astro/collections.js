@@ -190,6 +190,9 @@ function postSchema(type, image) {
     ...type.fields.map((field) => [field.name, fieldSchema(field, image)]),
     [TRANSLATION_KEY, z.string().regex(/^[0-9a-f]{16}$/).optional()],
     ...(type.address === null ? [] : [[OLD_ADDRESSES, old], [OTHER_ADDRESSES, other]]),
+    // The start page an Admin chose keeps its own slug in its file, and its parent's path, which
+    // its file's name at the content folder's root does not hold (start-page.js).
+    ...(type.address === null ? [] : [['slug', z.string().optional()], ...(type.hierarchical ? [['parent', z.string().optional()]] : [])]),
   ]);
 }
 

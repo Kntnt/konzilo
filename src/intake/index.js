@@ -7,7 +7,7 @@
 // ledger, even after its slug has changed; other posts are unaffected. When the check
 // itself breaks it throws, and nothing is written.
 
-import { isObject } from '../checks.js';
+import { isObject, MARKUP } from '../checks.js';
 import { DRAFT, POST_STATUSES, PUBLISHED, SCHEDULED } from '../format/post-status.js';
 import { REDIRECTS_FILE } from '../format/redirects.js';
 import { START_PAGE, startFile } from '../format/start-page.js';
@@ -26,7 +26,6 @@ import { readSource, sha256 } from './source.js';
 import { readTerms, termFiles } from './terms.js';
 import { fieldValued, named, say } from './words.js';
 
-const MARKUP = /<\/?[a-zA-Z!?][^<>]*>/;
 // A post's own statuses, of which it is a draft where it names none of them.
 const STATUSES = new Set(POST_STATUSES);
 
@@ -278,6 +277,16 @@ function checkPost(post, run) {
   for (const problem of bodyProblems(post, hands)) refuse(run, post, inBody(problem, post));
 }
 
+// The start page an Admin chose has its file at the content folder's root, whose name holds
+// no slug, so its file holds its own `slug`, and in a hierarchical type its parent's path,
+// `parent`, where it has one: what reads the content files back, as a seed does, gives it its
+// own place again.
+function startPlace(post) {
+  if (!post.startPage) return [];
+  const segments = post.place.name.split('/');
+  return [['slug', JSON.stringify(segments.at(-1))], ...(segments.length > 1 ? [['parent', JSON.stringify(segments.slice(0, -1).join('/'))]] : [])];
+}
+
 // A post's whole file, with its derived fields, or a body's problems as refusals.
 function writePost(post, run) {
   const path = post.place.file;
@@ -294,7 +303,7 @@ function writePost(post, run) {
   const fields = fieldsOf(post, context, { date, modified: 'PENDING' });
   for (const problem of fields.problems) refuse(run, post, problem);
   if (fields.problems.length > 0) return;
-  const lines = [['title', JSON.stringify(post.title)], ...fields.lines];
+  const lines = [['title', JSON.stringify(post.title)], ...startPlace(post), ...fields.lines];
   if (run.several) {
     const key = translationKeyOf(post, run);
     if (key) lines.push(['translationKey', JSON.stringify(key)]);

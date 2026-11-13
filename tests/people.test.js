@@ -5,7 +5,9 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import { keyFileOf, passwordFilesOf, peopleOf, seat } from '../src/people.js';
+import { enrolSecondFactor } from '../src/forgejo.js';
+import { keyFileOf, passwordFilesOf, peopleOf, putInRoleTeam, seedPeople } from '../src/people.js';
+import { totp } from '../src/totp.js';
 
 describe('the people a local copy holds', () => {
   test('are the one Admin KONZILO_ACCOUNT names, where KONZILO_PEOPLE lists no one', () => {
@@ -63,8 +65,8 @@ describe('the people a local copy holds', () => {
   });
 });
 
-// Each person's key, in `state`: the one account's where a local copy has always kept it, so that
-// a copy seeded before goes on as it did, and every other person's in a folder of their own, apart
+// Each person's key, in `state`: the account's of KONZILO_ACCOUNT in `account-totp`, the file a
+// copy seeded with one account keeps its key in, and every other person's in a folder of their own, apart
 // from the keys of the accounts Konzilo makes. Forgejo takes a name in either case as one account.
 describe('a person\'s key file', () => {
   test('is account-totp for the account of KONZILO_ACCOUNT, in whatever case it is named', () => {
@@ -104,37 +106,174 @@ function forgejo(members) {
   return { teams, call, changes, now };
 }
 
-describe('seating a person', () => {
-  test('puts them in the team of their role', async () => {
+describe('putting a person in the team of their role', () => {
+  test('puts them in it', async () => {
     const stand = forgejo({ Owners: ['konzilo'], admins: ['anna'], editors: [], reviewers: [] });
-    await seat(stand.call, stand.teams, { name: 'ebba', role: 'editor', team: 'editors' });
-    await seat(stand.call, stand.teams, { name: 'rut', role: 'reviewer', team: 'reviewers' });
+    await putInRoleTeam(stand.call, stand.teams, { name: 'ebba', role: 'editor', team: 'editors' });
+    await putInRoleTeam(stand.call, stand.teams, { name: 'rut', role: 'reviewer', team: 'reviewers' });
     assert.deepEqual(stand.now(), { Owners: ['konzilo'], admins: ['anna'], editors: ['ebba'], reviewers: ['rut'] });
   });
 
   test('takes them out of the other roles\' teams, and leaves every other team and person as it was', async () => {
     const stand = forgejo({ Owners: ['konzilo'], admins: ['anna', 'rut'], editors: ['erik', 'rut'], reviewers: [], others: ['rut'] });
-    await seat(stand.call, stand.teams, { name: 'rut', role: 'reviewer', team: 'reviewers' });
+    await putInRoleTeam(stand.call, stand.teams, { name: 'rut', role: 'reviewer', team: 'reviewers' });
     assert.deepEqual(stand.now(), { Owners: ['konzilo'], admins: ['anna'], editors: ['erik'], reviewers: ['rut'], others: ['rut'] });
   });
 
   test('changes nothing that is already so', async () => {
     const stand = forgejo({ Owners: ['konzilo'], admins: ['anna'], editors: ['ebba'], reviewers: ['rut'] });
-    for (const person of [{ name: 'anna', team: 'admins' }, { name: 'ebba', team: 'editors' }, { name: 'rut', team: 'reviewers' }]) await seat(stand.call, stand.teams, person);
+    for (const person of [{ name: 'anna', team: 'admins' }, { name: 'ebba', team: 'editors' }, { name: 'rut', team: 'reviewers' }]) await putInRoleTeam(stand.call, stand.teams, person);
     assert.deepEqual(stand.changes, []);
   });
 
   test('says what failed, with the person and the team, where Forgejo answers otherwise', async () => {
     const stand = forgejo({ admins: [], editors: [], reviewers: [] });
-    await assert.rejects(seat(async () => ({ status: 500, body: 'down' }), stand.teams, { name: 'ebba', team: 'editors' }), /asking whether ebba is in admins: 500/);
-    await assert.rejects(seat(async (method) => (method === 'GET' ? { status: 404, body: {} } : { status: 403, body: 'no' }), stand.teams, { name: 'ebba', team: 'editors' }), /putting ebba in editors: 403/);
-    await assert.rejects(seat(stand.call, [{ id: 1, name: 'admins' }], { name: 'ebba', team: 'editors' }), /the site has no team editors/);
+    await assert.rejects(putInRoleTeam(async () => ({ status: 500, body: 'down' }), stand.teams, { name: 'ebba', team: 'editors' }), /asking whether ebba is in admins: 500/);
+    await assert.rejects(putInRoleTeam(async (method) => (method === 'GET' ? { status: 404, body: {} } : { status: 403, body: 'no' }), stand.teams, { name: 'ebba', team: 'editors' }), /putting ebba in editors: 403/);
+    await assert.rejects(putInRoleTeam(stand.call, [{ id: 1, name: 'admins' }], { name: 'ebba', team: 'editors' }), /the site has no team editors/);
   });
 });
 
-// Each person's password, from a secret of their own where one is given, else the one of today.
+// Each person's password, from a secret of their own where one is given, else the one every person shares.
 test('reads a person\'s password from a file of their own first, then from the one they share', () => {
   assert.deepEqual(passwordFilesOf('ebba'), ['account-password-ebba', 'account-password']);
   assert.deepEqual(passwordFilesOf('Ebba.Holm'), ['account-password-ebba.holm', 'account-password']);
   assert.throws(() => passwordFilesOf('../instance'), /is no account's name/);
 });
+
+// Forgejo as the seed meets it, as a stand-in keeps it: its accounts, each with its password and
+// the key of its second factor, null for none, and the site's teams with their members. `call` is
+// its API as the instance's account, and `get` its sign-in and enrolment forms as a browser reaches
+// them at `FORGEJO`, with a session's cookie: a password that is not the account's signs no one
+// in, an account with a second factor is signed in only half, and the enrolment page shows a new
+// key once to an account signed in whole that has none.
+const FORGEJO = 'http://forgejo.test';
+
+function forgejoWithAccounts(accounts, members = { admins: [], editors: [], reviewers: [] }) {
+  const users = new Map(Object.entries(accounts).map(([name, { password, key = null }]) => [name, { password, key }]));
+  const { teams, call: teamCall, now } = forgejo(members);
+  const asked = [];
+  const call = async (method, path, body) => {
+    const user = /^\/users\/([^/]+)$/.exec(path)?.[1];
+    if (method === 'GET' && user) return users.has(user) ? { status: 200, body: { login: user } } : { status: 404, body: { message: 'user does not exist' } };
+    if (method === 'POST' && path === '/admin/users') {
+      if (users.has(body.username)) return { status: 422, body: { message: 'user already exists' } };
+      users.set(body.username, { password: body.password, key: null });
+      return { status: 201, body: { login: body.username } };
+    }
+    return teamCall(method, path, body);
+  };
+  const sessions = new Map();
+  let next = 0;
+  const get = async (address, { method = 'GET', headers = {}, body } = {}) => {
+    const { pathname } = new URL(address);
+    asked.push(`${method} ${pathname}`);
+    const session = sessions.get(/session=(\w+)/.exec(headers.cookie ?? '')?.[1]);
+    const fields = new URLSearchParams(body ? String(body) : '');
+    const page = (text) => new Response(text, { status: 200 });
+    const away = (location, cookie) => new Response(null, { status: 303, headers: [['location', location], ...(cookie ? [['set-cookie', `session=${cookie}; Path=/; HttpOnly`]] : [])] });
+    if (method === 'POST' && pathname === '/user/login') {
+      const user = users.get(fields.get('user_name'));
+      if (!user || user.password !== fields.get('password')) return page('<p>Username or password is incorrect.</p>');
+      const id = `s${(next += 1)}`;
+      sessions.set(id, { name: fields.get('user_name'), whole: user.key === null });
+      return user.key === null ? away('/', id) : away('/user/two_factor', id);
+    }
+    if (pathname === '/user/settings/security/two_factor/enroll') {
+      if (!session?.whole) return away('/user/login');
+      const user = users.get(session.name);
+      if (method === 'GET') {
+        if (user.key !== null) return away('/user/settings/security');
+        session.offered = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
+        return page(`<p>Or enter the secret: ${session.offered}</p>`);
+      }
+      if (session.offered && fields.get('passcode') === totp(session.offered)) {
+        user.key = session.offered;
+        return away('/user/settings/security');
+      }
+      return page('<p>The passcode is incorrect.</p>');
+    }
+    return new Response('not found', { status: 404 });
+  };
+  return { teams, call, get, users, asked, now };
+}
+
+// The seed's state, its keys by file, and its log, as seedPeople() is handed them.
+function seeding(stand, { keys = {}, passwords = {}, account = 'anna' } = {}) {
+  const kept = new Map(Object.entries(keys));
+  const log = [];
+  return {
+    kept,
+    log,
+    run: (people) => seedPeople(people, {
+      call: stand.call,
+      teams: stand.teams,
+      enrol: (name, password) => enrolSecondFactor({ forgejo: FORGEJO, get: stand.get }, name, password),
+      known: (file) => kept.get(file) ?? null,
+      remember: (file, key) => kept.set(file, key),
+      passwordOf: (name) => passwords[name] ?? 'shared-password',
+      account,
+      log: (line) => log.push(line),
+    }),
+  };
+}
+
+const anna = { name: 'anna', role: 'admin', team: 'admins' };
+const ebba = { name: 'ebba', role: 'editor', team: 'editors' };
+const rut = { name: 'rut', role: 'reviewer', team: 'reviewers' };
+
+describe('seeding a local copy\'s people', () => {
+  test('makes each missing account with their password, enrols it, keeps its key and puts it in its team, and changes nothing at the next start', async () => {
+    const stand = forgejoWithAccounts({});
+    const seed = seeding(stand, { passwords: { ebba: 'ebbas-own' } });
+    await seed.run([anna, ebba]);
+    assert.deepEqual([...stand.users].map(([name, { password }]) => [name, password]), [['anna', 'shared-password'], ['ebba', 'ebbas-own']]);
+    assert.deepEqual(Object.fromEntries(seed.kept), { 'account-totp': stand.users.get('anna').key, 'people/ebba-totp': stand.users.get('ebba').key });
+    assert.deepEqual(stand.now(), { admins: ['anna'], editors: ['ebba'], reviewers: [] });
+    assert.deepEqual(seed.log, []);
+    stand.asked.length = 0;
+    await seed.run([anna, ebba]);
+    assert.deepEqual(stand.asked, [], 'no sign-in at a start where all is so');
+  });
+
+  test('enrols an account Forgejo has already, with no key the seed keeps, where it signs in as them and they have no second factor', async () => {
+    const stand = forgejoWithAccounts({ ebba: { password: 'shared-password' } });
+    const seed = seeding(stand);
+    await seed.run([ebba]);
+    assert.ok(stand.users.get('ebba').key);
+    assert.equal(seed.kept.get('people/ebba-totp'), stand.users.get('ebba').key);
+    assert.deepEqual(seed.log, []);
+  });
+
+  test('goes on where an account Forgejo has already is not signed in by the password the seed has: puts them in their team, keeps no key, and says in its log what the operator can do', async () => {
+    const stand = forgejoWithAccounts({ ebba: { password: 'her-own' } });
+    const seed = seeding(stand);
+    await seed.run([ebba, rut]);
+    assert.deepEqual(stand.users.get('ebba'), { password: 'her-own', key: null }, 'the account as it is');
+    assert.equal(seed.kept.has('people/ebba-totp'), false);
+    assert.deepEqual(stand.now(), { admins: [], editors: ['ebba'], reviewers: ['rut'] }, 'ebba in her team, and rut seeded after her');
+    assert.equal(seed.log.length, 1);
+    assert.match(seed.log[0], /^seed: ebba is in Forgejo already, and the seed cannot sign in as them with the password it has, so the code command prints no code for them\b/);
+    assert.match(seed.log[0], /give the seed their password as the secret account-password-ebba, or remove their account in Forgejo, and start again/);
+  });
+
+  test('goes on where an account Forgejo has already has a second factor the seed did not enrol: puts them in their team, keeps no key, and says in its log what the operator can do', async () => {
+    const stand = forgejoWithAccounts({ Rut: { password: 'shared-password', key: 'MFRGGZDFMZTWQ2LKNNWG23TPOBYXE43U' } });
+    const seed = seeding(stand);
+    await seed.run([{ ...rut, name: 'Rut' }, ebba]);
+    assert.equal(stand.users.get('Rut').key, 'MFRGGZDFMZTWQ2LKNNWG23TPOBYXE43U', 'the second factor as it is');
+    assert.equal(seed.kept.has('people/rut-totp'), false);
+    assert.deepEqual(stand.now(), { admins: [], editors: ['ebba'], reviewers: ['Rut'] });
+    assert.equal(seed.log.length, 1);
+    assert.match(seed.log[0], /^seed: Rut is in Forgejo already, and they have a second factor the seed did not enrol, whose key it cannot keep, so the code command prints no code for them\b/);
+    assert.match(seed.log[0], /remove their account in Forgejo, and start again/);
+  });
+
+  test('stops where Forgejo will not enrol an account the seed has just made, naming it', async () => {
+    const stand = forgejoWithAccounts({});
+    const seed = seeding({ ...stand, get: async () => new Response('down', { status: 502 }) });
+    await assert.rejects(seed.run([ebba]), /enrolling ebba, whose account the seed made/);
+    assert.deepEqual(seed.log, []);
+  });
+});
+

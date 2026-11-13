@@ -21,7 +21,8 @@ import { arrangement } from '../../src/arrangement.js';
 import { SIGN_IN_PATH } from '../../src/cms/preview/paths.js';
 import { demoContentOf } from '../../src/demo-content.js';
 import { demoSource, GIT_ATTRIBUTES } from '../../src/demo-source.js';
-import { ACCOUNT_NAME, keyFileOf, passwordFilesOf, peopleOf, seat } from '../../src/people.js';
+import { enrolSecondFactor, must } from '../../src/forgejo.js';
+import { ACCOUNT_NAME, passwordFilesOf, peopleOf, seedPeople } from '../../src/people.js';
 import { keepClient, keepHook } from '../../src/seed-addresses.js';
 import { readSiteDescriptionWithoutTakenComponents } from '../../src/site-description.js';
 import { totp } from '../../src/totp.js';
@@ -69,45 +70,16 @@ const remember = (name, value) => {
   chmodSync(join(STATE, name), 0o600);
 };
 
-// A browser's visit, with its cookies, following no redirect by itself.
-function visitor() {
-  const cookies = new Map();
-  const send = async (path, init = {}) => {
-    const answer = await fetch(`${FORGEJO}${path}`, {
-      redirect: 'manual',
-      ...init,
-      headers: { ...init.headers, cookie: [...cookies].map(([name, value]) => `${name}=${value}`).join('; ') },
-    });
-    for (const cookie of answer.headers.getSetCookie()) {
-      const [pair] = cookie.split(';');
-      const at = pair.indexOf('=');
-      cookies.set(pair.slice(0, at), pair.slice(at + 1));
-    }
-    return answer;
-  };
-  const form = (path, fields) => send(path, {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams(fields),
-  });
-  return { send, form };
-}
-
-// A second factor, through the forms, since there is no API for it. Forgejo makes the
-// key and shows it once; remembering it here is what gives a local account a code a
-// command can print.
+// The second factor of an account of the seed's own, the instance's or a machine's, in `state`
+// under `keyFile`: enrolled once (src/forgejo.js), and kept, which is what gives the account a
+// code the seed can sign in with. An account of the seed's own that cannot be enrolled stops the
+// start.
 async function enrol(user, password, keyFile) {
   const already = known(keyFile);
   if (already) return already;
-  const { send, form } = visitor();
-  const signedIn = await form('/user/login', { user_name: user, password });
-  if (signedIn.status !== 303) throw new Error(`signing in as ${user}: ${signedIn.status}`);
-  const page = await (await send('/user/settings/security/two_factor/enroll')).text();
-  const key = /Or enter the secret: ([A-Z2-7]+)/.exec(page)?.[1];
-  // An account given a second factor elsewhere has a key the seed never saw, and none to keep.
-  if (!key) throw new Error(`no secret on the enrolment page of ${user}, who may have a second factor the seed did not enrol, whose key it cannot keep`);
-  const enrolled = await form('/user/settings/security/two_factor/enroll', { passcode: totp(key) });
-  if (enrolled.status !== 303) throw new Error(`enrolling ${user}: ${enrolled.status}`);
+  const { key, refused } = await enrolSecondFactor({ forgejo: FORGEJO }, user, password);
+  if (refused === 'password') throw new Error(`signing in as ${user}: Forgejo does not sign it in with its password`);
+  if (refused) throw new Error(`enrolling ${user}, who has a second factor the seed did not enrol, whose key it cannot keep`);
   remember(keyFile, key);
   return key;
 }
@@ -148,11 +120,6 @@ const request = async (path, body, authorization, otp) => {
   });
   const text = await answer.text();
   return { status: answer.status, body: text && answer.headers.get('content-type')?.includes('json') ? JSON.parse(text) : text };
-};
-
-const must = (what, { status, body }, ...expected) => {
-  if (!expected.includes(status)) throw new Error(`${what}: ${status} ${JSON.stringify(body)}`);
-  return body;
 };
 
 async function pushDemoContent(token) {
@@ -297,36 +264,23 @@ function searchKeys() {
 }
 
 // The local copy's people (src/people.js), which every start makes sure of, so that a copy seeded
-// before gains those added since: each person's account, with their password where it is made,
-// a second factor whose key `state` keeps, and the team of their role and no other role's. The
-// key of the account `KONZILO_ACCOUNT` named at the first start is `account-totp`, as it has
-// always been, and `account-name` says whose it is, so that a later change of the setting never
-// gives one person another's key.
-async function seedPeople(call, people) {
+// before gains those added since, and none of whom stops a start. The key of the account
+// `KONZILO_ACCOUNT` named at the first start is `account-totp`, which the `code` command reads
+// without a name, and `account-name` says whose it is, so that a later change of the setting
+// never gives one person another's key.
+async function people(call, listed) {
   const account = known(ACCOUNT_NAME) ?? process.env.KONZILO_ACCOUNT;
   if (account && !known(ACCOUNT_NAME)) remember(ACCOUNT_NAME, account);
-  const teams = must('listing the teams', await call('GET', `/orgs/${site}/teams`), 200);
-  for (const person of people) {
-    const { name } = person;
-    const keyFile = keyFileOf(name, account);
-    const found = await call('GET', `/users/${encodeURIComponent(name)}`);
-    must(`looking for the account ${name}`, found, 200, 404);
-    if (found.status === 404 || !known(keyFile)) {
-      const password = passwordOf(name);
-      if (found.status === 404) {
-        must(`making the account ${name}`, await call('POST', '/admin/users', {
-          username: name,
-          email: `${name}@localhost.invalid`,
-          password,
-          must_change_password: false,
-          send_notify: false,
-          visibility: 'private',
-        }), 201);
-      }
-      await enrol(name, password, keyFile);
-    }
-    await seat(call, teams, person);
-  }
+  await seedPeople(listed, {
+    call,
+    teams: must('listing the teams', await call('GET', `/orgs/${site}/teams`), 200),
+    enrol: (name, password) => enrolSecondFactor({ forgejo: FORGEJO }, name, password),
+    known,
+    remember,
+    passwordOf,
+    account,
+    log: (line) => console.log(line),
+  });
 }
 
 // A person's password: from a secret of their own where one is mounted, else from the one they
@@ -339,7 +293,7 @@ function passwordOf(name) {
 
 async function main() {
   // The machine accounts, the instance's and the site's organisation are no one's to take.
-  const people = peopleOf(process.env, { taken: ['konzilo', BUILDER, READER, SERVICE_READER, site] });
+  const listed = peopleOf(process.env, { taken: ['konzilo', BUILDER, READER, SERVICE_READER, site] });
   searchKeys();
   const instancePassword = secret('instance-password');
   const instanceKey = await enrol('konzilo', instancePassword, 'instance-totp');
@@ -363,7 +317,7 @@ async function main() {
   // The teams have write access and never ownership, so that no customer reaches webhooks or
   // settings (ADR 0008), and publishing makes sure of them before anyone is put in one.
   await publishing(call, instancePassword, instanceKey);
-  await seedPeople(call, people);
+  await people(call, listed);
   if (first) remember('seeded', new Date().toISOString());
 }
 

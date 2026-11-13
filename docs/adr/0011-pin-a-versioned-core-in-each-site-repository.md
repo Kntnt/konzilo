@@ -1,6 +1,6 @@
 # ADR 0011: Pin a versioned core in each site repository
 
-**Date:** 2026-10-27 · **Status:** Accepted, settled by Thomas on 2026-10-27: a versioned core that site repositories pin, not a template copied per customer. How it ships is a technical choice; Thomas may veto. Now that the repository is public, a release ships its package as a file attached to it, which a site keeps in its own `vendor/` and pins by that path: a technical choice of 2026-11-12, which Thomas may veto.
+**Date:** 2026-10-27, amended 2026-11-12 · **Status:** Accepted, settled by Thomas on 2026-10-27: a versioned core that site repositories pin, not a template copied per customer. How it ships is a technical choice; Thomas may veto. Now that the repository is public, a release ships its package as a file attached to it, which a site keeps in its own `vendor/` and pins by that path: a technical choice of 2026-11-12, which Thomas may veto.
 
 ## Decision
 

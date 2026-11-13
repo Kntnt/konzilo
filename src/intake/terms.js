@@ -2,11 +2,11 @@
 // post names it, and its published file, written for each term a published post names and
 // each term above it.
 
+import { MARKUP } from '../checks.js';
 import { slugFrom } from './post-file.js';
 import { groupBy } from './run.js';
 import { named, say } from './words.js';
 
-const MARKUP = /<\/?[a-zA-Z!?][^<>]*>/;
 const TERM_SLUG = /^[a-z0-9_-]+$/;
 const json = (value) => `${JSON.stringify(value, null, 2)}\n`;
 

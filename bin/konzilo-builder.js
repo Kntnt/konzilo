@@ -20,6 +20,7 @@ import { buildOnRequest } from '../src/build/requests.js';
 import { forgejoRoles } from '../src/build/roles.js';
 import { searchDocumentsCommand, siteSearch } from '../src/build/search-index.js';
 import { walk } from '../src/intake/content-folder.js';
+import { prepareSiteCode } from '../src/site-code.js';
 import { readSiteDescription } from '../src/site-description.js';
 
 const run = promisify(execFile);
@@ -60,7 +61,7 @@ function codeOf(site, core) {
 
 // The site's code as it now is, with its dependencies installed only when what they are installed
 // from has changed.
-await run('sh', ['/konzilo/compose/builder/prepare-site.sh', work, '--exclude=./content', '--exclude=./demo-content'], { cwd: '/site', maxBuffer: 1024 * 1024 * 64 });
+await prepareSiteCode(work);
 
 await run(process.execPath, ['/konzilo/bin/konzilo-cms.js', SITE_FOLDER, '/admin-config/config.json'], {
   env: { ...process.env, KONZILO_OAUTH_CLIENT: secret('oauth-client') },

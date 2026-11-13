@@ -36,7 +36,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { excludedPaths } from '../ai-visibility.js';
 import { MAIN_MARK, pageMarkdown } from './html-to-markdown.js';
-import { entryAddress, isStartEntry, startAddress } from './languages.js';
+import { chosenStartPage, entryAddress, isStartEntry, startAddress } from './languages.js';
 import { isPublicBuild } from './public-site.js';
 
 export { MAIN_MARK };
@@ -108,15 +108,15 @@ function candidate({ entry, type, path }, ai, site) {
 }
 
 // Each page of the site that passes every rule but the excluded paths, as
-// { entry, type, path, home }: the start page, `home` true, the page an Admin
-// chose for it where there is one, then the posts of each type with an
+// { entry, type, path, start }: the start page, `start` true, the page an
+// Admin chose for it where there is one, then the posts of each type with an
 // address, in Astro's order.
 async function candidates(site, ai, getCollection) {
   const found = [];
-  const chosen = await chosenStart(site, getCollection);
+  const chosen = await chosenStartPage(site, getCollection);
   for (const path of startPaths(site)) {
-    const home = chosen ?? { entry: null, type: null, path };
-    if (candidate(home, ai, site)) found.push({ ...home, home: true });
+    const start = chosen ? { ...chosen, path: postPath(chosen.type, chosen.entry, site) } : { entry: null, type: null, path };
+    if (candidate(start, ai, site)) found.push({ ...start, start: true });
   }
   for (const type of Object.values(site.types)) {
     if (type.address === null || ai.types?.[type.name]?.markdown !== true) continue;
@@ -127,16 +127,6 @@ async function candidates(site, ai, getCollection) {
     }
   }
   return found;
-}
-
-// The page an Admin chose as the start page, as { entry, type, path }, or null.
-async function chosenStart(site, getCollection) {
-  for (const type of Object.values(site.types)) {
-    if (type.address === null) continue;
-    const entry = (await getCollection(type.collection)).find((one) => isStartEntry(one.id));
-    if (entry) return { entry, type, path: postPath(type, entry, site) };
-  }
-  return null;
 }
 
 // Which paths the excluded paths leave out, by the patterns' text: the
@@ -177,7 +167,7 @@ export async function markdownAlternate({ entry = null, type = null, path, page 
 }
 
 // Every page of the site that has a Markdown alternate, as { entry, type,
-// path, home, markdown }, the start page first, then the posts of each type in
+// path, start, markdown }, the start page first, then the posts of each type in
 // Astro's order: the same pages markdownAlternate() tells of.
 export async function markdownPages({ settings, site }, { getCollection }) {
   const ai = aiSettings(settings, site);
