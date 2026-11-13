@@ -29,7 +29,7 @@
 
 ## Considered and rejected
 
-- **Installing at every start.** A start needed the network, and a quarter of a minute before the builder did anything.
+- **Installing at every start.** Every start would need the network, and a quarter of a minute before the builder or the preview did anything.
 - **The lock alone as the record.** It says nothing of a checkout's files under a path pin, and need not hold a tarball's bytes.
 - **The record beside the copy, outside its `node_modules`.** It would outlive a `node_modules` that is gone.
 - **A queue of build requests.** One more build covers every request.
