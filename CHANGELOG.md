@@ -16,6 +16,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A form can have a button text of its own in the site description, `button`, one text or, on a site in several languages, one in each, in place of the site's word for sending. Where the form lists `button` under `editable`, an editor changes the text where the form is placed, `::form{name="contact" button="Book the assessment"}`, or in the structure editor's box for the form; the intake refuses such a text where the form does not allow it. A site whose own form component (the site template's `src/components/Form.astro`) passes on only `name` must pass on `button` too for an editor's text to show.
 - Each of the core's programs finds Forgejo, Typesense, the service's two roles and the live preview, and its own credentials and work folder, by settings whose defaults are where Compose puts them, so that a hosting layer or a site can arrange the same programs otherwise, on other machines or several in one container; the service's two roles can be held to the loopback, and Forgejo's webhook let reach another host. Compose sets none of them and runs as before. The Compose guide lists them under *What another arrangement sets*.
 
+### Changed
+
+- The builder and the live preview install a site's dependencies at a start only when what they are installed from has changed since the last install that ended: the site's `package.json`, its lock and its `.npmrc`, the files of a dependency pinned by a path, such as a core's checkout or a package in the site's `vendor/`, and the Node they run on. A start with nothing changed runs no `npm`, needs no network and begins at once, while a change to the site's code still reaches both at their next start, and an install that failed or was stopped is made again at the next.
+
 ### Fixed
 
 - A click in the body field while the live preview's page is still loading, in the pane or in its window of its own, no longer leaves an error in the browser's console in Safari and Firefox.
