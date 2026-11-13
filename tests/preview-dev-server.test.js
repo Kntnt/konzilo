@@ -3,7 +3,12 @@
 
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import { devServer } from '../src/preview/dev-server.js';
 
@@ -143,3 +148,39 @@ describe('the dev server', () => {
     await assert.rejects(server.ensure(), /stopped as it started/);
   });
 });
+
+const freePort = () => new Promise((resolve, reject) => {
+  const probe = createServer().listen(0, '127.0.0.1', () => {
+    const { port } = probe.address();
+    probe.close(() => resolve(port));
+  });
+  probe.on('error', reject);
+});
+
+// A site whose `predev` makes a file before its dev server starts, as one that writes its logos
+// from a design file does: `npm run dev` runs it, and so does the preview, before each start.
+test('runs the site\'s predev before the dev server starts, so that it serves what predev made', { timeout: 180_000 }, async () => {
+  const core = fileURLToPath(new URL('../', import.meta.url));
+  const site = mkdtempSync(join(tmpdir(), 'konzilo-predev-'));
+  try {
+    symlinkSync(join(core, 'node_modules'), join(site, 'node_modules'));
+    mkdirSync(join(site, 'src/pages'), { recursive: true });
+    writeFileSync(join(site, 'package.json'), JSON.stringify({ name: 'a-site', private: true, type: 'module', scripts: { predev: 'node make.js', dev: 'astro dev' } }));
+    writeFileSync(join(site, 'make.js'), "import { mkdirSync, writeFileSync } from 'node:fs';\nmkdirSync('public', { recursive: true });\nwriteFileSync('public/made-before.txt', 'made by predev');\n");
+    writeFileSync(join(site, 'astro.config.mjs'), 'export default {};\n');
+    writeFileSync(join(site, 'src/pages/index.astro'), '<p>A page</p>\n');
+    const port = await freePort();
+    const server = devServer({ root: site, port, environment: { PATH: process.env.PATH, HOME: site, ASTRO_TELEMETRY_DISABLED: '1', ASTRO_DISABLE_UPDATE_CHECK: 'true' } });
+    try {
+      await server.ensure();
+      const answer = await fetch(`http://127.0.0.1:${port}/made-before.txt`);
+      assert.equal(answer.status, 200);
+      assert.equal(await answer.text(), 'made by predev');
+    } finally {
+      server.stop();
+    }
+  } finally {
+    rmSync(site, { recursive: true, force: true });
+  }
+});
+
