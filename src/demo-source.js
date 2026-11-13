@@ -38,9 +38,10 @@ const toMedia = (image) => {
 
 const mediaPath = (src) => `/media/${src.split('/').at(-1)}`;
 
-// A post's place on a site: { type, tag, language, place, fields, body, id, address, scheduled }.
-// The start page an Admin chose, at the content folder's root, has no place of its own:
-// `start`, and an ID no other post's can be.
+// A post's place on a site: { type, tag, language, place, fields, body, id, address, scheduled,
+// start }, `scheduled` true where it is dated after `now`. The start page an Admin chose, at the
+// content folder's root, has no place or address of its own, `start` true, and an ID no other
+// post's can be; every other post has no `start`.
 function postsOf(description, published, now) {
   const several = description.languages.length > 1;
   const posts = [];
