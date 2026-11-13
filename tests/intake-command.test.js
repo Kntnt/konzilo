@@ -379,6 +379,17 @@ describe('konzilo-intake', () => {
     assert.equal(report.next, '2999-01-01T10:00:00Z');
   });
 
+  // As a site that makes its demo content through the intake does, to have a file for a post
+  // dated ahead, which demo content holds as a scheduled post (ADR 0025).
+  test('takes the moment it is told for now, and writes a post dated before it', () => {
+    const site = newSite({ 'articles/aaaaaaaaaaaa.md': post('later', { date: '2999-01-01T10:00:00Z' }) });
+    const { status, stderr, report } = intake(site, '--now', '2999-01-02T00:00:00Z');
+    assert.equal(status, 0, stderr);
+    assert.deepEqual(report.warnings.filter((one) => one.post), []);
+    assert.equal(report.posts[0].state, 'live');
+    assert.ok(existsSync(join(site.content, 'articles/later.md')));
+  });
+
   // The moment the command runs at, given, so that a site that makes its
   // content files with it makes the same bytes on any day: the registry's
   // `revised` among them, and which posts wait.

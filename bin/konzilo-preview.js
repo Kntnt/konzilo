@@ -40,9 +40,10 @@ const {
   KONZILO_PREVIEW_ORIGIN: origin,
 } = process.env;
 
-// The site's code first, without what a site repository may hold of a local copy's content, or
-// its own demo content.
-const prepared = run('sh', ['/konzilo/compose/builder/prepare-site.sh', work, '--exclude=./content', '--exclude=./demo-content'], { maxBuffer: 1024 * 1024 * 64 }).then(() => {
+// The site's code first, as it now is, without what a site repository may hold of a local copy's
+// content, or its own demo content, with its dependencies installed only when what they are
+// installed from has changed.
+const prepared = run('sh', ['/konzilo/compose/builder/prepare-site.sh', work, '--exclude=./content', '--exclude=./demo-content'], { cwd: '/site', maxBuffer: 1024 * 1024 * 64 }).then(() => {
   mkdirSync(`${SITE_FOLDER}/content`, { recursive: true });
 });
 prepared.catch((error) => console.error(`The preview could not prepare the site: ${error.message}`));

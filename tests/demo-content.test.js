@@ -10,8 +10,76 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { copyDemoContent } from '../src/demo-content.js';
+import { demoSource } from '../src/demo-source.js';
+import { intake } from '../src/intake/index.js';
+import { siteDescription } from '../src/site-description.js';
+import { namedImages } from './lib/intake.js';
 
 const command = fileURLToPath(new URL('../bin/konzilo-demo-content.js', import.meta.url));
+
+// A site's own demo content with one post out and one dated ahead, which is scheduled.
+const MOMENT = '2026-12-01T07:00:00Z';
+const BEFORE = new Date('2026-11-12T10:00:00Z');
+const AFTER = new Date('2026-12-01T07:00:30Z');
+const description = siteDescription({
+  language: 'en_GB',
+  types: { story: { label: 'Article', plural: 'Articles', collection: 'articles', address: '/{slug}/', elements: ['paragraph'], fields: { date: {} } } },
+});
+const contentFile = (title, date) => `---\ntitle: ${JSON.stringify(title)}\ndate: ${date}\nmodified: ${date}\n---\n\nThe lamps are lit.\n`;
+const scheduledDemo = (site) => {
+  mkdirSync(join(site, 'demo-content/articles'), { recursive: true });
+  writeFileSync(join(site, 'demo-content/articles/lamps-along-the-quay.md'), contentFile('Lamps along the quay', '2026-10-20T08:00:00Z'));
+  writeFileSync(join(site, 'demo-content/articles/the-winter-lamps.md'), contentFile('The winter lamps', MOMENT));
+  writeFileSync(join(site, 'demo-content/settings.json'), '{\n  "title": "The Lamplighters\' Almanac"\n}\n');
+};
+
+describe('a demo content file dated ahead, which is a scheduled post', () => {
+  let site;
+  before(() => {
+    site = mkdtempSync(join(tmpdir(), 'konzilo-demo-scheduled-'));
+    scheduledDemo(site);
+  });
+  after(() => rmSync(site, { recursive: true, force: true }));
+
+  const statusOf = (files, title) => /^status: "?([a-z]+)"?$/m.exec(files.find(({ content }) => content.includes(`title: "${title}"`)).content)[1];
+  const run = (source, now, ledger = null) => intake({ files: source.map(({ path, content }) => ({ path, contents: content })), site: description, now, ledger, images: namedImages() });
+
+  test('is seeded as a scheduled source file with its moment, beside the published ones', () => {
+    const source = demoSource(description, join(site, 'demo-content'), { now: BEFORE });
+    assert.equal(statusOf(source, 'Lamps along the quay'), 'published');
+    assert.equal(statusOf(source, 'The winter lamps'), 'scheduled');
+    assert.match(source.find(({ content }) => content.includes('The winter lamps')).content, /^date: 2026-12-01T07:00:00Z$/m);
+  });
+
+  test('waits off the site until its moment, and the intake publishes it then, with nothing to say', () => {
+    const source = demoSource(description, join(site, 'demo-content'), { now: BEFORE });
+    const seeded = run(source, BEFORE);
+    assert.deepEqual(seeded.refusals, []);
+    assert.deepEqual(seeded.files.map(({ path }) => path).filter((path) => path.startsWith('articles/')), ['articles/lamps-along-the-quay.md']);
+    assert.equal(seeded.next, MOMENT);
+    const at = run(source, AFTER, seeded.ledger);
+    assert.deepEqual(at.refusals, []);
+    assert.deepEqual(at.warnings, []);
+    const live = at.files.find(({ path }) => path === 'articles/the-winter-lamps.md');
+    assert.match(live.contents, /^date: 2026-12-01T07:00:00Z$/m);
+  });
+
+  test('is an ordinary published post to a seed after its moment', () => {
+    const source = demoSource(description, join(site, 'demo-content'), { now: AFTER });
+    assert.equal(statusOf(source, 'The winter lamps'), 'published');
+  });
+
+  // A copy without Compose has no clock that publishes: what it copies is what it shows.
+  test('is left out of a content folder filled before its moment, and copied as published after it', () => {
+    const before = join(site, 'content-before');
+    assert.deepEqual(copyDemoContent(site, before, BEFORE).scheduled, ['articles/the-winter-lamps.md']);
+    assert.deepEqual(readdirSync(join(before, 'articles')), ['lamps-along-the-quay.md']);
+    const after = join(site, 'content-after');
+    assert.deepEqual(copyDemoContent(site, after, AFTER).scheduled, []);
+    assert.deepEqual(readdirSync(join(after, 'articles')).sort(), ['lamps-along-the-quay.md', 'the-winter-lamps.md']);
+  });
+});
 
 describe('konzilo-demo-content', () => {
   let folder;
@@ -63,6 +131,16 @@ describe('konzilo-demo-content', () => {
       assert.match(stderr, /demo content is not for a public host: https:\/\/www\.example\.com/);
       assert.equal(existsSync(content), false);
     }
+  });
+
+  test('leaves out a post of the site\'s own demo content that is dated ahead, and says so', () => {
+    const { status, content, stdout, stderr } = run(undefined, (cwd) => {
+      ownDemoContent(cwd);
+      writeFileSync(join(cwd, 'demo-content/articles/the-last-lamp.md'), contentFile('The last lamp', '2999-01-01T07:00:00Z'));
+    });
+    assert.equal(status, 0, stderr);
+    assert.deepEqual(readdirSync(join(content, 'articles')), ['lamps-along-the-quay.md']);
+    assert.match(stdout, /left out articles\/the-last-lamp\.md, a post dated ahead, which only Compose schedules/);
   });
 
   test('leaves a site that has content as it is, on any host', () => {
