@@ -34,6 +34,7 @@ import { postFiles, walk, writeContent } from '../src/intake/content-folder.js';
 import { componentChecksOf } from '../src/intake/component-checks.js';
 import { imagesFrom, namedOriginals } from '../src/intake/images.js';
 import { deletion, intake } from '../src/intake/index.js';
+import { exitOnceWritten } from '../src/exit-once-written.js';
 import { readSiteDescription, SITE_DESCRIPTION_FILE } from '../src/site-description.js';
 
 const usage = () => {
@@ -106,12 +107,12 @@ try {
   const guard = deletion(postFiles(content, site), result, { confirmed: parsed.values.confirm ?? null });
   if (guard.stop) {
     console.log(JSON.stringify({ stopped: { reason: guard.reason, count: guard.count, total: guard.total, paths: guard.paths, code: guard.code }, refusals: result.refusals, warnings: result.warnings, posts: result.posts, next: result.next }, null, 2));
-    process.exit(3);
+    await exitOnceWritten(3);
   }
 
   const { written, removed } = writeContent(content, site, result);
   console.log(JSON.stringify({ refusals: result.refusals, warnings: result.warnings, posts: result.posts, written, removed, next: result.next }, null, 2));
 } catch (error) {
   console.error(`konzilo-intake: the check broke, and nothing was written: ${error.stack ?? error.message}`);
-  process.exit(1);
+  await exitOnceWritten(1);
 }

@@ -60,6 +60,22 @@ test('puts the posts in use into the site\'s collection, and writes the route wi
   }
 });
 
+// The builder reads the documents through a pipe, which holds far less than a site's documents:
+// the command ends only once what it wrote has been taken.
+test('makes documents of more than a pipe holds, and the builder reads them whole', async () => {
+  const { root, content } = folders();
+  try {
+    const words = Array.from({ length: 40_000 }, (_, at) => `word${at}`).join(' ');
+    writeFileSync(join(content, 'articles/long.md'), `---\ntitle: "Long"\ndate: 2026-10-03T08:00:00Z\n---\n\n${words}\n`);
+    const made = await searchDocumentsCommand({ program, site: join(root, 'site-description.json'), content, environment: { PATH: process.env.PATH } })();
+    const long = made.documents.find(({ id }) => id === 'articles/long');
+    assert.ok(long.body.length > 300_000, `a body of ${long.body.length} characters`);
+    assert.ok(long.body.endsWith('word39999'));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('asks Typesense nothing on a site without search, and writes a route that says so', async () => {
   const { root, route } = folders();
   try {
