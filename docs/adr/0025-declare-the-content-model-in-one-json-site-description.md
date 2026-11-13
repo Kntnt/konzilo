@@ -1,6 +1,6 @@
 # ADR 0025: Declare the content model in one JSON site description
 
-**Date:** 2026-11-03, amended 2026-11-12 · **Status:** Accepted as a technical choice; Thomas may veto. So are the choices for a site's own demo content, which a demo site shows itself with: that it is kept in `demo-content/` at the site repository's root, that it takes the core's place whole, and that Compose's seed reads it from the site repository, mounted read-only. So is how demo content holds a scheduled post: as a post dated ahead, which a copy without Compose leaves out, and no draft for now.
+**Date:** 2026-11-03, amended 2026-11-11 and 2026-11-12 · **Status:** Accepted as a technical choice; Thomas may veto. So are the choices for a site's own demo content, which a demo site shows itself with: that it is kept in `demo-content/` at the site repository's root, that it takes the core's place whole, and that Compose's seed reads it from the site repository, mounted read-only. So is how demo content holds a scheduled post: as a post dated ahead, which a copy without Compose leaves out, and no draft for now.
 
 ## Decision
 
