@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { copyDemoContent } from '../src/demo-content.js';
-import { demoSource } from '../src/demo-source.js';
+import { demoSource, leadsToLeftOut } from '../src/demo-source.js';
 import { intake } from '../src/intake/index.js';
 import { siteDescription } from '../src/site-description.js';
 import { namedImages } from './lib/intake.js';
@@ -68,6 +68,26 @@ describe('a demo content file dated ahead, which is a scheduled post', () => {
   test('is an ordinary published post to a seed after its moment', () => {
     const source = demoSource(description, join(site, 'demo-content'), { now: AFTER });
     assert.equal(statusOf(source, 'The winter lamps'), 'published');
+  });
+
+  // A copy that leaves the post out has no page at its address, which nothing else says.
+  test('is named, where a copy leaves it out, by each link and menu entry of what it copies that leads to it, refusing nothing', () => {
+    const demo = mkdtempSync(join(tmpdir(), 'konzilo-demo-leading-'));
+    try {
+      mkdirSync(join(demo, 'articles'));
+      mkdirSync(join(demo, 'menus'));
+      writeFileSync(join(demo, 'articles/the-winter-lamps.md'), contentFile('The winter lamps', MOMENT));
+      writeFileSync(join(demo, 'articles/lamps-along-the-quay.md'), `---\ntitle: "Lamps along the quay"\ndate: 2026-10-20T08:00:00Z\n---\n\nSee [the winter lamps](/the-winter-lamps/), <a href="/the-winter-lamps/#first">the first</a> and [the quay](/lamps-along-the-quay/).\n`);
+      writeFileSync(join(demo, 'menus/main.json'), JSON.stringify({ items: [{ title: 'Quay', url: '/lamps-along-the-quay/', items: [{ title: 'Winter', url: '/the-winter-lamps/' }] }] }));
+      assert.deepEqual(leadsToLeftOut(description, demo, ['articles/the-winter-lamps.md']), [
+        'articles/lamps-along-the-quay.md: a link leads to /the-winter-lamps/, The winter lamps, a post dated ahead that is left out, so it leads to no page',
+        'articles/lamps-along-the-quay.md: a link leads to /the-winter-lamps/, The winter lamps, a post dated ahead that is left out, so it leads to no page',
+        'menus/main.json: the entry "Winter" leads to /the-winter-lamps/, The winter lamps, a post dated ahead that is left out, so it leads to no page',
+      ]);
+      assert.deepEqual(leadsToLeftOut(description, demo, []), []);
+    } finally {
+      rmSync(demo, { recursive: true, force: true });
+    }
   });
 
   // A copy without Compose has no clock that publishes: what it copies is what it shows.
@@ -185,6 +205,19 @@ describe('konzilo-demo-content', () => {
     assert.equal(status, 0, stderr);
     assert.deepEqual(readdirSync(join(content, 'articles')), ['lamps-along-the-quay.md']);
     assert.match(stdout, /left out articles\/the-last-lamp\.md, a post dated ahead, which only Compose schedules/);
+  });
+
+  test('says of each link and menu entry it copies that leads to a post it leaves out, and copies them all the same', () => {
+    const { status, content, stdout, stderr } = run(undefined, (cwd) => {
+      ownDemoContent(cwd);
+      writeFileSync(join(cwd, 'site-description.json'), JSON.stringify({ language: 'en_GB', types: { story: { label: 'Article', plural: 'Articles', collection: 'articles', address: '/{slug}/', elements: ['paragraph'], fields: { date: {} } } } }));
+      writeFileSync(join(cwd, 'demo-content/articles/the-last-lamp.md'), contentFile('The last lamp', '2999-01-01T07:00:00Z'));
+      mkdirSync(join(cwd, 'demo-content/menus'));
+      writeFileSync(join(cwd, 'demo-content/menus/main.json'), JSON.stringify({ items: [{ title: 'Last', url: '/the-last-lamp/' }] }));
+    });
+    assert.equal(status, 0, stderr);
+    assert.match(stdout, /^konzilo: menus\/main\.json: the entry "Last" leads to \/the-last-lamp\/, The last lamp, a post dated ahead that is left out, so it leads to no page$/m);
+    assert.ok(existsSync(join(content, 'menus/main.json')));
   });
 
   test('leaves a site that has content as it is, on any host', () => {
