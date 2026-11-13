@@ -1,5 +1,7 @@
 // What the core asks of the site's Forgejo in more than one place.
 
+import { totp } from './totp.js';
+
 // What Git needs to reach a repository with a credential that is never written to disk.
 export const gitEnvironment = ({ user, token, home }) => ({
   PATH: process.env.PATH,
@@ -15,6 +17,50 @@ export const gitEnvironment = ({ user, token, home }) => ({
 export function must(what, { status, body }, ...expected) {
   if (!expected.includes(status)) throw new Error(`${what}: ${status} ${JSON.stringify(body)}`);
   return body;
+}
+
+// A browser's visit to Forgejo at `forgejo`, through `get`, with its cookies, following no
+// redirect by itself: { send(path, init), form(path, fields) }.
+function visitor(forgejo, get) {
+  const cookies = new Map();
+  const send = async (path, init = {}) => {
+    const answer = await get(`${forgejo}${path}`, {
+      redirect: 'manual',
+      ...init,
+      headers: { ...init.headers, cookie: [...cookies].map(([name, value]) => `${name}=${value}`).join('; ') },
+    });
+    for (const cookie of answer.headers.getSetCookie()) {
+      const [pair] = cookie.split(';');
+      const at = pair.indexOf('=');
+      cookies.set(pair.slice(0, at), pair.slice(at + 1));
+    }
+    return answer;
+  };
+  const form = (path, fields) => send(path, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams(fields),
+  });
+  return { send, form };
+}
+
+// Signs in as `user` with `password` through Forgejo's forms at `forgejo`, as a person does, and
+// enrols a second factor, since Forgejo's API has none for it (ADR 0007). Forgejo makes the key
+// and shows it once, so what this gives is the one chance to keep it: { key }, or { refused },
+// why it could not, `password` where Forgejo does not sign `user` in with `password`, or `second
+// factor` where the account has one already, whose key Forgejo shows no one. Throws where Forgejo
+// refuses the enrolment itself.
+export async function enrolSecondFactor({ forgejo, get = fetch }, user, password) {
+  const { send, form } = visitor(forgejo, get);
+  const signedIn = await form('/user/login', { user_name: user, password });
+  if (signedIn.status !== 303) return { refused: 'password' };
+  const page = await (await send('/user/settings/security/two_factor/enroll')).text();
+  const key = /Or enter the secret: ([A-Z2-7]+)/.exec(page)?.[1];
+  // A second factor already there is shown on no page, so its account is signed in only half.
+  if (!key) return { refused: 'second factor' };
+  const enrolled = await form('/user/settings/security/two_factor/enroll', { passcode: totp(key) });
+  if (enrolled.status !== 303) throw new Error(`enrolling ${user}: ${enrolled.status}`);
+  return { key };
 }
 
 // What a browser may send as a credential, and nothing else is passed on to Forgejo.

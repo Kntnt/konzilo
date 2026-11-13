@@ -3,6 +3,8 @@
 // in as. `KONZILO_PEOPLE` lists them, and where it lists no one there is the one Admin that
 // `KONZILO_ACCOUNT` names.
 
+import { must } from './forgejo.js';
+
 // Each role a person may have, with the team of the site's organisation that gives it.
 export const ROLES = Object.freeze({ admin: 'admins', editor: 'editors', reviewer: 'reviewers' });
 
@@ -55,6 +57,63 @@ export async function putInRoleTeam(call, teams, { name, team: wanted }) {
       if (taken.status !== 204) throw new Error(`taking ${name} out of ${team}: ${taken.status} ${JSON.stringify(taken.body)}`);
     }
   }
+}
+
+// Makes sure of each of `people`, as peopleOf() gives them, at a start (ADR 0007, ADR 0008):
+// their account, made with their password where Forgejo has none; a second factor, enrolled
+// through Forgejo's forms, whose key `state` keeps; and the team of their role and no other
+// role's. It changes nothing that is already so. A person whose account Forgejo has already,
+// with no key `state` keeps, is enrolled where the seed signs in as them with the password it has
+// and they have no second factor. Where it cannot, they are put in their team all the same, the
+// seed's log names them with what the operator can do, and the start goes on: a local copy's
+// people never stop it. An account the seed has just made that Forgejo will not enrol does.
+//
+//   call        Forgejo's API as the instance's account: (method, path, body) => { status, body }
+//   teams       the site's teams, as Forgejo's API lists them
+//   enrol       (name, password) => { key } or { refused }, as enrolSecondFactor() of forgejo.js
+//   known       the key a file of `state` keeps, by the file's name, else null
+//   remember    (file, key), which keeps a key in `state`
+//   passwordOf  a person's password, by their name
+//   account     the name whose key is `account-totp` (keyFileOf())
+//   log         a line of the seed's log
+export async function seedPeople(people, { call, teams, enrol, known, remember, passwordOf, account, log }) {
+  for (const person of people) {
+    const { name } = person;
+    const keyFile = keyFileOf(name, account);
+    const found = await call('GET', `/users/${encodeURIComponent(name)}`);
+    must(`looking for the account ${name}`, found, 200, 404);
+    const made = found.status === 404;
+    if (made || !known(keyFile)) {
+      const password = passwordOf(name);
+      if (made) {
+        must(`making the account ${name}`, await call('POST', '/admin/users', {
+          username: name,
+          email: `${name}@localhost.invalid`,
+          password,
+          must_change_password: false,
+          send_notify: false,
+          visibility: 'private',
+        }), 201);
+      }
+      const enrolled = await enrol(name, password);
+      if (enrolled.key) remember(keyFile, enrolled.key);
+      else if (made) throw new Error(`enrolling ${name}, whose account the seed made: ${enrolled.refused === 'password' ? 'Forgejo does not sign it in with its password' : 'it has a second factor already'}`);
+      else log(notEnrolled(name, enrolled.refused));
+    }
+    await putInRoleTeam(call, teams, person);
+  }
+}
+
+// What the seed's log says of a person whose account Forgejo has already and whom it could not
+// enrol, `refused` saying why (enrolSecondFactor()), with what the operator can do.
+function notEnrolled(name, refused) {
+  const why = refused === 'password'
+    ? 'the seed cannot sign in as them with the password it has'
+    : 'they have a second factor the seed did not enrol, whose key it cannot keep';
+  const remedy = refused === 'password'
+    ? `give the seed their password as the secret account-password-${name.toLowerCase()}, or remove their account in Forgejo, and start again`
+    : 'remove their account in Forgejo, and start again';
+  return `seed: ${name} is in Forgejo already, and ${why}, so the code command prints no code for them. They sign in with their own and are in the team of their role; for the seed to keep their key, ${remedy}.`;
 }
 
 // The people `environment` lists, each { name, role, team }: `KONZILO_PEOPLE`, each person as
