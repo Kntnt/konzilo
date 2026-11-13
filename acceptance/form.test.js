@@ -1091,11 +1091,15 @@ for (const [engineName, engine] of Object.entries(ENGINES).filter(([name]) => na
     const bar = (name) => page.locator('button[aria-expanded]', { hasText: name }).first();
     const field = (keyPath) => page.locator(`section.field[data-key-path="${keyPath}"]`);
     // Sveltia draws a field as it comes near the window, so the form is scrolled until it is there.
+    // It is scrolled by the element that scrolls it, not by the wheel over a field, which an earlier
+    // look may have scrolled out of the window, where the wheel scrolls nothing.
     const near = async (keyPath) => {
-      const box = await field('title').boundingBox();
-      await page.mouse.move(box.x + box.width / 2, box.y + 5);
       for (let tries = 0; await field(keyPath).count() === 0 && tries < 40; tries += 1) {
-        await page.mouse.wheel(0, 400);
+        await field('title').evaluate((element) => {
+          let scroller = element.parentElement;
+          while (scroller && !(scroller.scrollHeight > scroller.clientHeight && /auto|scroll/.test(getComputedStyle(scroller).overflowY))) scroller = scroller.parentElement;
+          (scroller ?? document.scrollingElement).scrollBy(0, 400);
+        });
         await page.waitForTimeout(150);
       }
       await field(keyPath).scrollIntoViewIfNeeded();
