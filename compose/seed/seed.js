@@ -6,8 +6,10 @@
 // itself, behind the proxy, since the proxy refuses making a token, and there is no API for a
 // second factor, so an account enrols through the forms a person uses. Each step looks first,
 // so that a seed stopped half way can run again, and a copy seeded before gains what a later
-// start asks for. It finds Forgejo, and the service for editors that Forgejo's webhook reaches,
-// where the arrangement says (src/arrangement.js).
+// start asks for. What points at one of the site's addresses, the OAuth clients and the webhook,
+// is kept at that address at every start (src/seed-addresses.js), so that a copy whose ports or
+// peers change still signs in and publishes. It finds Forgejo, and the service for editors that
+// Forgejo's webhook reaches, where the arrangement says (src/arrangement.js).
 
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
@@ -20,6 +22,7 @@ import { SIGN_IN_PATH } from '../../src/cms/preview/paths.js';
 import { demoContentOf } from '../../src/demo-content.js';
 import { demoSource, GIT_ATTRIBUTES } from '../../src/demo-source.js';
 import { ACCOUNT_NAME, keyFileOf, passwordFilesOf, peopleOf, seat } from '../../src/people.js';
+import { keepClient, keepHook } from '../../src/seed-addresses.js';
 import { readSiteDescriptionWithoutTakenComponents } from '../../src/site-description.js';
 import { totp } from '../../src/totp.js';
 
@@ -40,8 +43,10 @@ const SERVICE_HOOK = `${EDITORS}/webhook`;
 const TEAMS = { admins: 'write', editors: 'write', reviewers: 'read' };
 const READER = 'preview-reader';
 const READ_TOKEN = '/preview-secret/read-token';
-// The live preview's own OAuth client, for a sign-in in a tab of its own (ADR 0032): apart from
-// the editor's, so that each has a grant and a scope of its own.
+// The editor's OAuth client, whose client ID `state` keeps, and the live preview's own, for a
+// sign-in in a tab of its own (ADR 0032): apart from the editor's, so that each has a grant and a
+// scope of its own.
+const EDITOR_CLIENT_NAME = 'Konzilo';
 const PREVIEW_CLIENT = '/preview-secret/oauth-client';
 const PREVIEW_CLIENT_NAME = 'Konzilo live preview';
 const SERVICE_READER = 'service-reader';
@@ -221,19 +226,16 @@ async function teamOfTheSource(call, name, permission) {
   return team;
 }
 
-// The live preview's OAuth client, public, with PKCE only, as the editor's (ADR 0007), whose one
-// address is the preview's own, as it is at this start.
-async function previewClient(call) {
-  const address = `${previewOrigin}${SIGN_IN_PATH}`;
-  const wanted = { name: PREVIEW_CLIENT_NAME, redirect_uris: [address], confidential_client: false };
-  const clients = must('listing the OAuth clients', await call('GET', '/user/applications/oauth2?limit=50'), 200);
-  const found = clients.find(({ name }) => name === PREVIEW_CLIENT_NAME);
-  let client = found;
-  if (!found) client = must('making the preview\'s OAuth client', await call('POST', '/user/applications/oauth2', wanted), 201);
-  else if (found.confidential_client || found.redirect_uris.join('\n') !== address) {
-    client = must('keeping the preview\'s OAuth client to its address', await call('PATCH', `/user/applications/oauth2/${found.id}`, wanted), 200);
-  }
-  writeFileSync(PREVIEW_CLIENT, `${client.client_id}\n`, { mode: 0o600 });
+// The OAuth clients, one of each per Forgejo, public, with PKCE only (ADR 0007): the editor's, whose
+// one address is the admin host's, and the live preview's, whose one address is the preview's
+// sign-in, each as it is at this start, so that a copy whose ports change still signs in. The
+// editor's keeps its client ID, which its configuration holds.
+async function clients(call) {
+  const editor = await keepClient(call, { name: EDITOR_CLIENT_NAME, address: `${adminOrigin}/`, id: known('oauth-client') });
+  if (known('oauth-client') !== editor.client_id) remember('oauth-client', editor.client_id);
+  writeFileSync(BUILDER_CLIENT, `${editor.client_id}\n`, { mode: 0o600 });
+  const preview = await keepClient(call, { name: PREVIEW_CLIENT_NAME, address: `${previewOrigin}${SIGN_IN_PATH}` });
+  writeFileSync(PREVIEW_CLIENT, `${preview.client_id}\n`, { mode: 0o600 });
 }
 
 // What publishing stands on, which every start makes sure of, so that a site seeded before it
@@ -270,25 +272,16 @@ async function publishing(call, instancePassword, instanceKey) {
     const { sha1 } = must('making the token that reads who is an Admin', await request('/users/konzilo/tokens', { name: `service-roles-${randomBytes(4).toString('hex')}`, scopes: ['read:organization'] }, basic('konzilo', instancePassword), totp(instanceKey)), 201);
     writeFileSync(SERVICE_ROLES_TOKEN, `${sha1}\n`, { mode: 0o600 });
   }
-  await previewClient(call);
+  await clients(call);
   await machineAccount(call, {
     name: SERVICE_READER,
     tokenFile: SERVICE_TOKEN,
     scopes: ['read:repository'],
     grant: async () => must('letting the service read', await call('PUT', `/repos/${site}/${REPOSITORY}/collaborators/${SERVICE_READER}`, { permission: 'read' }), 204),
   });
-  // Saying that something may have happened is all it does, so it holds no secret.
-  const hooks = must('listing the webhooks', await call('GET', `/repos/${site}/${REPOSITORY}/hooks`), 200);
-  if (!hooks.some(({ config }) => config?.url === SERVICE_HOOK)) {
-    must('making the webhook', await call('POST', `/repos/${site}/${REPOSITORY}/hooks`, {
-      type: 'forgejo',
-      active: true,
-      events: ['push'],
-      branch_filter: 'main',
-      config: { content_type: 'json', url: SERVICE_HOOK },
-    }), 201);
-  }
-  writeFileSync(BUILDER_CLIENT, `${known('oauth-client')}\n`, { mode: 0o600 });
+  // At the service for editors as it is at this start, so that a changed address leaves no hook
+  // whose every delivery fails.
+  await keepHook(call, `${site}/${REPOSITORY}`, SERVICE_HOOK);
 }
 
 // Typesense's keys (ADR 0053): its admin key, which the builder indexes with, and the site's
@@ -365,16 +358,6 @@ async function main() {
     must('making the repository', made, 201, 409);
     const branches = must('listing the branches', await call('GET', `/repos/${site}/${REPOSITORY}/branches`), 200);
     if (branches.length === 0) await pushDemoContent(token);
-
-    // One OAuth client per Forgejo, public, with PKCE only (ADR 0007).
-    if (!known('oauth-client')) {
-      const client = must('making the OAuth client', await call('POST', '/user/applications/oauth2', {
-        name: 'Konzilo',
-        redirect_uris: [`${adminOrigin}/`],
-        confidential_client: false,
-      }), 201);
-      remember('oauth-client', client.client_id);
-    }
   }
 
   // The teams have write access and never ownership, so that no customer reaches webhooks or
