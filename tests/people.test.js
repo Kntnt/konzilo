@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import { keyFileOf, passwordFilesOf, peopleOf, seat } from '../src/people.js';
+import { keyFileOf, passwordFilesOf, peopleOf, putInRoleTeam } from '../src/people.js';
 
 describe('the people a local copy holds', () => {
   test('are the one Admin KONZILO_ACCOUNT names, where KONZILO_PEOPLE lists no one', () => {
@@ -104,31 +104,31 @@ function forgejo(members) {
   return { teams, call, changes, now };
 }
 
-describe('seating a person', () => {
-  test('puts them in the team of their role', async () => {
+describe('putting a person in the team of their role', () => {
+  test('puts them in it', async () => {
     const stand = forgejo({ Owners: ['konzilo'], admins: ['anna'], editors: [], reviewers: [] });
-    await seat(stand.call, stand.teams, { name: 'ebba', role: 'editor', team: 'editors' });
-    await seat(stand.call, stand.teams, { name: 'rut', role: 'reviewer', team: 'reviewers' });
+    await putInRoleTeam(stand.call, stand.teams, { name: 'ebba', role: 'editor', team: 'editors' });
+    await putInRoleTeam(stand.call, stand.teams, { name: 'rut', role: 'reviewer', team: 'reviewers' });
     assert.deepEqual(stand.now(), { Owners: ['konzilo'], admins: ['anna'], editors: ['ebba'], reviewers: ['rut'] });
   });
 
   test('takes them out of the other roles\' teams, and leaves every other team and person as it was', async () => {
     const stand = forgejo({ Owners: ['konzilo'], admins: ['anna', 'rut'], editors: ['erik', 'rut'], reviewers: [], others: ['rut'] });
-    await seat(stand.call, stand.teams, { name: 'rut', role: 'reviewer', team: 'reviewers' });
+    await putInRoleTeam(stand.call, stand.teams, { name: 'rut', role: 'reviewer', team: 'reviewers' });
     assert.deepEqual(stand.now(), { Owners: ['konzilo'], admins: ['anna'], editors: ['erik'], reviewers: ['rut'], others: ['rut'] });
   });
 
   test('changes nothing that is already so', async () => {
     const stand = forgejo({ Owners: ['konzilo'], admins: ['anna'], editors: ['ebba'], reviewers: ['rut'] });
-    for (const person of [{ name: 'anna', team: 'admins' }, { name: 'ebba', team: 'editors' }, { name: 'rut', team: 'reviewers' }]) await seat(stand.call, stand.teams, person);
+    for (const person of [{ name: 'anna', team: 'admins' }, { name: 'ebba', team: 'editors' }, { name: 'rut', team: 'reviewers' }]) await putInRoleTeam(stand.call, stand.teams, person);
     assert.deepEqual(stand.changes, []);
   });
 
   test('says what failed, with the person and the team, where Forgejo answers otherwise', async () => {
     const stand = forgejo({ admins: [], editors: [], reviewers: [] });
-    await assert.rejects(seat(async () => ({ status: 500, body: 'down' }), stand.teams, { name: 'ebba', team: 'editors' }), /asking whether ebba is in admins: 500/);
-    await assert.rejects(seat(async (method) => (method === 'GET' ? { status: 404, body: {} } : { status: 403, body: 'no' }), stand.teams, { name: 'ebba', team: 'editors' }), /putting ebba in editors: 403/);
-    await assert.rejects(seat(stand.call, [{ id: 1, name: 'admins' }], { name: 'ebba', team: 'editors' }), /the site has no team editors/);
+    await assert.rejects(putInRoleTeam(async () => ({ status: 500, body: 'down' }), stand.teams, { name: 'ebba', team: 'editors' }), /asking whether ebba is in admins: 500/);
+    await assert.rejects(putInRoleTeam(async (method) => (method === 'GET' ? { status: 404, body: {} } : { status: 403, body: 'no' }), stand.teams, { name: 'ebba', team: 'editors' }), /putting ebba in editors: 403/);
+    await assert.rejects(putInRoleTeam(stand.call, [{ id: 1, name: 'admins' }], { name: 'ebba', team: 'editors' }), /the site has no team editors/);
   });
 });
 

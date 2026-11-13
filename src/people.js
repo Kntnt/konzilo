@@ -6,7 +6,8 @@
 // Each role a person may have, with the team of the site's organisation that gives it.
 export const ROLES = Object.freeze({ admin: 'admins', editor: 'editors', reviewer: 'reviewers' });
 
-const SAID = `${Object.keys(ROLES).slice(0, -1).join(', ')} or ${Object.keys(ROLES).at(-1)}`;
+// The roles by name, as a refusal lists them: `admin, editor or reviewer`.
+const ROLE_NAMES = `${Object.keys(ROLES).slice(0, -1).join(', ')} or ${Object.keys(ROLES).at(-1)}`;
 
 // A name Forgejo takes for an account, which is also safe in a file's name: letters, digits and
 // single dots, dashes or underscores between them, at most 40 characters.
@@ -38,7 +39,7 @@ export const passwordFilesOf = (name) => [`account-password-${nameOf(name)}`, 'a
 // `call(method, path)`, which answers { status, body } from Forgejo's API, with `teams` as the
 // organisation's are listed there. It changes nothing that is already so, and no other team or
 // person.
-export async function seat(call, teams, { name, team: wanted }) {
+export async function putInRoleTeam(call, teams, { name, team: wanted }) {
   for (const team of Object.values(ROLES)) {
     const id = teams.find((one) => one.name === team)?.id;
     if (id === undefined) throw new Error(`the site has no team ${team}`);
@@ -77,9 +78,9 @@ export function peopleOf(environment = process.env, { taken = [] } = {}) {
   const seen = new Set();
   return entries.map((entry) => {
     const [name, given, ...more] = entry.split(':');
-    if (!given) throw new Error(`KONZILO_PEOPLE: "${entry}" has no role: ${SAID}`);
+    if (!given) throw new Error(`KONZILO_PEOPLE: "${entry}" has no role: ${ROLE_NAMES}`);
     const role = given.toLowerCase();
-    if (more.length > 0 || !Object.hasOwn(ROLES, role)) throw new Error(`KONZILO_PEOPLE: "${entry}" has a role Konzilo does not have: ${SAID}`);
+    if (more.length > 0 || !Object.hasOwn(ROLES, role)) throw new Error(`KONZILO_PEOPLE: "${entry}" has a role Konzilo does not have: ${ROLE_NAMES}`);
     named('KONZILO_PEOPLE', name);
     if (seen.has(name.toLowerCase())) throw new Error(`KONZILO_PEOPLE: "${name}" is listed twice`);
     seen.add(name.toLowerCase());

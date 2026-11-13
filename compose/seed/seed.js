@@ -22,7 +22,7 @@ import { SIGN_IN_PATH } from '../../src/cms/preview/paths.js';
 import { demoContentOf } from '../../src/demo-content.js';
 import { demoSource, GIT_ATTRIBUTES } from '../../src/demo-source.js';
 import { must } from '../../src/forgejo.js';
-import { ACCOUNT_NAME, keyFileOf, passwordFilesOf, peopleOf, seat } from '../../src/people.js';
+import { ACCOUNT_NAME, keyFileOf, passwordFilesOf, peopleOf, putInRoleTeam } from '../../src/people.js';
 import { keepClient, keepHook } from '../../src/seed-addresses.js';
 import { readSiteDescriptionWithoutTakenComponents } from '../../src/site-description.js';
 import { totp } from '../../src/totp.js';
@@ -321,7 +321,7 @@ async function seedPeople(call, people) {
       }
       await enrol(name, password, keyFile);
     }
-    await seat(call, teams, person);
+    await putInRoleTeam(call, teams, person);
   }
 }
 
