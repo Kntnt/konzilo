@@ -81,7 +81,9 @@ here(first);
 console.log(`\n=== ${commit} in Linux, Node ${node}\n`);
 const inside = [
   'set -e',
-  'apt-get update -qq && apt-get install -qq --no-install-recommends git ca-certificates >/dev/null',
+  // What a CI runner has and the slim image lacks: git, and curl, which new-site fetches a
+  // release's package with.
+  'apt-get update -qq && apt-get install -qq --no-install-recommends git ca-certificates curl >/dev/null',
   'cp -a /source /home/node/konzilo && chown -R node:node /home/node/konzilo',
   // A CI runner is no root either, and a test of a refusal on permissions would pass as root.
   'su node -s /bin/sh -c "cd /home/node/konzilo && node scripts/gate.js --here"',
