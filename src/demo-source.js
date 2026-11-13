@@ -14,6 +14,7 @@ import { isScheduled, readPost } from './demo-content.js';
 import { publicAddress } from './format/addresses.js';
 import { pageTypeOf } from './format/built-in-types.js';
 import { IMAGE_LIBRARY_FOLDER } from './format/masters.js';
+import { NOT_FOUND_FILE } from './format/not-found.js';
 import { START_ENTRY, START_PAGE, startFile } from './format/start-page.js';
 import { isSiteTitle } from './settings-groups.js';
 import { SEO_PARTS } from './site-description.js';
@@ -147,8 +148,9 @@ export function sourceFrom(description, published, { now = new Date() } = {}) {
     files.push({ path: `${IMAGE_LIBRARY_FOLDER}/${idOf(IMAGE_LIBRARY_FOLDER, hash)}.json`, content: `${JSON.stringify({ src, alt }, null, 2)}\n` });
   }
 
-  // The page for addresses not found is a post an Admin chooses, of a type with an address.
-  const notFound = published.find(({ path }) => path === 'not-found.md');
+  // The page for addresses not found is a post an Admin chooses, of a type with an address,
+  // published whatever its date, since it has no address at which it could wait.
+  const notFound = published.find(({ path }) => path === NOT_FOUND_FILE);
   const notFoundId = notFound ? notFoundPost(description, notFound, ids, files) : null;
 
   // The start page an Admin chose is the post at the content folder's root.

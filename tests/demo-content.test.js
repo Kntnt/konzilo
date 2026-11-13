@@ -104,6 +104,27 @@ test('reads a date dated ahead as the content format does, quoted singly, with a
   }
 });
 
+// The page for addresses not found has no address at which it could wait, so it is never
+// scheduled, whatever its date; the start page an Admin chose, dated ahead, waits in the seed and
+// is left out by a copy, as any post dated ahead.
+test('never schedules the page for addresses not found, dated ahead, in the seed or a copy, and schedules a chosen start page in both alike', () => {
+  const site = mkdtempSync(join(tmpdir(), 'konzilo-demo-root-'));
+  try {
+    mkdirSync(join(site, 'demo-content/articles'), { recursive: true });
+    writeFileSync(join(site, 'demo-content/articles/lamps-along-the-quay.md'), contentFile('Lamps along the quay', '2026-10-20T08:00:00Z'));
+    writeFileSync(join(site, 'demo-content/not-found.md'), contentFile('Not here', MOMENT));
+    writeFileSync(join(site, 'demo-content/start.story.md'), contentFile('Welcome', MOMENT));
+    const copied = copyDemoContent(site, join(site, 'content'), { now: BEFORE });
+    assert.deepEqual(copied.scheduled, ['start.story.md']);
+    assert.ok(existsSync(join(site, 'content/not-found.md')), 'the page for addresses not found is copied');
+    const source = demoSource(description, join(site, 'demo-content'), { now: BEFORE });
+    const statusOf = (title) => /^status: "?([a-z]+)"?$/m.exec(source.find(({ content }) => content.includes(`title: "${title}"`)).content)[1];
+    assert.deepEqual(['Not here', 'Welcome', 'Lamps along the quay'].map(statusOf), ['published', 'scheduled', 'published']);
+  } finally {
+    rmSync(site, { recursive: true, force: true });
+  }
+});
+
 describe('konzilo-demo-content', () => {
   let folder;
   let count = 0;
