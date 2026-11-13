@@ -1817,6 +1817,36 @@ describe('a site in Compose', () => {
       assert.equal((await get(`${site.origin.site}/found-by-the-clock/`)).status, 200);
     });
 
+    // A start whose site has changed nothing its dependencies are installed from runs no npm: the
+    // record of the last install, in the builder's and the preview's copies of the site's code,
+    // stays as it was, while a template changed in the site's folder still reaches the site (ADR
+    // 0031, ADR 0032). The builder is healthy once it has built; the preview prepares its copy
+    // after its start, so it is watched until its copy holds the change and for a while after,
+    // in which an install would have removed its record.
+    test('installs nothing at a second start, and builds a template changed in the site\'s folder all the same', async () => {
+      const record = (service) => site.compose('exec', '-T', service, 'stat', '-c', '%y', '/work/site/node_modules/.konzilo-installed-from').trim();
+      const copied = (service) => site.compose('exec', '-T', service, 'cat', '/work/site/src/layouts/Site.astro').includes('data-second-start');
+      const pause = () => new Promise((resolve) => setTimeout(resolve, 1000));
+      const installed = { builder: record('builder'), preview: record('preview') };
+      const layout = join(site.directory, 'src/layouts/Site.astro');
+      const held = readFileSync(layout, 'utf8');
+      try {
+        writeFileSync(layout, held.replace('</body>', '<p data-second-start>Built after a second start</p></body>'));
+        site.compose('down');
+        site.up();
+        assert.equal(record('builder'), installed.builder, 'the builder installed nothing');
+        assert.match(await (await get(`${site.origin.site}/`)).text(), /data-second-start/, 'the changed template is built');
+        for (let waited = 0; waited < 120 && !copied('preview'); waited += 1) await pause();
+        assert.ok(copied('preview'), 'the preview copied the changed template');
+        for (let second = 0; second < 10; second += 1) {
+          assert.equal(record('preview'), installed.preview, 'the preview installed nothing');
+          await pause();
+        }
+      } finally {
+        writeFileSync(layout, held);
+      }
+    }, { timeout: 900_000 });
+
     // A copy seeded with the one Admin gains the people its settings list at its next start, each
     // with a second factor and in the team of their role, and keeps the Admin as it was, whose
     // code the command still prints without a name (ADR 0007, ADR 0008).
