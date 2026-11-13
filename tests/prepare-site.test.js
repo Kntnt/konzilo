@@ -40,10 +40,14 @@ function fixture({ pin = 'file:CORE' } = {}) {
   writeFileSync(join(core, 'src/index.js'), 'export default 1;');
   writeFileSync(join(bin, 'npm'), NPM);
   chmodSync(join(bin, 'npm'), 0o755);
+  let said = '';
   const prepare = () => {
     const result = spawnSync('sh', [SCRIPT, work, '--exclude=./content'], { cwd: site, encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
+    said = result.stderr;
     return result.status;
   };
+  // What the last preparation wrote to its standard error.
+  const stderr = () => said;
   // Every run of npm, each of which here is an install, and whether the copy had its lock then.
   const calls = () => (existsSync(join(bin, 'calls')) ? readFileSync(join(bin, 'calls'), 'utf8').split('\n').filter(Boolean) : []);
   const installs = () => {
@@ -51,7 +55,7 @@ function fixture({ pin = 'file:CORE' } = {}) {
     return calls().length;
   };
   const locks = () => calls().map((call) => call.endsWith(' with-lock'));
-  return { site, core, work, bin, manifest, prepare, installs, locks };
+  return { site, core, work, bin, manifest, prepare, installs, locks, stderr };
 }
 
 test('installs at the first preparation, and not at the next when nothing has changed', () => {
@@ -87,6 +91,43 @@ test('installs again after the core\'s files change under a path pin, and not fo
   writeFileSync(join(core, 'node_modules/a-dependency/index.js'), '');
   prepare();
   assert.equal(installs(), 2);
+});
+
+// A checkout holds more than its package ships: a test's or a build's output, notes, files its
+// user cannot read. Only what the package ships counts, where its package.json names it.
+test('installs again after a change to what a package pinned by a folder ships, and not for what is left beside it', () => {
+  const { core, prepare, installs } = fixture();
+  writeFileSync(join(core, 'package.json'), '{"name":"@kntnt/konzilo","version":"0.0.0","files":["src","content-format.md"]}');
+  writeFileSync(join(core, 'content-format.md'), 'One');
+  prepare();
+  mkdirSync(join(core, 'coverage'));
+  writeFileSync(join(core, 'coverage/report.txt'), 'a report');
+  writeFileSync(join(core, 'notes.txt'), 'a note');
+  writeFileSync(join(core, 'unread.txt'), 'no one may read this');
+  chmodSync(join(core, 'unread.txt'), 0o000);
+  assert.equal(prepare(), 0);
+  assert.equal(installs(), 1);
+  writeFileSync(join(core, 'content-format.md'), 'Two');
+  prepare();
+  writeFileSync(join(core, 'src/index.js'), 'export default 2;');
+  prepare();
+  writeFileSync(join(core, 'package.json'), '{"name":"@kntnt/konzilo","version":"0.0.1","files":["src","content-format.md"]}');
+  prepare();
+  assert.equal(installs(), 4);
+  chmodSync(join(core, 'unread.txt'), 0o644);
+});
+
+test('names a file the package ships that it cannot read, and installs nothing', () => {
+  const { core, prepare, installs, stderr } = fixture();
+  writeFileSync(join(core, 'src/unread.js'), 'export default 0;');
+  chmodSync(join(core, 'src/unread.js'), 0o000);
+  try {
+    assert.notEqual(prepare(), 0);
+    assert.match(stderr(), /cannot read .*\/core\/src\/unread\.js/);
+    assert.equal(installs(), 0);
+  } finally {
+    chmodSync(join(core, 'src/unread.js'), 0o644);
+  }
 });
 
 // A core pinned by a checkout's path has no version to tell npm it has changed, so its lock goes.

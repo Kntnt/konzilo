@@ -14,28 +14,28 @@ set -eu
 
 work=$1
 shift
-here=$(cd "$(dirname "$0")" && pwd)
+script_folder=$(cd "$(dirname "$0")" && pwd)
 export HOME="$work/home"
 mkdir -p "$HOME" "$work/site"
 
-from=$(node "$here/installed-from.js" .)
+installed_from=$(node "$script_folder/installed-from.js" .)
 tar --exclude=./node_modules --exclude=./dist --exclude=./.astro --exclude=./.git \
 	--exclude=./local-secrets --exclude=./.env "$@" -cf - . | tar -xf - -C "$work/site"
 
 cd "$work/site"
 record=node_modules/.konzilo-installed-from
-if [ -f "$record" ] && [ "$(cat "$record")" = "$from" ]; then
+if [ -f "$record" ] && [ "$(cat "$record")" = "$installed_from" ]; then
 	exit 0
 fi
 rm -f "$record"
 # A core pinned by a checkout's path has no version to tell npm it has changed, so it goes with
 # the lock. One pinned by a tarball, a release's package in the site's vendor/, is named by its
 # version, and is installed from the lock, whose integrity holds its bytes.
-pin=$(sed -n 's/^.*"@kntnt\/konzilo" *: *"file:\([^"]*\)".*$/\1/p' package.json | head -n 1)
-if [ -n "$pin" ] && [ -d "$pin" ]; then
+core_pin=$(sed -n 's/^.*"@kntnt\/konzilo" *: *"file:\([^"]*\)".*$/\1/p' package.json | head -n 1)
+if [ -n "$core_pin" ] && [ -d "$core_pin" ]; then
 	rm -rf node_modules/@kntnt/konzilo package-lock.json
 fi
 npm install --install-links --no-audit --no-fund --loglevel=error
 mkdir -p node_modules
-printf '%s\n' "$from" >"$record.new"
+printf '%s\n' "$installed_from" >"$record.new"
 mv "$record.new" "$record"
