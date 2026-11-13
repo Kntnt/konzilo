@@ -27,3 +27,7 @@
 - **A parameter of its own for the terms,** such as `terms=topics:rivers`, or the filter's own syntax in the address: a list's filter would have to write it, and an HTML form cannot.
 - **Filtering on the names,** `terms_<taxonomy>`, which change with the language and when an editor renames a term.
 - **Classes for the chosen terms on the search page,** which every design would have to style; the status says it.
+
+## What practice has shown
+
+- A known limit: the search page writes the name of every term of each taxonomy it narrows by into its `data-taxonomies`, so that its status names the terms it searched within without asking anything more. The page grows with the number of terms, by about the length of a term's slug and name for each, which a taxonomy of thousands of terms will feel in every load of the search page.
