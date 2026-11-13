@@ -46,7 +46,7 @@ const forms = {
   },
   note: { label: 'A note', fields: [{ name: 'note', label: 'Note', kind: 'textarea', required: true }] },
   // A form with a button text of its own, which an editor may change where the form is placed.
-  booking: { label: 'Book an assessment', button: 'Book the assessment', editable: ['button'], fields: [{ name: 'email', label: 'Email', kind: 'email', required: true }] },
+  booking: { label: 'Book an assessment', button: 'Book the assessment', editable: ['button'], fields: [{ name: 'email', label: 'Email, or [call us](tel:+46101234567)', kind: 'email', required: true }] },
 };
 
 // A page of the site's design that places a form by its name, imported from
@@ -330,6 +330,11 @@ describe('a declared form in a preview', () => {
   test('shows, says it is a preview, and sends nothing: no address to send to, no script\'s data, and a button that cannot be pressed', () => {
     const site = build({ base: '/preview/' });
     try {
+      // A label's link to a path on the site leads below the preview's base, as a body's does, and
+      // one off the site as it is written.
+      const contact = site.page('contact').querySelector('form');
+      assert.deepEqual([...contact.querySelectorAll('.konzilo-form-fields a')].map((link) => link.getAttribute('href')), ['/preview/interests/', '/preview/privacy-policy/']);
+      assert.deepEqual([...site.page('booking').querySelectorAll('.konzilo-form-fields a')].map((link) => link.getAttribute('href')), ['tel:+46101234567']);
       const form = site.page('contact').querySelector('form');
       assert.equal(text(form.querySelector('.konzilo-form-preview')), 'This is a preview: the form sends nothing.');
       assert.equal(form.getAttribute('action'), null);

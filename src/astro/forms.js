@@ -87,6 +87,7 @@ function withContact(sentence, texts, email) {
 // data }: the button's text, the editor's where the form lets an editor change
 // it, else the form's own in the page's language, else the site's word for
 // sending; each field with its label as parts of text and links, `labelParts`,
+// a link to a path on the site below `base`,
 // the ids of its control, help and problem, its HTML type and its rules; each
 // outcome by its id, as parts of text and links; and what the script reads, as
 // JSON. Throws for a form the site description does not declare.
@@ -105,11 +106,16 @@ export function formView(name, { forms, settings, locale, languageTag, base = '/
   const editors = (form.editable ?? []).includes('button') && typeof given === 'string' && given.trim() !== '' ? given : null;
   const declared = typeof form.button === 'string' ? form.button : (form.button?.[locale] ?? null);
   const button = editors ?? declared ?? texts.send;
+  // A link in a label to a path on the site leads below the page's base, as a body's does, so
+  // that a preview's stays in the preview; one off the site stays as it is written.
+  const prefix = base.replace(/\/$/, '');
+  const below = (part) => (typeof part === 'string' || !part.href.startsWith('/') ? part : { ...part, href: `${prefix}${part.href}` });
   const fields = form.fields.map((field) => {
     const at = `${id}-${field.name}`;
     const group = ['radio', 'checkboxes'].includes(field.kind);
     return {
       ...field,
+      labelParts: field.labelParts.map(below),
       id: at,
       group,
       type: INPUT_TYPES[field.kind] ?? null,
