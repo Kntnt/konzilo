@@ -145,6 +145,48 @@ test('never schedules the page for addresses not found, dated ahead, in the seed
   }
 });
 
+// A chosen start page's file holds its own slug, so the seed gives it back to the source, and the
+// site puts it at its own address again once it is no longer chosen.
+test('takes a chosen start page through the seed with its own slug, which it has again once no longer chosen', () => {
+  const site = mkdtempSync(join(tmpdir(), 'konzilo-demo-start-'));
+  try {
+    mkdirSync(join(site, 'demo-content/articles'), { recursive: true });
+    writeFileSync(join(site, 'demo-content/articles/lamps-along-the-quay.md'), contentFile('Lamps along the quay', '2026-10-20T08:00:00Z'));
+    writeFileSync(join(site, 'demo-content/start.story.md'), '---\ntitle: "Welcome to the almanac of the lamplighters"\nslug: "home"\ndate: 2026-10-01T08:00:00Z\nmodified: 2026-10-01T08:00:00Z\n---\n\nWelcome.\n');
+    const source = demoSource(description, join(site, 'demo-content'), { now: BEFORE });
+    const seeded = source.find(({ content }) => content.includes('title: "Welcome to the almanac of the lamplighters"'));
+    assert.match(seeded.content, /^slug: "home"$/m);
+    const files = (from) => from.map(({ path, content }) => ({ path, contents: content }));
+    const chosen = intake({ files: files(source), site: description, now: BEFORE, images: namedImages() });
+    assert.deepEqual(chosen.refusals, []);
+    assert.match(chosen.files.find(({ path }) => path === 'start.story.md').contents, /^slug: "home"$/m);
+    const unchosen = source.map((file) => (file.path === 'settings.json' ? { ...file, content: '{}\n' } : file));
+    const left = intake({ files: files(unchosen), site: description, now: BEFORE, ledger: chosen.ledger, images: namedImages() });
+    assert.ok(left.files.some(({ path }) => path === 'articles/home.md'), 'at its own address, /home/');
+  } finally {
+    rmSync(site, { recursive: true, force: true });
+  }
+});
+
+// In a hierarchical type the start page keeps its parent too, and its children their parent.
+test('takes a chosen start page below another, with children of its own, through the seed to the same places', () => {
+  const site = mkdtempSync(join(tmpdir(), 'konzilo-demo-start-'));
+  const pages = siteDescription({ language: 'en_GB', types: { section: { label: 'Section', plural: 'Sections', collection: 'pages', address: '/{path}/', hierarchical: true, elements: ['paragraph'], fields: { date: {} } } } });
+  try {
+    mkdirSync(join(site, 'demo-content/pages/about/welcome'), { recursive: true });
+    writeFileSync(join(site, 'demo-content/pages/about.md'), contentFile('About', '2026-10-01T08:00:00Z'));
+    writeFileSync(join(site, 'demo-content/start.section.md'), '---\ntitle: "Welcome"\nslug: "welcome"\nparent: "about"\ndate: 2026-10-01T08:00:00Z\n---\n\nWelcome.\n');
+    writeFileSync(join(site, 'demo-content/pages/about/welcome/team.md'), contentFile('The team', '2026-10-01T08:00:00Z'));
+    const source = demoSource(pages, join(site, 'demo-content'), { now: BEFORE });
+    const chosen = intake({ files: source.map(({ path, content }) => ({ path, contents: content })), site: pages, now: BEFORE, images: namedImages() });
+    assert.deepEqual(chosen.refusals, []);
+    assert.deepEqual(chosen.files.map(({ path }) => path).filter((path) => path.endsWith('.md')).sort(), ['pages/about.md', 'pages/about/welcome/team.md', 'start.section.md']);
+    assert.match(chosen.files.find(({ path }) => path === 'start.section.md').contents, /^slug: "welcome"\nparent: "about"$/m);
+  } finally {
+    rmSync(site, { recursive: true, force: true });
+  }
+});
+
 describe('konzilo-demo-content', () => {
   let folder;
   let count = 0;

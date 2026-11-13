@@ -1,7 +1,8 @@
 // The start page an Admin chooses: the post named in the core's settings group `startPage`
 // (settings-groups.json), which the site shows at its start page's address, `/`, in place of
 // the start page of its own design, and at no other address. The intake writes the post's
-// file as its type writes it, its derived fields among them, at the content folder's root,
+// file as its type writes it, its derived fields among them, with its own `slug` and its
+// parent's path, `parent`, which the file's name does not hold, at the content folder's root,
 // `start.<type>.md`, named by the post's type, so that the site reads it as a post of that
 // type, and leaves it out of the settings file. Its address is the start page's, and a link,
 // a menu entry or a rule that leads to it by its ID leads there; its address before is one

@@ -442,7 +442,7 @@ describe('the start page an Admin chooses', () => {
 
   test('is the chosen post\'s file as its type writes it, at the root and named by its type, its images named from there', () => {
     assert.deepEqual(result.refusals, []);
-    assert.equal(written(result)['start.page.md'], '---\ntitle: "Welcome"\ndate: 2026-11-03T12:00:00Z\nmodified: 2026-11-03T12:00:00Z\nbreadcrumb: "Home"\notherAddresses: [{"address":"/hello/","answer":301}]\n---\n\nWelcome.\n\n![A map](media/welcome-aaaaaaaaaa.webp)\n');
+    assert.equal(written(result)['start.page.md'], '---\ntitle: "Welcome"\nslug: "welcome"\ndate: 2026-11-03T12:00:00Z\nmodified: 2026-11-03T12:00:00Z\nbreadcrumb: "Home"\notherAddresses: [{"address":"/hello/","answer":301}]\n---\n\nWelcome.\n\n![A map](media/welcome-aaaaaaaaaa.webp)\n');
     assert.equal(written(result)['pages/welcome.md'], undefined);
     assert.equal(settingsOf(result).startPage, undefined);
   });
@@ -470,6 +470,15 @@ describe('the start page an Admin chooses', () => {
     assert.equal(written(again)['start.page.md'], undefined);
     assert.doesNotMatch(written(again)['pages/welcome.md'], /oldAddresses/);
     assert.equal(again.ledger.posts.welcomewelco.address, '/pages/welcome/');
+  });
+
+  // Its file's name holds no slug, so the file does, and a parent's path where it has one, so
+  // that whatever reads the content files back, as a seed does, gives it its own address again.
+  test('keeps its own slug in its file, and its parent\'s path where it has one', () => {
+    const own = { 'pages/welcomewelco.md': welcome(), 'pages/teamteamteam.md': page('team', { parent: 'welcomewelco' }) };
+    const child = run({ ...own, 'settings.json': { startPage: { page: 'teamteamteam' } } }, site);
+    assert.deepEqual(child.refusals, []);
+    assert.match(written(child)['start.page.md'], /^---\ntitle: "The team"\nslug: "team"\nparent: "welcome"\n/);
   });
 
   test('shows at no address an editor gives it, and warns of a rule that leads to it, as of one that leads to /', () => {

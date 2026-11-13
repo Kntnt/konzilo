@@ -1333,11 +1333,12 @@ An ID is text, the name of the post's source file, such as `96ba709ec918`, which
 
 ## The start page
 
-`start.<type>.md`, where `<type>` is a post type's name, is the start page an Admin chooses among the posts, which the site shows at its root, `/`, in place of the start page of its own design: the chosen post's file as its type writes it ([A post's file](#a-posts-file)), at the content folder's root, its images named from there, `media/<name>`. The site reads it as a post of that type, at the root and at no other address: the address it had before is among its old addresses, an other address leads there and never shows it, and a link, a menu entry, a chosen page or a redirect rule that names it by its ID leads to `/`. Its children in a hierarchical type keep their paths, which hold its slug, and their files stay in its collection's folder. A list with pages of its own has its later pages at `/page/<n>/`. Without one, the site shows its own start page, and so does a site in several languages, which chooses none.
+`start.<type>.md`, where `<type>` is a post type's name, is the start page an Admin chooses among the posts, which the site shows at its root, `/`, in place of the start page of its own design: the chosen post's file as its type writes it ([A post's file](#a-posts-file)), at the content folder's root, its images named from there, `media/<name>`, with its own `slug` after its `title`, and in a hierarchical type its parent's path, `parent`, where it has one, which its file's name does not hold, so that whatever reads the content files back, such as Compose's seed reading demo content, gives the post its own place again, and the site puts it at its own address once it is no longer chosen. The site reads it as a post of that type, at the root and at no other address: the address it had before is among its old addresses, an other address leads there and never shows it, and a link, a menu entry, a chosen page or a redirect rule that names it by its ID leads to `/`. Its children in a hierarchical type keep their paths, which hold its slug, and their files stay in its collection's folder. A list with pages of its own has its later pages at `/page/<n>/`. Without one, the site shows its own start page, and so does a site in several languages, which chooses none.
 
 ```markdown file=start.page.md read
 ---
 title: "Welcome"
+slug: "welcome"
 date: 2026-05-01T08:00:00Z
 modified: 2026-05-01T08:00:00Z
 breadcrumb: "Home"

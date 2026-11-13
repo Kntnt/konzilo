@@ -41,17 +41,20 @@ const mediaPath = (src) => `/media/${src.split('/').at(-1)}`;
 
 // A post's place on a site: { path, type, tag, language, place, fields, body, id, address,
 // scheduled, start }, its path in the published content, `scheduled` true where it is dated
-// after `now`. The start page an Admin chose, at the
-// content folder's root, has no place or address of its own, `start` true, and an ID no other
-// post's can be; every other post has no `start`.
+// after `now`. The start page an Admin chose, at the content folder's root, `start` true, has
+// no address of its own, and its place is the one its file holds, its `slug` after its
+// `parent`'s path, so that its ID is the one its children's parent has, and it has its own
+// address again once it is no longer chosen; a file that holds none gives it no place, and
+// an ID no other post's can be.
 function postsOf(description, published, now) {
   const several = description.languages.length > 1;
   const posts = [];
   for (const type of Object.values(description.types)) {
     const start = several || type.address === null ? undefined : published.find(({ path }) => path === startFile(type));
     if (start) {
-      const { fields, body } = readPost(start.content);
-      posts.push({ path: start.path, type, tag: null, language: description.languages[0] ?? null, place: null, fields, body, id: idOf(type.collection, START_ENTRY), address: null, start: true, scheduled: isScheduled(fields, now) });
+      const { fields: { slug, parent, ...fields }, body } = readPost(start.content);
+      const place = typeof slug === 'string' && slug !== '' ? [parent, slug].filter((part) => typeof part === 'string' && part !== '').join('/') : null;
+      posts.push({ path: start.path, type, tag: null, language: description.languages[0] ?? null, place, fields, body, id: idOf(type.collection, place ?? START_ENTRY), address: null, start: true, scheduled: isScheduled(fields, now) });
     }
     for (const { path, content } of published) {
       if (!path.startsWith(`${type.collection}/`) || !path.endsWith('.md')) continue;
@@ -124,9 +127,9 @@ export function sourceFrom(description, published, { now = new Date() } = {}) {
     const { type, tag, place, fields, body, id, scheduled } = post;
     const { modified: _modified, oldAddresses: _old, ...kept } = fields;
     const status = scheduled ? 'scheduled' : 'published';
-    // The start page's slug is made from its title, as a new post's is.
-    const segments = post.start ? [] : place.split('/');
-    const written = post.start ? { title: kept.title, status } : { title: kept.title, slug: segments.at(-1), status };
+    // A start page whose file holds no place has its slug made from its title, as a new post's is.
+    const segments = place === null ? [] : place.split('/');
+    const written = place === null ? { title: kept.title, status } : { title: kept.title, slug: segments.at(-1), status };
     if (segments.length > 1) written.parent = idOf(type.collection, segments.slice(0, -1).join('/'));
     for (const [key, value] of Object.entries(kept)) {
       if (key === 'title') continue;
