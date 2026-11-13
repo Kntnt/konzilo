@@ -682,7 +682,9 @@ describe('the live preview', () => {
           return new URL(await frame.getAttribute('src')).pathname;
         };
         for (let tried = 0; ; tried += 1) {
-          await tab.goto(`${site.origin.admin}/#/collections/pages/entries/${id}`);
+          // A second goto to the same address changes no more than its fragment, and loads nothing.
+          if (tried === 0) await tab.goto(`${site.origin.admin}/#/collections/pages/entries/${id}`);
+          else await tab.reload();
           await tab.locator('.konzilo-body-visual .ProseMirror').waitFor({ timeout: 60_000 });
           assert.equal(await tab.getByRole('textbox', { name: 'Title', exact: true }).inputValue(), START);
           await tab.waitForTimeout(3000);

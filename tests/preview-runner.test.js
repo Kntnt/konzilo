@@ -194,6 +194,14 @@ describe('the runs', () => {
     assert.ok(existsSync(join(content, 'start.post.md')));
   });
 
+  // The pane beside the chosen page's form shows the page where the site has it, at /.
+  test('gives the pane the start page\'s address for the form of the post an Admin chose for it', async () => {
+    files['pages/front.md'] = sourcePost({ title: 'Front', slug: 'front', status: 'published' }, 'Words.');
+    files['settings.json'] = JSON.stringify({ startPage: { page: 'front' } });
+    const shown = await runner().take({ path: 'pages/front.md', fields: { title: 'Front', slug: 'front', body: 'Other words.' } });
+    assert.deepEqual(shown, { address: '/', refusals: [] });
+  });
+
   // The 404 page is built from the one post an Admin chose for it, which the toolbar leads to.
   test('knows the 404 page by the post an Admin chose for it, whatever its status, in each language, and none where none is chosen', async () => {
     files['pages/gone.md'] = sourcePost({ title: 'Not here', slug: 'gone', status: 'draft' }, 'Words.');
