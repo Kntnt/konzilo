@@ -58,10 +58,10 @@ export function isScheduled(fields, now) {
  * scheduled at `now`.
  * @param {string} site the site repository's folder
  * @param {string} content the content folder to fill
- * @param {Date} [now] the moment of copying
+ * @param {{ now?: Date }} [options] `now`, the moment of copying, after which a post's date makes it scheduled
  * @returns {{ from: string, scheduled: string[] }} the folder copied, and each post left out, by its path in it
  */
-export function copyDemoContent(site, content, now = new Date()) {
+export function copyDemoContent(site, content, { now = new Date() } = {}) {
   const from = demoContentOf(site);
   const scheduled = [];
   cpSync(from, content, {

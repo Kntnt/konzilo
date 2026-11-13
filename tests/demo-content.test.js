@@ -73,10 +73,10 @@ describe('a demo content file dated ahead, which is a scheduled post', () => {
   // A copy without Compose has no clock that publishes: what it copies is what it shows.
   test('is left out of a content folder filled before its moment, and copied as published after it', () => {
     const before = join(site, 'content-before');
-    assert.deepEqual(copyDemoContent(site, before, BEFORE).scheduled, ['articles/the-winter-lamps.md']);
+    assert.deepEqual(copyDemoContent(site, before, { now: BEFORE }).scheduled, ['articles/the-winter-lamps.md']);
     assert.deepEqual(readdirSync(join(before, 'articles')), ['lamps-along-the-quay.md']);
     const after = join(site, 'content-after');
-    assert.deepEqual(copyDemoContent(site, after, AFTER).scheduled, []);
+    assert.deepEqual(copyDemoContent(site, after, { now: AFTER }).scheduled, []);
     assert.deepEqual(readdirSync(join(after, 'articles')).sort(), ['lamps-along-the-quay.md', 'the-winter-lamps.md']);
   });
 });
@@ -94,7 +94,7 @@ test('reads a date dated ahead as the content format does, quoted singly, with a
       'windows.md': `---\r\ntitle: "Windows"\r\ndate: ${MOMENT}\r\n---\r\n\r\nAhead.\r\n`,
     };
     for (const [name, text] of Object.entries(forms)) writeFileSync(join(site, 'demo-content/articles', name), text);
-    assert.deepEqual(copyDemoContent(site, join(site, 'content'), BEFORE).scheduled, ['articles/commented.md', 'articles/quoted.md', 'articles/windows.md']);
+    assert.deepEqual(copyDemoContent(site, join(site, 'content'), { now: BEFORE }).scheduled, ['articles/commented.md', 'articles/quoted.md', 'articles/windows.md']);
     const source = demoSource(description, join(site, 'demo-content'), { now: BEFORE });
     for (const title of ['Quoted', 'Commented', 'Windows']) {
       assert.match(source.find(({ content }) => content.includes(`title: "${title}"`)).content, /^status: "scheduled"$/m, title);
