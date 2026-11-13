@@ -108,15 +108,15 @@ function candidate({ entry, type, path }, ai, site) {
 }
 
 // Each page of the site that passes every rule but the excluded paths, as
-// { entry, type, path, home }: the start page, `home` true, the page an Admin
-// chose for it where there is one, then the posts of each type with an
+// { entry, type, path, start }: the start page, `start` true, the page an
+// Admin chose for it where there is one, then the posts of each type with an
 // address, in Astro's order.
 async function candidates(site, ai, getCollection) {
   const found = [];
   const chosen = await chosenStart(site, getCollection);
   for (const path of startPaths(site)) {
-    const home = chosen ?? { entry: null, type: null, path };
-    if (candidate(home, ai, site)) found.push({ ...home, home: true });
+    const start = chosen ?? { entry: null, type: null, path };
+    if (candidate(start, ai, site)) found.push({ ...start, start: true });
   }
   for (const type of Object.values(site.types)) {
     if (type.address === null || ai.types?.[type.name]?.markdown !== true) continue;
@@ -177,7 +177,7 @@ export async function markdownAlternate({ entry = null, type = null, path, page 
 }
 
 // Every page of the site that has a Markdown alternate, as { entry, type,
-// path, home, markdown }, the start page first, then the posts of each type in
+// path, start, markdown }, the start page first, then the posts of each type in
 // Astro's order: the same pages markdownAlternate() tells of.
 export async function markdownPages({ settings, site }, { getCollection }) {
   const ai = aiSettings(settings, site);

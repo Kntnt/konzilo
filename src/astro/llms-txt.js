@@ -88,25 +88,25 @@ function order(type, language) {
   return (a, b) => titles.compare(a.entry.data.title ?? '', b.entry.data.title ?? '') || byPath(a, b);
 }
 
-// The pages of the two files, each as markdownPages() gives it: `home`, the
+// The pages of the two files, each as markdownPages() gives it: `start`, the
 // start page, or null; `sections`, each type with its pages in order,
 // [{ type, pages }], every type with a page in either file; and the rows'
 // choices, `ai`, as the settings hold them or the core's defaults.
 async function filePages({ settings, site }, { getCollection }) {
   const ai = aiSettings(settings, site);
   const pages = await markdownPages({ settings, site }, { getCollection });
-  const home = pages.find((page) => page.home) ?? null;
+  const start = pages.find((page) => page.start) ?? null;
   const sections = typesInOrder(site)
-    .map((type) => ({ type, pages: pages.filter((page) => !page.home && page.type?.name === type.name).sort(order(type, site.language)) }))
+    .map((type) => ({ type, pages: pages.filter((page) => !page.start && page.type?.name === type.name).sort(order(type, site.language)) }))
     .filter((section) => section.pages.length > 0);
-  return { home, sections, ai };
+  return { start, sections, ai };
 }
 
 // The pages llms-full.txt holds, in the index's order, each as
 // markdownPages() gives it.
-function fullPages({ home, sections, ai }) {
+function fullPages({ start, sections, ai }) {
   return [
-    ...(home && ai.home?.llmsFull === true ? [home] : []),
+    ...(start && ai.home?.llmsFull === true ? [start] : []),
     ...sections.filter(({ type }) => ai.types?.[type.name]?.llmsFull === true).flatMap((section) => section.pages),
   ];
 }
@@ -124,7 +124,7 @@ function heading(title, description) {
 // mark, which llmsTxtOf() takes away.
 export async function llmsTxt({ settings, site, origin }, { getCollection }) {
   const pages = await filePages({ settings, site }, { getCollection });
-  const { home, sections, ai } = pages;
+  const { start, sections, ai } = pages;
   const title = oneLine(settings?.title ?? '');
   const description = oneLine(settings?.search?.description ?? '');
   const item = (text, markdown, said) => {
@@ -133,7 +133,7 @@ export async function llmsTxt({ settings, site, origin }, { getCollection }) {
   };
   const blocks = heading(title, description);
   if (fullPages(pages).length > 0) blocks.push(`${FULL_TEXT}Markdown index of ${title} for AI agents. Full text: ${origin}${LLMS_FULL}`);
-  if (home && ai.home?.llms === true) blocks.push(item(title, home.markdown, description));
+  if (start && ai.home?.llms === true) blocks.push(item(title, start.markdown, description));
   for (const { type, pages: listed } of sections) {
     if (ai.types?.[type.name]?.llms !== true) continue;
     blocks.push([`## ${labelIn(type.plural, site.language)}`, ...listed.map(({ entry, markdown }) => item(entry.data.title ?? '', markdown, summary(entry)))].join('\n'));
