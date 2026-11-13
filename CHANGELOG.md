@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.5.0] – 2026-11-13
+
 ### Added
 
 - A menu's entry may have a line of description, which an Admin writes under the entry's address in the menu's form and a site's design gets from `siteMenu()` as `description`, to show under the entry as a large menu does: one line of plain text, of at most 160 characters.
