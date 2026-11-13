@@ -31,11 +31,15 @@ test('refuses a file with a malformed line or a key twice', () => {
   }
 });
 
-test('pins Astro in package.json as in versions.env, and the suffix list\'s commit in its file', () => {
+test('pins Astro in package.json as in versions.env, the suffix list\'s commit in its file, and SPDX\'s release in each standard text the notices keep', () => {
   const { peerDependencies, devDependencies } = JSON.parse(readFileSync(join(core, 'package.json'), 'utf8'));
   const astro = versions('ASTRO').stdout.trim();
   assert.equal(peerDependencies.astro, astro);
   assert.equal(devDependencies.astro, astro);
   const list = JSON.parse(readFileSync(join(core, 'src/format/public-suffixes.json'), 'utf8'));
   assert.equal(list.version, versions('PUBLIC_SUFFIX_LIST').stdout.trim());
+  const spdx = `https://raw.githubusercontent.com/spdx/license-list-data/${versions('SPDX_LICENSE_LIST').stdout.trim()}/text/`;
+  const standard = Object.values(JSON.parse(readFileSync(join(core, 'src/cms/notice-texts.json'), 'utf8'))).map(({ source }) => source).filter((source) => source.includes('/spdx/license-list-data/'));
+  assert.ok(standard.length > 0, 'the notices keep a standard text');
+  for (const source of standard) assert.ok(source.startsWith(spdx), source);
 });
