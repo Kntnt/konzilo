@@ -1,6 +1,6 @@
 # ADR 0054: Take a site's design from the Konzilo Design System
 
-**Date:** 2026-11-01 · **Status:** Accepted, settled by Thomas on 2026-11-01. Settled by him on 2026-11-05, with the design system's session: the design file carries a format version, a site works without one, the file styles the public site and not Sveltia's interface, and the package reaches a site as a file in its repository.
+**Date:** 2026-11-01, amended 2026-11-13 · **Status:** Accepted, settled by Thomas on 2026-11-01. Settled by him on 2026-11-05, with the design system's session: the design file carries a format version, a site works without one, the file styles the public site and not Sveltia's interface, and the package reaches a site as a file in its repository. Settled by him on 2026-11-13: the site template stays plain.
 
 ## Decision
 
@@ -32,3 +32,4 @@ A site's design comes from the Konzilo Design System, a stand-alone repository (
 
 - The field's body styles and the theme colours are to come from the design file's finished values. A theme colour must be a value a build can read, so the package writes them as literal properties beside its `light-dark()` ones.
 - Until the design system has a first release, the site template styles everything around body text simply, in `src/styles/site.css`, so that a new site looks like a site (Thomas, 2026-11-01).
+- The site template stays plain, with its own simple styles and no design package, and a site that wants the design system's look takes its package as `site-template/README.md` says (Thomas, 2026-11-13).
