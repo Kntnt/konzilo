@@ -242,7 +242,9 @@ function groupOf(name, group, path, problems) {
   }
   const repeated = each !== null && EACH.includes(each);
   if (repeated) {
-    if (group.when !== undefined || group.unless !== undefined) problems.push(`${path}.${group.when !== undefined ? 'when' : 'unless'}: a group repeated for each form applies to every site that declares one`);
+    for (const key of ['when', 'unless']) {
+      if (group[key] !== undefined) problems.push(`${path}.${key}: a group repeated for each form applies to every site that declares one`);
+    }
     for (const key of ['parts', 'types', 'table']) {
       if (group[key] !== undefined) problems.push(`${path}.${key}: a group repeated for each form has its settings alone`);
     }
