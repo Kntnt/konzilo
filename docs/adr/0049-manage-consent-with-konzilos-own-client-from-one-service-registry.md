@@ -1,6 +1,6 @@
 # ADR 0049: Manage consent with Konzilo's own client, from one service registry
 
-**Date:** 2026-10-29, amended 2026-11-12 · **Status:** Accepted. Settled by Thomas on 2026-10-29: the GDPR and ePrivacy to the letter, deliberate departures recorded as such, only the EU's rules, and Real Cookie Banner as the yardstick. Settled by Thomas on 2026-11-10: counting before consent only what a web server's log would hold, the right to object offered in the browser wherever counting without storage is, as one explanation whose own word is the link, and nothing of it while the visitor allows statistics, and plainer words in the dialog and the declaration. The rest is a technical choice; Thomas may veto.
+**Date:** 2026-10-29, amended 2026-11-10 and 2026-11-12 · **Status:** Accepted. Settled by Thomas on 2026-10-29: the GDPR and ePrivacy to the letter, deliberate departures recorded as such, only the EU's rules, and Real Cookie Banner as the yardstick. Settled by Thomas on 2026-11-10: counting before consent only what a web server's log would hold, the right to object offered in the browser wherever counting without storage is, as one explanation whose own word is the link, and nothing of it while the visitor allows statistics, and plainer words in the dialog and the declaration. The rest is a technical choice; Thomas may veto.
 
 ## Decision
 
