@@ -81,6 +81,29 @@ describe('a demo content file dated ahead, which is a scheduled post', () => {
   });
 });
 
+// A date as YAML may write it, in single quotes, with a comment after it, or with Windows line
+// endings: the seed and a copy without Compose read each as the content format does, and agree
+// that the post is scheduled.
+test('reads a date dated ahead as the content format does, quoted singly, with a comment, or with Windows line endings', () => {
+  const site = mkdtempSync(join(tmpdir(), 'konzilo-demo-dates-'));
+  try {
+    mkdirSync(join(site, 'demo-content/articles'), { recursive: true });
+    const forms = {
+      'quoted.md': `---\ntitle: "Quoted"\ndate: '${MOMENT}'\n---\n\nAhead.\n`,
+      'commented.md': `---\ntitle: "Commented"\ndate: "${MOMENT}" # the first of winter\n---\n\nAhead.\n`,
+      'windows.md': `---\r\ntitle: "Windows"\r\ndate: ${MOMENT}\r\n---\r\n\r\nAhead.\r\n`,
+    };
+    for (const [name, text] of Object.entries(forms)) writeFileSync(join(site, 'demo-content/articles', name), text);
+    assert.deepEqual(copyDemoContent(site, join(site, 'content'), BEFORE).scheduled, ['articles/commented.md', 'articles/quoted.md', 'articles/windows.md']);
+    const source = demoSource(description, join(site, 'demo-content'), { now: BEFORE });
+    for (const title of ['Quoted', 'Commented', 'Windows']) {
+      assert.match(source.find(({ content }) => content.includes(`title: "${title}"`)).content, /^status: "scheduled"$/m, title);
+    }
+  } finally {
+    rmSync(site, { recursive: true, force: true });
+  }
+});
+
 describe('konzilo-demo-content', () => {
   let folder;
   let count = 0;

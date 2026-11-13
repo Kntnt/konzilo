@@ -10,7 +10,7 @@ import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { isObject } from './checks.js';
-import { isScheduled } from './demo-content.js';
+import { isScheduled, readPost } from './demo-content.js';
 import { publicAddress } from './format/addresses.js';
 import { pageTypeOf } from './format/built-in-types.js';
 import { IMAGE_LIBRARY_FOLDER } from './format/masters.js';
@@ -26,21 +26,6 @@ const walk = (folder) => readdirSync(folder).flatMap((name) => {
   const path = join(folder, name);
   return statSync(path).isDirectory() ? walk(path) : [path];
 });
-
-// The frontmatter of a content file has one key per line, each value JSON or a date.
-function parsePost(text) {
-  const [, head, body] = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(text);
-  const fields = {};
-  for (const line of head.split('\n')) {
-    const [, key, value] = /^([A-Za-z]+): (.*)$/.exec(line);
-    try {
-      fields[key] = JSON.parse(value);
-    } catch {
-      fields[key] = value;
-    }
-  }
-  return { fields, body };
-}
 
 const scalar = (value) => (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}(?:T|$)/.test(value) ? value : JSON.stringify(value));
 
@@ -62,8 +47,8 @@ function postsOf(description, published, now) {
   for (const type of Object.values(description.types)) {
     const start = several || type.address === null ? undefined : published.find(({ path }) => path === startFile(type));
     if (start) {
-      const { fields, body } = parsePost(start.content);
-      posts.push({ type, tag: null, language: description.languages[0] ?? null, place: null, fields, body, id: idOf(type.collection, START_ENTRY), address: null, start: true, scheduled: isScheduled(start.content, now) });
+      const { fields, body } = readPost(start.content);
+      posts.push({ type, tag: null, language: description.languages[0] ?? null, place: null, fields, body, id: idOf(type.collection, START_ENTRY), address: null, start: true, scheduled: isScheduled(fields, now) });
     }
     for (const { path, content } of published) {
       if (!path.startsWith(`${type.collection}/`) || !path.endsWith('.md')) continue;
@@ -71,8 +56,8 @@ function postsOf(description, published, now) {
       const tag = several ? within.split('/')[0] : null;
       const language = several ? description.languages.find((one) => one.tag === tag) : description.languages[0] ?? null;
       const place = several ? within.slice(tag.length + 1) : within;
-      const { fields, body } = parsePost(content);
-      posts.push({ type, tag, language, place, fields, body, id: idOf(type.collection, place), address: type.address === null ? null : publicAddress(type, place, language), scheduled: isScheduled(content, now) });
+      const { fields, body } = readPost(content);
+      posts.push({ type, tag, language, place, fields, body, id: idOf(type.collection, place), address: type.address === null ? null : publicAddress(type, place, language), scheduled: isScheduled(fields, now) });
     }
   }
   return posts;
@@ -190,7 +175,7 @@ export function sourceFrom(description, published, { now = new Date() } = {}) {
 
 function notFoundPost(description, { content }, ids, files) {
   const type = pageTypeOf(description.types);
-  const { fields, body } = parsePost(content);
+  const { fields, body } = readPost(content);
   const id = idOf(type.collection, 'not-found');
   files.push({ path: `${type.collection}/${id}.md`, content: writePost({ title: fields.title, slug: 'not-found', status: 'published' }, bodyAsSource(body, ids)) });
   return id;

@@ -11,6 +11,8 @@
 import { cpSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parse } from 'yaml';
+import { isObject } from './checks.js';
 
 // The folder, in a site repository, that holds its own demo content.
 const SITE_DEMO_CONTENT = 'demo-content';
@@ -27,14 +29,28 @@ export function demoContentOf(site) {
 }
 
 /**
+ * A post's content file as its frontmatter and its body, the frontmatter read as the YAML the
+ * content format writes it in (content-format.md), Windows line endings as the others. A file
+ * without frontmatter is all body.
  * @param {string} text a post's content file
+ * @returns {{ fields: object, body: string }}
+ */
+export function readPost(text) {
+  const unix = text.replace(/\r\n/g, '\n');
+  const match = /^---\n(?:([\s\S]*?)\n)?---(?:\n|$)([\s\S]*)$/.exec(unix);
+  if (!match) return { fields: {}, body: unix };
+  const fields = (match[1] ?? '').trim() === '' ? {} : parse(match[1]);
+  return { fields: isObject(fields) ? fields : {}, body: match[2] };
+}
+
+/**
+ * @param {object} fields a post's frontmatter, as readPost() gives it
  * @param {Date} now the moment it is read
  * @returns {boolean} whether the post is dated after that moment, and so is scheduled for its date
  */
-export function isScheduled(text, now) {
-  const head = /^---\n([\s\S]*?)\n---(?:\n|$)/.exec(text)?.[1] ?? '';
-  const date = /^date: "?([^"\n]+?)"?$/m.exec(head)?.[1];
-  return date !== undefined && new Date(date) > now;
+export function isScheduled(fields, now) {
+  const { date } = fields;
+  return (typeof date === 'string' || date instanceof Date) && new Date(date) > now;
 }
 
 /**
@@ -51,7 +67,7 @@ export function copyDemoContent(site, content, now = new Date()) {
   cpSync(from, content, {
     recursive: true,
     filter: (path) => {
-      if (!path.endsWith('.md') || !isScheduled(readFileSync(path, 'utf8'), now)) return true;
+      if (!path.endsWith('.md') || !isScheduled(readPost(readFileSync(path, 'utf8')).fields, now)) return true;
       scheduled.push(path.slice(from.length + 1));
       return false;
     },
