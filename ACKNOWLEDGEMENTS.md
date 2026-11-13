@@ -56,7 +56,7 @@ Konzilo's own files are under Konzilo's license ([`LICENSE`](LICENSE), with [`SI
 
 Konzilo is released under the AGPL, version 3 or later, and Kntnt Sweden AB stays free to license its own code otherwise. What Konzilo takes from others must allow both.
 
-- **Built into Konzilo's own programs:** only what is under a permissive license, or under the MPL or the LGPL as a library used as it is. Each asks for its notice to be kept, and none binds Konzilo's code. `tests/licenses.test.js` holds the list of licenses and fails on a package outside it.
+- **Built into Konzilo's own programs:** only what is under a permissive license, or under the MPL or the LGPL as a library used as it is. None binds Konzilo's code, though most ask for their notice to be kept. `tests/licenses.test.js` holds the list of licenses and fails on a package outside it, whether the core installs it or it comes within another's bundle into the editor's application.
 - **Run beside Konzilo:** a program of its own keeps its own license, whichever it is. Konzilo's license does not reach it, and its license does not reach Konzilo.
 - **A file with material of others:** it keeps its license, as a file of its own, and is named above.
 

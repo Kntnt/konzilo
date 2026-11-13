@@ -1,8 +1,9 @@
-// What the core installs leaves the core free: every package in the lock is under
-// a license that lets Kntnt give the core any terms (ADR 0059). A license outside
-// the list fails here, so that taking one in is a decision and no accident of an
-// install. And what Konzilo is built on is named: every package in THIRD-PARTY.md,
-// and each direct dependency and pinned program in ACKNOWLEDGEMENTS.md.
+// What the core installs leaves the core free: every package in the lock, and every
+// package the editor's application holds within another's bundle, is under a license
+// that lets Kntnt give the core any terms (ADR 0059). A license outside the list fails
+// here, so that taking one in is a decision and no accident of an install or a raise.
+// And what Konzilo is built on is named: every package in THIRD-PARTY.md, and each
+// direct dependency and pinned program in ACKNOWLEDGEMENTS.md.
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -16,8 +17,9 @@ const text = (name) => readFileSync(new URL(`../${name}`, import.meta.url), 'utf
 const read = (name) => JSON.parse(text(name));
 const lock = read('package-lock.json');
 
-// A permissive license asks for its notice, and nothing of the work around it.
-const permissive = ['0BSD', 'Apache-2.0', 'BlueOak-1.0.0', 'BSD-2-Clause', 'BSD-3-Clause', 'CC0-1.0', 'ISC', 'MIT', 'MIT-0'];
+// A permissive license asks nothing of the work around it: at most that its notice is
+// kept, and, as Zlib does, that an altered copy says so.
+const permissive = ['0BSD', 'Apache-2.0', 'BlueOak-1.0.0', 'BSD-2-Clause', 'BSD-3-Clause', 'CC0-1.0', 'ISC', 'MIT', 'MIT-0', 'WTFPL', 'Zlib'];
 
 // These bind the library and not the work that uses it, while the library is a
 // package of its own and used as it is.
@@ -51,6 +53,19 @@ test('every installed package is under a license that leaves the core free', () 
     .filter(([path]) => path !== '')
     .filter(([, { license }]) => typeof license !== 'string' || !fits(license))
     .map(([path, { license }]) => `${path}: ${license ?? 'no license'}`);
+  assert.deepEqual(refused, []);
+});
+
+// A package within another's own bundle, as Sveltia's holds Svelte and React, is in no
+// lock, and goes into the editor's application all the same. The editor's build takes
+// each one's license and text from src/cms/notice-texts.json, and fails on one the file
+// lacks (ADR 0072), so the licenses kept there are those of every such package.
+test('every package the editor\'s bundle holds within another\'s is under a license that leaves the core free', () => {
+  const kept = Object.entries(read('src/cms/notice-texts.json'));
+  assert.ok(kept.length > 0);
+  const refused = kept
+    .filter(([, { license }]) => typeof license !== 'string' || !fits(license))
+    .map(([key, { license }]) => `${key}: ${license ?? 'no license'}`);
   assert.deepEqual(refused, []);
 });
 
