@@ -63,8 +63,8 @@ describe('the people a local copy holds', () => {
   });
 });
 
-// Each person's key, in `state`: the one account's where a local copy has always kept it, so that
-// a copy seeded before goes on as it did, and every other person's in a folder of their own, apart
+// Each person's key, in `state`: the account's of KONZILO_ACCOUNT in `account-totp`, the file a
+// copy seeded with one account keeps its key in, and every other person's in a folder of their own, apart
 // from the keys of the accounts Konzilo makes. Forgejo takes a name in either case as one account.
 describe('a person\'s key file', () => {
   test('is account-totp for the account of KONZILO_ACCOUNT, in whatever case it is named', () => {
@@ -132,7 +132,7 @@ describe('seating a person', () => {
   });
 });
 
-// Each person's password, from a secret of their own where one is given, else the one of today.
+// Each person's password, from a secret of their own where one is given, else the one every person shares.
 test('reads a person\'s password from a file of their own first, then from the one they share', () => {
   assert.deepEqual(passwordFilesOf('ebba'), ['account-password-ebba', 'account-password']);
   assert.deepEqual(passwordFilesOf('Ebba.Holm'), ['account-password-ebba.holm', 'account-password']);

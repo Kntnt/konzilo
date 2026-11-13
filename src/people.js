@@ -22,7 +22,7 @@ const nameOf = (name) => {
 };
 
 // The file in `state` that keeps a person's key: `account-totp` for the account named `account`,
-// where a local copy has always kept the one account's, and `people/<name>-totp` for everyone
+// the file a copy seeded with one account keeps its key in, and `people/<name>-totp` for everyone
 // else, apart from the keys of the accounts Konzilo makes. Forgejo takes a name in either case as
 // one account, so the file is named in lower case.
 export function keyFileOf(name, account) {

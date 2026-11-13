@@ -299,9 +299,9 @@ function searchKeys() {
 // The local copy's people (src/people.js), which every start makes sure of, so that a copy seeded
 // before gains those added since: each person's account, with their password where it is made,
 // a second factor whose key `state` keeps, and the team of their role and no other role's. The
-// key of the account `KONZILO_ACCOUNT` named at the first start is `account-totp`, as it has
-// always been, and `account-name` says whose it is, so that a later change of the setting never
-// gives one person another's key.
+// key of the account `KONZILO_ACCOUNT` named at the first start is `account-totp`, which the
+// `code` command reads without a name, and `account-name` says whose it is, so that a later
+// change of the setting never gives one person another's key.
 async function seedPeople(call, people) {
   const account = known(ACCOUNT_NAME) ?? process.env.KONZILO_ACCOUNT;
   if (account && !known(ACCOUNT_NAME)) remember(ACCOUNT_NAME, account);

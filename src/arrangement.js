@@ -1,7 +1,7 @@
 // Where each of a site's programs finds its peers and its own folders (ADR 0002): settings, each
-// with what Compose arranges as its default, so that Compose sets none of them and runs as it
-// always has, while a hosting layer or a site may arrange the same programs otherwise, on other
-// machines or several in one container. compose/README.md lists them, under What another
+// with what Compose arranges as its default, so that Compose sets none of them, while a hosting
+// layer or a site may arrange the same programs otherwise, on other machines or several in one
+// container. compose/README.md lists them, under What another
 // arrangement sets.
 
 import { posix } from 'node:path';

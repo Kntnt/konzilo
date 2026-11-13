@@ -104,8 +104,8 @@ test('names every variable it has a default for in the guide, with that default'
 });
 
 // Where each program finds its peers and its own folders (src/arrangement.js, ADR 0002): settings
-// that Compose sets none of, so that it runs as it always has, and that a hosting layer or a site
-// sets to arrange the same programs otherwise. Forgejo reads its own settings, so the host its
+// whose defaults are where Compose puts each, so that Compose sets none of them, and that a
+// hosting layer or a site sets to arrange the same programs otherwise. Forgejo reads its own settings, so the host its
 // webhook may reach is Compose's to pass on, with the host of the service for editors as its
 // default.
 test('sets none of the settings by which another arrangement places the programs', () => {
