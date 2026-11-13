@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { handsFor, refusalsOf } from '../src/cms/body/check.js';
@@ -129,6 +129,21 @@ describe('a site description that takes its components from a package', () => {
     mkdirSync(below, { recursive: true });
     writeFileSync(join(below, 'site-description.json'), JSON.stringify(taking()));
     assert.deepEqual(Object.keys(read(below).components), ['section', 'eyebrow', 'list']);
+  });
+
+  // The components a description takes, as a process whose working folder is `cwd` reads it by `path`.
+  function componentsReadBy(path, cwd) {
+    const module = fileURLToPath(new URL('../src/site-description.js', import.meta.url));
+    const script = `import(${JSON.stringify(module)}).then(({ readSiteDescription }) => console.log(JSON.stringify(Object.keys(readSiteDescription(${JSON.stringify(path)}).components))))`;
+    const ran = spawnSync(process.execPath, ['-e', script], { cwd, encoding: 'utf8' });
+    assert.equal(ran.status, 0, ran.stderr);
+    return JSON.parse(ran.stdout);
+  }
+
+  test('takes them where the description is read by a relative path, from the site repository\'s folder or from another', () => {
+    const root = siteRepository(taking());
+    assert.deepEqual(componentsReadBy('site-description.json', root), ['section', 'eyebrow', 'list']);
+    assert.deepEqual(componentsReadBy(relative(tmpdir(), join(root, 'site-description.json')), tmpdir()), ['section', 'eyebrow', 'list']);
   });
 
   test('refuses a package the site repository has not installed, naming it', () => {

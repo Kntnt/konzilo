@@ -1,11 +1,11 @@
 # ADR 0034: Answer each public address from one holder, in a fixed order
 
-**Date:** 2026-10-29 · **Status:** Accepted. Settled by Thomas on 2026-10-29: an address belongs to one place, and saving one that a post has, or that is another post's other address or a rule, is refused, naming where it is. The order is a technical choice; Thomas may veto.
+**Date:** 2026-10-29, amended 2026-11-13 · **Status:** Accepted. Settled by Thomas on 2026-10-29: an address belongs to one place, and saving one that a post has, or that is another post's other address or a rule, is refused, naming where it is. The order is a technical choice; Thomas may veto, and so is the start page an Admin chose holding `/` as a post's own address (2026-11-13).
 
 ## Decision
 
 - **The order.** An address is answered by the first of these that holds it:
-  1. **The site's own:** a file of the release that is no post's page: the start page, the build's assets, the sitemap, `robots.txt`, feeds, the search page, anything below `/_konzilo/`, and a post list's later pages.
+  1. **The site's own:** a file of the release that is no post's page: the start page, unless an Admin chose a post for it, the build's assets, the sitemap, `robots.txt`, feeds, the search page, anything below `/_konzilo/`, and a post list's later pages.
   2. **A published post's own address,** or a term's page where its taxonomy declares an address.
   3. **That post's other addresses.**
   4. **The site's exact rules.**
@@ -18,6 +18,7 @@
 - **Old addresses give way:** a post that goes live at one takes it, and the rule goes.
 - **A rule that leads to a post** belongs to it, and answers only while the post is published.
 - **Reserved addresses.** One list, in the rule data: `/`, everything below `/_konzilo/` and `/_astro/`, and the files the core writes, `/_redirects` first; `{n}` stands for a whole number from 1. Each feature that writes a file adds its address.
+- **The start page an Admin chose** ([ADR 0033](0033-keep-menus-settings-and-the-sites-identity-in-files-an-admin-edits.md)) is a post at `/`, its own address, at level 2, the one post the reserved `/` is open to; no other post, other address or rule may take it, as before. A list with pages of its own on it holds every address below `/page/`.
 - **Patterns** never apply below `/_konzilo/`.
 
 ## Why

@@ -8,6 +8,7 @@ import { directiveReader, readDirective, withDefaults } from './directives.js';
 import { embedsIn } from './embeds.js';
 import { figures } from './figures.js';
 import { markdownFeatures } from './reader-features.js';
+import { tables } from './tables.js';
 
 export { markdownFeatures };
 
@@ -37,9 +38,10 @@ const headingAnchors = {
 // address of content the site embeds becomes its embed, whose
 // sentence for a visitor whose browser does not run the site's script is in
 // the site's language, the language of the post on a site in several, and one
-// holding only an image, with its caption, if any, a figure.
+// holding only an image, with its caption, if any, a figure, and each table
+// stands in a box a design can size and scroll (tables.js).
 export function markdownHastPluginsIn(locale, languages = []) {
-  return [headingAnchors, embedsIn(locale, languages), figures];
+  return [headingAnchors, embedsIn(locale, languages), figures, tables];
 }
 
 // The plugins for a site in English: a panel's sentence is all the site's

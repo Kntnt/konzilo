@@ -49,7 +49,7 @@ const SITE = {
   },
   types: { post: { label: 'Article', plural: 'Articles', collection: 'articles', address: '/{slug}/', elements: ['paragraph', 'heading', 'section', 'kicker', 'deck'], fields: {} } },
 };
-const BODY = ['Before', ':::section', '::kicker[A kicker]', '## Inside', '::::section', 'Deep inside', '::::', ':::', ':::deck', '## A question', 'An answer from the tree', ':::', 'After'].join('\n\n');
+const BODY = ['Before', '::::section', '::kicker[A kicker]', '## Inside', ':::section', 'Deep inside', ':::', '::::', ':::deck', '## A question', 'An answer from the tree', ':::', 'After'].join('\n\n');
 const DESIGN = `
 .site-section { padding: 24px; }
 .site-section > .site-band > .site-kicker { color: rgb(200, 0, 0); }

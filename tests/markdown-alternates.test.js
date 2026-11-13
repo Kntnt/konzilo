@@ -564,3 +564,27 @@ test("keeps a task's box, ticked or not, and a plain item as it is", () => {
   const html = '<main data-konzilo-main><ul class="contains-task-list">\n<li class="task-list-item"><input type="checkbox" disabled> Ask</li>\n<li class="task-list-item"><input type="checkbox" checked disabled> Asked <em>twice</em></li>\n<li>Plain</li>\n</ul></main>';
   assert.match(pageMarkdown({ html, url: 'https://example.com/a/', title: 'Tasks' }).markdown, /^- \[ \] Ask\n- \[x\] Asked \*twice\*\n- Plain$/m);
 });
+
+test("writes a table of a body, simple or structured, as the table alone, nothing of the box it stands in", async () => {
+  const { readContentFile } = await import('../src/astro/reader.js');
+  const body = [
+    '| Item | Price |\n| --- | ---: |\n| Oil | 12 |',
+    '<table>\n<caption>What we <strong>packed</strong></caption>\n<thead>\n<tr><th>Item</th><th style="text-align: right">Price</th></tr>\n</thead>\n<tbody>\n<tr><td>Tent</td><td style="text-align: right">120</td></tr>\n</tbody>\n<tfoot>\n<tr><td>Total</td><td style="text-align: right">120</td></tr>\n</tfoot>\n</table>',
+  ].join('\n\n');
+  const { html } = readContentFile(`---\ntitle: "Tables"\n---\n\n${body}\n`);
+  assert.match(html, /^<div class="konzilo-table"><table>/);
+  assert.equal(pageMarkdown({ html: `<main>${html}</main>`, url: 'https://example.com/a/', title: 'Tables' }).markdown, `
+# Tables
+
+| Item | Price |
+|------|------:|
+| Oil  | 12    |
+
+What we **packed**
+
+| Item  | Price |
+|-------|------:|
+| Tent  | 120   |
+| Total | 120   |
+`);
+});

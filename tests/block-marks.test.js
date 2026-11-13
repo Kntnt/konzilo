@@ -24,6 +24,15 @@ test('marks each block by its place, and each block within a directive and each 
   assert.deepEqual(marks(html), ['p 0', 'div 1', 'h2 1.0', 'ul 1.1', 'li 1.1.0', 'li 1.1.1', 'li 1.1.1.0', 'p 2']);
 });
 
+test("marks a table's box, which is the block, simple or structured, at the top of a body and within a directive's", () => {
+  const pipe = '| A | B |\n| --- | ---: |\n| 1 | 2 |';
+  const structured = '<table>\n<caption>Packed</caption>\n<thead>\n<tr><th>Item</th></tr>\n</thead>\n<tbody>\n<tr><td>Tent</td></tr>\n</tbody>\n</table>';
+  const html = marked(`${pipe}\n\n:::section\n\n${structured}\n\n${pipe}\n\n:::\n\n${structured}`);
+  assert.deepEqual(marks(html), ['div 0', 'div 1', 'div 1.0', 'div 1.1', 'div 2']);
+  assert.equal((html.match(/<div (?=[^>]*\bclass="konzilo-table")(?=[^>]*\bdata-konzilo-block=)[^>]*><table>/g) ?? []).length, 4, html);
+  assert.doesNotMatch(html, /<table [^>]*data-konzilo-block/);
+});
+
 test("a directive's mark is no attribute of its own, nor an option of a post list's presentation", async () => {
   const { bodyParts, registry } = await import('../src/astro/directives.js');
   const html = '<div data-directive="post-list" data-type="article" data-presentation="cards" data-konzilo-block="1.2"></div>';

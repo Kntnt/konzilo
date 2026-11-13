@@ -587,6 +587,20 @@
       }
     }
   },
+  "startPage": {
+    "when": [
+      "types.*.address"
+    ],
+    "unless": [
+      "languages"
+    ],
+    "settings": {
+      "page": {
+        "type": "post",
+        "control": "post"
+      }
+    }
+  },
   "notFound": {
     "when": [
       "types.*.address"

@@ -52,6 +52,10 @@
 // the same of the title and the description it is given, its title in a
 // title tag as a post's is by default, `<title> – <site title>`, and takes
 // the start page's templates for what it is not given, on its own address.
+// The start page an Admin chose, a post's page at the start page's address,
+// says what the start page says, by the start page's templates, the post's own
+// search and sharing fields over them, and the rest as a post's page: its
+// canonical address, robots, image, dates and structured data type.
 // The site's search page says noindex too: its results are the
 // site's own pages. A language's start page links the other languages'
 // start pages with `hreflang`, as a post does its translations.
@@ -67,7 +71,7 @@ import { renderTemplate } from '../metadata-templates.js';
 import { isSiteTitle } from '../settings-groups.js';
 import { articleAuthors } from './authors.js';
 import { feedAlternates } from './feeds.js';
-import { entryAddress } from './languages.js';
+import { entryAddress, isStartEntry } from './languages.js';
 import { markdownLink } from './markdown-alternates.js';
 import { graphScript, structuredData } from './structured-data.js';
 import { summary } from './summary.js';
@@ -234,16 +238,22 @@ async function postPage({ entry, type, path, number, search, site }, known, getE
   // the templates.
   const teaser = followsParts(type);
   const shown = (rule) => (teaser ? rule(entry.data) : '');
-  const titleTag = seo.title || shown((data) => searchTitleOf(data, known.settings?.title ?? '', search.separator ?? '')) || render(templates.title) || entry.data.title;
-  const metaDescription = seo.description || shown(searchDescriptionOf) || render(templates.description);
+  // The start page an Admin chose says what the start page says, by the start page's
+  // templates, with the post's own search and sharing fields over them.
+  const start = isStartEntry(entry.id);
+  const home = search.home ?? {};
+  const titleTag = start
+    ? seo.title || render(home.title) || known.settings?.title || entry.data.title
+    : seo.title || shown((data) => searchTitleOf(data, known.settings?.title ?? '', search.separator ?? '')) || render(templates.title) || entry.data.title;
+  const metaDescription = start ? seo.description || render(home.description) : seo.description || shown(searchDescriptionOf) || render(templates.description);
   const address = entryAddress(type, entry.id, site.languages);
   const later = number > 1;
   const schema = structuredDataTypeOf(type, seo.schema, templates.schema);
   return {
     title: titleTag,
     description: metaDescription,
-    socialTitle: seo.socialTitle || shown(socialTitleOf) || render(templates.socialTitle) || titleTag,
-    socialDescription: seo.socialDescription || shown(socialDescriptionOf) || render(templates.socialDescription) || metaDescription,
+    socialTitle: seo.socialTitle || (start ? render(home.socialTitle) : shown(socialTitleOf) || render(templates.socialTitle)) || titleTag,
+    socialDescription: seo.socialDescription || (start ? render(home.socialDescription) : shown(socialDescriptionOf) || render(templates.socialDescription)) || metaDescription,
     path: address === null ? path : listPageAddress(address, number),
     canonical: !later && seo.canonical ? seo.canonical : null,
     robots: [(seo.noindex || later) && 'noindex', seo.nofollow && 'nofollow'].filter(Boolean).join(', '),

@@ -234,6 +234,33 @@ describe("a site's own components", () => {
     ].join(''));
   });
 
+  test("puts each table in its box, simple or structured, in the body and in a component's tree, its mark on the box in the live preview", () => {
+    const withTables = { ...withDivider, types: { post: { ...withDivider.types.post, elements: [...withDivider.types.post.elements, 'table'] } } };
+    const tablesBody = [
+      '| A | B |\n| --- | ---: |\n| 1 | 2 |',
+      ':::panel',
+      '<table>\n<caption>Packed</caption>\n<thead>\n<tr><th>Item</th></tr>\n</thead>\n<tbody>\n<tr><td>Tent</td></tr>\n</tbody>\n</table>',
+      ':::',
+    ].join('\n\n');
+    const files = { 'content/articles/hello-world.md': post(tablesBody), ...fromTree };
+    const published = build(files, treeComponents, withTables);
+    const previewed = build(files, treeComponents, withTables, { KONZILO_PREVIEW: '1' });
+    assert.equal(published.status, 0, published.output);
+    assert.equal(previewed.status, 0, previewed.output);
+    assert.equal(published.article('hello-world').replaceAll('\n', ''), [
+      '<div class="konzilo-table"><table><thead><tr><th>A</th><th style="text-align: right">B</th></tr></thead><tbody><tr><td>1</td><td style="text-align: right">2</td></tr></tbody></table></div>',
+      '<section class="site-panel" data-tone="plain" data-headings="0">',
+      '<div class="konzilo-table"><table><caption>Packed</caption><thead><tr><th>Item</th></tr></thead><tbody><tr><td>Tent</td></tr></tbody></table></div>',
+      '</section>',
+    ].join(''));
+    assert.equal(previewed.article('hello-world').replaceAll('\n', ''), [
+      '<div class="konzilo-table" data-konzilo-block="0"><table><thead><tr><th>A</th><th style="text-align: right">B</th></tr></thead><tbody><tr><td>1</td><td style="text-align: right">2</td></tr></tbody></table></div>',
+      '<section data-konzilo-block="1" class="site-panel" data-tone="plain" data-headings="0">',
+      '<div class="konzilo-table" data-konzilo-block="1.0"><table><caption>Packed</caption><thead><tr><th>Item</th></tr></thead><tbody><tr><td>Tent</td></tr></tbody></table></div>',
+      '</section>',
+    ].join(''));
+  });
+
   for (const command of ['build', 'dev']) {
     test(`stops ${command === 'dev' ? 'a dev server' : 'a build'} at a site description the checker refuses with the checker's own problems, before it holds the site's components against it`, () => {
       const twice = { ...own, types: { ...own.types, news: { ...own.types.post, label: 'News item', plural: 'News', collection: 'news' } } };
@@ -296,7 +323,7 @@ describe("a site's own components in the live preview", () => {
     'src/components/Bare.astro': '<slot />\n',
   };
   const given = { section: './src/components/Section.astro', kicker: './src/components/Kicker.astro', pair: './src/components/Pair.astro', words: './src/components/Words.astro', bare: './src/components/Bare.astro' };
-  const nested = ['Before', ':::section{tone="bright"}', '::kicker[A _kicker_]', '## Inside', '::::section', 'Deep', '::::', '::pair', '::words', '::::bare', 'Bare', '::::', ':::', '::words', ':::bare', 'Bare too', ':::'].join('\n\n');
+  const nested = ['Before', '::::section{tone="bright"}', '::kicker[A _kicker_]', '## Inside', ':::section', 'Deep', ':::', '::pair', '::words', ':::bare', 'Bare', ':::', '::::', '::words', ':::bare', 'Bare too', ':::'].join('\n\n');
 
   test('puts each mark on the root the component renders, its own or the core\'s, and a wrapper only at the top of the body, where nothing else can hold it', () => {
     const built = build({ ...designed, 'content/articles/hello-world.md': post(nested) }, given, own, { KONZILO_PREVIEW: '1' });

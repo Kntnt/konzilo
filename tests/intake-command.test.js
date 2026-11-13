@@ -115,6 +115,27 @@ describe('konzilo-intake', () => {
     assert.deepEqual(report.removed.map((path) => path.replace(/-[0-9a-f]{10}/, '')), ['articles/stray.md', 'media/first.webp', 'tags/a-tag.json']);
   });
 
+  // The start page an Admin chooses is the post's file at the content folder's root, which
+  // goes back to its collection's folder when the choice does, and counts as a post's file.
+  test('moves the start page\'s file to the root and back, and counts it among the posts\' files', () => {
+    const site = newSite({ 'articles/aaaaaaaaaaaa.md': post('first'), 'articles/bbbbbbbbbbbb.md': post('second'), 'settings.json': '{"startPage":{"page":"aaaaaaaaaaaa"}}' });
+    const chosen = intake(site);
+    assert.deepEqual(chosen.report.refusals, []);
+    assert.ok(existsSync(join(site.content, 'start.story.md')));
+    assert.equal(existsSync(join(site.content, 'articles/first.md')), false);
+    put(site.checkout, { 'settings.json': '{}' });
+    const back = intake(site);
+    assert.deepEqual(back.report.removed, ['start.story.md']);
+    assert.ok(existsSync(join(site.content, 'articles/first.md')));
+    put(site.checkout, { 'settings.json': '{"startPage":{"page":"aaaaaaaaaaaa"}}' });
+    intake(site);
+    rmSync(join(site.checkout, 'articles/aaaaaaaaaaaa.md'));
+    rmSync(join(site.checkout, 'articles/bbbbbbbbbbbb.md'));
+    const stopped = intake(site);
+    assert.equal(stopped.status, 3, 'the start page is one of the two posts the run would take off');
+    assert.deepEqual(stopped.report.stopped.paths, ['articles/second.md', 'start.story.md']);
+  });
+
   test('a refused post keeps its file, and the command goes on', () => {
     const site = newSite({ 'articles/aaaaaaaaaaaa.md': post('first'), 'articles/bbbbbbbbbbbb.md': post('second') });
     intake(site);
@@ -356,6 +377,33 @@ describe('konzilo-intake', () => {
     assert.equal(by['articles/cccccccccccc.md'].at, '2999-01-01T10:00:00Z');
     assert.equal(by['articles/dddddddddddd.md'].state, 'refused');
     assert.equal(report.next, '2999-01-01T10:00:00Z');
+  });
+
+  // The moment the command runs at, given, so that a site that makes its
+  // content files with it makes the same bytes on any day: the registry's
+  // `revised` among them, and which posts wait.
+  test('runs at the moment it is given, and writes the same bytes each time it is given it', () => {
+    const files = {
+      'articles/aaaaaaaaaaaa.md': post('first', { date: '2025-12-01T10:00:00Z' }),
+      'articles/bbbbbbbbbbbb.md': post('second', { status: 'scheduled', date: '2026-02-01T10:00:00Z' }),
+    };
+    const one = newSite(files);
+    const other = newSite(files);
+    const ran = [one, other].map((site) => intake(site, '--now', '2026-01-15T08:00:00Z'));
+    for (const { status, stderr } of ran) assert.equal(status, 0, stderr);
+
+    assert.equal(JSON.parse(readFileSync(join(one.content, 'consent.json'), 'utf8')).revised, '2026-01-15');
+    assert.equal(ran[0].report.next, '2026-02-01T10:00:00Z');
+    assert.deepEqual(listing(other.content), listing(one.content));
+    for (const path of listing(one.content)) assert.ok(readFileSync(join(other.content, path)).equals(readFileSync(join(one.content, path))), path);
+  });
+
+  test('exits 2 for a moment it cannot read', () => {
+    const site = newSite({ 'articles/aaaaaaaaaaaa.md': post('first') });
+    const { status, stderr } = intake(site, '--now', 'tomorrow');
+    assert.equal(status, 2);
+    assert.match(stderr, /usage/);
+    assert.deepEqual(listing(site.content), []);
   });
 
   test('takes the content folder from where it is told', () => {

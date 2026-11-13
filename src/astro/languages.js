@@ -17,6 +17,7 @@
 
 import { resolve } from 'node:path';
 import { publicAddress } from '../format/addresses.js';
+import { START_ENTRY } from '../format/start-page.js';
 import { readSiteDescription, SITE_DESCRIPTION_FILE, TRANSLATION_KEY } from '../site-description.js';
 
 // The settings' one entry on a site in one language, or none.
@@ -95,12 +96,20 @@ export function entryName(id, languages) {
 // An entry's public address, a path from the site's root, from its type
 // (the site description's, as checked) and its id: its language's prefix
 // and its type's address in that language, with its slug or path; null for a type without an address, or an entry in a folder of no
-// language of the site's.
+// language of the site's. The start page an Admin chose, the entry
+// START_ENTRY (collections.js), is at the start page's address.
 export function entryAddress(type, id, languages) {
   if (type.address === null) return null;
+  if (isStartEntry(id)) return startAddress(languages[0] ?? null, languages);
   const language = entryLanguage(id, languages);
   if (languages.length > 1 && language === null) return null;
   return publicAddress(type, entryName(id, languages), language);
+}
+
+// Whether an entry, by its id, is the start page an Admin chose, which its type's
+// collection holds beside its posts (collections.js).
+export function isStartEntry(id) {
+  return id === START_ENTRY;
 }
 
 // The address of a language's start page, a path from the site's root: its

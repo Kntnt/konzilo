@@ -11,6 +11,8 @@
 //   of 250 characters cut to 200 code points and `…`, and a title holding
 //   `[` escaped. A post marked noindex and a page an excluded pattern
 //   matches are in neither.
+// - A built-in type's section is named by its plural label in the content's
+//   language.
 // - A type and the start page with llms.txt off have no place in the index,
 //   and without a page in llms-full.txt the index has no line naming it.
 // - The dev server answers both as a build writes them, and follows the
@@ -27,7 +29,7 @@ import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { astroConfig, astroEnvironment } from './lib/astro.js';
 import { paragraphs, post, writeContent } from './lib/content.js';
-import { typesInOrder } from '../src/astro/llms-txt.js';
+import { llmsTxt, typesInOrder } from '../src/astro/llms-txt.js';
 import { siteDescription } from '../src/site-description.js';
 
 const core = fileURLToPath(new URL('../', import.meta.url));
@@ -251,6 +253,29 @@ test('orders the types of both files: the built-in page, then the built-in artic
     },
   });
   assert.deepEqual(typesInOrder(declared).map((type) => type.name), ['page', 'article', 'post', 'note']);
+});
+
+// A built-in type's plural is a label by language, which llms.txt writes in
+// the content's: a site in Swedish names its sections in Swedish.
+test('names each built-in type\'s section by its plural label in the content\'s language', async () => {
+  const declared = siteDescription({
+    language: 'sv_SE',
+    images: { smallestWidth: 400, displayWidth: 1280 },
+    types: {
+      article: { collection: 'articles', address: '/{slug}/', elements: ['paragraph'] },
+      page: { collection: 'pages', address: '/sidor/{slug}/', elements: ['paragraph'] },
+      canvas: { collection: 'canvases', address: '/ytor/{slug}/', elements: ['paragraph'] },
+    },
+  });
+  const on = { markdown: true, llms: true, llmsFull: false };
+  const settings = { title: 'Lyktan', ai: { home: { markdown: false }, types: { article: on, page: on, canvas: on } } };
+  const entries = {
+    articles: [{ id: 'hamnljus', collection: 'articles', data: { title: 'Hamnljus' }, body: '' }],
+    pages: [{ id: 'om', collection: 'pages', data: { title: 'Om oss' }, body: '' }],
+    canvases: [{ id: 'kampanj', collection: 'canvases', data: { title: 'Kampanj' }, body: '' }],
+  };
+  const text = await llmsTxt({ settings, site: declared, origin: 'https://www.example.com' }, { getCollection: async (collection) => entries[collection] ?? [] });
+  assert.deepEqual(text.split('\n').filter((line) => line.startsWith('## ')), ['## Sidor', '## Artiklar', '## Arbetsytor']);
 });
 
 describe('a site built with astro build for https://www.example.com', () => {

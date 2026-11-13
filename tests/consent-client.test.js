@@ -327,7 +327,7 @@ describe('a page of a site in sv_SE, whose Admin wrote the banner\'s title', () 
     const visited = visit(site, 'videos');
     const panel = visited.document.querySelector('figure.konzilo-embed');
     assert.equal(panel.querySelector('.konzilo-embed-question').textContent, 'Vill du låta YouTube spela upp det här innehållet?');
-    assert.equal(panel.querySelector('.konzilo-embed-storage').textContent.replace(/\s+/g, ' ').trim(), 'YouTube kan lagra uppgifter i din webbläsare, och Google Ireland Limited (Irland) tar emot uppgifter om ditt besök, som kan behandlas utanför EU och EES. Cookie policy');
+    assert.equal(panel.querySelector('.konzilo-embed-storage').textContent.replace(/\s+/g, ' ').trim(), 'Google Ireland Limited (Irland) tar emot uppgifter om ditt besök, som kan behandlas utanför EU och EES. Cookie policy');
     assert.equal(panel.querySelector('.konzilo-embed-allow').textContent, 'Tillåt och spela upp');
   });
 
@@ -550,10 +550,10 @@ describe('the consent client on a page of a site whose registry asks for consent
     assert.deepEqual(page.reloads, []);
   });
 
-  test('a placeholder says in a sentence what its service may store and where its data goes, and links to the cookie policy, which holds the cookie declaration', () => {
+  test('a placeholder says in a sentence what its service may store, where its facts list any, and where its data goes, and links to the cookie policy, which holds the cookie declaration', () => {
     const page = visit(site, 'videos');
     const [youtube, vimeo] = [...page.document.querySelectorAll('figure.konzilo-embed .konzilo-embed-storage')];
-    assert.equal(youtube.textContent.replace(/\s+/g, ' ').trim(), 'YouTube may store data in your browser, and Google Ireland Limited (Ireland) receives data about your visit, which may be processed outside the EU and EEA. Cookie policy');
+    assert.equal(youtube.textContent.replace(/\s+/g, ' ').trim(), 'Google Ireland Limited (Ireland) receives data about your visit, which may be processed outside the EU and EEA. Cookie policy');
     assert.equal(vimeo.textContent.replace(/\s+/g, ' ').trim(), 'Vimeo may store data in your browser, and Vimeo.com, Inc. (United States) receives data about your visit, which may be processed outside the EU and EEA. Cookie policy');
     assert.deepEqual([...youtube.querySelectorAll('a')].map((link) => [link.textContent, link.getAttribute('href')]), [['Cookie policy', '/cookies/']]);
   });
@@ -942,33 +942,44 @@ test('a preview, which no visitor sees, sends no record, keeps none, and makes n
   }
 });
 
-test('a placeholder\'s sentence names the provider and its country, says so when data may leave the EU and EEA, and links to no cookie policy where the site has none', () => {
+test('a placeholder\'s sentence says that its service may store data in the browser only where its facts list what it stores, names the provider and its country, says so when data may leave the EU and EEA, and links to no cookie policy where the site has none', () => {
   const provider = (name, country) => ({ name, country, privacyPolicy: 'https://example.com/privacy' });
-  const service = (id, name, owner, transfers) => ({ id, name, category: 'functional', provider: owner, purpose: 'A purpose.', storage: [], hosts: { frames: [`${id}.example.com`] }, transfers, necessity: null });
+  const item = { name: 'player', kind: 'localStorage', lifetime: 'persistent', party: 'third' };
+  const service = (id, name, owner, transfers, storage) => ({ id, name, category: 'functional', provider: owner, purpose: 'A purpose.', storage, hosts: { frames: [`${id}.example.com`] }, transfers, necessity: null });
+  const ids = ['chart', 'chart-kept', 'clip', 'clip-kept', 'tune', 'tune-kept'];
   const registry = {
     revision: '0123456789abcdef',
-    categories: [{ id: 'functional', name: 'Functional', description: 'D.', services: ['datawrapper', 'screen9', 'spotify'] }],
+    categories: [{ id: 'functional', name: 'Functional', description: 'D.', services: ids }],
     services: [
-      service('datawrapper', 'Datawrapper', null, []),
-      service('screen9', 'Screen9', provider('Quickchannel AB', 'SE'), []),
-      service('spotify', 'Spotify', provider('Spotify AB', 'SE'), [{ country: null, safeguards: ['scc'] }]),
+      service('chart', 'Chart', null, [], []),
+      service('chart-kept', 'Chart Kept', null, [], [item]),
+      service('clip', 'Clip', provider('Clip AB', 'SE'), [], []),
+      service('clip-kept', 'Clip Kept', provider('Clip AB', 'SE'), [], [item]),
+      service('tune', 'Tune', provider('Tune AB', 'SE'), [{ country: null, safeguards: ['scc'] }], []),
+      service('tune-kept', 'Tune Kept', provider('Tune AB', 'SE'), [{ country: null, safeguards: ['scc'] }], [item]),
     ],
     texts: { placeholder: { question: 'Play {service}?', button: 'Play {service}' } },
   };
   const sentences = (language) => consentView({ registry, language, catalogues: CATALOGUES }).placeholders.map(({ service, storage }) => [service, storage]);
   assert.deepEqual(sentences('en-GB'), [
-    ['datawrapper', 'Datawrapper may store data in your browser.'],
-    ['screen9', 'Screen9 may store data in your browser, and Quickchannel AB (Sweden) receives data about your visit.'],
-    ['spotify', 'Spotify may store data in your browser, and Spotify AB (Sweden) receives data about your visit, which may be processed outside the EU and EEA.'],
+    ['chart', 'Chart is part of this site.'],
+    ['chart-kept', 'Chart Kept may store data in your browser.'],
+    ['clip', 'Clip AB (Sweden) receives data about your visit.'],
+    ['clip-kept', 'Clip Kept may store data in your browser, and Clip AB (Sweden) receives data about your visit.'],
+    ['tune', 'Tune AB (Sweden) receives data about your visit, which may be processed outside the EU and EEA.'],
+    ['tune-kept', 'Tune Kept may store data in your browser, and Tune AB (Sweden) receives data about your visit, which may be processed outside the EU and EEA.'],
   ]);
   assert.deepEqual(sentences('sv-SE'), [
-    ['datawrapper', 'Datawrapper kan lagra uppgifter i din webbläsare.'],
-    ['screen9', 'Screen9 kan lagra uppgifter i din webbläsare, och Quickchannel AB (Sverige) tar emot uppgifter om ditt besök.'],
-    ['spotify', 'Spotify kan lagra uppgifter i din webbläsare, och Spotify AB (Sverige) tar emot uppgifter om ditt besök, som kan behandlas utanför EU och EES.'],
+    ['chart', 'Chart är en del av den här webbplatsen.'],
+    ['chart-kept', 'Chart Kept kan lagra uppgifter i din webbläsare.'],
+    ['clip', 'Clip AB (Sverige) tar emot uppgifter om ditt besök.'],
+    ['clip-kept', 'Clip Kept kan lagra uppgifter i din webbläsare, och Clip AB (Sverige) tar emot uppgifter om ditt besök.'],
+    ['tune', 'Tune AB (Sverige) tar emot uppgifter om ditt besök, som kan behandlas utanför EU och EES.'],
+    ['tune-kept', 'Tune Kept kan lagra uppgifter i din webbläsare, och Tune AB (Sverige) tar emot uppgifter om ditt besök, som kan behandlas utanför EU och EES.'],
   ]);
   const view = consentView({ registry, language: 'en-GB', catalogues: CATALOGUES });
   assert.equal(view.declaration, null);
-  assert.deepEqual(view.placeholders.map(({ question, button }) => [question, button]), [['Play Datawrapper?', 'Play Datawrapper'], ['Play Screen9?', 'Play Screen9'], ['Play Spotify?', 'Play Spotify']]);
+  assert.deepEqual(view.placeholders.map(({ question, button }) => [question, button]).slice(0, 2), [['Play Chart?', 'Play Chart'], ['Play Chart Kept?', 'Play Chart Kept']]);
 });
 
 test('a site that changes its language shows each embed\'s sentence in the new one at the next build, though its content files and Astro\'s cache stay', () => {

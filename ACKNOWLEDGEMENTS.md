@@ -1,6 +1,6 @@
 # Acknowledgements
 
-Konzilo stands on the work of others. This file names what it is built on, with thanks to those who made it, and says under which license each part comes. [`THIRD-PARTY.md`](THIRD-PARTY.md) lists every package the core installs, each with its license.
+Konzilo stands on the work of others. This file names what it is built on, with thanks to those who made it, and says under which license each part comes. [`THIRD-PARTY.md`](THIRD-PARTY.md) lists every package the core installs, each with its license. The editor's application holds packages of others in its bundle, and its build writes their notices beside it, `third-party-notices.txt`: each package by name and version, with its license and its license text, those within Sveltia's own bundle too. The web server's image keeps them with the application and serves them on the admin host ([ADR 0072](docs/adr/0072-write-the-notices-of-what-the-editors-application-holds-from-the-bundlers-record.md)).
 
 ## What Konzilo is made of
 
@@ -49,6 +49,7 @@ Konzilo's own files are under Konzilo's license ([`LICENSE`](LICENSE), with [`SI
 | File | From | License |
 |---|---|---|
 | [`src/format/public-suffixes.json`](src/format/public-suffixes.json) | The rules of the [Public Suffix List](https://publicsuffix.org), `publicsuffix/list` on GitHub, at the commit the file names, in another shape | MPL-2.0, whose text is at <https://mozilla.org/MPL/2.0/> |
+| [`src/cms/notice-texts.json`](src/cms/notice-texts.json) | The license texts of the packages the editor's application holds that no installed package carries, each from the package's tarball, its repository or SPDX's list of licenses, as the file says of each | Each text's own license |
 | [`compose/forgejo/templates/user/auth/grant.tmpl`](compose/forgejo/templates/user/auth/grant.tmpl) | Forgejo's template at the same path, changed | Forgejo's: GPL-3.0-or-later, with the parts that came from Gitea under MIT |
 
 ## How the licenses fit

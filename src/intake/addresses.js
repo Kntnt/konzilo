@@ -3,7 +3,8 @@
 // which of its old addresses still answer.
 
 import { feedAt, feedWords, listPageOwners, publicAddress, searchPages, unprefixedAddress } from '../format/addresses.js';
-import { keyOf, REDIRECTS_FILE, reservedBy } from '../format/redirects.js';
+import { keyOf, REDIRECTS_FILE, reservedBy, SHOW } from '../format/redirects.js';
+import { START_ADDRESS, startFile } from '../format/start-page.js';
 import { otherAddressesIn, slugOf } from './post-file.js';
 import { refuse } from './run.js';
 import { termPagesOf } from './terms.js';
@@ -76,10 +77,12 @@ export function holdAddresses(run) {
       refuse(run, post, { field: 'parent', reason: place.reason });
       continue;
     }
+    // The start page an Admin chose is at the start page's address, its file at the content
+    // folder's root, and its path stays its children's.
     post.place = {
       name: place.name,
-      file: `${post.type.collection}/${post.tag ? `${post.tag}/` : ''}${place.name}.md`,
-      address: publicAddress(post.type, place.name, post.language),
+      file: post.startPage ? startFile(post.type) : `${post.type.collection}/${post.tag ? `${post.tag}/` : ''}${place.name}.md`,
+      address: post.startPage ? START_ADDRESS : publicAddress(post.type, place.name, post.language),
     };
     if (post.place.address) claim(keyOf(post.place.address), { post });
     claim(`file:${post.place.file}`, { post });
@@ -101,7 +104,7 @@ export function holdAddresses(run) {
   if (run.refused.size !== before) return true;
   for (const post of candidates) {
     const { address } = post.place;
-    if (!address) continue;
+    if (!address || post.startPage) continue;
     const holder = siteHolder(address, site);
     if (holder) refuse(run, post, { field: 'slug', reason: holder });
   }
@@ -130,6 +133,8 @@ export function holdAddresses(run) {
       const post = run.posts.get(rule.post) ?? run.postsById.get(rule.post)?.[0];
       if (post && run.live.has(post.key) && post.type.address !== null) post.ruleOthers.push({ address: rule.from, answer: rule.status });
       else run.roundWarnings.push(named({ file: REDIRECTS_FILE, reason: say('warning.rule-post-off', { source: rule.from }) }));
+      // A rule to the start page an Admin chose leads to /, as one typed so does.
+      if (post?.startPage && run.live.has(post.key)) run.roundWarnings.push(named({ file: REDIRECTS_FILE, reason: say('warning.rule-start', { source: rule.from }) }));
     } else if (rule.term) {
       const page = run.termPages.get(`${run.termsById.get(rule.term)?.key}`);
       if (page) run.siteRules.push({ from: rule.from, to: page, status: rule.status });
@@ -144,12 +149,14 @@ export function holdAddresses(run) {
   const others = new Map();
   const exact = new Map(run.siteRules.map((rule) => [keyOf(rule.from), rule]));
   for (const post of [...candidates].sort((a, b) => earlier(run, a, b))) {
-    for (const { address } of allOthers(post)) {
+    for (const { address, answer } of allOthers(post)) {
       const key = keyOf(address);
       const reserved = siteHolder(address, site);
       const own = byAddress.get(key) ?? holders.get(key)?.[0]?.post;
       const inFile = post.place.address !== null;
       if (!inFile) refuse(run, post, { field: 'otherAddresses', reason: say('refusal.other-no-address', { plural: { label: post.type.plural } }) });
+      // The start page is at / alone; another address may lead there.
+      else if (post.startPage && answer === SHOW) refuse(run, post, { field: 'otherAddresses', reason: say('refusal.other-start', { address }) });
       else if (reserved) refuse(run, post, { field: 'otherAddresses', reason: reserved });
       else if (own) refuse(run, post, { field: 'otherAddresses', reason: say('refusal.other-held', { address, holder: own.title ?? own.id }) });
       else if (others.has(key) && others.get(key) !== post) refuse(run, post, { field: 'otherAddresses', reason: say('refusal.other-held', { address, holder: others.get(key).title ?? others.get(key).id }) });
@@ -165,7 +172,7 @@ export function holdAddresses(run) {
 // Where a refused post's page would be were it not refused: its public address, by its slug
 // and its parents', or null where it can have none, or another holds it.
 export function addressWanted(post, run) {
-  if (post.unreadable || post.keepsNothing || post.gone || post.notFound || post.type.address === null) return null;
+  if (post.unreadable || post.keepsNothing || post.gone || post.notFound || post.startPage || post.type.address === null) return null;
   if (slugOf(post).reason) return null;
   const place = pathOf(post, run);
   if (place.reason) return null;

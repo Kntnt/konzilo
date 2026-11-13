@@ -12,6 +12,7 @@ import { isObject } from './checks.js';
 import { publicAddress } from './format/addresses.js';
 import { pageTypeOf } from './format/built-in-types.js';
 import { IMAGE_LIBRARY_FOLDER } from './format/masters.js';
+import { START_ENTRY, START_PAGE, startFile } from './format/start-page.js';
 import { isSiteTitle } from './settings-groups.js';
 import { SEO_PARTS } from './site-description.js';
 
@@ -50,11 +51,18 @@ const toMedia = (image) => {
 
 const mediaPath = (src) => `/media/${src.split('/').at(-1)}`;
 
-// A post's place on a site: { collection, tag, language, place, address, id, title }.
+// A post's place on a site: { collection, tag, language, place, address, id, title }. The
+// start page an Admin chose, at the content folder's root, has no place of its own: `start`,
+// and an ID no other post's can be.
 function postsOf(description, published) {
   const several = description.languages.length > 1;
   const posts = [];
   for (const type of Object.values(description.types)) {
+    const start = several || type.address === null ? undefined : published.find(({ path }) => path === startFile(type));
+    if (start) {
+      const { fields, body } = parsePost(start.content);
+      posts.push({ type, tag: null, language: description.languages[0] ?? null, place: null, fields, body, id: idOf(type.collection, START_ENTRY), address: null, start: true });
+    }
     for (const { path, content } of published) {
       if (!path.startsWith(`${type.collection}/`) || !path.endsWith('.md')) continue;
       const within = path.slice(type.collection.length + 1, -'.md'.length);
@@ -119,10 +127,10 @@ export function sourceFrom(description, published) {
 
   for (const post of posts) {
     const { type, tag, place, fields, body, id } = post;
-    const segments = place.split('/');
-    const slug = segments.at(-1);
     const { modified: _modified, oldAddresses: _old, ...kept } = fields;
-    const written = { title: kept.title, slug, status: 'published' };
+    // The start page's slug is made from its title, as a new post's is.
+    const segments = post.start ? [] : place.split('/');
+    const written = post.start ? { title: kept.title, status: 'published' } : { title: kept.title, slug: segments.at(-1), status: 'published' };
     if (segments.length > 1) written.parent = idOf(type.collection, segments.slice(0, -1).join('/'));
     for (const [key, value] of Object.entries(kept)) {
       if (key === 'title') continue;
@@ -154,11 +162,15 @@ export function sourceFrom(description, published) {
   const notFound = published.find(({ path }) => path === 'not-found.md');
   const notFoundId = notFound ? notFoundPost(description, notFound, ids, files) : null;
 
+  // The start page an Admin chose is the post at the content folder's root.
+  const startId = posts.find((post) => post.start)?.id ?? null;
+
   // What an Admin sets: a choice of a post by its ID, an image by its place in the media
   // folder, and only what differs from a default.
   const settings = published.find(({ path }) => path === 'settings.json');
-  if (settings || notFoundId) {
+  if (settings || notFoundId || startId) {
     const source = settingsAsSource(description, settings ? JSON.parse(settings.content) : {}, titled);
+    if (startId) source[START_PAGE] = { page: startId };
     if (notFoundId) source.notFound = { page: notFoundId };
     files.push({ path: 'settings.json', content: `${JSON.stringify(source, null, 2)}\n` });
   }

@@ -50,9 +50,10 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync 
 import { join, resolve } from 'node:path';
 import { htmlToHast } from 'satteri';
 import { labelIn } from '../catalogues.js';
+import { startFile } from '../format/start-page.js';
 import { POST_IDS_FILE, postIdsByPath } from '../format/write.js';
 import { contentFolder } from './collections.js';
-import { entryAddress, entryLanguage, entryName, pageLanguage, startAddress } from './languages.js';
+import { entryAddress, entryLanguage, entryName, isStartEntry, pageLanguage, startAddress } from './languages.js';
 import { summary } from './summary.js';
 
 // What a feed is, as a link names it, and as its answer's Content-Type.
@@ -204,7 +205,8 @@ export async function siteFeed({ site, pattern, slug = null, origin, languageTag
     // At its address in its language on a site in several.
     const link = new URL(entryAddress(type, entry.id, site.languages), origin).href;
     const image = await featuredImage(entry, type, origin, getImage);
-    const id = ids[`${type.collection}/${entry.id}.md`];
+    // The ledger knows a post by its file, the start page an Admin chose by its own.
+    const id = ids[isStartEntry(entry.id) ? startFile(type) : `${type.collection}/${entry.id}.md`];
     const said = summary(entry);
     const opening = image ? `<p>${imageTag(image)}</p>` : '';
     items.push({

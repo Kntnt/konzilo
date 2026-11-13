@@ -2,7 +2,9 @@
 // address alone, which its structured data holds as a BreadcrumbList
 // (structured-data.js) and Breadcrumbs.astro shows on screen:
 //
-// 1. the start page, named in the page's language (breadcrumbTexts());
+// 1. the start page, named in the page's language (breadcrumbTexts()), or,
+//    where an Admin chose a page as the start page, by that page's name in
+//    breadcrumbs where it has one;
 // 2. each shorter address the page's address starts with, `/a/` and
 //    `/a/b/` for `/a/b/c/`, at which a post of the build answers, of any
 //    type, named by its name in breadcrumbs (`breadcrumb`), else its
@@ -24,6 +26,7 @@
 // is given, Astro's from astro:content in a build (breadcrumbs.js).
 
 import { SOURCE_LANGUAGE, textsOf } from '../catalogues.js';
+import { START_ENTRY } from '../format/start-page.js';
 import { entryAddress as addressIn, pageLanguage, startAddress, typeAddress } from './languages.js';
 import { taxonomyWithPages } from './term-pages.js';
 
@@ -66,7 +69,18 @@ export async function breadcrumbLevels({ entry = null, path, title }, { site, te
     const found = await postAt(address, site, getEntry, language);
     if (found) above.push({ name: nameOf(found), path: address });
   }
-  return [{ name: texts.home, path: home }, ...above, own];
+  const chosen = languages.length > 1 ? null : await startEntryOf(site, getEntry);
+  return [{ name: chosen?.data.breadcrumb || texts.home, path: home }, ...above, own];
+}
+
+// The page an Admin chose as the start page, its entry, or null.
+async function startEntryOf(site, getEntry) {
+  for (const type of Object.values(site.types)) {
+    if (type?.address == null) continue;
+    const found = await getEntry(type.collection, START_ENTRY);
+    if (found) return found;
+  }
+  return null;
 }
 
 // A post's name in breadcrumbs: its own, else its title; a term's, its

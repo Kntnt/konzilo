@@ -376,6 +376,25 @@ describe('the site template, built by Astro', () => {
     assert.doesNotMatch(page('sitemap.xml'), /not-found/);
   });
 
+  // Its body goes through Konzilo's Body, as every other page's does: a post
+  // list by its presentation and a form by the site's form component.
+  test('renders the chosen 404 page\'s post list by its presentation and its form by the site\'s component', () => {
+    const notFound = post({
+      ID: 3,
+      type: 'page',
+      slug: 'not-found',
+      title: 'Not found',
+      modified: '2026-10-02 09:00:00',
+      body: 'Read the latest instead.\n\n::post-list{type="article" number="3" presentation="list"}\n\n::form{name="contact"}',
+    });
+    const page = build(repository, { title: 'Lantern', logo: null, icon: null }, { given: [...posts, notFound], settings: { notFound: { page: '3' } } });
+
+    const shown = main(page('404.html'));
+    assert.match(shown, /<li><a href="\/harbour-lights\/">Harbour lights<\/a>/);
+    assert.match(shown, /<form class="konzilo-form" id="konzilo-form-contact" method="post" action="\/_konzilo\/forms\/contact"/);
+    assert.doesNotMatch(shown, /data-directive/);
+  });
+
   // Its file lies at the content folder's root, not in a collection's
   // folder, so its images' addresses climb no folder.
   test('builds the core\'s plain text as 404.html where no page is chosen, in the site\'s language, whatever language its editors work in', () => {
@@ -396,6 +415,80 @@ describe('the site template, built by Astro', () => {
     } finally {
       writeFileSync(description, declared);
     }
+  });
+
+  // The page an Admin chooses as the start page (ADR 0033): drawn at / by the template's start
+  // route, through Body, in the site's frame, with the start page's head and the page's own
+  // search fields over it, and at no other address; where every part of the site that speaks
+  // of the start page speaks of it.
+  test('draws the page an Admin chose as the start page at /, through Body, in the frame, as the start page everywhere, and at no other address', () => {
+    const welcome = post({
+      ID: 4,
+      type: 'page',
+      slug: 'welcome',
+      title: 'Welcome',
+      modified: '2026-10-05 09:00:00',
+      body: 'Read the latest.\n\n::post-list{type="article" number="3" presentation="list"}\n\n::form{name="contact"}',
+      meta: { breadcrumb: ['Front'], seo_description: ['The lantern by the harbour.'] },
+    });
+    const page = build(repository, { title: 'Lantern', logo: null, icon: null }, { given: [...posts, welcome], settings: { startPage: { page: '4' } } });
+
+    const home = page('index.html');
+    assert.equal(title(home), 'Lantern', 'the start page\'s title tag, its template\'s');
+    assert.match(home, /<meta name="description" content="The lantern by the harbour\.">/, 'the page\'s own over the template');
+    assert.match(home, /<link rel="canonical" href="https:\/\/www\.example\.com\/">/);
+    assert.match(header(home), /class="site-name"/);
+    assert.match(main(home), /<h1>Welcome<\/h1>/);
+    assert.match(main(home), /<li><a href="\/harbour-lights\/">Harbour lights<\/a>/);
+    assert.match(main(home), /<form class="konzilo-form" id="konzilo-form-contact"/);
+    assert.doesNotMatch(main(home), /<nav aria-label="Breadcrumbs"/);
+    // Its own address leads to /, a redirect page there for a host that reads no rules.
+    assert.match(page('_redirects'), /^\/pages\/welcome\/ \/ 301$/m);
+    assert.match(page('pages/welcome/index.html'), /<meta http-equiv="refresh" content="0;url=\/">/);
+    // The sitemap lists / once, with the page's last change; the Markdown alternate is the
+    // page's; the other pages' breadcrumbs begin with its name in breadcrumbs.
+    const sitemap = page('sitemap.xml');
+    assert.equal([...sitemap.matchAll(/<loc>https:\/\/www\.example\.com\/<\/loc>/g)].length, 1, sitemap);
+    assert.match(sitemap, /<loc>https:\/\/www\.example\.com\/<\/loc>\n {4}<lastmod>2026-10-05T09:00:00Z<\/lastmod>/);
+    assert.doesNotMatch(sitemap, /welcome/);
+    assert.match(page('index.md'), /^---\ntitle: "Welcome"\ncanonical_url: "https:\/\/www\.example\.com\/"\ndate: 2026-10-01\n---\n\n# Welcome\n\nRead the latest\./);
+    assert.equal(page('pages/welcome.md'), null);
+    assert.equal([...page('llms.txt').matchAll(/index\.md/g)].length, 1);
+    assert.match(page('pages/about/index.html'), /"name":"Front"/);
+  });
+
+  // An article chosen as the start page stays in its feed, at /, by the same guid, so that a
+  // feed reader sees no new item.
+  test('keeps an article chosen as the start page in its feed, at / and by its ID', () => {
+    const page = build(repository, { title: 'Lantern', logo: null, icon: null }, { settings: { startPage: { page: '1' } } });
+    assert.match(main(page('index.html')), /<h1>Harbour lights<\/h1>/);
+    assert.match(page('feed/index.rss'), /<link>https:\/\/www\.example\.com\/<\/link>\s*<pubDate>[^<]+<\/pubDate>\s*<guid isPermaLink="false">https:\/\/www\.example\.com\/\?p=1<\/guid>/);
+  });
+
+  // A canvas has neither header nor footer, at / too, and its list with pages of its own has
+  // its later pages below /page/, as a post's has below its address.
+  test('draws a canvas chosen as the start page without header and footer, and its list\'s later pages at /page/2/ and on', () => {
+    const older = post({ ID: 6, slug: 'older-lights', title: 'Older lights', date: '2026-09-01 08:00:00', modified: '2026-09-01 08:00:00', body: paragraphs('An older story.') });
+    const landing = post({ ID: 5, type: 'canvas', slug: 'landing', title: 'Landing', modified: '2026-10-05 09:00:00', body: '::post-list{type="article" number="1" pages="true" presentation="list"}' });
+    const page = build(repository, { title: 'Lantern', logo: null, icon: null }, { given: [...posts, older, landing], settings: { startPage: { page: '5' } } });
+
+    const titles = (html) => [...main(html).matchAll(/<li><a href="\/[^"]+\/">([^<]*)<\/a>/g)].map(([, one]) => one);
+    assert.equal(header(page('index.html')), undefined);
+    assert.equal(footer(page('index.html')), undefined);
+    assert.doesNotMatch(main(page('index.html')), /<h1>/);
+    assert.deepEqual(titles(page('index.html')), ['Harbour lights']);
+    assert.deepEqual(titles(page('page/2/index.html')), ['Older lights']);
+    assert.match(page('page/2/index.html'), /<link rel="canonical" href="https:\/\/www\.example\.com\/page\/2\/">/);
+    assert.match(page('page/2/index.html'), /<meta name="robots" content="noindex">/);
+    assert.match(page('_redirects'), /^\/page\/1\/ \/ 301$/m);
+    assert.match(page('landing/landing/index.html'), /<meta http-equiv="refresh" content="0;url=\/">/);
+  });
+
+  test('builds its own start page again once no page is chosen', () => {
+    const page = build(repository, { title: 'Lantern', logo: null, icon: null });
+    assert.match(page('index.html'), /<ul class="post-list">\s*<li><a href="\/harbour-lights\/">Harbour lights<\/a>/);
+    assert.equal(page('page/2/index.html'), null);
+    assert.equal([...page('sitemap.xml').matchAll(/<loc>https:\/\/www\.example\.com\/<\/loc>\n {2}<\/url>/g)].length, 1, 'with no last change');
   });
 
   // A page whose post list has pages of its own: Harbour lights

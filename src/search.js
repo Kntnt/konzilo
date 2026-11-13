@@ -17,6 +17,7 @@ import { readContentFile } from './astro/reader.js';
 import { ownSummary } from './astro/summary.js';
 import { labelIn } from './catalogues.js';
 import { publicAddress } from './format/addresses.js';
+import { START_ADDRESS, startFile } from './format/start-page.js';
 import { siteDescription } from './site-description.js';
 
 export { ensureSearchKey, indexSearch, scopedSearchKey } from './typesense.js';
@@ -28,7 +29,8 @@ export const SEARCH_ROUTE = '/_konzilo/search';
 // The search documents of a site, from `content`, the path of its content
 // folder, and `site`, its site description (as declared, or as checked):
 // { documents, schema }. A site without search has none. Each document is
-// one post of a type that takes part, a content file, with
+// one post of a type that takes part, a content file, the start page an
+// Admin chose among them, at its address, with
 //
 //   id        the file's path in the content folder, without `.md`
 //   title     the post's title
@@ -71,14 +73,18 @@ export function searchDocuments({ site, content }) {
   for (const type of Object.values(described.types)) {
     if (!type.search) continue;
     const seo = type.fields.find((field) => field.kind === 'seo');
-    for (const { id, path, language } of entriesOf(join(content, type.collection), type, several ? described.languages : null)) {
-      const { data, html } = readContentFile(readFileSync(join(content, type.collection, `${id}.md`), 'utf8'), { known: registryOf(described) });
+    const files = entriesOf(join(content, type.collection), type, several ? described.languages : null)
+      .map(({ id, path, language }) => ({ file: `${type.collection}/${id}.md`, address: publicAddress(type, path, language), language }));
+    // The page an Admin chose as the start page, on a site in one language, at the root.
+    if (!several && existsSync(join(content, startFile(type)))) files.push({ file: startFile(type), address: START_ADDRESS, language: null });
+    for (const { file, address, language } of files) {
+      const { data, html } = readContentFile(readFileSync(join(content, file), 'utf8'), { known: registryOf(described) });
       if (seo && data[seo.name]?.noindex === true) continue;
       const locale = language?.locale ?? described.language;
       const document = {
-        id: `${type.collection}/${id}`,
+        id: file.slice(0, -'.md'.length),
         title: data[type.fields.find((field) => field.kind === 'headline')?.name] || data.title,
-        address: publicAddress(type, path, language),
+        address,
         type: type.name,
         // A label the site gives by language is the post's language's, as all a visitor reads is.
         label: labelIn(type.label, locale),
