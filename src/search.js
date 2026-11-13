@@ -43,8 +43,10 @@ export const SEARCH_ROUTE = '/_konzilo/search';
 //             text, images' alt text and captions, code, tables and
 //             footnotes; no markup, no embed and no address
 //   terms_<taxonomy>  the names of its terms in each taxonomy its type has
-//   slugs_<taxonomy>  their slugs, which a list's filter and the search
-//             page narrow by, the same in every language
+//   slugs_<taxonomy>  their slugs, and those of every term above them,
+//             which a list's filter and the search page narrow by, the
+//             same in every language, so that a search within a term finds
+//             the posts of the terms below it, as the term's page lists them
 //   language  the post's language, its locale, where the site
 //             declares one
 //
@@ -55,19 +57,36 @@ export function searchDocuments({ site, content }) {
   const described = siteDescription(site);
   if (described.search === null) return { documents: [], schema: collectionSchema(described) };
   const several = described.languages.length > 1;
-  const termNames = new Map();
-  const termName = (taxonomy, reference) => {
+  // A term's file, by the reference a post or another term names it by, `sv-SE/nyheter` on a
+  // site in several languages: { name, parent }, its parent's reference, or null for none.
+  const termFiles = new Map();
+  const termOf = (taxonomy, reference) => {
     const file = join(content, taxonomy.collection, `${reference}.json`);
-    if (!termNames.has(file)) {
-      let name = null;
+    if (!termFiles.has(file)) {
+      let term = { name: null, parent: null };
       try {
-        name = JSON.parse(readFileSync(file, 'utf8')).name ?? null;
+        const { name = null, parent = null } = JSON.parse(readFileSync(file, 'utf8'));
+        term = { name, parent };
       } catch {
-        // A term without its file has no name to find it by.
+        // A term without its file has no name to find it by, and no parent.
       }
-      termNames.set(file, name);
+      termFiles.set(file, term);
     }
-    return termNames.get(file);
+    return termFiles.get(file);
+  };
+  // The slugs of the terms `references` names and of every term above them, each once: a
+  // term's page lists the posts of the terms below it too, so a search within it finds them.
+  const slugsOf = (taxonomy, references) => {
+    const slugs = [];
+    for (const reference of references) {
+      const seen = new Set();
+      for (let at = reference; typeof at === 'string' && !seen.has(at); at = termOf(taxonomy, at).parent) {
+        seen.add(at);
+        const slug = at.slice(at.lastIndexOf('/') + 1);
+        if (!slugs.includes(slug)) slugs.push(slug);
+      }
+    }
+    return slugs;
   };
   const documents = [];
   // The page an Admin chose as the start page, on a site in one language, at the root.
@@ -103,9 +122,8 @@ export function searchDocuments({ site, content }) {
       document.body = plainText(html);
       for (const field of type.fields) {
         if (field.kind !== 'terms' || !field.taxonomy) continue;
-        document[`terms_${field.taxonomy.name}`] = (data[field.name] ?? []).map((reference) => termName(field.taxonomy, reference)).filter((name) => name !== null);
-        // A reference names the term's file, `sv-SE/nyheter` on a site in several languages.
-        document[`slugs_${field.taxonomy.name}`] = (data[field.name] ?? []).map((reference) => reference.slice(reference.lastIndexOf('/') + 1));
+        document[`terms_${field.taxonomy.name}`] = (data[field.name] ?? []).map((reference) => termOf(field.taxonomy, reference).name).filter((name) => name !== null);
+        document[`slugs_${field.taxonomy.name}`] = slugsOf(field.taxonomy, data[field.name] ?? []);
       }
       if (locale !== null) document.language = locale;
       documents.push(several ? inItsLanguage(document, locale) : document);
