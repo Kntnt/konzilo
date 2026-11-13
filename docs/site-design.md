@@ -16,9 +16,11 @@ A site's design comes from its own stylesheets and components, which the templat
 
 A site's own templates write the wrapper around a body, with whatever class its styles are scoped to, and render the body through `Body.astro`. A layout places `ConsentBanner.astro`, or an embed shows only as its address, which the build warns of.
 
+A site's start route, `src/pages/[...start].astro`, takes its pages from `startPages()`. Where an Admin has chosen a page as the start page, each is given its `entry`, a post of its type, and its `page`, from 1, which the route draws as its type's route draws a post, through `Body.astro`, at `/` and its list's later pages at `/page/<n>/`; where none is chosen, `entry` is null, and the route draws a start page of its own design. The chosen page has no page anywhere else, so a start route that never draws `entry` shows it nowhere.
+
 A type's `elements` in `site-description.json` decides what its body may hold, and so what its block menu offers: a row that is missing is an element the type does not take.
 
-A component a site declares, or takes from a package such as the design system's (`content-format.md`, *A site's own components*), is drawn by the component the site gives for its directive through `directives`, with its attributes as props, typed, those not given at their defaults, and its body, if it has one, rendered as its default slot and as a tree in the prop `content`. Without one, it is the core's plain rendering: a `div` with `data-directive="<name>"` and `data-<attribute>` for each attribute with a value, its name in kebab case, holding its body. The design system draws the hero, the section, the aside, the list and its five forms, and the text roles so (ADR 0068).
+A component a site declares, or takes from a package such as the design system's (`content-format.md`, *A site's own components*), is drawn by the component the site gives for its directive through `directives`, with its attributes as props, typed, those not given at their defaults, and its body, if it has one, rendered as its default slot and as a tree in the prop `content`. Without one, it is the core's plain rendering: a `div` with `data-directive="<name>"` and `data-<attribute>` for each attribute with a value, its name in kebab case, holding its body. The design system draws the hero, the section, the aside, the list and the five components that show a list in another form, each a directive of its own, and the text roles so (ADR 0068).
 
 The tree is a hast `root` of the body as the core renders it, a container's blocks or a leaf's label, with a component within as its plain rendering, holding its own body. No attribute is called `content`, and each component is given a tree of its own, which it may change. A component that lays itself out by what it holds, such as a list whose items begin at its headings, reads the tree, and a simple one places its slot. What a component draws from the tree it draws itself, a component within as its plain rendering and an image without the lightbox the core adds to the slot, so a design that wants them places the slot. A component that passes the props it does not take on to its root leaves the tree out of them, since Astro writes an object it is given there as an attribute, `content="[object Object]"`, on the public site too, and the core cannot stop it:
 
@@ -30,6 +32,8 @@ const { content, ...rest } = Astro.props;
 ```
 
 The rest it passes on holds the live preview's mark, so its root holds that as well.
+
+A post list in a component's body is evaluated in its place among the body's lists, in the order they are written, whether the component renders its body, part of it or none of it: the lists written below it leave out its posts even where the component shows none of them. In the tree it stands as its plain rendering, so a design that wants its posts shown places the slot.
 
 A post list is drawn by the component the site gives for its presentation through `presentations`. It is given `posts`, the posts of the page it shows, each `{ entry, url }`, the post's entry and its address below the site's base, or null for a type without one; `options`, the presentation's options as the list sets them; `empty`, the text for a list that matches nothing; `pager`, the pager's data for a list with pages of its own, else null; and `list`, what the whole list holds over all its pages, after its offset and the posts it leaves out, in the page's language:
 
@@ -43,6 +47,8 @@ A post list is drawn by the component the site gives for its presentation throug
 ```
 
 `terms` holds every taxonomy the type takes, by its name, and in each the terms those posts hold: a term's ID, its slug; its name; how many of the posts hold it; and its page's address below the site's base, or null for a term without a page, as every term of a taxonomy without an address is. `search` is the search page's address below the site's base, or null on a site without search and for a type whose posts are not in it. So a presentation that filters draws a row of each taxonomy's terms and says *Showing 9 of 17 articles*, the same on every page of its list. Which rows it draws is the site's to say, as an option it declares for the presentation. A taxonomy's key in a query, in a filter's row and on the search page, is its name, `category`, `topics` or `authors`. A template's own list, from `listedPosts()` of `@kntnt/konzilo/astro/post-lists`, has the same as the property `list` of the posts it gives.
+
+The term page, which `termPages()` of `@kntnt/konzilo/astro/post-lists` gives its paths and props, is given `term`, the term's entry; `page`, from 1; `posts`, `pager` and `empty`, as a presentation's; `taxonomy`, `{ name, label }`, the taxonomy's name, its key in a query, and its label in the site's language; `settled`, `{ taxonomy, term }`, the taxonomy's name and the term's slug, which the page's list settles; and `list`, what the term's whole list holds, the same on each of its pages, as a presentation's `list` but for `type`, which is null where several types take the taxonomy. Its `terms` hold each taxonomy any of those types takes, the settled one among them as any other, so a presentation that filters leaves out the row whose name is `settled.taxonomy`, sends `settled.taxonomy` with `settled.term` along with a search from the page, and says how many posts the term holds by `list.total`. Its `search` is the search page's address where any of those types' posts are in the search.
 
 A layout is told which of the core's built-in types a post is, `canvas`, `page` or `article`, by `builtInType(entry)` from `@kntnt/konzilo/astro/helpers`, null for a type of the site's own or a page that shows no post. A canvas is a blank page, which a layout draws without the site's header and footer. A built-in type's fields are the same on every site (`content-format.md`, *The built-in types*), an article's parts and a page's and a canvas's date, name in breadcrumbs and teaser among them, so a design can draw its parts by their names.
 
@@ -90,6 +96,14 @@ In a tab of its own, the live preview puts its toolbar last in each page's body,
 
 An image is a `figure` with no class of its own, holding its `figcaption` if it has one.
 
+### Tables in a body
+
+| Class | On | State |
+|---|---|---|
+| `.konzilo-table` | The `div` each table of a body stands in, simple and structured alike, holding the `table` and nothing else | |
+
+The box is the core's, written when a body is rendered, and no content file holds it ([ADR 0021](adr/0021-write-a-simple-table-as-a-pipe-table-and-a-structured-table-as-html.md)). A design sizes and scrolls the box, and leaves the table inside it its table layout: `.konzilo-table { overflow-x: auto }` lets a wide table scroll in its own box at a phone's width while the page does not, and a rule on `.konzilo-table > table` lets a narrow one fill its column. A table's caption stays the table's own, `.konzilo-table > table > caption`, inside the box with it. The box is the block: in the live preview its mark stands on the `div`, a component's tree holds the `div` as the page does, and the Markdown alternate writes the table alone. The core gives the box no `tabindex` and no role, since it cannot know whether a design makes it scroll, and a stop for the keyboard at every table that does not scroll would be one too many.
+
 ### The rest of a body
 
 The rest of a body is plain elements with no class of Konzilo's, as `content-format.md` shows each. Three come from the reader, with marks of their own:
@@ -123,7 +137,7 @@ The core's stylesheet makes it work, and it stands inside a body's wrapper, so a
 | `.konzilo-embed` | The panel, a `figure` with `data-embed="<service>"` | Once allowed it holds the player alone |
 | `.konzilo-embed-no-script` | The sentence shown where the script has not run | |
 | `.konzilo-embed-question` | The question asked before consent | |
-| `.konzilo-embed-storage` | What the service stores | |
+| `.konzilo-embed-storage` | What the service may store, where its facts list any, and who receives data about the visit | |
 | `.konzilo-embed-allow` | The button that allows the service | |
 
 ### Forms
@@ -139,7 +153,7 @@ The core's stylesheet makes it work, and it stands inside a body's wrapper, so a
 | `.konzilo-form-help` | A field's help | |
 | `.konzilo-form-problem` | What is wrong with a field | `[hidden]` until then |
 | `.konzilo-form-outcome`, `.konzilo-form-<outcome>` | What came of sending, by the outcome, one of `sent`, `invalid`, `too-many`, `refused` and `unavailable` | `[hidden]` until then where the script runs, `:target` where it does not |
-| `.konzilo-form-send` | The button | |
+| `.konzilo-form-send` | The button, its text the form's own, an editor's where the form allows one, or the site's word for sending; a design that sizes it leaves room for a longer text | |
 | `.konzilo-form-trap` | The field only a robot fills in, which must stay out of sight | |
 
 A field's label is in its `label`, or a group's of choices in its `legend`, before the mark of a required field. A link the label holds, such as an acceptance line's to its policy, is a plain `a` inside it, with no class and no `target`, so a design reaches it as `.konzilo-form-field label a` or `.konzilo-form-field legend a`. A choice's own label holds none.
@@ -268,6 +282,6 @@ The current page is a link with `[aria-current=page]`, in an `li` with no class.
 
 ### Breadcrumbs
 
-They have no class of their own: `nav[aria-label] > ol > li`, the last with `[aria-current=page]`. A design can style them through its own wrapper, or use its own component with `breadcrumbs()`.
+They have no class of their own: `nav[aria-label] > ol > li`, the last with `[aria-current=page]`. A design can style them through its own wrapper, or use its own component with `breadcrumbs()`. The first level is the start page, named by the name in breadcrumbs of the page an Admin chose for it where it has one, and the start page has none.
 
 Whether they end with the page itself is the type's setting, in the group `breadcrumbs`, off by default. Off, `Breadcrumbs` ends at the level above the page, each level a link, and shows nothing for a page right under the start page. `breadcrumbs()` still gives the page's own level, last, with `hidden: true`, so that a design whose narrow form counts on that level can keep it in its markup and hide it, and the structured data always holds it.

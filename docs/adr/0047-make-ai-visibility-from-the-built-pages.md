@@ -1,10 +1,11 @@
 # ADR 0047: Make AI visibility from the built pages
 
-**Date:** 2026-10-29, amended 2026-11-11 · **Status:** Accepted. Settled by Thomas on 2026-10-29: from the built pages, built by Konzilo. The defaults of the content signals and the negotiation are technical choices; Thomas may veto.
+**Date:** 2026-10-29, amended 2026-11-11 and 2026-11-13 · **Status:** Accepted. Settled by Thomas on 2026-10-29: from the built pages, built by Konzilo. The defaults of the content signals and the negotiation are technical choices; Thomas may veto, and so is the start page an Admin chose taking part by the start page's row (2026-11-13).
 
 ## Decision
 
 - **Markdown alternates.** Each page of a published post whose type's row has Markdown on, and the start page while its row has it, but a post marked `noindex` and a page an excluded pattern matches. A page of the site's own, the page for addresses not found, a redirect page, a list's later page and a preview have none. `/x/` gives `/x.md`, the start page `/index.md`.
+- **The start page an Admin chose** ([ADR 0033](0033-keep-menus-settings-and-the-sites-identity-in-files-an-admin-edits.md)) takes part by the start page's row, not its type's, unless it is marked `noindex`: its alternate is `/index.md`, with its own title, date and featured image, and it has none at its address before, which leads on. `llms.txt` lists it once, as the start page, by the site's title and description, and in no type's section.
 - **The main content** is the page's one `<main>`, or the one element the design marks with `data-konzilo-main`. A page that takes part with neither, or with two, fails the build. Inside it `nav`, `script`, `style` and `template` are left out, and an embed's panel becomes the link to its address.
 - **The file** is front matter, `title`, `canonical_url`, `date` and `featured_image`, then each taxonomy's terms by name, then the page's title as a heading, unless the body begins with it, and the body. It is written beside the page, served as `text/markdown; charset=utf-8`.
 - **The converter runs in Node,** in the build, and its output is what the tests hold.

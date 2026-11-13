@@ -1,6 +1,7 @@
 // Post lists on the site: Astro's static build of a small site
 // whose pages hold post lists. The integration evaluates each list against
-// the content collections, in the body's order, and renders it with the
+// the content collections, in the order the body's lists are written, those
+// in a site's components among them, and renders it with the
 // presentation the site registers for it (`konzilo({ presentations })`),
 // given the posts as their entries with their addresses, the options, the
 // empty text and what the whole list holds, through `<Body post={entry}><Content /></Body>`. A list
@@ -427,6 +428,102 @@ describe('a list with pages', () => {
   });
 });
 
+// Lists inside a site's own components: a panel, whose component places its
+// slot, and a fold, whose component renders nothing of it. The four articles
+// in News, Alpha to Delta by title, are listed by lists written in panels, in
+// panels within panels, and beside them, each leaving out what the lists
+// written above it showed; Paged's 25 by a list with pages below a panel that
+// lists the first two. The site is built twice, and once more as the live
+// preview builds it.
+describe('lists inside components', () => {
+  const described = {
+    ...site,
+    components: {
+      panel: { label: 'Panel', form: 'container', body: 'blocks' },
+      fold: { label: 'Fold', form: 'container', body: 'blocks' },
+    },
+    types: { ...site.types, page: { ...site.types.page, elements: [...site.types.page.elements, 'panel', 'fold'] } },
+  };
+  const page = (title, blocks) => `---\ntitle: ${JSON.stringify(title)}\ndate: 2026-01-01T08:00:00Z\nmodified: 2026-01-01T08:00:00Z\n---\n\n${blocks.join('\n\n')}\n`;
+  const news = (number) => `::post-list{type="post" include="section:news" order="title" number="${number}" presentation="list"}`;
+  const articles = Object.fromEntries(Array.from({ length: 25 }, (_, i) => {
+    const n = String(i + 1).padStart(2, '0');
+    return [`content/articles/a${n}.md`, article(`Article ${n}`, `01-${n}`, ['paged'])];
+  }));
+  const files = {
+    'site-description.json': JSON.stringify(described),
+    'src/components/Panel.astro': '<section class="panel"><slot /></section>\n',
+    'src/components/Fold.astro': '<div class="fold"></div>\n',
+    'content/sections/paged.json': term('Paged'),
+    ...articles,
+    'content/pages/below.md': page('Below', [':::panel', news(2), ':::', news(2)]),
+    'content/pages/panels.md': page('Panels', [1, 2, 3, 4].flatMap(() => [':::panel', news(1), ':::'])),
+    'content/pages/deep.md': page('Deep', [news(1), '::::panel', ':::panel', news(1), ':::', news(1), '::::', news(1)]),
+    'content/pages/folded.md': page('Folded', [':::fold', news(1), ':::', news(1)]),
+    'content/pages/framed.md': page('Framed', [
+      ':::panel',
+      '::post-list{type="post" include="section:paged" order="title" number="2" presentation="list"}',
+      ':::',
+      '::post-list{type="post" include="section:paged" order="title" pages="true" presentation="list"}',
+    ]),
+  };
+  const options = { presentations, directives: { panel: './src/components/Panel.astro', fold: './src/components/Fold.astro' } };
+  const builds = [build(files, options), build(files, options)];
+  const preview = build(files, options, { env: { KONZILO_PREVIEW: '1' } });
+  const listed = (...titles) => `<ul class="list" data-date="false">${titles.map((title) => `<li><a href="/${title.toLowerCase()}/">${title}</a></li>`).join('')}</ul>`;
+  const numbered = (from, to) => listed(...Array.from({ length: to - from + 1 }, (_, i) => `a${String(from + i).padStart(2, '0')}`))
+    .replace(/>a(\d\d)</g, '>Article $1<');
+  const panel = (...inside) => `<section class="panel">${inside.join('')}</section>`;
+
+  test('leaves out, in a list below a panel that holds a list, the posts the panel\'s list showed', () => {
+    for (const built of builds) {
+      assert.equal(built.status, 0, built.output);
+      assert.equal(built.main('pages/below'), `${panel(listed('Alpha', 'Bravo'))}${listed('Charlie', 'Delta')}`);
+    }
+  });
+
+  test('evaluates the lists of panels side by side in the order they are written, in every build', () => {
+    for (const built of builds) {
+      assert.equal(built.status, 0, built.output);
+      assert.equal(built.main('pages/panels'), ['Alpha', 'Bravo', 'Charlie', 'Delta'].map((title) => panel(listed(title))).join(''));
+    }
+  });
+
+  test('evaluates a list two panels deep in its place among the lists around it', () => {
+    for (const built of builds) {
+      assert.equal(built.status, 0, built.output);
+      assert.equal(built.main('pages/deep'), `${listed('Alpha')}${panel(panel(listed('Bravo')), listed('Charlie'))}${listed('Delta')}`);
+    }
+  });
+
+  test('evaluates a list in its place in a component that renders nothing of its body, so that the lists below leave out its posts', () => {
+    for (const built of builds) {
+      assert.equal(built.status, 0, built.output);
+      assert.equal(built.main('pages/folded'), `<div class="fold"></div>${listed('Bravo')}`);
+    }
+  });
+
+  test('pages a list below a panel that holds a list without the panel\'s posts, the panel\'s list the same on every page', () => {
+    for (const built of builds) {
+      assert.equal(built.status, 0, built.output);
+      assert.ok(built.main('pages/framed').startsWith(`${panel(numbered(1, 2))}${numbered(3, 12)}<nav class="konzilo-pager"`), built.main('pages/framed'));
+      assert.ok(built.main('pages/framed/page/2').startsWith(`${panel(numbered(1, 2))}${numbered(13, 22)}<nav class="konzilo-pager"`), built.main('pages/framed/page/2'));
+      assert.ok(built.main('pages/framed/page/3').startsWith(`${panel(numbered(1, 2))}${numbered(23, 25)}<nav class="konzilo-pager"`), built.main('pages/framed/page/3'));
+      assert.equal(built.has('pages/framed/page/4/index.html'), false);
+    }
+  });
+
+  test('marks each list in the live preview on its root, at its place in the components that hold it', () => {
+    assert.equal(preview.status, 0, preview.output);
+    const marked = (block, html) => html.replace(/^<(\w+)/, `<$1 data-konzilo-block="${block}"`);
+    assert.equal(preview.main('pages/deep'), [
+      marked('0', listed('Alpha')),
+      marked('1', panel(marked('1.0', panel(marked('1.0.0', listed('Bravo')))), marked('1.1', listed('Charlie')))),
+      marked('2', listed('Delta')),
+    ].join(''));
+  });
+});
+
 test('the integration refuses a component of its own for the post list, which it renders through the presentations', () => {
   assert.throws(() => konzilo({ directives: { 'post-list': './src/components/List.astro' } }), /renders the directive post-list itself, through the presentations the site registers/);
 });
@@ -438,7 +535,10 @@ test('the integration refuses a component of its own for the post list, which it
 // Artikel 7, by title; the page Insikter lists the first of them, then the
 // rest, which it leaves out the first from, three a page on pages of their
 // own. Each term's name is its Swedish one, which orders otherwise than its
-// slug: `vind` is Blåst, `batteri` Lagring.
+// slug: `vind` is Blåst, `batteri` Lagring. Reports, a type of the site's
+// own, take the topics too, so that a topic's page lists posts of two
+// types; the authors have pages, which only the article takes, and one
+// author has no post.
 describe('what the whole list holds', () => {
   const described = {
     language: 'sv_SE',
@@ -448,8 +548,12 @@ describe('what the whole list holds', () => {
       article: { collection: 'articles', address: '/{slug}/', elements: ['paragraph', 'post-list'] },
       page: { collection: 'pages', hierarchical: true, address: '/pages/{path}/', elements: ['paragraph', 'post-list'] },
       note: { label: { en: 'Note', sv: 'Notis' }, plural: { en: 'Notes', sv: 'Notiser' }, collection: 'notes', elements: ['paragraph'], fields: {} },
+      report: {
+        label: { en: 'Report', sv: 'Rapport' }, plural: { en: 'Reports', sv: 'Rapporter' }, collection: 'reports', address: '/rapporter/{slug}/', elements: ['paragraph'],
+        fields: { date: {}, topics: { taxonomy: 'topics' } },
+      },
     },
-    taxonomies: { topics: { address: '/amne/{slug}/' } },
+    taxonomies: { topics: { address: '/amne/{slug}/' }, authors: { address: '/skribent/{slug}/' } },
     presentations: { probe: { label: 'Probe', options: {} } },
   };
   const piece = (n, { topics = [], category = [] }) => [
@@ -483,8 +587,9 @@ describe('what the whole list holds', () => {
       'export async function getStaticPaths({ routePattern }) {',
       '  return termPages(routePattern);',
       '}',
+      'const { posts, taxonomy, settled, list } = Astro.props;',
       '---',
-      '<html><body><main>{Astro.props.term.data.name}</main></body></html>',
+      '<html><body><main><output data-posts={posts.map(({ entry }) => entry.data.title).join(", ")} data-taxonomy={JSON.stringify(taxonomy)} data-settled={JSON.stringify(settled)} data-list={JSON.stringify(list)}></output></main></body></html>',
       '',
     ].join('\n'),
     'src/components/SearchPage.astro': '<html><body><main>Sök</main></body></html>\n',
@@ -510,6 +615,8 @@ describe('what the whole list holds', () => {
     'content/articles/a6.md': piece(6, { topics: ['sol', 'batteri'] }),
     'content/articles/a7.md': piece(7, { topics: ['vind'], category: ['analys'] }),
     'content/notes/first.md': '---\ntitle: "Första notisen"\n---\n\nEn notis.\n',
+    'content/reports/r1.md': '---\ntitle: "Rapport 1"\ndate: 2026-01-08T08:00:00Z\ntopics: ["sol", "vind"]\n---\n\nText.\n',
+    'content/authors/anna.json': term('Anna'),
     'content/pages/insikter.md': page('Insikter', [
       '::post-list{type="article" order="title" number="1" presentation="probe"}',
       '',
@@ -584,6 +691,43 @@ describe('what the whole list holds', () => {
         topics: [topic('sol', 'Solenergi', 4), topic('vind', 'Blåst', 1), topic('batteri', 'Lagring', 1)],
       },
       search: '/sok/',
+    });
+  });
+
+  // What the term page at `path` was given: its posts' titles, its
+  // `taxonomy`, `settled` and `list`. Astro writes an empty attribute
+  // without a value.
+  const termPage = (path) => {
+    const attributes = Object.fromEntries([...built.main(path).matchAll(/data-(\w+)="([^"]*)"/g)].map(([, name, value]) => [name, value.replaceAll('&quot;', '"').replaceAll('&#39;', "'").replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&amp;', '&')]));
+    return { posts: attributes.posts ?? '', taxonomy: JSON.parse(attributes.taxonomy), settled: JSON.parse(attributes.settled), list: JSON.parse(attributes.list) };
+  };
+
+  test("tells a topic's page, which an article and a report share, its taxonomy, the term it settles and what its whole list holds, with no one type", () => {
+    assert.equal(built.status, 0, built.output);
+    assert.deepEqual(termPage('amne/sol'), {
+      posts: 'Rapport 1, Artikel 6, Artikel 4, Artikel 2, Artikel 1',
+      taxonomy: { name: 'topics', label: 'Ämne' },
+      settled: { taxonomy: 'topics', term: 'sol' },
+      list: {
+        type: null,
+        total: 5,
+        terms: {
+          authors: [],
+          category: [category('nyheter', 'Nyheter', 2), category('analys', 'Analys', 1)],
+          topics: [topic('sol', 'Solenergi', 5), topic('vind', 'Blåst', 2), topic('batteri', 'Lagring', 1)],
+        },
+        search: '/sok/',
+      },
+    });
+  });
+
+  test("tells the page of an author, whose taxonomy only the article takes, its type, and that the author holds no post", () => {
+    assert.equal(built.status, 0, built.output);
+    assert.deepEqual(termPage('skribent/anna'), {
+      posts: '',
+      taxonomy: { name: 'authors', label: 'Författare' },
+      settled: { taxonomy: 'authors', term: 'anna' },
+      list: { type: article, total: 0, terms: { authors: [], category: [], topics: [] }, search: '/sok/' },
     });
   });
 });

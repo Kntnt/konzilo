@@ -11,11 +11,15 @@
 // - `visitors`: it takes what visitors' browsers send below /_konzilo/, which the web server
 //   passes on, such as a site's forms (ADR 0045), and keeps it in the service's data. It reaches
 //   nothing.
+//
+// Each finds Forgejo and its credentials where the arrangement says, and listens on the address it
+// gives, every address where it gives none (src/arrangement.js).
 
 import { existsSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 
+import { arrangement } from '../src/arrangement.js';
 import { buildControl } from '../src/build/record.js';
 import { editorsService, nextMinute } from '../src/service/editors.js';
 import { liveDescription } from '../src/service/live-description.js';
@@ -36,6 +40,8 @@ const SERVICE_DATA = '/service-data';
 // How often the duty looks for a submission to mail, in milliseconds.
 const MAIL_EVERY = 5000;
 
+const { forgejo: FORGEJO, secrets, listen } = arrangement();
+
 // A request answered, or 500 where the service broke, which it says in its own log, with nothing
 // of the request.
 const serve = (service, port, options = {}) => {
@@ -46,23 +52,22 @@ const serve = (service, port, options = {}) => {
       outgoing.end();
     });
   });
-  server.listen(port);
+  server.listen(port, listen ?? undefined);
   return server;
 };
 
 function editors(store) {
   const PORT = 4100;
-  const FORGEJO = 'http://forgejo:3000';
   const { KONZILO_REPOSITORY: repository } = process.env;
 
   const site = readSiteDescriptionWithoutTakenComponents(DESCRIPTION);
   const collections = Object.values(site.types).map(({ collection }) => collection);
   const described = liveDescription(DESCRIPTION);
 
-  const token = readFileSync('/secret/read-token', 'utf8').trim();
+  const token = readFileSync(join(secrets, 'read-token'), 'utf8').trim();
   // The seed makes it at each start where it is missing; without it, no one is an Admin here, and
   // only the instance administrator uses the Admin's pages.
-  const ROLES_TOKEN = '/secret/roles-token';
+  const ROLES_TOKEN = join(secrets, 'roles-token');
   const rolesToken = existsSync(ROLES_TOKEN) ? readFileSync(ROLES_TOKEN, 'utf8').trim() : null;
   if (rolesToken === null) console.error(`The service has no ${ROLES_TOKEN}, so it cannot tell who is an Admin`);
   // A local copy sends no mail, and writes each to the log instead.

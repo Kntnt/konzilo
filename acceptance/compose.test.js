@@ -16,7 +16,7 @@ import { sharp } from '../tests/lib/images.js';
 import { readCsv } from '../tests/lib/csv.js';
 import { OWN_DEMO, writeOwnDemoContent } from '../tests/lib/demo-content.js';
 import { namedImages, NOW, sourcePost } from '../tests/lib/intake.js';
-import { ENGINES, openEditor, signIn } from './lib/editor.js';
+import { ENGINES, freshCode, openEditor, seeded, signIn } from './lib/editor.js';
 import { makeSite } from './lib/site.js';
 
 const inspect = (id) => JSON.parse(execFileSync('docker', ['inspect', id], { encoding: 'utf8' }))[0];
@@ -1816,6 +1816,77 @@ describe('a site in Compose', () => {
       assert.equal(release(), was, 'and builds nothing again');
       assert.equal((await get(`${site.origin.site}/found-by-the-clock/`)).status, 200);
     });
+
+    // A copy seeded with the one Admin gains the people its settings list at its next start, each
+    // with a second factor and in the team of their role, and keeps the Admin as it was, whose
+    // code the command still prints without a name (ADR 0007, ADR 0008).
+    test('gains the people a setting adds at its next start, each in the team of their role, and loses no one', async () => {
+      const key = site.state('account-totp');
+      site.set('KONZILO_PEOPLE', 'anna:admin,ebba:editor,rut:reviewer');
+      site.up();
+      const teams = await api(`/orgs/${site.name}/teams`);
+      const members = async (name) => (await api(`/teams/${teams.find((team) => team.name === name).id}/members`)).map(({ login }) => login);
+      const [admins, editors, reviewers] = [await members('admins'), await members('editors'), await members('reviewers')];
+      assert.deepEqual(admins, ['anna']);
+      assert.ok(editors.includes('ebba') && !reviewers.includes('ebba'), 'ebba is an Editor');
+      assert.ok(reviewers.includes('rut') && !editors.includes('rut'), 'rut is a Reviewer');
+      assert.equal(site.state('account-totp'), key, 'the Admin keeps the key it had');
+      assert.equal(site.state('account-name'), 'anna');
+      assert.match(site.code(), /^\d{6}$/);
+      assert.notEqual(site.state('people/ebba-totp'), key);
+
+      // The Reviewer's code, from `konzilo-code rut`, with the shared password, reads the source
+      // and writes nothing to it.
+      const source = `${site.origin.git}/api/v1/repos/${site.name}/source`;
+      const basic = `Basic ${Buffer.from('rut:local-only-account-password').toString('base64')}`;
+      assert.notEqual((await get(source, { headers: { authorization: basic } })).status, 200, 'not without the second factor');
+      // The code the seed enrolled with may be refused until the next (ADR 0007).
+      let asked;
+      for (let attempt = 0; attempt < 2 && asked?.status !== 200; attempt += 1) {
+        asked = await get(source, { headers: { authorization: basic, 'x-forgejo-otp': await freshCode('rut', () => site.code('rut')) } });
+      }
+      assert.equal(asked.status, 200);
+      const { permissions } = await asked.json();
+      assert.deepEqual([permissions.pull, permissions.push], [true, false]);
+
+      // The Editor signs in to the editor with a code from `konzilo-code ebba`, and may write.
+      const session = await openEditor('chromium', site);
+      try {
+        await signIn(session, site, seeded(site, 'ebba'));
+        await session.page.getByText('Articles').first().waitFor({ timeout: 60_000 });
+        assert.equal(await session.page.getByText(/reads the site's live preview only/).count(), 0);
+      } finally {
+        await session.browser.close();
+      }
+
+      // A second start with them changes nothing.
+      const before = { ebba: site.state('people/ebba-totp'), rut: site.state('people/rut-totp') };
+      site.up();
+      assert.deepEqual({ ebba: site.state('people/ebba-totp'), rut: site.state('people/rut-totp') }, before);
+      assert.deepEqual([await members('admins'), await members('editors'), await members('reviewers')], [admins, editors, reviewers]);
+    }, { timeout: 900_000 });
+
+    // A copy whose admin port changes after its first start: the seed keeps the editor's OAuth
+    // client at the admin host's new address, with the client ID its configuration holds, so that
+    // Forgejo takes the redirect, and leaves the one webhook as it was (ADR 0007).
+    test('signs in at the admin host after its port has changed, with the same client and one webhook', async () => {
+      const client = site.state('oauth-client');
+      const hooks = (await api(`${repository()}/hooks`)).map(({ id, config }) => ({ id, url: config.url }));
+      assert.equal(hooks.length, 1);
+      site.compose('down');
+      await site.move('admin');
+      site.up();
+      assert.equal(site.state('oauth-client'), client);
+      assert.deepEqual((await api(`${repository()}/hooks`)).map(({ id, config }) => ({ id, url: config.url })), hooks);
+      const session = await openEditor('chromium', site);
+      try {
+        await signIn(session, site);
+        await session.page.getByText('Articles').first().waitFor({ timeout: 60_000 });
+        await session.page.getByText('Quiet harbours and the lantern').waitFor();
+      } finally {
+        await session.browser.close();
+      }
+    }, { timeout: 900_000 });
   });
 });
 

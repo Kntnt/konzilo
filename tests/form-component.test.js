@@ -45,11 +45,14 @@ const forms = {
     ],
   },
   note: { label: 'A note', fields: [{ name: 'note', label: 'Note', kind: 'textarea', required: true }] },
+  // A form with a button text of its own, which an editor may change where the form is placed.
+  booking: { label: 'Book an assessment', button: 'Book the assessment', editable: ['button'], fields: [{ name: 'email', label: 'Email', kind: 'email', required: true }] },
 };
 
 // A page of the site's design that places a form by its name, imported from
-// the package as a site's own form component does.
-const pageWith = (name) => [
+// the package as a site's own form component does, with the button text an
+// editor gives where it is placed, `button`, if any.
+const pageWith = (name, button) => [
   '---',
   "import Form from '@kntnt/konzilo/astro/Form.astro';",
   `import { publicSite } from ${JSON.stringify(integration)};`,
@@ -57,7 +60,7 @@ const pageWith = (name) => [
   '---',
   '<html lang={languageTag}>',
   '  <head><title>A page</title></head>',
-  `  <body><main><h1>Write to us</h1><Form name=${JSON.stringify(name)} /></main></body>`,
+  `  <body><main><h1>Write to us</h1><Form name=${JSON.stringify(name)}${button === undefined ? '' : ` button=${JSON.stringify(button)}`} /></main></body>`,
   '</html>',
   '',
 ].join('\n');
@@ -66,6 +69,9 @@ const sources = {
   'src/content.config.mjs': `import { collections as konziloCollections } from ${JSON.stringify(integration)};\n\nexport const collections = konziloCollections();\n`,
   'src/pages/contact.astro': pageWith('contact'),
   'src/pages/note.astro': pageWith('note'),
+  'src/pages/booking.astro': pageWith('booking'),
+  'src/pages/booking-own.astro': pageWith('booking', 'Book a call today'),
+  'src/pages/note-own.astro': pageWith('note', 'Post the note'),
 };
 
 // The site settings of a site whose Admin gave the contact form a
@@ -194,6 +200,11 @@ describe('a declared form placed on a page', () => {
     assert.deepEqual([...form.querySelectorAll('button')].map((button) => [button.type, text(button), button.disabled]), [['submit', 'Send', false]]);
   });
 
+  test('says on its button the form\'s own text where it declares one, the editor\'s where the form lets an editor change it, and never an editor\'s where it does not', () => {
+    const button = (slug) => text(site.page(slug).querySelector('form button'));
+    assert.deepEqual(['booking', 'booking-own', 'note-own'].map(button), ['Book the assessment', 'Book a call today', 'Send']);
+  });
+
   test('holds each outcome the endpoint leads back with, hidden, at the id of its fragment, the Admin\'s confirmation text once sent', () => {
     const outcome = (name) => form.querySelector(`#konzilo-form-contact-${name}`);
     for (const name of ['sent', 'invalid', 'too-many', 'refused', 'unavailable']) {
@@ -285,7 +296,14 @@ describe('a declared form on a site in several languages', () => {
         identity,
         languages: { en_GB: { title: 'The Lantern', menus: {}, settings: { forms: { contact: { confirmation: 'Thanks, we will be in touch.' } } } } },
       },
-      pages: { 'src/pages/sv/contact.astro': pageWith('contact'), 'src/pages/en/contact.astro': pageWith('contact') },
+      declared: { ...forms, booking: { ...forms.booking, button: { sv_SE: 'Boka bedömningen', en_GB: 'Book the assessment' } } },
+      pages: {
+        'src/pages/sv/contact.astro': pageWith('contact'),
+        'src/pages/en/contact.astro': pageWith('contact'),
+        'src/pages/sv/booking.astro': pageWith('booking'),
+        'src/pages/en/booking.astro': pageWith('booking'),
+        'src/pages/sv/booking-own.astro': pageWith('booking', 'Boka ett samtal'),
+      },
     });
   });
 
@@ -294,6 +312,11 @@ describe('a declared form on a site in several languages', () => {
   test('shows the confirmation text of the page\'s language', () => {
     assert.equal(text(site.page('sv/contact').querySelector('#konzilo-form-contact-sent')), 'Tack, vi hör av oss.');
     assert.equal(text(site.page('en/contact').querySelector('#konzilo-form-contact-sent')), 'Thanks, we will be in touch.');
+  });
+
+  test('says on its button the form\'s own text in the page\'s language, or the editor\'s that the page gives', () => {
+    const button = (slug) => text(site.page(slug).querySelector('form button'));
+    assert.deepEqual(['sv/booking', 'en/booking', 'sv/booking-own', 'sv/contact'].map(button), ['Boka bedömningen', 'Book the assessment', 'Boka ett samtal', 'Skicka']);
   });
 
   test('the page a browser gets when the endpoint does not answer offers the publisher\'s email address from the main language\'s settings', () => {
@@ -322,7 +345,7 @@ describe('a declared form in a preview', () => {
 
 test('a template that places a form the site description does not declare fails the build, naming it', () => {
   const { log } = build({ pages: { 'src/pages/quote.astro': pageWith('quote') }, fails: true });
-  assert.match(log, /a template places the form "quote", which the site description does not declare; it declares contact, note/);
+  assert.match(log, /a template places the form "quote", which the site description does not declare; it declares contact, note, booking/);
 });
 
 test('a site that gives a text the form has not got fails at once, naming it', () => {

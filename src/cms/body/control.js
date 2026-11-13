@@ -46,6 +46,7 @@ export function bodyControl({ adminHost, library = null, load = loadField }) {
             changed: (next) => changedTo(next),
             elements: plain(field.get('elements')) ?? [],
             forms: plain(field.get('forms')) ?? [],
+            editable: plain(field.get('editable')) ?? {},
             adminHost,
             library,
             smallestWidth: plain(field.get('smallestWidth')) ?? null,

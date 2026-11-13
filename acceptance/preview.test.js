@@ -12,7 +12,7 @@ import { after, before, describe, test } from 'node:test';
 
 import { idOf } from '../src/demo-source.js';
 import { sharp } from '../tests/lib/images.js';
-import { ENGINES, freshCode, openEditor, openNew, signIn, throughForgejo, usedCode } from './lib/editor.js';
+import { ENGINES, freshCode, openEditor, openNew, seeded, signIn, throughForgejo } from './lib/editor.js';
 import { framesWhile, isBlank } from './lib/frames.js';
 import { makeSite } from './lib/site.js';
 
@@ -26,7 +26,8 @@ describe('the live preview', () => {
   let site;
 
   before(async () => {
-    site = await makeSite();
+    // A Reviewer among the site's people, seeded as the Admin is (ADR 0008).
+    site = await makeSite({ people: 'anna:admin,rut:reviewer' });
     // The categories have pages here, as a site may give them, so that a term's page is in the
     // preview; the demo content stays the site template's.
     const description = join(site.directory, 'site-description.json');
@@ -327,8 +328,9 @@ describe('the live preview', () => {
     });
   });
 
-  // A Reviewer, who reads what is coming and changes nothing (ADR 0008): an account of their own,
-  // in the site's team that reads the source.
+  // A Reviewer, who reads what is coming and changes nothing (ADR 0008): one of the site's people,
+  // with an account of their own, in the site's team that reads the source, who signs in with a
+  // code from `konzilo-code rut`.
   describe('to a Reviewer', () => {
     let browser;
     let context;
@@ -336,8 +338,7 @@ describe('the live preview', () => {
     let reviewer;
 
     before(async () => {
-      reviewer = await site.account('rut', 'reviewers');
-      usedCode(reviewer.login, reviewer.enrolledWith);
+      reviewer = seeded(site, 'rut');
       browser = await ENGINES.chromium.launch();
       context = await browser.newContext({ locale: 'en-GB' });
       page = await context.newPage();
@@ -651,6 +652,52 @@ describe('the live preview', () => {
         assert.equal(session.context.pages().length, 2, 'in the same tab');
       } finally {
         await tab.close();
+      }
+    });
+
+    // The start page an Admin chooses, as the page for addresses not found is chosen: the page's
+    // form opens as any page's, the pane beside it shows the page at /, and so does the public site
+    // once it is built (ADR 0033).
+    test('shows a page an Admin chose as the start page at /, in the pane beside its form and on the public site', async () => {
+      const START = 'Hidden gardens and the valley';
+      const id = idOf('pages', 'hidden-gardens-and-the-valley');
+      const token = await page.evaluate(() => JSON.parse(localStorage.getItem('sveltia-cms.user')).token);
+      const headers = { authorization: `token ${token}`, 'content-type': 'application/json' };
+      const file = `${site.origin.git}/api/v1/repos/${site.name}/source/contents/settings.json`;
+      const { sha, content } = await (await fetch(file, { headers })).json();
+      const settings = JSON.parse(Buffer.from(content, 'base64').toString('utf8'));
+      const save = async (value, at, message) => {
+        const answer = await fetch(file, { method: 'PUT', headers, body: JSON.stringify({ content: Buffer.from(`${JSON.stringify(value, null, 2)}\n`).toString('base64'), sha: at, message }) });
+        assert.equal(answer.status, 200);
+        return (await answer.json()).content.sha;
+      };
+      const chosen = await save({ ...settings, startPage: { page: id } }, sha, 'Choose a start page');
+      const tab = await session.context.newPage();
+      try {
+        // The preview reads what is saved at most every ten seconds, so the form is opened again
+        // until its pane shows the page where the choice puts it.
+        const address = async () => {
+          const frame = paneOf(tab).locator('iframe');
+          await frame.waitFor({ timeout: ON_THE_PAGE });
+          return new URL(await frame.getAttribute('src')).pathname;
+        };
+        for (let tried = 0; ; tried += 1) {
+          await tab.goto(`${site.origin.admin}/#/collections/pages/entries/${id}`);
+          await tab.locator('.konzilo-body-visual .ProseMirror').waitFor({ timeout: 60_000 });
+          assert.equal(await tab.getByRole('textbox', { name: 'Title', exact: true }).inputValue(), START);
+          await tab.waitForTimeout(3000);
+          if (await address() === '/') break;
+          assert.ok(tried < 10, 'the preview never read the choice');
+        }
+        await frameOf(tab).getByRole('heading', { level: 1, name: START }).waitFor({ timeout: ON_THE_PAGE });
+        for (let waited = 0; !/<h1>Hidden gardens and the valley<\/h1>/.test(await (await fetch(`${site.origin.site}/`)).text()); waited += 2000) {
+          assert.ok(waited < 180_000, 'the public site never showed the chosen page at /');
+          await tab.waitForTimeout(2000);
+        }
+        assert.equal((await fetch(`${site.origin.site}/pages/hidden-gardens-and-the-valley/`, { redirect: 'manual' })).status, 301);
+      } finally {
+        await tab.close();
+        await save(settings, chosen, 'Choose no start page');
       }
     });
 

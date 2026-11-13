@@ -319,6 +319,42 @@ describe('the settings groups\' texts', () => {
   });
 });
 
+describe('a form\'s button text and what an editor may change', () => {
+  const types = { post: { label: 'Post', plural: 'Posts', collection: 'posts', address: '/{slug}/', elements: ['paragraph', 'form'] } };
+  const fields = [{ name: 'email', label: 'Email', kind: 'email', required: true }];
+  const one = (form) => siteDescription({ language: 'en_GB', types, forms: { contact: { label: 'Contact us', fields, ...form } } }).forms.contact;
+  const several = (form) => siteDescription({ languages: ['sv_SE', 'en_GB'], types, forms: { contact: { label: 'Contact us', fields, ...form } } }).forms.contact;
+
+  test('has no text of its own and lets an editor change nothing where it declares neither', () => {
+    const { button, editable } = one({});
+    assert.deepEqual([button, editable], [null, []]);
+  });
+
+  test('takes one text for its button, or on a site in several languages one by locale, and the texts an editor may change, its button\'s', () => {
+    assert.deepEqual([one({ button: 'Book the assessment', editable: ['button'] }).button, one({ button: 'Book the assessment', editable: ['button'] }).editable], ['Book the assessment', ['button']]);
+    assert.equal(several({ button: 'Boka' }).button, 'Boka');
+    assert.deepEqual(several({ button: { sv_SE: 'Boka bedömningen', en_GB: 'Book the assessment' } }).button, { sv_SE: 'Boka bedömningen', en_GB: 'Book the assessment' });
+    assert.deepEqual(one({ editable: ['button'] }).editable, ['button']);
+  });
+
+  test('refuses a button text that is no text, one by locale on a site in one language or short of a language, and an editor\'s text that is not yet the editor\'s', () => {
+    for (const [build, form, problem] of [
+      [one, { button: '' }, /forms\.contact\.button: must be a non-empty string/],
+      [one, { button: 42 }, /forms\.contact\.button: must be a non-empty string/],
+      [one, { button: { en_GB: 'Send' } }, /forms\.contact\.button: only a site with several languages gives a form's button a text in each language; give it one text/],
+      [several, { button: { sv_SE: 'Boka' } }, /forms\.contact\.button: must give a text in each of the site's languages, and gives none in en_GB/],
+      [several, { button: { sv_SE: 'Boka', en_GB: 'Book', de_DE: 'Buchen' } }, /forms\.contact\.button\.de_DE: is not one of the site's languages/],
+      [several, { button: { sv_SE: 'Boka', en_GB: '' } }, /forms\.contact\.button\.en_GB: must be a non-empty string/],
+      [one, { editable: 'button' }, /forms\.contact\.editable: must list the texts an editor may change where the form is placed, of button/],
+      [one, { editable: ['button', 'button'] }, /forms\.contact\.editable: must list the texts an editor may change where the form is placed, of button, each once/],
+      [one, { editable: ['placeholder'] }, /forms\.contact\.editable: "placeholder" is no text an editor may change where the form is placed; an editor may change its button/],
+      [one, { editable: ['label'] }, /forms\.contact\.editable: "label" is no text an editor may change/],
+    ]) {
+      assert.throws(() => build(form), (error) => problem.test(error.message), JSON.stringify(form));
+    }
+  });
+});
+
 describe('a form field\'s label', () => {
   const types = { post: { label: 'Post', plural: 'Posts', collection: 'posts', address: '/{slug}/', elements: ['paragraph', 'form'] } };
   const read = (fields) => siteDescription({ language: 'en_GB', types, forms: { contact: { label: 'Contact us', fields } } }).forms.contact.fields;

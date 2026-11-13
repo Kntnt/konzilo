@@ -77,17 +77,20 @@ function withContact(sentence, texts, email) {
 // them. `settings`: the site settings, whose forms' confirmation texts the
 // page shows once a form is sent, and whose publisher's email address the
 // page offers when a form cannot be sent. `site`: { locale, languageTag, base,
-// page, texts }: the site's locale and language tag, the base the
-// page is below, the page's own path, and the site's own texts. A page
+// page, texts, button }: the site's locale and language tag, the base the
+// page is below, the page's own path, the site's own texts, and the button's
+// text an editor gives where the form is placed, if any. A page
 // below a base of its own is a preview's or a share's,
 // whose form sends nothing.
 //
-// Gives { name, label, action, id, preview, page, texts, fields, outcomes,
-// data }: each field with its label as parts of text and links, `labelParts`,
+// Gives { name, label, action, id, preview, page, texts, button, fields, outcomes,
+// data }: the button's text, the editor's where the form lets an editor change
+// it, else the form's own in the page's language, else the site's word for
+// sending; each field with its label as parts of text and links, `labelParts`,
 // the ids of its control, help and problem, its HTML type and its rules; each
 // outcome by its id, as parts of text and links; and what the script reads, as
 // JSON. Throws for a form the site description does not declare.
-export function formView(name, { forms, settings, locale, languageTag, base = '/', page = '/', texts: own = {} }) {
+export function formView(name, { forms, settings, locale, languageTag, base = '/', page = '/', texts: own = {}, button: given }) {
   const form = forms?.[name];
   if (!form) {
     const declared = Object.keys(forms ?? {});
@@ -97,6 +100,11 @@ export function formView(name, { forms, settings, locale, languageTag, base = '/
   const id = `konzilo-form-${name}`;
   const email = settings?.search?.publisher?.email || null;
   const preview = !isPublicBuild(base);
+  // A text the form does not let an editor change is a post's last file's, from before the
+  // site took that from editors, which the intake now refuses: the form's own stands.
+  const editors = (form.editable ?? []).includes('button') && typeof given === 'string' && given.trim() !== '' ? given : null;
+  const declared = typeof form.button === 'string' ? form.button : (form.button?.[locale] ?? null);
+  const button = editors ?? declared ?? texts.send;
   const fields = form.fields.map((field) => {
     const at = `${id}-${field.name}`;
     const group = ['radio', 'checkboxes'].includes(field.kind);
@@ -147,6 +155,7 @@ export function formView(name, { forms, settings, locale, languageTag, base = '/
     preview,
     page,
     texts,
+    button,
     fields,
     outcomes,
     data: JSON.stringify(data),

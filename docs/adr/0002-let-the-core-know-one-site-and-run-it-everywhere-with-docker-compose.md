@@ -1,6 +1,6 @@
 # ADR 0002: Let the core know one site, and run it everywhere with Docker Compose
 
-**Date:** 2026-11-02, amended 2026-11-12 · **Status:** Accepted, settled by Thomas on 2026-11-02: Docker everywhere, no Kubernetes; the core knows one site. The rest is a technical choice; Thomas may veto.
+**Date:** 2026-11-02, amended 2026-11-12 and 2026-11-13 · **Status:** Accepted, settled by Thomas on 2026-11-02: Docker everywhere, no Kubernetes; the core knows one site. The rest is a technical choice; Thomas may veto. Settled on 2026-11-12, as a technical choice Thomas may veto, which changes none of the words he settled: each program takes its peers' addresses and its own folders as settings, each with where Compose puts it as its default, so that a hosting layer or a site may arrange the same programs otherwise, while Compose sets none of them and stays the one arrangement the core ships, documents and tests. Settled on 2026-11-13, as a technical choice Thomas may veto: a local copy is seeded with the people a setting lists, by default the one account it always had.
 
 ## Context
 
@@ -21,8 +21,9 @@ Anyone should be able to run Konzilo on their own machine or server, Kntnt shoul
 | Hosting | Compose per customer, driven by the hosting layer | One web server and one Typesense shared between projects, and Kntnt's services |
 
 - **The same images everywhere.** Only Compose settings differ. There is no second way to run Konzilo. Nothing in the core imports from the hosting layer.
+- **Peers and folders by settings** (2026-11-12, a technical choice Thomas may veto). Each program reaches Forgejo, Typesense, the service's two roles and the live preview at a peer address, and reads its credentials from and works in folders, that settings name: `KONZILO_PEER_FORGEJO`, `KONZILO_PEER_TYPESENSE`, `KONZILO_PEER_EDITORS`, `KONZILO_PEER_VISITORS`, `KONZILO_PEER_PREVIEW`, `KONZILO_FOLDER_SECRET` and `KONZILO_FOLDER_WORK`, with `KONZILO_LISTEN` for the address the service's roles listen on and `KONZILO_WEBHOOK_HOST` for the host Forgejo's webhook may reach. Each default is where Compose puts it, one module reads them, the web server reads the peers as placeholders with the same defaults, and the Compose guide lists them all. Compose sets none of them, so it runs as it did, and it stays the one arrangement the core ships, documents and tests: the core keeps one way to run Konzilo. A hosting layer or a site may arrange the same programs otherwise, on other machines or several in one container, as its own: it answers for that arrangement, and says what it gives up of what Compose gives ([ADR 0005](0005-build-every-container-for-security-and-performance-and-guard-both-with-budgets.md)). The other folders, `/site`, `/control`, `/public`, `/state` and the rest, are no settings: each is one folder for every program that reads it, so two programs never keep different things there.
 - **One site per Compose project,** on a laptop and on one's own server. Another site is another project, with no shared state. A hosted customer with several sites is the hosting layer's to arrange: one Forgejo for that customer (ADR 0004), and each site's own containers.
-- **One command locally.** `docker compose up --wait` in a site repository starts everything, with Caddy from the same templates as on a server. It seeds Forgejo with an organisation, a repository, fictional demo content as files, and an account with a known password and a second factor from a fixed key, with a command that prints the current code. A fresh clone becomes a working site with that one command, and it returns only when the hosts answer.
+- **One command locally.** `docker compose up --wait` in a site repository starts everything, with Caddy from the same templates as on a server. It seeds Forgejo with an organisation, a repository, fictional demo content as files, and the people a setting lists, by default one account, an Admin, each with a known password and a second factor from a fixed key, in the team of their role, with a command that prints a person's current code ([ADR 0007](0007-sign-in-through-the-customers-own-forgejo-with-two-factors-and-close-the-rest-at-the-proxy.md), [ADR 0008](0008-give-customers-three-roles-admin-editor-and-reviewer.md)). A fresh clone becomes a working site with that one command, and it returns only when the hosts answer.
 - **What runs on demand starts itself (Thomas, 2026-11-03).** In Compose every container stays up and sleeps, and starts its own heavy work when it is needed: a build, a preview's dev server. So `docker compose up` is all a machine needs, on a Mac, Linux or Windows, and no container needs Docker's socket. A build then runs in a container that stays, and must clean up after itself. The hosting layer may start the same images in its own way, one build at a time, where many customers share a server.
 - **Addresses locally.** Each host is its own port on `localhost`, so public site, admin host, Forgejo and preview are separate origins. Browsers treat `localhost` as secure, so no certificates are needed, and the site's origin may be `http://localhost`. `new-site` picks four ports from the site's name and writes them in `.env`; a shell's values go before them, so that three agents can work at once.
 - **Saving publishes locally as live.** A save starts the intake, and the site appears on its port. A developer also has Astro's dev server on the published content.
@@ -37,6 +38,7 @@ Anyone should be able to run Konzilo on their own machine or server, Kntnt shoul
 - With a Forgejo per customer (ADR 0004), hosting is many Compose projects. Running it any other way keeps two ways to run Konzilo, which can drift apart.
 - Containers add what Linux users lack: a network per customer, read-only file systems and fewer rights.
 - The local copy runs what the live copy runs, so one acceptance suite proves both.
+- Settings whose defaults are Compose's let another arrangement run the programs as they are, rather than patch their files, and leave Compose as it was. Names chosen by programs alone would hold every program to Compose's network and to a container each.
 
 ## Considered and rejected
 
@@ -46,6 +48,10 @@ Anyone should be able to run Konzilo on their own machine or server, Kntnt shoul
 - **An install by uploading files to a host.** Konzilo is several programs running at once.
 - **DDEV for local copies.** It runs other images than live, so local and live could only be kept alike by rules.
 - **A control panel such as CloudPanel.** It keeps state in its own database, puts a panel on the internet that needs locking down, and has no command to change a site's web server configuration once the site exists.
+- **Another arrangement that patches the core's files** where they name their peers and folders. It breaks unseen whenever a file it patches changes.
+- **Names written into `/etc/hosts` at a start,** so that `forgejo` and the rest lead to the loopback in one container. It needs root, which no program here has, and leaves two programs' `/secret` and `/work` colliding.
+- **A layer that rewrites a program's calls to the file system, such as `proot`,** to give each program its own `/secret` and `/work`. It stands between the program and every file it opens, which costs time on each.
+- **A second set of images in the core,** for one container. It would be a second way to run Konzilo in the core, to ship, document and test beside Compose.
 
 ## What practice has shown
 

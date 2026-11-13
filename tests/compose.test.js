@@ -9,7 +9,20 @@ import { dirname, resolve } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { ARRANGEMENT } from '../src/arrangement.js';
+
 const read = (path) => readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), 'utf8');
+
+// A table of the guide's, by its section's heading: each variable with its default, or null where
+// the default is said in words.
+const tableOf = (heading) => {
+  const readme = read('compose/README.md');
+  const start = readme.indexOf(`\n## ${heading}\n`);
+  assert.ok(start >= 0, `a section ${heading}`);
+  const end = readme.indexOf('\n## ', start + 1);
+  const rows = readme.slice(start, end < 0 ? undefined : end).matchAll(/^\| `([A-Z_]+)` \| (`[^`]*`|[^|`]+?) \|/gm);
+  return Object.fromEntries([...rows].map(([, name, value]) => [name, value.startsWith('`') ? value.slice(1, -1) : null]));
+};
 
 const compose = read('compose/compose.yaml');
 const versions = read('versions.env');
@@ -50,6 +63,24 @@ test('a digest in versions.env is a whole one', () => {
   }
 });
 
+// codeberg.org's registry serves the same image by the same digest, but refuses it, tag and
+// digest alike, when it is under load, so that a fresh machine cannot bring a site up.
+test('pulls Forgejo from data.forgejo.org, which versions.env says its digest is read from', () => {
+  const image = /^\s+image: (\S*forgejo\S*)$/m.exec(compose)?.[1];
+  assert.equal(image, 'data.forgejo.org/forgejo/forgejo:${FORGEJO}-rootless@sha256:${FORGEJO_DIGEST}');
+  const source = image.slice(0, image.indexOf('@'));
+  assert.ok(versions.split('\n').some((line) => line.startsWith('#') && line.includes(source)), source);
+});
+
+// The rootless image keeps app.ini, with the keys it generates, in its custom folder in the
+// data folder (GITEA_APP_INI), so that a site already running keeps them where they are.
+test('mounts Forgejo one volume, its data folder, which holds its settings too', () => {
+  const forgejo = compose.slice(compose.indexOf('x-forgejo:'), compose.indexOf('\nservices:'));
+  const volumes = [...forgejo.matchAll(/^ {4}- ([a-z-]+):(\S+)$/gm)].map(([, name, path]) => `${name}:${path}`);
+  assert.deepEqual(volumes, ['forgejo-data:/var/lib/gitea']);
+  assert.doesNotMatch(compose, /GITEA_APP_INI|GITEA_CUSTOM|GITEA_WORK_DIR/);
+});
+
 test('says what every volume holds, and lists none that is gone', () => {
   const declared = compose.slice(compose.indexOf('\nvolumes:\n')).split('\n').slice(2)
     .map((line) => /^ {2}([a-z-]+):/.exec(line)?.[1])
@@ -61,13 +92,96 @@ test('says what every volume holds, and lists none that is gone', () => {
 });
 
 // What a server sets in place of a local copy's defaults, each in the guide's table with its
-// default, so that a variable with a default no one is told of cannot slip in.
+// default, so that a variable with a default no one is told of cannot slip in. One that only
+// another arrangement sets is in that table instead. An empty default is said in words, since a
+// code span cannot be empty.
 test('names every variable it has a default for in the guide, with that default', () => {
-  const defaults = Object.fromEntries([...compose.matchAll(/\$\{([A-Z_]+):-([^}]*)\}/g)].map(([, name, value]) => [name, value]));
+  const defaults = Object.fromEntries([...compose.matchAll(/\$\{([A-Z_]+):-([^}]*)\}/g)].map(([, name, value]) => [name, value === '' ? null : value]));
   assert.ok(Object.hasOwn(defaults, 'KONZILO_MAIL_TO_LOG'));
+  const arranged = tableOf('What another arrangement sets');
+  assert.deepEqual(tableOf('What a server sets'), Object.fromEntries(Object.entries(defaults).filter(([name]) => !Object.hasOwn(arranged, name))));
+  for (const [name, value] of Object.entries(defaults)) if (Object.hasOwn(arranged, name)) assert.equal(arranged[name], value, name);
+});
+
+// Where each program finds its peers and its own folders (src/arrangement.js, ADR 0002): settings
+// that Compose sets none of, so that it runs as it always has, and that a hosting layer or a site
+// sets to arrange the same programs otherwise. Forgejo reads its own settings, so the host its
+// webhook may reach is Compose's to pass on, with the host of the service for editors as its
+// default.
+test('sets none of the settings by which another arrangement places the programs', () => {
+  for (const name of Object.keys(ARRANGEMENT)) assert.doesNotMatch(compose, new RegExp(`\\b${name}\\b`), name);
+  assert.deepEqual([...compose.matchAll(/^.*KONZILO_WEBHOOK_HOST.*$/gm)].map(([line]) => line.trim()), ['FORGEJO__webhook__ALLOWED_HOST_LIST: ${KONZILO_WEBHOOK_HOST:-editors}']);
+  assert.equal(new URL(ARRANGEMENT.KONZILO_PEER_EDITORS).hostname, 'editors');
+});
+
+test('reaches each peer in the web server where a setting says, by default where Compose puts it', () => {
+  const caddyfile = read('compose/web/Caddyfile');
+  const upstreams = [...caddyfile.matchAll(/^\t*reverse_proxy (\S+)/gm)].map(([, upstream]) => upstream);
+  assert.ok(upstreams.length >= 5);
+  const seen = {};
+  for (const upstream of upstreams) {
+    const [, name, fallback] = /^\{\$(KONZILO_PEER_[A-Z]+):([^}]+)\}$/.exec(upstream) ?? [];
+    assert.ok(name, `${upstream} is a setting`);
+    assert.equal(fallback, ARRANGEMENT[name], name);
+    seen[name] = fallback;
+  }
+  assert.deepEqual(Object.keys(seen).sort(), ['KONZILO_PEER_EDITORS', 'KONZILO_PEER_FORGEJO', 'KONZILO_PEER_PREVIEW', 'KONZILO_PEER_VISITORS']);
+});
+
+// A peer named outright, or a folder of a program's own, would hold every program to Compose's
+// arrangement again.
+test('names no peer and no folder of a program\'s own but through the settings', () => {
+  const code = (path) => read(path).split('\n').filter((line) => !/^\s*(\/\/|#)/.test(line)).join('\n');
+  const peers = Object.entries(ARRANGEMENT).filter(([name]) => name.startsWith('KONZILO_PEER_')).map(([, origin]) => new URL(origin).host);
+  for (const path of ['compose/seed/seed.js', 'bin/konzilo-builder.js', 'bin/konzilo-preview.js', 'bin/konzilo-service.js', 'src/build/web-server.js', 'src/build/search-index.js', 'compose/web/Caddyfile']) {
+    const text = code(path).replace(/\{\$KONZILO_PEER_[A-Z]+:[^}]+\}/g, '');
+    for (const host of peers) assert.ok(!text.includes(host), `${path} names ${host}`);
+  }
+  for (const path of ['bin/konzilo-builder.js', 'bin/konzilo-preview.js', 'bin/konzilo-service.js', 'compose/builder/prepare-site.sh']) {
+    assert.doesNotMatch(code(path), /['"`]\/(secret|work)\b|\s\/work\b/, path);
+  }
+});
+
+test('lists every setting of another arrangement in the guide, with its default', () => {
+  assert.deepEqual(tableOf('What another arrangement sets'), { ...ARRANGEMENT, KONZILO_WEBHOOK_HOST: 'editors' });
+});
+
+// Another arrangement seeds people too, with each person's password from a file, so the guide
+// says what the seed reads, from where, and where it keeps each key.
+test('says, beside what another arrangement sets, what the seed reads and where it keeps the keys', () => {
   const readme = read('compose/README.md');
-  const listed = Object.fromEntries([...readme.matchAll(/^\| `([A-Z_]+)` \| `([^`]*)` \|/gm)].map(([, name, value]) => [name, value]));
-  assert.deepEqual(listed, defaults);
+  const start = readme.indexOf('\n## What another arrangement sets\n');
+  const section = readme.slice(start, readme.indexOf('\n## ', start + 1));
+  const told = /^The seed, `compose\/seed\/seed\.js`, .*$/m.exec(section)?.[0] ?? '';
+  for (const name of ['KONZILO_SITE', 'KONZILO_PEOPLE', 'KONZILO_ACCOUNT', 'KONZILO_ADMIN_ORIGIN', 'KONZILO_PREVIEW_ORIGIN']) {
+    assert.match(read('compose/seed/seed.js') + read('src/people.js'), new RegExp(`\\b${name}\\b`), `the seed reads ${name}`);
+    assert.ok(told.includes(`\`${name}\``), name);
+  }
+  for (const said of ['`/run/secrets`', '`instance-password`', '`account-password-<name>`', '`account-password`', '`/state`', '`account-totp`', '`account-name`', '`people/<name>-totp`']) {
+    assert.ok(told.includes(said), said);
+  }
+  const mounted = /^ {4}secrets: \[(.*)\]$/m.exec(servicesOf(compose).seed)[1].split(', ');
+  for (const secret of mounted) assert.ok(told.includes(`\`${secret}\``), secret);
+});
+
+// A local copy's people (ADR 0007, ADR 0008): the seed is told whom to make, and keeps each
+// person's key in `state`, which the command that prints a code alone reads, with no network.
+// The command is the entrypoint, so that `docker compose run --rm code <name>` names a person.
+test('tells the seed its people, and lets the code command, alone with their keys, take a name', () => {
+  const blocks = servicesOf(compose);
+  assert.match(blocks.seed, /^ {6}KONZILO_ACCOUNT: \$\{KONZILO_ACCOUNT\}\n {6}KONZILO_PEOPLE: \$\{KONZILO_PEOPLE:-\}$/m);
+  assert.match(blocks.seed, /^ {4}secrets: \[instance-password, account-password\]$/m);
+  assert.match(blocks.code, /^ {4}entrypoint: \["node", "\/konzilo\/bin\/konzilo-code\.js"\]$/m);
+  assert.doesNotMatch(blocks.code, /^ {4}command:/m);
+  assert.match(blocks.code, /^ {4}network_mode: none$/m);
+  assert.match(blocks.code, /^ {6}KONZILO_ACCOUNT: \$\{KONZILO_ACCOUNT\}$/m);
+  assert.match(blocks.code, /^ {6}- state:\/state:ro$/m);
+  for (const [name, block] of Object.entries(blocks)) {
+    // A block ends with the comment over the next.
+    const settings = block.split('\n').filter((line) => !/^\s*#/.test(line)).join('\n');
+    if (!['seed', 'code'].includes(name)) assert.doesNotMatch(settings, /- state:/, name);
+    if (name !== 'seed') assert.doesNotMatch(settings, /KONZILO_PEOPLE/, name);
+  }
 });
 
 test('publishes ports on the web server alone, and on this machine alone', () => {
@@ -196,7 +310,7 @@ test('lets the service for editors read the forms\' submissions, on the admin ho
   const matcher = /@service path (.*)$/m.exec(admin)?.[1].split(' ');
   assert.ok(matcher, 'a matcher of its own');
   for (const path of ['/_konzilo/submissions', '/_konzilo/submissions/*', '/_konzilo/mail', '/_konzilo/personal-data', '/_konzilo/personal-data.csv']) assert.ok(matcher.includes(path), path);
-  assert.match(/handle @service \{\n([\s\S]*?)\n\t\}/.exec(admin)?.[1] ?? '', /reverse_proxy editors:4100 \{/);
+  assert.match(/handle @service \{\n([\s\S]*?)\n\t\}/.exec(admin)?.[1] ?? '', /reverse_proxy \{\$KONZILO_PEER_EDITORS:http:\/\/editors:4100\} \{/);
 });
 
 // Mail (ADR 0003, ADR 0045): the service in its role for editors mails the forms' submissions, so
@@ -216,7 +330,7 @@ test('mails from the service for editors alone, writes a local copy\'s mail to i
   const made = /if \(!existsSync\(SERVICE_ROLES_TOKEN\)\) \{\n([\s\S]*?)\n {2}\}/.exec(seed)?.[1];
   assert.ok(made, 'made once, at whichever start finds it missing');
   assert.match(made, /scopes: \['read:organization'\]/);
-  assert.match(read('bin/konzilo-service.js'), /\/secret\/roles-token/);
+  assert.match(read('bin/konzilo-service.js'), /join\(secrets, 'roles-token'\)/);
 });
 
 // What the web server passes on to the service (ADR 0044): the request's method, path, query and
@@ -232,7 +346,7 @@ test('passes every path below /_konzilo/ to the service but search and the conse
   const handled = /handle @konzilo_visitors \{\n([\s\S]*?)\n\t\}\n/.exec(host)?.[1];
   assert.ok(handled);
   assert.match(handled, /request_body \{\n\t\t\tmax_size 1MB\n\t\t\}/);
-  assert.match(handled, /reverse_proxy visitors:4200 \{/);
+  assert.match(handled, /reverse_proxy \{\$KONZILO_PEER_VISITORS:http:\/\/visitors:4200\} \{/);
   const passed = [...handled.matchAll(/^\t\t\theader_up (\S+)(?: (.*))?$/gm)].map(([, name, value]) => [name, value ?? null]);
   assert.deepEqual(passed, [
     ['-*', null],
@@ -263,8 +377,9 @@ test('gives a form the service does not answer the release\'s page that says it 
 });
 
 // The web image builds the editor's bundle from the files of the core it copies, so each file the
-// bundle's page imports, at any depth, must be among them, or the image cannot be built.
-test('copies into the web image every file of the core the editor\'s bundle imports', () => {
+// bundle's page imports, at any depth, and each the build reads, must be among them, or the image
+// cannot be built.
+test('copies into the web image every file of the core the editor\'s bundle imports, and its build reads', () => {
   const root = fileURLToPath(new URL('../', import.meta.url));
   const copied = [...read('compose/web/Dockerfile').matchAll(/^COPY (?!--)(.+) \S+$/gm)].flatMap(([, sources]) => sources.split(' '));
   const isCopied = (file) => copied.some((source) => file === source || file.startsWith(`${source}/`));
@@ -284,6 +399,8 @@ test('copies into the web image every file of the core the editor\'s bundle impo
   const page = resolve(root, 'src/cms/index.html');
   const entries = [...readFileSync(page, 'utf8').matchAll(/<script [^>]*src="(\.[^"]+)"/g)].map(([, src]) => resolve(dirname(page), src));
   assert.ok(entries.length > 0, 'the page\'s scripts');
+  // The build itself, with what it imports and the license texts its notices take.
+  entries.push(resolve(root, 'scripts/build-editor.js'), resolve(root, 'src/cms/notice-texts.json'));
   for (const entry of entries) walk(entry);
   assert.ok(seen.size > 50, `the bundle's files, ${seen.size} of them`);
   assert.deepEqual(missing, []);

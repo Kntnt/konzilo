@@ -252,6 +252,8 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Reserved path**: A path below `/_konzilo/`, which no page may take, through which visitors' browsers reach a site's services. _Avoid_: API.
 
+**Start page**: The page at a site's root, or at each language's prefix: the page an Admin chooses in the site settings, which an editor writes as any page, or else the site's own design's. _Avoid_: home page, front page.
+
 **404 page**: The page an Admin chooses in the site settings, which the site shows with `404` or `410` wherever nothing else answers, with no address of its own. _Avoid_: error page.
 
 **Log of addresses not found**: The counts of the addresses visitors asked for in vain: each address, how often, and when last, kept 30 days. _Avoid_: access log.
@@ -345,6 +347,10 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 **Compose**: The Docker Compose project that runs one site, on a laptop or a server. _Avoid_: stack.
 
 **Hosting layer**: What runs many customers, one Compose project each, in a private repository. _Avoid_: platform.
+
+**Arrangement**: How and where a site's programs are started: Compose, the one the core ships, documents and tests, or another that a hosting layer or a site makes of the same programs, on other machines or several in one container. _Avoid_: deployment, setup.
+
+**Peer address**: Where one of a site's programs reaches another, or Forgejo or Typesense, inside the site's network, as an origin, such as `http://forgejo:3000` in Compose; never where a browser reaches a host. _Avoid_: internal URL, service name.
 
 **Test zone**: The DNS zone, on a domain of its own, where agents create and remove throwaway test sites. _Avoid_: sandbox.
 

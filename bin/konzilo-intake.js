@@ -14,9 +14,10 @@
 // --site      the site repository, whose site-description.json it reads; here by default
 // --content   the content folder; $KONZILO_CONTENT or `content` by default
 // --confirm   the code of a deletion the guard stopped, which holds for this build alone
-// --now       the moment to take for now, in UTC to the second, 2026-12-01T07:00:00Z, the
-//             clock's by default: so that a site making its demo content gets a file for a
-//             post dated ahead, which the demo content then holds as scheduled (ADR 0025)
+// --now       the moment it runs at, an ISO 8601 date and time with its offset or Z, as
+//             2026-11-03T12:00:00Z; the clock's by default. What it writes follows the
+//             moment, which posts are published and the service registry's `revised`
+//             among it, so that given one moment it writes the same bytes on any day
 //
 // It prints what the build reports, as JSON: { refusals, warnings, posts, written, removed, next }.
 // A refusal is data, and exits 0, with other posts published. It exits 3 when the guard
@@ -50,8 +51,12 @@ const [given] = parsed.positionals;
 if (!given || parsed.positionals.length > 1) usage();
 if (Boolean(parsed.values.admins) === Boolean(parsed.values['no-roles'])) usage();
 if (Boolean(parsed.values.admins) !== Boolean(parsed.values.pushers) || Boolean(parsed.values.admins) !== Boolean(parsed.values.reviewers)) usage();
-if (parsed.values.now !== undefined && (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(parsed.values.now) || Number.isNaN(Date.parse(parsed.values.now)))) usage();
+
+// A moment in ISO 8601, a date and a time with its offset, so that it is the same moment
+// wherever it runs.
+const MOMENT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})$/;
 const now = parsed.values.now === undefined ? new Date() : new Date(parsed.values.now);
+if (parsed.values.now !== undefined && (!MOMENT.test(parsed.values.now) || Number.isNaN(now.valueOf()))) usage();
 
 const checkout = resolve(given);
 const siteFolder = resolve(parsed.values.site ?? '.');

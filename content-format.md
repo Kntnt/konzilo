@@ -51,6 +51,7 @@ Each kind of file has its path. The placeholders are a collection's folder, `<co
 | `settings/<tag>.json` | The site settings on a site in several languages, once in each language. |
 | `consent.json` | The service registry ([The service registry](#the-service-registry)). |
 | `redirects.json` | The site's own redirect rules ([The redirect rules](#the-redirect-rules)). |
+| `start.<type>.md` | The start page an Admin chose, a post of the type named `<type>`, on a site in one language ([The start page](#the-start-page)). |
 | `not-found.md` | The 404 page ([The 404 page](#the-404-page)). |
 | `not-found/<tag>.md` | The 404 page in another language than the main one, on a site in several languages ([The 404 page](#the-404-page)). |
 | `media/<name>.webp`, `media/<name>.svg` | A master, an image as the site shows it ([Masters](#masters)). |
@@ -59,7 +60,7 @@ Each kind of file has its path. The placeholders are a collection's folder, `<co
 ### What a build writes, adds and removes
 
 - **Every build writes every file again**, and the same content always gives the same bytes: a file whose content has not changed is left as it was, so the content repository's history changes only where the content does. Every build writes the site settings' files, `consent.json`, `redirects.json` and each declared menu's files, but where it refuses the settings or a menu, whose last file then stays.
-- **A post's file comes and goes with its post.** A build writes the file of each post the site publishes: published, its date come, of a declared type. It owns every post's file in a collection's folder, and removes each one it did not write: a post that left the site, and a post that moved to another path, whose old file goes. A file another tool puts there is taken off by the next build.
+- **A post's file comes and goes with its post.** A build writes the file of each post the site publishes: published, its date come, of a declared type. It owns every post's file in a collection's folder, and the start page's at the root, and removes each one it did not write: a post that left the site, and a post that moved to another path, whose old file goes, as the start page's does when another is chosen, or none. A file another tool puts there is taken off by the next build.
 - **A refused post keeps its last file.** A post the site cannot publish, such as one holding an element the site cannot write, is *refused*: it gets no new file, and the file it was last published with stays as it was, the one `.post-ids.json` names for it. A post in a language the site does not declare keeps none.
 - **A term's file and a master go when nothing names them.** A term's file stays while a post's file names the term, or a term below it; a master stays while a content file names it.
 - **The rest is left alone:** a menu the site description no longer declares keeps its file, which the site no longer reads; a file in a folder that is neither a collection's nor `media/` is never touched; and nor is a file or a folder whose name starts with a dot, but `.post-ids.json`.
@@ -74,11 +75,11 @@ The site description, `site-description.json` in the site repository, declares t
 - **`taxonomies`**, each with its `collection`, the folder of its terms' files, and `hierarchical`, whether its terms have parents. A taxonomy's `address`, such as `/category/{slug}/`, or with `{path}/`, its parents' slugs and its own, in a hierarchical one, gives each term that has a file a page there, the site design's; it holds no file of its own, but a post at a term's page's address is refused, and links, menu entries and rules may lead to the page. A taxonomy without one has no pages.
 - **`presentations`**, the ways the site's design shows a post list, each with its options, which a post list in a body takes as attributes ([Post lists](#post-lists)).
 - **`menus`**, each a file of its own, and **`settings`**, the site's own settings, in the order `settings.json` holds them; on a site in several languages a text setting that declares `"translated": true` has a value in each language.
-- **`forms`**, which a form in a body names ([Forms](#forms)) and each of whose confirmation text `settings.json` holds, and **`consent`**, the site's departures from the consent rules, which `consent.json` holds, and `domain`, the domain the consent choice is kept on for every site below it, which the consent's own storage in `consent.json` names.
+- **`forms`**, which a form in a body names ([Forms](#forms)), with each form's `editable`, the texts an editor may change where it is placed, and each of whose confirmation text `settings.json` holds, and **`consent`**, the site's departures from the consent rules, which `consent.json` holds, and `domain`, the domain the consent choice is kept on for every site below it, which the consent's own storage in `consent.json` names.
 - **`images`**, the widths an image is checked against, which decide which images the site refuses, not how a file names them.
 - **`components`**, the site's own components, each a directive a body may hold beside the core's elements, **`componentsFrom`**, the components it takes from a package, with **`componentLabels`**, the labels it gives them, and **`componentChecks`**, the module that checks what they hold ([A site's own components](#a-sites-own-components)).
 
-What the description declares for the editors alone, such as `interfaceLanguage`, a type's `label` and `plural`, and a field's `label` and `control`, is not described here; nor are `security` and a form's fields, which decide no content file.
+What the description declares for the editors alone, such as `interfaceLanguage`, a type's `label` and `plural`, and a field's `label` and `control`, is not described here; nor are `security`, a form's fields and its own `button` text, which decide no content file.
 
 ### The built-in types
 
@@ -157,6 +158,8 @@ The site description every example in this document is of:
   "forms": {
     "contact": {
       "label": "Contact us",
+      "button": "Send the message",
+      "editable": ["button"],
       "fields": [
         { "name": "email", "label": "Email", "kind": "email", "required": true },
         { "name": "message", "label": "Message", "kind": "textarea", "required": true }
@@ -166,9 +169,59 @@ The site description every example in this document is of:
 }
 ```
 
+A type of the site's own may take a built-in taxonomy, on a site that names `article`, by a field of terms that names it, as it takes a taxonomy of its own: `"topics": { "taxonomy": "topics" }`. Its posts name the same terms as the articles, whose files are in the taxonomy's collection, and where the taxonomy has an `address`, a term's page lists the posts of each type that takes it. These examples are of a site whose events take the articles' topics:
+
+```json site-description=events
+{
+  "language": "en_GB",
+  "images": { "smallestWidth": 400, "displayWidth": 1280 },
+  "types": {
+    "article": {
+      "collection": "articles",
+      "address": "/{slug}/",
+      "elements": ["paragraph"]
+    },
+    "event": {
+      "label": "Event",
+      "plural": "Events",
+      "collection": "events",
+      "address": "/events/{slug}/",
+      "elements": ["paragraph"],
+      "fields": {
+        "topics": { "taxonomy": "topics" }
+      }
+    }
+  },
+  "taxonomies": {
+    "topics": { "address": "/topic/{slug}/" }
+  }
+}
+```
+
+```markdown file=events/lantern-night.md site=events
+---
+title: "Lantern night"
+topics: ["harbours","lanterns"]
+---
+
+Every lantern on the quay is lit at dusk.
+```
+
+```json file=topics/harbours.json site=events
+{
+  "name": "Harbours"
+}
+```
+
+```json file=topics/lanterns.json site=events
+{
+  "name": "Lanterns"
+}
+```
+
 ## A post's file
 
-A post is one Markdown file with YAML frontmatter. Its path names it: its type's collection, then its slug, or its path in a hierarchical type, then `.md`.
+A post is one Markdown file with YAML frontmatter. Its path names it: its type's collection, then its slug, or its path in a hierarchical type, then `.md`; the start page an Admin chose is at the content folder's root, named by its type ([The start page](#the-start-page)).
 
 ### The bytes
 
@@ -532,6 +585,8 @@ A farm in summer
 
 A post list, a list of posts the site picks at every build, is the leaf directive `::post-list{…}` alone on its line. Its attributes come in this order, each only when it is not at its default: `type`, the post type it lists, required; `include` and `exclude`, terms as `<taxonomy>:<slug>,<slug>`, taxonomies apart by a space; `where`, conditions on fields, `<field><op><value>` apart by `;`; `order`, `direction`, `offset` (0 by default) and `number` (10 by default, at most 100); `leaveOutThis` and `leaveOutShown` (`true` by default); `pages` (`false` by default), `true` for the one list in a post that has pages of its own, at the post's address and `<address>page/<n>/`; `presentation`, one the site description declares, required; `empty`, the text shown when no post matches; then the options of the presentations, in the order the site description declares them. [ADR 0039](docs/adr/0039-write-a-post-list-as-a-directive-evaluated-at-every-build.md) gives each attribute's values.
 
+A body's lists are evaluated in the order they are written, those in a site's components at any depth among them, so a list that leaves out the posts shown leaves out the posts of its type that the lists written above it showed, wherever each stands. A list in a component counts in its place whether the component shows its body or not.
+
 A list whose `order` is `related` takes no `direction`, and lists the posts that share a term with the post it sits in, as the recommended reading under a post ranks them ([ADR 0070](docs/adr/0070-rank-related-posts-by-shared-topics-and-category-times-a-freshness-that-halves.md)): in a list of articles, a point for each topic a post shares and half a point for the same category, its authors none; in a list of another type, a point for each term it shares, of any taxonomy. Each score is multiplied by the post's freshness, 2^(-age / half-life), its age from its date to the build and the half-life in days `related.halfLife` in the site settings ([The site settings](#the-site-settings)), unless `related.freshness` is `false`; a post without a date is not decayed. The highest comes first, then the newest, then by title, and a post that scores nothing is not listed. Since every post ages alike, the order is the same whenever the site is built.
 
 ```markdown body
@@ -546,12 +601,20 @@ A directive's name follows `::` for a leaf, a directive with no body, and `:::` 
 
 ### Forms
 
-A form, one of those the site description declares under `forms`, is the leaf directive `::form{name="…"}` alone on its line. Its one attribute, `name`, required, is the form's name; a file that names a form the site description does not declare is refused, naming the form; a post refused so keeps its last file, which the site shows without the form, and the site's build warns of it. What the form asks, its fields, and its texts are not in the file: the site shows the form the site description declares, as its design renders it. A field's label there may hold links, written as Markdown links, `I have read the [privacy policy](/privacy-policy/)`, and nothing else of Markdown, each to an address a menu's entry may have, as *A link's address* says of a body's; the form draws each link, and a submission, its mail and its CSV keep the label's words without them.
+A form, one of those the site description declares under `forms`, is the leaf directive `::form{name="…"}` alone on its line. Its attribute `name`, required, is the form's name; a file that names a form the site description does not declare is refused, naming the form; a post refused so keeps its last file, which the site shows without the form, and the site's build warns of it. What the form asks, its fields, and its texts are not in the file: the site shows the form the site description declares, as its design renders it; its button says the `button` text the description gives the form, one text or one by locale, or else the site's word for sending. Where the form lists `button` under its `editable`, a file may give the button a text of its own where it places the form, the attribute `button`, after `name`, some text other than white space, in the post's language; a file that gives it where the form does not list it is refused, naming the form, and the site shows the form's own text where a post's last file still gives one. `button` is the one text an editor may change yet. A field's label there may hold links, written as Markdown links, `I have read the [privacy policy](/privacy-policy/)`, and nothing else of Markdown, each to an address a menu's entry may have, as *A link's address* says of a body's; the form draws each link, and a submission, its mail and its CSV keep the label's words without them.
 
 ```markdown body
 Write to us, and we answer within a day.
 
 ::form{name="contact"}
+```
+
+The contact form lists `button` under its `editable`, so a post may give it a text of its own:
+
+```markdown body
+Book a call, and we ring you within a day.
+
+::form{name="contact" button="Book the call"}
 ```
 
 ### A site's own components
@@ -722,7 +785,7 @@ A *master* is an image as the site shows it, made from the original an editor up
 
 - **Its format.** A JPEG, PNG or still WebP becomes a WebP at quality 90, its longest side at most 2520 pixels, upright, in sRGB and without metadata. An SVG stays an SVG, checked and optimised, which the site shows as it is: no script, event handler, `javascript:` address, `foreignObject` or reference outside itself.
 - **Its name**: a stem, a hyphen, the first ten hexadecimal digits of the original's SHA-256, and `.webp` or `.svg`. The stem of a post's image is the post's slug: `harbour-lights-e978159ef2.webp`. The stem of the site's logo is `logo`, of its icon `site-icon`, and of an image a setting chooses the setting's path in lowercase words joined by hyphens, `hero-image` for `heroImage`. The same original always gives the same name and the same bytes.
-- **How a file names it**: by its address from the file's folder, `../media/<name>` in a post's file in a collection's folder, `../../media/<name>` one folder below, `media/<name>` in `settings.json` and `not-found.md`, at the content folder's root, and `../media/<name>` in `settings/<tag>.json` and `not-found/<tag>.md`.
+- **How a file names it**: by its address from the file's folder, `../media/<name>` in a post's file in a collection's folder, `../../media/<name>` one folder below, `media/<name>` in `settings.json`, `start.<type>.md` and `not-found.md`, at the content folder's root, and `../media/<name>` in `settings/<tag>.json` and `not-found/<tag>.md`.
 
 ## The JSON files
 
@@ -814,7 +877,7 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
 
 1. **The site's identity**, each only when it is set: `title`, the site's title; `logo`, `{ "src": "media/<name>", "alt": "…" }`, its alt text only when it has one; and `icon`, the site icon, `{ "src": "media/<name>" }`, square, from which every build makes the site's icons.
 2. **The site's own settings**, each by its name in the order the site description declares them, by its `type`: a `string` as a string, a `number` and an `integer` as a number, a `boolean` as `true` or `false`, always there, a `date` as a day, `"YYYY-MM-DD"`, quoted; a `post`, the choice of a post, as `{ "title": "…", "url": "…" }`, the post's title and current address, left out while the post has no page; and an `image`, the choice of an image, as `{ "src": "media/<name>", "alt": "…" }`, as the logo. A setting without a value is left out.
-3. **Konzilo's own settings groups** that apply to the site, each an object under its name: `search`, the search and sharing settings, with each type's templates and its structured data type, `schema`, under `types`, one its type offers, else its type's default, and no title tag or sharing title template, `title` and `socialTitle`, for a type with a teaser, whose teaser gives both; `metaLine`, the format of each type's meta line, `format`, by type, the article's by default, text with variables in braces, `{authors}`, `{date}`, `{modified}` and `{category}`, each a type has, and none where the type has no format, nor any part for the canvas; `breadcrumbs`, whether a page's breadcrumbs end with the page itself, `current`, by type; `ai`, AI visibility; `consent`, the consent texts; `tagManager`, what the public site loads to measure visits, `None`, `Matomo Tag Manager` or `Matomo`, Matomo's own tracker, with the instance's `address`, the `container`'s ID, the `site`'s ID in Matomo, the tracker's `cookieDomain` and `timeZone`, the site's time zone in Matomo by its IANA name, and who runs the instance, `provider`, each only once given; `legalPages`, the legal pages, each a choice of a post; `forms`, each declared form's confirmation text, by the form's name; `feeds`, what the site's feeds hold, `item`, `"The summary"` or `"The whole text"`, and `posts`, a whole number from 1; and `related`, on a site with articles or a taxonomy of its own, how related posts rank ([Post lists](#post-lists)): `freshness`, `true` or `false`, and `halfLife`, the days in which a post's freshness halves, a whole number from 1. The 404 page an Admin chooses is no setting here: it is `not-found.md`. A group holds its settings, then its named parts, each an object under its name, then `types`, a part for each post type it applies to, by the type's name, which leaves out a setting that says nothing for the type, and the part of a type left with none. A setting with a default is always there. [`src/format/settings-groups.json`](src/format/settings-groups.json) describes each group's settings.
+3. **Konzilo's own settings groups** that apply to the site, each an object under its name: `search`, the search and sharing settings, with each type's templates and its structured data type, `schema`, under `types`, one its type offers, else its type's default, and no title tag or sharing title template, `title` and `socialTitle`, for a type with a teaser, whose teaser gives both; `metaLine`, the format of each type's meta line, `format`, by type, the article's by default, text with variables in braces, `{authors}`, `{date}`, `{modified}` and `{category}`, each a type has, and none where the type has no format, nor any part for the canvas; `breadcrumbs`, whether a page's breadcrumbs end with the page itself, `current`, by type; `ai`, AI visibility; `consent`, the consent texts; `tagManager`, what the public site loads to measure visits, `None`, `Matomo Tag Manager` or `Matomo`, Matomo's own tracker, with the instance's `address`, the `container`'s ID, the `site`'s ID in Matomo, the tracker's `cookieDomain` and `timeZone`, the site's time zone in Matomo by its IANA name, and who runs the instance, `provider`, each only once given; `legalPages`, the legal pages, each a choice of a post; `forms`, each declared form's confirmation text, by the form's name; `feeds`, what the site's feeds hold, `item`, `"The summary"` or `"The whole text"`, and `posts`, a whole number from 1; and `related`, on a site with articles or a taxonomy of its own, how related posts rank ([Post lists](#post-lists)): `freshness`, `true` or `false`, and `halfLife`, the days in which a post's freshness halves, a whole number from 1. The 404 page an Admin chooses is no setting here: it is `not-found.md`; nor is the start page: it is `start.<type>.md`. A group holds its settings, then its named parts, each an object under its name, then `types`, a part for each post type it applies to, by the type's name, which leaves out a setting that says nothing for the type, and the part of a type left with none. A setting with a default is always there. [`src/format/settings-groups.json`](src/format/settings-groups.json) describes each group's settings.
 
 ```json file=settings.json
 {
@@ -1100,7 +1163,7 @@ An ID is text, the name of the post's source file, such as `96ba709ec918`, which
 - **`awaited`**, by key, the moment a scheduled post was seen waiting for, kept while it stays scheduled for that moment, so that it goes live at it with no warning.
 - **`terms`**, by the term's ID, each with the `address` of its page and the `addresses` it has had, for a taxonomy with an address.
 - **`files`**, the SHA-256 of each of an Admin's source files the site last took.
-- **`chosen`**, the posts the settings last chose as `legalPages` and for `notFound`.
+- **`chosen`**, the posts the settings last chose as `legalPages` and for `notFound`, and as `startPage`, which it names only where one is chosen.
 - **`settingsMedia`**, the masters the settings last named, which stay while a later settings file is refused.
 - **`consent`**, the service registry's `revision`, and `revised`, the day it last changed.
 
@@ -1222,6 +1285,24 @@ An ID is text, the name of the post's source file, such as `96ba709ec918`, which
           "topics/lanterns.json"
         ]
       }
+    },
+    "f6788ed8259d": {
+      "path": "start.page.md",
+      "paths": [
+        "pages/welcome.md",
+        "start.page.md"
+      ],
+      "address": "/",
+      "addresses": [
+        "/pages/welcome/",
+        "/"
+      ],
+      "title": "Welcome",
+      "source": "9bc42308d0e4789dfae08fdb5abc25513f96c08e11f96bc416f2bd3c56c6ecc4",
+      "published": "01999bfa9169a322916c7942050f5f2aa1bdb179be25500d8dbfa536f3b501c6",
+      "taken": "2026-05-01T08:00:00Z",
+      "modified": "2026-05-01T08:00:00Z",
+      "names": {}
     }
   },
   "awaited": {},
@@ -1229,13 +1310,14 @@ An ID is text, the name of the post's source file, such as `96ba709ec918`, which
   "files": {
     "menus/main.json": "f84f1a0e3bc087a76f33c39e32840bcd0436641941f14b2b9508d172e2260ba5",
     "redirects.json": "085117efe120292600d9f626c75d16f9653ac63a34b3c343b452d365925dbfc2",
-    "settings.json": "3c9694ca5bffd9b33099fcdd1661389867ef6ed864962d520d8f9db97502fa62"
+    "settings.json": "e21541d275905c4b8416edcbe0a276a2b75daf6f9c1eba4bf9b0275524a1a80b"
   },
   "chosen": {
     "legalPages": [
       "9c39c3b2be4e"
     ],
-    "notFound": "84d238eb4622"
+    "notFound": "84d238eb4622",
+    "startPage": "f6788ed8259d"
   },
   "settingsMedia": [
     "media/hero-image-dc2dd17407.webp",
@@ -1247,6 +1329,26 @@ An ID is text, the name of the post's source file, such as `96ba709ec918`, which
     "revised": "2026-10-30"
   }
 }
+```
+
+## The start page
+
+`start.<type>.md`, where `<type>` is a post type's name, is the start page an Admin chooses among the posts, which the site shows at its root, `/`, in place of the start page of its own design: the chosen post's file as its type writes it ([A post's file](#a-posts-file)), at the content folder's root, its images named from there, `media/<name>`. The site reads it as a post of that type, at the root and at no other address: the address it had before is among its old addresses, an other address leads there and never shows it, and a link, a menu entry, a chosen page or a redirect rule that names it by its ID leads to `/`. Its children in a hierarchical type keep their paths, which hold its slug, and their files stay in its collection's folder. A list with pages of its own has its later pages at `/page/<n>/`. Without one, the site shows its own start page, and so does a site in several languages, which chooses none.
+
+```markdown file=start.page.md read
+---
+title: "Welcome"
+date: 2026-05-01T08:00:00Z
+modified: 2026-05-01T08:00:00Z
+breadcrumb: "Home"
+oldAddresses: ["/pages/welcome/"]
+---
+
+The harbour's lights, and what we write of them.
+```
+
+```html rendered
+<p>The harbour's lights, and what we write of them.</p>
 ```
 
 ## The 404 page

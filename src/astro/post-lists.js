@@ -2,9 +2,10 @@
 // build against the content collections of the content folder the build
 // reads, the public site's or a preview's, and handed to the presentation
 // the site registers for it (`konzilo({ presentations })`). Body.astro
-// evaluates a body's lists in the body's order, so that a list can leave out
-// the posts the lists above it showed. A site's template may call
-// listedPosts() too, for the posts a list's settings name, and
+// evaluates a body's lists in the order they are written, those in its
+// components among them, before it renders any (bodyPostLists()), so that a
+// list can leave out the posts the lists above it showed. A site's template
+// may call listedPosts() too, for the posts a list's settings name, and
 // relatedPosts(), for the recommended reading under an article, from
 // `@kntnt/konzilo/astro/post-lists`. A list ordered as related and
 // relatedPosts() rank alike, by the score and the freshness of
@@ -41,7 +42,7 @@ import { postListsIn } from './reader.js';
 import { siteSettings } from './site-settings.js';
 import { termRoute, termsBelow, termsWithPages } from './term-pages.js';
 
-const { attributes } = rules.elements['post-list'].directive;
+const { name: LIST, attributes } = rules.elements['post-list'].directive;
 
 // The pager's texts, in the catalogues (ADR 0066) under `site.pager.`: the
 // label of its `nav`, a page's link's name, `{n}` its number, and the links to
@@ -84,6 +85,22 @@ export async function postList(given, { post, shown = shownOnPage(), page = 1 } 
   const locale = languageOf(post)?.locale ?? null;
   const pager = address === null ? null : pagerOf(address, at, pages, locale);
   return { component, posts, options, empty: read.settings.empty ?? textsIn(locale).emptyList, pager, list };
+}
+
+// Every post list of a body, as Body.astro reads it into parts (bodyParts()
+// of directives.js), evaluated by postList() in the order the lists are
+// written, those in a component's body at any depth among them, each the
+// `list` of its part: a list leaves out what the lists written above it
+// showed, wherever each stands. A list in a component's body is evaluated in
+// its place whether the component renders its body or not, as postPages()
+// counts a list's pages from the body as written. Gives the parts.
+export async function bodyPostLists(parts, { post, shown = shownOnPage(), page = 1 } = {}) {
+  for (const part of parts) {
+    if (typeof part === 'string') continue;
+    if (part.name === LIST) part.list = await postList(part.attributes, { post, shown, page });
+    else if (part.parts) await bodyPostLists(part.parts, { post, shown, page });
+  }
+  return parts;
 }
 
 // The posts a list with these settings shows, as a template may ask for
@@ -228,9 +245,18 @@ export const TERM_PAGE_POSTS = 10;
 // slug or path, then `page/<n>` from page 2; and `term`, the term's entry
 // of its taxonomy's collection, `page`, from 1, `posts`, the posts the page
 // lists, each { entry, url } as a list's, `pager`, the pager's data
-// (pagerOf()), null for a term whose posts fit on one page, and `empty`, the
+// (pagerOf()), null for a term whose posts fit on one page, `empty`, the
 // text for a term with no post, the site's text for a list that matches
-// nothing in the term's language (site-texts.js). A term's posts are those
+// nothing in the term's language (site-texts.js), `taxonomy`, { name, label
+// }, the taxonomy's name, its key in a query, and its label in the term's
+// language, `settled`, { taxonomy, term }, the taxonomy's name and the
+// term's slug, which a presentation that filters leaves out the row of and
+// sends with a search, and `list`, what the term's whole list holds, as a
+// post list's presentation is given it (wholeListOf()), the same on each of
+// its pages: its `type` is null where several types take the taxonomy, its
+// `terms` hold each taxonomy any of them takes, the settled one among them
+// as any other, and its `search` is the search page's address where any of
+// their posts are in the search. A term's posts are those
 // of every type that takes the taxonomy, filed under it or a
 // term below it, as its feed holds them, in one list through the
 // evaluator, newest first where a type has a date, a post without one
@@ -255,6 +281,7 @@ export async function termPages(routePattern, { number = TERM_PAGE_POSTS } = {})
   const dated = taxonomy.types.some((typeName) => site.types[typeName].fields.includes('date'));
   const language = languageOf(null);
   const empty = textsIn(language?.locale ?? null).emptyList;
+  const label = labelIn(describedSite().taxonomies[name].label, language?.locale ?? describedSite().language);
   const paths = [];
   for (const { entry, path, address } of termsWithPages(taxonomy, entries)) {
     const param = taxonomy.address.includes('{slug}') ? entry.id : path;
@@ -270,11 +297,13 @@ export async function termPages(routePattern, { number = TERM_PAGE_POSTS } = {})
       leaveOutShown: false,
     };
     const count = pageCount(query, listable, { locale: site.locale });
+    const list = await wholeListOf(query, wholeList(query, listable, { locale: site.locale }), language, taxonomy.types);
+    const told = { taxonomy: { name, label }, settled: { taxonomy: name, term: entry.id }, list };
     for (let page = 1; page <= count; page += 1) {
       const posts = evaluate(query, listable, { locale: site.locale, page }).map(({ id }) => listedEntry(byId.get(id)));
       paths.push({
         params: { term: page === 1 ? param : `${param}/page/${page}` },
-        props: { term: entry, page, posts, pager: count > 1 ? pagerOf(address, page, count) : null, empty },
+        props: { term: entry, page, posts, pager: count > 1 ? pagerOf(address, page, count) : null, empty, ...told },
       });
     }
   }
@@ -341,32 +370,33 @@ async function listed(query, { post, shown, page = 1, counting = false, whole = 
 
 // What the whole of a list holds, over all its pages, after its offset and
 // what it leaves out, from wholeList() of ../post-lists.js, `counted`, in
-// `language`, the page's, as a presentation is given it:
+// `language`, the page's, of the posts of `types`, the query's type or each
+// type a term's page lists, as a presentation is given it:
 //
 //   { type: { name, label, plural },
 //     total,
 //     terms: { <taxonomy>: [{ id, name, count, url }] },
 //     search }
 //
-// The type's name, and its label and plural in the language. How many
-// posts the list matches. For each taxonomy the type takes, by its name,
-// which is the taxonomy's key in a query, in a filter's row and on the
-// search page, the terms those posts hold: each by its ID, its slug, its
-// name in the language, how many of the posts hold it, and its page's
-// address below the site's base, or null for a term without one, as every
-// term of a taxonomy without an address is; most posts first, then by name.
-// A term whose file the site has not got is left out. `search`: the
-// address of the search page in the language, below the site's base, or
-// null for a site without search and for a type whose posts are not in it.
-async function wholeListOf(query, counted, language) {
+// The type's name, and its label and plural in the language, or null for
+// several types. How many posts the list matches. For each taxonomy the
+// types take, by its name, which is the taxonomy's key in a query, in a
+// filter's row and on the search page, the terms those posts hold: each by
+// its ID, its slug, its name in the language, how many of the posts hold
+// it, and its page's address below the site's base, or null for a term
+// without one, as every term of a taxonomy without an address is; most
+// posts first, then by name. A term whose file the site has not got is
+// left out. `search`: the address of the search page in the language, below
+// the site's base, or null for a site without search and where none of the
+// types' posts are in it.
+async function wholeListOf(query, counted, language, types = [query.type]) {
   const described = describedSite();
   const languages = siteLanguages();
-  const type = described.types[query.type];
   const locale = language?.locale ?? described.language;
   const collator = new Intl.Collator(language?.tag ?? site.locale, { numeric: true });
   const base = import.meta.env.BASE_URL.replace(/\/$/, '');
   const terms = {};
-  for (const { taxonomy: name } of site.types[query.type].terms) {
+  for (const name of new Set(types.flatMap((one) => site.types[one].terms.map(({ taxonomy }) => taxonomy)))) {
     const taxonomy = described.taxonomies[name];
     const entries = await getCollection(taxonomy.collection);
     const byId = new Map(entries.map((entry) => [entry.id, entry]));
@@ -376,10 +406,11 @@ async function wholeListOf(query, counted, language) {
       .map(({ id, count }) => ({ id: entryName(id, languages), name: byId.get(id).data.name, count, url: pages.get(id) ?? null }))
       .sort((a, b) => b.count - a.count || collator.compare(a.name, b.name));
   }
-  const searched = described.search !== null && type.search;
+  const searched = described.search !== null && types.some((one) => described.types[one].search);
   const prefix = languages.length > 1 ? `/${(language ?? languages[0]).prefix}` : '';
+  const [only] = types.length === 1 ? types : [];
   return {
-    type: { name: query.type, label: labelIn(type.label, locale), plural: labelIn(type.plural, locale) },
+    type: only === undefined ? null : { name: only, label: labelIn(described.types[only].label, locale), plural: labelIn(described.types[only].plural, locale) },
     total: counted.total,
     terms,
     search: searched ? `${base}${prefix}${described.search.address}` : null,

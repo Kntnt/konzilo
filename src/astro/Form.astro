@@ -6,6 +6,13 @@
 //   import Form from '@kntnt/konzilo/astro/Form.astro';
 //   <Form name="contact" />
 //
+// Its button says the form's own text, which the site description may give
+// it, in the page's language, or the site's word for sending. Where the form
+// lets an editor change it, `button` is the text the editor gives where the
+// form is placed, as the form's directive in a body gives it:
+//
+//   <Form name="contact" button="Book the assessment" />
+//
 // A plain HTML form that posts to /_konzilo/forms/<form>: a label for every
 // field, the field's kind as its input type, `required`, `maxlength` and
 // the options as declared, the help text tied to its field, and the trap
@@ -36,11 +43,11 @@ import FormView from './FormView.astro';
 import { publicSite } from './public-site.js';
 import { siteSettings } from './site-settings.js';
 
-const { name } = Astro.props;
+const { name, button } = Astro.props;
 // The page's language's settings, whose confirmation text is translated on
 // a site in several languages.
 const settings = await siteSettings(Astro.url);
 const { locale, languageTag } = publicSite(Astro.url);
-const view = formView(name, { forms, settings, locale, languageTag, base: import.meta.env.BASE_URL, page: Astro.url.pathname, texts: textsIn(locale).forms });
+const view = formView(name, { forms, settings, locale, languageTag, base: import.meta.env.BASE_URL, page: Astro.url.pathname, texts: textsIn(locale).forms, button });
 ---
 <FormView view={view} />

@@ -2,7 +2,7 @@
 
 Every package that `package-lock.json` names, on every platform, with the version and the license the lock records. Each comes under its own license, whose text is in its own folder once it is installed. `scripts/third-party.js` writes this file, and a test fails when it has fallen behind the lock.
 
-[`ACKNOWLEDGEMENTS.md`](ACKNOWLEDGEMENTS.md) names what Konzilo is built on, with thanks, and says how the licenses fit.
+[`ACKNOWLEDGEMENTS.md`](ACKNOWLEDGEMENTS.md) names what Konzilo is built on, with thanks, and says how the licenses fit. What the editor's application holds is in `third-party-notices.txt` beside it, each package with its license text, which its build writes.
 
 | Package | Version | License |
 |---|---|---|

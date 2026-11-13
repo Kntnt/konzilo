@@ -45,7 +45,9 @@ const RESERVED = new Set(['id', 'class', 'content']);
 // value it does not take, the site's own or the core's by their name in the
 // catalogues, `{ name }`; `declared`, the key of the site description whose
 // names the attribute takes one of, such as `forms`, with the `refusal` for
-// any other (format/post-list.js, declaredProblem()). `optionsOf` names the attribute
+// any other (format/post-list.js, declaredProblem()); `editable`, { of, refusal }, a text an
+// editor gives only where what the attribute `of` names lets an editor change it, such as a
+// form's button text, with the `refusal` for any other (format/body.js). `optionsOf` names the attribute
 // that names one of the site's presentations, whose options the directive
 // takes as attributes beside its own (the post list), or is null.
 // Throws, naming every problem, for a registry the reader cannot follow.
@@ -73,6 +75,11 @@ export function directiveRegistry({ elements }) {
         if (!DECLARED.includes(setting.declared)) problems.push(`${where}: declared names ${DECLARED.join(', ')}, what the site description declares that an attribute may name`);
         else if (setting.type !== 'string') problems.push(`${where}: declared names a text`);
         else if (typeof setting.refusal?.name !== 'string') problems.push(`${where}: declared needs the refusal for a name the site does not declare`);
+      }
+      if (Object.hasOwn(setting, 'editable')) {
+        if (setting.type !== 'string') problems.push(`${where}: editable is a text's`);
+        if (!Object.hasOwn(attributes[setting.editable?.of] ?? {}, 'declared')) problems.push(`${where}: editable names the attribute that names what the site declares`);
+        if (typeof setting.editable?.refusal?.name !== 'string') problems.push(`${where}: editable needs the refusal for a text the site does not let an editor change`);
       }
     }
     if (optionsOf !== null && attributes[optionsOf]?.type !== 'string') problems.push(`${at}: optionsOf names an attribute of the type string`);
@@ -294,9 +301,12 @@ export function directiveReader(problem, { checks, leaveOut = {}, warn = () => {
 // post's Content, split at each directive's plain rendering whose name is in
 // `names`, the directives the site gives a component of its own. Returns
 // the parts in order: HTML as a text, and each such directive as { name,
-// attributes, body, content, block }, its attributes typed, with their
-// defaults, its body's HTML and its body as a hast tree (bodyTree()), both
-// null for a directive without a body, and the live preview's mark on it.
+// attributes, body, content, parts, block }, its attributes typed, with their
+// defaults, its body's HTML, its body as a hast tree (bodyTree()) and its
+// body's own parts, read as these are, all three null for a directive
+// without a body, and the live preview's mark on it. So a body's parts hold
+// every such directive at any depth, in the order written, and Body.astro
+// evaluates the post lists among them in that order before it renders any.
 // HTML without such a directive is one part, as it is.
 //
 // The HTML is Astro's own rendering of Sätteri's, so a scan of its tags is
@@ -318,7 +328,14 @@ export function bodyParts(html, names, known = siteRegistry()) {
     const entry = known.get(name);
     if (tag.start > from) parts.push(html.slice(from, tag.start));
     const body = entry.body === 'none' ? null : html.slice(tag.end, close.start);
-    parts.push({ name, attributes: attributesOf(entry, tag.attributes), body, content: body === null ? null : bodyTree(body), block: tag.attributes['data-konzilo-block'] ?? null });
+    parts.push({
+      name,
+      attributes: attributesOf(entry, tag.attributes),
+      body,
+      content: body === null ? null : bodyTree(body),
+      parts: body === null ? null : bodyParts(body, names, known),
+      block: tag.attributes['data-konzilo-block'] ?? null,
+    });
     from = at = close.end;
   }
   if (from < html.length) parts.push(html.slice(from));

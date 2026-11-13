@@ -2,10 +2,10 @@
 // Copy fictional demo content into the site's content folder, when the site has
 // none, so that a fresh clone of a site repository has something to build and to
 // design with: the site repository's own, in its demo-content/, else the core's.
-// A post dated ahead is left out: it is scheduled, and only Compose has a clock that
-// publishes it (ADR 0025). A site that has a content folder keeps it as it is. Builds run this too, so a
-// public host with no content is refused: no live site may show fictional posts,
-// the site's own as little as the core's.
+// A post dated ahead is left out: it is scheduled, and only Compose has a clock
+// that publishes it (ADR 0025). A site that has a content folder keeps it as it
+// is. Builds run this too, so a public host with no content is refused: no live
+// site may show fictional posts, the site's own as little as the core's.
 
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';

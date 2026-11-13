@@ -26,7 +26,7 @@ import { getCollection } from 'astro:content';
 import { textsIn } from 'virtual:konzilo/texts';
 import { listPageAddress, searchPages } from '../format/addresses.js';
 import {
-  alternatesAmong, describedSite, entryAddress as addressOf, entryLanguage as languageOfId, languageName, pageLanguage as languageAt, siteLanguages, startAddress, translationsAmong,
+  alternatesAmong, describedSite, entryAddress as addressOf, entryLanguage as languageOfId, isStartEntry, languageName, pageLanguage as languageAt, siteLanguages, startAddress, translationsAmong,
 } from './languages.js';
 import { postPages } from './post-lists.js';
 import { origin } from './public-site.js';
@@ -86,12 +86,37 @@ export async function entriesIn(collection, language = pageLanguage()) {
 
 // What getStaticPaths() of a template gives Astro for each language's start
 // page, at a route `[...<param>].astro`: on a site in several languages a
-// page at each prefix, and on any other one at the root. Each page's props
-// are { language }, its language, null on a site that declares none.
-export function startPages(param = 'start') {
+// page at each prefix, and on any other one at the root, and, where an Admin
+// chose a page as the start page whose post list has pages of its own, one
+// at `/page/<n>/` for each later page its list fills. Each page's props are
+// { language, entry, page }: its language, null on a site that declares
+// none; the page an Admin chose, its entry (startEntry()), which the route
+// draws as it draws a post of its type, through Body, or null, where the
+// route draws a start page of its own design; and the page, from 1, which
+// the route gives Body and Head, as a post's route does.
+export async function startPages(param = 'start') {
   const all = siteLanguages();
-  if (all.length <= 1) return [{ params: { [param]: undefined }, props: { language: all[0] ?? null } }];
-  return all.map((language) => ({ params: { [param]: language.prefix }, props: { language } }));
+  if (all.length > 1) return all.map((language) => ({ params: { [param]: language.prefix }, props: { language, entry: null, page: 1 } }));
+  const language = all[0] ?? null;
+  const entry = await startEntry();
+  if (entry === null) return [{ params: { [param]: undefined }, props: { language, entry: null, page: 1 } }];
+  return (await postPages([entry])).map(({ page }) => ({
+    params: { [param]: page === 1 ? undefined : listPageAddress('/', page).replace(/^\/|\/$/g, '') },
+    props: { language, entry, page },
+  }));
+}
+
+// The page an Admin chose as the start page, an entry of its type's
+// collection whose address is the start page's, or null where none is
+// chosen, as on a site in several languages, which chooses none.
+export async function startEntry() {
+  if (siteLanguages().length > 1) return null;
+  for (const type of Object.values(describedSite().types)) {
+    if (type?.address == null) continue;
+    const found = (await getCollection(type.collection)).find((entry) => isStartEntry(entry.id));
+    if (found) return found;
+  }
+  return null;
 }
 
 // What getStaticPaths() of a template gives Astro for each post of a
@@ -100,9 +125,11 @@ export function startPages(param = 'start') {
 // pages of its own, one at `<address>page/<n>/` for each later
 // page its list fills (postPages() of post-lists.js), its props { entry,
 // page }, the post's entry and the page, from 1, which the route gives Body
-// and Head. A type without an address gives none.
+// and Head. A type without an address gives none, and the start page an
+// Admin chose, which the start route draws (startPages()), is none of them.
 export async function entryPages(collection, param = 'path') {
-  return (await postPages(await getCollection(collection))).flatMap(({ entry, page }) => {
+  const posts = (await getCollection(collection)).filter((entry) => !isStartEntry(entry.id));
+  return (await postPages(posts)).flatMap(({ entry, page }) => {
     const address = entryAddress(entry);
     if (address === null) return [];
     return [{ params: { [param]: listPageAddress(address, page).replace(/^\/|\/$/g, '') }, props: { entry, page } }];

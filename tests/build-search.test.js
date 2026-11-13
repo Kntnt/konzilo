@@ -45,6 +45,7 @@ test('puts the posts in use into the site\'s collection, and writes the route wi
     const written = readFileSync(route, 'utf8');
     assert.ok(written.includes(scopedSearchKey('the-search-key', searchParameters(searching))), 'the key that runs the site\'s search alone');
     assert.match(written, /rewrite \* \/collections\/a-site\/documents\/search\?/);
+    assert.ok(written.includes(`\treverse_proxy ${typesense.url} {\n`), 'to the Typesense it indexed in');
     assert.doesNotMatch(written, /the-search-key|the-admin-key/, 'neither key it is made from');
 
     writeFileSync(join(content, 'articles/later.md'), '---\ntitle: "Later"\ndate: 2026-10-02T08:00:00Z\n---\n\nAnother word.\n');
@@ -133,6 +134,23 @@ test('on a site in several languages, holds a term by its slug alone, which ever
   try {
     assert.deepEqual(documents.map((document) => [document.terms_category_sv ?? document.terms_category_en, document.slugs_category]), [[['News'], ['nyheter']], [['Nyheter'], ['nyheter']]]);
     assert.deepEqual(schema.fields.filter((field) => field.name.startsWith('slugs_')).map((field) => field.name), ['slugs_authors', 'slugs_category', 'slugs_topics']);
+  } finally {
+    rmSync(content, { recursive: true, force: true });
+  }
+});
+
+// The page an Admin chose as the start page is in the index as any post of its type, at /,
+// by its file (ADR 0053).
+test('holds the article an Admin chose as the start page at /, by its file at the content folder\'s root', () => {
+  const { content, documents } = articleSite(withArticles, {
+    'start.article.md': '---\ntitle: "Welcome"\ndate: 2026-10-01T08:00:00Z\nheadline: "Welcome to the harbour"\nauthors: []\ncategory: []\ntopics: []\noldAddresses: ["/welcome/"]\n---\n\nThe lantern keeps the harbour.\n',
+    'articles/untagged.md': '---\ntitle: "Untagged"\ndate: 2026-10-02T08:00:00Z\nheadline: "Untagged"\nauthors: []\ncategory: []\ntopics: []\n---\n\nNo terms.\n',
+  });
+  try {
+    assert.deepEqual(documents.map(({ id, title, address, type, body }) => ({ id, title, address, type, body })), [
+      { id: 'articles/untagged', title: 'Untagged', address: '/untagged/', type: 'article', body: 'No terms.' },
+      { id: 'start.article', title: 'Welcome to the harbour', address: '/', type: 'article', body: 'The lantern keeps the harbour.' },
+    ]);
   } finally {
     rmSync(content, { recursive: true, force: true });
   }

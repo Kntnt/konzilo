@@ -74,6 +74,17 @@ describe('the examples of content-format.md', () => {
     for (const { path, contents } of published) assert.equal(got[path], contents, path);
   });
 
+  test('a type of the site\'s own that takes a built-in taxonomy', () => {
+    const events = siteDescription(marked.sites.events);
+    const published = documentFiles('events');
+    assert.ok(published.some(({ path }) => path.startsWith('events/')) && published.some(({ path }) => path.startsWith('topics/')));
+    const source = sourceFrom(events, published.map(({ path, contents }) => ({ path, content: contents })));
+    const result = intake({ files: source.map(({ path, content }) => ({ path, contents: content })), site: events, now: NOW, images: namedImages() });
+    assert.deepEqual(result.refusals, []);
+    const got = written(result);
+    for (const { path, contents } of published) assert.equal(got[path], contents, path);
+  });
+
   test('its tour of every element', () => {
     const tour = marked.checked.find((one) => one.attributes.tour);
     const { path, contents } = exampleFile(tour);

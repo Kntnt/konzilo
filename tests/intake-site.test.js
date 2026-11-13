@@ -426,6 +426,94 @@ describe('the page for addresses not found', () => {
   });
 });
 
+// The start page an Admin chooses (ADR 0033): the chosen post is the site's start page, at /
+// and at no other address, its file the one its type writes, at the content folder's root and
+// named by its type, so that the site reads it as a post of its type.
+describe('the start page an Admin chooses', () => {
+  const welcome = (fields = {}, body = 'Welcome.\n\n![A map](/media/map-aaaaaaaaaa.jpg)') => sourcePost({ title: 'Welcome', slug: 'welcome', status: 'published', breadcrumb: 'Home', ...fields }, body);
+  const files = {
+    'settings.json': { startPage: { page: 'welcomewelco' } },
+    'pages/welcomewelco.md': welcome(),
+    'articles/aaaaaaaaaaaa.md': article({}, 'A [link](konzilo:welcomewelco).'),
+    'menus/main.json': { items: [{ post: 'welcomewelco' }] },
+    'redirects.json': { rules: [{ from: '/hello/', post: 'welcomewelco', status: 301 }] },
+  };
+  const result = run(files, site);
+
+  test('is the chosen post\'s file as its type writes it, at the root and named by its type, its images named from there', () => {
+    assert.deepEqual(result.refusals, []);
+    assert.equal(written(result)['start.page.md'], '---\ntitle: "Welcome"\ndate: 2026-11-03T12:00:00Z\nmodified: 2026-11-03T12:00:00Z\nbreadcrumb: "Home"\notherAddresses: [{"address":"/hello/","answer":301}]\n---\n\nWelcome.\n\n![A map](media/welcome-aaaaaaaaaa.webp)\n');
+    assert.equal(written(result)['pages/welcome.md'], undefined);
+    assert.equal(settingsOf(result).startPage, undefined);
+  });
+
+  test('is at / alone, where a link, a menu entry and the ledger lead', () => {
+    assert.match(written(result)['articles/an-article.md'], /A \[link\]\(\/\)\./);
+    assert.deepEqual(JSON.parse(written(result)['menus/main.json']).items, [{ title: 'Welcome', url: '/' }]);
+    assert.equal(result.ledger.posts.welcomewelco.path, 'start.page.md');
+    assert.equal(result.ledger.posts.welcomewelco.address, '/');
+    assert.equal(result.ledger.chosen.startPage, 'welcomewelco');
+    assert.equal(result.posts.find((one) => one.id === 'welcomewelco').address, '/');
+  });
+
+  test('leads its address before to /, keeps its children\'s addresses, and goes back to its own when no longer chosen', () => {
+    const own = { 'pages/welcomewelco.md': welcome(), 'pages/teamteamteam.md': page('team', { parent: 'welcomewelco' }) };
+    const before = run(own, site);
+    assert.equal(before.ledger.posts.welcomewelco.address, '/pages/welcome/');
+    const chosen = run({ ...own, 'settings.json': { startPage: { page: 'welcomewelco' } } }, site, { ledger: before.ledger });
+    assert.deepEqual(chosen.refusals, []);
+    assert.match(written(chosen)['start.page.md'], /\noldAddresses: \["\/pages\/welcome\/"\]\n/);
+    assert.equal(written(chosen)['pages/welcome.md'], undefined);
+    assert.match(written(chosen)['pages/welcome/team.md'], /title: "The team"/);
+    assert.equal(chosen.ledger.posts.teamteamteam.address, '/pages/welcome/team/');
+    const again = run(own, site, { ledger: chosen.ledger });
+    assert.equal(written(again)['start.page.md'], undefined);
+    assert.doesNotMatch(written(again)['pages/welcome.md'], /oldAddresses/);
+    assert.equal(again.ledger.posts.welcomewelco.address, '/pages/welcome/');
+  });
+
+  test('shows at no address an editor gives it, and warns of a rule that leads to it, as of one that leads to /', () => {
+    const shown = run({ ...files, 'pages/welcomewelco.md': welcome({ otherAddresses: [{ address: '/also/', answer: 'show' }] }) }, site);
+    assert.deepEqual(shown.refusals.map(({ field, reason }) => [field?.name, reason]), [['otherAddresses', 'the start page is shown at / alone, so /also/ cannot show it; let it lead to the start page instead']]);
+    assert.deepEqual(result.warnings.filter(({ file }) => file === 'redirects.json').map(({ file, reason }) => [file, reason]), [['redirects.json', 'the rule from /hello/ leads to the start page, which search engines may read as a page that is gone']]);
+  });
+
+  test('is none while it cannot serve, nor the page for addresses not found, nor on a site in several languages, and the settings page says why', () => {
+    const said = (one) => one.warnings.filter(({ setting }) => setting === 'startPage.page').map(({ reason }) => reason);
+    const draft = run({ ...files, 'pages/welcomewelco.md': welcome({ status: 'draft' }) }, site);
+    assert.deepEqual(said(draft), ['the post chosen as the start page cannot serve, so the site shows its own start page; publish it, or choose another']);
+    assert.equal(written(draft)['start.page.md'], undefined);
+    const lost = run({ ...files, 'settings.json': { startPage: { page: 'welcomewelco' }, notFound: { page: 'welcomewelco' } } }, site);
+    assert.deepEqual(said(lost), ['the post chosen as the start page is the page for addresses not found, which has no address, so the site shows its own start page; choose another']);
+    assert.equal(written(lost)['start.page.md'], undefined);
+    assert.match(written(lost)['not-found.md'], /title: "Welcome"/);
+    const inTwo = {
+      languages: ['sv_SE', 'en_GB'],
+      images: { smallestWidth: 400, displayWidth: 1280 },
+      types: { page: { label: 'P', plural: 'Ps', collection: 'pages', address: { sv_SE: '/sidor/{slug}/', en_GB: '/pages/{slug}/' }, elements: ['paragraph'] } },
+    };
+    const several = run({ 'settings.json': { startPage: { page: 'welcomewelco' } }, 'pages/sv-SE/welcomewelco.md': sourcePost({ title: 'Välkommen', slug: 'valkommen', status: 'published' }, 'Text.') }, inTwo);
+    assert.deepEqual(several.refusals, []);
+    assert.deepEqual(said(several), ['a site in several languages shows its own start page in each language, and no page can be chosen as its start page yet, so the choice is left out']);
+    assert.match(written(several)['pages/sv-SE/valkommen.md'], /title: "Välkommen"/);
+  });
+
+  test('a refused one keeps the file it was last published with, at /', () => {
+    const refused = run({ ...files, 'pages/welcomewelco.md': welcome({}, '# Not allowed') }, site, { ledger: result.ledger });
+    assert.equal(refused.refusals.length, 1);
+    assert.equal(written(refused)['start.page.md'], undefined);
+    assert.ok(refused.keep.includes('start.page.md'));
+    assert.equal(refused.ledger.posts.welcomewelco.address, '/');
+    assert.match(written(refused)['articles/an-article.md'], /A \[link\]\(\/\)\./);
+  });
+
+  test('is named in the ledger\'s file only where one is chosen, so that a site that chooses none keeps the file it had', () => {
+    const ledgerOf = (one) => JSON.parse(written(one)['.post-ids.json']).chosen;
+    assert.deepEqual(ledgerOf(result), { legalPages: [], notFound: null, startPage: 'welcomewelco' });
+    assert.deepEqual(ledgerOf(run({ 'pages/welcomewelco.md': welcome() }, site)), { legalPages: [], notFound: null });
+  });
+});
+
 describe('redirect rules', () => {
   const files = {
     'pages/targettarget.md': page('target'),
@@ -753,6 +841,17 @@ describe('what a Reviewer changes', () => {
     assert.deepEqual(deleted.keep, ['articles/an-article.md']);
     assert.ok(deleted.ledger.posts.aaaaaaaaaaaa.path, 'the ledger holds on to its file');
     assert.equal(deletion(['articles/an-article.md'], deleted).paths.length, 0);
+  });
+
+  test('the start page an Admin chose, which a Reviewer deleted, stays on the site, at /', () => {
+    const chosen = { ...one, 'settings.json': { startPage: { page: 'aaaaaaaaaaaa' } } };
+    const first = run(chosen, site);
+    assert.ok(written(first)['start.story.md']);
+    const deleted = run({ 'settings.json': chosen['settings.json'] }, site, { ledger: first.ledger, changes: { 'articles/aaaaaaaaaaaa.md': reviewer } });
+    assert.equal(theirs(deleted)[0]?.post.id, 'aaaaaaaaaaaa');
+    assert.deepEqual(deleted.keep, ['start.story.md']);
+    assert.equal(deleted.ledger.posts.aaaaaaaaaaaa.address, '/');
+    assert.deepEqual(deleted.warnings.filter(({ setting }) => setting === 'startPage.page'), [], 'it serves, so the settings page says nothing of it');
   });
 
   test('a post a Reviewer wrote is not published, nor a draft of theirs taken', () => {

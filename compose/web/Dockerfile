@@ -1,5 +1,6 @@
 # The web server: Caddy with no file capability, so that it runs with every
-# capability dropped (ADR 0005), and the editor's static files.
+# capability dropped (ADR 0005), and the editor's static files, with the notices of
+# what they hold beside them, `third-party-notices.txt`, which the build writes (ADR 0072).
 
 ARG NODE
 ARG NODE_DIGEST
@@ -10,7 +11,7 @@ FROM node:${NODE}-bookworm-slim@sha256:${NODE_DIGEST} AS editor
 WORKDIR /core
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund --ignore-scripts
-COPY scripts/build-editor.js scripts/wasm-reader.js scripts/
+COPY scripts/build-editor.js scripts/notices.js scripts/wasm-reader.js scripts/
 COPY src/cms src/cms
 COPY src/format src/format
 COPY src/catalogues.js src/refusals.js src/submission-values.js src/
