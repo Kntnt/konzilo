@@ -1254,6 +1254,24 @@ An ID is text, the name of the post's source file, such as `96ba709ec918`, which
       "modified": "2026-05-01T08:00:00Z",
       "names": {}
     },
+    "a7be960c8ef2": {
+      "path": "start.page.md",
+      "paths": [
+        "pages/welcome.md",
+        "start.page.md"
+      ],
+      "address": "/",
+      "addresses": [
+        "/pages/welcome/",
+        "/"
+      ],
+      "title": "Welcome",
+      "source": "23e71b981f3fed50e7b4f65d16a9c82a1ac2e4f626ea1d18566ed99978123e60",
+      "published": "6d8b18fc7ab00fe845791147893cd8c61eb287ef182dcb0fcee6189c93329a72",
+      "taken": "2026-05-01T08:00:00Z",
+      "modified": "2026-05-01T08:00:00Z",
+      "names": {}
+    },
     "de6aeaae949d": {
       "path": "articles/harbour-lights.md",
       "paths": [
@@ -1285,24 +1303,6 @@ An ID is text, the name of the post's source file, such as `96ba709ec918`, which
           "topics/lanterns.json"
         ]
       }
-    },
-    "f6788ed8259d": {
-      "path": "start.page.md",
-      "paths": [
-        "pages/welcome.md",
-        "start.page.md"
-      ],
-      "address": "/",
-      "addresses": [
-        "/pages/welcome/",
-        "/"
-      ],
-      "title": "Welcome",
-      "source": "9bc42308d0e4789dfae08fdb5abc25513f96c08e11f96bc416f2bd3c56c6ecc4",
-      "published": "01999bfa9169a322916c7942050f5f2aa1bdb179be25500d8dbfa536f3b501c6",
-      "taken": "2026-05-01T08:00:00Z",
-      "modified": "2026-05-01T08:00:00Z",
-      "names": {}
     }
   },
   "awaited": {},
@@ -1310,14 +1310,14 @@ An ID is text, the name of the post's source file, such as `96ba709ec918`, which
   "files": {
     "menus/main.json": "f84f1a0e3bc087a76f33c39e32840bcd0436641941f14b2b9508d172e2260ba5",
     "redirects.json": "085117efe120292600d9f626c75d16f9653ac63a34b3c343b452d365925dbfc2",
-    "settings.json": "e21541d275905c4b8416edcbe0a276a2b75daf6f9c1eba4bf9b0275524a1a80b"
+    "settings.json": "b87272d0a3028d7249bd446e947b92bf1991dd8751825f6fb2ad5f7c4ea4ac2d"
   },
   "chosen": {
     "legalPages": [
       "9c39c3b2be4e"
     ],
     "notFound": "84d238eb4622",
-    "startPage": "f6788ed8259d"
+    "startPage": "a7be960c8ef2"
   },
   "settingsMedia": [
     "media/hero-image-dc2dd17407.webp",
