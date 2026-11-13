@@ -26,7 +26,7 @@ import { getCollection } from 'astro:content';
 import { textsIn } from 'virtual:konzilo/texts';
 import { listPageAddress, searchPages } from '../format/addresses.js';
 import {
-  alternatesAmong, describedSite, entryAddress as addressOf, entryLanguage as languageOfId, isStartEntry, languageName, pageLanguage as languageAt, siteLanguages, startAddress, translationsAmong,
+  alternatesAmong, chosenStartPage, describedSite, entryAddress as addressOf, entryLanguage as languageOfId, isStartEntry, languageName, pageLanguage as languageAt, siteLanguages, startAddress, translationsAmong,
 } from './languages.js';
 import { postPages } from './post-lists.js';
 import { origin } from './public-site.js';
@@ -110,13 +110,7 @@ export async function startPages(param = 'start') {
 // collection whose address is the start page's, or null where none is
 // chosen, as on a site in several languages, which chooses none.
 export async function startEntry() {
-  if (siteLanguages().length > 1) return null;
-  for (const type of Object.values(describedSite().types)) {
-    if (type?.address == null) continue;
-    const found = (await getCollection(type.collection)).find((entry) => isStartEntry(entry.id));
-    if (found) return found;
-  }
-  return null;
+  return (await chosenStartPage(describedSite(), getCollection))?.entry ?? null;
 }
 
 // What getStaticPaths() of a template gives Astro for each post of a

@@ -17,7 +17,7 @@ import { readContentFile } from './astro/reader.js';
 import { ownSummary } from './astro/summary.js';
 import { labelIn } from './catalogues.js';
 import { publicAddress } from './format/addresses.js';
-import { START_ADDRESS, startFile } from './format/start-page.js';
+import { START_ADDRESS, startPageFiles } from './format/start-page.js';
 import { siteDescription } from './site-description.js';
 
 export { ensureSearchKey, indexSearch, scopedSearchKey } from './typesense.js';
@@ -70,13 +70,16 @@ export function searchDocuments({ site, content }) {
     return termNames.get(file);
   };
   const documents = [];
+  // The page an Admin chose as the start page, on a site in one language, at the root.
+  const starts = several ? [] : startPageFiles(content, described);
   for (const type of Object.values(described.types)) {
     if (!type.search) continue;
     const seo = type.fields.find((field) => field.kind === 'seo');
-    const files = entriesOf(join(content, type.collection), type, several ? described.languages : null)
-      .map(({ id, path, language }) => ({ file: `${type.collection}/${id}.md`, address: publicAddress(type, path, language), language }));
-    // The page an Admin chose as the start page, on a site in one language, at the root.
-    if (!several && existsSync(join(content, startFile(type)))) files.push({ file: startFile(type), address: START_ADDRESS, language: null });
+    const files = [
+      ...entriesOf(join(content, type.collection), type, several ? described.languages : null)
+        .map(({ id, path, language }) => ({ file: `${type.collection}/${id}.md`, address: publicAddress(type, path, language), language })),
+      ...starts.filter((start) => start.type === type).map(({ file }) => ({ file, address: START_ADDRESS, language: null })),
+    ];
     for (const { file, address, language } of files) {
       const { data, html } = readContentFile(readFileSync(join(content, file), 'utf8'), { known: registryOf(described) });
       if (seo && data[seo.name]?.noindex === true) continue;

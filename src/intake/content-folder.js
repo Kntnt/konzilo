@@ -4,7 +4,7 @@
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
-import { startFile } from '../format/start-page.js';
+import { startPageFiles } from '../format/start-page.js';
 
 export const walk = (folder) => (existsSync(folder) ? readdirSync(folder, { withFileTypes: true }).flatMap((entry) => {
   if (entry.name.startsWith('.')) return [];
@@ -15,10 +15,10 @@ export const walk = (folder) => (existsSync(folder) ? readdirSync(folder, { with
 const owned = (content, collection, extension) => walk(join(content, collection)).map((path) => relative(content, path)).filter((path) => path.endsWith(extension));
 
 // The posts' files: those in a collection's folder, and the start page's at the root.
-export const postFiles = (content, site) => Object.values(site.types).flatMap((type) => [
-  ...owned(content, type.collection, '.md'),
-  ...(existsSync(join(content, startFile(type))) ? [startFile(type)] : []),
-]);
+export const postFiles = (content, site) => [
+  ...Object.values(site.types).flatMap((type) => owned(content, type.collection, '.md')),
+  ...startPageFiles(content, site).map(({ file }) => file),
+];
 
 // Writes what `result`, the intake's, holds, and removes what the site owns that it no
 // longer keeps: each post's and term's file in a collection's folder, and each master. A

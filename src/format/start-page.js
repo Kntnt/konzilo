@@ -8,6 +8,9 @@
 // of its old addresses. A site in several languages chooses none (ADR 0042), and a site
 // whose Admin chooses none, or whose chosen post cannot serve, shows its own start page.
 
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+
 // The group's name, in the source's settings file and on the Site settings page.
 export const START_PAGE = 'startPage';
 
@@ -15,6 +18,13 @@ export const START_PAGE = 'startPage';
 // declares it, by its name.
 export function startFile(type) {
   return `start.${type.name}.md`;
+}
+
+// The start page's content files in the content folder at `content`, each { type, file }, the
+// type of the site description `site` (as checked) it is a post of, and its file's name: the one
+// the intake writes where an Admin chose a start page that can serve, else none.
+export function startPageFiles(content, site) {
+  return Object.values(site.types).flatMap((type) => (existsSync(join(content, startFile(type))) ? [{ type, file: startFile(type) }] : []));
 }
 
 // The ID the site's collection of the post's type gives the start page's entry, which no
