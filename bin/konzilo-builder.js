@@ -58,7 +58,9 @@ function codeOf(site, core) {
   return hash.digest('hex');
 }
 
-await run('sh', ['/konzilo/compose/builder/prepare-site.sh', work, '--exclude=./content', '--exclude=./demo-content'], { maxBuffer: 1024 * 1024 * 64 });
+// The site's code as it now is, with its dependencies installed only when what they are installed
+// from has changed.
+await run('sh', ['/konzilo/compose/builder/prepare-site.sh', work, '--exclude=./content', '--exclude=./demo-content'], { cwd: '/site', maxBuffer: 1024 * 1024 * 64 });
 
 await run(process.execPath, ['/konzilo/bin/konzilo-cms.js', SITE_FOLDER, '/admin-config/config.json'], {
   env: { ...process.env, KONZILO_OAUTH_CLIENT: secret('oauth-client') },
