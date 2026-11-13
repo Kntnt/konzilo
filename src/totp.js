@@ -1,7 +1,7 @@
 // A time-based one-time code (RFC 6238, SHA-1, 30 seconds, six digits), as an
-// authenticator app makes it from a key in base32. A local copy's seeded account
-// logs in with both factors, as a live one does, so something has to make the
-// code: the seed that enrols the account, and the command that prints it.
+// authenticator app makes it from a key in base32. A local copy's people log in
+// with both factors, as a live copy's do, so something has to make the code: the
+// seed that enrols each person, and the command that prints a person's.
 
 import { createHmac } from 'node:crypto';
 

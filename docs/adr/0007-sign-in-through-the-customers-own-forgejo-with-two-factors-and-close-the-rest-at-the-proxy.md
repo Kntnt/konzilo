@@ -1,6 +1,6 @@
 # ADR 0007: Sign in through the customer's own Forgejo, with two factors for everyone, and close the rest at the proxy
 
-**Date:** 2026-11-03, amended 2026-11-12 · **Status:** Accepted as a technical choice; Thomas may veto. It carries out his settled decision of one Forgejo per customer (ADR 0004).
+**Date:** 2026-11-03, amended 2026-11-12 and 2026-11-13 · **Status:** Accepted as a technical choice; Thomas may veto. It carries out his settled decision of one Forgejo per customer (ADR 0004). Settled on 2026-11-13, as a technical choice Thomas may veto: a local copy holds the people a setting lists, by default the one account it always had, each enrolled as that account is, with their key kept in `state` alone and printed as a code by name.
 
 ## Context
 
@@ -16,6 +16,7 @@ The admin host is reachable from the internet, and a login reaches a customer's 
 - **Machine accounts are enrolled too,** through the web forms, since there is no API for it. One read-only account per site, for `builder` and `editors`. An instance credential held by the hosting layer, or by `konzilo` in Compose, for provisioning, restore and purge.
 - **First passwords come through an emailed link,** since whoever knows a new user's password before that user first logs in can set up a second factor of their own. A user who loses every method needs the operator, through a logged job.
 - **A local account logs in with both factors as well,** with a code from a fixed key, so that the suite tests the login it ships.
+- **A local copy holds the people a setting lists** (2026-11-13, a technical choice Thomas may veto), so that each role can be signed in as ([ADR 0008](0008-give-customers-three-roles-admin-editor-and-reviewer.md)): `KONZILO_PEOPLE`, each person `name:role`, and where it lists no one, the one Admin `KONZILO_ACCOUNT` names, as before. The seed makes sure of each at every start, so that a copy seeded before gains those added since: an account, made with the password in a secret of the person's own, `account-password-<name>`, where one is given, else in the one they share, `account-password`; a second factor enrolled through the forms, whose key the seed keeps in `state` and nowhere else; and the team of their role. It changes nothing that is already so, and no password, and removes no one. The key of the account `KONZILO_ACCOUNT` named at the first start stays in `account-totp`, which `account-name` says is theirs, so that a copy seeded before and its `code` command go on as they did, and a later change of the setting never gives one person another's key; everyone else's is in `people/<name>-totp`, apart from the machine accounts' keys. `konzilo-code <name>` prints a person's current code, and `konzilo-code` with no name the account's. No password or key is put in the environment or printed (ADR 0005), and a name Forgejo would not take, or one of the core's own accounts or the site's, is refused before anything is made.
 - **Sveltia keeps its scope patch** (ADR 0029). A raise that changes the scopes deletes the grants.
 - **Updates.** A digest in `versions.env`, raised by the update flow. A security release is raised without waiting for a core release.
 
@@ -28,6 +29,8 @@ The admin host is reachable from the internet, and a login reaches a customer's 
 
 - **A local login without the second factor.** The suite would never test the login it ships.
 - **Codes from the first login without an app.** The first password comes through an emailed link anyway, so it proves the same address twice.
+- **Every person's key in a file by their name, the one account's moved there too.** A copy seeded before would lose the file its `code` command reads, and an image that copies the keys would find them moved.
+- **A person's password in the setting beside their name.** It would be in the environment of every program that reads the setting (ADR 0005); a secret per person, or the one they share, keeps it in a file.
 
 ## What practice has shown
 

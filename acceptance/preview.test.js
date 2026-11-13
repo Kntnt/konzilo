@@ -12,7 +12,7 @@ import { after, before, describe, test } from 'node:test';
 
 import { idOf } from '../src/demo-source.js';
 import { sharp } from '../tests/lib/images.js';
-import { ENGINES, freshCode, openEditor, openNew, signIn, throughForgejo, usedCode } from './lib/editor.js';
+import { ENGINES, freshCode, openEditor, openNew, seeded, signIn, throughForgejo } from './lib/editor.js';
 import { framesWhile, isBlank } from './lib/frames.js';
 import { makeSite } from './lib/site.js';
 
@@ -26,7 +26,8 @@ describe('the live preview', () => {
   let site;
 
   before(async () => {
-    site = await makeSite();
+    // A Reviewer among the site's people, seeded as the Admin is (ADR 0008).
+    site = await makeSite({ people: 'anna:admin,rut:reviewer' });
     // The categories have pages here, as a site may give them, so that a term's page is in the
     // preview; the demo content stays the site template's.
     const description = join(site.directory, 'site-description.json');
@@ -327,8 +328,9 @@ describe('the live preview', () => {
     });
   });
 
-  // A Reviewer, who reads what is coming and changes nothing (ADR 0008): an account of their own,
-  // in the site's team that reads the source.
+  // A Reviewer, who reads what is coming and changes nothing (ADR 0008): one of the site's people,
+  // with an account of their own, in the site's team that reads the source, who signs in with a
+  // code from `konzilo-code rut`.
   describe('to a Reviewer', () => {
     let browser;
     let context;
@@ -336,8 +338,7 @@ describe('the live preview', () => {
     let reviewer;
 
     before(async () => {
-      reviewer = await site.account('rut', 'reviewers');
-      usedCode(reviewer.login, reviewer.enrolledWith);
+      reviewer = seeded(site, 'rut');
       browser = await ENGINES.chromium.launch();
       context = await browser.newContext({ locale: 'en-GB' });
       page = await context.newPage();
