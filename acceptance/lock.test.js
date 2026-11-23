@@ -57,6 +57,8 @@ describe('a form locked to the tab that has it open', () => {
   // browser, as a tab opened later finds it.
   const pageOf = async (engine, login) => {
     const session = await openEditor(engine, site);
+    // A page left with changes unsaved asks first, and the suite leaves it.
+    session.page.on('dialog', (dialog) => dialog.accept());
     await session.page.evaluate(([key, user]) => localStorage.setItem(key, user), [USER, sessions[login]]);
     await session.page.reload();
     await session.page.getByText('Articles').first().waitFor({ timeout: 60_000 });
@@ -122,11 +124,13 @@ describe('a form locked to the tab that has it open', () => {
         await ebba?.browser.close();
       });
 
-      // Each test from the list, with no dialog open, whatever the one before left.
+      // Each test from the list of a page loaded anew, whatever the one before left, as a person
+      // comes back to the editor.
       beforeEach(async () => {
         for (const { page } of [anna, ebba]) {
-          for (let tries = 0; tries < 3 && await page.locator('dialog[open], [role=alertdialog]').count() > 0; tries += 1) await page.keyboard.press('Escape');
-          await toList(page);
+          await page.goto(`${site.origin.admin}/#/collections/articles`);
+          await page.reload();
+          await page.getByText('Articles').first().waitFor({ timeout: 60_000 });
         }
       });
 
@@ -205,7 +209,8 @@ describe('a form locked to the tab that has it open', () => {
 
       test('saves two entries two people save at the same moment, both, with no error dialog', async () => {
         for (let round = 0; round < 2; round += 1) {
-          const [one, two] = [article(round * 2), article(round * 2 + 1)];
+          // Two articles no one has changed in this engine's other tests.
+          const [one, two] = [article(round * 2 + 2), article(round * 2 + 3)];
           await openForm(anna.page, `articles/entries/${one}`);
           await openForm(ebba.page, `articles/entries/${two}`);
           const words = { anna: `Saved at once by anna, ${engine} ${round}`, ebba: `Saved at once by ebba, ${engine} ${round}` };
