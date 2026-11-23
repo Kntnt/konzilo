@@ -1,5 +1,6 @@
-// A live preview's run of the intake: the posts it shows are checked and written whatever
-// their status and date, and every other draft stays out of it (ADR 0032).
+// A live preview's run of the intake: the drafts it shows are checked and written from their own
+// moment on, or from now where they have none, a post on its own way at its moment, as at a
+// moment of the timeline, and every other draft stays out of it (ADR 0032).
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -23,10 +24,24 @@ test('writes the draft it is given, and no other', () => {
   assert.equal(result.ledger.posts.one.address, '/pages/one/');
 });
 
-test('writes a post whose date has not come, and a post with no status', () => {
-  const result = run({ 'pages/one.md': draft('One', { status: 'scheduled', date: later }), 'pages/two.md': sourcePost({ title: 'Two' }, 'Words.') }, site, { preview: ['pages/one.md', 'pages/two.md'] });
+test('writes a post with no status, and a draft whose moment has come or passed', () => {
+  const earlier = new Date(NOW.getTime() - 86_400_000).toISOString();
+  const result = run({ 'pages/one.md': draft('One', { date: earlier }), 'pages/two.md': sourcePost({ title: 'Two' }, 'Words.') }, site, { preview: ['pages/one.md', 'pages/two.md'] });
   assert.deepEqual(result.refusals, []);
   assert.deepEqual(Object.keys(written(result)).filter((path) => path.startsWith('pages/')), ['pages/one.md', 'pages/two.md']);
+});
+
+// A moment of the timeline is a run at that moment: what is out by then, and nothing after it.
+test('leaves a draft and a scheduled post ahead of their moment waiting for it, and writes them once it has come', () => {
+  const files = { 'pages/one.md': draft('One', { date: later }), 'pages/two.md': draft('Two', { status: 'scheduled', date: later }) };
+  const preview = Object.keys(files);
+  const now = run(files, site, { preview });
+  assert.deepEqual(Object.keys(written(now)).filter((path) => path.startsWith('pages/')), []);
+  assert.deepEqual(now.posts.map(({ state, at }) => [state, at]), [['waiting', later.replace(/\.\d{3}Z$/, 'Z')], ['waiting', later.replace(/\.\d{3}Z$/, 'Z')]]);
+  assert.equal(now.next, later.replace(/\.\d{3}Z$/, 'Z'));
+  const then = run(files, site, { preview, now: new Date(later) });
+  assert.deepEqual(then.refusals, []);
+  assert.deepEqual(Object.keys(written(then)).filter((path) => path.startsWith('pages/')), ['pages/one.md', 'pages/two.md']);
 });
 
 test('without being asked, as a build for the public site is not, it leaves a draft and a post ahead of its moment out', () => {
