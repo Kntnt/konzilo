@@ -178,3 +178,26 @@ test('names a post\'s status by its option\'s label, and a form with no status b
   assert.equal(statusOf({ fields: FIELDS, values: BEFORE }), 'Draft');
   assert.equal(statusOf({ fields: [{ name: 'title', widget: 'string' }], values: { title: 'x' } }), null);
 });
+
+test('keeps only the post\'s own status and date as they are, and restores a field so named within another', () => {
+  const fields = [
+    { name: 'group-status', widget: 'konzilo-group', label: 'Status and date', fields: [
+      { name: 'status', widget: 'select', label: 'Status' },
+      { name: 'date', widget: 'datetime', label: 'Date' },
+    ] },
+    { name: 'event', widget: 'object', label: 'Event', fields: [
+      { name: 'date', widget: 'datetime', label: 'Date' },
+      { name: 'status', widget: 'string', label: 'Status' },
+    ] },
+  ];
+  const current = { 'group-status.status': 'published', 'group-status.date': '2026-11-20T08:00:00Z', 'event.date': '2026-12-01T18:00:00Z', 'event.status': 'Sold out' };
+  const revision = { 'group-status.status': 'draft', 'group-status.date': '2026-11-01T08:00:00Z', 'event.date': '2026-11-15T18:00:00Z', 'event.status': 'Open' };
+  assert.deepEqual(restoredValues({ fields, current, revision }), {
+    'group-status.status': 'published',
+    'group-status.date': '2026-11-20T08:00:00Z',
+    'event.date': '2026-11-15T18:00:00Z',
+    'event.status': 'Open',
+  });
+  const notAPost = [{ name: 'event', widget: 'object', label: 'Event', fields: [{ name: 'status', widget: 'string' }, { name: 'date', widget: 'datetime' }] }];
+  assert.deepEqual(restoredValues({ fields: notAPost, current: { 'event.status': 'a', 'event.date': 'x' }, revision: { 'event.status': 'b', 'event.date': 'y' } }), { 'event.status': 'b', 'event.date': 'y' });
+});

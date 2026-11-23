@@ -11,16 +11,19 @@ const BODIES = new Set(['konzilo-body', 'markdown', 'richtext']);
 const IMAGES = new Set(['konzilo-image', 'image']);
 const FILES = new Set(['file']);
 const HOLDERS = new Set(['object', 'konzilo-group']);
-// A post's status and its moment, which restoring leaves as they are, so that it never publishes or
-// unpublishes by itself.
+// A post's own status and its moment, which restoring leaves as they are, so that it never publishes
+// or unpublishes by itself: the post's top-level fields so named, which a field group only shows
+// together in the form.
 const KEPT = ['status', 'date'];
+const GROUP = 'konzilo-group';
 
 const labelOf = (field) => (typeof field.label === 'string' && field.label !== '' ? field.label : field.name);
 const holds = (field) => HOLDERS.has(field.widget) && Array.isArray(field.fields);
 
-// The form's fields as [{ path, labels, field }], each that holds a value, in the form's order,
-// and the paths of what holds them.
-function fieldsOf(fields, prefix = '', labels = []) {
+// The form's fields as [{ path, labels, field, topLevel }], each that holds a value, in the form's
+// order, `topLevel` where only field groups hold it, as the file holds it at its top; and the paths
+// of what holds them.
+function fieldsOf(fields, prefix = '', labels = [], topLevel = true) {
   const found = [];
   const holders = [];
   for (const field of fields ?? []) {
@@ -28,10 +31,10 @@ function fieldsOf(fields, prefix = '', labels = []) {
     const named = [...labels, labelOf(field)];
     if (holds(field)) {
       holders.push({ path, labels: named });
-      const inner = fieldsOf(field.fields, path, named);
+      const inner = fieldsOf(field.fields, path, named, topLevel && field.widget === GROUP);
       found.push(...inner.found);
       holders.push(...inner.holders);
-    } else found.push({ path, labels: named, field });
+    } else found.push({ path, labels: named, field, topLevel });
   }
   return { found, holders };
 }
@@ -115,12 +118,13 @@ export function compareForms({ fields, before, after }) {
 }
 
 // The form's values once `revision` is restored into it, from `current`: each value of a field the
-// form has today as the revision holds it, and for a post its status and its date as they are; a
-// value no field holds stays as it is.
+// form has today as the revision holds it, and for a post its own status and its date as they are;
+// a value no field holds stays as it is.
 export function restoredValues({ fields, current, revision }) {
   const { found } = fieldsOf(fields);
-  const isPost = found.some(({ field }) => field.name === 'status');
-  const kept = found.filter(({ field }) => isPost && KEPT.includes(field.name)).map(({ path }) => path);
+  const own = found.filter(({ field, topLevel }) => topLevel && KEPT.includes(field.name));
+  const isPost = own.some(({ field }) => field.name === 'status');
+  const kept = isPost ? own.map(({ path }) => path) : [];
   const restored = found.map(({ path }) => path).filter((path) => !kept.includes(path));
   const fromRevision = (key) => restored.some((path) => within(key, path));
   return {
@@ -131,7 +135,7 @@ export function restoredValues({ fields, current, revision }) {
 
 // A post's status in a revision, by the label of its option, or null for a form with no status.
 export function statusOf({ fields, values }) {
-  const status = fieldsOf(fields).found.find(({ field }) => field.name === 'status');
+  const status = fieldsOf(fields).found.find(({ field, topLevel }) => topLevel && field.name === 'status');
   if (!status) return null;
   const value = values[status.path];
   if (isEmpty(value)) return null;
