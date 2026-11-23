@@ -154,7 +154,9 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Release**: One complete set of a site's built static pages; the one its `current` link points to is what visitors get. _Avoid_: version, deployment.
 
-**Live preview**: The site from its own templates, with every saved post whatever its status, from Astro's dev server on an origin of its own: the page beside the form in Sveltia, about a second after an editor stops typing, and the site in a tab of its own, browsed as a visitor would, by anyone who may read the site's source, a Reviewer too, signed in through Forgejo. _Avoid_: staging, test copy.
+**Live preview**: The site from its own templates, as it stands at a moment of the timeline, from Astro's dev server on an origin of its own: the page beside the form in Sveltia, at the moment the post being edited goes out, about a second after an editor stops typing, and the site in a tab of its own, browsed as a visitor would, by anyone who may read the site's source, a Reviewer too, signed in through Forgejo. _Avoid_: staging, test copy.
+
+**Timeline**: The moments at which the site will change, *now* first and then each moment a scheduled post or a draft with a moment goes out; the live preview shows the site as it stands at one of them. _Avoid_: time travel, future view.
 
 **Share link**: A secret link to one post not yet published, which lets someone without a login read it in a static preview build for three days, or until revoked. _Avoid_: public preview, magic link.
 
