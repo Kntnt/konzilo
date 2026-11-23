@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.6.0] – 2026-11-23
+
 ### Added
 
 - A form in the editor is locked to the one tab that has it open: a post's, a term's, an image library entry's, the site settings' and each menu's. Opening a form another tab holds says who has it, or that it is the Editor's own other tab, and since when, and offers to go back to the list, to read the form read-only, or to take it over; the list of entries marks each entry another tab holds with its holder's name. A takeover tells the tab that had the form at once, by name and time, and that form turns read-only with its unsaved changes still in its fields to read and copy; taking it back shows those changes read-only from the latest save, never to be saved, until the latest save is opened. A form is read-only until the editor knows whether another tab holds it, and where that cannot be known within ten seconds, it opens to edit. A lock ends when its form is left or closed, also while it shows a draft backup, and within two minutes after its tab stops answering, never because its holder is idle. An Editor in the Editor role opens the site settings and the menus read-only, told that they are for Admins. A deletion, from the form or from the list, needs the lock too.
