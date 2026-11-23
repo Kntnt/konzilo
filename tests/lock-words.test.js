@@ -35,7 +35,7 @@ test('refuses a save older than the latest naming the account of the later save 
   useInterfaceLanguage('en');
   assert.deepEqual(conflictWords({ type: 'modified', name: 'ebba', date: new Date('2026-11-23T10:00:00Z') }), {
     description: 'ebba saved this entry on 23 November 2026 at 11:00 CET, after you opened it.',
-    warning: 'Your changes are not saved over it, and nothing is overwritten. Reload to see the latest version; your changes are kept to read and copy.',
+    warning: 'Your changes are not saved over it, and nothing is overwritten. Reload to see the latest save; your changes are kept to read and copy.',
   });
   assert.equal(conflictWords({ type: 'modified', date: '2026-11-23T10:00:00Z' }).description, 'This entry was saved on 23 November 2026 at 11:00 CET, after you opened it.', 'Forgejo has no record of the account');
   assert.equal(conflictWords({ type: 'modified' }).description, 'This entry has been saved since you opened it.');

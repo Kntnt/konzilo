@@ -229,7 +229,7 @@
   },
   {
     "module": "@sveltia/cms/npm/index.js",
-    "why": "A draft backup is offered as before only where the entry has not been saved since the backup was taken; otherwise it is shown read-only, to read and copy, and never saved over the later save (ADR 0073). Sveltia keeps the entry a backup was made from as its baseEntry, and tells a later save by it.",
+    "why": "Sveltia offers to restore a draft backup only where the entry has not been saved since the backup was taken; otherwise it is shown read-only, to read and copy, and never saved over the later save (ADR 0073). Sveltia keeps the entry a backup was made from as its baseEntry, and tells a later save by it.",
     "find": "let{collectionName:t}=e,n=t8(e),r=await C3e(e);if(!r)return;let{timestamp:i}=r,",
     "replace": "let{collectionName:t}=e,n=t8(e),r=await C3e(e);if(!r)return;if(r.baseEntry&&e.originalEntry&&globalThis.konziloStaleBackup&&!(0,wr.default)(r.baseEntry.locales,Jk(e.originalEntry.locales))){globalThis.konziloStaleBackup(r.timestamp),await O3e({backup:r,draft:e});return}let{timestamp:i}=r,"
   },
