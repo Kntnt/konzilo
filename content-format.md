@@ -1516,7 +1516,7 @@ A site in one language is written as if it declared no languages.
 Three forms meet in a content file:
 
 - **The exact form**, the one this document describes: what the intake writes, byte for byte, and the one another tool should write. Each example above that is not marked as read is in it.
-- **What the site's reader takes besides.** The reader is [Sätteri](https://github.com/bruits/satteri) 0.10.5 with GFM, raw HTML and directives on and smart punctuation off, the reader Astro uses. It renders any Markdown and any raw HTML a file holds as ordinary Markdown and HTML, below; the intake never writes it.
+- **What the site's reader takes besides.** The reader is [Sätteri](https://github.com/bruits/satteri) 0.11.7 with GFM, raw HTML and directives on and smart punctuation off, the reader Astro uses. It renders any Markdown and any raw HTML a file holds as ordinary Markdown and HTML, below; the intake never writes it.
 - **The shapes the site gives a meaning of its own**, below.
 
 ### What more the reader takes

@@ -4,7 +4,7 @@
 
 ## Decision
 
-- **One reader: Sätteri, the copy Astro installs,** 0.10.5 for Astro 7.4.2. The Astro integration owns its options, GFM, raw HTML and directives on, smart punctuation off, and the intake takes them from it.
+- **One reader: Sätteri, the copy Astro installs,** 0.11.7 for Astro 7.4.13. The Astro integration owns its options, GFM, raw HTML and directives on, smart punctuation off, and the intake takes them from it.
 - **A site has exactly one copy of Sätteri,** which CI checks with `npm ls satteri`. Sätteri moves when Astro moves it, and only after the intake suite passes on the new version.
 - **The Crepe field checks a value by Sätteri in the browser,** through its WebAssembly build (ADR 0030).
 

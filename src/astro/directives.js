@@ -122,8 +122,9 @@ function typed(type, text) {
 
 // An attribute's value as a directive writes it, between double quotes: `&`,
 // `"`, `}` and line breaks as HTML's character references, since Sätteri
-// 0.10.5 reads every character of a value as it is and ends the value at a
-// `}`. The reader decodes them (decoded()).
+// reads every character of a value as it is, and a `}` written so keeps the
+// value whole in a reader that ends it there. The reader decodes them
+// (decoded()).
 export function written(value) {
   return String(value)
     .replaceAll('&', '&amp;')
