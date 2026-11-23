@@ -129,19 +129,76 @@ describe('the runs', () => {
     assert.deepEqual(calls(runnerStandIn()), calls(runner()));
   });
 
-  test('its first run writes every saved post, a draft and one scheduled ahead too', async () => {
+  test('shows now every saved post that is out by now, a draft without a moment too, and nothing ahead', async () => {
     files['pages/waiting.md'] = sourcePost({ title: 'Waiting', status: 'draft' }, 'Words.');
     files['pages/ahead.md'] = sourcePost({ title: 'Ahead', status: 'scheduled', date: '2026-12-24T09:00:00Z' }, 'Words.');
+    files['pages/later.md'] = sourcePost({ title: 'Later', status: 'draft', date: '2026-12-31T09:00:00Z' }, 'Words.');
     files['pages/plain.md'] = sourcePost({ title: 'Plain' }, 'Words.');
-    await runner().refresh();
-    for (const path of ['pages/live.md', 'pages/waiting.md', 'pages/ahead.md', 'pages/plain.md']) assert.ok(existsSync(join(content, path)), path);
+    const preview = runner();
+    assert.deepEqual(await preview.show(null), { changed: true });
+    for (const path of ['pages/live.md', 'pages/waiting.md', 'pages/plain.md']) assert.ok(existsSync(join(content, path)), path);
+    for (const path of ['pages/ahead.md', 'pages/later.md']) assert.equal(existsSync(join(content, path)), false, path);
+  });
+
+  // The timeline (ADR 0032): now, then each later moment at which something goes out.
+  test('gives the timeline, now and each later moment with what goes out then, and shows the site at any of them', async () => {
+    files['pages/ahead.md'] = sourcePost({ title: 'Ahead', status: 'scheduled', date: '2026-12-24T09:00:00Z' }, 'Words.');
+    files['pages/also.md'] = sourcePost({ title: 'Also ahead', status: 'published', date: '2026-12-24T09:00:00Z' }, 'Words.');
+    files['pages/later.md'] = sourcePost({ title: 'Later', status: 'draft', date: '2026-12-31T09:00:00Z' }, 'Words.');
+    files['pages/passed.md'] = sourcePost({ title: 'Passed', status: 'draft', date: '2026-11-01T09:00:00Z' }, 'Words.');
+    const preview = runner();
+    await preview.refresh();
+    assert.deepEqual(preview.timeline(), [
+      { at: null, posts: [] },
+      { at: '2026-12-24T09:00:00Z', posts: [{ title: 'Ahead', file: 'pages/ahead.md' }, { title: 'Also ahead', file: 'pages/also.md' }] },
+      { at: '2026-12-31T09:00:00Z', posts: [{ title: 'Later', file: 'pages/later.md' }] },
+    ]);
+    await preview.show('2026-12-24T09:00:00Z');
+    for (const path of ['pages/live.md', 'pages/passed.md', 'pages/ahead.md', 'pages/also-ahead.md']) assert.ok(existsSync(join(content, path)), path);
+    assert.equal(existsSync(join(content, 'pages/later.md')), false);
+    assert.ok(preview.shows('2026-12-24T09:00:00Z'));
+    assert.equal(preview.shows(null), false);
+    await preview.show('2026-12-31T09:00:00Z');
+    assert.ok(existsSync(join(content, 'pages/later.md')));
+    await preview.show(null);
+    for (const path of ['pages/ahead.md', 'pages/later.md']) assert.equal(existsSync(join(content, path)), false, path);
+    assert.ok(preview.shows(null));
+  });
+
+  test('takes a moment asked for to the one on the timeline the site then stands at, and one passed to now', async () => {
+    files['pages/ahead.md'] = sourcePost({ title: 'Ahead', status: 'scheduled', date: '2026-12-24T09:00:00Z' }, 'Words.');
+    const preview = runner();
+    await preview.refresh();
+    assert.equal(preview.moment('2026-12-24T09:00:00Z'), '2026-12-24T09:00:00Z');
+    assert.equal(preview.moment('2027-06-01T00:00:00Z'), '2026-12-24T09:00:00Z');
+    assert.equal(preview.moment('2026-12-01T00:00:00Z'), null);
+    assert.equal(preview.moment('2026-01-01T00:00:00Z'), null);
+    for (const asked of [null, undefined, 'now', 'not a moment', 42]) assert.equal(preview.moment(asked), null, String(asked));
+  });
+
+  test('says a moment\'s version, which changes only where what it shows does', async () => {
+    files['pages/ahead.md'] = sourcePost({ title: 'Ahead', status: 'scheduled', date: '2026-12-24T09:00:00Z' }, 'Words.');
+    const preview = runner();
+    const now = await preview.prepare(null);
+    const then = await preview.prepare('2026-12-24T09:00:00Z');
+    assert.equal(typeof now, 'string');
+    assert.notEqual(now, then);
+    assert.equal(preview.version(null), now);
+    // A draft with a moment after both changes neither.
+    await preview.take({ path: 'pages/far.md', fields: { title: 'Far', status: 'draft', date: '2027-01-01T00:00:00Z' } });
+    assert.equal(await preview.prepare(null), now);
+    assert.equal(await preview.prepare('2026-12-24T09:00:00Z'), then);
+    // A draft without one changes both.
+    await preview.take({ path: 'pages/near.md', fields: { title: 'Near' } });
+    assert.notEqual(await preview.prepare(null), now);
+    assert.notEqual(await preview.prepare('2026-12-24T09:00:00Z'), then);
   });
 
   test('a saved post it refuses leaves the rest standing, and is known by where its page would be', async () => {
     files['pages/broken.md'] = sourcePost({ title: 'A <b>bold</b> title', slug: 'broken', status: 'draft' }, 'Words.');
     files['pages/waiting.md'] = sourcePost({ title: 'Waiting', status: 'draft' }, 'Words.');
     const preview = runner();
-    await preview.refresh();
+    await preview.show(null);
     assert.ok(existsSync(join(content, 'pages/live.md')));
     assert.ok(existsSync(join(content, 'pages/waiting.md')));
     assert.equal(existsSync(join(content, 'pages/broken.md')), false);
@@ -170,7 +227,11 @@ describe('the runs', () => {
     await preview.refresh();
     assert.deepEqual(preview.at('/pages/live/'), { kind: 'post', file: 'pages/live.md', title: 'Live', status: 'published', at: null, refusals: [] });
     assert.deepEqual(preview.at('/pages/waiting/'), { kind: 'post', file: 'pages/waiting.md', title: 'Waiting', status: 'draft', at: null, refusals: [] });
-    assert.deepEqual(preview.at('/pages/ahead/'), { kind: 'post', file: 'pages/ahead.md', title: 'Ahead', status: 'scheduled', at: '2026-12-24T09:00:00Z', refusals: [] });
+    // A post ahead has no page now, and at its moment is still scheduled, for it is not out yet.
+    assert.equal(preview.at('/pages/ahead/'), null);
+    await preview.prepare('2026-12-24T09:00:00Z');
+    assert.deepEqual(preview.at('/pages/ahead/', '2026-12-24T09:00:00Z'), { kind: 'post', file: 'pages/ahead.md', title: 'Ahead', status: 'scheduled', at: '2026-12-24T09:00:00Z', refusals: [] });
+    assert.deepEqual(preview.at('/pages/live/', '2026-12-24T09:00:00Z')?.status, 'published');
     assert.deepEqual(preview.at('/pages/passed/'), { kind: 'post', file: 'pages/passed.md', title: 'Passed', status: 'published', at: null, refusals: [] });
     assert.deepEqual(preview.at('/topics/harbours/'), { kind: 'term', file: 'topics/tttttttttttt.json', title: 'Harbours', refusals: [] });
     // A list's later pages are its post's, or its term's.
@@ -186,7 +247,7 @@ describe('the runs', () => {
     files['pages/front.md'] = sourcePost({ title: 'Front', slug: 'front', status: 'draft' }, 'Words.');
     files['settings.json'] = JSON.stringify({ startPage: { page: 'front' } });
     const preview = runner();
-    await preview.refresh();
+    await preview.show(null);
     const chosen = { kind: 'post', file: 'pages/front.md', title: 'Front', status: 'draft', at: null, refusals: [] };
     assert.deepEqual(preview.at('/'), chosen);
     assert.deepEqual(preview.at('/page/2/'), chosen);
@@ -199,7 +260,7 @@ describe('the runs', () => {
     files['pages/front.md'] = sourcePost({ title: 'Front', slug: 'front', status: 'published' }, 'Words.');
     files['settings.json'] = JSON.stringify({ startPage: { page: 'front' } });
     const shown = await runner().take({ path: 'pages/front.md', fields: { title: 'Front', slug: 'front', body: 'Other words.' } });
-    assert.deepEqual(shown, { address: '/', refusals: [] });
+    assert.deepEqual(shown, { address: '/', refusals: [], moment: null });
   });
 
   // The 404 page is built from the one post an Admin chose for it, which the toolbar leads to.
@@ -255,6 +316,7 @@ describe('the runs', () => {
     head = 2;
     await preview.refresh();
     assert.equal(reads, 2);
+    await preview.show(null);
     assert.ok(existsSync(join(content, 'pages/saved.md')));
     await preview.take({ path: 'pages/one.md', fields: { title: 'One' } });
     await preview.refresh();
@@ -262,6 +324,7 @@ describe('the runs', () => {
     moment = '2026-11-03T12:16:00Z';
     await preview.refresh();
     assert.equal(reads, 4);
+    await preview.show(null);
     assert.equal(existsSync(join(content, 'pages/one.md')), false, 'a draft left for a while goes');
   });
 
@@ -288,27 +351,48 @@ describe('the runs', () => {
       },
     });
     const shown = await preview.take({ path: 'pages/one.md', fields: { title: 'One' } });
-    assert.deepEqual(shown, { address: '/pages/one/', refusals: [] });
+    assert.deepEqual(shown, { address: '/pages/one/', refusals: [], moment: null });
+    await preview.show(null);
     assert.ok(existsSync(join(content, 'pages/live.md')));
     assert.equal(existsSync(join(content, 'pages/odd.md')), false);
     assert.match(warned.join('\n'), /the check broke/);
   });
 
   test('a draft gets a page and an address, and its source file need not exist', async () => {
-    const shown = await runner().take({ path: 'pages/new-one.md', fields: { title: 'New one', body: 'Words of mine.' } });
-    assert.deepEqual(shown, { address: '/pages/new-one/', refusals: [] });
+    const preview = runner();
+    const shown = await preview.take({ path: 'pages/new-one.md', fields: { title: 'New one', body: 'Words of mine.' } });
+    assert.deepEqual(shown, { address: '/pages/new-one/', refusals: [], moment: null });
+    await preview.show(null);
     assert.match(read('pages/new-one.md'), /Words of mine\./);
   });
 
+  // The pane shows the moment just after the post being edited goes out (ADR 0032).
+  test('gives the pane the moment a draft goes out, now for one out already or without one, and follows it as it changes', async () => {
+    files['pages/ahead.md'] = sourcePost({ title: 'Ahead', status: 'scheduled', date: '2026-12-24T09:00:00Z' }, 'Words.');
+    const preview = runner();
+    assert.deepEqual(await preview.take({ path: 'pages/ahead.md', fields: { title: 'Ahead', status: 'scheduled', date: '2026-12-24T09:00:00Z' } }), { address: '/pages/ahead/', refusals: [], moment: '2026-12-24T09:00:00Z' });
+    assert.equal((await preview.take({ path: 'pages/ahead.md', fields: { title: 'Ahead', status: 'scheduled', date: '2027-02-01T10:00:00Z' } })).moment, '2027-02-01T10:00:00Z');
+    assert.deepEqual(preview.timeline().map(({ at }) => at), [null, '2027-02-01T10:00:00Z'], 'the unsaved moment, in place of the saved one');
+    assert.equal((await preview.take({ path: 'pages/ahead.md', fields: { title: 'Ahead', status: 'draft' } })).moment, null);
+    assert.equal((await preview.take({ path: 'pages/live.md', fields: { title: 'Live', status: 'published', date: '2026-10-01T10:00:00Z' } })).moment, null);
+    // What cannot be published is said at its own moment, where the post is checked.
+    const refused = await preview.take({ path: 'pages/ahead.md', fields: { title: '', status: 'scheduled', date: '2026-12-24T09:00:00Z' } });
+    assert.equal(refused.moment, '2026-12-24T09:00:00Z');
+    assert.ok(refused.refusals.some(({ field }) => field?.name === 'title'), JSON.stringify(refused.refusals));
+  });
+
   test('a draft stands in for its saved file, whatever its status', async () => {
-    const shown = await runner().take({ path: 'pages/live.md', fields: { title: 'Live', status: 'draft', body: 'Other words.' } });
+    const preview = runner();
+    const shown = await preview.take({ path: 'pages/live.md', fields: { title: 'Live', status: 'draft', body: 'Other words.' } });
     assert.equal(shown.refusals.length, 0);
+    await preview.show(null);
     assert.match(read('pages/live.md'), /Other words\./);
   });
 
   test('a refused draft says why, by its field, and its last good page stands', async () => {
     const preview = runner();
     await preview.take({ path: 'pages/new-one.md', fields: { title: 'New one', body: 'Words of mine.' } });
+    await preview.show(null);
     const before = read('pages/new-one.md');
     const shown = await preview.take({ path: 'pages/new-one.md', fields: { slug: 'new-one', body: 'Other words.' } });
     assert.ok(shown.refusals.some(({ field, reason }) => field.name === 'title' && /title/.test(reason)), JSON.stringify(shown));
@@ -319,6 +403,7 @@ describe('the runs', () => {
 
     const body = await preview.take({ path: 'pages/new-one.md', fields: { title: 'New one', body: '# A title in the body' } });
     assert.deepEqual(body.refusals.map(({ block, name }) => [block?.path, name]), [['1', 'refusal.element-not-taken']]);
+    await preview.show(null);
     assert.equal(read('pages/new-one.md'), before);
   });
 
@@ -332,10 +417,12 @@ describe('the runs', () => {
     const preview = runner();
     await preview.take({ path: 'pages/one.md', fields: { title: 'One' } });
     await preview.take({ path: 'pages/two.md', fields: { title: 'Two' } });
+    await preview.show(null);
     assert.ok(existsSync(join(content, 'pages/one.md')));
     assert.ok(existsSync(join(content, 'pages/two.md')));
     moment = '2026-11-03T12:16:00Z';
     await preview.take({ path: 'pages/two.md', fields: { title: 'Two' } });
+    await preview.show(null);
     assert.equal(existsSync(join(content, 'pages/one.md')), false);
     assert.ok(existsSync(join(content, 'pages/two.md')));
   });
@@ -343,9 +430,12 @@ describe('the runs', () => {
   test('leaves a file that has not changed alone', async () => {
     const preview = runner();
     await preview.take({ path: 'pages/one.md', fields: { title: 'One' } });
+    await preview.show(null);
     const before = read('pages/live.md');
     await preview.take({ path: 'pages/one.md', fields: { title: 'One again' } });
+    assert.deepEqual(await preview.show(null), { changed: true });
     assert.equal(read('pages/live.md'), before);
+    assert.deepEqual(await preview.show(null), { changed: false }, 'nothing new to write');
   });
 
   test('asks the source each run, one run at a time', async () => {
@@ -449,6 +539,7 @@ describe('an unsaved image, through the real seam', () => {
     const preview = previewRunner({ site, content, source: sourceOf() });
     const shown = await preview.take({ path: 'pages/one.md', fields: fields('/media/new.png'), images: [{ name: 'new.png', data: PNG.toString('base64') }] });
     assert.deepEqual(shown.refusals, []);
+    await preview.show(null);
     const page = readFileSync(join(content, 'pages/one.md'), 'utf8');
     const master = /media\/([\w-]+-[0-9a-f]{10}\.webp)/.exec(page)?.[1];
     assert.ok(master, page);

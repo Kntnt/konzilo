@@ -323,7 +323,7 @@ describe('the live preview, whose gate stands before the site\'s code is prepare
     assert.match(runner.problem({ path: 'elsewhere/1a2b3c4d5e6f.md', fields: {} }), /./);
     assert.equal(runner.at('/hello-world/'), null);
     prepare();
-    await runner.refresh();
+    await runner.show(null);
     assert.equal(runner.at('/hello-world/').refusals.length, 0);
     assert.match(readFileSync(join(content, 'pages/hello-world.md'), 'utf8'), /:::section\n\n::eyebrow\[Over\]\n\n:::/);
     const { refusals } = await runner.take({ path: pagePath, fields: { title: 'Hello world', slug: 'hello-world', status: 'published', body: ':::list\nNo list\n:::' } });
