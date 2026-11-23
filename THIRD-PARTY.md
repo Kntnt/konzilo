@@ -263,7 +263,6 @@ Every package that `package-lock.json` names, on every platform, with the versio
 | [`comma-separated-tokens`](https://www.npmjs.com/package/comma-separated-tokens) | 2.0.3 | MIT |
 | [`commander`](https://www.npmjs.com/package/commander) | 11.1.0 | MIT |
 | [`commander`](https://www.npmjs.com/package/commander) | 15.0.0 | MIT |
-| [`commander`](https://www.npmjs.com/package/commander) | 8.3.0 | MIT |
 | [`common-ancestor-path`](https://www.npmjs.com/package/common-ancestor-path) | 2.0.0 | BlueOak-1.0.0 |
 | [`cookie`](https://www.npmjs.com/package/cookie) | 2.0.2 | MIT |
 | [`cookie-es`](https://www.npmjs.com/package/cookie-es) | 1.2.3 | MIT |
@@ -328,7 +327,6 @@ Every package that `package-lock.json` names, on every platform, with the versio
 | [`is-potential-custom-element-name`](https://www.npmjs.com/package/is-potential-custom-element-name) | 1.0.1 | MIT |
 | [`jsdom`](https://www.npmjs.com/package/jsdom) | 31.0.1 | MIT |
 | [`jsonc-parser`](https://www.npmjs.com/package/jsonc-parser) | 3.3.1 | MIT |
-| [`katex`](https://www.npmjs.com/package/katex) | 0.16.47 | MIT |
 | [`katex`](https://www.npmjs.com/package/katex) | 0.19.1 | MIT |
 | [`leaflet`](https://www.npmjs.com/package/leaflet) | 1.9.4 | BSD-2-Clause |
 | [`lightningcss`](https://www.npmjs.com/package/lightningcss) | 1.33.0 | MPL-2.0 |
