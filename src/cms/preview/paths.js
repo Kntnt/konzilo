@@ -21,3 +21,6 @@ export const SHOW_MESSAGE = 'konzilo-preview-show';
 // What a page in the pane says once it is there to be asked to show a block, since until then the
 // frame holds an empty document of the editor's own origin.
 export const READY_MESSAGE = 'konzilo-preview-ready';
+// What an address names the moment of the site's timeline it is shown at by, null being now: the
+// pane's frame's, at the moment the post being edited goes out, and a tab's opened at it.
+export const MOMENT_PARAMETER = 'konzilo-moment';

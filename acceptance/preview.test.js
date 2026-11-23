@@ -96,6 +96,82 @@ describe('the live preview', () => {
   // Forgejo's sign-in in a tab, in place, until the tab is back on the preview's host.
   const signInInTab = (page) => throughForgejo(page, site, page.waitForURL((url) => url.origin === site.origin.preview, { timeout: 120_000 }));
 
+  // Saved as anna saves, once for the whole suite, from the source of an article of the demo
+  // content: a draft without a moment, two scheduled articles far ahead, and a page the site
+  // cannot publish. Waits until the public site has been built from them.
+  const DRAFT = 'A draft of the harbours';
+  const SCHEDULED = 'The harbours to come';
+  const FURTHER = 'The harbours further on';
+  const AT = '2099-03-01T08:00:00Z';
+  const FURTHER_AT = '2099-06-01T08:00:00Z';
+  let saving = null;
+  const savedAhead = () => {
+    saving ??= (async () => {
+      const token = site.state('instance-token');
+      const contents = `${site.origin.git}/api/v1/repos/${site.name}/source/contents`;
+      const headers = { authorization: `token ${token}`, 'content-type': 'application/json' };
+      const save = async (path, text) => {
+        const answer = await fetch(`${contents}/${path}?sudo=anna`, { method: 'POST', headers, body: JSON.stringify({ content: Buffer.from(text).toString('base64'), message: 'A save' }) });
+        assert.equal(answer.status, 201, path);
+      };
+      const golden = Buffer.from((await (await fetch(`${contents}/articles/${idOf('articles', 'golden-harbours-and-the-harbour')}.md`, { headers })).json()).content, 'base64').toString('utf8');
+      const article = (title, slug, status, date) => golden
+        .replace(/^title: .*$/m, `title: ${JSON.stringify(title)}`)
+        .replace(/^headline: .*$/m, `headline: ${JSON.stringify(title)}`)
+        .replace(/^slug: .*$/m, `slug: ${JSON.stringify(slug)}`)
+        .replace(/^status: .*$/m, `status: ${JSON.stringify(status)}`)
+        .replace(/^date: .*\n/m, date ? `date: ${date}\n` : '')
+        // A teaser's headline follows an eyebrow, which would stand before the title.
+        .replace(/^eyebrow: .*\n/m, '');
+      const saved = {
+        'articles/a42d0000000a.md': ['draft', article(DRAFT, 'a-draft-of-the-harbours', 'draft', null)],
+        'articles/a42d0000000b.md': ['scheduled', article(SCHEDULED, 'the-harbours-to-come', 'scheduled', AT)],
+        'articles/a42d0000000d.md': ['scheduled', article(FURTHER, 'the-harbours-further-on', 'scheduled', FURTHER_AT)],
+        'pages/a42d0000000c.md': ['draft', '---\ntitle: "A <b>bold</b> page"\nslug: "a-refused-page"\nstatus: "draft"\n---\n\nWords of a page.\n'],
+      };
+      for (const [path, [, text]] of Object.entries(saved)) await save(path, text);
+      const deadline = Date.now() + 180_000;
+      for (;;) {
+        const answer = await fetch(`${site.origin.admin}/_konzilo/status`, { headers });
+        const { posts } = answer.status === 200 ? await answer.json() : { posts: [] };
+        if (Object.entries(saved).every(([file, [status]]) => posts.find((one) => one.file === file)?.status === status)) break;
+        assert.ok(Date.now() < deadline, `the public site was never built from them: ${JSON.stringify(posts.filter(({ file }) => file in saved))}`);
+        await new Promise((go) => setTimeout(go, 1000));
+      }
+    })();
+    return saving;
+  };
+
+  // The toolbar's choice of a moment, by its name, and the moment it shows, chosen as a keyboard
+  // chooses it: the list, then its button.
+  const momentChoice = (page) => page.getByRole('region', { name: 'Live preview' }).getByRole('combobox', { name: 'The site at' });
+  const chooseMoment = async (page, moment) => {
+    const choice = momentChoice(page);
+    await choice.waitFor({ timeout: ON_THE_PAGE });
+    await choice.selectOption(moment);
+    await choice.focus();
+    // WebKit, as Safari, moves to a button by Tab with Option held.
+    await page.keyboard.press(page.context().browser().browserType().name() === 'webkit' ? 'Alt+Tab' : 'Tab');
+    const show = page.getByRole('region', { name: 'Live preview' }).getByRole('button', { name: 'Show', exact: true });
+    assert.equal(await show.evaluate((button) => button.getRootNode().activeElement === button), true, 'the button is next by the keyboard');
+    await Promise.all([page.waitForEvent('load'), page.keyboard.press('Enter')]);
+  };
+  // A page in a tab until `locator()` finds what it waits for, its moment being prepared or the
+  // preview reading what is saved meanwhile.
+  const shownIn = async (page, path, locator) => {
+    const until = Date.now() + ON_THE_PAGE * 2;
+    for (;;) {
+      if (path !== null) await page.goto(`${site.origin.preview}${path}`);
+      try {
+        await locator().first().waitFor({ timeout: 4000 });
+        return;
+      } catch {
+        assert.ok(Date.now() < until, `${path ?? page.url()} never showed it`);
+        if (path === null) await page.reload();
+      }
+    }
+  };
+
   describe('to someone without a session', () => {
     test('stands, and shows nothing but the way to sign in', async () => {
       assert.equal((await fetch(`${site.origin.preview}/_konzilo/preview/health`)).status, 200);
@@ -179,7 +255,7 @@ describe('the live preview', () => {
       const held = (await context.cookies(site.origin.preview)).find(({ name }) => name === `${site.name}_preview`);
       assert.equal(held.httpOnly, true);
       const readable = await page.evaluate(() => JSON.stringify([document.cookie, { ...localStorage }, { ...sessionStorage }]));
-      assert.doesNotMatch(readable, new RegExp(`${site.name}_preview|eyJ|token`, 'i'));
+      assert.doesNotMatch(readable, new RegExp(`${site.name}_preview=|eyJ|token`, 'i'));
     });
 
     test('leads on by its links and the browser\'s history, as the public site does', async () => {
@@ -202,42 +278,8 @@ describe('the live preview', () => {
       await page.getByText('This is a preview: the form sends nothing.').waitFor({ timeout: ON_THE_PAGE });
     });
 
-    test('shows every saved post, a draft and a scheduled one in the lists that will hold them, and a refused one\'s refusal at its page, while the public site shows none of them', async () => {
-      const token = site.state('instance-token');
-      const contents = `${site.origin.git}/api/v1/repos/${site.name}/source/contents`;
-      const headers = { authorization: `token ${token}`, 'content-type': 'application/json' };
-      // A save as anna makes it, from the source of an article of the demo content.
-      const save = async (path, text) => {
-        const answer = await fetch(`${contents}/${path}?sudo=anna`, { method: 'POST', headers, body: JSON.stringify({ content: Buffer.from(text).toString('base64'), message: 'A save' }) });
-        assert.equal(answer.status, 201, path);
-      };
-      const golden = Buffer.from((await (await fetch(`${contents}/articles/${idOf('articles', 'golden-harbours-and-the-harbour')}.md`, { headers })).json()).content, 'base64').toString('utf8');
-      const article = (title, slug, status, date) => golden
-        .replace(/^title: .*$/m, `title: ${JSON.stringify(title)}`)
-        .replace(/^headline: .*$/m, `headline: ${JSON.stringify(title)}`)
-        .replace(/^slug: .*$/m, `slug: ${JSON.stringify(slug)}`)
-        .replace(/^status: .*$/m, `status: ${JSON.stringify(status)}`)
-        .replace(/^date: .*\n/m, date ? `date: ${date}\n` : '')
-        // A teaser's headline follows an eyebrow, which would stand before the title.
-        .replace(/^eyebrow: .*\n/m, '');
-      const DRAFT = 'A draft of the harbours';
-      const SCHEDULED = 'The harbours to come';
-      const saved = {
-        'articles/a42d0000000a.md': ['draft', article(DRAFT, 'a-draft-of-the-harbours', 'draft', null)],
-        'articles/a42d0000000b.md': ['scheduled', article(SCHEDULED, 'the-harbours-to-come', 'scheduled', '2099-03-01T08:00:00Z')],
-        'pages/a42d0000000c.md': ['draft', '---\ntitle: "A <b>bold</b> page"\nslug: "a-refused-page"\nstatus: "draft"\n---\n\nWords of a page.\n'],
-      };
-      for (const [path, [, text]] of Object.entries(saved)) await save(path, text);
-
-      // Once the public site has been built from them, it shows none of them.
-      const deadline = Date.now() + 180_000;
-      for (;;) {
-        const answer = await fetch(`${site.origin.admin}/_konzilo/status`, { headers });
-        const { posts } = answer.status === 200 ? await answer.json() : { posts: [] };
-        if (Object.entries(saved).every(([file, [status]]) => posts.find((one) => one.file === file)?.status === status)) break;
-        assert.ok(Date.now() < deadline, `the public site was never built from them: ${JSON.stringify(posts.filter(({ file }) => file in saved))}`);
-        await new Promise((go) => setTimeout(go, 1000));
-      }
+    test('shows now what is out by now, a draft without a moment too, and a scheduled post from its moment on, chosen in its toolbar, and a refused one\'s refusal at its page, while the public site shows none of them', async () => {
+      await savedAhead();
       for (const path of ['/a-draft-of-the-harbours/', '/the-harbours-to-come/', '/pages/a-refused-page/']) assert.equal((await fetch(`${site.origin.site}${path}`)).status, 404, path);
       for (const path of ['/', ARTICLE]) {
         const answer = await fetch(`${site.origin.site}${path}`);
@@ -249,23 +291,39 @@ describe('the live preview', () => {
       assert.ok(feed.includes(ARTICLE_TITLE), 'the feed of the published articles');
       assert.doesNotMatch(feed, new RegExp(`${DRAFT}|${SCHEDULED}`));
 
-      // The preview reads what is saved at the next page asked for in a tab, and its dev server
-      // draws the page again once it has the change.
-      const shown = async (path, locator) => {
-        const until = Date.now() + ON_THE_PAGE * 2;
-        for (;;) {
-          await page.goto(`${site.origin.preview}${path}`);
-          if (await locator().count() > 0) return;
-          assert.ok(Date.now() < until, `${path} never showed it`);
-          await page.waitForTimeout(2000);
-        }
-      };
-      await shown('/a-draft-of-the-harbours/', () => page.getByRole('heading', { level: 1, name: DRAFT, exact: true }));
-      await shown('/the-harbours-to-come/', () => page.getByRole('heading', { level: 1, name: SCHEDULED, exact: true }));
-      for (const title of [DRAFT, SCHEDULED]) {
-        await shown('/', () => page.locator('main .post-list').getByRole('link', { name: title, exact: true }));
-        await shown(ARTICLE, () => page.locator('aside.recommended-reading').getByText(title, { exact: true }));
+      // Now: the draft, which has no moment, and nothing ahead.
+      await shownIn(page, '/a-draft-of-the-harbours/', () => page.getByRole('heading', { level: 1, name: DRAFT, exact: true }));
+      await shownIn(page, '/', () => page.locator('main .post-list').getByRole('link', { name: DRAFT, exact: true }));
+      assert.equal(await page.locator('main .post-list').getByRole('link', { name: SCHEDULED, exact: true }).count(), 0, 'nothing ahead now');
+      assert.equal(await momentChoice(page).inputValue(), 'now');
+      // The timeline, each moment in the reader's own time zone, with what goes out then.
+      const options = await momentChoice(page).locator('option').evaluateAll((all) => all.map((one) => one.textContent));
+      assert.deepEqual(options, ['Now', `1 March 2099 at 09:00 CET: ${SCHEDULED}`, `1 June 2099 at 10:00 CEST: ${FURTHER}`]);
+      assert.equal((await page.goto(`${site.origin.preview}/the-harbours-to-come/`)).status(), 404);
+
+      // At the scheduled post's moment, in every list, page and feed that will hold it, and still
+      // nothing that goes out after it; across the tab's pages.
+      await page.goto(`${site.origin.preview}/`);
+      await chooseMoment(page, AT);
+      await shownIn(page, null, () => page.locator('main .post-list').getByRole('link', { name: SCHEDULED, exact: true }));
+      assert.equal(await momentChoice(page).inputValue(), AT);
+      assert.equal(await page.locator('main .post-list').getByRole('link', { name: FURTHER, exact: true }).count(), 0);
+      await page.locator('main .post-list').getByRole('link', { name: SCHEDULED, exact: true }).first().click();
+      await page.getByRole('heading', { level: 1, name: SCHEDULED, exact: true }).waitFor({ timeout: ON_THE_PAGE });
+      assert.equal(await momentChoice(page).inputValue(), AT, 'the moment holds across the tab\'s pages');
+      await shownIn(page, ARTICLE, () => page.locator('aside.recommended-reading').getByText(SCHEDULED, { exact: true }));
+      assert.equal(await page.locator('aside.recommended-reading').getByText(FURTHER, { exact: true }).count(), 0);
+
+      // A new tab starts at now.
+      const another = await context.newPage();
+      try {
+        await shownIn(another, '/', () => another.locator('main .post-list').getByRole('link', { name: DRAFT, exact: true }));
+        assert.equal(await momentChoice(another).inputValue(), 'now');
+        assert.equal(await another.locator('main .post-list').getByRole('link', { name: SCHEDULED, exact: true }).count(), 0);
+      } finally {
+        await another.close();
       }
+
       await page.goto(`${site.origin.preview}/pages/a-refused-page/`);
       await page.getByRole('heading', { level: 1, name: 'This page cannot be published yet' }).waitFor({ timeout: ON_THE_PAGE });
       const said = await page.locator('main').textContent();
@@ -283,7 +341,7 @@ describe('the live preview', () => {
         ['/the-harbours-to-come/', /^Scheduled: goes live 1 March 2099 at 09:00 CET/, 'articles/entries/a42d0000000b'],
         [ARTICLE, /^Published/, `articles/entries/${idOf('articles', 'golden-harbours-and-the-harbour')}`],
       ]) {
-        await page.goto(`${site.origin.preview}${path}`);
+        await shownIn(page, path, () => page.getByRole('region', { name: 'Live preview' }));
         const toolbar = await toolbarOn(page);
         assert.match(toolbar.says, says, path);
         assert.deepEqual(toolbar.links, [['Edit this page', `${forms}/${entry}`]], path);
@@ -292,8 +350,10 @@ describe('the live preview', () => {
       const start = await toolbarOn(page);
       assert.match(start.says, /^Not edited in one place/);
       assert.deepEqual(start.links, [['Open the editor', `${site.origin.admin}/`]]);
-      await page.goto(`${site.origin.preview}${ARTICLE}`);
-      await page.getByRole('heading', { level: 1, name: ARTICLE_TITLE }).waitFor({ timeout: ON_THE_PAGE });
+      // Back to now, for what comes after.
+      await chooseMoment(page, 'now');
+      await shownIn(page, ARTICLE, () => page.getByRole('heading', { level: 1, name: ARTICLE_TITLE }));
+      assert.equal(await momentChoice(page).inputValue(), 'now');
     });
 
     test('lets someone already signed in to Forgejo in without typing anything', async () => {
@@ -790,19 +850,68 @@ describe('the live preview', () => {
     });
   }
 
-  // A tab of its own signs in through Forgejo in every engine, with its cookies.
+  // A tab of its own signs in through Forgejo in every engine, with its cookies, and shows the site
+  // at a moment of its timeline chosen in its toolbar, across its pages (ADR 0032).
   for (const engine of Object.keys(ENGINES).filter((name) => name !== 'chromium')) {
     describe(`in a tab of its own, in ${engine}`, () => {
-      test('signs in through Forgejo and shows the page asked for', async () => {
+      test('signs in through Forgejo and shows the page asked for, at the moment chosen in its toolbar', async () => {
+        await savedAhead();
         const browser = await ENGINES[engine].launch();
         try {
-          const page = await (await browser.newContext({ locale: 'en-GB' })).newPage();
+          const page = await (await browser.newContext({ locale: 'en-GB', timezoneId: 'Europe/Stockholm' })).newPage();
           await page.goto(`${site.origin.preview}${ARTICLE}`);
           await signInInTab(page);
           await page.getByRole('heading', { level: 1, name: ARTICLE_TITLE }).waitFor({ timeout: ON_THE_PAGE * 2 });
           assert.equal(page.url(), `${site.origin.preview}${ARTICLE}`);
+          await shownIn(page, null, () => momentChoice(page));
+          assert.equal(await momentChoice(page).inputValue(), 'now');
+          assert.equal(await page.locator('aside.recommended-reading').getByText(SCHEDULED, { exact: true }).count(), 0);
+          const options = await momentChoice(page).locator('option').evaluateAll((all) => all.map((one) => one.textContent));
+          assert.deepEqual(options, ['Now', `1 March 2099 at 09:00 CET: ${SCHEDULED}`, `1 June 2099 at 10:00 CEST: ${FURTHER}`]);
+          await chooseMoment(page, FURTHER_AT);
+          await shownIn(page, null, () => page.locator('aside.recommended-reading').getByText(FURTHER, { exact: true }));
+          assert.equal(await momentChoice(page).inputValue(), FURTHER_AT);
+          await page.goto(`${site.origin.preview}/`);
+          await shownIn(page, null, () => page.locator('main .post-list').getByRole('link', { name: SCHEDULED, exact: true }));
+          assert.equal(await momentChoice(page).inputValue(), FURTHER_AT, 'the moment holds across the tab\'s pages');
         } finally {
           await browser.close();
+        }
+      });
+    });
+  }
+
+  // The pane beside a post's form shows the moment the post goes out, follows a moment changed in
+  // the form before it is saved, and opens its page in a tab at that moment (ADR 0032).
+  for (const engine of Object.keys(ENGINES)) {
+    describe(`the pane at its post's moment, in ${engine}`, () => {
+      test('shows a scheduled post\'s page at its moment, follows its moment as it changes, and opens it in a tab at it', async () => {
+        await savedAhead();
+        const session = await openEditor(engine, site);
+        try {
+          await signIn(session, site);
+          const { page } = session;
+          await page.goto(`${site.origin.admin}/#/collections/articles`);
+          await openPost(page, SCHEDULED);
+          // Its page is nowhere now: the pane shows it at its moment, where what goes out later is not.
+          await frameOf(page).getByRole('heading', { level: 1, name: SCHEDULED }).waitFor({ timeout: ON_THE_PAGE * 2 });
+          const momentInPane = async () => new URL(await paneOf(page).locator('iframe').getAttribute('src')).searchParams.get('konzilo-moment');
+          assert.equal(await momentInPane(), AT);
+          await frameOf(page).locator('aside.recommended-reading').waitFor({ timeout: ON_THE_PAGE });
+          assert.equal(await frameOf(page).locator('aside.recommended-reading').getByText(FURTHER, { exact: true }).count(), 0);
+          const date = page.locator('[data-key-path="group-status.date"] input[type="datetime-local"]');
+          await date.scrollIntoViewIfNeeded();
+          await date.fill('2099-08-01T09:00');
+          await frameOf(page).locator('aside.recommended-reading').getByText(FURTHER, { exact: true }).waitFor({ timeout: ON_THE_PAGE * 2 });
+          assert.equal(await momentInPane(), '2099-08-01T09:00:00Z');
+          const [tab] = await Promise.all([page.context().waitForEvent('page'), paneOf(page).getByRole('button', { name: 'Open in a tab of its own' }).click()]);
+          await tab.getByRole('heading', { level: 1, name: SCHEDULED }).waitFor({ timeout: ON_THE_PAGE * 2 });
+          await momentChoice(tab).waitFor({ timeout: ON_THE_PAGE });
+          assert.equal(await momentChoice(tab).inputValue(), '2099-08-01T09:00:00Z');
+          assert.equal(new URL(tab.url()).searchParams.get('konzilo-moment'), null, 'the moment is the tab\'s, not its address\'s');
+          await tab.close();
+        } finally {
+          await session.browser.close();
         }
       });
     });

@@ -36,9 +36,10 @@ const STATUSES = new Set(POST_STATUSES);
 // `images(path)`: what an original below `media/` is, as images.js gives it. `adminHost`:
 // the host no link may lead to, or null. `reader`: the Markdown reader, the site's own
 // but in a test of what happens when it breaks. `preview`: the paths of the source files
-// a live preview shows, which are checked and written whatever their status and date,
-// where every other draft stays nobody's business; one on its way for the preview alone
-// gives way to a post on its own, as it would once published.
+// a live preview shows: a draft among them is checked and written from its own moment on, or
+// from now where it has none, while it waits for it as a scheduled post does, and every other
+// draft stays nobody's business; one on its way for the preview alone gives way to a post on its
+// own, as it would once published. A run at a moment of the timeline is a run with that `now`.
 //
 // Returns { files, refusals, warnings, keep, ledger, posts, termPages, next }: `keep`, the
 // paths of the content files that stay though no file here writes them, a refused post's own
@@ -169,12 +170,18 @@ function holdPostsTaken(run) {
   source.posts.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 }
 
-// Whether a post is on the site's way: published, its date come, or shown by a live preview
-// whatever its status and moment. A draft is otherwise nobody's business but its editor's,
-// and is not checked.
+// Whether a post is on the site's way: published, its date come, or a draft a live preview
+// shows, from its own moment on, or from now where it has none, as the site stands at the
+// moment `now` (ADR 0032). A post ahead of its moment waits for it in a preview as on the site.
+// A draft is otherwise nobody's business but its editor's, and is not checked.
 function stateOf(post, run) {
   ownStateOf(post, run);
-  if (post.on || !run.preview.has(post.path)) return;
+  if (post.on || post.waiting || !run.preview.has(post.path)) return;
+  const date = momentOf(post.fields.date ?? '');
+  if (date && new Date(date) > run.now) {
+    post.waiting = date;
+    return;
+  }
   // On the preview alone, where it yields to every post on its own way, as it would once
   // published.
   post.on = true;

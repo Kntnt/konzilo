@@ -74,9 +74,9 @@ const dev = devServer({
     ASTRO_TELEMETRY_DISABLED: '1',
     ASTRO_DISABLE_UPDATE_CHECK: 'true',
   },
-  // A dev server finds a content folder with something in it.
+  // A dev server finds a content folder with something in it: the site as it stands now.
   before: async () => {
-    await runner.refresh();
+    await runner.show(null);
   },
 });
 

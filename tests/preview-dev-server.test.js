@@ -12,16 +12,18 @@ import { fileURLToPath } from 'node:url';
 
 import { devServer } from '../src/preview/dev-server.js';
 
-function made({ answers = () => true, idle = 10_000, before } = {}) {
+function made({ answers = () => true, idle = 10_000, before, hears = () => () => {}, wait = async () => {}, settlesWithin } = {}) {
   const children = [];
   const server = devServer({
+    hears,
+    settlesWithin,
     root: '/site',
     port: 4001,
     environment: { PATH: '/bin', KONZILO_PREVIEW: '1' },
     idle,
     before,
     ask: async () => answers(),
-    wait: async () => {},
+    wait,
     startsWithin: 1000,
     spawn: (command, args, options) => {
       const child = new EventEmitter();
@@ -138,6 +140,47 @@ describe('the dev server', () => {
     assert.equal(server.ready(), false);
   });
 
+  // A moment of the timeline is shown by writing the content folder, and a page asked for after
+  // that must be the new one: the dev server says it has the change by telling its pages to
+  // reload, which it is listened to for (ADR 0032).
+  test('waits, after a change to what it shows, until it has told its pages to reload, and no longer than it takes', async () => {
+    let heard = null;
+    let closed = 0;
+    const later = (ms) => new Promise((resolve) => {
+      setTimeout(resolve, Math.min(ms, 20));
+    });
+    const { server } = made({
+      hears: (port, told) => {
+        assert.equal(port, 4001);
+        heard = told;
+        return () => {
+          closed += 1;
+        };
+      },
+      wait: later,
+      settlesWithin: 200,
+    });
+    assert.deepEqual(await server.changing(async () => ({ changed: true })), { changed: true }, 'not running: nothing to wait for');
+    await server.ensure();
+    const order = [];
+    const changing = server.changing(async () => {
+      order.push('written');
+      return { changed: true };
+    }).then((outcome) => order.push(outcome));
+    await later(5);
+    assert.deepEqual(order, ['written']);
+    heard();
+    await changing;
+    assert.deepEqual(order, ['written', { changed: true }]);
+    // Nothing changed, nothing to wait for; and a reload never told is not waited for for ever.
+    assert.deepEqual(await server.changing(async () => ({ changed: false })), { changed: false });
+    const started = Date.now();
+    await server.changing(async () => ({ changed: true }));
+    assert.ok(Date.now() - started < 1000);
+    server.stop();
+    assert.equal(closed, 1, 'it stops listening when it stops');
+  });
+
   test('says so when it stops as it starts', async () => {
     let child;
     const { server, children } = made({ answers: () => {
@@ -176,6 +219,18 @@ test('runs the site\'s predev before the dev server starts, so that it serves wh
       const answer = await fetch(`http://127.0.0.1:${port}/made-before.txt`);
       assert.equal(answer.status, 200);
       assert.equal(await answer.text(), 'made by predev');
+      // A page asked for once a change has been waited for is the changed one.
+      assert.match(await (await fetch(`http://127.0.0.1:${port}/`)).text(), /A page/);
+      await new Promise((resolve) => {
+        setTimeout(resolve, 500);
+      });
+      const started = Date.now();
+      await server.changing(async () => {
+        writeFileSync(join(site, 'src/pages/index.astro'), '<p>Another page</p>\n');
+        return { changed: true };
+      });
+      assert.ok(Date.now() - started < 4500, `it heard the reload, in ${Date.now() - started} ms`);
+      assert.match(await (await fetch(`http://127.0.0.1:${port}/`)).text(), /Another page/);
     } finally {
       server.stop();
     }

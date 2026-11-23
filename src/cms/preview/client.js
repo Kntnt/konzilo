@@ -1,7 +1,7 @@
 // What the preview's pane says to the service, with no React in it: one session, drafts sent
 // after a pause, the newest alone, and what the pane should show, as one state (ADR 0032).
 
-import { DRAFT_PATH, SESSION_PATH, WHERE_PATH } from './paths.js';
+import { DRAFT_PATH, MOMENT_PARAMETER, SESSION_PATH, WHERE_PATH } from './paths.js';
 
 // A pause in typing, not a pause in thought: long enough to skip the keys between words.
 const PAUSE = 500;
@@ -11,13 +11,23 @@ const LONGEST_ADDRESS = 4096;
 // How a page tried to leave, as the guard in the page says it. Only `history` has no address.
 const WAYS = new Set(['link', 'window', 'form', 'script', 'history']);
 
+// The address of a page at `moment` of the site's timeline, null being now, as the gate reads it.
+export function atMoment(address, moment) {
+  if (moment === null || moment === undefined) return address;
+  const url = new URL(address, 'http://preview');
+  url.searchParams.set(MOMENT_PARAMETER, moment);
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
 // `origin`: the preview's. `credential()`: the editor's own, for Forgejo. `changed(state)`:
-// { phase, address, refusals, leads, stopped }, where `phase` is `starting`, `shown` or `off`;
+// { phase, address, refusals, leads, stopped, moment }, where `phase` is `starting`, `shown` or `off`;
 // `address` is the page the frame may show, which is never one that redirects; `leads` says
 // where the draft's own address leads when it does: { address, status, to, loop }; `stopped`
-// says what the page last tried to load instead: { to, how, where }, as the gate's answer.
+// says what the page last tried to load instead: { to, how, where }, as the gate's answer; and
+// `moment` is the moment of the site's timeline the page is shown at, the one the post goes out
+// at, or null, now.
 export function previewClient({ origin, credential, changed, send = (...args) => fetch(...args), pause = PAUSE, later = setTimeout, cancel = clearTimeout }) {
-  let state = { phase: 'starting', address: null, refusals: [], leads: null, stopped: null };
+  let state = { phase: 'starting', address: null, refusals: [], leads: null, stopped: null, moment: null };
   let session = null;
   // The last address looked at. It is looked at once, since each look renders a page and a
   // redirect there changes only with its rules, so nothing here can go round.
@@ -47,9 +57,9 @@ export function previewClient({ origin, credential, changed, send = (...args) =>
     return session;
   };
 
-  const whereFrom = async (path) => {
+  const whereFrom = async (path, moment = state.moment) => {
     try {
-      const answer = await send(`${origin}${WHERE_PATH}?to=${encodeURIComponent(path)}`, { credentials: 'include' });
+      const answer = await send(`${origin}${WHERE_PATH}?to=${encodeURIComponent(path)}${moment ? `&moment=${encodeURIComponent(moment)}` : ''}`, { credentials: 'include' });
       return answer.ok ? await answer.json() : null;
     } catch {
       return null;
@@ -58,9 +68,9 @@ export function previewClient({ origin, credential, changed, send = (...args) =>
 
   // What the frame is to show now that a draft has this address, and what to say of it. When
   // nobody can tell, the page is shown, since the gate keeps a frame from following anything.
-  const showing = async (address) => {
+  const showing = async (address, moment) => {
     if (address === null || address === undefined) return { address: state.address, leads: null };
-    if (looked.address !== address) looked = { address, where: await whereFrom(address) };
+    if (looked.address !== address || looked.moment !== moment) looked = { address, moment, where: await whereFrom(address, moment) };
     const { where } = looked;
     if (!where?.redirect && !where?.loop) return { address, leads: null };
     return { address: state.address, leads: { address, status: where.redirect?.status ?? null, to: where.redirect?.to ?? null, loop: where.loop === true } };
@@ -84,9 +94,9 @@ export function previewClient({ origin, credential, changed, send = (...args) =>
         answer = await post(draft);
       }
       if (!answer.ok) throw new Error(`the draft: ${answer.status}`);
-      const { address, refusals } = await answer.json();
+      const { address, refusals, moment = null } = await answer.json();
       if (!Array.isArray(refusals)) throw new Error('the draft: no answer to read');
-      become({ phase: 'shown', refusals, ...await showing(address) });
+      become({ phase: 'shown', refusals, moment, ...await showing(address, moment) });
     } catch (error) {
       console.warn(`The preview: ${error.message}`);
       become({ phase: 'off' });
