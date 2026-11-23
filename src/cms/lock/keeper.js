@@ -92,8 +92,9 @@ export function lockKeeper({ service, show = () => {}, mark = () => {} }) {
         answering = go;
       });
       try {
-        if (left.form !== null && HOLDING.has(left.mode)) await service.release(left.form);
+        const releasing = left.form !== null && HOLDING.has(left.mode) ? service.release(left.form) : null;
         const answer = await service.hold(form);
+        await releasing;
         if (mine !== opening) {
           if (answer?.held) await service.release(form);
           return undefined;

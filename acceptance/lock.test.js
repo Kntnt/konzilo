@@ -47,7 +47,7 @@ describe('a form locked to the tab that has it open', () => {
     const { text, sha } = await fileOf(path);
     await api(`${repository()}/contents/${path}?sudo=${login}`, {
       method: 'PUT',
-      body: JSON.stringify({ content: Buffer.from(change(text)).toString('base64'), sha, message: 'A push from outside the editor', author: { name: 'Someone Else', email: 'someone@example.invalid' } }),
+      body: JSON.stringify({ content: Buffer.from(change(text)).toString('base64'), sha, message: 'A push from outside the editor', author: { name: 'Ada Author', email: 'ada@example.invalid' } }),
     });
   };
   const fileHolding = async (path, words, { within = 30_000 } = {}) => {
@@ -211,7 +211,7 @@ describe('a form locked to the tab that has it open', () => {
         const refusal = anna.page.getByRole('alertdialog').filter({ hasText: 'Reload' });
         await refusal.waitFor({ timeout: 30_000 });
         assert.match(await refusal.textContent(), /ebba saved this entry on \d{1,2} \w+ \d{4} at \d{2}:\d{2} \S+, after you opened it\./, 'the account that pushed it');
-        assert.doesNotMatch(await refusal.textContent(), /Someone Else/, 'not the author the commit names');
+        assert.doesNotMatch(await refusal.textContent(), /Ada Author/, 'not the author the commit names');
         assert.equal(await refusal.getByRole('button', { name: /Save Anyway/ }).count(), 0);
         const text = (await fileOf(path)).text;
         assert.match(text, new RegExp(`title: ${pushed}`), 'the push stands');
@@ -364,7 +364,7 @@ describe('a form locked to the tab that has it open', () => {
           if (posts > 1) return route.fallback();
           // The commit goes in, and the answer is lost on the way back.
           await route.fetch();
-          return route.fulfill({ status: 502, contentType: 'text/plain', body: 'Bad Gateway' });
+          return route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ message: 'the answer was lost' }) });
         });
         try {
           await openForm(anna.page, `articles/entries/${name}`);
@@ -374,7 +374,7 @@ describe('a form locked to the tab that has it open', () => {
           assert.match(await fileHolding(path, words), new RegExp(words));
           await anna.page.waitForTimeout(3000);
           assert.equal(await anna.page.getByRole('alertdialog').filter({ hasText: 'Reload' }).count(), 0, 'the Editor\'s own save is not refused as older than itself');
-          assert.equal(posts, 1, 'nothing saved twice');
+          assert.equal(posts, 1, 'not sent again, since it is in');
           const again = `${words}, and again`;
           await anna.page.getByRole('textbox', { name: 'Working name' }).fill(again);
           await saveButton(anna.page).click();

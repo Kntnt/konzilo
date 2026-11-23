@@ -3,8 +3,8 @@
 //
 // Gives { hold(form, { takeOver }), release(form, { leaving }), locks(after, signal), watch(seen) }:
 // `hold` gives { held: true, since }, { holder: { name, since, yours } }, { adminOnly: true }, or
-// null where the service cannot be asked, does not answer within `answersWithin` milliseconds, or
-// answers otherwise; `release` lets the form go, also as
+// null where the service cannot be asked, does not answer within `answersWithin` milliseconds, as a
+// release is not waited for longer either, or answers otherwise; `release` lets the form go, also as
 // the page is left where `leaving`; `locks` gives { version, locks } once they differ from
 // `after`, or null; `watch` asks for them again and again, for as long as the page is open, and
 // hands each answer to `seen`, waiting a while after an answer it cannot read.
@@ -22,7 +22,10 @@ export function lockClient({ tab, credential, ask = (...args) => globalThis.fetc
   const call = async (method, path, query = {}, init = {}) => {
     const address = `${path}?${new URLSearchParams({ tab, ...query })}`;
     try {
-      return await askSignedIn(address, { method, ...init }, { credential, ask });
+      // A hold or a release is given up on after a while; the call for the locks waits as long as
+      // the service holds it.
+      const signal = method === 'GET' ? undefined : AbortSignal.timeout(answersWithin);
+      return await askSignedIn(address, { method, ...(signal ? { signal } : {}), ...init }, { credential, ask });
     } catch {
       return null;
     }
@@ -38,8 +41,7 @@ export function lockClient({ tab, credential, ask = (...args) => globalThis.fetc
 
   const client = {
     async hold(form, { takeOver = false } = {}) {
-      const signal = AbortSignal.timeout(answersWithin);
-      const answer = await call('PUT', lockOf(form), takeOver ? { takeOver: 'true' } : {}, { signal });
+      const answer = await call('PUT', lockOf(form), takeOver ? { takeOver: 'true' } : {});
       if (answer === null) return null;
       if (answer.status === 200) return { held: true, since: (await json(answer))?.since ?? null };
       if (answer.status === 409) {
