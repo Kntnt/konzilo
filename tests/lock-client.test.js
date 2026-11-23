@@ -73,3 +73,15 @@ test('gives up on a hold the service does not answer in time, so that the Editor
   const client = lockClient({ tab: 'tab-aaaaaaaa', credential: () => 'token mine', ask, answersWithin: 20 });
   assert.equal(await client.hold('a/b'), null);
 });
+
+test('lets a form go as the page is left with nothing that could cut the call short', async () => {
+  const inits = [];
+  const client = lockClient({ tab: 'tab-aaaaaaaa', credential: () => 'token mine', ask: async (address, init) => {
+    inits.push(init);
+    return answer(204);
+  } });
+  await client.release('a/b', { leaving: true });
+  await client.release('a/b');
+  assert.equal(inits[0].signal, undefined);
+  assert.ok(inits[1].signal, 'a release while the page stays is given up on after a while');
+});

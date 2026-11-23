@@ -23,8 +23,8 @@ export function lockClient({ tab, credential, ask = (...args) => globalThis.fetc
     const address = `${path}?${new URLSearchParams({ tab, ...query })}`;
     try {
       // A hold or a release is given up on after a while; the call for the locks waits as long as
-      // the service holds it.
-      const signal = method === 'GET' ? undefined : AbortSignal.timeout(answersWithin);
+      // the service holds it, and a release as the page is left outlives the page, untimed.
+      const signal = method === 'GET' || init.keepalive ? undefined : AbortSignal.timeout(answersWithin);
       return await askSignedIn(address, { method, ...(signal ? { signal } : {}), ...init }, { credential, ask });
     } catch {
       return null;
