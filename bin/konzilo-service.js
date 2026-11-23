@@ -86,6 +86,9 @@ function editors(store) {
     isPost: (file) => file.endsWith('.md') && collections.includes(file.split('/')[0]),
   });
   serve(service, PORT);
+  // The locks of tabs that have stopped answering let go, well within the two minutes ADR 0073
+  // gives them.
+  setInterval(() => service.sweepLocks(), 10_000).unref();
 
   // Each submission whose mail is due, a moment after it is kept, one look after another.
   const mail = mailDuty({ store, forms: () => described().forms, deliver: mailDelivery({ toLog: local }) });

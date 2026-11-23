@@ -12,6 +12,7 @@ import { CREDENTIAL, mayWrite, organisationTeams } from '../forgejo.js';
 import { FORM_NAME } from '../site-description.js';
 import { FAILURE_SETTING, MAIL_SETTING } from './mail.js';
 import { checkMailSettings, mailSettingsShown } from './mail-settings.js';
+import { isAdminsForm, isForm, isTab, lockTable } from './locks.js';
 import { findSubmissions, idsOf, soughtOf } from './personal-data.js';
 import { bodyOf } from './request-body.js';
 import { retentionDuty } from './retention.js';
@@ -25,6 +26,7 @@ const answerJson = (outgoing, status, body) => {
 const SUBMISSIONS = '/_konzilo/submissions';
 const MAIL = '/_konzilo/mail';
 const PERSONAL_DATA = '/_konzilo/personal-data';
+const LOCKS = '/_konzilo/locks';
 // The most the *Mail* page's settings take, as JSON.
 const MAIL_BODY_LIMIT = 64 * 1024;
 // A form's submissions are shown this many at a time, newest first.
@@ -56,7 +58,9 @@ const PICTURE_HOLDS = 3600;
 // `pictures`: as thumbnails.js gives them. `store`: the service's data, as store.js opens it, which
 // holds the forms' submissions and how the site mails them, and `forms()`: the forms the site
 // description in use declares. `local`: whether this is a local copy, which sends no mail.
-export function editorsService({ forgejo, repository, token, rolesToken = null, control, pictures = null, store = null, forms = () => ({}), local = false, isPost = () => true, now = () => new Date(), warn = console.error, get = fetch }) {
+// `locks`: how the locks of the editor's forms wait, { waitAtMost }, the longest a tab's call for
+// them is held open until they change, and { alive }, as locks.js has it.
+export function editorsService({ forgejo, repository, token, rolesToken = null, control, pictures = null, store = null, forms = () => ({}), local = false, isPost = () => true, now = () => new Date(), warn = console.error, get = fetch, locks: { waitAtMost = 25_000, alive } = {} }) {
   const answers = new Map();
   const mayWriteLately = async (credential) => {
     const held = answers.get(credential);
@@ -88,6 +92,92 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
   // Whether a role may use the Admin's pages, *Mail* and *Personal data*: an Admin's, and the
   // instance administrator's.
   const usesAdminPages = (role) => role === 'admin' || role === 'instanceAdministrator';
+
+  // Who is asking, for the locks, which a tab asks about again and again: { login, name, admin },
+  // `name` the account's full name, else its login, and `admin` whether its role saves an
+  // Admin's forms, asked of Forgejo where a call needs it; or null for whoever may not write.
+  // An answer holds a moment, as a small picture's does.
+  const people = new Map();
+  const personOf = async (credential) => {
+    if (!CREDENTIAL.test(credential ?? '')) return null;
+    const moment = now().getTime();
+    const held = people.get(credential);
+    if (held && moment - held.at < ANSWER_HOLDS) return held.person;
+    let person = null;
+    const me = await asked('/user', credential);
+    if (me.ok && await mayWrite({ forgejo, repository, credential, get })) {
+      const { login, full_name: fullName, is_admin: isInstanceAdministrator } = await me.json();
+      if (typeof login === 'string' && login !== '') {
+        let admin;
+        person = {
+          login,
+          name: typeof fullName === 'string' && fullName.trim() !== '' ? fullName.trim() : login,
+          admin: async () => (admin ??= isInstanceAdministrator === true || inAdmins(login)),
+        };
+      }
+    }
+    if (people.size >= ANSWERS_AT_MOST) people.clear();
+    people.set(credential, { person, at: moment });
+    return person;
+  };
+
+  // The locks of the editor's forms (ADR 0073). A tab asks for them all, and the call is held open
+  // until they change or the wait is up, so that a tab whose form is taken over is told at once,
+  // and each call says the tab answers. A form is held, or taken over, by PUT, and let go by
+  // DELETE, each with the tab's name.
+  const table = lockTable({ now, ...(alive ? { alive } : {}) });
+  const locksShown = (person, tab) => ({
+    version: table.version,
+    locks: table.list().map((lock) => ({ form: lock.form, name: lock.name, since: lock.since.toISOString(), mine: lock.tab === tab, yours: lock.login === person.login })),
+  });
+  const answerLocks = async (incoming, outgoing, below, searchParams) => {
+    incoming.resume();
+    const methods = below === '' ? ['GET'] : ['PUT', 'DELETE'];
+    if (!methods.includes(incoming.method)) {
+      outgoing.writeHead(405, { allow: methods.join(', '), 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+      return outgoing.end('{}');
+    }
+    const person = await personOf(incoming.headers.authorization);
+    if (person === null) return answerJson(outgoing, 401, {});
+    const tab = searchParams.get('tab');
+    if (!isTab(tab)) return answerJson(outgoing, 400, {});
+    table.touch(tab);
+    if (below === '') {
+      const after = searchParams.get('after');
+      if (after !== String(table.version)) return answerJson(outgoing, 200, locksShown(person, tab));
+      let done = false;
+      let stop;
+      const answer = () => {
+        if (done) return;
+        done = true;
+        stop();
+        clearTimeout(timer);
+        table.touch(tab);
+        if (!outgoing.destroyed) answerJson(outgoing, 200, locksShown(person, tab));
+      };
+      stop = table.onChange(answer);
+      const timer = setTimeout(answer, waitAtMost);
+      outgoing.on('close', answer);
+      return undefined;
+    }
+    let form;
+    try {
+      form = decodeURIComponent(below.slice(1));
+    } catch {
+      return answerJson(outgoing, 400, {});
+    }
+    if (!isForm(form)) return answerJson(outgoing, 400, {});
+    if (incoming.method === 'DELETE') {
+      table.release(form, tab);
+      outgoing.writeHead(204, { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+      return outgoing.end();
+    }
+    if (isAdminsForm(form) && !await person.admin()) return answerJson(outgoing, 403, { adminOnly: true });
+    const result = table.hold(form, person, tab, searchParams.get('takeOver') === 'true');
+    if (result.held) return answerJson(outgoing, 200, { held: true, since: result.held.since.toISOString() });
+    const { name, login, since } = result.holder;
+    return answerJson(outgoing, 409, { holder: { name, since: since.toISOString(), yours: login === person.login } });
+  };
 
   // How the site mails the forms' submissions, and how long it keeps them, to an Admin alone: an
   // Editor is told only that it is an Admin's, and whoever may not write nothing. A save makes
@@ -310,8 +400,12 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
       if (pathname === SUBMISSIONS || pathname.startsWith(`${SUBMISSIONS}/`)) return answerSubmissions(incoming, outgoing, pathname.slice(SUBMISSIONS.length), searchParams);
       if (pathname === MAIL) return answerMail(incoming, outgoing);
       if (pathname === PERSONAL_DATA || pathname === `${PERSONAL_DATA}.csv`) return answerPersonalData(incoming, outgoing, pathname.endsWith('.csv'), searchParams);
+      if (pathname === LOCKS || pathname.startsWith(`${LOCKS}/`)) return answerLocks(incoming, outgoing, pathname.slice(LOCKS.length), searchParams);
       return answerJson(outgoing, 404, {});
     },
+
+    // Lets go every lock whose tab has stopped answering, which the program asks for often.
+    sweepLocks: () => table.sweep(),
 
     // What the clock asks for, at the start of each minute: a build when a scheduled moment has
     // passed, and when the source stands at a commit no build has read, as after a webhook that
