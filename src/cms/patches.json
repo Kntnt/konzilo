@@ -171,7 +171,13 @@
     "module": "@sveltia/cms/npm/index.js",
     "why": "A save from a form older than the entry's latest save is refused, with nothing merged, naming the account of the later save and when, in the core's words and the reader's own form and time zone (ADR 0073). The same words warn while the form is open.",
     "find": "lst=({type:e,entry:t,canOverwrite:n},r)=>{if(e===`deleted`)",
-    "replace": "lst=({type:e,entry:t,canOverwrite:n},r)=>{let konziloWords=globalThis.konziloConflictWords?.({type:e,name:t?SB(t.commitAuthor):void 0,date:t?.commitDate});if(konziloWords)return konziloWords;if(e===`deleted`)"
+    "replace": "lst=({type:e,entry:t,canOverwrite:n},r)=>{let konziloWords=globalThis.konziloConflictWords?.({type:e,name:t?t.commitAuthor?.login||SB(t.commitAuthor):void 0,date:t?.commitDate});if(konziloWords)return konziloWords;if(e===`deleted`)"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "The refusal of a save older than the latest names the account of the later save and when (ADR 0073), which Sveltia's Forgejo backend does not keep with an entry: the check asks for the file's latest commit where the entry lacks it.",
+    "find": "cst=async e=>{let{isNew:t,originalEntry:n}=e;if(!t&&n){try{await D3()}catch(e){console.error(`Failed to check the repository for changes.`,e)}return r7(n)}},",
+    "replace": "cst=async e=>{let{isNew:t,originalEntry:n}=e;if(!t&&n){try{await D3()}catch(e){console.error(`Failed to check the repository for changes.`,e)}return konziloWho(r7(n))}},konziloWho=async e=>{if(e?.type!==`modified`||!e.entry||e.entry.commitAuthor&&e.entry.commitDate)return e;try{let[t]=await bZ.current.fetchFileCommits(ZF(e.entry));t&&(e={...e,entry:{...e.entry,commitAuthor:{name:t.authorName,login:t.authorLogin,email:t.authorEmail},commitDate:t.date}})}catch{}return e},"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
@@ -237,6 +243,6 @@
     "module": "@sveltia/cms/npm/index.js",
     "why": "Two Editors saving different entries at once: Forgejo turns one save away, with cannot lock ref or as the branch having moved, and Sveltia shows an error. The save is tried again, a moment later, after the check against the latest save is made anew, which refuses it where the entry itself was saved meanwhile (ADR 0029, ADR 0073).",
     "find": "let m=await Aut({draft:e,useWorkflow:i,changes:l,savingEntry:c,otherSavingEntries:[...d,...f,...p.map(e=>e.entry)],pendingEntries:p,savingAssets:u,options:{commitType:e.isNew||s?`create`:`update`,collection:e.collection,skipCI:t}});",
-    "replace": "let m;for(let konziloTry=1;;konziloTry+=1)try{m=await Aut({draft:e,useWorkflow:i,changes:l,savingEntry:c,otherSavingEntries:[...d,...f,...p.map(e=>e.entry)],pendingEntries:p,savingAssets:u,options:{commitType:e.isNew||s?`create`:`update`,collection:e.collection,skipCI:t}});break}catch(konziloError){let konziloWhy=konziloError?.cause;if(konziloTry>=4||x3(konziloError)||!([403,409,422,423,500,502,503].includes(konziloWhy?.status)||konziloWhy?.message===X(`save_conflict.branch_moved`)||/cannot lock ref/i.test(String(konziloWhy?.message??``))))throw konziloError;await new Promise(e=>setTimeout(e,200*konziloTry+Math.random()*400));try{await D3()}catch{}let konziloConflict=!e.isNew&&e.originalEntry?r7(e.originalEntry):void 0;if(konziloConflict)throw Error(`save_conflict`,{cause:konziloConflict})}"
+    "replace": "let m;for(let konziloTry=1;;konziloTry+=1)try{m=await Aut({draft:e,useWorkflow:i,changes:l,savingEntry:c,otherSavingEntries:[...d,...f,...p.map(e=>e.entry)],pendingEntries:p,savingAssets:u,options:{commitType:e.isNew||s?`create`:`update`,collection:e.collection,skipCI:t}});break}catch(konziloError){let konziloWhy=konziloError?.cause;if(konziloTry>=4||x3(konziloError)||!([403,409,422,423,500,502,503].includes(konziloWhy?.status)||konziloWhy?.message===X(`save_conflict.branch_moved`)||/cannot lock ref/i.test(String(konziloWhy?.message??``))))throw konziloError;await new Promise(e=>setTimeout(e,200*konziloTry+Math.random()*400));try{await D3()}catch{}let konziloConflict=!e.isNew&&e.originalEntry?await konziloWho(r7(e.originalEntry)):void 0;if(konziloConflict)throw Error(`save_conflict`,{cause:konziloConflict})}"
   }
 ]

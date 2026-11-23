@@ -82,7 +82,8 @@ export function registerLock(CMS) {
     actions.firstElementChild?.focus();
   };
 
-  // The line above a read-only form, with the ways on from it.
+  // The line above a read-only form, with the ways on from it, in Sveltia's bar, which a screen
+  // reader reads as it changes.
   const drawLine = (line) => {
     const state = keeper.state();
     line.replaceChildren();
@@ -103,8 +104,6 @@ export function registerLock(CMS) {
     entryDraft = draft;
     const line = made('span', 'konzilo-lock-line');
     line.konziloEntryDraft = draft;
-    // Read as it changes, the takeover above all, which comes with no click.
-    line.setAttribute('role', 'status');
     lines.add(line);
     drawLine(line);
     return line;

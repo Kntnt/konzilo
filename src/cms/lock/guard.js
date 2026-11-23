@@ -15,7 +15,7 @@ const PRESSABLE = 'button, [role="button"], [role="menuitem"], [role="option"], 
 
 // Whether an event in a read-only form would change it, and so is held back.
 export function changes(event) {
-  const target = event.target instanceof Element ? event.target : null;
+  const target = typeof event.target?.closest === 'function' ? event.target : null;
   if (!target?.closest('[data-mode="edit"]')) return false;
   const inCoreField = target.closest(CORE_FIELD) !== null;
   switch (event.type) {
@@ -67,7 +67,7 @@ export function guardReadOnly(root, { readOnly, follow }) {
     for (const element of marked) element.removeAttribute('aria-readonly');
     marked.clear();
   };
-  const watching = new MutationObserver(() => mark());
+  const watching = new (root.defaultView ?? globalThis).MutationObserver(() => mark());
   follow((now) => {
     if (now) {
       mark();
