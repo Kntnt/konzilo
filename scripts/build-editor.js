@@ -26,6 +26,7 @@ import { WASM_READER, wasmReaderFolder } from './wasm-reader.js';
 const core = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const editorRoot = join(core, 'src/cms');
 const NOTICES = 'third-party-notices.txt';
+const BEFORE_SVELTIA = /\/src\/cms\/(?:manual-start|set-preferences|start-language)\.js$/;
 
 // `input` is an HTML page to build instead of the editor's own; a test's page has no Sveltia,
 // so it takes only the other patches. `kept` is the license texts that packages do not ship
@@ -101,7 +102,14 @@ export async function buildEditor(out, { input = join(editorRoot, 'index.html'),
       target: 'esnext',
       sourcemap: false,
       chunkSizeWarningLimit: 100_000,
-      rollupOptions: { input },
+      rollupOptions: {
+        input,
+        // What Sveltia reads as its code is evaluated, the flag that stops it starting by itself
+        // and its preferences, is set by modules the editor imports first. The bundle evaluates
+        // every chunk an entry imports before the entry's own code, Sveltia's shared code among
+        // them, so these are a chunk of their own, which the entry imports before Sveltia's.
+        output: { codeSplitting: { groups: [{ name: 'before-sveltia', test: BEFORE_SVELTIA }] } },
+      },
     },
   });
 }
