@@ -14,6 +14,7 @@ import { FAILURE_SETTING, MAIL_SETTING } from './mail.js';
 import { checkMailSettings, mailSettingsShown } from './mail-settings.js';
 import { isAdminsForm, isForm, isTab, lockTable } from './locks.js';
 import { findSubmissions, idsOf, soughtOf } from './personal-data.js';
+import { isSourcePath, sourceHistory } from './revisions.js';
 import { bodyOf } from './request-body.js';
 import { retentionDuty } from './retention.js';
 import { SEPARATORS, submissionsCsv, timeZoneOf } from './submissions-csv.js';
@@ -27,6 +28,7 @@ const SUBMISSIONS = '/_konzilo/submissions';
 const MAIL = '/_konzilo/mail';
 const PERSONAL_DATA = '/_konzilo/personal-data';
 const LOCKS = '/_konzilo/locks';
+const REVISIONS = '/_konzilo/revisions';
 // The most the *Mail* page's settings take, as JSON.
 const MAIL_BODY_LIMIT = 64 * 1024;
 // A form's submissions are shown this many at a time, newest first.
@@ -59,8 +61,9 @@ const PICTURE_HOLDS = 3600;
 // holds the forms' submissions and how the site mails them, and `forms()`: the forms the site
 // description in use declares. `local`: whether this is a local copy, which sends no mail.
 // `locks`: how the locks of the editor's forms wait, { waitAtMost }, the longest a tab's call for
-// them is held open until they change, and { alive }, as locks.js has it.
-export function editorsService({ forgejo, repository, token, rolesToken = null, control, pictures = null, store = null, forms = () => ({}), local = false, isPost = () => true, now = () => new Date(), warn = console.error, get = fetch, locks: { waitAtMost = 25_000, alive } = {} }) {
+// them is held open until they change, and { alive }, as locks.js has it. `revisions`: how a form's
+// revisions are given, { perPage }, as revisions.js has it.
+export function editorsService({ forgejo, repository, token, rolesToken = null, control, pictures = null, store = null, forms = () => ({}), local = false, isPost = () => true, now = () => new Date(), warn = console.error, get = fetch, locks: { waitAtMost = 25_000, alive } = {}, revisions = {} }) {
   const answers = new Map();
   const mayWriteLately = async (credential) => {
     const held = answers.get(credential);
@@ -177,6 +180,27 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
     if (result.held) return answerJson(outgoing, 200, { held: true, since: result.held.since.toISOString() });
     const { name, login, since } = result.holder;
     return answerJson(outgoing, 409, { holder: { name, since: since.toISOString(), yours: login === person.login } });
+  };
+
+  // A form's revisions (ADR 0074), to whoever may write, who may open the form: each commit that
+  // changed its file, a page at a time, newest first, with the file as the commit left it.
+  const history = sourceHistory({ forgejo, repository, token, get, ...revisions });
+  const answerRevisions = async (incoming, outgoing, searchParams) => {
+    incoming.resume();
+    if (incoming.method !== 'GET') {
+      outgoing.writeHead(405, { allow: 'GET', 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+      return outgoing.end('{}');
+    }
+    if (await personOf(incoming.headers.authorization) === null) return answerJson(outgoing, 401, {});
+    const path = searchParams.get('path');
+    const page = Number(searchParams.get('page') ?? '1');
+    if (!isSourcePath(path) || !Number.isInteger(page) || page < 1) return answerJson(outgoing, 400, {});
+    try {
+      return answerJson(outgoing, 200, await history.revisions(path, { page }));
+    } catch (error) {
+      warn(`The revisions of ${path} could not be read: ${error.message}`);
+      return answerJson(outgoing, 502, {});
+    }
   };
 
   // How the site mails the forms' submissions, and how long it keeps them, to an Admin alone: an
@@ -401,6 +425,7 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
       if (pathname === MAIL) return answerMail(incoming, outgoing);
       if (pathname === PERSONAL_DATA || pathname === `${PERSONAL_DATA}.csv`) return answerPersonalData(incoming, outgoing, pathname.endsWith('.csv'), searchParams);
       if (pathname === LOCKS || pathname.startsWith(`${LOCKS}/`)) return answerLocks(incoming, outgoing, pathname.slice(LOCKS.length), searchParams);
+      if (pathname === REVISIONS) return answerRevisions(incoming, outgoing, searchParams);
       return answerJson(outgoing, 404, {});
     },
 

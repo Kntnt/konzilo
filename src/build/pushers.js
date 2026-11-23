@@ -24,13 +24,14 @@ function pushOf({ content }) {
 // Adds what these events say to `commits`, oldest event first, so that whoever first brought a
 // commit is who pushed it, and pushing an Editor's commit again does not make it an Admin's.
 // `commitsOf(after, before)` lists the commits a push brought, and none it does not know.
-export async function addPushers(commits, events, commitsOf) {
+// `whom(event)` is what is kept of each, its account's login unless another is asked for.
+export async function addPushers(commits, events, commitsOf, whom = (event) => event.act_user.login) {
   for (const event of [...events].sort((a, b) => a.id - b.id)) {
     const login = event.act_user?.login;
     const push = event.op_type === PUSHED ? pushOf(event) : null;
     if (!login || !push) continue;
     for (const commit of await commitsOf(push.after, push.before)) {
-      if (!Object.hasOwn(commits, commit)) commits[commit] = login;
+      if (!Object.hasOwn(commits, commit)) commits[commit] = whom(event);
     }
   }
   return commits;

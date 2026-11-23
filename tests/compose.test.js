@@ -323,6 +323,14 @@ test('passes the locks of the editor\'s forms to the service for editors, on the
   assert.doesNotMatch(/handle @service \{\n([\s\S]*?)\n\t\}/.exec(admin)?.[1] ?? '', /response_header_timeout/, 'a call held open is no fault');
 });
 
+// A form's revisions (ADR 0074) are read by the service for editors, which knows who pushed what.
+test('passes a form\'s revisions to the service for editors, on the admin host', () => {
+  const caddyfile = read('compose/web/Caddyfile');
+  const admin = caddyfile.slice(caddyfile.indexOf(':{$KONZILO_PORT_ADMIN}'), caddyfile.indexOf(':{$KONZILO_PORT_PREVIEW}'));
+  const matcher = /@service path (.*)$/m.exec(admin)?.[1].split(' ') ?? [];
+  assert.ok(matcher.includes('/_konzilo/revisions'));
+});
+
 // Mail (ADR 0003, ADR 0045): the service in its role for editors mails the forms' submissions, so
 // the role for visitors keeps no way out; a local copy writes each mail to the service's log and
 // sends none; and who is an Admin, which only an Admin may set mail by, the service asks Forgejo
