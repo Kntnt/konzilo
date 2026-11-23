@@ -46,5 +46,5 @@
 
 ## Consequences
 
-- [ADR 0029](0029-configure-sveltia-from-the-description-and-patch-its-npm-build.md)'s patch of a retry when two people save at once is part of this decision, and *Save Anyway* is patched away.
+- [ADR 0029](0029-configure-sveltia-from-the-description-and-patch-its-npm-build.md)'s patch of a retry when two people save at once is part of this decision, and *Save Anyway* is patched away, and so is a relation's *Edit* of an existing entry, which would save that entry with the form under no lock of its own.
 - `GLOSSARY.md` defines the lock and the takeover, and a refusal covers a save older than the latest.
