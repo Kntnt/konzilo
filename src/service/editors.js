@@ -56,6 +56,8 @@ const PICTURE_HOLDS = 3600;
 
 // `forgejo`: where to ask. `repository`: the source repository. `token`: a credential that can
 // read it. `rolesToken`: one that can read the organisation's teams, and so who is an Admin.
+// `pushesToken`: one that can read who pushed each commit, which the feed shows of a private account
+// only to the instance's account, else `token`.
 // `control`: as record.js gives it. `isPost(file)`: whether a file in the source is a post.
 // `pictures`: as thumbnails.js gives them. `store`: the service's data, as store.js opens it, which
 // holds the forms' submissions and how the site mails them, and `forms()`: the forms the site
@@ -63,7 +65,7 @@ const PICTURE_HOLDS = 3600;
 // `locks`: how the locks of the editor's forms wait, { waitAtMost }, the longest a tab's call for
 // them is held open until they change, and { alive }, as locks.js has it. `revisions`: how a form's
 // revisions are given, { perPage }, as revisions.js has it.
-export function editorsService({ forgejo, repository, token, rolesToken = null, control, pictures = null, store = null, forms = () => ({}), local = false, isPost = () => true, now = () => new Date(), warn = console.error, get = fetch, locks: { waitAtMost = 25_000, alive } = {}, revisions = {} }) {
+export function editorsService({ forgejo, repository, token, rolesToken = null, pushesToken = null, control, pictures = null, store = null, forms = () => ({}), local = false, isPost = () => true, now = () => new Date(), warn = console.error, get = fetch, locks: { waitAtMost = 25_000, alive } = {}, revisions = {} }) {
   const answers = new Map();
   const mayWriteLately = async (credential) => {
     const held = answers.get(credential);
@@ -184,7 +186,7 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
 
   // A form's revisions (ADR 0074), to whoever may write, who may open the form: each commit that
   // changed its file, a page at a time, newest first, with the file as the commit left it.
-  const history = sourceHistory({ forgejo, repository, token, get, ...revisions });
+  const history = sourceHistory({ forgejo, repository, token, pushesToken: pushesToken ?? token, get, ...revisions });
   const answerRevisions = async (incoming, outgoing, searchParams) => {
     incoming.resume();
     if (incoming.method !== 'GET') {

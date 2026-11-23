@@ -70,6 +70,11 @@ function editors(store) {
   const ROLES_TOKEN = join(secrets, 'roles-token');
   const rolesToken = existsSync(ROLES_TOKEN) ? readFileSync(ROLES_TOKEN, 'utf8').trim() : null;
   if (rolesToken === null) console.error(`The service has no ${ROLES_TOKEN}, so it cannot tell who is an Admin`);
+  // The seed makes it at each start where it is missing; without it, a form's revisions name only
+  // the accounts whose pushes the service's own credential is shown.
+  const PUSHES_TOKEN = join(secrets, 'pushes-token');
+  const pushesToken = existsSync(PUSHES_TOKEN) ? readFileSync(PUSHES_TOKEN, 'utf8').trim() : null;
+  if (pushesToken === null) console.error(`The service has no ${PUSHES_TOKEN}, so it cannot tell who pushed what a private account pushed`);
   // A local copy sends no mail, and writes each to the log instead.
   const local = process.env.KONZILO_MAIL_TO_LOG === 'true';
 
@@ -78,6 +83,7 @@ function editors(store) {
     repository,
     token,
     rolesToken,
+    pushesToken,
     control: buildControl('/control'),
     pictures: thumbnails({ forgejo: FORGEJO, repository, token, folder: '/thumbnails' }),
     store,

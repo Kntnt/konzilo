@@ -53,6 +53,7 @@ const PREVIEW_CLIENT_NAME = 'Konzilo live preview';
 const SERVICE_READER = 'service-reader';
 const SERVICE_TOKEN = '/editors-secret/read-token';
 const SERVICE_ROLES_TOKEN = '/editors-secret/roles-token';
+const SERVICE_PUSHES_TOKEN = '/editors-secret/pushes-token';
 const BUILDER = 'builder';
 const BUILDER_TOKEN = '/builder-secret/token';
 const BUILDER_CLIENT = '/builder-secret/oauth-client';
@@ -238,6 +239,13 @@ async function publishing(call, instancePassword, instanceKey) {
   if (!existsSync(SERVICE_ROLES_TOKEN)) {
     const { sha1 } = must('making the token that reads who is an Admin', await request('/users/konzilo/tokens', { name: `service-roles-${randomBytes(4).toString('hex')}`, scopes: ['read:organization'] }, basic('konzilo', instancePassword), totp(instanceKey)), 201);
     writeFileSync(SERVICE_ROLES_TOKEN, `${sha1}\n`, { mode: 0o600 });
+  }
+  // Who pushed each commit of a form's revisions, which a private account's pushes Forgejo's feed
+  // tells only those who run it, the service asks by a token of the instance's account that can do
+  // nothing but read (ADR 0074).
+  if (!existsSync(SERVICE_PUSHES_TOKEN)) {
+    const { sha1 } = must('making the token that reads who pushed what', await request('/users/konzilo/tokens', { name: `service-pushes-${randomBytes(4).toString('hex')}`, scopes: ['read:repository'] }, basic('konzilo', instancePassword), totp(instanceKey)), 201);
+    writeFileSync(SERVICE_PUSHES_TOKEN, `${sha1}\n`, { mode: 0o600 });
   }
   await clients(call);
   await machineAccount(call, {

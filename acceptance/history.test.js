@@ -136,7 +136,7 @@ describe('a form\'s revisions', () => {
       test('lists the revisions with the account that pushed each, compares two by the keyboard, and restores one, which a save keeps as a new revision', async () => {
         const name = article(0);
         const path = `articles/${name}.md`;
-        const status = /^status: (.*)$/m.exec((await fileOf(path)).text)?.[1];
+        const status = /^status: "?(.*?)"?$/m.exec((await fileOf(path)).text)?.[1];
         // Two pushes by ebba, whose commits name someone else: the first an old title and a link,
         // the second a new title and the link's target alone changed.
         await pushAs('ebba', path, (text) => `${text.replace(/^title: .*$/m, `title: Old title ${engine}`).trimEnd()}\n\nSee [the meadow](/aaaaaaaaaaaa/) here.\n`);
@@ -193,7 +193,7 @@ describe('a form\'s revisions', () => {
         const saved = await fileHolding(path, `title: Old title ${engine}`);
         assert.match(saved, new RegExp(`title: Old title ${engine}`));
         assert.match(saved, /\/aaaaaaaaaaaa\//, 'the body restored too');
-        if (status) assert.match(saved, new RegExp(`^status: ${status}$`, 'm'), 'the status as it was');
+        if (status) assert.match(saved, new RegExp(`^status: "?${status}"?$`, 'm'), 'the status as it was');
         const after = await commitsOf(path);
         assert.equal(after[1], newest, 'the save a new revision');
         assert.equal(after[2], older, 'every earlier one left');

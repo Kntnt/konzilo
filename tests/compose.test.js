@@ -331,6 +331,18 @@ test('passes a form\'s revisions to the service for editors, on the admin host',
   assert.ok(matcher.includes('/_konzilo/revisions'));
 });
 
+// Who pushed what a private account pushed, Forgejo's feed tells only those who run it, so the
+// service reads the feed by a token of the instance's account that can do nothing but read.
+test('lets the service for editors read who pushed each commit', () => {
+  const seed = read('compose/seed/seed.js');
+  assert.match(seed, /const SERVICE_PUSHES_TOKEN = '\/editors-secret\/pushes-token';/);
+  const made = /if \(!existsSync\(SERVICE_PUSHES_TOKEN\)\) \{\n([\s\S]*?)\n {2}\}/.exec(seed)?.[1];
+  assert.ok(made, 'made once, at whichever start finds it missing');
+  assert.match(made, /scopes: \['read:repository'\]/);
+  assert.match(made, /\/users\/konzilo\/tokens/);
+  assert.match(read('bin/konzilo-service.js'), /join\(secrets, 'pushes-token'\)/);
+});
+
 // Mail (ADR 0003, ADR 0045): the service in its role for editors mails the forms' submissions, so
 // the role for visitors keeps no way out; a local copy writes each mail to the service's log and
 // sends none; and who is an Admin, which only an Admin may set mail by, the service asks Forgejo

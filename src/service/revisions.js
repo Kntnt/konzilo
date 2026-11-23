@@ -12,6 +12,11 @@ import { addPushers, eventsAfter } from '../build/pushers.js';
 const PAGE = 50;
 // A form's revisions are shown this many at a time, newest first.
 export const REVISIONS_AT_ONCE = 20;
+// Forgejo records a push in the feed a moment after it, so the push of a commit made this lately is
+// waited for, this long at most, looking again at each step.
+const LATELY = 120_000;
+const SETTLED = 10_000;
+const STEP = 500;
 
 // A file in the source, as a form names it: a path below the repository's root, with no part that
 // leads elsewhere.
@@ -23,12 +28,13 @@ export const isSourcePath = (path) => typeof path === 'string'
 
 const encodedPath = (path) => path.split('/').map(encodeURIComponent).join('/');
 
-// `token`: a credential that can read the source and its feed. `perPage`: how many revisions an
-// answer holds.
-export function sourceHistory({ forgejo, repository, token, get = fetch, perPage = REVISIONS_AT_ONCE }) {
+// `token`: a credential that can read the source. `pushesToken`: one that can read who pushed each
+// commit, the feed and a push's commits, which shows a private account's pushes only to the
+// instance's account. `perPage`: how many revisions an answer holds.
+export function sourceHistory({ forgejo, repository, token, pushesToken = token, get = fetch, perPage = REVISIONS_AT_ONCE, now = () => new Date(), sleep = (ms) => new Promise((go) => setTimeout(go, ms)) }) {
   const repo = `${forgejo}/api/v1/repos/${repository}`;
-  const ask = async (path) => {
-    const answer = await get(`${repo}${path}`, { headers: { authorization: `token ${token}` } });
+  const ask = async (path, credential = token) => {
+    const answer = await get(`${repo}${path}`, { headers: { authorization: `token ${credential}` } });
     if (!answer.ok) throw Object.assign(new Error(`Forgejo answered ${answer.status} to ${path.split('?')[0]}`), { status: answer.status });
     return answer;
   };
@@ -39,7 +45,7 @@ export function sourceHistory({ forgejo, repository, token, get = fetch, perPage
   const commitsOf = async (after, before) => {
     const found = [];
     for (let page = 1; ; page += 1) {
-      const shown = await (await ask(`/commits?sha=${encodeURIComponent(after)}${before ? `&not=${encodeURIComponent(before)}` : ''}&limit=${PAGE}&page=${page}&${LIST}`)).json();
+      const shown = await (await ask(`/commits?sha=${encodeURIComponent(after)}${before ? `&not=${encodeURIComponent(before)}` : ''}&limit=${PAGE}&page=${page}&${LIST}`, pushesToken)).json();
       found.push(...shown.map(({ sha }) => sha));
       if (shown.length < PAGE) return found;
     }
@@ -53,7 +59,7 @@ export function sourceHistory({ forgejo, repository, token, get = fetch, perPage
   let learning = Promise.resolve();
   const learn = () => {
     learning = learning.catch(() => {}).then(async () => {
-      const events = await eventsAfter(known.last, async (page) => (await ask(`/activities/feeds?limit=${PAGE}&page=${page}`)).json());
+      const events = await eventsAfter(known.last, async (page) => (await ask(`/activities/feeds?limit=${PAGE}&page=${page}`, pushesToken)).json());
       await addPushers(known.commits, events, commitsOf, whom);
       known.last = Math.max(known.last, ...events.map(({ id }) => id));
     });
@@ -79,6 +85,12 @@ export function sourceHistory({ forgejo, repository, token, get = fetch, perPage
         ask(`/commits?path=${encodeURIComponent(path)}&limit=${perPage}&page=${page}&${LIST}`).then((answer) => answer.json()),
         learn(),
       ]);
+      const dateOf = ({ commit }) => Date.parse(commit?.committer?.date ?? commit?.author?.date ?? '');
+      const awaited = () => shown.some((one) => !Object.hasOwn(known.commits, one.sha) && now().getTime() - dateOf(one) < LATELY);
+      for (let waited = 0; waited < SETTLED && awaited(); waited += STEP) {
+        await sleep(STEP);
+        await learn();
+      }
       const revisions = await Promise.all(shown.map(async ({ sha, commit }) => {
         const push = known.commits[sha];
         return {

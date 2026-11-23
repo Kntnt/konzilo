@@ -49,7 +49,7 @@ describe('a form\'s revisions', () => {
 
   const answerOf = (body, status = 200) => ({ ok: status < 400, status, json: async () => body, text: async () => (typeof body === 'string' ? body : JSON.stringify(body)) });
 
-  const running = async ({ source = history(), perPage } = {}) => {
+  const running = async ({ source = history(), perPage, now, onSleep } = {}) => {
     const asked = [];
     // What a commit's file holds: the last commit at or before it that wrote the file.
     const fileAt = (sha, path) => {
@@ -63,7 +63,10 @@ describe('a form\'s revisions', () => {
       const person = PEOPLE[headers.authorization];
       if (pathname === '/api/v1/user') return person ? answerOf({ login: person.login, full_name: person.full_name, is_admin: false }) : answerOf({}, 401);
       if (pathname === '/api/v1/repos/org/source') return person ? answerOf({ permissions: { push: person.push, pull: true } }) : answerOf({}, 404);
-      assert.equal(headers.authorization, 'token read-token', `${pathname} is asked with the service's own credential`);
+      // A private account's pushes the feed shows only to the instance's account, whose token
+      // lists a push's commits too.
+      const feedOrPush = pathname.endsWith('/activities/feeds') || searchParams.has('sha');
+      assert.equal(headers.authorization, feedOrPush ? 'token pushes-token' : 'token read-token', `${pathname} is asked with the service's own credential`);
       if (pathname === '/api/v1/repos/org/source/activities/feeds') {
         const page = Number(searchParams.get('page'));
         const limit = Number(searchParams.get('limit'));
@@ -92,9 +95,10 @@ describe('a form\'s revisions', () => {
       forgejo: 'http://forgejo',
       repository: 'org/source',
       token: 'read-token',
+      pushesToken: 'pushes-token',
       control: buildControl(join(folder, `control-${(count += 1)}`)),
       get,
-      ...(perPage ? { revisions: { perPage } } : {}),
+      revisions: { ...(perPage ? { perPage } : {}), now: now ?? (() => new Date('2026-11-23T10:00:00Z')), sleep: async () => onSleep?.(source) },
     });
     const server = createServer((incoming, outgoing) => service.request(incoming, outgoing));
     await new Promise((go) => server.listen(0, '127.0.0.1', go));
@@ -148,6 +152,16 @@ describe('a form\'s revisions', () => {
     assert.deepEqual(answer.body.revisions[0], { commit: 'c4', moment: '2026-11-04T08:00:03Z', account: { login: 'anna', name: 'Anna Admin' }, text: 'title: Third\n' });
     const commitsAsked = asked.filter((one) => one.startsWith('/api/v1/repos/org/source/commits?') && one.includes('sha='));
     assert.deepEqual(commitsAsked.map((one) => new URL(one, 'http://x').searchParams.get('sha')), ['c4'], 'only the new push\'s commits are asked for');
+  }));
+
+  test('waits a moment for the push of a commit just made, which the feed records a moment after it', withService({
+    now: () => new Date('2026-11-04T08:00:20Z'),
+    onSleep: (source) => {
+      if (source.feed.length === 3) source.feed.push({ id: 4, op_type: 'commit_repo', act_user: { login: 'anna', full_name: 'Anna Admin' }, created: '2026-11-04T08:00:03Z', content: JSON.stringify({ HeadCommit: { Sha1: 'c4' }, CompareURL: 'org/source/compare/c3...c4' }) });
+    },
+  }, async ({ revisions }) => {
+    const [latest] = (await revisions('ebba', { path: FILE })).body.revisions;
+    assert.deepEqual(latest.account, { login: 'anna', name: 'Anna Admin' });
   }));
 
   test('gives a page at a time, and says where there are more', withService({ perPage: 2 }, async ({ revisions }) => {

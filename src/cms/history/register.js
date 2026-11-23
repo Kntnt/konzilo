@@ -472,17 +472,30 @@ export function registerHistory(CMS, config) {
     line.append(element);
     return line;
   };
-  globalThis.konziloCompareLatest = ({ entryDraft, entry }) => {
+  // The latest save as the history has it, with the account that pushed it, else as Sveltia's check
+  // found it, which names no one, as its commit's author is whatever the commit says.
+  globalThis.konziloCompareLatest = async ({ entryDraft, entry }) => {
     const form = formOf(entryDraft);
-    const latest = entry?.locales?.[form?.locale]?.content ?? Object.values(entry?.locales ?? {})[0]?.content;
-    if (!form || !latest) return;
-    const account = entry.commitAuthor?.login || entry.commitAuthor?.name;
+    if (!form) return;
+    let latest = null;
+    try {
+      const hands = sveltia();
+      const [newest] = (await revisionsOf({
+        path: form.path,
+        fields: form.fields,
+        parse: (text) => hands.parse({ text, path: form.path, collectionName: form.collectionName, fileName: form.fileName }),
+        credential: signedInCredential,
+      })).revisions;
+      if (newest?.values) latest = { label: latestWords({ account: newest.account?.name, at: newest.moment }), values: newest.values };
+    } catch (error) {
+      console.warn(`The revisions could not be read: ${error.message}`);
+    }
+    const content = entry?.locales?.[form.locale]?.content ?? Object.values(entry?.locales ?? {})[0]?.content;
+    latest ??= content ? { label: latestWords({}), values: plain(content) } : null;
+    if (!latest) return;
     openComparison({
       form,
-      choices: [
-        { id: 'latest', label: latestWords({ account, at: entry.commitDate }), values: plain(latest) },
-        { id: 'form', label: say('history.theForm'), values: form.values() },
-      ],
+      choices: [{ id: 'latest', ...latest }, { id: 'form', label: say('history.theForm'), values: form.values() }],
       from: 'latest',
       to: 'form',
     });
