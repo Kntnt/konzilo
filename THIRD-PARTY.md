@@ -211,15 +211,13 @@ Every package that `package-lock.json` names, on every platform, with the versio
 | [`@shikijs/core`](https://www.npmjs.com/package/@shikijs/core) | 4.6.0 | MIT |
 | [`@shikijs/engine-javascript`](https://www.npmjs.com/package/@shikijs/engine-javascript) | 4.6.0 | MIT |
 | [`@shikijs/engine-oniguruma`](https://www.npmjs.com/package/@shikijs/engine-oniguruma) | 4.6.0 | MIT |
-| [`@shikijs/langs`](https://www.npmjs.com/package/@shikijs/langs) | 4.5.0 | MIT |
 | [`@shikijs/langs`](https://www.npmjs.com/package/@shikijs/langs) | 4.6.0 | MIT |
 | [`@shikijs/primitive`](https://www.npmjs.com/package/@shikijs/primitive) | 4.6.0 | MIT |
-| [`@shikijs/themes`](https://www.npmjs.com/package/@shikijs/themes) | 4.5.0 | MIT |
 | [`@shikijs/themes`](https://www.npmjs.com/package/@shikijs/themes) | 4.6.0 | MIT |
-| [`@shikijs/types`](https://www.npmjs.com/package/@shikijs/types) | 4.5.0 | MIT |
 | [`@shikijs/types`](https://www.npmjs.com/package/@shikijs/types) | 4.6.0 | MIT |
 | [`@shikijs/vscode-textmate`](https://www.npmjs.com/package/@shikijs/vscode-textmate) | 10.1.0 | MIT |
-| [`@sveltia/cms`](https://www.npmjs.com/package/@sveltia/cms) | 0.256.1 | MIT |
+| [`@sindresorhus/transliterate`](https://www.npmjs.com/package/@sindresorhus/transliterate) | 3.1.0 | MIT |
+| [`@sveltia/cms`](https://www.npmjs.com/package/@sveltia/cms) | 0.271.2 | MIT |
 | [`@tybys/wasm-util`](https://www.npmjs.com/package/@tybys/wasm-util) | 0.10.5 | MIT |
 | [`@types/debug`](https://www.npmjs.com/package/@types/debug) | 4.1.13 | MIT |
 | [`@types/estree`](https://www.npmjs.com/package/@types/estree) | 1.0.10 | MIT |
@@ -317,7 +315,7 @@ Every package that `package-lock.json` names, on every platform, with the versio
 | [`html-escaper`](https://www.npmjs.com/package/html-escaper) | 3.0.3 | MIT |
 | [`html-void-elements`](https://www.npmjs.com/package/html-void-elements) | 3.0.0 | MIT |
 | [`http-cache-semantics`](https://www.npmjs.com/package/http-cache-semantics) | 4.3.0 | BSD-2-Clause |
-| [`immutable`](https://www.npmjs.com/package/immutable) | 5.1.9 | MIT |
+| [`immutable`](https://www.npmjs.com/package/immutable) | 5.2.1 | MIT |
 | [`iron-webcrypto`](https://www.npmjs.com/package/iron-webcrypto) | 1.2.1 | MIT |
 | [`is-alphabetical`](https://www.npmjs.com/package/is-alphabetical) | 2.0.1 | MIT |
 | [`is-alphanumerical`](https://www.npmjs.com/package/is-alphanumerical) | 2.0.1 | MIT |
@@ -472,8 +470,7 @@ Every package that `package-lock.json` names, on every platform, with the versio
 | [`stringify-entities`](https://www.npmjs.com/package/stringify-entities) | 4.0.5 | MIT |
 | [`style-mod`](https://www.npmjs.com/package/style-mod) | 4.1.4 | MIT |
 | [`svgo`](https://www.npmjs.com/package/svgo) | 4.1.0 | MIT |
-| [`terra-draw`](https://www.npmjs.com/package/terra-draw) | 1.39.0 | MIT |
-| [`terra-draw-leaflet-adapter`](https://www.npmjs.com/package/terra-draw-leaflet-adapter) | 1.0.3 | MIT |
+| [`terra-draw`](https://www.npmjs.com/package/terra-draw) | 1.40.0 | MIT |
 | [`tiny-inflate`](https://www.npmjs.com/package/tiny-inflate) | 1.0.3 | MIT |
 | [`tinyclip`](https://www.npmjs.com/package/tinyclip) | 1.0.3 | MIT |
 | [`tinyexec`](https://www.npmjs.com/package/tinyexec) | 1.3.1 | MIT |
@@ -486,7 +483,7 @@ Every package that `package-lock.json` names, on every platform, with the versio
 | [`trim-lines`](https://www.npmjs.com/package/trim-lines) | 3.0.1 | MIT |
 | [`trough`](https://www.npmjs.com/package/trough) | 2.2.0 | MIT |
 | [`tslib`](https://www.npmjs.com/package/tslib) | 2.9.1 | 0BSD |
-| [`turndown`](https://www.npmjs.com/package/turndown) | 7.2.4 | MIT |
+| [`turndown`](https://www.npmjs.com/package/turndown) | 7.2.5 | MIT |
 | [`ufo`](https://www.npmjs.com/package/ufo) | 1.6.4 | MIT |
 | [`ultrahtml`](https://www.npmjs.com/package/ultrahtml) | 1.7.0 | MIT |
 | [`uncrypto`](https://www.npmjs.com/package/uncrypto) | 0.1.3 | MIT |

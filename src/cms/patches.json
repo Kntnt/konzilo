@@ -1,6 +1,6 @@
 [
   {
-    "module": "@sveltia/cms/npm/index.js",
+    "module": "@sveltia/cms/npm/chunks/gitea-BTiv9UWy.js",
     "why": "Sveltia joins Forgejo's OAuth scopes with commas, which reaches notifications and organisations; a space asks for what it names (ADR 0029).",
     "find": "`read:user`].join(`,`)",
     "replace": "`read:user`].join(` `)"
@@ -8,56 +8,62 @@
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "An editor has no use for an advertisement for Sveltia's mobile sign-in, which the admin host does not offer (ADR 0029).",
-    "find": "let n=r9(`mobileCta`);R(()=>{n.showIfNeeded()});",
-    "replace": "let n=r9(`mobileCta`);"
+    "find": "let n=A5(`mobileCta`);A(()=>{n.showIfNeeded()});",
+    "replace": "let n=A5(`mobileCta`);"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "A relation offers to make a new entry right in the form, and has no option to leave that out. Under a parent it makes the new page the parent of the page in hand, the reverse of what it looks like, and nobody should make a page from a page (ADR 0029). A relation with `allow_add: false` does not offer it.",
-    "find": "I6e=({fieldConfig:{collection:e,file:t},draft:n})=>{if(t)return;",
-    "replace": "I6e=({fieldConfig:{collection:e,file:t,allow_add:a},draft:n})=>{if(t||a===!1)return;"
+    "find": "mSe=({fieldConfig:{collection:e,file:t},draft:n})=>{if(t)return;",
+    "replace": "mSe=({fieldConfig:{collection:e,file:t,allow_add:a},draft:n})=>{if(t||a===!1)return;"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "Sveltia offers to edit an existing entry a relation names in a dialog, and saves it along with the form, under no lock of its own: a deletion and every save of an entry need its lock (ADR 0073). An entry added from the form, which exists nowhere else yet, may still be edited there.",
+    "find": "if(i&&!i.baseEntry)return!0;let a=Vt(e);",
+    "replace": "if(i&&!i.baseEntry)return!0;return!1;let a=Vt(e);"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "An optional object offers only a box to tick, which fills the form with all it holds, and a required one says so with a star over fields that are not, and shows a bar with no words. An object with `accordion: true` is a closed bar with its label, that opens to its fields, and holds nothing until something is written in it (ADR 0029).",
-    "find": "K(Te,e=>{!B(te)&&!l()&&e(Ee)})",
-    "replace": "K(Te,e=>{!B(te)&&!l()&&!t.fieldConfig.accordion&&e(Ee)})"
+    "find": "K(Ee,e=>{!B(ne)&&!l()&&e(De)})",
+    "replace": "K(Ee,e=>{!B(ne)&&!l()&&!t.fieldConfig.accordion&&e(De)})"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "An optional object offers only a box to tick, which fills the form with all it holds, and a required one says so with a star over fields that are not, and shows a bar with no words. An object with `accordion: true` is a closed bar with its label, that opens to its fields, and holds nothing until something is written in it (ADR 0029).",
-    "find": "K(je,e=>{(l()&&!B(te)||B(T))&&e(Me)})",
-    "replace": "K(je,e=>{(l()&&!B(te)||B(T)||t.fieldConfig.accordion)&&e(Me)})"
+    "find": "K(Me,e=>{(l()&&!B(ne)||B(T))&&e(Ne)})",
+    "replace": "K(Me,e=>{(l()&&!B(ne)||B(T)||t.fieldConfig.accordion)&&e(Ne)})"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "An optional object offers only a box to tick, which fills the form with all it holds, and a required one says so with a star over fields that are not, and shows a bar with no words. An object with `accordion: true` is a closed bar with its label, that opens to its fields, and holds nothing until something is written in it (ADR 0029).",
-    "find": "p=j(()=>t.fieldConfig.name),m=j(()=>t.fieldConfig.collapsed),h=j(()=>t.fieldConfig.summary)",
-    "replace": "p=j(()=>t.fieldConfig.name),konziloBar=j(()=>t.fieldConfig.accordion?t.fieldLabel:``),m=j(()=>t.fieldConfig.collapsed),h=j(()=>t.fieldConfig.summary)"
+    "find": "p=k(()=>t.fieldConfig.name),m=k(()=>t.fieldConfig.collapsed),h=k(()=>t.fieldConfig.summary)",
+    "replace": "p=k(()=>t.fieldConfig.name),konziloBar=k(()=>t.fieldConfig.accordion?t.fieldLabel:``),m=k(()=>t.fieldConfig.collapsed),h=k(()=>t.fieldConfig.summary)"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "An optional object offers only a box to tick, which fills the form with all it holds, and a required one says so with a star over fields that are not, and shows a bar with no words. An object with `accordion: true` is a closed bar with its label, that opens to its fields, and holds nothing until something is written in it (ADR 0029).",
-    "find": "i=j(()=>B(te)?B(ue):``),a=j(()=>B(ce).length>0);I6(e,",
-    "replace": "i=j(()=>B(te)?B(ue):B(konziloBar)),a=j(()=>B(ce).length>0);I6(e,"
+    "find": "i=k(()=>B(ne)?B(de):``),a=k(()=>B(le).length>0);H$(e,",
+    "replace": "i=k(()=>B(ne)?B(de):B(konziloBar)),a=k(()=>B(le).length>0);H$(e,"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "An optional object offers only a box to tick, which fills the form with all it holds, and a required one says so with a star over fields that are not, and shows a bar with no words. An object with `accordion: true` is a closed bar with its label, that opens to its fields, and holds nothing until something is written in it (ADR 0029). The attribute lets its label above the bar go.",
-    "find": "get\"data-key-path\"(){return t.keyPath},get\"data-typed-key-path\"(){return t.typedKeyPath},get hidden(){return B(Ce)},children:(e,a)=>{var s=O0e()",
-    "replace": "get\"data-key-path\"(){return t.keyPath},get\"data-accordion\"(){return t.fieldConfig.accordion?``:void 0},get\"data-typed-key-path\"(){return t.typedKeyPath},get hidden(){return B(Ce)},children:(e,a)=>{var s=O0e()"
+    "find": "get\"data-key-path\"(){return t.keyPath},get\"data-typed-key-path\"(){return t.typedKeyPath},get hidden(){return B(Te)},children:(e,a)=>{var s=iye()",
+    "replace": "get\"data-key-path\"(){return t.keyPath},get\"data-accordion\"(){return t.fieldConfig.accordion?``:void 0},get\"data-typed-key-path\"(){return t.typedKeyPath},get hidden(){return B(Te)},children:(e,a)=>{var s=iye()"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "A closed bar hides what it holds, and what it holds may matter: a post kept out of search engines, say. So an accordion opens by itself where something is written in it (ADR 0029).",
-    "find": "W0e({draft:e,key:n,locale:t.locale,collapsed:B(m)})}})},fe=({type:e}={})=>",
-    "replace": "W0e({draft:e,key:n,locale:t.locale,collapsed:t.fieldConfig.accordion?!B(T):B(m)})}})},fe=({type:e}={})=>"
+    "find": "G$({draft:e,key:n,locale:t.locale,collapsed:B(m)})}})},pe=({type:e}={})=>",
+    "replace": "G$({draft:e,key:n,locale:t.locale,collapsed:t.fieldConfig.accordion?!B(T):B(m)})}})},pe=({type:e}={})=>"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "Sveltia holds an object the file lacks as `null`, and at Save a `null` wins over what is written under it, so a value written in a closed bar would be lost. Sveltia's box to tick takes the `null` away when it adds the object, and a closed bar has no box, so an accordion takes it away itself once something is written in it, and adds nothing else (ADR 0029).",
-    "find": "Xs(()=>{de(),B(T)&&B(se)&&EKe({fieldType:`object`,keyPath:t.keyPath,type:B(ie),typeKey:B(y),types:B(v)})});",
-    "replace": "Xs(()=>{de(),B(T)&&B(se)&&EKe({fieldType:`object`,keyPath:t.keyPath,type:B(ie),typeKey:B(y),types:B(v)})});R(()=>{t.fieldConfig.accordion&&B(T)&&B(C)?.[t.keyPath]===null&&Ao(()=>n6({valueStore:r.current[a],locale:t.locale,i18n:t.fieldConfig.i18n??!1,draft:r.current,keyPath:t.keyPath},e=>{e[t.keyPath]===null&&delete e[t.keyPath]}))});"
+    "find": "ki(()=>{fe(),B(T)&&B(ce)&&Yu({fieldType:`object`,keyPath:t.keyPath,type:B(ae),typeKey:B(y),types:B(v)})});",
+    "replace": "ki(()=>{fe(),B(T)&&B(ce)&&Yu({fieldType:`object`,keyPath:t.keyPath,type:B(ae),typeKey:B(y),types:B(v)})});A(()=>{t.fieldConfig.accordion&&B(T)&&B(C)?.[t.keyPath]===null&&wn(()=>vQ({valueStore:r.current[a],locale:t.locale,i18n:t.fieldConfig.i18n??!1,draft:r.current,keyPath:t.keyPath},e=>{e[t.keyPath]===null&&delete e[t.keyPath]}))});"
   },
   {
     "module": "@milkdown/components/lib/list-item-block/index.js",
@@ -68,8 +74,8 @@
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "Above a reason from `preSave`, Sveltia says there was an error and to try again later, which is wrong for a refusal: nothing failed, and trying again gives the same answer. The field gives its own words for its own refusal, in the editor's language, and any other failure keeps Sveltia's (ADR 0029).",
-    "find": "z(e=>G(r,`${e??``} `),[()=>X(`saving_entry.error.description`)])",
-    "replace": "z(e=>G(r,`${e??``} `),[()=>globalThis.__KONZILO_REFUSAL_WORDS__?.(B(p))??X(`saving_entry.error.description`)])"
+    "find": "L(e=>W(r,`${e??``} `),[()=>J(`saving_entry.error.description`)])",
+    "replace": "L(e=>W(r,`${e??``} `),[()=>globalThis.__KONZILO_REFUSAL_WORDS__?.(B(m))??J(`saving_entry.error.description`)])"
   },
   {
     "module": "@emnapi/runtime/dist/emnapi.esm-bundler.js",
@@ -86,32 +92,32 @@
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "The preview pane is a blob document in a frame. WebKit refuses one under the editor's frame-ancestors, and sends no cookie to a frame inside one, so the live preview would stand empty. A document given as srcdoc is the editor's own to every engine (ADR 0032).",
-    "find": "origin:window.location.origin}),a=URL.createObjectURL(new Blob([n],{type:`text/html`}));B(i).addEventListener(`load`,async()=>{try{await e()}catch(e){f(e)}URL.revokeObjectURL(a),N(r,!0),t.onLoad?.(B(i))},{once:!0}),B(i).src=a};",
-    "replace": "origin:window.location.origin});B(i).addEventListener(`load`,async()=>{try{await e()}catch(e){f(e)}N(r,!0),t.onLoad?.(B(i))},{once:!0}),B(i).srcdoc=n};"
+    "find": "origin:window.location.origin}),a=URL.createObjectURL(new Blob([n],{type:`text/html`}));B(i).addEventListener(`load`,async()=>{try{await e()}catch(e){f(e)}URL.revokeObjectURL(a),M(r,!0),t.onLoad?.(B(i))},{once:!0}),B(i).src=a};",
+    "replace": "origin:window.location.origin});B(i).addEventListener(`load`,async()=>{try{await e()}catch(e){f(e)}M(r,!0),t.onLoad?.(B(i))},{once:!0}),B(i).srcdoc=n};"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "Media is not in the main menu: the image library is where an editor finds images, and every image field chooses from it (ADR 0063).",
-    "find": "return n&&l.push({key:`assets`,label:X(`assets`),icon:`photo`,link:r,selected:e===`assets`||t===`assets`}),",
+    "find": "return n&&u.push({key:`assets`,label:J(`assets`),icon:`photo`,link:r,selected:e===`assets`||t===`assets`}),",
     "replace": "return "
   },
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "Media is not in the menu to create either (ADR 0063).",
-    "find": "var s=L(a,2);{let e=j(()=>X(`assets`));Xu(s,{get label(){return B(e)},get disabled(){return B(i)},onclick:async()=>{w0(`/assets`,{transitionType:`forwards`}),await Nl(100),q1.current=!0}})}",
-    "replace": "var s=L(a,2);"
+    "find": "var s=I(a,2);{let e=k(()=>J(`assets`));Ks(s,{get label(){return B(e)},get disabled(){return B(i)},onclick:async()=>{hs(`/assets`,{transitionType:`forwards`}),await p(100),dp.current=!0}})}",
+    "replace": "var s=I(a,2);"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "The menu to create ends without a divider once Media is gone from it.",
-    "find": "}),xu(L(n,2),{}),W(e,t)};K(a,e=>{B(r).length&&e(o)});",
-    "replace": "}),W(e,t)};K(a,e=>{B(r).length&&e(o)});"
+    "find": "}),nh(I(n,2),{}),U(e,t)};K(a,e=>{B(r).length&&e(o)});",
+    "replace": "}),U(e,t)};K(a,e=>{B(r).length&&e(o)});"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
-    "why": "An image deleted from the library takes its file with it in the same commit, as an entry's associated file, unless another entry names the file (ADR 0063). lM holds every entry, KH every file.",
-    "find": "mJe=({entries:e,collectionName:t,fileName:n})=>{let r=VH(",
-    "replace": "mJe=({entries:e,collectionName:t,fileName:n})=>{if(t===`image-library`){let i=new Set(e.map(e=>e.id)),d=new Set;return e.map(e=>{let s=Object.values(e.locales??{}).map(e=>e?.content?.src).find(e=>typeof e==`string`&&e!==``),p=s?.replace(/^\\/+/,``),a=p?KH.current.find(e=>e.path===p):void 0;if(!a||d.has(p))return[];let u=lM.current.some(e=>!i.has(e.id)&&Object.values(e.locales??{}).some(e=>{let t=JSON.stringify(e?.content??{});for(let n=t.indexOf(p);n!==-1;n=t.indexOf(p,n+1))if(!/[\\w.-]/.test(t[n+p.length]??``))return!0;return!1}));return u?[]:(d.add(p),[a])})}let r=VH("
+    "why": "An image deleted from the library takes its file with it in the same commit, as an entry's associated file, unless another entry names the file (ADR 0063). Te holds every entry, So every file.",
+    "find": "aq=({entries:e,collectionName:t,fileName:n})=>{let r=Jr(",
+    "replace": "aq=({entries:e,collectionName:t,fileName:n})=>{if(t===`image-library`){let i=new Set(e.map(e=>e.id)),d=new Set;return e.map(e=>{let s=Object.values(e.locales??{}).map(e=>e?.content?.src).find(e=>typeof e==`string`&&e!==``),p=s?.replace(/^\\/+/,``),a=p?So.current.find(e=>e.path===p):void 0;if(!a||d.has(p))return[];let u=Te.current.some(e=>!i.has(e.id)&&Object.values(e.locales??{}).some(e=>{let t=JSON.stringify(e?.content??{});for(let n=t.indexOf(p);n!==-1;n=t.indexOf(p,n+1))if(!/[\\w.-]/.test(t[n+p.length]??``))return!0;return!1}));return u?[]:(d.add(p),[a])})}let r=Jr("
   },
   {
     "module": "@sveltia/cms/locales/sv.json",
@@ -134,56 +140,62 @@
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "The editor's menu has room for four choices of the preview where it had three checkboxes.",
-    "find": "var hct=V(`<!> <!> <!> <!>`,1);function gct(",
-    "replace": "var hct=V(`<!> <!> <!> <!> <!>`,1);function gct("
+    "find": "var Xje=V(`<!> <!> <!> <!>`,1);function Zje(",
+    "replace": "var Xje=V(`<!> <!> <!> <!> <!>`,1);function Zje("
   },
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "One choice of where the preview stands, beside, in a window of its own, switched or off, in place of three checkboxes whose states a site in one language cannot tell apart; each turns sync scrolling back on, so that no one is left with it off, and the window's choice opens it while the click lasts (ADR 0064). The words are the editor's (__KONZILO_VIEW_WORDS__).",
-    "find": "var m=L(p,2);{let e=j(()=>X(`show_second_pane`)),t=j(()=>!B(l));Zu(m,{get label(){return B(e)},get checked(){return B(c)},get disabled(){return B(t)},onChange:()=>{f8(`showSecondPane`,!0)}})}var h=L(m,2);{let e=j(()=>X(`show_preview`)),t=j(()=>d8.current?.showPreview),n=j(()=>!B(o));Zu(h,{get label(){return B(e)},get checked(){return B(t)},get disabled(){return B(n)},onChange:()=>{f8(`showPreview`)}})}var g=L(h,2);{let e=j(()=>X(`sync_scrolling`)),t=j(()=>d8.current?.syncScrolling),n=j(()=>!B(c)||!B(u)&&B(d));Zu(g,{get label(){return B(e)},get checked(){return B(t)},get disabled(){return B(n)},onChange:()=>{f8(`syncScrolling`)}})}",
-    "replace": "var m=L(p,2);{let e=j(()=>B(c)&&B(u)&&!d8.current?.previewWindow),t=j(()=>!B(l)||!B(o));Qu(m,{label:globalThis.__KONZILO_VIEW_WORDS__.beside,get checked(){return B(e)},get disabled(){return B(t)},onChange:e=>{e.detail.checked&&(d8.current={...d8.current,showSecondPane:!0,showPreview:!0,previewWindow:!1,syncScrolling:!0},globalThis.dispatchEvent(new CustomEvent(`konzilo-view`)))}})}var kw=L(m,2);{let e=j(()=>B(u)&&!!d8.current?.previewWindow),t=j(()=>!B(l)||!B(o));Qu(kw,{label:globalThis.__KONZILO_VIEW_WORDS__.window,get checked(){return B(e)},get disabled(){return B(t)},onChange:e=>{e.detail.checked&&(d8.current={...d8.current,showSecondPane:!0,showPreview:!0,previewWindow:!0,syncScrolling:!0},globalThis.dispatchEvent(new CustomEvent(`konzilo-view`)))}})}var h=L(kw,2);{let e=j(()=>!B(c)&&B(u)&&!d8.current?.previewWindow),t=j(()=>!B(o));Qu(h,{label:globalThis.__KONZILO_VIEW_WORDS__.toggle,get checked(){return B(e)},get disabled(){return B(t)},onChange:e=>{e.detail.checked&&(d8.current={...d8.current,showSecondPane:!1,showPreview:!0,previewWindow:!1,syncScrolling:!0},globalThis.dispatchEvent(new CustomEvent(`konzilo-view`)))}})}var g=L(h,2);{let e=j(()=>!B(u));Qu(g,{label:globalThis.__KONZILO_VIEW_WORDS__.off,get checked(){return B(e)},onChange:e=>{e.detail.checked&&(d8.current={...d8.current,showSecondPane:!1,showPreview:!1,previewWindow:!1,syncScrolling:!0},globalThis.dispatchEvent(new CustomEvent(`konzilo-view`)))}})}"
+    "find": "var m=I(p,2);{let e=k(()=>J(`show_second_pane`)),t=k(()=>!B(l));hh(m,{get label(){return B(e)},get checked(){return B(c)},get disabled(){return B(t)},onChange:()=>{p0(`showSecondPane`,!0)}})}var h=I(m,2);{let e=k(()=>J(`show_preview`)),t=k(()=>f0.current?.showPreview),n=k(()=>!B(o));hh(h,{get label(){return B(e)},get checked(){return B(t)},get disabled(){return B(n)},onChange:()=>{p0(`showPreview`)}})}var g=I(h,2);{let e=k(()=>J(`sync_scrolling`)),t=k(()=>f0.current?.syncScrolling),n=k(()=>!B(c)||!B(u)&&B(d));hh(g,{get label(){return B(e)},get checked(){return B(t)},get disabled(){return B(n)},onChange:()=>{p0(`syncScrolling`)}})}",
+    "replace": "var m=I(p,2);{let e=k(()=>B(c)&&B(u)&&!f0.current?.previewWindow),t=k(()=>!B(l)||!B(o));gh(m,{label:globalThis.__KONZILO_VIEW_WORDS__.beside,get checked(){return B(e)},get disabled(){return B(t)},onChange:e=>{e.detail.checked&&(f0.current={...f0.current,showSecondPane:!0,showPreview:!0,previewWindow:!1,syncScrolling:!0},globalThis.dispatchEvent(new CustomEvent(`konzilo-view`)))}})}var kw=I(m,2);{let e=k(()=>B(u)&&!!f0.current?.previewWindow),t=k(()=>!B(l)||!B(o));gh(kw,{label:globalThis.__KONZILO_VIEW_WORDS__.window,get checked(){return B(e)},get disabled(){return B(t)},onChange:e=>{e.detail.checked&&(f0.current={...f0.current,showSecondPane:!0,showPreview:!0,previewWindow:!0,syncScrolling:!0},globalThis.dispatchEvent(new CustomEvent(`konzilo-view`)))}})}var h=I(kw,2);{let e=k(()=>!B(c)&&B(u)&&!f0.current?.previewWindow),t=k(()=>!B(o));gh(h,{label:globalThis.__KONZILO_VIEW_WORDS__.toggle,get checked(){return B(e)},get disabled(){return B(t)},onChange:e=>{e.detail.checked&&(f0.current={...f0.current,showSecondPane:!1,showPreview:!0,previewWindow:!1,syncScrolling:!0},globalThis.dispatchEvent(new CustomEvent(`konzilo-view`)))}})}var g=I(h,2);{let e=k(()=>!B(u));gh(g,{label:globalThis.__KONZILO_VIEW_WORDS__.off,get checked(){return B(e)},onChange:e=>{e.detail.checked&&(f0.current={...f0.current,showSecondPane:!1,showPreview:!1,previewWindow:!1,syncScrolling:!0},globalThis.dispatchEvent(new CustomEvent(`konzilo-view`)))}})}"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "The editor's view settings within reach of the preview's window, which needs to know whether it is chosen.",
-    "find": "d8=Yk(),f8=(e,t=!1)=>",
-    "replace": "d8=globalThis.konziloEditorView=Yk(),f8=(e,t=!1)=>"
+    "find": "f0=se(),p0=(e,t=!1)=>",
+    "replace": "f0=globalThis.konziloEditorView=se(),p0=(e,t=!1)=>"
   },
   {
-    "module": "@sveltia/cms/npm/index.js",
+    "module": "@sveltia/cms/npm/chunks/init-BNH7Gwj6.js",
     "why": "A Reviewer's account may read the source and not write to it, which Sveltia refuses at its sign-in, signing them out, in words that say only that the account cannot write; Konzilo's say that the account reads the live preview only, and where it is, in the interface language (ADR 0008).",
-    "find": "Wje=e=>yG(_G,`repository_no_write_access`,{repo:e})",
-    "replace": "Wje=e=>globalThis.__KONZILO_READS_ONLY__?Error(_G,{cause:new vG(globalThis.__KONZILO_READS_ONLY__)}):yG(_G,`repository_no_write_access`,{repo:e})"
+    "find": "Vk=e=>Rk(Ik,`repository_no_write_access`,{repo:e})",
+    "replace": "Vk=e=>globalThis.__KONZILO_READS_ONLY__?Error(Ik,{cause:new Lk(globalThis.__KONZILO_READS_ONLY__)}):Rk(Ik,`repository_no_write_access`,{repo:e})"
   },
   {
-    "module": "@sveltia/cms/npm/index.js",
+    "module": "@sveltia/cms/npm/chunks/init-BNH7Gwj6.js",
+    "why": "A deletion the lock refuses throws its reason in the kind of error whose words Sveltia shows as they are (ADR 0073), which lives in this chunk.",
+    "find": "Lk=class extends Error{}",
+    "replace": "Lk=globalThis.konziloLocalizedError=class extends Error{}"
+  },
+  {
+    "module": "@sveltia/cms/npm/chunks/init-BNH7Gwj6.js",
     "why": "A form another tab holds, one taken over, an Admin's form an Editor opens, and a draft backup that can no longer be saved are read-only (ADR 0073), as a form of a read-only collection is in Sveltia, which then draws its own fields read-only, offers no Save and no Delete, and saves no backup. The core says which, in a state of Sveltia's own kind, so that Sveltia follows it at once; and the forms other tabs hold, which the list marks.",
-    "find": "K2=e=>!!e&&G2({collection:e.collection,collectionFile:e.collectionFile})",
-    "replace": "konziloStores=(globalThis.konziloReadOnly=Yk(null),globalThis.konziloHeld=Yk({})),K2=e=>!!e&&(G2({collection:e.collection,collectionFile:e.collectionFile})||!!globalThis.konziloReadOnly.current)"
+    "find": "ZO=e=>!!e&&YO({collection:e.collection,collectionFile:e.collectionFile})",
+    "replace": "konziloStores=(globalThis.konziloReadOnly=X(null),globalThis.konziloHeld=X({})),ZO=e=>!!e&&(YO({collection:e.collection,collectionFile:e.collectionFile})||!!globalThis.konziloReadOnly.current)"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "The line above a read-only form says why it is read-only, and offers the ways on, in the core's words (ADR 0073): its own element, which follows the lock, in place of Sveltia's line.",
-    "find": "eu(n.lastChild,{dismissible:!1,children:(e,t)=>{mi();var n=H();z(e=>G(n,e),[()=>q2(`entry`,{collection:B(y),collectionFile:B(x)})]),W(e,n)}",
-    "replace": "eu(n.lastChild,{dismissible:!1,children:(e,t)=>{mi();var n=globalThis.konziloReadOnly.current&&globalThis.konziloLine?globalThis.konziloLine(r()):H();z(e=>G(n,e),[()=>globalThis.konziloReadOnly.current?``:q2(`entry`,{collection:B(y),collectionFile:B(x)})]),W(e,n)}"
+    "find": "Rf(n.lastChild,{dismissible:!1,children:(e,t)=>{xa();var n=G();L(e=>W(n,e),[()=>ja(`entry`,{collection:B(b),collectionFile:B(S)})]),U(e,n)}",
+    "replace": "Rf(n.lastChild,{dismissible:!1,children:(e,t)=>{xa();var n=globalThis.konziloReadOnly.current&&globalThis.konziloLine?globalThis.konziloLine(r()):G();L(e=>W(n,e),[()=>globalThis.konziloReadOnly.current?``:ja(`entry`,{collection:B(b),collectionFile:B(S)})]),U(e,n)}"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "A save from a form older than the entry's latest save is refused, with nothing merged, naming the account that pushed the later save and when, as the history has them, never the author a commit names, in the core's words and the reader's own form and time zone (ADR 0073). The same words warn while the form is open.",
-    "find": "lst=({type:e,entry:t,canOverwrite:n},r)=>{if(e===`deleted`)",
-    "replace": "lst=({type:e,entry:t,canOverwrite:n,konziloSaved:konziloSaved},r)=>{let konziloWords=globalThis.konziloConflictWords?.({type:e,name:konziloSaved?.name,date:konziloSaved?.date});if(konziloWords)return konziloWords;if(e===`deleted`)"
+    "find": "T0=({type:e,entry:t,canOverwrite:n},r)=>{if(e===`deleted`)",
+    "replace": "T0=({type:e,entry:t,canOverwrite:n,konziloSaved:konziloSaved},r)=>{let konziloWords=globalThis.konziloConflictWords?.({type:e,name:konziloSaved?.name,date:konziloSaved?.date});if(konziloWords)return konziloWords;if(e===`deleted`)"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "The refusal of a save older than the latest names the account that pushed the later save and when (ADR 0073), as Forgejo recorded them, which Sveltia does not know: the check asks the core for the file's latest save, as its history has it (ADR 0074).",
-    "find": "cst=async e=>{let{isNew:t,originalEntry:n}=e;if(!t&&n){try{await D3()}catch(e){console.error(`Failed to check the repository for changes.`,e)}return r7(n)}},",
-    "replace": "cst=async e=>{let{isNew:t,originalEntry:n}=e;if(!t&&n){try{await D3()}catch(e){console.error(`Failed to check the repository for changes.`,e)}return konziloWho(r7(n))}},konziloWho=async e=>{if(e?.type!==`modified`||!e.entry)return e;let t=await globalThis.konziloLatestSave?.(ZF(e.entry)[0]);return t?{...e,konziloSaved:{name:t.account?.name,date:t.moment}}:e},"
+    "find": "nSe=async e=>{let{isNew:t,originalEntry:n}=e;if(!t&&n){try{await Nm()}catch(e){console.error(`Failed to check the repository for changes.`,e)}return w0(n)}},",
+    "replace": "nSe=async e=>{let{isNew:t,originalEntry:n}=e;if(!t&&n){try{await Nm()}catch(e){console.error(`Failed to check the repository for changes.`,e)}return konziloWho(w0(n))}},konziloWho=async e=>{if(e?.type!==`modified`||!e.entry)return e;let t=await globalThis.konziloLatestSave?.(vt(e.entry)[0]);return t?{...e,konziloSaved:{name:t.account?.name,date:t.moment}}:e},"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "Sveltia's Save Anyway overwrites the later save, which ADR 0073 refuses: the refusal offers to reload, in the core's words, with the Editor's own changes kept to read and copy.",
-    "find": "a=j(()=>X(`save_conflict.save_anyway`))",
-    "replace": "a=j(()=>globalThis.__KONZILO_RELOAD_WORDS__??X(`save_conflict.save_anyway`))"
+    "find": "a=k(()=>J(`save_conflict.save_anyway`))",
+    "replace": "a=k(()=>globalThis.__KONZILO_RELOAD_WORDS__??J(`save_conflict.save_anyway`))"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
@@ -194,103 +206,115 @@
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "What was Save Anyway reloads the entry, keeping the Editor's changes as a draft backup, which then shows read-only to read and copy (ADR 0073). The refusal also offers to compare the latest save with the form's unsaved changes (ADR 0074).",
-    "find": "onOverwrite:async()=>{await ke({skipCI:B(d)?.skipCI,overwrite:!0,publish:B(d)?.publish})}",
-    "replace": "onOverwrite:async()=>{await globalThis.konziloReload({entryDraft:r,entry:B(d)?.conflict?.entry})},konziloCompare:()=>globalThis.konziloCompareLatest?.({entryDraft:r,entry:B(d)?.conflict?.entry})"
+    "find": "onOverwrite:async()=>{await Ne({skipCI:B(f)?.skipCI,overwrite:!0,publish:B(f)?.publish})}",
+    "replace": "onOverwrite:async()=>{await globalThis.konziloReload({entryDraft:r,entry:B(f)?.conflict?.entry})},konziloCompare:()=>globalThis.konziloCompareLatest?.({entryDraft:r,entry:B(f)?.conflict?.entry})"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
-    "why": "The ways back to the latest save (ADR 0073): a reload that keeps the Editor's changes as a draft backup, made at once, of a form with changes, however they were made; one that opens the latest in place of a backup that can no longer be saved, letting it go; and, as a tab takes back a form taken over from it, one that keeps the changes it holds as a draft backup and shows them read-only from the latest save, giving whether there were any. T3e keeps a backup, D3 reads the latest commit, s8 makes a form of an entry, C3e and O3e read and show a backup, and lM holds every entry.",
-    "find": "ust=async({entryDraft:e,entry:t})=>{let n=e.current,{collectionName:r,collection:i,collectionFile:a,expanderStates:o}=n;return n8(),await $6(r,t8(n)),s8({entryDraft:e,collection:i,collectionFile:a,originalEntry:t,expanderStates:o})},",
-    "replace": "ust=async({entryDraft:e,entry:t})=>{let n=e.current,{collectionName:r,collection:i,collectionFile:a,expanderStates:o}=n;return n8(),await $6(r,t8(n)),s8({entryDraft:e,collection:i,collectionFile:a,originalEntry:t,expanderStates:o})},konziloReloads=(globalThis.konziloReload=async({entryDraft:e,entry:t})=>{let n=e.current;if(!n)return;let r=lM.current.find(({id:e})=>e===n.originalEntry?.id)??t;if(!r)return;n8(),n.interacted=!0,await T3e(n);let{collection:i,collectionFile:a,expanderStates:o}=n;s8({entryDraft:e,collection:i,collectionFile:a,originalEntry:r,expanderStates:o})},globalThis.konziloLatest=async e=>{let t=e?.current,n=t&&lM.current.find(({id:e})=>e===t.originalEntry?.id);n&&await ust({entryDraft:e,entry:n})},globalThis.konziloSetAside=async e=>{let n=e?.current;if(!n)return!1;n8(),n.interacted=!0,n.konziloAside=!0;try{await T3e(n)}finally{delete n.konziloAside}try{await D3()}catch{}let r=lM.current.find(({id:e})=>e===n.originalEntry?.id);if(!r)return!1;let{collection:i,collectionFile:a,expanderStates:o}=n,d=s8({entryDraft:e,collection:i,collectionFile:a,originalEntry:r,expanderStates:o}),b=await C3e(d);if(!b)return!1;await O3e({backup:b,draft:d});return!0}),"
+    "why": "The ways back to the latest save (ADR 0073): a reload that keeps the Editor's changes as a draft backup, made at once, of a form with changes, however they were made; one that opens the latest in place of a backup that can no longer be saved, letting it go; and, as a tab takes back a form taken over from it, one that keeps the changes it holds as a draft backup and shows them read-only from the latest save, giving whether there were any. fxe keeps a backup, Nm reads the latest commit, e0 makes a form of an entry, z1 and V1 read and show a backup, and Te holds every entry.",
+    "find": "XAe=async({entryDraft:e,entry:t})=>{let n=e.current,{collectionName:r,collection:i,collectionFile:a,expanderStates:o}=n;return U1(),await I1(r,R1(n)),e0({entryDraft:e,collection:i,collectionFile:a,originalEntry:t,expanderStates:o})},",
+    "replace": "XAe=async({entryDraft:e,entry:t})=>{let n=e.current,{collectionName:r,collection:i,collectionFile:a,expanderStates:o}=n;return U1(),await I1(r,R1(n)),e0({entryDraft:e,collection:i,collectionFile:a,originalEntry:t,expanderStates:o})},konziloReloads=(globalThis.konziloReload=async({entryDraft:e,entry:t})=>{let n=e.current;if(!n)return;let r=Te.current.find(({id:e})=>e===n.originalEntry?.id)??t;if(!r)return;U1(),n.interacted=!0,await fxe(n);let{collection:i,collectionFile:a,expanderStates:o}=n;e0({entryDraft:e,collection:i,collectionFile:a,originalEntry:r,expanderStates:o})},globalThis.konziloLatest=async e=>{let t=e?.current,n=t&&Te.current.find(({id:e})=>e===t.originalEntry?.id);n&&await XAe({entryDraft:e,entry:n})},globalThis.konziloSetAside=async e=>{let n=e?.current;if(!n)return!1;U1(),n.interacted=!0,n.konziloAside=!0;try{await fxe(n)}finally{delete n.konziloAside}try{await Nm()}catch{}let r=Te.current.find(({id:e})=>e===n.originalEntry?.id);if(!r)return!1;let{collection:i,collectionFile:a,expanderStates:o}=n,d=e0({entryDraft:e,collection:i,collectionFile:a,originalEntry:r,expanderStates:o}),b=await z1(d);if(!b)return!1;await V1({backup:b,draft:d});return!0}),"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "Sveltia's warning while the form is open reloads the entry and loses the Editor's changes, after asking; it keeps them as a draft backup instead, to read and copy (ADR 0073). A read-only form has no changes to keep.",
-    "find": "l=async()=>{B(a)?.entry&&await ust({entryDraft:n,entry:B(a).entry})}",
-    "replace": "l=async()=>{B(a)?.entry&&await(globalThis.konziloReadOnly.current?ust:globalThis.konziloReload)({entryDraft:n,entry:B(a).entry})}"
+    "find": "l=async()=>{B(a)?.entry&&await XAe({entryDraft:n,entry:B(a).entry})}",
+    "replace": "l=async()=>{B(a)?.entry&&await(globalThis.konziloReadOnly.current?XAe:globalThis.konziloReload)({entryDraft:n,entry:B(a).entry})}"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "As above: nothing is lost, so the reload asks nothing first.",
-    "find": "onclick:()=>{PN(B(r))?N(s,!0):l()}",
-    "replace": "onclick:()=>{l()}"
+    "find": "u=()=>{ll(B(r))||B(r).restorePending?M(s,!0):l()}",
+    "replace": "u=()=>{l()}"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "A form taken over is read-only, and Sveltia keeps no draft backup of a read-only form; a tab that takes it back keeps the changes it holds as one, never to be saved (ADR 0073), which the core asks for by marking the draft.",
-    "find": "T3e=async e=>{if(!(NK.useDraftBackup??!0)||!e.interacted||K2(e)||w3e(e))return;",
-    "replace": "T3e=async e=>{if(!(NK.useDraftBackup??!0)||!e.interacted||K2(e)&&!e.konziloAside||w3e(e))return;"
+    "find": "fxe=async e=>{if(!(ie.useDraftBackup??!0)||!e.interacted||B1(e)||(Ka(e)?e.restorePending||zi(e)||!ll(e):Hr(e)))return;",
+    "replace": "fxe=async e=>{if(!(ie.useDraftBackup??!0)||!e.interacted||B1(e)||(Ka(e)?e.restorePending||zi(e)||!ll(e):Hr(e)&&!e.konziloAside))return;"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "A form is read-only until the service has answered for its lock (ADR 0073), and Sveltia looks for no draft backup of a read-only form: it looks once the answer is in, so that a backup of a form whose lock the tab holds is offered, or shown read-only, as the form is opened.",
-    "find": "k3e=async({draft:e})=>{if(!(NK.useDraftBackup??!0)||K2(e)||w3e(e))return;",
-    "replace": "k3e=async({draft:e})=>{await globalThis.konziloLockSettled?.();if(!(NK.useDraftBackup??!0)||K2(e)||w3e(e))return;"
+    "find": "hxe=async({draft:e})=>{let t=H1();if(!(ie.useDraftBackup??!0)||Hr(e)||B1(e))return;",
+    "replace": "hxe=async({draft:e})=>{let t=H1();await globalThis.konziloLockSettled?.();if(!(ie.useDraftBackup??!0)||Hr(e)||B1(e))return;"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "Sveltia offers to restore a draft backup only where the entry has not been saved since the backup was taken; otherwise it is shown read-only, to read and copy, and never saved over the later save (ADR 0073). Sveltia keeps the entry a backup was made from as its baseEntry, and tells a later save by it.",
-    "find": "let{collectionName:t}=e,n=t8(e),r=await C3e(e);if(!r)return;let{timestamp:i}=r,",
-    "replace": "let{collectionName:t}=e,n=t8(e),r=await C3e(e);if(!r)return;if(r.baseEntry&&e.originalEntry&&globalThis.konziloStaleBackup&&!(0,wr.default)(r.baseEntry.locales,Jk(e.originalEntry.locales))){globalThis.konziloStaleBackup(r.timestamp),await O3e({backup:r,draft:e});return}let{timestamp:i}=r,"
+    "find": "let{collectionName:n}=e,r=R1(e),i=await z1(e);if(!i||t!==M1)return;let{timestamp:a}=i,",
+    "replace": "let{collectionName:n}=e,r=R1(e),i=await z1(e);if(!i||t!==M1)return;if(i.baseEntry&&e.originalEntry&&globalThis.konziloStaleBackup&&!(0,Dh.default)(i.baseEntry.locales,Un(e.originalEntry.locales))){globalThis.konziloStaleBackup(i.timestamp),await V1({backup:i,draft:e});return}let{timestamp:a}=i,"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "The list marks each entry another tab holds with the name of its holder (ADR 0073), which the core gives as the forms' marks.",
-    "find": "Gu(e,{get\"aria-rowindex\"(){return B(r)},get\"aria-label\"(){return B(i)},onChange:e=>{a(e.detail.selected)},",
-    "replace": "Gu(e,{get\"aria-rowindex\"(){return B(r)},get\"aria-label\"(){let n=globalThis.konziloHeld.current[`${t.collection.name}/${t.entry.subPath}`]?.text;return n?`${B(i)} (${n})`:B(i)},get\"data-konzilo-held\"(){return globalThis.konziloHeld.current[`${t.collection.name}/${t.entry.subPath}`]?.text},onChange:e=>{a(e.detail.selected)},"
+    "find": "fh(e,{get\"aria-rowindex\"(){return B(r)},get\"aria-label\"(){return B(i)},onChange:e=>{a(e.detail.selected)},",
+    "replace": "fh(e,{get\"aria-rowindex\"(){return B(r)},get\"aria-label\"(){let n=globalThis.konziloHeld.current[`${t.collection.name}/${t.entry.subPath}`]?.text;return n?`${B(i)} (${n})`:B(i)},get\"data-konzilo-held\"(){return globalThis.konziloHeld.current[`${t.collection.name}/${t.entry.subPath}`]?.text},onChange:e=>{a(e.detail.selected)},"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "As above, in the list of a collection of files, the site settings and the menus.",
-    "find": "Gu(e,{onclick:()=>{w0(PF(`/collections/${Qj.current?.name}/entries/${n()}`),{transitionType:`forwards`})}",
-    "replace": "Gu(e,{get\"data-konzilo-held\"(){return globalThis.konziloHeld.current[`${Qj.current?.name}/${n()}`]?.text},onclick:()=>{w0(PF(`/collections/${Qj.current?.name}/entries/${n()}`),{transitionType:`forwards`})}"
+    "find": "fh(e,{onclick:()=>{hs(Rm(`${Co.current?.name}`,n()),{transitionType:`forwards`})}",
+    "replace": "fh(e,{get\"data-konzilo-held\"(){return globalThis.konziloHeld.current[`${Co.current?.name}/${n()}`]?.text},onclick:()=>{hs(Rm(`${Co.current?.name}`,n()),{transitionType:`forwards`})}"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "A deletion is a change like any other and needs the lock, from the form and from the list (ADR 0073): the core holds each entry for it, or refuses, naming who has it open, and lets go what it held for the deletion alone.",
-    "find": "Olt=async({drafts:e=[],items:t=[],collection:n=void 0,collectionFile:r=void 0,useWorkflow:i})=>{",
-    "replace": "Olt=async e=>{let t=await globalThis.konziloBeforeDeleting?.(e);if(t?.refusal)throw Error(t.refusal,{cause:new vG(t.refusal)});try{return await konziloOlt(e)}finally{await t?.done?.()}},konziloOlt=async({drafts:e=[],items:t=[],collection:n=void 0,collectionFile:r=void 0,useWorkflow:i})=>{"
+    "find": "n8=async({drafts:e=[],items:t=[],collection:n=void 0,collectionFile:r=void 0,useWorkflow:i})=>{",
+    "replace": "n8=async e=>{let t=await globalThis.konziloBeforeDeleting?.(e);if(t?.refusal)throw Error(t.refusal,{cause:new globalThis.konziloLocalizedError(t.refusal)});try{return await konziloOlt(e)}finally{await t?.done?.()}},konziloOlt=async({drafts:e=[],items:t=[],collection:n=void 0,collectionFile:r=void 0,useWorkflow:i})=>{"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "Two Editors saving different entries at once: Forgejo turns one save away, with cannot lock ref or as the branch having moved, and Sveltia shows an error. The save is tried again, a moment later, after the check against the latest save is made anew, which refuses it where the entry itself was saved meanwhile (ADR 0029, ADR 0073). A save Forgejo answers with a server error may be in all the same, and Sveltia sends one answered 502 again by itself, which then finds the branch moved by its own commit: before a save is tried again, or refused as older than the latest, where the latest commit holds the files as this save wrote them, the save is done, and is never refused as older than itself. A server error is otherwise tried again as above; any other error, such as a forbidden save, is not tried again.",
-    "find": "let m=await Aut({draft:e,useWorkflow:i,changes:l,savingEntry:c,otherSavingEntries:[...d,...f,...p.map(e=>e.entry)],pendingEntries:p,savingAssets:u,options:{commitType:e.isNew||s?`create`:`update`,collection:e.collection,skipCI:t}});",
-    "replace": "let m;for(let konziloTry=1;;konziloTry+=1)try{m=await Aut({draft:e,useWorkflow:i,changes:l,savingEntry:c,otherSavingEntries:[...d,...f,...p.map(e=>e.entry)],pendingEntries:p,savingAssets:u,options:{commitType:e.isNew||s?`create`:`update`,collection:e.collection,skipCI:t}});break}catch(konziloError){let konziloWhy=konziloError?.cause,konziloStatus=konziloWhy?.status,konziloFirst=konziloWhy?.message===X(`save_conflict.branch_moved`)||/cannot lock ref/i.test(String(konziloWhy?.message??``)),konziloUnsure=!konziloFirst&&konziloStatus>=500&&konziloStatus<600;if(konziloTry>=4||x3(konziloError)||!konziloFirst&&!konziloUnsure)throw konziloError;await new Promise(e=>setTimeout(e,200*konziloTry+Math.random()*400));try{await D3()}catch{}let konziloIn=!1;try{let konziloTexts=l.filter(({action:konziloAction,data:konziloData})=>konziloAction!==`delete`&&typeof konziloData==`string`);konziloIn=konziloTexts.length>0&&!!Vq.current;for(let{path:konziloPath,data:konziloData}of konziloTexts){if(!konziloIn)break;let{content:konziloContent}=await OK(`${zK(GK)}/contents/${PF(konziloPath)}?ref=${encodeURIComponent(Vq.current)}`);konziloIn=new TextDecoder().decode(Uint8Array.from(atob(String(konziloContent).replace(/\\s/g,``)),konziloCharacter=>konziloCharacter.charCodeAt(0)))===konziloData}}catch{konziloIn=!1}if(konziloIn){m={savedEntries:[lM.current.find(({id:konziloId})=>konziloId===c.id)??c]};break}let konziloConflict=!e.isNew&&e.originalEntry?await konziloWho(r7(e.originalEntry)):void 0;if(konziloConflict)throw Error(`save_conflict`,{cause:konziloConflict})}"
+    "find": "let m=await MNe({draft:e,useWorkflow:i,changes:l,savingEntry:c,otherSavingEntries:[...d,...f,...p.map(e=>e.entry)],pendingEntries:p,savingAssets:u,options:{commitType:e.isNew||s?`create`:`update`,collection:e.collection,skipCI:t}});",
+    "replace": "let m;for(let konziloTry=1;;konziloTry+=1)try{m=await MNe({draft:e,useWorkflow:i,changes:l,savingEntry:c,otherSavingEntries:[...d,...f,...p.map(e=>e.entry)],pendingEntries:p,savingAssets:u,options:{commitType:e.isNew||s?`create`:`update`,collection:e.collection,skipCI:t}});break}catch(konziloError){let konziloWhy=konziloError?.cause,konziloStatus=konziloWhy?.status,konziloFirst=konziloWhy?.message===J(`save_conflict.branch_moved`)||/cannot lock ref/i.test(String(konziloWhy?.message??``)),konziloUnsure=!konziloFirst&&konziloStatus>=500&&konziloStatus<600;if(konziloTry>=4||YW(konziloError)||!konziloFirst&&!konziloUnsure)throw konziloError;await new Promise(e=>setTimeout(e,200*konziloTry+Math.random()*400));try{await Nm()}catch{}let konziloIn=!1;try{let konziloTexts=l.filter(({action:konziloAction,data:konziloData})=>konziloAction!==`delete`&&typeof konziloData==`string`);konziloIn=konziloTexts.length>0&&!!ae.current&&!!globalThis.konziloReadAt;for(let{path:konziloPath,data:konziloData}of konziloTexts){if(!konziloIn)break;konziloIn=await globalThis.konziloReadAt(konziloPath,ae.current)===konziloData}}catch{konziloIn=!1}if(konziloIn){m={savedEntries:[Te.current.find(({id:konziloId})=>konziloId===c.id)??c]};break}let konziloConflict=!e.isNew&&e.originalEntry?await konziloWho(w0(e.originalEntry)):void 0;if(konziloConflict)throw Error(`save_conflict`,{cause:konziloConflict})}"
+  },
+  {
+    "module": "@sveltia/cms/npm/chunks/gitea-BTiv9UWy.js",
+    "why": "As above: whether the latest commit holds a file as the save wrote it is read through the backend's own raw reader, which lives in this chunk.",
+    "find": "un=async(e,t,n=L())=>{let{owner:r,repo:i}=t?n:k,{branch:a=``}=k;return W({owner:r,repo:i,path:e,ref:t??a})},",
+    "replace": "un=async(e,t,n=L())=>{let{owner:r,repo:i}=t?n:k,{branch:a=``}=k;return W({owner:r,repo:i,path:e,ref:t??a})},konziloReads=(globalThis.konziloReadAt=(e,t)=>W({owner:k.owner,repo:k.repo,path:e,ref:t})),"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "A post's form opens its page in a tab of its own by a button of the core's under the buttons of its panels, its History among them, wherever the preview stands (ADR 0032): the rail of the buttons is held in an element of its own, which the core is handed.",
-    "find": "fct=V(`<div role=\"none\" class=\"sidebar svelte-19e8zut\"><!> <!></div>`)",
-    "replace": "fct=V(`<div role=\"none\" class=\"sidebar svelte-19e8zut\"><div role=\"none\" class=\"konzilo-sidebar-rail\"><!></div> <!></div>`)"
+    "find": "qje=V(`<div role=\"none\" class=\"sidebar svelte-19e8zut\"><!> <!></div>`)",
+    "replace": "qje=V(`<div role=\"none\" class=\"sidebar svelte-19e8zut\"><div role=\"none\" class=\"konzilo-sidebar-rail\"><!></div> <!></div>`)"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "As above: the buttons of the panels in the rail, and the core's after them.",
-    "find": "var c=fct(),l=P(c);",
-    "replace": "var c=fct(),konziloRail=P(c),l=P(konziloRail);"
+    "find": "var c=qje(),l=D(c);",
+    "replace": "var c=qje(),konziloRail=D(c),l=D(konziloRail);"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "As above.",
-    "find": "var u=L(l,2),d=e=>{var t=dct();",
-    "replace": "globalThis.konziloRail?.(konziloRail);var u=L(konziloRail,2),d=e=>{var t=dct();"
+    "find": "var u=I(l,2),d=e=>{var t=Kje();",
+    "replace": "globalThis.konziloRail?.(konziloRail);var u=I(konziloRail,2),d=e=>{var t=Kje();"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "Every form's History shows its revisions from the source repository's history, with the account that pushed each as Forgejo recorded it, and compares and restores them (ADR 0074): the core's own panel in place of Sveltia's list of commits, which names each commit's author as the commit says, and offers neither. It follows the form the panel is shown beside.",
-    "find": "Xs(()=>{s()});{let t=j(()=>X(`entry_sidebar.history.title`));i7(e,{get title(){return B(t)},children:(e,t)=>{var n=U(),s=F(n),",
-    "replace": "Xs(()=>{globalThis.konziloHistory||s()});{let t=j(()=>X(`entry_sidebar.history.title`)),konziloDraft=n;i7(e,{get title(){return B(t)},children:(e,t)=>{if(globalThis.konziloHistory){let n=globalThis.konziloHistory(konziloDraft);z(()=>{n.konziloFollow(konziloDraft.current)}),W(e,n);return}var n=U(),s=F(n),"
+    "find": "A(()=>{if(!B(s))return;let e=B(s);wn(()=>c(e))});{let t=k(()=>J(`entry_sidebar.history.title`));Of(e,{get title(){return B(t)},children:(e,t)=>{var n=q(),s=H(n),",
+    "replace": "A(()=>{if(globalThis.konziloHistory||!B(s))return;let e=B(s);wn(()=>c(e))});{let t=k(()=>J(`entry_sidebar.history.title`)),konziloDraft=n;Of(e,{get title(){return B(t)},children:(e,t)=>{if(globalThis.konziloHistory){let n=globalThis.konziloHistory(konziloDraft);L(()=>{n.konziloFollow(konziloDraft.current)}),U(e,n);return}var n=q(),s=H(n),"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "A revision is read through the same format the form's file is read with, the core's own among them, into the values Sveltia holds a form's in, and restoring one fills the form as unsaved changes, as Sveltia restores a draft backup, with the changes it replaces kept as one first (ADR 0074). The core is handed Sveltia's own ways of doing each.",
-    "find": "kst=e=>{l7.delete(e)},",
-    "replace": "kst=e=>{l7.delete(e)},konziloHands=(globalThis.konziloSveltia={parse:async({text:e,path:t,collectionName:n,fileName:r})=>AM(await oDe({text:e,path:`${t}#konzilo-revision`,folder:{collectionName:n,fileName:r}})??{}),pathOf:e=>ZF(e)[0],modified:e=>PN(e),saveBackup:e=>T3e(e),restore:(e,t)=>O3e({backup:t,draft:e}),entries:()=>lM.current}),"
+    "find": "dje=e=>{_6.delete(e)},",
+    "replace": "dje=e=>{_6.delete(e)},konziloHands=(globalThis.konziloSveltia={parse:async({text:e,path:t,collectionName:n,fileName:r})=>Ri(await globalThis.konziloParseEntryFile({text:e,path:`${t}#konzilo-revision`,folder:{collectionName:n,fileName:r}})??{}),pathOf:e=>vt(e)[0],modified:e=>ll(e),saveBackup:e=>fxe(e),restore:(e,t)=>V1({backup:t,draft:e}),entries:()=>Te.current}),"
+  },
+  {
+    "module": "@sveltia/cms/npm/chunks/init-BNH7Gwj6.js",
+    "why": "As above: Sveltia's reading of a file, which lives in this chunk.",
+    "find": "qE=async({text:e=``,path:t,folder:n})=>{",
+    "replace": "qE=globalThis.konziloParseEntryFile=async({text:e=``,path:t,folder:n})=>{"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
     "why": "The refusal of a save older than the latest offers to compare the latest save with the form's unsaved changes (ADR 0074), by a button of the core's below its words.",
-    "find": "i=e=>{let n=j(()=>lst(t.conflict,pl.current));var r=H();z(()=>G(r,`${B(n).description??``}\n    ${B(n).warning??``}`)),W(e,r)}",
-    "replace": "i=e=>{let n=j(()=>lst(t.conflict,pl.current));var r=H();z(()=>G(r,`${B(n).description??``}\n    ${B(n).warning??``}`)),W(e,r);t.konziloCompare&&t.conflict?.type===`modified`&&globalThis.konziloCompareButton&&W(e,globalThis.konziloCompareButton(t.konziloCompare))}"
+    "find": "i=e=>{let n=k(()=>T0(t.conflict,kn.current));var r=G();L(()=>W(r,`${B(n).description??``}\n    ${B(n).warning??``}`)),U(e,r)}",
+    "replace": "i=e=>{let n=k(()=>T0(t.conflict,kn.current));var r=G();L(()=>W(r,`${B(n).description??``}\n    ${B(n).warning??``}`)),U(e,r);t.konziloCompare&&t.conflict?.type===`modified`&&globalThis.konziloCompareButton&&U(e,globalThis.konziloCompareButton(t.konziloCompare))}"
   }
 ]
