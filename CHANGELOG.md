@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- A form in the editor is locked to the one tab that has it open: a post's, a term's, an image library entry's, the site settings' and each menu's. Opening a form another tab holds says who has it, or that it is the Editor's own other tab, and since when, and offers to go back to the list, to read the form read-only, or to take it over; the list of entries marks each entry another tab holds with its holder's name. A takeover tells the tab that had the form at once, by name and time, and that form turns read-only with its unsaved changes still in its fields to read and copy. A lock ends when its form is left or closed, and within two minutes after its tab stops answering, never because its holder is idle. An Editor in the Editor role opens the site settings and the menus read-only, told that they are for Admins. A deletion, from the form or from the list, needs the lock too.
+
+### Changed
+
+- A save from a form older than the entry's latest save is refused, also where the two changed different fields and where the later change was pushed from outside the editor, naming the account of the later save and its moment; nothing is merged, and *Save Anyway* is gone. The refusal offers to reload, which keeps the Editor's changes to read and copy. A draft backup is offered as before only where the entry has not been saved since it was taken; otherwise it is shown read-only, until the latest version is opened.
+
+### Fixed
+
+- Two Editors saving two different entries at the same moment both succeed: a save Forgejo turns away because another commit came first is tried again, with no error dialog.
+
 ## [0.5.0] – 2026-11-13
 
 ### Added
