@@ -882,7 +882,8 @@ describe('the live preview', () => {
   }
 
   // The pane beside a post's form shows the moment the post goes out, follows a moment changed in
-  // the form before it is saved, and opens its page in a tab at that moment (ADR 0032).
+  // the form before it is saved, and its form's button opens its page in a tab at that moment, the
+  // preview beside the form or in a window of its own (ADR 0032).
   for (const engine of Object.keys(ENGINES)) {
     describe(`the pane at its post's moment, in ${engine}`, () => {
       test('shows a scheduled post\'s page at its moment, follows its moment as it changes, and opens it in a tab at it', async () => {
@@ -904,12 +905,26 @@ describe('the live preview', () => {
           await date.fill('2099-08-01T09:00');
           await frameOf(page).locator('aside.recommended-reading').getByText(FURTHER, { exact: true }).waitFor({ timeout: ON_THE_PAGE * 2 });
           assert.equal(await momentInPane(), '2099-08-01T09:00:00Z');
-          const [tab] = await Promise.all([page.context().waitForEvent('page'), paneOf(page).getByRole('button', { name: 'Open in a tab of its own' }).click()]);
-          await tab.getByRole('heading', { level: 1, name: SCHEDULED }).waitFor({ timeout: ON_THE_PAGE * 2 });
-          await momentChoice(tab).waitFor({ timeout: ON_THE_PAGE });
-          assert.equal(await momentChoice(tab).inputValue(), '2099-08-01T09:00:00Z');
-          assert.equal(new URL(tab.url()).searchParams.get('konzilo-moment'), null, 'the moment is the tab\'s, not its address\'s');
-          await tab.close();
+          // The button is in the post's form, beside its History, wherever the preview stands.
+          const inTab = page.getByRole('button', { name: 'Open in a tab of its own' });
+          assert.equal(await paneOf(page).getByRole('button', { name: 'Open in a tab of its own' }).count(), 0, 'not in the pane');
+          const openedAt = async () => {
+            const [tab] = await Promise.all([page.context().waitForEvent('page'), inTab.click()]);
+            await tab.getByRole('heading', { level: 1, name: SCHEDULED }).waitFor({ timeout: ON_THE_PAGE * 2 });
+            await momentChoice(tab).waitFor({ timeout: ON_THE_PAGE });
+            assert.equal(await momentChoice(tab).inputValue(), '2099-08-01T09:00:00Z');
+            assert.equal(new URL(tab.url()).searchParams.get('konzilo-moment'), null, 'the moment is the tab\'s, not its address\'s');
+            await tab.close();
+          };
+          await openedAt();
+          const [popup] = await Promise.all([page.context().waitForEvent('page'), viewIn(page, /own window/)]);
+          try {
+            await inWindow(popup).frame.getByRole('heading', { level: 1, name: SCHEDULED }).waitFor({ timeout: ON_THE_PAGE * 2 });
+            await openedAt();
+          } finally {
+            await viewIn(page, /beside/);
+            if (!popup.isClosed()) await popup.waitForEvent('close');
+          }
         } finally {
           await session.browser.close();
         }

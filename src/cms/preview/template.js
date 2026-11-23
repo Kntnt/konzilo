@@ -2,8 +2,8 @@
 // origin, in a frame scaled from a desktop's width to the pane, and above it why the draft
 // cannot be published, while the last good page stays, and over it, for a moment, where the page
 // would have gone when it tried to leave. The page is shown at the moment of the site's timeline
-// the post goes out at, now for one out already or with none, and a button opens it in a tab of
-// its own at that moment. It is a React component, since that is what Sveltia takes, with its
+// the post goes out at, now for one out already or with none, and the button in the post's form
+// opens it in a tab of its own at that moment (open-in-tab.js), told of it here. It is a React component, since that is what Sveltia takes, with its
 // styles on the elements, since the pane is a document of Sveltia's own.
 
 import { say } from '../interface-language.js';
@@ -14,6 +14,8 @@ import { atMoment, previewClient } from './client.js';
 import { draftOf } from './draft.js';
 import { PLACE_EVENT, PLACE_MESSAGE, SHOW_EVENT, SHOW_MESSAGE, STOPPED_MESSAGE } from './paths.js';
 import { previewWindow } from '../preview-window/window.js';
+import { formOf } from '../lock/keeper.js';
+import { pageShown } from './in-tab.js';
 
 // The narrowest the page is laid out at. A narrower pane shows it smaller; a wider one shows it
 // at its own size, as wide as the pane, as a browser window that wide would: never larger.
@@ -132,6 +134,10 @@ export function previewTemplate({ origin, several, credential = signedInCredenti
     React.useEffect(() => {
       globalThis.document.documentElement.classList.toggle('konzilo-preview-away', away);
     }, [away]);
+    // The page for the button in the post's form, which opens it in a tab of its own.
+    React.useEffect(() => {
+      pageShown.set(state.address === null ? null : { form: formOf(globalThis.location.hash), address: state.address, moment: state.moment });
+    }, [state.address, state.moment]);
     React.useEffect(() => () => {
       globalThis.document.documentElement.classList.remove('konzilo-preview-away');
       previewWindow.idle();
@@ -151,13 +157,8 @@ export function previewTemplate({ origin, several, credential = signedInCredenti
     // Chosen, but not open: the window has been closed, or the browser would not open it.
     const closed = previewWindow.wanted() && !away && h('p', { role: 'status', style: QUIET }, say('preview.windowClosed'), ' ', h('button', { type: 'button', onClick: () => previewWindow.open() }, say('preview.windowOpen')));
 
-    // The page in a tab of its own, at the moment the pane shows it at, where it has one.
-    const inTab = state.address === null ? null : h('p', { style: { ...QUIET, display: 'flex', justifyContent: 'flex-end' } },
-      h('button', { type: 'button', onClick: () => globalThis.open(`${origin}${atMoment(state.address, state.moment ?? 'now')}`, '_blank', 'noopener') }, say('preview.openInTab')));
-
     return h('div', { style: { display: 'flex', flexDirection: 'column', height: '100vh' } },
       closed,
-      inTab,
       away ? null : notes.map(noteIn),
       h('div', { ref: holder, style: { position: 'relative', flex: '1 1 auto', overflow: 'hidden', minHeight: 0, background: '#fff' } }, frame, !away && passing && h('p', { role: 'status', style: PASSING }, passing.text)));
   };

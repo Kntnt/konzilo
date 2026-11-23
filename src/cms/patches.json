@@ -259,6 +259,24 @@
   },
   {
     "module": "@sveltia/cms/npm/index.js",
+    "why": "A post's form opens its page in a tab of its own by a button of the core's under the buttons of its panels, its History among them, wherever the preview stands (ADR 0032): the rail of the buttons is held in an element of its own, which the core is handed.",
+    "find": "fct=V(`<div role=\"none\" class=\"sidebar svelte-19e8zut\"><!> <!></div>`)",
+    "replace": "fct=V(`<div role=\"none\" class=\"sidebar svelte-19e8zut\"><div role=\"none\" class=\"konzilo-sidebar-rail\"><!></div> <!></div>`)"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "As above: the buttons of the panels in the rail, and the core's after them.",
+    "find": "var c=fct(),l=P(c);",
+    "replace": "var c=fct(),konziloRail=P(c),l=P(konziloRail);"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "As above.",
+    "find": "var u=L(l,2),d=e=>{var t=dct();",
+    "replace": "globalThis.konziloRail?.(konziloRail);var u=L(konziloRail,2),d=e=>{var t=dct();"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
     "why": "Every form's History shows its revisions from the source repository's history, with the account that pushed each as Forgejo recorded it, and compares and restores them (ADR 0074): the core's own panel in place of Sveltia's list of commits, which names each commit's author as the commit says, and offers neither. It follows the form the panel is shown beside.",
     "find": "Xs(()=>{s()});{let t=j(()=>X(`entry_sidebar.history.title`));i7(e,{get title(){return B(t)},children:(e,t)=>{var n=U(),s=F(n),",
     "replace": "Xs(()=>{globalThis.konziloHistory||s()});{let t=j(()=>X(`entry_sidebar.history.title`)),konziloDraft=n;i7(e,{get title(){return B(t)},children:(e,t)=>{if(globalThis.konziloHistory){let n=globalThis.konziloHistory(konziloDraft);z(()=>{n.konziloFollow(konziloDraft.current)}),W(e,n);return}var n=U(),s=F(n),"

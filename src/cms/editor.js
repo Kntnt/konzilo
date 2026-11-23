@@ -12,6 +12,7 @@ import CMS from '@sveltia/cms';
 import { useComponents } from './body/components.js';
 import { registerBodyField } from './body/register.js';
 import { registerPreview } from './preview/template.js';
+import { registerOpenInTab } from './preview/open-in-tab.js';
 import { registerImageField } from './image/register.js';
 import { registerGroups } from './groups/register.js';
 import { registerAuthorsField } from './authors/register.js';
@@ -69,7 +70,10 @@ function start() {
   registerAuthorsField(CMS, config);
   registerStructureField(CMS, config);
   registerSettings(CMS);
-  if (konzilo.preview) registerPreview(CMS, config, konzilo.preview);
+  if (konzilo.preview) {
+    registerPreview(CMS, config, konzilo.preview);
+    registerOpenInTab(konzilo.preview);
+  }
   CMS.init({ config });
 
   // A language chosen in Sveltia's preferences shows in Sveltia at once, which then names it
