@@ -1189,6 +1189,7 @@
   "lock.mark": "{name} redigerar",
   "lock.markYours": "Öppen i din andra flik",
   "lock.savedAfter": "{account} sparade posten {moment}, efter att du öppnade den.",
+  "lock.savedAfterAt": "Posten sparades {moment}, efter att du öppnade den.",
   "lock.savedAfterUnnamed": "Posten har sparats sedan du öppnade den.",
   "lock.deletedAfter": "Posten har raderats sedan du öppnade den.",
   "lock.notOverwritten": "Dina ändringar sparas inte över den, och inget skrivs över. Läs in den senaste versionen; dina ändringar sparas att läsa och kopiera.",

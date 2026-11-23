@@ -9,7 +9,8 @@
 //
 // The patched Sveltia asks the globals set here: the panel, `konziloHistory`, which it hands the
 // form's draft and tells of each new draft by `konziloFollow`; the refusal's button,
-// `konziloCompareButton`, and what it opens, `konziloCompareLatest`. It hands the core its own ways
+// `konziloCompareButton`, and what it opens, `konziloCompareLatest`; and the account and moment of a
+// file's latest save, which the refusal names, `konziloLatestSave`. It hands the core its own ways
 // of reading a file as a form does and of restoring a draft, `konziloSveltia`.
 
 import { signedInCredential } from '../credential.js';
@@ -17,7 +18,7 @@ import { loadReader } from '../body/check.js';
 import { imageLibrary } from '../body/library.js';
 import { languageTag, say } from '../interface-language.js';
 import { onReadOnly, readOnlyNow } from '../lock/read-only.js';
-import { revisionsOf } from './client.js';
+import { latestSaveOf, revisionsOf } from './client.js';
 import { compareForms, restoredValues } from './compare.js';
 import { bodiesBetween, wordsBetween } from './differences.js';
 import { accountWords, choiceWords, latestWords, savedWords, withMoment } from './words.js';
@@ -472,6 +473,10 @@ export function registerHistory(CMS, config) {
     line.append(element);
     return line;
   };
+  // The latest save of a file, as the history has it, which the refusal of a save older than it
+  // names: { account, moment }, or null.
+  globalThis.konziloLatestSave = (path) => latestSaveOf({ path, credential: signedInCredential });
+
   // The latest save as the history has it, with the account that pushed it, else as Sveltia's check
   // found it, which names no one, as its commit's author is whatever the commit says.
   globalThis.konziloCompareLatest = async ({ entryDraft, entry }) => {

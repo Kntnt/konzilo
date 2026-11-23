@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { revisionsOf } from '../src/cms/history/client.js';
+import { latestSaveOf, revisionsOf } from '../src/cms/history/client.js';
 
 const FIELDS = [{ name: 'title', widget: 'string' }, { name: 'status', widget: 'select', options: [{ value: 'draft', label: 'Draft' }] }];
 // The form's format, as a stand-in: a line `key: value` for each value.
@@ -45,4 +45,25 @@ test('gives a revision that cannot be read through the format with no values', a
   const page = await revisionsOf({ path: 'a.md', fields: FIELDS, parse: () => { throw new Error('no'); }, credential: () => 't', ask });
   assert.equal(page.revisions[0].values, null);
   assert.equal(page.revisions[0].unreadable, true);
+});
+
+test('names the latest save of a file by the account that pushed it, and its moment, as the history has them', async () => {
+  const asked = [];
+  const ask = async (address) => {
+    asked.push(address);
+    return { ok: true, status: 200, json: async () => ({
+      revisions: [
+        { commit: 'c2', moment: '2026-11-23T10:00:05Z', account: { login: 'ebba', name: 'Ebba Editor' }, text: 'title: Second\n' },
+        { commit: 'c1', moment: '2026-11-22T09:00:00Z', account: null, text: 'title: First\n' },
+      ],
+      more: false,
+    }) };
+  };
+  assert.deepEqual(await latestSaveOf({ path: 'articles/a.md', credential: () => 'token mine', ask }), { account: { login: 'ebba', name: 'Ebba Editor' }, moment: '2026-11-23T10:00:05Z' });
+  assert.deepEqual(asked, ['/_konzilo/revisions?path=articles%2Fa.md&page=1']);
+  const unknown = async () => ({ ok: true, status: 200, json: async () => ({ revisions: [{ commit: 'c1', moment: '2026-11-22T09:00:00Z', account: null, text: 'x' }], more: false }) });
+  assert.deepEqual(await latestSaveOf({ path: 'a.md', credential: () => 't', ask: unknown }), { account: null, moment: '2026-11-22T09:00:00Z' }, 'the commit\'s own moment, and no account, where Forgejo has no push of it');
+  const none = async () => ({ ok: true, status: 200, json: async () => ({ revisions: [], more: false }) });
+  assert.equal(await latestSaveOf({ path: 'a.md', credential: () => 't', ask: none }), null);
+  assert.equal(await latestSaveOf({ path: 'a.md', credential: () => 't', ask: async () => { throw new Error('offline'); } }), null);
 });

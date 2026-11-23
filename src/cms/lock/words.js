@@ -40,12 +40,13 @@ export const markWords = (mark) => (mark.yours ? wordsShown({ name: 'lock.markYo
 
 // Sveltia's words for a form older than the entry's latest save, as the core's refusal: what
 // happened, `description`, and what that means, `warning`. `type` is `modified` or `deleted`,
-// `name` the account that saved, and `date` when.
+// `name` the account that pushed the later save as Forgejo recorded it, where it did, and `date`
+// when.
 export function conflictWords({ type, name, date }) {
   if (type === 'deleted') return { description: wordsShown({ name: 'lock.deletedAfter' }), warning: wordsShown({ name: 'lock.notRecreated' }) };
   const at = date ? moment(date) : null;
-  const description = name && at
-    ? wordsShown({ name: 'lock.savedAfter', values: { account: name, moment: at } })
-    : wordsShown({ name: 'lock.savedAfterUnnamed' });
+  let description = wordsShown({ name: 'lock.savedAfterUnnamed' });
+  if (name && at) description = wordsShown({ name: 'lock.savedAfter', values: { account: name, moment: at } });
+  else if (at) description = wordsShown({ name: 'lock.savedAfterAt', values: { moment: at } });
   return { description, warning: wordsShown({ name: 'lock.notOverwritten' }) };
 }

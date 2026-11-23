@@ -1,10 +1,12 @@
 // A form locked to the tab that has it open, and a save older than the latest refused (ADR 0073),
 // in a site in Compose, in each browser engine, with two people signed in at once, an Admin and an
 // Editor: the question where another tab holds a form, the read-only state, the takeover and the
-// notice of it, the mark in the list, the refusal of a save from a form older than a push, and two
-// saves of two entries at one moment, which both go through. What else ADR 0073 asks of the editor
-// is held in one engine: the Editor's own other tab, a lock that ends as its form is left, an
-// Admin's form an Editor opens, and a deletion from the list of an entry another tab holds.
+// notice of it, the form taken back, the mark in the list, the refusal of a save from a form older
+// than a push, naming the account that pushed it, and two saves of two entries at one moment, which
+// both go through. What else ADR 0073 asks of the editor is held in one engine: the Editor's own
+// other tab, a lock that ends as its form is left or closed, also from a draft backup, a form
+// read-only until the service answers for its lock, an Admin's form an Editor opens, a deletion
+// from the list of an entry another tab holds, and a save Forgejo answers with an error.
 
 import assert from 'node:assert/strict';
 import { after, before, beforeEach, describe, test } from 'node:test';
@@ -39,10 +41,14 @@ describe('a form locked to the tab that has it open', () => {
     const { content, sha } = await api(`${repository()}/contents/${path}`);
     return { text: Buffer.from(content, 'base64').toString(), sha };
   };
-  // A push from outside Sveltia, as `login`, of the file with `change` made to it.
+  // A push from outside Sveltia, as `login`, of the file with `change` made to it, by a commit that
+  // names someone else as its author.
   const pushAs = async (login, path, change) => {
     const { text, sha } = await fileOf(path);
-    await api(`${repository()}/contents/${path}?sudo=${login}`, { method: 'PUT', body: JSON.stringify({ content: Buffer.from(change(text)).toString('base64'), sha, message: 'A push from outside the editor' }) });
+    await api(`${repository()}/contents/${path}?sudo=${login}`, {
+      method: 'PUT',
+      body: JSON.stringify({ content: Buffer.from(change(text)).toString('base64'), sha, message: 'A push from outside the editor', author: { name: 'Someone Else', email: 'someone@example.invalid' } }),
+    });
   };
   const fileHolding = async (path, words, { within = 30_000 } = {}) => {
     const deadline = Date.now() + within;
@@ -204,7 +210,8 @@ describe('a form locked to the tab that has it open', () => {
 
         const refusal = anna.page.getByRole('alertdialog').filter({ hasText: 'Reload' });
         await refusal.waitFor({ timeout: 30_000 });
-        assert.match(await refusal.textContent(), /ebba saved this entry on \d{1,2} \w+ \d{4} at \d{2}:\d{2} \S+, after you opened it\./);
+        assert.match(await refusal.textContent(), /ebba saved this entry on \d{1,2} \w+ \d{4} at \d{2}:\d{2} \S+, after you opened it\./, 'the account that pushed it');
+        assert.doesNotMatch(await refusal.textContent(), /Someone Else/, 'not the author the commit names');
         assert.equal(await refusal.getByRole('button', { name: /Save Anyway/ }).count(), 0);
         const text = (await fileOf(path)).text;
         assert.match(text, new RegExp(`title: ${pushed}`), 'the push stands');

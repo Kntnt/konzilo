@@ -1189,6 +1189,7 @@
   "lock.mark": "{name} is editing",
   "lock.markYours": "Open in your other tab",
   "lock.savedAfter": "{account} saved this entry on {moment}, after you opened it.",
+  "lock.savedAfterAt": "This entry was saved on {moment}, after you opened it.",
   "lock.savedAfterUnnamed": "This entry has been saved since you opened it.",
   "lock.deletedAfter": "This entry has been deleted since you opened it.",
   "lock.notOverwritten": "Your changes are not saved over it, and nothing is overwritten. Reload to see the latest version; your changes are kept to read and copy.",

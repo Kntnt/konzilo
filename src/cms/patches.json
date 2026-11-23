@@ -169,15 +169,15 @@
   },
   {
     "module": "@sveltia/cms/npm/index.js",
-    "why": "A save from a form older than the entry's latest save is refused, with nothing merged, naming the account of the later save and when, in the core's words and the reader's own form and time zone (ADR 0073). The same words warn while the form is open.",
+    "why": "A save from a form older than the entry's latest save is refused, with nothing merged, naming the account that pushed the later save and when, as the history has them, never the author a commit names, in the core's words and the reader's own form and time zone (ADR 0073). The same words warn while the form is open.",
     "find": "lst=({type:e,entry:t,canOverwrite:n},r)=>{if(e===`deleted`)",
-    "replace": "lst=({type:e,entry:t,canOverwrite:n},r)=>{let konziloWords=globalThis.konziloConflictWords?.({type:e,name:t?t.commitAuthor?.login||SB(t.commitAuthor):void 0,date:t?.commitDate});if(konziloWords)return konziloWords;if(e===`deleted`)"
+    "replace": "lst=({type:e,entry:t,canOverwrite:n,konziloSaved:konziloSaved},r)=>{let konziloWords=globalThis.konziloConflictWords?.({type:e,name:konziloSaved?.name,date:konziloSaved?.date});if(konziloWords)return konziloWords;if(e===`deleted`)"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
-    "why": "The refusal of a save older than the latest names the account of the later save and when (ADR 0073), which Sveltia's Forgejo backend does not keep with an entry: the check asks for the file's latest commit where the entry lacks it.",
+    "why": "The refusal of a save older than the latest names the account that pushed the later save and when (ADR 0073), as Forgejo recorded them, which Sveltia does not know: the check asks the core for the file's latest save, as its history has it (ADR 0074).",
     "find": "cst=async e=>{let{isNew:t,originalEntry:n}=e;if(!t&&n){try{await D3()}catch(e){console.error(`Failed to check the repository for changes.`,e)}return r7(n)}},",
-    "replace": "cst=async e=>{let{isNew:t,originalEntry:n}=e;if(!t&&n){try{await D3()}catch(e){console.error(`Failed to check the repository for changes.`,e)}return konziloWho(r7(n))}},konziloWho=async e=>{if(e?.type!==`modified`||!e.entry||e.entry.commitAuthor&&e.entry.commitDate)return e;try{let[t]=await bZ.current.fetchFileCommits(ZF(e.entry));t&&(e={...e,entry:{...e.entry,commitAuthor:{name:t.authorName,login:t.authorLogin,email:t.authorEmail},commitDate:t.date}})}catch{}return e},"
+    "replace": "cst=async e=>{let{isNew:t,originalEntry:n}=e;if(!t&&n){try{await D3()}catch(e){console.error(`Failed to check the repository for changes.`,e)}return konziloWho(r7(n))}},konziloWho=async e=>{if(e?.type!==`modified`||!e.entry)return e;let t=await globalThis.konziloLatestSave?.(ZF(e.entry)[0]);return t?{...e,konziloSaved:{name:t.account?.name,date:t.moment}}:e},"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
