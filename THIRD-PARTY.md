@@ -420,7 +420,7 @@ Every package that `package-lock.json` names, on every platform, with the versio
 | [`picocolors`](https://www.npmjs.com/package/picocolors) | 1.1.1 | ISC |
 | [`picomatch`](https://www.npmjs.com/package/picomatch) | 2.3.2 | MIT |
 | [`picomatch`](https://www.npmjs.com/package/picomatch) | 4.0.7 | MIT |
-| [`playwright-core`](https://www.npmjs.com/package/playwright-core) | 1.65.1 | Apache-2.0 |
+| [`playwright-core`](https://www.npmjs.com/package/playwright-core) | 1.64.1 | Apache-2.0 |
 | [`postcss`](https://www.npmjs.com/package/postcss) | 8.5.32 | MIT |
 | [`prismjs`](https://www.npmjs.com/package/prismjs) | 1.30.0 | MIT |
 | [`process-ancestry`](https://www.npmjs.com/package/process-ancestry) | 0.1.0 | MIT |

@@ -61,7 +61,7 @@
     "@sveltia/cms": "0.256.1",
     "astro": "7.4.13",
     "jsdom": "31.0.1",
-    "playwright-core": "1.65.1",
+    "playwright-core": "1.64.1",
     "vite": "8.3.8"
   },
   "overrides": {
