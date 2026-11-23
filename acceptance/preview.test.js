@@ -202,7 +202,17 @@ describe('the live preview', () => {
 
     test('its credential can read the source, and nothing else', async () => {
       const reader = site.compose('exec', '-T', 'preview', 'cat', '/secret/read-token').trim();
-      const api = (path, init) => fetch(`${site.origin.git}/api/v1${path}`, { ...init, headers: { authorization: `token ${reader}`, 'content-type': 'application/json' } });
+      // A request sent on a kept connection that the web server lets go of just then gets no
+      // answer; a browser sends it again on a new one, and so does this.
+      const api = async (path, init) => {
+        const send = () => fetch(`${site.origin.git}/api/v1${path}`, { ...init, headers: { authorization: `token ${reader}`, 'content-type': 'application/json' } });
+        try {
+          return await send();
+        } catch (error) {
+          if (error.cause?.code !== 'UND_ERR_SOCKET') throw error;
+          return send();
+        }
+      };
       assert.equal((await api(`/repos/${site.name}/source`)).status, 200);
       const { permissions } = await (await api(`/repos/${site.name}/source`)).json();
       assert.equal(permissions.push, false);
