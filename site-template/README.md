@@ -56,6 +56,8 @@ git rm vendor/kntnt-konzilo-<the old version>.tgz
 git add vendor package.json package-lock.json
 ```
 
+The core names the one Astro it runs with, so where the release raises Astro, as its changelog says, npm refuses that install until the same install raises the site's Astro with it, exactly: `npm install --save-exact @kntnt/konzilo@file:vendor/kntnt-konzilo-X.Y.Z.tgz astro@A.B.C`.
+
 What the site template gained between the two releases, the changelog says; a raised pin does not bring it.
 
 **In Compose,** such a site runs from a checkout of the core at the same tag, since Compose builds its images from the core's source and the package holds no `compose/`. `new-site` names the checkout it ran from, in `.env`'s `KONZILO_CORE` and the two paths in `compose.yaml`. On another machine, or after raising the pin, clone the core at the pinned tag, `git clone --branch vX.Y.Z https://github.com/Kntnt/konzilo.git`, and name that folder in those three places.
