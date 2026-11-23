@@ -68,6 +68,17 @@ describe('the preview\'s gate', () => {
   let built;
   // The post an Admin chose as the 404 page, as the runner knows it, or null.
   let notFoundChosen;
+  // The timeline's later moments, the moment the content folder shows, each moment's version,
+  // each moment the folder was made to show in turn, and the moment a draft is taken at.
+  let timeline;
+  let held;
+  let versions;
+  let shownAt;
+  let draftAt;
+  // What every moment's version is where `versions` names none: one of each test's own, since a
+  // page drawn at a version is kept across tests.
+  let base;
+  let turn = 0;
   // What the gate has told of.
   let warned;
 
@@ -124,6 +135,11 @@ describe('the preview\'s gate', () => {
         outgoing.writeHead(incoming.url === '/gone/' ? 410 : 404);
         return outgoing.end('no such page');
       }
+      // A page that says which moment the content folder shows as it is drawn.
+      if (incoming.url.startsWith('/moment/')) {
+        outgoing.writeHead(200, { 'Content-Type': 'text/html' });
+        return outgoing.end(`<!doctype html><html><head><title>A moment</title></head><body><p>at ${held}</p></body></html>`);
+      }
       if (incoming.url === '/style.css') {
         outgoing.writeHead(200, { 'Content-Type': 'text/css' });
         return outgoing.end('p { color: red; }');
@@ -159,7 +175,17 @@ describe('the preview\'s gate', () => {
         take: async (draft) => {
           if (takeFails) throw new Error('broke');
           taken.push(draft);
-          return { address: '/a-page/', refusals: [] };
+          return { address: '/a-page/', refusals: [], moment: draftAt };
+        },
+        timeline: () => [{ at: null, posts: [] }, ...timeline],
+        moment: (asked) => (Number.isNaN(Date.parse(asked)) ? null : timeline.filter(({ at }) => at <= asked).at(-1)?.at ?? null),
+        prepare: async (moment) => versions[moment ?? 'now'] ?? base,
+        version: (moment) => versions[moment ?? 'now'] ?? base,
+        shows: (moment) => held === `${moment ?? 'now'}@${versions[moment ?? 'now'] ?? base}`,
+        show: async (moment) => {
+          shownAt.push(moment);
+          held = `${moment ?? 'now'}@${versions[moment ?? 'now'] ?? base}`;
+          return { changed: true };
         },
         refresh: async () => {
           refreshes += 1;
@@ -181,6 +207,7 @@ describe('the preview\'s gate', () => {
           if (startFails) throw new Error('did not start');
         },
         ready: () => ready,
+        changing: async (work) => work(),
       },
     });
     outer = createServer((incoming, outgoing) => {
@@ -213,6 +240,14 @@ describe('the preview\'s gate', () => {
     built = {};
     notFoundChosen = null;
     warned = [];
+    timeline = [];
+    turn += 1;
+    base = `v${turn}`;
+    // The dev server starts with now shown.
+    held = `now@${base}`;
+    versions = {};
+    shownAt = [];
+    draftAt = null;
   });
 
   const session = (authorization = WRITER, from = ADMIN) => fetch(`${origin}${SESSION_PATH}`, { method: 'POST', headers: { origin: from, authorization } });
@@ -609,6 +644,80 @@ describe('the preview\'s gate', () => {
       assert.ok(warned.some((told) => told.includes('the run broke')), 'nor what is saved');
     });
 
+    // A tab shows the site as it stands at the moment it has chosen, now until it chooses another
+    // (ADR 0032).
+    test('shows a page at the moment the tab has chosen, now where it has chosen none, and tells the dev server neither', async () => {
+      const { back } = await signInAs('/', 'code-writer');
+      const session = pairOf(back, 'a_preview=');
+      timeline = [{ at: '2099-01-01T00:00:00Z', posts: [] }];
+      held = `now@${base}`;
+      assert.match(await (await visit('/moment/', session)).text(), /at now@/);
+      // A moment the folder does not show yet is prepared, which the page says, and looks again.
+      const chosen = `${session}; a_preview_moment=2099-01-01T00:00:00Z`;
+      const preparing = await visit('/moment/', chosen);
+      assert.equal(preparing.status, 503);
+      assert.match(await preparing.text(), new RegExp(text('sv', 'previewTab.preparingTitle')));
+      assert.match(preparing.headers.get('retry-after'), /^\d+$/);
+      await new Promise((resolve) => {
+        setTimeout(resolve, 20);
+      });
+      const shown = await visit('/moment/', chosen);
+      assert.equal(shown.status, 200);
+      assert.match(await shown.text(), /at 2099-01-01T00:00:00Z@/);
+      assert.equal(asked.at(-1).headers.cookie, undefined);
+    });
+
+    test('takes the moment an address names, which it keeps for the tab and does not tell the dev server', async () => {
+      const { back } = await signInAs('/', 'code-writer');
+      const session = pairOf(back, 'a_preview=');
+      timeline = [{ at: '2099-01-01T00:00:00Z', posts: [] }];
+      held = `2099-01-01T00:00:00Z@${base}`;
+      const shown = await visit('/moment/?konzilo-moment=2099-01-01T00%3A00%3A00Z', session);
+      assert.equal(shown.status, 200);
+      assert.match(await shown.text(), /at 2099-01-01T00:00:00Z@/);
+      assert.equal(pairOf(shown, 'a_preview_moment='), 'a_preview_moment=2099-01-01T00:00:00Z');
+      // Only a moment, or now, is kept.
+      held = `now@${base}`;
+      assert.equal(pairOf(await visit('/moment/?konzilo-moment=%3Cb%3E', session), 'a_preview_moment='), null);
+      assert.equal(asked.at(-1).url, '/moment/');
+      assert.equal(asked.at(-1).headers.cookie, undefined);
+    });
+
+    test('takes a moment it does not know to the one the site then stands at, and one passed, or anything else, to now', async () => {
+      const { back } = await signInAs('/', 'code-writer');
+      const session = pairOf(back, 'a_preview=');
+      timeline = [{ at: '2099-01-01T00:00:00Z', posts: [] }];
+      held = `2099-01-01T00:00:00Z@${base}`;
+      assert.match(await (await visit('/moment/', `${session}; a_preview_moment=2100-06-01T00:00:00Z`)).text(), /at 2099-01-01T00:00:00Z@/);
+      held = `now@${base}`;
+      for (const moment of ['2000-01-01T00:00:00Z', 'now', '<b>']) assert.match(await (await visit('/moment/', `${session}; a_preview_moment=${moment}`)).text(), /at now@/, moment);
+    });
+
+    // While the dev server shows one moment, a page of another that has not changed since it was
+    // drawn is the same page: it is answered as it was, and the dev server is left where it is.
+    test('answers a page of a moment the dev server does not show as it was drawn, where nothing it shows has changed', async () => {
+      const { back } = await signInAs('/', 'code-writer');
+      const session = pairOf(back, 'a_preview=');
+      timeline = [{ at: '2099-01-01T00:00:00Z', posts: [] }];
+      held = `now@${base}`;
+      await visit('/moment/', session);
+      held = `2099-01-01T00:00:00Z@${base}`;
+      shownAt = [];
+      const again = await visit('/moment/', session);
+      assert.equal(again.status, 200);
+      assert.match(await again.text(), /at now@/);
+      assert.deepEqual(shownAt, []);
+      for (const dest of ['iframe']) assert.match(await (await visit('/moment/', session, { 'sec-fetch-dest': dest })).text(), /at now@/);
+      // Once it has changed, it is drawn anew.
+      versions.now = 'changed';
+      const changed = await visit('/moment/', session);
+      assert.equal(changed.status, 503);
+      await new Promise((resolve) => {
+        setTimeout(resolve, 20);
+      });
+      assert.match(await (await visit('/moment/', session)).text(), /at now@changed/);
+    });
+
     test('lets someone already signed in to Forgejo in without a word, starting the preview on the way', async () => {
       const { back } = await signInAs('/', 'code-writer');
       assert.equal(back.status, 303);
@@ -664,6 +773,49 @@ describe('the preview\'s gate', () => {
           process.env.TZ = reader;
           const ahead = await toolbarIn(await visit('/ahead/', held), '/ahead/');
           assert.ok(ahead.says.startsWith(text('sv', 'previewTab.toolbar.scheduled', { moment })), `${reader}: ${ahead.says}`);
+        }
+      } finally {
+        if (zone === undefined) delete process.env.TZ;
+        else process.env.TZ = zone;
+      }
+    });
+
+    // The timeline, in the toolbar of every page in a tab (ADR 0032).
+    test('lists the timeline, each moment with what goes out then, in the reader\'s own time zone, and names the one shown', async () => {
+      const held = await as('code-writer');
+      timeline = [{ at: '2026-12-24T09:00:00Z', posts: [{ title: 'Jul', file: 'pages/jul.md' }, { title: 'Hamnen', file: 'pages/hamnen.md' }] }, { at: '2027-01-01T00:00:00Z', posts: [{ title: 'Nyår', file: 'pages/nyar.md' }] }];
+      const zone = process.env.TZ;
+      process.env.TZ = 'Europe/Stockholm';
+      try {
+        const shownAt = async (cookies, path = '/a-page/') => {
+          const toolbar = await toolbarIn(await visit(path, cookies), path);
+          const region = toolbar.window.document.querySelector('konzilo-preview-toolbar').shadowRoot;
+          const choice = region.querySelector('select');
+          const label = region.querySelector(`label[for="${choice.id}"]`);
+          return { toolbar, choice, label, region, options: [...choice.options].map((option) => [option.value, option.textContent]) };
+        };
+        const now = await shownAt(held);
+        assert.equal(now.label.textContent, text('sv', 'previewTab.toolbar.moment'));
+        assert.deepEqual(now.options, [
+          ['now', text('sv', 'previewTab.toolbar.now')],
+          ['2026-12-24T09:00:00Z', '24 december 2026 kl. 10:00 CET: Jul, Hamnen'],
+          ['2027-01-01T00:00:00Z', '1 januari 2027 kl. 01:00 CET: Nyår'],
+        ]);
+        assert.equal(now.choice.value, 'now');
+        {
+                    const named = '/a-page/?konzilo-moment=2026-12-24T09:00:00Z';
+          await visit(named, held);
+          await new Promise((resolve) => {
+            setTimeout(resolve, 20);
+          });
+          const then = await shownAt(held, named);
+          assert.equal(then.choice.value, '2026-12-24T09:00:00Z');
+          assert.equal(then.toolbar.window.location.href, `${PREVIEW}/a-page/`, 'the moment is the tab\'s, not the address\'s');
+          // Choosing another holds it for this tab, and for the page asked for next.
+          then.choice.value = '2027-01-01T00:00:00Z';
+          then.region.querySelector('button.show').click();
+          assert.match(then.toolbar.window.document.cookie, /a_preview_moment=2027-01-01T00:00:00Z/);
+          assert.equal(then.toolbar.window.sessionStorage.getItem('konzilo-preview-moment'), '2027-01-01T00:00:00Z');
         }
       } finally {
         if (zone === undefined) delete process.env.TZ;
@@ -872,8 +1024,18 @@ describe('the preview\'s gate', () => {
     const answer = await draft(given);
     assert.equal(answer.status, 200);
     assert.equal(answer.headers.get('access-control-allow-origin'), ADMIN);
-    assert.deepEqual(await answer.json(), { address: '/a-page/', refusals: [] });
+    assert.deepEqual(await answer.json(), { address: '/a-page/', refusals: [], moment: null });
     assert.deepEqual(taken, [given]);
+  });
+
+  // The pane shows the moment the post being edited goes out, and is answered once the dev
+  // server shows it with the draft (ADR 0032).
+  test('answers a draft with the moment its pane shows, once the dev server shows it', async () => {
+    await signedIn();
+    draftAt = '2099-01-01T00:00:00Z';
+    const answer = await draft({ path: 'pages/a.md', fields: { title: 'A' } });
+    assert.deepEqual(await answer.json(), { address: '/a-page/', refusals: [], moment: '2099-01-01T00:00:00Z' });
+    assert.deepEqual(shownAt, ['2099-01-01T00:00:00Z']);
   });
 
   test('takes no draft from anywhere else, or that it cannot read', async () => {
@@ -908,6 +1070,22 @@ describe('the preview\'s gate', () => {
       await signedIn();
       for (const dest of ['document', 'image', 'empty']) assert.equal((await asked_as('/redirects', dest)).status, 301, dest);
       assert.equal((await fetch(`${origin}/redirects`, { redirect: 'manual', headers: { cookie } })).status, 301);
+    });
+  });
+
+  // A frame is the pane's, at the moment its address names, and waits for it rather than being
+  // told it is being prepared.
+  describe('a frame at a moment', () => {
+    test('is drawn once the dev server shows the moment it names, which the dev server is not told', async () => {
+      await signedIn();
+      timeline = [{ at: '2099-01-01T00:00:00Z', posts: [] }];
+      const later = await visit('/moment/?konzilo-moment=2099-01-01T00%3A00%3A00Z', cookie, { 'sec-fetch-dest': 'iframe' });
+      assert.equal(later.status, 200);
+      assert.match(await later.text(), /at 2099-01-01T00:00:00Z@/);
+      assert.equal(asked.at(-1).url, '/moment/');
+      const now = await visit('/moment/', cookie, { 'sec-fetch-dest': 'iframe' });
+      assert.match(await now.text(), /at now@/);
+      assert.deepEqual(shownAt, ['2099-01-01T00:00:00Z', null]);
     });
   });
 

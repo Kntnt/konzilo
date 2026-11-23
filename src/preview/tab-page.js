@@ -1,8 +1,9 @@
 // The preview's own pages, which its gate shows in a tab of its own in place of the site's: a
-// person refused, a sign-in that did not complete, the preview starting or not, and a saved post
-// the site cannot publish. Each is a heading and a sentence in the interface language, with at
-// most a link to try again or a list of what to change, and holds nothing of the site, nothing
-// loaded from elsewhere and no script but the preview's toolbar, where it is given (ADR 0032).
+// person refused, a sign-in that did not complete, the preview starting or not, a moment of the
+// timeline being prepared, and a saved post the site cannot publish. Each is a heading and a
+// sentence in the interface language, with at most a link to try again or a list of what to
+// change, and holds nothing of the site, nothing loaded from elsewhere and no script but the
+// preview's toolbar, where it is given (ADR 0032).
 
 import { interfaceLanguageTag, text } from '../catalogues.js';
 import { placeIn, reasonIn } from '../refusals.js';
@@ -14,6 +15,7 @@ export const TAB_PAGES = Object.freeze({
   forgejoDown: { title: 'previewTab.signInFailedTitle', says: 'previewTab.forgejoDown' },
   starting: { title: 'previewTab.startingTitle', says: 'previewTab.starting' },
   notStarted: { title: 'previewTab.notStartedTitle', says: 'previewTab.notStarted' },
+  preparing: { title: 'previewTab.preparingTitle', says: 'previewTab.preparing' },
   postRefused: { title: 'previewTab.postRefusedTitle', says: 'previewTab.postRefused' },
 });
 

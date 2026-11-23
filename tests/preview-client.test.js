@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { beforeEach, describe, test } from 'node:test';
 
-import { previewClient } from '../src/cms/preview/client.js';
+import { atMoment, previewClient } from '../src/cms/preview/client.js';
 import { draftOf } from '../src/cms/preview/draft.js';
 
 const ORIGIN = 'http://localhost:7004';
@@ -74,7 +74,26 @@ describe('the pane\'s client', () => {
     assert.equal(calls[1].url, `${ORIGIN}/_konzilo/preview/draft`);
     assert.equal(calls[1].init.credentials, 'include');
     assert.equal(calls[1].init.headers.authorization, undefined, 'a draft carries no token');
-    assert.deepEqual(states.at(-1), { phase: 'shown', address: '/a/', refusals: [], leads: null, stopped: null });
+    assert.deepEqual(states.at(-1), { phase: 'shown', address: '/a/', refusals: [], leads: null, stopped: null, moment: null });
+  });
+
+  // The pane shows the moment the post being edited goes out, and asks at it where a link leads
+  // (ADR 0032).
+  test('keeps the moment the gate shows the draft at, and asks where an address leads at it', async () => {
+    answers.draft = [json(200, { address: '/a/', refusals: [], moment: '2099-01-01T00:00:00Z' })];
+    const one = client();
+    one.update(draft('A'));
+    await run();
+    assert.equal(states.at(-1).moment, '2099-01-01T00:00:00Z');
+    const where = calls.find(({ url }) => url.includes('/where'));
+    assert.equal(new URL(where.url).searchParams.get('moment'), '2099-01-01T00:00:00Z');
+    assert.equal(new URL(where.url).searchParams.get('to'), '/a/');
+  });
+
+  test('names a moment in the address of a page shown at it, and none for now', () => {
+    assert.equal(atMoment('/a/', null), '/a/');
+    assert.equal(atMoment('/a/', '2099-01-01T00:00:00Z'), '/a/?konzilo-moment=2099-01-01T00%3A00%3A00Z');
+    assert.equal(atMoment('/a/?page=2#top', '2099-01-01T00:00:00Z'), '/a/?page=2&konzilo-moment=2099-01-01T00%3A00%3A00Z#top');
   });
 
   test('waits for a pause, and sends only the newest', async () => {
@@ -139,7 +158,7 @@ describe('the pane\'s client', () => {
     answers.draft = [json(200, { address: null, refusals: [{ field: 'title', reason: 'a title' }] })];
     one.update(draft(''));
     await run();
-    assert.deepEqual(states.at(-1), { phase: 'shown', address: '/a/', refusals: [{ field: 'title', reason: 'a title' }], leads: null, stopped: null });
+    assert.deepEqual(states.at(-1), { phase: 'shown', address: '/a/', refusals: [{ field: 'title', reason: 'a title' }], leads: null, stopped: null, moment: null });
   });
 
   test('opens a new session when one has ended, and sends the draft again', async () => {

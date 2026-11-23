@@ -119,7 +119,7 @@ describe('a page in the preview\'s pane', () => {
       repository: 'a/source',
       cookieName: 'a_preview',
       runner: runnerStandIn(),
-      dev: { port: sitePort, ensure: async () => {}, ready: () => true },
+      dev: { port: sitePort, ensure: async () => {}, ready: () => true, changing: async (work) => work() },
     });
   });
 

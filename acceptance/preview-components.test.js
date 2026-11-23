@@ -140,7 +140,7 @@ describe('a page of the live preview with components within components', () => {
       repository: 'a/source',
       cookieName: 'a_preview',
       runner: runnerStandIn(),
-      dev: { port: devPort, ensure: async () => {}, ready: () => true },
+      dev: { port: devPort, ensure: async () => {}, ready: () => true, changing: async (work) => work() },
     });
     // Once its page is drawn. Ninety seconds, as a dev server may take, its first page among them.
     for (let waited = 0; ; waited += 500) {

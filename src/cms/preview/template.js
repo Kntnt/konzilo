@@ -1,14 +1,16 @@
 // The live preview in Sveltia's pane (ADR 0032): the page itself, from the preview's own
 // origin, in a frame scaled from a desktop's width to the pane, and above it why the draft
 // cannot be published, while the last good page stays, and over it, for a moment, where the page
-// would have gone when it tried to leave. It is a React component, since that is what Sveltia
-// takes, with its styles on the elements, since the pane is a document of Sveltia's own.
+// would have gone when it tried to leave. The page is shown at the moment of the site's timeline
+// the post goes out at, now for one out already or with none, and a button opens it in a tab of
+// its own at that moment. It is a React component, since that is what Sveltia takes, with its
+// styles on the elements, since the pane is a document of Sveltia's own.
 
 import { say } from '../interface-language.js';
 import { signedInCredential } from '../credential.js';
 import { postValues } from '../groups/values.js';
 import { refusalShown } from '../refusals.js';
-import { previewClient } from './client.js';
+import { atMoment, previewClient } from './client.js';
 import { draftOf } from './draft.js';
 import { PLACE_EVENT, PLACE_MESSAGE, SHOW_EVENT, SHOW_MESSAGE, STOPPED_MESSAGE } from './paths.js';
 import { previewWindow } from '../preview-window/window.js';
@@ -48,7 +50,7 @@ export function previewTemplate({ origin, several, credential = signedInCredenti
   return function KonziloPreview({ entry, document: paneDocument, window: paneWindow }) {
     const React = globalThis.__SVELTIA_CMS_REACT__;
     const { createElement: h } = React;
-    const [state, setState] = React.useState({ phase: 'starting', address: null, refusals: [], leads: null, stopped: null });
+    const [state, setState] = React.useState({ phase: 'starting', address: null, refusals: [], leads: null, stopped: null, moment: null });
     const [size, setSize] = React.useState({ width: WIDTH, height: 800 });
     const holder = React.useRef(null);
     const shown = React.useRef(null);
@@ -125,7 +127,7 @@ export function previewTemplate({ origin, several, credential = signedInCredenti
     const passing = state.stopped ? { text: stoppedWords(state.stopped), look: PASSING } : null;
 
     React.useEffect(() => {
-      if (away) previewWindow.show({ origin, address: state.address, notes, passing, sandbox: SANDBOX, frameTitle: say('preview.title'), title: say('preview.windowTitle', { title: plainData?.title ?? '' }) });
+      if (away) previewWindow.show({ origin, address: state.address === null ? null : atMoment(state.address, state.moment), notes, passing, sandbox: SANDBOX, frameTitle: say('preview.title'), title: say('preview.windowTitle', { title: plainData?.title ?? '' }) });
     });
     React.useEffect(() => {
       globalThis.document.documentElement.classList.toggle('konzilo-preview-away', away);
@@ -139,7 +141,7 @@ export function previewTemplate({ origin, several, credential = signedInCredenti
     const frame = away || state.address === null ? null : h('iframe', {
       ref: shown,
       title: say('preview.title'),
-      src: `${origin}${state.address}`,
+      src: `${origin}${atMoment(state.address, state.moment)}`,
       sandbox: SANDBOX,
       style: { display: 'block', border: 0, width: Math.max(WIDTH, size.width), height: size.height / scale, transform: `scale(${scale})`, transformOrigin: '0 0', background: '#fff' },
     });
@@ -149,8 +151,13 @@ export function previewTemplate({ origin, several, credential = signedInCredenti
     // Chosen, but not open: the window has been closed, or the browser would not open it.
     const closed = previewWindow.wanted() && !away && h('p', { role: 'status', style: QUIET }, say('preview.windowClosed'), ' ', h('button', { type: 'button', onClick: () => previewWindow.open() }, say('preview.windowOpen')));
 
+    // The page in a tab of its own, at the moment the pane shows it at, where it has one.
+    const inTab = state.address === null ? null : h('p', { style: { ...QUIET, display: 'flex', justifyContent: 'flex-end' } },
+      h('button', { type: 'button', onClick: () => globalThis.open(`${origin}${atMoment(state.address, state.moment ?? 'now')}`, '_blank', 'noopener') }, say('preview.openInTab')));
+
     return h('div', { style: { display: 'flex', flexDirection: 'column', height: '100vh' } },
       closed,
+      inTab,
       away ? null : notes.map(noteIn),
       h('div', { ref: holder, style: { position: 'relative', flex: '1 1 auto', overflow: 'hidden', minHeight: 0, background: '#fff' } }, frame, !away && passing && h('p', { role: 'status', style: PASSING }, passing.text)));
   };

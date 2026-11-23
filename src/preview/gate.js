@@ -8,14 +8,22 @@
 // page is built from and leads someone who may write to its form. Its answers frame for the admin
 // host alone and are never indexed or shared by a cache, whatever the dev server behind it would
 // have said.
+//
+// A page is shown at a moment of the site's timeline: in a tab, the one the tab has chosen, which
+// its toolbar keeps in a cookie of this host's, or the one its address names, `konzilo-moment`,
+// and else now; in a frame, the one its address names, the moment the post being edited goes
+// out. The dev server shows one moment at a time (stage.js): a page of another is answered as
+// it was last drawn, where nothing it shows has changed since, and else drawn once the dev server
+// shows it, a frame waiting for that and a tab told that its moment is being prepared.
 
 import { createHash, randomBytes } from 'node:crypto';
 import { request } from 'node:http';
 import { connect } from 'node:net';
 
-import { DRAFT_PATH, HEALTH_PATH, SESSION_PATH, SIGN_IN_PATH, WHERE_PATH } from '../cms/preview/paths.js';
+import { DRAFT_PATH, HEALTH_PATH, MOMENT_PARAMETER, SESSION_PATH, SIGN_IN_PATH, WHERE_PATH } from '../cms/preview/paths.js';
 import { accessTo, CREDENTIAL } from '../forgejo.js';
 import { forgejoSignIn, SIGN_IN_LASTS, STATE } from './sign-in.js';
+import { previewStage } from './stage.js';
 import { refusalIn, TAB_PAGES, tabPage } from './tab-page.js';
 import { toolbarOf, toolbarScript, withToolbar } from './toolbar.js';
 
@@ -43,6 +51,9 @@ const DROPPED = new Set(['x-frame-options', 'content-security-policy', 'content-
 // page, unpacked, and what it says of the page it gave, which the toolbar makes another.
 const ASKED_WHOLE = ['accept-encoding', 'if-none-match', 'if-modified-since'];
 const OF_THE_PAGE = new Set(['content-length', 'etag', 'last-modified']);
+// How many pages, each as it was last drawn at a moment, are kept for a browser that asks for
+// one again while the dev server shows another.
+const PAGES_KEPT = 200;
 
 const digest = (secret) => createHash('sha256').update(secret).digest('hex');
 
@@ -54,6 +65,22 @@ const isPage = (incoming) => incoming.method === 'GET' && (incoming.headers['sec
 
 // A path on this host to come back to, and never one a browser would read as another host's.
 const pathOn = (url) => (/^\/(?![/\\])/.test(url.pathname) ? `${url.pathname}${url.search}` : '/');
+
+// A moment as an address or the tab's cookie names it: `now`, or a moment as the intake writes
+// one; anything else is taken for now.
+const NOW = 'now';
+const MOMENT_VALUE = /^(?:now|\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)$/;
+
+// A frame's request, which the pane makes, and which no sign-in can lead anywhere.
+const isFrame = (incoming) => incoming.method === 'GET' && incoming.headers['sec-fetch-dest'] === 'iframe';
+
+// The path a request asks the dev server for, without the moment its address names, and that
+// moment, or null.
+const momentIn = (url) => {
+  const asked = url.searchParams.get(MOMENT_PARAMETER);
+  url.searchParams.delete(MOMENT_PARAMETER);
+  return { path: `${url.pathname}${url.search}`, asked };
+};
 
 const cookieIn = (incoming, name) => (incoming.headers.cookie ?? '').split(';').map((pair) => pair.trim()).find((pair) => pair.startsWith(`${name}=`))?.slice(name.length + 1) ?? null;
 
@@ -75,6 +102,12 @@ async function bodyOf(incoming) {
 export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null, clientId = null, language = 'en', repository, runner, dev, cookieName, now = Date.now, warn = console.error }) {
   const secure = new URL(origin).protocol === 'https:';
   const cookie = secure ? '__Host-konzilo-preview' : cookieName;
+  // The moment a tab has chosen, which its toolbar writes, and a page's script may read.
+  const momentCookie = secure ? '__Host-konzilo-preview-moment' : `${cookieName}_moment`;
+  const stage = previewStage({ runner, dev });
+  // Each page as it was last drawn at a moment, by the moment, the version it was drawn from and
+  // its path: { status, headers, body }.
+  const drawn = new Map();
   // A browser's own sign-in, one cookie for each, so that tabs that sign in at once keep theirs; a
   // `__Host-` name would have to be for every path. `state` is one the gate gave (STATE).
   const signInCookie = (state) => `${secure ? '__Secure-konzilo-preview-sign-in' : `${cookieName}_sign_in`}_${state.slice(0, 12)}`;
@@ -128,13 +161,24 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
   // goes on with what it has where that breaks. Gives what the page at `path` is built from, as
   // the runner's at() gives it: a saved post it refuses is shown in place of a page. A frame keeps
   // the last good page, which its pane names the refusal above.
-  const builtFrom = async (path) => {
+  const readSaved = async () => {
     try {
       await runner.refresh();
     } catch (error) {
       warn(`The preview could not read what is saved: ${error.message}`);
     }
-    return builtOf(path, () => runner.at(path));
+  };
+
+  // The moment asked for, as the timeline has it, and its run brought up to what is read: its
+  // version, or null where that breaks, which is told of.
+  const momentOf = async (asked) => {
+    const moment = runner.moment(asked);
+    try {
+      return { moment, version: await runner.prepare(moment) };
+    } catch (error) {
+      warn(`The preview could not prepare the site at ${moment ?? 'now'}: ${error.message}`);
+      return { moment, version: null };
+    }
   };
 
   // The dev server, started where it is not running, with nobody waiting for it here.
@@ -246,6 +290,8 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
     try {
       const shown = await runner.take(draft);
       await dev.ensure();
+      // Answered once the dev server shows the draft, at its moment.
+      await stage.at(shown.moment, async () => {});
       return answer(outgoing, 200, shown, forTheEditor);
     } catch (error) {
       warn(`The preview broke: ${error.stack ?? error.message}`);
@@ -258,7 +304,7 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
   const forwarded = (incoming, whole = false) => {
     const { cookie: _cookie, origin: _origin, referer: _referer, ...headers } = incoming.headers;
     if (whole) for (const name of ASKED_WHOLE) delete headers[name];
-    const others = (incoming.headers.cookie ?? '').split(';').map((pair) => pair.trim()).filter((pair) => pair !== '' && !pair.startsWith(`${cookie}=`));
+    const others = (incoming.headers.cookie ?? '').split(';').map((pair) => pair.trim()).filter((pair) => pair !== '' && !pair.startsWith(`${cookie}=`) && !pair.startsWith(`${momentCookie}=`));
     return { ...headers, host: `127.0.0.1:${dev.port}`, ...(others.length > 0 ? { cookie: others.join('; ') } : {}) };
   };
 
@@ -271,37 +317,76 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
   // runs again that could try the same thing.
   const keptFromFollowing = (incoming, from) => incoming.headers['sec-fetch-dest'] === 'iframe' && REDIRECTS.has(from.statusCode);
 
-  // The dev server's answer, with the toolbar `toolbarFor(status)` gives for its status in it, where
-  // it is a page and one is given.
-  const pass = (incoming, outgoing, toolbarFor = null) => {
-    const forward = request({ host: '127.0.0.1', port: dev.port, path: incoming.url, method: incoming.method, headers: forwarded(incoming, toolbarFor !== null) }, async (from) => {
-      if (keptFromFollowing(incoming, from)) {
-        from.resume();
-        outgoing.writeHead(204, own);
-        return outgoing.end();
-      }
+  // The dev server's answer to what a page asks for itself, as it comes.
+  const pass = (incoming, outgoing) => {
+    const forward = request({ host: '127.0.0.1', port: dev.port, path: incoming.url, method: incoming.method, headers: forwarded(incoming) }, (from) => {
       const kept = Object.fromEntries(Object.entries(from.headers).filter(([name]) => !DROPPED.has(name)));
       if (kept.location?.startsWith(`http://127.0.0.1:${dev.port}`)) kept.location = kept.location.slice(`http://127.0.0.1:${dev.port}`.length) || '/';
-      if (toolbarFor === null || !takesToolbar(from)) {
-        outgoing.writeHead(from.statusCode, { ...kept, ...own });
-        return from.pipe(outgoing);
-      }
-      const parts = [];
-      try {
-        for await (const part of from) parts.push(part);
-      } catch {
-        return outgoing.destroy();
-      }
-      const shown = Buffer.from(withToolbar(Buffer.concat(parts).toString('utf8'), toolbarFor(from.statusCode)), 'utf8');
-      const rest = Object.fromEntries(Object.entries(kept).filter(([name]) => !OF_THE_PAGE.has(name)));
-      outgoing.writeHead(from.statusCode, { ...rest, ...own, 'Content-Length': String(shown.length) });
-      return outgoing.end(shown);
+      outgoing.writeHead(from.statusCode, { ...kept, ...own });
+      return from.pipe(outgoing);
     });
     forward.on('error', () => {
       if (outgoing.headersSent) outgoing.destroy();
       else answer(outgoing, 502, { message: 'The preview is not answering.' });
     });
     incoming.pipe(forward);
+  };
+
+  // The dev server's answer to a page at `path`, whole and unpacked: { status, headers, body }.
+  const drawnBy = (incoming, path) => new Promise((resolve, reject) => {
+    const asked = request({ host: '127.0.0.1', port: dev.port, path, method: 'GET', headers: forwarded(incoming, true) }, async (from) => {
+      const parts = [];
+      try {
+        for await (const part of from) parts.push(part);
+      } catch (error) {
+        return reject(error);
+      }
+      const headers = Object.fromEntries(Object.entries(from.headers).filter(([name]) => !DROPPED.has(name)));
+      if (headers.location?.startsWith(`http://127.0.0.1:${dev.port}`)) headers.location = headers.location.slice(`http://127.0.0.1:${dev.port}`.length) || '/';
+      return resolve({ status: from.statusCode, headers, body: Buffer.concat(parts) });
+    });
+    asked.on('error', reject);
+    asked.end();
+  });
+
+  // A page drawn, as the browser is answered with it: a frame kept from a redirect, and a page in
+  // a tab with the toolbar `toolbarFor(status)` gives, where it is HTML.
+  const answerDrawn = (incoming, outgoing, { status, headers, body }, toolbarFor = null, more = {}) => {
+    if (keptFromFollowing(incoming, { statusCode: status })) {
+      outgoing.writeHead(204, own);
+      return outgoing.end();
+    }
+    const rest = Object.fromEntries(Object.entries(headers).filter(([name]) => !OF_THE_PAGE.has(name)));
+    const page = toolbarFor !== null && takesToolbar({ statusCode: status, headers }) ? Buffer.from(withToolbar(body.toString('utf8'), toolbarFor(status)), 'utf8') : body;
+    outgoing.writeHead(status, { ...rest, ...own, ...more, 'Content-Length': String(page.length) });
+    return outgoing.end(incoming.method === 'HEAD' ? undefined : page);
+  };
+
+  const drawnKey = (moment, version, path) => `${moment ?? 'now'}\n${version}\n${path}`;
+  const keepDrawn = (key, page) => {
+    drawn.delete(key);
+    drawn.set(key, page);
+    if (drawn.size > PAGES_KEPT) drawn.delete(drawn.keys().next().value);
+  };
+
+  // A page at `moment`, as `version` of it is drawn: as it was drawn before where the dev server
+  // shows another moment, or else drawn now that it shows this one. `waits`: whether to wait for
+  // it to show this moment where it is not drawn yet; else null, for a page that says it is being
+  // prepared.
+  const pageAt = async (incoming, path, { moment, version, waits }) => {
+    const key = version === null ? null : drawnKey(moment, version, path);
+    if (key !== null && !stage.ready(moment) && drawn.has(key)) return drawn.get(key);
+    if (!waits && !stage.ready(moment)) {
+      stage.ask(moment);
+      return null;
+    }
+    return stage.at(moment, async () => {
+      // Drawn from what the folder shows, which is this moment's latest version as it begins.
+      const shown = runner.version(moment);
+      const page = await drawnBy(incoming, path);
+      if (shown !== null) keepDrawn(drawnKey(moment, shown, path), page);
+      return page;
+    });
   };
 
   const answerAt = (path) => new Promise((resolve, reject) => {
@@ -347,10 +432,56 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
       return answer(outgoing, 503, { message: 'The preview did not start.' }, forTheEditor);
     }
     try {
-      return answer(outgoing, 200, await leadsFrom(`${path.pathname}${path.search}`), forTheEditor);
+      const { moment } = await momentOf(new URL(incoming.url, origin).searchParams.get('moment'));
+      return answer(outgoing, 200, await stage.at(moment, () => leadsFrom(`${path.pathname}${path.search}`)), forTheEditor);
     } catch {
       return answer(outgoing, 502, { message: 'The preview is not answering.' }, forTheEditor);
     }
+  };
+
+  // A page asked for in a tab of its own, at the moment the tab has chosen, with what is saved
+  // read first, and the toolbar.
+  const inTab = async (incoming, outgoing, held) => {
+    const url = new URL(incoming.url, origin);
+    const { pathname } = url;
+    const { path, asked: named } = momentIn(url);
+    const kept = cookieIn(incoming, momentCookie);
+    const asked = MOMENT_VALUE.test(named ?? '') ? named : MOMENT_VALUE.test(kept ?? '') ? kept : NOW;
+    // A moment an address names is the tab's from now on.
+    const more = asked !== named ? {} : { 'Set-Cookie': [`${momentCookie}=${named}`, 'Path=/', 'SameSite=Lax', ...(secure ? ['Secure'] : [])].join('; ') };
+    await readSaved();
+    const { moment, version } = await momentOf(asked);
+    const about = builtOf(pathname, () => runner.at(pathname, moment));
+    // The toolbar of the page the dev server answers with `status`: what it is built from, and
+    // the 404 page's, the post an Admin chose for it, where nothing else answers, and the
+    // timeline, with the moment shown.
+    const toolbarFor = (status) => toolbarOf({
+      about: about ?? (NOT_FOUND.has(status) ? builtOf(pathname, () => runner.notFoundAt(pathname, moment)) : null),
+      writes: held.writes,
+      language,
+      adminOrigin,
+      timeline: runner.timeline(),
+      moment,
+      asked,
+      cookie: { name: momentCookie, secure },
+    });
+    if (about?.refusals.length > 0) return page(outgoing, 200, TAB_PAGES.postRefused, { values: { title: about.title }, items: about.refusals.map((one) => refusalIn(language, one)), toolbar: toolbarFor(200), headers: more });
+    try {
+      await dev.ensure();
+    } catch (error) {
+      warn(`The preview did not start: ${error.message}`);
+      return answer(outgoing, 503, { message: 'The preview did not start.' });
+    }
+    const drawnPage = await pageAt(incoming, path, { moment, version, waits: false });
+    if (drawnPage === null) return page(outgoing, 503, TAB_PAGES.preparing, { refresh: LOOKS_AGAIN, headers: { ...more, 'Retry-After': String(LOOKS_AGAIN) } });
+    return answerDrawn(incoming, outgoing, drawnPage, toolbarFor, more);
+  };
+
+  // A frame's page, the pane's, at the moment its address names, which it waits for.
+  const inFrame = async (incoming, outgoing) => {
+    const { path, asked } = momentIn(new URL(incoming.url, origin));
+    const { moment, version } = await momentOf(asked);
+    return answerDrawn(incoming, outgoing, await pageAt(incoming, path, { moment, version, waits: true }));
   };
 
   return {
@@ -386,18 +517,15 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
       const sends = incoming.method === 'POST' && pathname.startsWith('/_konzilo/');
       if (incoming.method !== 'GET' && incoming.method !== 'HEAD' && !sends) return answer(outgoing, 405, { message: 'A preview only shows pages.' }, { Allow: 'GET, HEAD' });
       if (isPage(incoming) && !dev.ready()) return starting(incoming, outgoing);
-      const about = isPage(incoming) ? await builtFrom(pathname) : null;
-      // The toolbar of the page the dev server answers with `status`: what it is built from, and
-      // the 404 page's, the post an Admin chose for it, where nothing else answers.
-      const toolbarFor = isPage(incoming) ? (status) => toolbarOf({ about: about ?? (NOT_FOUND.has(status) ? builtOf(pathname, () => runner.notFoundAt(pathname)) : null), writes: held.writes, language, adminOrigin }) : null;
-      if (about?.refusals.length > 0) return page(outgoing, 200, TAB_PAGES.postRefused, { values: { title: about.title }, items: about.refusals.map((one) => refusalIn(language, one)), toolbar: toolbarFor(200) });
+      if (isPage(incoming)) return inTab(incoming, outgoing, held);
       try {
         await dev.ensure();
       } catch (error) {
         warn(`The preview did not start: ${error.message}`);
         return answer(outgoing, 503, { message: 'The preview did not start.' });
       }
-      return pass(incoming, outgoing, toolbarFor);
+      if (isFrame(incoming)) return inFrame(incoming, outgoing);
+      return pass(incoming, outgoing);
     },
 
     // A dev server's reloads come through a WebSocket, behind the same session.

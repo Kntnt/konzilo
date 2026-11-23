@@ -6,8 +6,15 @@
 // tucks away into a small tab there, which brings it back. Its place is kept in the browser's
 // storage, where there is any. It is the gate's, in no build of the site: never in the pane, which
 // is a frame, never on the public site and never in a share link's build.
+//
+// It lists the site's timeline, now and each later moment at which something goes out, labelled
+// with what goes out then, and names the moment the page shows. The moment chosen is the tab's:
+// kept in the tab's own storage, and told the gate by a cookie of the preview's host, written
+// before each page the tab goes to, and before the page is asked for again where the gate was
+// told another tab's. A new tab starts at now, but for one opened at a moment its address names.
 
 import { interfaceLanguageTag, text } from '../catalogues.js';
+import { MOMENT_PARAMETER } from '../cms/preview/paths.js';
 import { DRAFT, PUBLISHED, SCHEDULED } from '../format/post-status.js';
 
 // A post's status as the toolbar says it, by its text's name.
@@ -21,6 +28,9 @@ const STATUSES = Object.freeze({
 // time zone.
 const MOMENT_PLACE = '{moment}';
 
+// Now, as a tab's moment is named.
+const NOW = 'now';
+
 // A source file's entry in the editor on the admin host: its collection, the file's first
 // folder, and its ID, the file's name, in whichever language's folder it is.
 const entryOf = (adminOrigin, file) => {
@@ -33,15 +43,18 @@ const entryOf = (adminOrigin, file) => {
 // may write to the source, and so edit; `adminOrigin`, where the editor is. A scheduled post's
 // status holds `{moment}` where its moment goes, `moment`, which the page says in its reader's own
 // form and time zone, named, since only the browser knows that zone and the site has none.
-export function toolbarOf({ about, writes, language, adminOrigin }) {
+// `timeline`: now and each later moment, as the preview's runner gives it; `moment`: the one the
+// page shows, null for now; `asked`: the one the gate was told, which it took to `moment`; and
+// `cookie`: { name, secure }, the cookie the tab's moment is told by.
+export function toolbarOf({ about, writes, language, adminOrigin, timeline = [{ at: null, posts: [] }], moment = null, asked = NOW, cookie = null }) {
   let says;
-  let moment = null;
+  let waitsFor = null;
   let link;
   let tone = 'other';
   if (about?.kind === 'post') {
     tone = Object.hasOwn(STATUSES, about.status) ? about.status : DRAFT;
     says = text(language, STATUSES[tone], { moment: MOMENT_PLACE });
-    moment = tone === SCHEDULED ? about.at : null;
+    waitsFor = tone === SCHEDULED ? about.at : null;
     link = { href: entryOf(adminOrigin, about.file), text: text(language, 'previewTab.toolbar.editPost') };
   } else if (about?.kind === 'term') {
     says = text(language, 'previewTab.toolbar.term', { name: about.title });
@@ -54,12 +67,21 @@ export function toolbarOf({ about, writes, language, adminOrigin }) {
     language: interfaceLanguageTag(language),
     label: text(language, 'previewTab.toolbar.label'),
     says,
-    moment,
+    moment: waitsFor,
     tone,
     link: writes ? link : null,
     move: text(language, 'previewTab.toolbar.move'),
     hint: text(language, 'previewTab.toolbar.hint'),
     show: text(language, 'previewTab.toolbar.show'),
+    moments: timeline.map(({ at, posts }) => (at === null
+      ? { value: NOW, at: null, label: text(language, 'previewTab.toolbar.now') }
+      : { value: at, at, label: text(language, 'previewTab.toolbar.goesOut', { moment: MOMENT_PLACE, posts: posts.map(({ title }) => title).join(', ') }) })),
+    chosen: moment ?? NOW,
+    asked,
+    momentLabel: text(language, 'previewTab.toolbar.moment'),
+    showMoment: text(language, 'previewTab.toolbar.showMoment'),
+    parameter: MOMENT_PARAMETER,
+    cookie,
   };
 }
 
@@ -78,6 +100,50 @@ export function withToolbar(html, given) {
 // reach. It does nothing in a frame, which is the pane's.
 export function previewToolbar(given) {
   if (window.parent !== window || !document.body || document.querySelector('konzilo-preview-toolbar')) return;
+
+  // The tab's moment: the one its address names, else the one it holds, else now for a new tab;
+  // where its storage cannot be read, the one the gate was told. A page shown at another, as a
+  // page is where another tab told the gate its own, is asked for again at the tab's.
+  const KEPT_MOMENT = 'konzilo-preview-moment';
+  const tell = (value) => {
+    if (given.cookie) document.cookie = `${given.cookie.name}=${value}; Path=/; SameSite=Lax${given.cookie.secure ? '; Secure' : ''}`;
+  };
+  const tabMoment = () => {
+    try {
+      return sessionStorage.getItem(KEPT_MOMENT) ?? 'now';
+    } catch {
+      return given.asked;
+    }
+  };
+  const keepMoment = (value) => {
+    try {
+      sessionStorage.setItem(KEPT_MOMENT, value);
+    } catch {
+      // The gate's cookie holds it alone.
+    }
+  };
+  const address = new URL(location.href);
+  const named = address.searchParams.get(given.parameter);
+  if (named !== null) {
+    keepMoment(named);
+    address.searchParams.delete(given.parameter);
+    history.replaceState(history.state, '', address.href);
+  }
+  if (tabMoment() !== given.asked) {
+    tell(tabMoment());
+    location.replace(location.href);
+    return;
+  }
+  // The moment the gate took it to, where the one asked for is no longer on the timeline.
+  keepMoment(given.chosen);
+  tell(given.chosen);
+  globalThis.navigation?.addEventListener('navigate', () => tell(tabMoment()));
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted && tabMoment() !== given.chosen) {
+      tell(tabMoment());
+      location.reload();
+    }
+  });
 
   // Where its place is kept, how far from the window's edges it starts, how far an arrow key moves
   // it, four times as far with Shift, how far past an edge it is pushed to tuck away, and how far a
@@ -101,7 +167,7 @@ export function previewToolbar(given) {
 :host { all: initial; }
 [hidden] { display: none !important; }
 .frame { position: fixed; z-index: 2147483647; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: #f8fafc; }
-.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; box-sizing: border-box; max-width: calc(100vw - 16px); padding: 4px 14px 4px 4px; background: #1e293b; border-radius: 8px; box-shadow: 0 4px 16px rgb(0 0 0 / 0.35); touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab; }
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; box-sizing: border-box; width: max-content; max-width: calc(100vw - 16px); padding: 4px 14px 4px 4px; background: #1e293b; border-radius: 8px; box-shadow: 0 4px 16px rgb(0 0 0 / 0.35); touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab; }
 .bar.dragged { cursor: grabbing; }
 .bar.tucking { opacity: 0.6; }
 button { margin: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: inherit; }
@@ -112,6 +178,9 @@ button { margin: 0; padding: 0; border: 0; background: none; color: inherit; fon
 .says[data-tone="draft"]::before { background: #fbbf24; }
 .says[data-tone="scheduled"]::before { background: #60a5fa; }
 a { color: #bfdbfe; text-decoration: underline; white-space: nowrap; cursor: pointer; }
+.moment { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+select { max-width: 18rem; margin: 0; padding: 2px 4px; border: 1px solid #64748b; border-radius: 4px; background: #0f172a; color: inherit; font: inherit; cursor: pointer; }
+.show { padding: 2px 8px; border-radius: 4px; background: #334155; cursor: pointer; }
 .tab { display: grid; place-items: center; width: 24px; height: 48px; background: #1e293b; box-shadow: 0 4px 16px rgb(0 0 0 / 0.35); cursor: pointer; }
 .tab[data-edge="left"] { border-radius: 0 8px 8px 0; }
 .tab[data-edge="right"] { border-radius: 8px 0 0 8px; }
@@ -137,6 +206,21 @@ a { color: #bfdbfe; text-decoration: underline; white-space: nowrap; cursor: poi
     const link = make('a', { href: given.link.href, draggable: 'false' }, given.link.text);
     bar.append(link);
   }
+  // The timeline, each moment in the reader's own form and time zone, named, with what goes out
+  // then; a moment chosen is shown by its button, so that the keys that move through the list
+  // take the reader nowhere.
+  const choice = make('select', { id: 'moment' }, ...given.moments.map(({ value, at, label }) => {
+    const option = make('option', { value }, at === null ? label : label.replace('{moment}', new Date(at).toLocaleString(given.language, MOMENT)));
+    option.selected = value === given.chosen;
+    return option;
+  }));
+  const showMoment = make('button', { type: 'button', class: 'show' }, given.showMoment);
+  showMoment.addEventListener('click', () => {
+    keepMoment(choice.value);
+    tell(choice.value);
+    location.reload();
+  });
+  bar.append(make('span', { class: 'moment' }, make('label', { for: 'moment' }, given.momentLabel), choice, showMoment));
   const tab = make('button', { type: 'button', class: 'tab', 'aria-label': given.show, hidden: '' },
     icon('<svg width="8" height="14" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg>'));
   const frame = make('div', { class: 'frame', role: 'region', 'aria-label': given.label, lang: given.language }, bar, tab, hint);
