@@ -395,6 +395,13 @@ const text = (element) => element.textContent.replace(/\s+/g, ' ').trim();
 const objection = (page) => page.document.querySelector('#konzilo-consent-category-statistics').closest('.konzilo-consent-category').querySelector('[data-konzilo-consent-objection]');
 const objectionLink = (page) => objection(page).querySelector('a[data-konzilo-consent-action="objection"]');
 const resumeLink = (page) => objection(page).querySelector('a[data-konzilo-consent-action="resume"]');
+// Where a visitor reaches the right to object: the dialog opened by Customise, and
+// the statistics category's services unfolded. A link out of sight takes no focus.
+const unfold = (page) => {
+  page.click('customise');
+  objection(page).closest('details').open = true;
+  return page;
+};
 const EXPLANATION = 'We can\'t see who you are, we don\'t follow you from one visit to the next, and we don\'t profile you. All we do is count the visits: how many there are, which pages are read and for how long, from which country, in which language and with which browser, and when in the day. We do so on our legitimate interest in knowing this. If you disagree, you have the right to object.';
 const OBJECTED = 'You have objected to the counting, so your visits are not counted. Undo your objection';
 
@@ -489,7 +496,7 @@ describe('a release whose tracker counts without storage before consent', () => 
   });
 
   test('confirming the objection sends nothing more in the page view and sets no cookie; it is kept, no choice; the explanation\'s link is plain text and a paragraph to undo it shows, and the next page loads no tracker', () => {
-    const page = visit(site);
+    const page = unfold(visit(site));
     objectionLink(page).focus();
     objectionLink(page).click();
     page.click('object');
@@ -520,7 +527,7 @@ describe('a release whose tracker counts without storage before consent', () => 
   });
 
   test('Undo your objection takes it back at once, with no confirmation, and the next page counts without storage again', () => {
-    const page = visit(site, { stored: { objection: new Date().toISOString() } });
+    const page = unfold(visit(site, { stored: { objection: new Date().toISOString() } }));
     resumeLink(page).click();
     assert.equal(page.document.querySelector('#konzilo-consent-objection').open, false, 'no confirmation is asked');
     assert.equal(page.kept(), null);

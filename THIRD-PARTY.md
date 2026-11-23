@@ -6,8 +6,6 @@ Every package that `package-lock.json` names, on every platform, with the versio
 
 | Package | Version | License |
 |---|---|---|
-| [`@asamuzakjp/css-color`](https://www.npmjs.com/package/@asamuzakjp/css-color) | 7.1.9 | MIT |
-| [`@asamuzakjp/dom-selector`](https://www.npmjs.com/package/@asamuzakjp/dom-selector) | 9.2.4 | MIT |
 | [`@astrojs/compiler-binding`](https://www.npmjs.com/package/@astrojs/compiler-binding) | 0.5.3 | MIT |
 | [`@astrojs/compiler-binding-android-arm64`](https://www.npmjs.com/package/@astrojs/compiler-binding-android-arm64) | 0.5.3 | MIT |
 | [`@astrojs/compiler-binding-darwin-arm64`](https://www.npmjs.com/package/@astrojs/compiler-binding-darwin-arm64) | 0.5.3 | MIT |
@@ -30,7 +28,6 @@ Every package that `package-lock.json` names, on every platform, with the versio
 | [`@babel/helper-validator-identifier`](https://www.npmjs.com/package/@babel/helper-validator-identifier) | 7.29.7 | MIT |
 | [`@babel/parser`](https://www.npmjs.com/package/@babel/parser) | 7.29.12 | MIT |
 | [`@babel/types`](https://www.npmjs.com/package/@babel/types) | 7.29.11 | MIT |
-| [`@bramus/specificity`](https://www.npmjs.com/package/@bramus/specificity) | 2.4.3 | MIT |
 | [`@bruits/satteri-android-arm64`](https://www.npmjs.com/package/@bruits/satteri-android-arm64) | 0.11.7 | MIT |
 | [`@bruits/satteri-darwin-arm64`](https://www.npmjs.com/package/@bruits/satteri-darwin-arm64) | 0.11.7 | MIT |
 | [`@bruits/satteri-darwin-x64`](https://www.npmjs.com/package/@bruits/satteri-darwin-x64) | 0.11.7 | MIT |
@@ -77,12 +74,6 @@ Every package that `package-lock.json` names, on every platform, with the versio
 | [`@codemirror/streamparser`](https://www.npmjs.com/package/@codemirror/streamparser) | 6.0.0 | MIT |
 | [`@codemirror/theme-one-dark`](https://www.npmjs.com/package/@codemirror/theme-one-dark) | 6.1.3 | MIT |
 | [`@codemirror/view`](https://www.npmjs.com/package/@codemirror/view) | 6.43.15 | MIT |
-| [`@csstools/color-helpers`](https://www.npmjs.com/package/@csstools/color-helpers) | 6.1.2 | MIT-0 |
-| [`@csstools/css-calc`](https://www.npmjs.com/package/@csstools/css-calc) | 3.4.3 | MIT |
-| [`@csstools/css-color-parser`](https://www.npmjs.com/package/@csstools/css-color-parser) | 4.2.7 | MIT |
-| [`@csstools/css-parser-algorithms`](https://www.npmjs.com/package/@csstools/css-parser-algorithms) | 4.0.2 | MIT |
-| [`@csstools/css-syntax-patches-for-csstree`](https://www.npmjs.com/package/@csstools/css-syntax-patches-for-csstree) | 1.1.16 | MIT-0 |
-| [`@csstools/css-tokenizer`](https://www.npmjs.com/package/@csstools/css-tokenizer) | 4.0.2 | MIT |
 | [`@emnapi/core`](https://www.npmjs.com/package/@emnapi/core) | 1.11.1 | MIT |
 | [`@emnapi/core`](https://www.npmjs.com/package/@emnapi/core) | 1.11.3 | MIT |
 | [`@emnapi/core`](https://www.npmjs.com/package/@emnapi/core) | 2.0.0-beta.2 | MIT |
@@ -258,7 +249,8 @@ Every package that `package-lock.json` names, on every platform, with the versio
 | [`astro`](https://www.npmjs.com/package/astro) | 7.4.13 | MIT |
 | [`axobject-query`](https://www.npmjs.com/package/axobject-query) | 4.1.0 | Apache-2.0 |
 | [`bail`](https://www.npmjs.com/package/bail) | 2.0.2 | MIT |
-| [`bidi-js`](https://www.npmjs.com/package/bidi-js) | 1.1.0 | MIT |
+| [`bcp-47`](https://www.npmjs.com/package/bcp-47) | 2.1.2 | MIT |
+| [`bcp-47-match`](https://www.npmjs.com/package/bcp-47-match) | 2.0.3 | MIT |
 | [`boolbase`](https://www.npmjs.com/package/boolbase) | 1.0.0 | ISC |
 | [`ccount`](https://www.npmjs.com/package/ccount) | 2.0.1 | MIT |
 | [`character-entities`](https://www.npmjs.com/package/character-entities) | 2.0.2 | MIT |
@@ -283,7 +275,7 @@ Every package that `package-lock.json` names, on every platform, with the versio
 | [`css-what`](https://www.npmjs.com/package/css-what) | 7.0.0 | BSD-2-Clause |
 | [`csso`](https://www.npmjs.com/package/csso) | 5.0.5 | MIT |
 | [`csstype`](https://www.npmjs.com/package/csstype) | 3.2.3 | MIT |
-| [`data-urls`](https://www.npmjs.com/package/data-urls) | 7.0.0 | MIT |
+| [`data-urls`](https://www.npmjs.com/package/data-urls) | 8.0.0 | MIT |
 | [`debug`](https://www.npmjs.com/package/debug) | 4.4.3 | MIT |
 | [`decimal.js`](https://www.npmjs.com/package/decimal.js) | 10.6.0 | MIT |
 | [`decode-named-character-reference`](https://www.npmjs.com/package/decode-named-character-reference) | 1.3.0 | MIT |
@@ -302,7 +294,7 @@ Every package that `package-lock.json` names, on every platform, with the versio
 | [`dset`](https://www.npmjs.com/package/dset) | 3.1.4 | MIT |
 | [`entities`](https://www.npmjs.com/package/entities) | 4.5.0 | BSD-2-Clause |
 | [`entities`](https://www.npmjs.com/package/entities) | 7.0.1 | BSD-2-Clause |
-| [`entities`](https://www.npmjs.com/package/entities) | 8.1.0 | BSD-2-Clause |
+| [`entities`](https://www.npmjs.com/package/entities) | 9.0.0 | BSD-2-Clause |
 | [`es-module-lexer`](https://www.npmjs.com/package/es-module-lexer) | 3.0.4 | MIT |
 | [`escape-string-regexp`](https://www.npmjs.com/package/escape-string-regexp) | 5.0.0 | MIT |
 | [`estree-walker`](https://www.npmjs.com/package/estree-walker) | 2.0.2 | MIT |
@@ -328,10 +320,13 @@ Every package that `package-lock.json` names, on every platform, with the versio
 | [`http-cache-semantics`](https://www.npmjs.com/package/http-cache-semantics) | 4.3.0 | BSD-2-Clause |
 | [`immutable`](https://www.npmjs.com/package/immutable) | 5.1.9 | MIT |
 | [`iron-webcrypto`](https://www.npmjs.com/package/iron-webcrypto) | 1.2.1 | MIT |
+| [`is-alphabetical`](https://www.npmjs.com/package/is-alphabetical) | 2.0.1 | MIT |
+| [`is-alphanumerical`](https://www.npmjs.com/package/is-alphanumerical) | 2.0.1 | MIT |
+| [`is-decimal`](https://www.npmjs.com/package/is-decimal) | 2.0.1 | MIT |
 | [`is-docker`](https://www.npmjs.com/package/is-docker) | 4.0.0 | MIT |
 | [`is-plain-obj`](https://www.npmjs.com/package/is-plain-obj) | 4.1.0 | MIT |
 | [`is-potential-custom-element-name`](https://www.npmjs.com/package/is-potential-custom-element-name) | 1.0.1 | MIT |
-| [`jsdom`](https://www.npmjs.com/package/jsdom) | 30.1.1 | MIT |
+| [`jsdom`](https://www.npmjs.com/package/jsdom) | 31.0.1 | MIT |
 | [`jsonc-parser`](https://www.npmjs.com/package/jsonc-parser) | 3.3.1 | MIT |
 | [`katex`](https://www.npmjs.com/package/katex) | 0.16.47 | MIT |
 | [`katex`](https://www.npmjs.com/package/katex) | 0.19.1 | MIT |
@@ -420,13 +415,14 @@ Every package that `package-lock.json` names, on every platform, with the versio
 | [`p-limit`](https://www.npmjs.com/package/p-limit) | 7.3.3 | MIT |
 | [`p-queue`](https://www.npmjs.com/package/p-queue) | 10.0.0 | MIT |
 | [`package-manager-detector`](https://www.npmjs.com/package/package-manager-detector) | 1.9.0 | MIT |
-| [`parse5`](https://www.npmjs.com/package/parse5) | 8.0.1 | MIT |
+| [`parse5`](https://www.npmjs.com/package/parse5) | 8.1.1 | MIT |
+| [`parse5-parser-stream`](https://www.npmjs.com/package/parse5-parser-stream) | 8.1.1 | MIT |
 | [`pdfjs-dist`](https://www.npmjs.com/package/pdfjs-dist) | 6.5.438 | Apache-2.0 |
 | [`piccolore`](https://www.npmjs.com/package/piccolore) | 0.1.3 | ISC |
 | [`picocolors`](https://www.npmjs.com/package/picocolors) | 1.1.1 | ISC |
 | [`picomatch`](https://www.npmjs.com/package/picomatch) | 2.3.2 | MIT |
 | [`picomatch`](https://www.npmjs.com/package/picomatch) | 4.0.7 | MIT |
-| [`playwright-core`](https://www.npmjs.com/package/playwright-core) | 1.64.1 | Apache-2.0 |
+| [`playwright-core`](https://www.npmjs.com/package/playwright-core) | 1.65.1 | Apache-2.0 |
 | [`postcss`](https://www.npmjs.com/package/postcss) | 8.5.32 | MIT |
 | [`prismjs`](https://www.npmjs.com/package/prismjs) | 1.30.0 | MIT |
 | [`process-ancestry`](https://www.npmjs.com/package/process-ancestry) | 0.1.0 | MIT |
@@ -459,7 +455,6 @@ Every package that `package-lock.json` names, on every platform, with the versio
 | [`remark-math`](https://www.npmjs.com/package/remark-math) | 6.0.0 | MIT |
 | [`remark-parse`](https://www.npmjs.com/package/remark-parse) | 11.0.0 | MIT |
 | [`remark-stringify`](https://www.npmjs.com/package/remark-stringify) | 11.0.0 | MIT |
-| [`require-from-string`](https://www.npmjs.com/package/require-from-string) | 2.0.2 | MIT |
 | [`resolve-pkg-maps`](https://www.npmjs.com/package/resolve-pkg-maps) | 1.0.0 | MIT |
 | [`retext-smartypants`](https://www.npmjs.com/package/retext-smartypants) | 6.2.0 | MIT |
 | [`rolldown`](https://www.npmjs.com/package/rolldown) | 1.2.19 | MIT |
@@ -489,7 +484,6 @@ Every package that `package-lock.json` names, on every platform, with the versio
 | [`tldts`](https://www.npmjs.com/package/tldts) | 7.4.19 | MIT |
 | [`tldts-core`](https://www.npmjs.com/package/tldts-core) | 7.4.20 | MIT |
 | [`tough-cookie`](https://www.npmjs.com/package/tough-cookie) | 6.0.2 | BSD-3-Clause |
-| [`tr46`](https://www.npmjs.com/package/tr46) | 6.0.0 | MIT |
 | [`tr46`](https://www.npmjs.com/package/tr46) | 7.0.0 | MIT |
 | [`trim-lines`](https://www.npmjs.com/package/trim-lines) | 3.0.1 | MIT |
 | [`trough`](https://www.npmjs.com/package/trough) | 2.2.0 | MIT |
@@ -518,7 +512,6 @@ Every package that `package-lock.json` names, on every platform, with the versio
 | [`w3c-xmlserializer`](https://www.npmjs.com/package/w3c-xmlserializer) | 6.0.0 | MIT |
 | [`webidl-conversions`](https://www.npmjs.com/package/webidl-conversions) | 8.0.1 | BSD-2-Clause |
 | [`whatwg-mimetype`](https://www.npmjs.com/package/whatwg-mimetype) | 5.0.0 | MIT |
-| [`whatwg-url`](https://www.npmjs.com/package/whatwg-url) | 16.0.1 | MIT |
 | [`whatwg-url`](https://www.npmjs.com/package/whatwg-url) | 17.3.0 | MIT |
 | [`xml-name-validator`](https://www.npmjs.com/package/xml-name-validator) | 5.0.0 | Apache-2.0 |
 | [`xmlchars`](https://www.npmjs.com/package/xmlchars) | 2.2.0 | MIT |
