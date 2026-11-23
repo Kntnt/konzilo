@@ -6,18 +6,24 @@
 //
 // A state is { form, mode, ... }, `mode` one of:
 //   none        no form is open, or a new entry, which has no lock to keep
+//   checking    the service is asked for the form's lock, and the form is read-only until it answers
 //   editing     the tab holds the form's lock
 //   asking      another tab holds it, `holder`, and the Editor is asked what to do
 //   reading     the Editor reads it read-only, while `holder` holds it, or no one, null
 //   takenOver   `holder` took it over from this tab, which keeps its changes to read and copy
 //   adminOnly   the form is an Admin's, and this Editor may only read it
-//   staleBackup the form shows a draft backup from `at`, which a later save makes unsaveable
+//   staleBackup the form shows a draft backup from `at`, which a later save makes unsaveable, or,
+//               `takenOver`, the changes it held when it was taken over at `at`, set aside as the
+//               tab took it back, which are never saved
 // A holder is { name, since, yours }, `yours` where it is the Editor's own other tab.
 //
 // `service`: as client.js gives it. Where it does not answer the keeper lets the Editor work on,
 // since the check against the latest save still stops an old copy from overwriting a newer one.
 
-const READ_ONLY = new Set(['asking', 'reading', 'takenOver', 'adminOnly', 'staleBackup']);
+// The modes in which the tab holds the form's lock.
+const HOLDING = new Set(['editing', 'staleBackup']);
+
+const READ_ONLY = new Set(['checking', 'asking', 'reading', 'takenOver', 'adminOnly', 'staleBackup']);
 
 // The form an address of the editor opens, `<collection>/<entry>`, or null for a new entry, a
 // list and anything else.
@@ -37,6 +43,10 @@ export function lockKeeper({ service, show = () => {}, mark = () => {} }) {
   let opening = 0;
   // Forms held for a deletion from the list, which the locks seen meanwhile leave alone.
   const deleting = new Set();
+  // Settled once the service has answered the latest opening.
+  let settled = Promise.resolve();
+  // A draft backup that can no longer be saved, found while the service was asked: its moment.
+  let staleAt = null;
 
   const become = (next) => {
     state = next;
@@ -47,6 +57,9 @@ export function lockKeeper({ service, show = () => {}, mark = () => {} }) {
 
   // What the service answers for `form` made the tab's state.
   const answered = (form, answer) => {
+    const at = staleAt;
+    staleAt = null;
+    if ((answer === null || answer.held) && at !== null) return become({ form, mode: 'staleBackup', at });
     if (answer === null || answer.held) return become({ form, mode: 'editing' });
     if (answer.adminOnly) return become({ form, mode: 'adminOnly' });
     return become({ form, mode: 'asking', holder: holderOf(answer.holder) });
@@ -55,6 +68,10 @@ export function lockKeeper({ service, show = () => {}, mark = () => {} }) {
   return {
     state: () => state,
     readOnly: () => READ_ONLY.has(state.mode),
+    // Once the service has answered for the form the tab has open, or given up.
+    settled: () => settled,
+    // The form whose lock the tab holds, or is asking for, which the page lets go as it is closed.
+    held: () => (state.mode === 'checking' || HOLDING.has(state.mode) ? state.form : null),
 
     // The tab now has `form` open, or none: the lock of the one it leaves goes, and the new one's is
     // asked for.
@@ -63,15 +80,28 @@ export function lockKeeper({ service, show = () => {}, mark = () => {} }) {
       const left = state;
       opening += 1;
       const mine = opening;
-      if (left.form !== null && left.mode === 'editing') await service.release(left.form);
-      if (form === null) return become({ form: null, mode: 'none' });
-      become({ form, mode: 'editing' });
-      const answer = await service.hold(form);
-      if (mine !== opening) {
-        if (answer?.held) await service.release(form);
+      if (form === null) {
+        become({ form: null, mode: 'none' });
+        if (left.form !== null && HOLDING.has(left.mode)) await service.release(left.form);
         return undefined;
       }
-      return answered(form, answer);
+      staleAt = null;
+      become({ form, mode: 'checking' });
+      let answering;
+      settled = new Promise((go) => {
+        answering = go;
+      });
+      try {
+        if (left.form !== null && HOLDING.has(left.mode)) await service.release(left.form);
+        const answer = await service.hold(form);
+        if (mine !== opening) {
+          if (answer?.held) await service.release(form);
+          return undefined;
+        }
+        return answered(form, answer);
+      } finally {
+        answering();
+      }
     },
 
     // The Editor chose to read the form another tab holds.
@@ -79,13 +109,16 @@ export function lockKeeper({ service, show = () => {}, mark = () => {} }) {
       if (state.mode === 'asking') become({ ...state, mode: 'reading' });
     },
 
-    // The Editor chose to take the form over, from the question or from the read-only state.
+    // The Editor chose to take the form over, from the question or from the read-only state. A form
+    // this tab had taken over from it comes back with the changes it held set aside, to read and
+    // never to save, since the tab that took it may have saved since.
     async takeOver() {
-      const { form } = state;
-      if (form === null || state.mode === 'adminOnly') return;
+      const { form, mode, holder } = state;
+      if (form === null || !['asking', 'reading', 'takenOver'].includes(mode)) return;
       const answer = await service.hold(form, { takeOver: true });
       if (state.form !== form) return;
-      answered(form, answer);
+      if (mode === 'takenOver' && (answer === null || answer.held)) become({ form, mode: 'staleBackup', at: holder.since, takenOver: true });
+      else answered(form, answer);
     },
 
     // The locks as the service says they stand, { version, locks }.
@@ -159,12 +192,13 @@ export function lockKeeper({ service, show = () => {}, mark = () => {} }) {
     },
 
     // The form shows a draft backup from `at` that can no longer be saved, unless it is read-only
-    // already for its lock.
+    // for its lock, and once the service has answered where it is asked.
     staleBackup(at) {
       if (state.form !== null && state.mode === 'editing') become({ form: state.form, mode: 'staleBackup', at });
+      else if (state.mode === 'checking') staleAt = at;
     },
 
-    // The form shows its latest version again, in place of a backup.
+    // The form shows its latest save again, in place of a backup.
     latest() {
       if (state.mode === 'staleBackup') become({ form: state.form, mode: 'editing' });
     },

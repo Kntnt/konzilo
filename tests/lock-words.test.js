@@ -40,3 +40,12 @@ test('refuses a save older than the latest naming the account of the later save 
   assert.equal(conflictWords({ type: 'modified' }).description, 'This entry has been saved since you opened it.');
   assert.equal(conflictWords({ type: 'deleted' }).description, 'This entry has been deleted since you opened it.');
 });
+
+test('says a form waits for its lock, and that changes set aside as it was taken back can only be read', () => {
+  useInterfaceLanguage('en');
+  assert.equal(lineWords({ mode: 'checking' }), 'Checking that no other tab has this form open.');
+  assert.equal(lineWords({ mode: 'staleBackup', at: '2026-11-23T10:05:00.000Z', takenOver: true }), 'These are your unsaved changes from before this form was taken over at 23 November 2026 at 11:05 CET. They can be read and copied, but not saved.');
+  useInterfaceLanguage('sv');
+  assert.equal(lineWords({ mode: 'checking' }), 'Kontrollerar att ingen annan flik har formuläret öppet.');
+  assert.equal(lineWords({ mode: 'staleBackup', at: '2026-11-23T10:05:00.000Z', takenOver: true }), 'Det här är dina osparade ändringar från innan formuläret togs över 23 november 2026 kl. 11:05 CET. De kan läsas och kopieras, men inte sparas.');
+});

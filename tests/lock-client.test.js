@@ -65,3 +65,11 @@ test('watches the locks, asking each time after the version it last saw, and wai
   assert.deepEqual(seen, [3, 4]);
   assert.deepEqual(asked.map(({ address }) => address), ['/_konzilo/locks?tab=tab-aaaaaaaa', '/_konzilo/locks?tab=tab-aaaaaaaa&after=3', '/_konzilo/locks?tab=tab-aaaaaaaa&after=3']);
 });
+
+test('gives up on a hold the service does not answer in time, so that the Editor can work', async () => {
+  const ask = (address, init) => new Promise((go, fail) => {
+    init.signal?.addEventListener('abort', () => fail(init.signal.reason));
+  });
+  const client = lockClient({ tab: 'tab-aaaaaaaa', credential: () => 'token mine', ask, answersWithin: 20 });
+  assert.equal(await client.hold('a/b'), null);
+});

@@ -26,8 +26,10 @@ export function lineWords(state) {
         : wordsShown({ name: 'lock.takenOver', values: { name: state.holder.name, at: moment(state.holder.since) } });
     case 'adminOnly':
       return wordsShown({ name: 'lock.adminOnly' });
+    case 'checking':
+      return wordsShown({ name: 'lock.checking' });
     case 'staleBackup':
-      return wordsShown({ name: 'lock.staleBackup', values: { at: moment(state.at) } });
+      return wordsShown({ name: state.takenOver ? 'lock.takenBack' : 'lock.staleBackup', values: { at: moment(state.at) } });
     default:
       return '';
   }

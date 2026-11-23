@@ -174,6 +174,85 @@ describe('the keeper of a tab\'s lock', () => {
     assert.deepEqual(last(), { form: 'articles/aaaaaaaaaaaa', mode: 'editing' });
   });
 
+  test('keeps a form read-only until the service has answered, and lets the Editor work where it does not answer', async () => {
+    const { keeper, service, last } = keeping();
+    let answer;
+    const hold = service.hold;
+    service.hold = (...args) => new Promise((go) => {
+      answer = () => go(hold(...args));
+    });
+    const opened = keeper.open('articles/aaaaaaaaaaaa');
+    assert.deepEqual(last(), { form: 'articles/aaaaaaaaaaaa', mode: 'checking' });
+    assert.equal(keeper.readOnly(), true);
+    let settled = false;
+    const settling = keeper.settled().then(() => {
+      settled = true;
+    });
+    await new Promise((go) => setImmediate(go));
+    assert.equal(settled, false, 'not settled before the answer');
+    answer();
+    await opened;
+    await settling;
+    assert.deepEqual(last(), { form: 'articles/aaaaaaaaaaaa', mode: 'editing' });
+
+    const down = keeping({ down: true });
+    await down.keeper.open('articles/aaaaaaaaaaaa');
+    assert.deepEqual(down.last(), { form: 'articles/aaaaaaaaaaaa', mode: 'editing' });
+    assert.equal(down.keeper.readOnly(), false);
+  });
+
+  test('shows a draft backup found while the service is asked read-only once the lock is the tab\'s', async () => {
+    const { keeper, service, last } = keeping();
+    let answer;
+    const hold = service.hold;
+    service.hold = (...args) => new Promise((go) => {
+      answer = () => go(hold(...args));
+    });
+    const opened = keeper.open('articles/aaaaaaaaaaaa');
+    keeper.staleBackup('2026-11-23T09:00:00.000Z');
+    answer();
+    await opened;
+    assert.deepEqual(last(), { form: 'articles/aaaaaaaaaaaa', mode: 'staleBackup', at: '2026-11-23T09:00:00.000Z' });
+  });
+
+  test('lets the lock go as the form is left from a draft backup that can no longer be saved', async () => {
+    const { keeper, service } = keeping();
+    await keeper.open('articles/aaaaaaaaaaaa');
+    keeper.staleBackup('2026-11-23T09:00:00.000Z');
+    assert.equal(keeper.held(), 'articles/aaaaaaaaaaaa', 'the page lets it go as it is closed');
+    await keeper.open(null);
+    assert.equal(service.held['articles/aaaaaaaaaaaa'], undefined);
+    assert.equal(keeper.held(), null);
+  });
+
+  test('names the form whose lock the page lets go as it is closed, only where the tab holds it', async () => {
+    const { keeper } = keeping({ held: { 'articles/aaaaaaaaaaaa': EBBA }, adminOnly: ['settings'] });
+    assert.equal(keeper.held(), null);
+    await keeper.open('articles/bbbbbbbbbbbb');
+    assert.equal(keeper.held(), 'articles/bbbbbbbbbbbb');
+    await keeper.open('articles/aaaaaaaaaaaa');
+    assert.equal(keeper.held(), null, 'asking');
+    keeper.read();
+    assert.equal(keeper.held(), null, 'reading');
+    await keeper.open('settings/settings');
+    assert.equal(keeper.held(), null, 'an Admin\'s form');
+  });
+
+  test('takes a form back from the tab that took it over with its unsaved changes set aside, to read and never to save', async () => {
+    const { keeper, service, last } = keeping();
+    await keeper.open('articles/aaaaaaaaaaaa');
+    service.held['articles/aaaaaaaaaaaa'] = { name: 'Anna Admin', since: '2026-11-23T10:07:00.000Z', yours: false };
+    await keeper.seen({ version: 2, locks: [{ form: 'articles/aaaaaaaaaaaa', name: 'Anna Admin', since: '2026-11-23T10:07:00.000Z', mine: false, yours: false }] });
+    assert.equal(last().mode, 'takenOver');
+    await keeper.takeOver();
+    assert.equal(service.held['articles/aaaaaaaaaaaa'], 'mine');
+    assert.deepEqual(last(), { form: 'articles/aaaaaaaaaaaa', mode: 'staleBackup', at: '2026-11-23T10:07:00.000Z', takenOver: true });
+    assert.equal(keeper.readOnly(), true);
+    assert.deepEqual(await keeper.beforeSave(), { name: 'lock.refusedReadOnly' });
+    keeper.latest();
+    assert.deepEqual(last(), { form: 'articles/aaaaaaaaaaaa', mode: 'editing' });
+  });
+
   test('keeps a backup of a form another tab holds from showing over the question', async () => {
     const { keeper, last } = keeping({ held: { 'articles/aaaaaaaaaaaa': EBBA } });
     await keeper.open('articles/aaaaaaaaaaaa');

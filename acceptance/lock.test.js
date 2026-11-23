@@ -170,7 +170,23 @@ describe('a form locked to the tab that has it open', () => {
         assert.equal(await ebbasField.inputValue(), 'Unsaved words in the first tab');
         assert.equal(await ebbasField.isEditable(), false);
         assert.equal(await saveButton(ebba.page).count(), 0);
-        await lineOf(ebba.page, 'anna took over this form').waitFor();
+        const takenLine = lineOf(ebba.page, 'anna took over this form');
+        await takenLine.waitFor();
+
+        // Taking it back sets the changes aside, to read from the latest save and never to save.
+        const latest = /^title: "?(.*?)"?$/m.exec((await fileOf(`articles/${article(0)}.md`)).text)[1];
+        await takenLine.getByRole('button', { name: 'Take over' }).click();
+        const aside = lineOf(ebba.page, 'These are your unsaved changes from before this form was taken over');
+        await aside.waitFor({ timeout: 15_000 });
+        assert.equal(await ebbasField.inputValue(), 'Unsaved words in the first tab');
+        assert.equal(await ebbasField.isEditable(), false);
+        assert.equal(await saveButton(ebba.page).count(), 0);
+        const annasNotice = anna.page.getByRole('dialog', { name: 'Your form was taken over' });
+        await annasNotice.waitFor({ timeout: 10_000 });
+        await annasNotice.getByRole('button', { name: 'OK' }).click();
+        await aside.getByRole('button', { name: 'Open the latest save' }).click();
+        await ebba.page.waitForFunction((words) => [...document.querySelectorAll('input')].some((input) => input.value === words), latest, { timeout: 15_000 });
+        assert.equal(await ebbasField.isEditable(), true);
 
         await toList(anna.page);
         await toList(ebba.page);
@@ -201,7 +217,7 @@ describe('a form locked to the tab that has it open', () => {
         assert.equal(await field.inputValue(), `Anna's change in ${engine}`, 'the changes kept to read and copy');
         assert.equal(await field.isEditable(), false);
 
-        await line.getByRole('button', { name: 'Open the latest version' }).click();
+        await line.getByRole('button', { name: 'Open the latest save' }).click();
         await anna.page.waitForFunction((words) => [...document.querySelectorAll('input')].some((input) => input.value === words), pushed, { timeout: 15_000 });
         assert.equal(await field.isEditable(), true);
         await toList(anna.page);
@@ -257,6 +273,77 @@ describe('a form locked to the tab that has it open', () => {
         await toList(ebba.page);
         for (let waited = 0; await held() !== null && waited < 15_000; waited += 250) await anna.page.waitForTimeout(250);
         assert.equal(await held(), null);
+      });
+
+      test('ends a lock at once as a form showing a draft backup that can no longer be saved is left or closed', async () => {
+        const name = article(1);
+        const form = `articles/entries/${name}`;
+        await toList(ebba.page);
+        const row = await rowOf(ebba.page, name);
+        const held = () => row.getAttribute('data-konzilo-held');
+        const waitFor = async (mark) => {
+          for (let waited = 0; await held() !== mark && waited < 15_000; waited += 250) await ebba.page.waitForTimeout(250);
+          assert.equal(await held(), mark);
+        };
+
+        await openForm(anna.page, form);
+        await anna.page.getByRole('textbox', { name: 'Working name' }).fill('Anna\'s words set aside');
+        await pushAs('ebba', `articles/${name}.md`, (text) => text.replace(/^title: .*$/m, 'title: Pushed while Anna wrote'));
+        await saveButton(anna.page).click();
+        const refusal = anna.page.getByRole('alertdialog').filter({ hasText: 'Reload' });
+        await refusal.waitFor({ timeout: 30_000 });
+        await refusal.getByRole('button', { name: 'Reload' }).click();
+        await lineOf(anna.page, 'These are your unsaved changes from').waitFor({ timeout: 15_000 });
+        await waitFor('anna is editing');
+        await toList(anna.page);
+        await waitFor(null);
+
+        // The same backup in a tab of its own, closed.
+        const other = await anna.context.newPage();
+        anna.watch(other);
+        other.on('dialog', (dialog) => dialog.accept());
+        await other.goto(`${site.origin.admin}/#/collections/${form}`);
+        await lineOf(other, 'These are your unsaved changes from').waitFor({ timeout: 30_000 });
+        await waitFor('anna is editing');
+        await other.close({ runBeforeUnload: true });
+        await waitFor(null);
+      });
+
+      test('keeps a form read-only until the service has answered for its lock, and lets the Editor work where it does not answer', async () => {
+        let release;
+        const held = new Promise((go) => {
+          release = go;
+        });
+        await anna.page.route('**/_konzilo/locks/**', async (route) => {
+          if (route.request().method() !== 'PUT') return route.fallback();
+          await held;
+          return route.fallback();
+        });
+        try {
+          await go(anna.page, `#/collections/articles/entries/${article(0)}`);
+          const field = anna.page.getByRole('textbox', { name: 'Working name' });
+          await field.waitFor({ timeout: 30_000 });
+          await lineOf(anna.page, 'Checking that no other tab has this form open.').waitFor();
+          assert.equal(await field.isEditable(), false, 'read-only while the service is asked');
+          assert.equal(await saveButton(anna.page).count(), 0);
+          release();
+          await anna.page.waitForFunction(() => document.querySelector('.konzilo-lock-line') === null, null, { timeout: 15_000 });
+          assert.equal(await field.isEditable(), true);
+          await toList(anna.page);
+
+          // A service that never answers is given up on, and the Editor works on.
+          await anna.page.unroute('**/_konzilo/locks/**');
+          await anna.page.route('**/_konzilo/locks/**', (route) => (route.request().method() === 'PUT' ? undefined : route.fallback()));
+          await go(anna.page, `#/collections/articles/entries/${article(0)}`);
+          await field.waitFor({ timeout: 30_000 });
+          assert.equal(await field.isEditable(), false);
+          await anna.page.waitForFunction(() => document.querySelector('.konzilo-lock-line') === null, null, { timeout: 20_000 });
+          assert.equal(await field.isEditable(), true);
+        } finally {
+          release();
+          await anna.page.unroute('**/_konzilo/locks/**');
+        }
+        await toList(anna.page);
       });
 
       test('opens an Admin\'s form read-only to an Editor, saying it is for Admins, with no takeover', async () => {

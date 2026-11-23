@@ -6,7 +6,8 @@
 // globals set here: whether the form is read-only and which forms other tabs hold, two states of
 // its own kind it makes, `konziloReadOnly` and `konziloHeld`; the line, `konziloLine`; before a
 // deletion, `konziloBeforeDeleting`; for a save older than the latest, `konziloConflictWords` and
-// the words of its Reload; and for a draft backup that can no longer be saved, `konziloStaleBackup`.
+// the words of its Reload; for a draft backup that can no longer be saved, `konziloStaleBackup`; and
+// before it looks for a draft backup, `konziloLockSettled`, so that it finds the form's lock known.
 // Before each save the keeper checks the lock, as a `preSave` handler.
 
 import { signedInCredential } from '../credential.js';
@@ -90,15 +91,24 @@ export function registerLock(CMS) {
     made('span', 'konzilo-lock-words', line, lineWords(state));
     const ways = made('span', 'konzilo-lock-ways', line);
     if (state.mode === 'reading') button(state.holder ? say('lock.takeOver') : say('lock.edit'), ways, () => keeper.takeOver());
-    if (state.mode === 'takenOver') button(say('lock.takeOver'), ways, () => keeper.takeOver());
+    const draft = line.konziloEntryDraft ?? entryDraft;
+    if (state.mode === 'takenOver') button(say('lock.takeOver'), ways, () => takeBack(draft));
     if (state.mode === 'staleBackup') {
-      const draft = line.konziloEntryDraft ?? entryDraft;
       button(say('lock.openLatest'), ways, async () => {
         keeper.latest();
         await globalThis.konziloLatest?.(draft);
       });
     }
     if (state.mode !== 'staleBackup') button(say('lock.back'), ways, backToList);
+  };
+  // Taking back a form taken over: its unsaved changes are set aside as a draft backup, and the form
+  // shows them read-only from the latest save, never to be saved, as a Reload does. Where it had
+  // none, the latest save opens to edit.
+  const takeBack = async (draft) => {
+    await keeper.takeOver();
+    const { mode, takenOver } = keeper.state();
+    if (mode !== 'staleBackup' || !takenOver) return;
+    if (!await globalThis.konziloSetAside?.(draft)) keeper.latest();
   };
   globalThis.konziloLine = (draft) => {
     entryDraft = draft;
@@ -114,7 +124,7 @@ export function registerLock(CMS) {
       if (line.isConnected) drawLine(line);
       else if (shownMode === 'none' || state.mode === 'none') lines.delete(line);
     }
-    const readOnly = ['asking', 'reading', 'takenOver', 'adminOnly', 'staleBackup'].includes(state.mode);
+    const readOnly = keeper.readOnly();
     if (globalThis.konziloReadOnly) globalThis.konziloReadOnly.current = readOnly ? { form: state.form, mode: state.mode } : null;
     setReadOnly(readOnly);
     if (state.mode === 'asking') {
@@ -143,16 +153,18 @@ export function registerLock(CMS) {
   guardReadOnly(document, { readOnly: readOnlyNow, follow: (listener) => onReadOnly(() => listener(readOnlyNow())) });
 
   // The form the editor shows, as its address changes, and none once the page is left, whose lock
-  // goes with it at once, by a call that outlives the page.
+  // goes with it at once, in whatever state the form is, by a call that outlives the page. Sveltia's
+  // check for a draft backup waits until the service has answered for the form.
   const follow = () => {
     void keeper.open(formOf(globalThis.location.hash));
   };
   globalThis.addEventListener('hashchange', follow);
   follow();
   globalThis.addEventListener('pagehide', () => {
-    const { form, mode } = keeper.state();
-    if (form !== null && mode === 'editing') void client.release(form, { leaving: true });
+    const form = keeper.held();
+    if (form !== null) void client.release(form, { leaving: true });
   });
+  globalThis.konziloLockSettled = () => keeper.settled();
   void client.watch(async (answer) => {
     try {
       await keeper.seen(answer);

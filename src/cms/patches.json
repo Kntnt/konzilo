@@ -199,9 +199,9 @@
   },
   {
     "module": "@sveltia/cms/npm/index.js",
-    "why": "The two ways back to the latest version (ADR 0073): a reload that keeps the Editor's changes as a draft backup, made at once, of a form with changes, however they were made, and one that opens the latest in place of a backup that can no longer be saved, letting it go. T3e keeps a backup, s8 makes a form of an entry, and lM holds every entry.",
+    "why": "The ways back to the latest save (ADR 0073): a reload that keeps the Editor's changes as a draft backup, made at once, of a form with changes, however they were made; one that opens the latest in place of a backup that can no longer be saved, letting it go; and, as a tab takes back a form taken over from it, one that keeps the changes it holds as a draft backup and shows them read-only from the latest save, giving whether there were any. T3e keeps a backup, D3 reads the latest commit, s8 makes a form of an entry, C3e and O3e read and show a backup, and lM holds every entry.",
     "find": "ust=async({entryDraft:e,entry:t})=>{let n=e.current,{collectionName:r,collection:i,collectionFile:a,expanderStates:o}=n;return n8(),await $6(r,t8(n)),s8({entryDraft:e,collection:i,collectionFile:a,originalEntry:t,expanderStates:o})},",
-    "replace": "ust=async({entryDraft:e,entry:t})=>{let n=e.current,{collectionName:r,collection:i,collectionFile:a,expanderStates:o}=n;return n8(),await $6(r,t8(n)),s8({entryDraft:e,collection:i,collectionFile:a,originalEntry:t,expanderStates:o})},konziloReloads=(globalThis.konziloReload=async({entryDraft:e,entry:t})=>{let n=e.current;if(!n)return;let r=lM.current.find(({id:e})=>e===n.originalEntry?.id)??t;if(!r)return;n8(),n.interacted=!0,await T3e(n);let{collection:i,collectionFile:a,expanderStates:o}=n;s8({entryDraft:e,collection:i,collectionFile:a,originalEntry:r,expanderStates:o})},globalThis.konziloLatest=async e=>{let t=e?.current,n=t&&lM.current.find(({id:e})=>e===t.originalEntry?.id);n&&await ust({entryDraft:e,entry:n})}),"
+    "replace": "ust=async({entryDraft:e,entry:t})=>{let n=e.current,{collectionName:r,collection:i,collectionFile:a,expanderStates:o}=n;return n8(),await $6(r,t8(n)),s8({entryDraft:e,collection:i,collectionFile:a,originalEntry:t,expanderStates:o})},konziloReloads=(globalThis.konziloReload=async({entryDraft:e,entry:t})=>{let n=e.current;if(!n)return;let r=lM.current.find(({id:e})=>e===n.originalEntry?.id)??t;if(!r)return;n8(),n.interacted=!0,await T3e(n);let{collection:i,collectionFile:a,expanderStates:o}=n;s8({entryDraft:e,collection:i,collectionFile:a,originalEntry:r,expanderStates:o})},globalThis.konziloLatest=async e=>{let t=e?.current,n=t&&lM.current.find(({id:e})=>e===t.originalEntry?.id);n&&await ust({entryDraft:e,entry:n})},globalThis.konziloSetAside=async e=>{let n=e?.current;if(!n)return!1;n8(),n.interacted=!0,n.konziloAside=!0;try{await T3e(n)}finally{delete n.konziloAside}try{await D3()}catch{}let r=lM.current.find(({id:e})=>e===n.originalEntry?.id);if(!r)return!1;let{collection:i,collectionFile:a,expanderStates:o}=n,d=s8({entryDraft:e,collection:i,collectionFile:a,originalEntry:r,expanderStates:o}),b=await C3e(d);if(!b)return!1;await O3e({backup:b,draft:d});return!0}),"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
@@ -214,6 +214,18 @@
     "why": "As above: nothing is lost, so the reload asks nothing first.",
     "find": "onclick:()=>{PN(B(r))?N(s,!0):l()}",
     "replace": "onclick:()=>{l()}"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "A form taken over is read-only, and Sveltia keeps no draft backup of a read-only form; a tab that takes it back keeps the changes it holds as one, never to be saved (ADR 0073), which the core asks for by marking the draft.",
+    "find": "T3e=async e=>{if(!(NK.useDraftBackup??!0)||!e.interacted||K2(e)||w3e(e))return;",
+    "replace": "T3e=async e=>{if(!(NK.useDraftBackup??!0)||!e.interacted||K2(e)&&!e.konziloAside||w3e(e))return;"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "A form is read-only until the service has answered for its lock (ADR 0073), and Sveltia looks for no draft backup of a read-only form: it looks once the answer is in, so that a backup of a form whose lock the tab holds is offered, or shown read-only, as the form is opened.",
+    "find": "k3e=async({draft:e})=>{if(!(NK.useDraftBackup??!0)||K2(e)||w3e(e))return;",
+    "replace": "k3e=async({draft:e})=>{await globalThis.konziloLockSettled?.();if(!(NK.useDraftBackup??!0)||K2(e)||w3e(e))return;"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
