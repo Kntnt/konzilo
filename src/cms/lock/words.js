@@ -2,14 +2,12 @@
 // interface language: each text by its name and values, a moment in the reader's own form and
 // time zone (refusals.js).
 
-import { wordsShown } from '../refusals.js';
-
-const moment = (at) => ({ moment: new Date(at).toISOString() });
+import { momentValue, wordsShown } from '../refusals.js';
 
 // Who holds a form, and since when: another Editor, or the Editor's own other tab.
 export const heldWords = (holder) => (holder.yours
-  ? wordsShown({ name: 'lock.heldByYou', values: { since: moment(holder.since) } })
-  : wordsShown({ name: 'lock.heldBy', values: { name: holder.name, since: moment(holder.since) } }));
+  ? wordsShown({ name: 'lock.heldByYou', values: { since: momentValue(holder.since) } })
+  : wordsShown({ name: 'lock.heldBy', values: { name: holder.name, since: momentValue(holder.since) } }));
 
 // The line above a read-only form: why it is read-only.
 export function lineWords(state) {
@@ -22,14 +20,14 @@ export function lineWords(state) {
         : wordsShown({ name: 'lock.free' });
     case 'takenOver':
       return state.holder.yours
-        ? wordsShown({ name: 'lock.takenOverByYou', values: { at: moment(state.holder.since) } })
-        : wordsShown({ name: 'lock.takenOver', values: { name: state.holder.name, at: moment(state.holder.since) } });
+        ? wordsShown({ name: 'lock.takenOverByYou', values: { at: momentValue(state.holder.since) } })
+        : wordsShown({ name: 'lock.takenOver', values: { name: state.holder.name, at: momentValue(state.holder.since) } });
     case 'adminOnly':
       return wordsShown({ name: 'lock.adminOnly' });
     case 'checking':
       return wordsShown({ name: 'lock.checking' });
     case 'staleBackup':
-      return wordsShown({ name: state.takenOver ? 'lock.takenBack' : 'lock.staleBackup', values: { at: moment(state.at) } });
+      return wordsShown({ name: state.takenOver ? 'lock.takenBack' : 'lock.staleBackup', values: { at: momentValue(state.at) } });
     default:
       return '';
   }
@@ -44,7 +42,7 @@ export const markWords = (mark) => (mark.yours ? wordsShown({ name: 'lock.markYo
 // when.
 export function conflictWords({ type, name, date }) {
   if (type === 'deleted') return { description: wordsShown({ name: 'lock.deletedAfter' }), warning: wordsShown({ name: 'lock.notRecreated' }) };
-  const at = date ? moment(date) : null;
+  const at = date ? momentValue(date) : null;
   let description = wordsShown({ name: 'lock.savedAfterUnnamed' });
   if (name && at) description = wordsShown({ name: 'lock.savedAfter', values: { account: name, moment: at } });
   else if (at) description = wordsShown({ name: 'lock.savedAfterAt', values: { moment: at } });

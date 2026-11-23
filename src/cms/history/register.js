@@ -14,6 +14,7 @@
 // of reading a file as a form does and of restoring a draft, `konziloSveltia`.
 
 import { signedInCredential } from '../credential.js';
+import { made, madeButton } from '../elements.js';
 import { loadReader } from '../body/check.js';
 import { imageLibrary } from '../body/library.js';
 import { languageTag, say } from '../interface-language.js';
@@ -24,20 +25,7 @@ import { bodiesBetween, wordsBetween } from './differences.js';
 import { accountWords, choiceWords, latestWords, savedWords, withMoment } from './words.js';
 import './history.css';
 
-const made = (tag, className, parent, words) => {
-  const element = document.createElement(tag);
-  if (className) element.className = className;
-  if (words !== undefined) element.textContent = words;
-  parent?.append(element);
-  return element;
-};
-const button = (words, parent, act, label) => {
-  const element = made('button', 'konzilo-history-button', parent, words);
-  element.type = 'button';
-  if (label) element.setAttribute('aria-label', label);
-  element.addEventListener('click', act);
-  return element;
-};
+const button = (words, parent, act, label) => madeButton('konzilo-history-button', words, parent, act, label);
 // Words a screen reader reads and the page does not show.
 const unseen = (words, parent) => made('span', 'konzilo-history-unseen', parent, `${words} `);
 
@@ -466,9 +454,7 @@ export function registerHistory(CMS, config) {
 
   // The refusal of a save older than the latest offers to compare the latest save with the form.
   globalThis.konziloCompareButton = (compare) => {
-    const element = made('button', 'konzilo-history-button konzilo-history-latest', null, say('history.compareLatest'));
-    element.type = 'button';
-    element.addEventListener('click', () => compare());
+    const element = madeButton('konzilo-history-button konzilo-history-latest', say('history.compareLatest'), null, () => compare());
     const line = made('span', 'konzilo-history-refusal');
     line.append(element);
     return line;

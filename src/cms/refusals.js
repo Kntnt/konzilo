@@ -17,6 +17,9 @@ const known = (show, about) => {
 // A reason in the interface language: by its name, else in the words it came in.
 export const wordsShown = (words) => known(() => wordsIn(interfaceLanguage(), words), words);
 
+// A moment as a value of a reason's words, which shows it in the reader's own form and time zone.
+export const momentValue = (at) => ({ moment: new Date(at).toISOString() });
+
 // A refusal or a warning of a post, which the post's form or row already names: where in
 // the post, and why, `block 2.1 (list): …`. The line of its source file says nothing to
 // an editor, who never sees it.

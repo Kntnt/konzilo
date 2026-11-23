@@ -9,6 +9,8 @@
 // `after`, or null; `watch` asks for them again and again, for as long as the page is open, and
 // hands each answer to `seen`, waiting a while after an answer it cannot read.
 
+import { askSignedIn } from '../service.js';
+
 const LOCKS = '/_konzilo/locks';
 // A form stays read-only until the service answers for its lock, at most this long.
 const ANSWERS_WITHIN = 10_000;
@@ -18,11 +20,9 @@ export const newTab = () => globalThis.crypto.randomUUID();
 
 export function lockClient({ tab, credential, ask = (...args) => globalThis.fetch(...args), pause = (ms) => new Promise((go) => setTimeout(go, ms)), answersWithin = ANSWERS_WITHIN }) {
   const call = async (method, path, query = {}, init = {}) => {
-    const held = credential();
-    if (!held) return null;
     const address = `${path}?${new URLSearchParams({ tab, ...query })}`;
     try {
-      return await ask(address, { method, headers: { authorization: held }, cache: 'no-store', ...init });
+      return await askSignedIn(address, { method, ...init }, { credential, ask });
     } catch {
       return null;
     }

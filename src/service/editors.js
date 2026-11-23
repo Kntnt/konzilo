@@ -8,7 +8,7 @@
 
 import { ADMINS_TEAM } from '../build/roles.js';
 import { publishStatus } from '../build/status.js';
-import { CREDENTIAL, mayWrite, organisationTeams } from '../forgejo.js';
+import { accountName, CREDENTIAL, mayWrite, organisationTeams } from '../forgejo.js';
 import { FORM_NAME } from '../site-description.js';
 import { FAILURE_SETTING, MAIL_SETTING } from './mail.js';
 import { checkMailSettings, mailSettingsShown } from './mail-settings.js';
@@ -111,12 +111,13 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
     let person = null;
     const me = await asked('/user', credential);
     if (me.ok && await mayWrite({ forgejo, repository, credential, get })) {
-      const { login, full_name: fullName, is_admin: isInstanceAdministrator } = await me.json();
+      const user = await me.json();
+      const { login, is_admin: isInstanceAdministrator } = user;
       if (typeof login === 'string' && login !== '') {
         let admin;
         person = {
           login,
-          name: typeof fullName === 'string' && fullName.trim() !== '' ? fullName.trim() : login,
+          name: accountName(user),
           admin: async () => (admin ??= isInstanceAdministrator === true || inAdmins(login)),
         };
       }

@@ -11,6 +11,7 @@
 // Before each save the keeper checks the lock, as a `preSave` handler.
 
 import { signedInCredential } from '../credential.js';
+import { made, madeButton } from '../elements.js';
 import { say } from '../interface-language.js';
 import { refuseAtSave, wordsShown } from '../refusals.js';
 import { lockClient, newTab } from './client.js';
@@ -20,19 +21,7 @@ import { onReadOnly, readOnlyNow, setReadOnly } from './read-only.js';
 import { conflictWords, heldWords, lineWords, markWords } from './words.js';
 import './lock.css';
 
-const made = (tag, className, parent, words) => {
-  const element = document.createElement(tag);
-  if (className) element.className = className;
-  if (words !== undefined) element.textContent = words;
-  parent?.append(element);
-  return element;
-};
-const button = (words, parent, act) => {
-  const element = made('button', 'konzilo-lock-button', parent, words);
-  element.type = 'button';
-  element.addEventListener('click', act);
-  return element;
-};
+const button = (words, parent, act) => madeButton('konzilo-lock-button', words, parent, act);
 
 export function registerLock(CMS) {
   const client = lockClient({ tab: newTab(), credential: signedInCredential });

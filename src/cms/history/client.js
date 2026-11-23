@@ -2,15 +2,15 @@
 // in with: a page at a time, newest first, each revision's file read through the form's own format,
 // as its form reads it, into the flat map of values Sveltia holds a form's in.
 
+import { askSignedIn } from '../service.js';
 import { statusOf } from './compare.js';
 
 const REVISIONS = '/_konzilo/revisions';
 
 // A page of the revisions as the service gives them, each file's text unread.
 async function pageOf({ path, page, credential, ask }) {
-  const held = credential();
-  if (!held) throw new Error('nobody is signed in');
-  const answer = await ask(`${REVISIONS}?${new URLSearchParams({ path, page: String(page) })}`, { headers: { authorization: held }, cache: 'no-store' });
+  const answer = await askSignedIn(`${REVISIONS}?${new URLSearchParams({ path, page: String(page) })}`, {}, { credential, ask });
+  if (answer === null) throw new Error('nobody is signed in');
   if (!answer.ok) throw new Error(`the service answered ${answer.status}`);
   return answer.json();
 }

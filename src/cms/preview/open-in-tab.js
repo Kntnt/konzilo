@@ -2,6 +2,7 @@
 // History, so that it is there wherever the preview stands: beside the form, in a window of its
 // own, or switched with it, while the preview shows a page for the form (in-tab.js).
 
+import { made, madeButton } from '../elements.js';
 import { say } from '../interface-language.js';
 import { formOf } from '../lock/keeper.js';
 import { pageShown, tabAddress } from './in-tab.js';
@@ -11,21 +12,13 @@ import './open-in-tab.css';
 // `konziloRail`, handing it the rail: shown while the preview shows a page for the form open.
 export function registerOpenInTab({ origin }) {
   globalThis.konziloRail = (rail) => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'konzilo-open-in-tab';
-    button.setAttribute('aria-label', say('preview.openInTab'));
-    button.title = say('preview.openInTab');
-    const icon = document.createElement('span');
-    icon.className = 'material-symbols-outlined';
-    icon.setAttribute('aria-hidden', 'true');
-    icon.textContent = 'open_in_new';
-    button.append(icon);
     const page = () => pageShown.shownFor(formOf(globalThis.location.hash));
-    button.addEventListener('click', () => {
+    const button = madeButton('konzilo-open-in-tab', undefined, null, () => {
       const shownNow = page();
       if (shownNow) globalThis.open(tabAddress({ origin, ...shownNow }), '_blank', 'noopener');
-    });
+    }, say('preview.openInTab'));
+    button.title = say('preview.openInTab');
+    made('span', 'material-symbols-outlined', button, 'open_in_new').setAttribute('aria-hidden', 'true');
     // Until the rail is gone with its form: drawn as it is shown, and let go after.
     let drawn = false;
     const follow = () => {

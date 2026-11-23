@@ -7,6 +7,7 @@
 // it again from the feed.
 
 import { addPushers, eventsAfter } from '../build/pushers.js';
+import { accountName } from '../forgejo.js';
 
 // The feed's and a push's commits are asked for this many at a time.
 const PAGE = 50;
@@ -50,11 +51,7 @@ export function sourceHistory({ forgejo, repository, token, pushesToken = token,
       if (shown.length < PAGE) return found;
     }
   };
-  const whom = ({ act_user: { login, full_name: fullName }, created }) => ({
-    login,
-    name: typeof fullName === 'string' && fullName.trim() !== '' ? fullName.trim() : login,
-    at: created,
-  });
+  const whom = ({ act_user: user, created }) => ({ login: user.login, name: accountName(user), at: created });
   // One look at the feed at a time, each from where the last left off.
   let learning = Promise.resolve();
   const learn = () => {
