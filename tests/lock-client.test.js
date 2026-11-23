@@ -48,11 +48,11 @@ test('asks nothing where nothing is signed in', async () => {
   assert.deepEqual(asked, []);
 });
 
-test('lets a form go, so that the call outlives a page being left', async () => {
+test('lets a form go by a call that outlives the page, also where the page is left as the call is made', async () => {
   const { asked, client } = asking([answer(204), answer(204)]);
   await client.release('a/b');
   await client.release('a/b', { leaving: true });
-  assert.deepEqual(asked.map(({ method, keepalive }) => [method, keepalive]), [['DELETE', false], ['DELETE', true]]);
+  assert.deepEqual(asked.map(({ method, keepalive }) => [method, keepalive]), [['DELETE', true], ['DELETE', true]]);
 });
 
 test('watches the locks, asking each time after the version it last saw, and waits after an answer it cannot read', async () => {
@@ -74,7 +74,7 @@ test('gives up on a hold the service does not answer in time, so that the Editor
   assert.equal(await client.hold('a/b'), null);
 });
 
-test('lets a form go as the page is left with nothing that could cut the call short', async () => {
+test('lets a form go with nothing that could cut the call short as the page goes', async () => {
   const inits = [];
   const client = lockClient({ tab: 'tab-aaaaaaaa', credential: () => 'token mine', ask: async (address, init) => {
     inits.push(init);
@@ -82,6 +82,5 @@ test('lets a form go as the page is left with nothing that could cut the call sh
   } });
   await client.release('a/b', { leaving: true });
   await client.release('a/b');
-  assert.equal(inits[0].signal, undefined);
-  assert.ok(inits[1].signal, 'a release while the page stays is given up on after a while');
+  assert.deepEqual(inits.map(({ signal }) => signal), [undefined, undefined]);
 });

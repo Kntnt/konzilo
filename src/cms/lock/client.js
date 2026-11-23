@@ -1,11 +1,11 @@
 // What a tab asks of the service about the locks of the editor's forms (ADR 0073), by the name it
 // gives itself as it loads, `tab`, with what Sveltia signed in with.
 //
-// Gives { hold(form, { takeOver }), release(form, { leaving }), locks(after, signal), watch(seen) }:
+// Gives { hold(form, { takeOver }), release(form), locks(after, signal), watch(seen) }:
 // `hold` gives { held: true, since }, { holder: { name, since, yours } }, { adminOnly: true }, or
-// null where the service cannot be asked, does not answer within `answersWithin` milliseconds, as a
-// release is not waited for longer either, or answers otherwise; `release` lets the form go, also as
-// the page is left where `leaving`; `locks` gives { version, locks } once they differ from
+// null where the service cannot be asked, does not answer within `answersWithin` milliseconds, or
+// answers otherwise; `release` lets the form go, by a call that outlives the page, so that a form
+// left just before the page is, or as it is, goes too; `locks` gives { version, locks } once they differ from
 // `after`, or null; `watch` asks for them again and again, for as long as the page is open, and
 // hands each answer to `seen`, waiting a while after an answer it cannot read.
 
@@ -22,9 +22,9 @@ export function lockClient({ tab, credential, ask = (...args) => globalThis.fetc
   const call = async (method, path, query = {}, init = {}) => {
     const address = `${path}?${new URLSearchParams({ tab, ...query })}`;
     try {
-      // A hold or a release is given up on after a while; the call for the locks waits as long as
-      // the service holds it, and a release as the page is left outlives the page, untimed.
-      const signal = method === 'GET' || init.keepalive ? undefined : AbortSignal.timeout(answersWithin);
+      // A hold is given up on after a while; the call for the locks waits as long as the service
+      // holds it, and a release outlives the page, untimed.
+      const signal = method === 'PUT' ? AbortSignal.timeout(answersWithin) : undefined;
       return await askSignedIn(address, { method, ...(signal ? { signal } : {}), ...init }, { credential, ask });
     } catch {
       return null;
@@ -51,8 +51,8 @@ export function lockClient({ tab, credential, ask = (...args) => globalThis.fetc
       if (answer.status === 403) return { adminOnly: true };
       return null;
     },
-    async release(form, { leaving = false } = {}) {
-      await call('DELETE', lockOf(form), {}, leaving ? { keepalive: true } : {});
+    async release(form) {
+      await call('DELETE', lockOf(form), {}, { keepalive: true });
     },
     async locks(after, signal) {
       const answer = await call('GET', LOCKS, after === null ? {} : { after: String(after) }, signal ? { signal } : {});

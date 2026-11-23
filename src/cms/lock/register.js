@@ -151,7 +151,7 @@ export function registerLock(CMS) {
   follow();
   globalThis.addEventListener('pagehide', () => {
     const form = keeper.held();
-    if (form !== null) void client.release(form, { leaving: true });
+    if (form !== null) void client.release(form);
   });
   globalThis.konziloLockSettled = () => keeper.settled();
   void client.watch(async (answer) => {
