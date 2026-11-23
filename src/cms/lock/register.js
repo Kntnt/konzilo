@@ -150,8 +150,7 @@ export function registerLock(CMS) {
   globalThis.addEventListener('hashchange', follow);
   follow();
   globalThis.addEventListener('pagehide', () => {
-    const form = keeper.held();
-    if (form !== null) void client.release(form);
+    for (const form of keeper.toLetGo()) void client.release(form);
   });
   globalThis.konziloLockSettled = () => keeper.settled();
   void client.watch(async (answer) => {

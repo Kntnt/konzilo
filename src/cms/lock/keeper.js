@@ -45,6 +45,17 @@ export function lockKeeper({ service, show = () => {}, mark = () => {} }) {
   const deleting = new Set();
   // Settled once the service has answered the latest opening.
   let settled = Promise.resolve();
+  // Forms whose hold is asked for and not yet answered, which the service may hold for the tab.
+  const asked = new Map();
+  const asking = async (form, options) => {
+    asked.set(form, (asked.get(form) ?? 0) + 1);
+    try {
+      return await service.hold(form, options);
+    } finally {
+      if (asked.get(form) === 1) asked.delete(form);
+      else asked.set(form, asked.get(form) - 1);
+    }
+  };
   // A draft backup that can no longer be saved, found while the service was asked: its moment.
   let staleAt = null;
 
@@ -70,8 +81,10 @@ export function lockKeeper({ service, show = () => {}, mark = () => {} }) {
     readOnly: () => READ_ONLY.has(state.mode),
     // Once the service has answered for the form the tab has open, or given up.
     settled: () => settled,
-    // The form whose lock the tab holds, or is asking for, which the page lets go as it is closed.
-    held: () => (state.mode === 'checking' || HOLDING.has(state.mode) ? state.form : null),
+    // The forms whose locks the page lets go as it is closed: the one the tab holds, each one held
+    // for a deletion, and each one whose hold is not yet answered, which the service may hold for it
+    // by now.
+    toLetGo: () => [...new Set([...(HOLDING.has(state.mode) ? [state.form] : []), ...deleting, ...asked.keys()])],
 
     // The tab now has `form` open, or none: the lock of the one it leaves goes, and the new one's is
     // asked for.
@@ -94,7 +107,7 @@ export function lockKeeper({ service, show = () => {}, mark = () => {} }) {
       try {
         // The form left goes as the next is asked for, whose answer waits for nothing of it.
         if (left.form !== null && HOLDING.has(left.mode)) void service.release(left.form);
-        const answer = await service.hold(form);
+        const answer = await asking(form);
         if (mine !== opening) {
           if (answer?.held) await service.release(form);
           return undefined;
@@ -116,7 +129,7 @@ export function lockKeeper({ service, show = () => {}, mark = () => {} }) {
     async takeOver() {
       const { form, mode, holder } = state;
       if (form === null || !['asking', 'reading', 'takenOver'].includes(mode)) return;
-      const answer = await service.hold(form, { takeOver: true });
+      const answer = await asking(form, { takeOver: true });
       if (state.form !== form) return;
       if (mode === 'takenOver' && (answer === null || answer.held)) become({ form, mode: 'staleBackup', at: holder.since, takenOver: true });
       else answered(form, answer);
@@ -136,7 +149,7 @@ export function lockKeeper({ service, show = () => {}, mark = () => {} }) {
       if (mode === 'editing' || mode === 'staleBackup') {
         if (lock && !lock.mine) become({ form, mode: 'takenOver', holder: holderOf(lock) });
         else if (!lock) {
-          const answer = await service.hold(form);
+          const answer = await asking(form);
           if (state.form === form && answer?.holder) become({ form, mode: 'takenOver', holder: holderOf(answer.holder) });
         }
       } else if (mode === 'reading') {
@@ -150,7 +163,7 @@ export function lockKeeper({ service, show = () => {}, mark = () => {} }) {
       const { form, mode } = state;
       if (form === null) return null;
       if (mode !== 'editing') return { name: 'lock.refusedReadOnly' };
-      const answer = await service.hold(form);
+      const answer = await asking(form);
       if (answer === null || answer.held) return null;
       if (answer.adminOnly) {
         become({ form, mode: 'adminOnly' });
@@ -180,7 +193,7 @@ export function lockKeeper({ service, show = () => {}, mark = () => {} }) {
           continue;
         }
         deleting.add(form);
-        const answer = await service.hold(form);
+        const answer = await asking(form);
         if (answer?.held) held.push(form);
         else deleting.delete(form);
         if (answer?.holder || answer?.adminOnly) {

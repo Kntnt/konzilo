@@ -219,23 +219,39 @@ describe('the keeper of a tab\'s lock', () => {
     const { keeper, service } = keeping();
     await keeper.open('articles/aaaaaaaaaaaa');
     keeper.staleBackup('2026-11-23T09:00:00.000Z');
-    assert.equal(keeper.held(), 'articles/aaaaaaaaaaaa', 'the page lets it go as it is closed');
+    assert.deepEqual(keeper.toLetGo(), ['articles/aaaaaaaaaaaa'], 'the page lets it go as it is closed');
     await keeper.open(null);
     assert.equal(service.held['articles/aaaaaaaaaaaa'], undefined);
-    assert.equal(keeper.held(), null);
+    assert.deepEqual(keeper.toLetGo(), []);
   });
 
-  test('names the form whose lock the page lets go as it is closed, only where the tab holds it', async () => {
+  test('names the forms whose locks the page lets go as it is closed, only where the tab holds them', async () => {
     const { keeper } = keeping({ held: { 'articles/aaaaaaaaaaaa': EBBA }, adminOnly: ['settings'] });
-    assert.equal(keeper.held(), null);
+    assert.deepEqual(keeper.toLetGo(), []);
     await keeper.open('articles/bbbbbbbbbbbb');
-    assert.equal(keeper.held(), 'articles/bbbbbbbbbbbb');
+    assert.deepEqual(keeper.toLetGo(), ['articles/bbbbbbbbbbbb']);
     await keeper.open('articles/aaaaaaaaaaaa');
-    assert.equal(keeper.held(), null, 'asking');
+    assert.deepEqual(keeper.toLetGo(), [], 'asking');
     keeper.read();
-    assert.equal(keeper.held(), null, 'reading');
+    assert.deepEqual(keeper.toLetGo(), [], 'reading');
     await keeper.open('settings/settings');
-    assert.equal(keeper.held(), null, 'an Admin\'s form');
+    assert.deepEqual(keeper.toLetGo(), [], 'an Admin\'s form');
+  });
+
+  test('names a form whose hold is still unanswered among those the page lets go as it is closed, though the tab has left it', async () => {
+    const { keeper, service } = keeping();
+    let answer;
+    const hold = service.hold;
+    service.hold = (...args) => new Promise((go) => {
+      answer = () => go(hold(...args));
+    });
+    const opened = keeper.open('articles/aaaaaaaaaaaa');
+    await keeper.open(null);
+    assert.deepEqual(keeper.toLetGo(), ['articles/aaaaaaaaaaaa'], 'the service may hold it for the tab by now');
+    answer();
+    await opened;
+    assert.deepEqual(keeper.toLetGo(), []);
+    assert.equal(service.held['articles/aaaaaaaaaaaa'], undefined);
   });
 
   test('takes a form back from the tab that took it over with its unsaved changes set aside, to read and never to save', async () => {
