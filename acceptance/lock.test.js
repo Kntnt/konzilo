@@ -353,6 +353,57 @@ describe('a form locked to the tab that has it open', () => {
         await toList(anna.page);
       });
 
+      test('saves once where Forgejo answers an error after the commit is in, and tries no save again that Forgejo forbids', async () => {
+        const name = article(0);
+        const path = `articles/${name}.md`;
+        const commits = (url) => url.pathname.endsWith('/contents');
+        let posts = 0;
+        await anna.page.route(commits, async (route) => {
+          if (route.request().method() !== 'POST') return route.fallback();
+          posts += 1;
+          if (posts > 1) return route.fallback();
+          // The commit goes in, and the answer is lost on the way back.
+          await route.fetch();
+          return route.fulfill({ status: 502, contentType: 'text/plain', body: 'Bad Gateway' });
+        });
+        try {
+          await openForm(anna.page, `articles/entries/${name}`);
+          const words = `Saved through a lost answer in ${engine}`;
+          await anna.page.getByRole('textbox', { name: 'Working name' }).fill(words);
+          await saveButton(anna.page).click();
+          assert.match(await fileHolding(path, words), new RegExp(words));
+          await anna.page.waitForTimeout(3000);
+          assert.equal(await anna.page.getByRole('alertdialog').filter({ hasText: 'Reload' }).count(), 0, 'the Editor\'s own save is not refused as older than itself');
+          assert.equal(posts, 1, 'nothing saved twice');
+          const again = `${words}, and again`;
+          await anna.page.getByRole('textbox', { name: 'Working name' }).fill(again);
+          await saveButton(anna.page).click();
+          assert.match(await fileHolding(path, again), new RegExp(again), 'the form saves on from its own save');
+          await toList(anna.page);
+        } finally {
+          await anna.page.unroute(commits);
+        }
+
+        posts = 0;
+        await anna.page.route(commits, (route) => {
+          if (route.request().method() !== 'POST') return route.fallback();
+          posts += 1;
+          return route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ message: 'forbidden' }) });
+        });
+        try {
+          await openForm(anna.page, `articles/entries/${name}`);
+          await anna.page.getByRole('textbox', { name: 'Working name' }).fill(`Forbidden in ${engine}`);
+          await saveButton(anna.page).click();
+          await errorDialog(anna.page).or(anna.page.getByRole('alertdialog')).first().waitFor({ timeout: 30_000 });
+          assert.equal(posts, 1, 'a forbidden save is not tried again');
+          assert.doesNotMatch((await fileOf(path)).text, /Forbidden in/);
+        } finally {
+          await anna.page.unroute(commits);
+        }
+        await anna.page.reload();
+        await anna.page.getByText('Articles').first().waitFor({ timeout: 60_000 });
+      });
+
       test('opens an Admin\'s form read-only to an Editor, saying it is for Admins, with no takeover', async () => {
         await go(ebba.page, '#/collections/settings/entries/settings');
         const line = lineOf(ebba.page, 'This form is for Admins.');
