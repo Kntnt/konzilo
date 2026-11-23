@@ -66,8 +66,8 @@ describe('the toolbar in the preview\'s tab', () => {
       language: 'en',
       repository: 'a/source',
       cookieName: 'a_preview',
-      runner: runnerStandIn({ built: BUILT }),
-      dev: { port: sitePort, ensure: async () => {}, ready: () => true },
+      runner: runnerStandIn({ built: BUILT, timeline: [{ at: '2099-01-01T00:00:00Z', posts: [{ title: 'Two', file: 'pages/bbbbbbbbbbbb.md' }] }] }),
+      dev: { port: sitePort, ensure: async () => {}, ready: () => true, changing: async (work) => work() },
     });
   });
 
@@ -129,6 +129,22 @@ describe('the toolbar in the preview\'s tab', () => {
         await page.mouse.down();
         for (let step = 1; step <= 10; step += 1) await page.mouse.move(inside(from.x + (dx * step) / 10, width), inside(from.y + (dy * step) / 10, height));
         await page.mouse.up();
+      };
+      // The moment the toolbar names, once the page has settled on it: a page shown at another
+      // tab's moment asks for itself again at its own.
+      const namesMoment = async (page, value) => {
+        const until = Date.now() + 15_000;
+        for (;;) {
+          let shown = null;
+          try {
+            shown = await toolbar(page).getByRole('combobox', { name: 'The site at' }).inputValue({ timeout: 2000 });
+          } catch {
+            // Between pages.
+          }
+          if (shown === value) return;
+          assert.ok(Date.now() < until, `the toolbar names ${shown}, not ${value}`);
+          await page.waitForTimeout(250);
+        }
       };
       const near = (actual, expected, what) => assert.ok(Math.abs(actual - expected) <= 2, `${what}: ${actual}, not ${expected}`);
 
@@ -252,6 +268,51 @@ describe('the toolbar in the preview\'s tab', () => {
         }
       });
 
+      // The timeline, which a keyboard and a screen reader reach as they reach the rest (ADR 0032).
+      test('lists the timeline to a screen reader, and shows the moment chosen by the keyboard, across the tab\'s pages', async () => {
+        const { context, page } = await opened();
+        try {
+          await at(page);
+          const choice = toolbar(page).getByRole('combobox', { name: 'The site at' });
+          assert.equal(await choice.inputValue(), 'now');
+          const snapshot = await toolbar(page).ariaSnapshot();
+          assert.match(snapshot, /combobox "The site at"/);
+          assert.match(snapshot, /option "Now" \[selected\]/);
+          assert.match(snapshot, /option "1 January 2099 at \d\d:00 [^"]+: Two"/);
+          assert.match(snapshot, /button "Show"/);
+          const focused = () => page.evaluate(() => {
+            let at = document.activeElement;
+            while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
+            return at?.getAttribute('aria-label') || at?.id || at?.textContent || null;
+          });
+          // Tab reaches the list, and its button after it; WebKit, as Safari, reaches the button
+          // with Option held.
+          let reached = false;
+          for (let press = 0; press < 10 && !reached; press += 1) {
+            await page.keyboard.press(engine === 'webkit' ? 'Alt+Tab' : 'Tab');
+            reached = await focused() === 'moment';
+          }
+          assert.ok(reached, 'Tab reaches the list');
+          await choice.selectOption('2099-01-01T00:00:00Z');
+          assert.equal(page.url(), `${preview}/one/`, 'choosing alone takes the reader nowhere');
+          await page.keyboard.press(engine === 'webkit' ? 'Alt+Tab' : 'Tab');
+          assert.equal(await focused(), 'Show');
+          await Promise.all([page.waitForEvent('load'), page.keyboard.press('Enter')]);
+          await namesMoment(page, '2099-01-01T00:00:00Z');
+          await page.locator('#on').click();
+          await page.waitForURL(`${preview}/two/`);
+          await toolbar(page).getByText('Published').waitFor();
+          await namesMoment(page, '2099-01-01T00:00:00Z');
+          // Another tab starts at now, and the first keeps its own.
+          const other = await at(await context.newPage(), '/one/');
+          await namesMoment(other, 'now');
+          await page.reload();
+          await namesMoment(page, '2099-01-01T00:00:00Z');
+        } finally {
+          await context.close();
+        }
+      });
+
       test('is dragged with a finger, tucked by it and brought back by a tap, on a phone\'s screen', async () => {
         const { context, page } = await opened({ viewport: { width: 390, height: 700 }, touch: true });
         try {
@@ -281,7 +342,8 @@ describe('the toolbar in the preview\'s tab', () => {
             }, [from, { dx, dy }]);
           };
           const scrolled = await page.evaluate(() => window.scrollY);
-          await touchDrag(-150, -300);
+          // Up, and a little across: the bar, with the timeline in it, is nearly as wide as a phone.
+          await touchDrag(-10, -300);
           const moved = await barBox(page);
           near(moved.y, box.y - 300, 'up');
           assert.equal(await page.evaluate(() => window.scrollY), scrolled, 'the page did not scroll with it');

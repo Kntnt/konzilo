@@ -179,7 +179,7 @@ button { margin: 0; padding: 0; border: 0; background: none; color: inherit; fon
 .says[data-tone="scheduled"]::before { background: #60a5fa; }
 a { color: #bfdbfe; text-decoration: underline; white-space: nowrap; cursor: pointer; }
 .moment { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
-select { max-width: 18rem; margin: 0; padding: 2px 4px; border: 1px solid #64748b; border-radius: 4px; background: #0f172a; color: inherit; font: inherit; cursor: pointer; }
+select { max-width: 12rem; margin: 0; padding: 2px 4px; border: 1px solid #64748b; border-radius: 4px; background: #0f172a; color: inherit; font: inherit; cursor: pointer; }
 .show { padding: 2px 8px; border-radius: 4px; background: #334155; cursor: pointer; }
 .tab { display: grid; place-items: center; width: 24px; height: 48px; background: #1e293b; box-shadow: 0 4px 16px rgb(0 0 0 / 0.35); cursor: pointer; }
 .tab[data-edge="left"] { border-radius: 0 8px 8px 0; }
@@ -390,8 +390,9 @@ select { max-width: 18rem; margin: 0; padding: 2px 4px; border: 1px solid #64748
     const { x, y } = corner();
     const { width } = windowSize();
     const size = bar.getBoundingClientRect();
-    if (by[0] < 0 && x <= 0) return tuck('left');
-    if (by[0] > 0 && x + size.width >= width) return tuck('right');
+    // Within a pixel of an edge is against it, since a bar's width need not be a whole number.
+    if (by[0] < 0 && x <= 1) return tuck('left');
+    if (by[0] > 0 && x + size.width >= width - 1) return tuck('right');
     return settleAt({ x: x + by[0], y: y + by[1] });
   });
 

@@ -6,7 +6,8 @@
 // `shown` lists in turn. tests/preview-runner.test.js holds it to the real runner's calls, all of
 // which the gate may make.
 export const runnerStandIn = ({ built = {}, notFound = null, timeline = [], shown = [] } = {}) => {
-  let held;
+  // A dev server starts showing now.
+  let held = 'now';
   return {
     problem: () => null,
     take: async () => ({ address: null, refusals: [], moment: null }),
