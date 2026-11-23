@@ -1,7 +1,7 @@
 {
-  "@bruits/satteri-wasm32-wasi@0.10.5": {
+  "@bruits/satteri-wasm32-wasi@0.11.7": {
     "license": "MIT",
-    "source": "https://raw.githubusercontent.com/bruits/satteri/b3d38e1e341c809b20b76a655e9b1601d11bd1f0/LICENSE",
+    "source": "https://raw.githubusercontent.com/bruits/satteri/7d1297b7e4551a1c5124fa07bd2d1d05f66236e6/LICENSE",
     "texts": [
       {
         "file": "LICENSE",

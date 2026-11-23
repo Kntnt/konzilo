@@ -4,7 +4,7 @@
 // name, or whose text it cannot find, stops the build.
 
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
@@ -206,9 +206,11 @@ test('the editor\'s build writes the notices beside the bundle, with every packa
 // and `\0rolldown/…`: they are Vite's and Rolldown's code, and owe their notices too.
 test('names Vite and Rolldown for the helpers they write into the bundle, and refuses a file it cannot say whose it is', (t) => {
   const root = folder(t, { 'src/cms/editor.js': '' });
-  const installed = (name) => JSON.parse(readFileSync(new URL(`../node_modules/${name}/package.json`, import.meta.url), 'utf8')).version;
+  const installed = (path) => JSON.parse(readFileSync(new URL(`../node_modules/${path}/package.json`, import.meta.url), 'utf8')).version;
+  // Vite's own Rolldown, in Vite's folder when another package wants another version.
+  const rolldown = existsSync(new URL('../node_modules/vite/node_modules/rolldown/package.json', import.meta.url)) ? 'vite/node_modules/rolldown' : 'rolldown';
   const notices = editorNotices({ core: root, files: [join(root, 'src/cms/editor.js'), '\0vite/preload-helper.js', '\0rolldown/runtime.js', '\0unknown:thing', '/somewhere/else.js'] });
-  assert.deepEqual(notices.packages.map(({ name, version, license }) => `${name} ${version} ${license}`), [`rolldown ${installed('rolldown')} MIT`, `vite ${installed('vite')} MIT`]);
+  assert.deepEqual(notices.packages.map(({ name, version, license }) => `${name} ${version} ${license}`), [`rolldown ${installed(rolldown)} MIT`, `vite ${installed('vite')} MIT`]);
   assert.ok(notices.packages.every(({ texts }) => texts.some(({ text }) => text.includes('Permission is hereby granted'))));
   assert.deepEqual(notices.missing, [
     { name: '\0unknown:thing', version: null, lacks: 'owner' },
