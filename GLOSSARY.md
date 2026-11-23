@@ -122,7 +122,11 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Body check**: The one implementation that reads a post's body against the rule data and writes it in the exact form, handed its reader so that the intake and the field run the same code. _Avoid_: validator, serializer.
 
-**Refusal**: The intake's or `preSave`'s no to something it cannot publish, naming the post, the block or the field, or the file and line, and the reason, by its name in the catalogues, which the editor shows in the interface language. _Avoid_: error, validation failure.
+**Lock**: An Editor's hold on a form while one tab of theirs has it open, so that no other tab can save it; it ends when the form is left or the tab stops answering. _Avoid_: check-out, reservation.
+
+**Takeover**: Taking a form's lock from the tab that holds it, which then saves no more and keeps its unsaved changes to read. _Avoid_: steal, force unlock.
+
+**Refusal**: The intake's or `preSave`'s no to something it cannot publish, or to a save made from a form older than the latest save, naming the post, the block or the field, or the file and line, and the reason, by its name in the catalogues, which the editor shows in the interface language. _Avoid_: error, validation failure.
 
 **Warning**: The intake's word about a post it publishes otherwise than it holds, such as a link shown as text while its target has no page. _Avoid_: refusal, error.
 
