@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- The editor runs Sveltia 0.271.2. When a draft backup is offered, the form stays in view, read-only, until the backup is restored or discarded, so it can be read first. A required term's menu, Sveltia's own, says *Återställ standard* and *Rensa alla* in Swedish, and the rest of Sveltia's interface is in Swedish too where it was in English. A term chosen in a post's form can be edited from there only while it is new, added from that form; an existing term is edited in its own form, under its own lock.
+
 ## [0.6.1] – 2026-11-24
 
 ### Changed
