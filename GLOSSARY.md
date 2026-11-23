@@ -126,6 +126,8 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Takeover**: Taking a form's lock from the tab that holds it, which then saves no more and keeps its unsaved changes to read. _Avoid_: steal, force unlock.
 
+**Revision**: A form's content as one save left it, kept in the source repository's history; an Editor sees, compares and restores them. _Avoid_: version, history entry.
+
 **Refusal**: The intake's or `preSave`'s no to something it cannot publish, or to a save made from a form older than the latest save, naming the post, the block or the field, or the file and line, and the reason, by its name in the catalogues, which the editor shows in the interface language. _Avoid_: error, validation failure.
 
 **Warning**: The intake's word about a post it publishes otherwise than it holds, such as a link shown as text while its target has no page. _Avoid_: refusal, error.
