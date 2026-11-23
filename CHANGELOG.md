@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- The core needs Astro 7.4.13, which a new site pins. A site that raises its pin to this release raises its Astro to 7.4.13 in the same install, as the site template's guide now says; npm refuses the raise without it.
+- A site run with Compose runs Forgejo 17.0.2, Caddy 2.11.9 for its web server, and Node 24.22.3 for its builder, its live preview, its service and the editor's build.
+
+### Security
+
+- A site builds with Astro 7.4.13, which no longer lets an element name taken from a page's input, such as an address's query, carry an attribute into the page, a script among them.
+- Astro's image endpoint for its Node adapter no longer reads files from a folder beside the build's whose name differs only in case. A site built by Konzilo is static and has no such endpoint, but a site that adds Astro's Node adapter would have had one.
+
 ## [0.6.0] – 2026-11-23
 
 ### Added
