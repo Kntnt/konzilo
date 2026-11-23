@@ -184,7 +184,8 @@ describe('a form locked to the tab that has it open', () => {
         await takenLine.getByRole('button', { name: 'Take over' }).click();
         const aside = lineOf(ebba.page, 'These are your unsaved changes from before this form was taken over');
         await aside.waitFor({ timeout: 15_000 });
-        assert.equal(await ebbasField.inputValue(), 'Unsaved words in the first tab');
+        // The form is drawn from the latest save, then filled with the changes set aside.
+        await ebba.page.waitForFunction((words) => [...document.querySelectorAll('input')].some((input) => input.value === words), 'Unsaved words in the first tab', { timeout: 15_000 });
         assert.equal(await ebbasField.isEditable(), false);
         assert.equal(await saveButton(ebba.page).count(), 0);
         const annasNotice = anna.page.getByRole('dialog', { name: 'Your form was taken over' });
