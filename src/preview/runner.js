@@ -9,6 +9,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 import { pageLanguage } from '../astro/languages.js';
+import { momentKey, NOW } from '../cms/preview/paths.js';
 import { NOT_FOUND_FILE, NOT_FOUND_FOLDER } from '../format/not-found.js';
 import { DRAFT, PUBLISHED, SCHEDULED } from '../format/post-status.js';
 import { keyOf } from '../format/redirects.js';
@@ -57,9 +58,6 @@ function pagesOf(result, waiting) {
   return { pages, notFound };
 }
 
-// What each moment of the timeline is known by: now's, and a later one's, its moment.
-const NOW = 'now';
-const keyOfMoment = (moment) => moment ?? NOW;
 
 // What a run writes, as one value: two runs that would write the same give the same.
 const versionOf = (result) => {
@@ -175,7 +173,7 @@ export function previewRunner({ site: described, source, content, adminHost = nu
   // The run at `moment`, made again where what is read has changed since, or, now's, where a
   // moment it waited for has come.
   const runAt = (moment) => {
-    const key = keyOfMoment(moment);
+    const key = momentKey(moment);
     const last = runs.get(key);
     const clock = moment === null ? now() : new Date(moment);
     if (last?.from === input.from && !(moment === null && last.result.next && new Date(last.result.next) <= clock)) return last;
@@ -255,16 +253,16 @@ export function previewRunner({ site: described, source, content, adminHost = nu
     prepare: (moment) => inTurn(async () => (await prepared(moment)).version),
 
     // The last version made at `moment`, or null.
-    version: (moment) => runs.get(keyOfMoment(moment))?.version ?? null,
+    version: (moment) => runs.get(momentKey(moment))?.version ?? null,
 
     // Whether the content folder holds the last version made at `moment`.
-    shows: (moment) => held !== null && held.key === keyOfMoment(moment) && held.version === runs.get(held.key)?.version,
+    shows: (moment) => held !== null && held.key === momentKey(moment) && held.version === runs.get(held.key)?.version,
 
     // The content folder made to show `moment`, from what was last read: { changed }, whether
     // any file a page is built from was written or removed. Every image another moment shows
     // stays, for a page of it that a browser still holds.
     show: (moment) => inTurn(async () => {
-      const key = keyOfMoment(moment);
+      const key = momentKey(moment);
       const { result, version } = await prepared(moment);
       if (held?.version === version) {
         held = { key, version };
@@ -282,7 +280,7 @@ export function previewRunner({ site: described, source, content, adminHost = nu
     // each reason it cannot be published, as take() gives them; a term, { kind: 'term', file,
     // title, refusals }; or null, for a page built from many posts or from settings, or none.
     at: (path, moment = null) => {
-      const pages = pagesAt(keyOfMoment(moment))?.pages;
+      const pages = pagesAt(momentKey(moment))?.pages;
       return pages ? pageKeys(path).map((key) => pages.get(key)).find(Boolean) ?? null : null;
     },
 
@@ -290,7 +288,7 @@ export function previewRunner({ site: described, source, content, adminHost = nu
     // post an Admin chose for it, in the language whose prefix `path` is below, the main
     // language's below none, as at() gives a post, or null where none serves.
     notFoundAt(path, moment = null) {
-      const notFound = pagesAt(keyOfMoment(moment))?.notFound;
+      const notFound = pagesAt(momentKey(moment))?.notFound;
       if (!notFound) return null;
       const language = pageLanguage(path, site.languages);
       return notFound.get(language === null || language.main ? NOT_FOUND_FILE : `${NOT_FOUND_FOLDER}/${language.tag}.md`) ?? null;

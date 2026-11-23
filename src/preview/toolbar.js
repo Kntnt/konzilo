@@ -14,7 +14,7 @@
 // told another tab's. A new tab starts at now, but for one opened at a moment its address names.
 
 import { interfaceLanguageTag, text } from '../catalogues.js';
-import { MOMENT_PARAMETER } from '../cms/preview/paths.js';
+import { MOMENT_PARAMETER, momentKey, NOW } from '../cms/preview/paths.js';
 import { DRAFT, PUBLISHED, SCHEDULED } from '../format/post-status.js';
 
 // A post's status as the toolbar says it, by its text's name.
@@ -27,9 +27,6 @@ const STATUSES = Object.freeze({
 // Where a scheduled post's moment goes in its status, which the page fills in its reader's own
 // time zone.
 const MOMENT_PLACE = '{moment}';
-
-// Now, as a tab's moment is named.
-const NOW = 'now';
 
 // A source file's entry in the editor on the admin host: its collection, the file's first
 // folder, and its ID, the file's name, in whichever language's folder it is.
@@ -76,11 +73,12 @@ export function toolbarOf({ about, writes, language, adminOrigin, timeline = [{ 
     moments: timeline.map(({ at, posts }) => (at === null
       ? { value: NOW, at: null, label: text(language, 'previewTab.toolbar.now') }
       : { value: at, at, label: text(language, 'previewTab.toolbar.goesOut', { moment: MOMENT_PLACE, posts: posts.map(({ title }) => title).join(', ') }) })),
-    chosen: moment ?? NOW,
+    chosen: momentKey(moment),
     asked,
     momentLabel: text(language, 'previewTab.toolbar.moment'),
     showMoment: text(language, 'previewTab.toolbar.showMoment'),
     parameter: MOMENT_PARAMETER,
+    now: NOW,
     cookie,
   };
 }
@@ -110,7 +108,7 @@ export function previewToolbar(given) {
   };
   const tabMoment = () => {
     try {
-      return sessionStorage.getItem(KEPT_MOMENT) ?? 'now';
+      return sessionStorage.getItem(KEPT_MOMENT) ?? given.now;
     } catch {
       return given.asked;
     }

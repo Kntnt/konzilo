@@ -20,7 +20,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { request } from 'node:http';
 import { connect } from 'node:net';
 
-import { DRAFT_PATH, HEALTH_PATH, MOMENT_PARAMETER, SESSION_PATH, SIGN_IN_PATH, WHERE_PATH } from '../cms/preview/paths.js';
+import { DRAFT_PATH, HEALTH_PATH, MOMENT_PARAMETER, momentKey, NOW, SESSION_PATH, SIGN_IN_PATH, WHERE_PATH } from '../cms/preview/paths.js';
 import { accessTo, CREDENTIAL } from '../forgejo.js';
 import { forgejoSignIn, SIGN_IN_LASTS, STATE } from './sign-in.js';
 import { previewStage } from './stage.js';
@@ -68,7 +68,6 @@ const pathOn = (url) => (/^\/(?![/\\])/.test(url.pathname) ? `${url.pathname}${u
 
 // A moment as an address or the tab's cookie names it: `now`, or a moment as the intake writes
 // one; anything else is taken for now.
-const NOW = 'now';
 const MOMENT_VALUE = /^(?:now|\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)$/;
 
 // A frame's request, which the pane makes, and which no sign-in can lead anywhere.
@@ -176,7 +175,7 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
     try {
       return { moment, version: await runner.prepare(moment) };
     } catch (error) {
-      warn(`The preview could not prepare the site at ${moment ?? 'now'}: ${error.message}`);
+      warn(`The preview could not prepare the site at ${momentKey(moment)}: ${error.message}`);
       return { moment, version: null };
     }
   };
@@ -362,7 +361,7 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
     return outgoing.end(incoming.method === 'HEAD' ? undefined : page);
   };
 
-  const drawnKey = (moment, version, path) => `${moment ?? 'now'}\n${version}\n${path}`;
+  const drawnKey = (moment, version, path) => `${momentKey(moment)}\n${version}\n${path}`;
   const keepDrawn = (key, page) => {
     drawn.delete(key);
     drawn.set(key, page);

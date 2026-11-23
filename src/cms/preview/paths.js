@@ -24,3 +24,8 @@ export const READY_MESSAGE = 'konzilo-preview-ready';
 // What an address names the moment of the site's timeline it is shown at by, null being now: the
 // pane's frame's, at the moment the post being edited goes out, and a tab's opened at it.
 export const MOMENT_PARAMETER = 'konzilo-moment';
+// Now, as a moment is named where it is a value or a key: in an address, a tab's cookie, the
+// toolbar's choice, and what the preview keeps of each moment.
+export const NOW = 'now';
+// What a moment is known by, null being now.
+export const momentKey = (moment) => moment ?? NOW;

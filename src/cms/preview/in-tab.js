@@ -4,9 +4,10 @@
 // already or with none.
 
 import { atMoment } from './client.js';
+import { momentKey } from './paths.js';
 
 // The address of the page in a tab, the preview's own, at the moment it is shown at.
-export const tabAddress = ({ origin, address, moment }) => `${origin}${atMoment(address, moment ?? 'now')}`;
+export const tabAddress = ({ origin, address, moment }) => `${origin}${atMoment(address, momentKey(moment))}`;
 
 // The page the preview last showed: { form, address, moment }, or null where the form has none.
 let shown = null;
