@@ -154,5 +154,89 @@
     "why": "A Reviewer's account may read the source and not write to it, which Sveltia refuses at its sign-in, signing them out, in words that say only that the account cannot write; Konzilo's say that the account reads the live preview only, and where it is, in the interface language (ADR 0008).",
     "find": "Wje=e=>yG(_G,`repository_no_write_access`,{repo:e})",
     "replace": "Wje=e=>globalThis.__KONZILO_READS_ONLY__?Error(_G,{cause:new vG(globalThis.__KONZILO_READS_ONLY__)}):yG(_G,`repository_no_write_access`,{repo:e})"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "A form another tab holds, one taken over, an Admin's form an Editor opens, and a draft backup that can no longer be saved are read-only (ADR 0073), as a form of a read-only collection is in Sveltia, which then draws its own fields read-only, offers no Save and no Delete, and saves no backup. The core says which, in a state of Sveltia's own kind, so that Sveltia follows it at once; and the forms other tabs hold, which the list marks.",
+    "find": "K2=e=>!!e&&G2({collection:e.collection,collectionFile:e.collectionFile})",
+    "replace": "konziloStores=(globalThis.konziloReadOnly=Yk(null),globalThis.konziloHeld=Yk({})),K2=e=>!!e&&(G2({collection:e.collection,collectionFile:e.collectionFile})||!!globalThis.konziloReadOnly.current)"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "The line above a read-only form says why it is read-only, and offers the ways on, in the core's words (ADR 0073): its own element, which follows the lock, in place of Sveltia's line.",
+    "find": "eu(n.lastChild,{dismissible:!1,children:(e,t)=>{mi();var n=H();z(e=>G(n,e),[()=>q2(`entry`,{collection:B(y),collectionFile:B(x)})]),W(e,n)}",
+    "replace": "eu(n.lastChild,{dismissible:!1,children:(e,t)=>{mi();var n=globalThis.konziloReadOnly.current&&globalThis.konziloLine?globalThis.konziloLine(r()):H();z(e=>G(n,e),[()=>globalThis.konziloReadOnly.current?``:q2(`entry`,{collection:B(y),collectionFile:B(x)})]),W(e,n)}"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "A save from a form older than the entry's latest save is refused, with nothing merged, naming the account of the later save and when, in the core's words and the reader's own form and time zone (ADR 0073). The same words warn while the form is open.",
+    "find": "lst=({type:e,entry:t,canOverwrite:n},r)=>{if(e===`deleted`)",
+    "replace": "lst=({type:e,entry:t,canOverwrite:n},r)=>{let konziloWords=globalThis.konziloConflictWords?.({type:e,name:t?SB(t.commitAuthor):void 0,date:t?.commitDate});if(konziloWords)return konziloWords;if(e===`deleted`)"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "Sveltia's Save Anyway overwrites the later save, which ADR 0073 refuses: the refusal offers to reload, in the core's words, with the Editor's own changes kept to read and copy.",
+    "find": "a=j(()=>X(`save_conflict.save_anyway`))",
+    "replace": "a=j(()=>globalThis.__KONZILO_RELOAD_WORDS__??X(`save_conflict.save_anyway`))"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "An entry deleted after the form was opened has nothing to reload, so its refusal offers no Save Anyway either (ADR 0073).",
+    "find": "K(a,e=>{t.conflict?.canOverwrite===!1?e(o):e(s,-1)})",
+    "replace": "K(a,e=>{t.conflict?.canOverwrite===!1||t.conflict?.type===`deleted`?e(o):e(s,-1)})"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "What was Save Anyway reloads the entry, keeping the Editor's changes as a draft backup, which then shows read-only to read and copy (ADR 0073).",
+    "find": "onOverwrite:async()=>{await ke({skipCI:B(d)?.skipCI,overwrite:!0,publish:B(d)?.publish})}",
+    "replace": "onOverwrite:async()=>{await globalThis.konziloReload({entryDraft:r,entry:B(d)?.conflict?.entry})}"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "The two ways back to the latest version (ADR 0073): a reload that keeps the Editor's changes as a draft backup, and one that opens the latest in place of a backup that can no longer be saved, letting it go. T3e keeps a backup, s8 makes a form of an entry, and lM holds every entry.",
+    "find": "ust=async({entryDraft:e,entry:t})=>{let n=e.current,{collectionName:r,collection:i,collectionFile:a,expanderStates:o}=n;return n8(),await $6(r,t8(n)),s8({entryDraft:e,collection:i,collectionFile:a,originalEntry:t,expanderStates:o})},",
+    "replace": "ust=async({entryDraft:e,entry:t})=>{let n=e.current,{collectionName:r,collection:i,collectionFile:a,expanderStates:o}=n;return n8(),await $6(r,t8(n)),s8({entryDraft:e,collection:i,collectionFile:a,originalEntry:t,expanderStates:o})},konziloReloads=(globalThis.konziloReload=async({entryDraft:e,entry:t})=>{let n=e.current;if(!n)return;let r=t??lM.current.find(({id:e})=>e===n.originalEntry?.id);if(!r)return;n8(),await T3e(n);let{collection:i,collectionFile:a,expanderStates:o}=n;s8({entryDraft:e,collection:i,collectionFile:a,originalEntry:r,expanderStates:o})},globalThis.konziloLatest=async e=>{let t=e?.current,n=t&&lM.current.find(({id:e})=>e===t.originalEntry?.id);n&&await ust({entryDraft:e,entry:n})}),"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "Sveltia's warning while the form is open reloads the entry and loses the Editor's changes, after asking; it keeps them as a draft backup instead, to read and copy (ADR 0073). A read-only form has no changes to keep.",
+    "find": "l=async()=>{B(a)?.entry&&await ust({entryDraft:n,entry:B(a).entry})}",
+    "replace": "l=async()=>{B(a)?.entry&&await(globalThis.konziloReadOnly.current?ust:globalThis.konziloReload)({entryDraft:n,entry:B(a).entry})}"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "As above: nothing is lost, so the reload asks nothing first.",
+    "find": "onclick:()=>{PN(B(r))?N(s,!0):l()}",
+    "replace": "onclick:()=>{l()}"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "A draft backup is offered as before only where the entry has not been saved since the backup was taken; otherwise it is shown read-only, to read and copy, and never saved over the later save (ADR 0073). Sveltia keeps the entry a backup was made from as its baseEntry, and tells a later save by it.",
+    "find": "let{collectionName:t}=e,n=t8(e),r=await C3e(e);if(!r)return;let{timestamp:i}=r,",
+    "replace": "let{collectionName:t}=e,n=t8(e),r=await C3e(e);if(!r)return;if(r.baseEntry&&e.originalEntry&&globalThis.konziloStaleBackup&&!(0,wr.default)(r.baseEntry.locales,Jk(e.originalEntry.locales))){globalThis.konziloStaleBackup(r.timestamp),await O3e({backup:r,draft:e});return}let{timestamp:i}=r,"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "The list marks each entry another tab holds with the name of its holder (ADR 0073), which the core gives as the forms' marks.",
+    "find": "Gu(e,{get\"aria-rowindex\"(){return B(r)},get\"aria-label\"(){return B(i)},onChange:e=>{a(e.detail.selected)},",
+    "replace": "Gu(e,{get\"aria-rowindex\"(){return B(r)},get\"aria-label\"(){let n=globalThis.konziloHeld.current[`${t.collection.name}/${t.entry.subPath}`]?.text;return n?`${B(i)} (${n})`:B(i)},get\"data-konzilo-held\"(){return globalThis.konziloHeld.current[`${t.collection.name}/${t.entry.subPath}`]?.text},onChange:e=>{a(e.detail.selected)},"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "As above, in the list of a collection of files, the site settings and the menus.",
+    "find": "Gu(e,{onclick:()=>{w0(PF(`/collections/${Qj.current?.name}/entries/${n()}`),{transitionType:`forwards`})}",
+    "replace": "Gu(e,{get\"data-konzilo-held\"(){return globalThis.konziloHeld.current[`${Qj.current?.name}/${n()}`]?.text},onclick:()=>{w0(PF(`/collections/${Qj.current?.name}/entries/${n()}`),{transitionType:`forwards`})}"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "A deletion is a change like any other and needs the lock, from the form and from the list (ADR 0073): the core holds each entry for it, or refuses, naming who has it open, and lets go what it held for the deletion alone.",
+    "find": "Olt=async({drafts:e=[],items:t=[],collection:n=void 0,collectionFile:r=void 0,useWorkflow:i})=>{",
+    "replace": "Olt=async e=>{let t=await globalThis.konziloBeforeDeleting?.(e);if(t?.refusal)throw Error(t.refusal,{cause:new vG(t.refusal)});try{return await konziloOlt(e)}finally{await t?.done?.()}},konziloOlt=async({drafts:e=[],items:t=[],collection:n=void 0,collectionFile:r=void 0,useWorkflow:i})=>{"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "Two Editors saving different entries at once: Forgejo turns one save away, with cannot lock ref or as the branch having moved, and Sveltia shows an error. The save is tried again, a moment later, after the check against the latest save is made anew, which refuses it where the entry itself was saved meanwhile (ADR 0029, ADR 0073).",
+    "find": "let m=await Aut({draft:e,useWorkflow:i,changes:l,savingEntry:c,otherSavingEntries:[...d,...f,...p.map(e=>e.entry)],pendingEntries:p,savingAssets:u,options:{commitType:e.isNew||s?`create`:`update`,collection:e.collection,skipCI:t}});",
+    "replace": "let m;for(let konziloTry=1;;konziloTry+=1)try{m=await Aut({draft:e,useWorkflow:i,changes:l,savingEntry:c,otherSavingEntries:[...d,...f,...p.map(e=>e.entry)],pendingEntries:p,savingAssets:u,options:{commitType:e.isNew||s?`create`:`update`,collection:e.collection,skipCI:t}});break}catch(konziloError){let konziloWhy=konziloError?.cause;if(konziloTry>=4||x3(konziloError)||!([403,409,422,423,500,502,503].includes(konziloWhy?.status)||konziloWhy?.message===X(`save_conflict.branch_moved`)||/cannot lock ref/i.test(String(konziloWhy?.message??``))))throw konziloError;await new Promise(e=>setTimeout(e,200*konziloTry+Math.random()*400));try{await D3()}catch{}let konziloConflict=!e.isNew&&e.originalEntry?r7(e.originalEntry):void 0;if(konziloConflict)throw Error(`save_conflict`,{cause:konziloConflict})}"
   }
 ]

@@ -33,11 +33,14 @@ export const fileRefusalShown = (refusal) => known(() => messageIn(interfaceLang
 // save stops, and shown in Sveltia's dialog under the editor's own words, since nothing failed.
 // The patched dialog asks for those words by the reason it shows, and tells a refusal from a
 // failure by it, so only the latest reason thrown here has them (patches.json).
+// `above`: those words, the body's by default, since most refusals at Save are its.
 let refusedAtSave = null;
-const wordsAbove = (shown) => (refusedAtSave !== null && shown === refusedAtSave ? say('body.refused') : undefined);
+let wordsOfRefusal = null;
+const wordsAbove = (shown) => (refusedAtSave !== null && shown === refusedAtSave ? wordsOfRefusal : undefined);
 
-export function refuseAtSave(reason) {
+export function refuseAtSave(reason, above = say('body.refused')) {
   refusedAtSave = reason;
+  wordsOfRefusal = above;
   globalThis.__KONZILO_REFUSAL_WORDS__ = wordsAbove;
   throw new Error(reason);
 }

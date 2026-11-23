@@ -17,6 +17,7 @@
 // the core's: Revert Changes, Restore Default and Clear, over every field it covers (menu.js).
 
 import { say } from '../interface-language.js';
+import { useReadOnly } from '../lock/read-only.js';
 import { plain } from '../plain.js';
 import { refuseAtSave } from '../refusals.js';
 import { actionsOf, holding, missing } from './menu.js';
@@ -149,6 +150,8 @@ export function registerGroups(CMS, config, groups = {}) {
     const asGroup = (held) => (one ? { [fields[0].name]: held } : held);
     const host = React.useRef(null);
     const [locale, setLocale] = React.useState(undefined);
+    // A read-only form (ADR 0073) draws each field read-only, and offers no menu.
+    const readOnly = useReadOnly(React);
 
     // What each field holds now. Two fields may change before Sveltia's value comes round, the
     // slug as the name is typed, so each change is made on the newest.
@@ -183,7 +186,7 @@ export function registerGroups(CMS, config, groups = {}) {
     }));
 
     return h('div', { ref: host, className: 'konzilo-group', 'data-group': name },
-      followed ? null : h(GroupMenu, { id: forID, label, actionsNow, act: write }),
+      followed || readOnly ? null : h(GroupMenu, { id: forID, label, actionsNow, act: write }),
       plain(field.get('heading')) === true ? h('h3', { className: 'konzilo-group-heading' }, label) : null,
       fields.map((member, index) => {
         const id = `${forID}-${member.name}`;
@@ -202,7 +205,7 @@ export function registerGroups(CMS, config, groups = {}) {
             pickFile: props.pickFile,
             keyPath: one ? name : `${name}.${member.name}`,
             required: member.required === true,
-            readonly: false,
+            readonly: readOnly,
             invalid: false,
           }) : null;
         // A field with no label of its own keeps it, hidden, for the controls that name themselves

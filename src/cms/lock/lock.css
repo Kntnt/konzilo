@@ -1,0 +1,81 @@
+/* A form locked to the tab that has it open (ADR 0073): the question and the notice over the page,
+   the line above a read-only form, and the mark of an entry another tab holds in the list. */
+
+.konzilo-lock-dialog {
+  box-sizing: border-box;
+  width: min(520px, calc(100vw - 32px));
+  padding: 16px 20px;
+  border: 1px solid #a8a8a8;
+  border-radius: 8px;
+  background: #fff;
+  color: #222;
+  font: 14px/1.5 system-ui, sans-serif;
+}
+
+.konzilo-lock-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.konzilo-lock-dialog h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.konzilo-lock-dialog p {
+  margin: 0 0 8px;
+}
+
+.konzilo-lock-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.konzilo-lock-button {
+  padding: 5px 10px;
+  border: 1px solid #a8a8a8;
+  border-radius: 4px;
+  background: #f5f5f5;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.konzilo-lock-button:focus-visible {
+  outline: 2px solid #1a73e8;
+  outline-offset: 1px;
+}
+
+.konzilo-lock-line {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px 12px;
+}
+
+.konzilo-lock-ways {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.konzilo-lock-line .konzilo-lock-button {
+  padding: 2px 8px;
+  background: transparent;
+}
+
+[data-konzilo-held]::after {
+  content: attr(data-konzilo-held);
+  align-self: center;
+  margin-inline: 8px;
+  padding: 1px 8px;
+  border: 1px solid #c9a227;
+  border-radius: 12px;
+  background: #fff6d6;
+  color: #5c4500;
+  font-size: 12px;
+  white-space: nowrap;
+}
