@@ -42,6 +42,26 @@ export async function openEditor(engine, site, { locale = 'en-GB' } = {}) {
   const page = await context.newPage();
   watch(page);
   await page.goto(`${site.origin.admin}/`);
+
+  // A browser closed at once leaves its tabs no moment to let their forms go, whose locks then
+  // stand for two minutes (ADR 0073), in the way of the next test that opens one: each tab with a
+  // form open goes back to the list first, as a person leaves it.
+  const close = browser.close.bind(browser);
+  browser.close = async (...args) => {
+    for (const one of context.pages()) {
+      try {
+        if (!/^#\/collections\/[^/]+\/entries\//.test(new URL(one.url()).hash)) continue;
+        const letGo = one.waitForResponse((response) => response.request().method() === 'DELETE' && response.url().includes('/_konzilo/locks/'), { timeout: 5000 });
+        await one.evaluate(() => {
+          window.location.hash = '#/';
+        });
+        await letGo;
+      } catch {
+        // A tab that cannot be asked, or holds no lock, has none to let go.
+      }
+    }
+    return close(...args);
+  };
   return { browser, context, page, seen, watch };
 }
 
