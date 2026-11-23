@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- The live preview shows the site as it stands at a moment of its timeline, now and each later moment at which a scheduled post, or a draft with a moment, goes out, in place of every saved post at once. At a moment, every page, post list, recommended reading, archive, feed and menu holds what is out by then and nothing after it: what is published, a scheduled post and a draft whose moment has come, and a draft without a moment from now on. A tab of its own starts at now, and its toolbar lists the timeline, each moment in the reader's own time zone with what goes out then, and shows the one chosen, which holds across the tab's pages. The pane beside a post's form shows the moment the post goes out, now for one published or without a moment, and follows a moment changed in the form before it is saved; a button above it, *Open in a tab of its own*, opens the page in a tab at that moment. A page whose moment is still being prepared says so, and opens by itself once it is ready.
+
 ## [0.5.0] – 2026-11-13
 
 ### Added

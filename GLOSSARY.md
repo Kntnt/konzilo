@@ -160,7 +160,7 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Share link**: A secret link to one post not yet published, which lets someone without a login read it in a static preview build for three days, or until revoked. _Avoid_: public preview, magic link.
 
-**Preview toolbar**: The small bar on every page of the live preview in a tab of its own, which says what the page is built from, a post with its status or a term, and, for someone who may write, leads to its form on the admin host; it is dragged anywhere, and tucks into a tab on the left or right edge. _Avoid_: admin bar, edit bar.
+**Preview toolbar**: The small bar on every page of the live preview in a tab of its own, which says what the page is built from, a post with its status or a term, and, for someone who may write, leads to its form on the admin host, and lists the timeline, with the moment the page shows; it is dragged anywhere, and tucks into a tab on the left or right edge. _Avoid_: admin bar, edit bar.
 
 **Purge**: Removing a post and its media for good, from every repository's history at once, and from backups as they expire. _Avoid_: erasure (a person's submissions'), delete, unpublish.
 
