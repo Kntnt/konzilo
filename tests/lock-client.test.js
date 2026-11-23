@@ -1,0 +1,67 @@
+// What a tab asks of the service about the locks (ADR 0073), against a stand-in for its fetch.
+
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+
+import { lockClient } from '../src/cms/lock/client.js';
+
+const answer = (status, body) => ({ status, ok: status < 400, json: async () => body });
+
+const asking = (answers, { credential = 'token mine' } = {}) => {
+  const asked = [];
+  const ask = async (address, init) => {
+    asked.push({ address, method: init.method, authorization: init.headers.authorization, keepalive: init.keepalive ?? false });
+    const next = answers.shift();
+    if (next instanceof Error) throw next;
+    return next;
+  };
+  return { asked, client: lockClient({ tab: 'tab-aaaaaaaa', credential: () => credential, ask, pause: async () => {} }) };
+};
+
+test('holds a form by its name and the tab\'s, and takes one over when asked', async () => {
+  const { asked, client } = asking([answer(200, { held: true, since: '2026-11-23T10:00:00.000Z' }), answer(200, { held: true, since: '2026-11-23T10:01:00.000Z' })]);
+  assert.deepEqual(await client.hold('articles/aaaaaaaaaaaa'), { held: true, since: '2026-11-23T10:00:00.000Z' });
+  await client.hold('articles/aaaaaaaaaaaa', { takeOver: true });
+  assert.deepEqual(asked, [
+    { address: '/_konzilo/locks/articles%2Faaaaaaaaaaaa?tab=tab-aaaaaaaa', method: 'PUT', authorization: 'token mine', keepalive: false },
+    { address: '/_konzilo/locks/articles%2Faaaaaaaaaaaa?tab=tab-aaaaaaaa&takeOver=true', method: 'PUT', authorization: 'token mine', keepalive: false },
+  ]);
+});
+
+test('says who holds a form, that it is an Admin\'s, or nothing where the service cannot tell', async () => {
+  const { client } = asking([
+    answer(409, { holder: { name: 'Ebba Editor', since: '2026-11-23T10:00:00.000Z', yours: false } }),
+    answer(403, { adminOnly: true }),
+    answer(502, {}),
+    new Error('offline'),
+  ]);
+  assert.deepEqual(await client.hold('a/b'), { holder: { name: 'Ebba Editor', since: '2026-11-23T10:00:00.000Z', yours: false } });
+  assert.deepEqual(await client.hold('settings/settings'), { adminOnly: true });
+  assert.equal(await client.hold('a/b'), null);
+  assert.equal(await client.hold('a/b'), null);
+});
+
+test('asks nothing where nothing is signed in', async () => {
+  const { asked, client } = asking([], { credential: null });
+  assert.equal(await client.hold('a/b'), null);
+  assert.equal(await client.locks(null), null);
+  assert.deepEqual(asked, []);
+});
+
+test('lets a form go, so that the call outlives a page being left', async () => {
+  const { asked, client } = asking([answer(204), answer(204)]);
+  await client.release('a/b');
+  await client.release('a/b', { leaving: true });
+  assert.deepEqual(asked.map(({ method, keepalive }) => [method, keepalive]), [['DELETE', false], ['DELETE', true]]);
+});
+
+test('watches the locks, asking each time after the version it last saw, and waits after an answer it cannot read', async () => {
+  const seen = [];
+  const { asked, client } = asking([answer(200, { version: 3, locks: [] }), answer(500, {}), answer(200, { version: 4, locks: [{ form: 'a/b' }] })]);
+  await client.watch(async (locks) => {
+    seen.push(locks.version);
+    if (seen.length === 2) throw new Error('enough');
+  }).catch(() => {});
+  assert.deepEqual(seen, [3, 4]);
+  assert.deepEqual(asked.map(({ address }) => address), ['/_konzilo/locks?tab=tab-aaaaaaaa', '/_konzilo/locks?tab=tab-aaaaaaaa&after=3', '/_konzilo/locks?tab=tab-aaaaaaaa&after=3']);
+});
