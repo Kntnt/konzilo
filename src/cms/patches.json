@@ -193,9 +193,9 @@
   },
   {
     "module": "@sveltia/cms/npm/index.js",
-    "why": "What was Save Anyway reloads the entry, keeping the Editor's changes as a draft backup, which then shows read-only to read and copy (ADR 0073).",
+    "why": "What was Save Anyway reloads the entry, keeping the Editor's changes as a draft backup, which then shows read-only to read and copy (ADR 0073). The refusal also offers to compare the latest save with the form's unsaved changes (ADR 0074).",
     "find": "onOverwrite:async()=>{await ke({skipCI:B(d)?.skipCI,overwrite:!0,publish:B(d)?.publish})}",
-    "replace": "onOverwrite:async()=>{await globalThis.konziloReload({entryDraft:r,entry:B(d)?.conflict?.entry})}"
+    "replace": "onOverwrite:async()=>{await globalThis.konziloReload({entryDraft:r,entry:B(d)?.conflict?.entry})},konziloCompare:()=>globalThis.konziloCompareLatest?.({entryDraft:r,entry:B(d)?.conflict?.entry})"
   },
   {
     "module": "@sveltia/cms/npm/index.js",
@@ -244,5 +244,23 @@
     "why": "Two Editors saving different entries at once: Forgejo turns one save away, with cannot lock ref or as the branch having moved, and Sveltia shows an error. The save is tried again, a moment later, after the check against the latest save is made anew, which refuses it where the entry itself was saved meanwhile (ADR 0029, ADR 0073).",
     "find": "let m=await Aut({draft:e,useWorkflow:i,changes:l,savingEntry:c,otherSavingEntries:[...d,...f,...p.map(e=>e.entry)],pendingEntries:p,savingAssets:u,options:{commitType:e.isNew||s?`create`:`update`,collection:e.collection,skipCI:t}});",
     "replace": "let m;for(let konziloTry=1;;konziloTry+=1)try{m=await Aut({draft:e,useWorkflow:i,changes:l,savingEntry:c,otherSavingEntries:[...d,...f,...p.map(e=>e.entry)],pendingEntries:p,savingAssets:u,options:{commitType:e.isNew||s?`create`:`update`,collection:e.collection,skipCI:t}});break}catch(konziloError){let konziloWhy=konziloError?.cause;if(konziloTry>=4||x3(konziloError)||!([403,409,422,423,500,502,503].includes(konziloWhy?.status)||konziloWhy?.message===X(`save_conflict.branch_moved`)||/cannot lock ref/i.test(String(konziloWhy?.message??``))))throw konziloError;await new Promise(e=>setTimeout(e,200*konziloTry+Math.random()*400));try{await D3()}catch{}let konziloConflict=!e.isNew&&e.originalEntry?await konziloWho(r7(e.originalEntry)):void 0;if(konziloConflict)throw Error(`save_conflict`,{cause:konziloConflict})}"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "Every form's History shows its revisions from the source repository's history, with the account that pushed each as Forgejo recorded it, and compares and restores them (ADR 0074): the core's own panel in place of Sveltia's list of commits, which names each commit's author as the commit says, and offers neither. It follows the form the panel is shown beside.",
+    "find": "Xs(()=>{s()});{let t=j(()=>X(`entry_sidebar.history.title`));i7(e,{get title(){return B(t)},children:(e,t)=>{var n=U(),s=F(n),",
+    "replace": "Xs(()=>{globalThis.konziloHistory||s()});{let t=j(()=>X(`entry_sidebar.history.title`)),konziloDraft=n;i7(e,{get title(){return B(t)},children:(e,t)=>{if(globalThis.konziloHistory){let n=globalThis.konziloHistory(konziloDraft);z(()=>{n.konziloFollow(konziloDraft.current)}),W(e,n);return}var n=U(),s=F(n),"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "A revision is read through the same format the form's file is read with, the core's own among them, into the values Sveltia holds a form's in, and restoring one fills the form as unsaved changes, as Sveltia restores a draft backup, with the changes it replaces kept as one first (ADR 0074). The core is handed Sveltia's own ways of doing each.",
+    "find": "kst=e=>{l7.delete(e)},",
+    "replace": "kst=e=>{l7.delete(e)},konziloHands=(globalThis.konziloSveltia={parse:async({text:e,path:t,collectionName:n,fileName:r})=>AM(await oDe({text:e,path:`${t}#konzilo-revision`,folder:{collectionName:n,fileName:r}})??{}),pathOf:e=>ZF(e)[0],modified:e=>PN(e),saveBackup:e=>T3e(e),restore:(e,t)=>O3e({backup:t,draft:e}),entries:()=>lM.current}),"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
+    "why": "The refusal of a save older than the latest offers to compare the latest save with the form's unsaved changes (ADR 0074), by a button of the core's below its words.",
+    "find": "i=e=>{let n=j(()=>lst(t.conflict,pl.current));var r=H();z(()=>G(r,`${B(n).description??``}\n    ${B(n).warning??``}`)),W(e,r)}",
+    "replace": "i=e=>{let n=j(()=>lst(t.conflict,pl.current));var r=H();z(()=>G(r,`${B(n).description??``}\n    ${B(n).warning??``}`)),W(e,r);t.konziloCompare&&t.conflict?.type===`modified`&&globalThis.konziloCompareButton&&W(e,globalThis.konziloCompareButton(t.konziloCompare))}"
   }
 ]
