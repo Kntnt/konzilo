@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- The live preview beside a form no longer shows the dev server's error over the page, saying that an image could not be found, after an image is taken out of the post, until the next change redraws it.
 - A form left by loading the editor's page again, or closing it, just as the form opened no longer stays locked behind the closed tab for up to two minutes, telling everyone who opens it that it is open in another tab.
 
 ### Security

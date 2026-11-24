@@ -546,6 +546,20 @@ describe('an unsaved image, through the real seam', () => {
     assert.ok(existsSync(join(content, 'media', master)));
   });
 
+  // Astro's dev server may still be drawing a page from the entry as it was, and a picture gone
+  // from under it breaks that page, which its error overlay then shows over the pane.
+  test('stays in the content folder once a draft names it no more, as long as the preview runs', async () => {
+    const content = makeFolder();
+    const preview = previewRunner({ site, content, source: sourceOf() });
+    await preview.take({ path: 'pages/one.md', fields: fields('/media/new.png'), images: [{ name: 'new.png', data: PNG.toString('base64') }] });
+    await preview.show(null);
+    const master = /media\/([\w-]+-[0-9a-f]{10}\.webp)/.exec(readFileSync(join(content, 'pages/one.md'), 'utf8'))[1];
+    await preview.take({ path: 'pages/one.md', fields: { title: 'One', body: 'Words.' } });
+    assert.deepEqual(await preview.show(null), { changed: true });
+    assert.doesNotMatch(readFileSync(join(content, 'pages/one.md'), 'utf8'), /media\//);
+    assert.ok(existsSync(join(content, 'media', master)), 'the picture stays');
+  });
+
   test('an SVG with a script is refused here as at a save', async () => {
     const content = makeFolder();
     const preview = previewRunner({ site, content, source: sourceOf() });

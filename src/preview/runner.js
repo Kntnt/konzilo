@@ -121,6 +121,8 @@ export function previewRunner({ site: described, source, content, adminHost = nu
   // What the content folder holds: a moment's key and version, or null.
   let held = null;
   let images = { key: null, of: () => null };
+  // Every image the content folder has held since the preview began.
+  const shownImages = new Set();
   let queue = Promise.resolve();
 
   const imagesFor = async (originals, head) => {
@@ -259,8 +261,11 @@ export function previewRunner({ site: described, source, content, adminHost = nu
     shows: (moment) => held !== null && held.key === momentKey(moment) && held.version === runs.get(held.key)?.version,
 
     // The content folder made to show `moment`, from what was last read: { changed }, whether
-    // any file a page is built from was written or removed. Every image another moment shows
-    // stays, for a page of it that a browser still holds.
+    // any file a page is built from was written or removed. Every image the folder has held
+    // stays as long as the preview runs, whatever moment it shows and whatever names it now: a
+    // page that a browser still holds may ask for it, and the dev server, which takes a while
+    // to read a change, may still be drawing a page from an entry as it was, which an image gone
+    // from under it breaks with an error its overlay shows over the page.
     show: (moment) => inTurn(async () => {
       const key = momentKey(moment);
       const { result, version } = await prepared(moment);
@@ -268,8 +273,8 @@ export function previewRunner({ site: described, source, content, adminHost = nu
         held = { key, version };
         return { changed: false };
       }
-      const others = [...runs.values()].flatMap((one) => one.result.files.map(({ path }) => path).filter((path) => path.startsWith('media/')));
-      const { written, removed } = writeContent(content, site, { ...result, keep: [...new Set([...result.keep, ...others])] });
+      for (const { path } of result.files) if (path.startsWith('media/')) shownImages.add(path);
+      const { written, removed } = writeContent(content, site, { ...result, keep: [...new Set([...result.keep, ...shownImages])] });
       held = { key, version };
       return { changed: [...written, ...removed].some((path) => path !== POST_IDS_FILE) };
     }),
