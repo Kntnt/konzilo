@@ -4,6 +4,13 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- The core needs Node 26 or later, the Node a site run with Compose has run since 0.7.1; nothing tests it on Node 24 any more.
+- A required term's menu, Sveltia's own, says *Återställ standardvärde* in Swedish, as every other field's menu does, in place of Sveltia's *Återställ standard*.
+
 ## [0.7.1] – 2026-11-24
 
 ### Changed

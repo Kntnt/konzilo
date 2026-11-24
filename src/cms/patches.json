@@ -316,5 +316,11 @@
     "why": "The refusal of a save older than the latest offers to compare the latest save with the form's unsaved changes (ADR 0074), by a button of the core's below its words.",
     "find": "i=e=>{let n=k(()=>T0(t.conflict,kn.current));var r=G();L(()=>W(r,`${B(n).description??``}\n    ${B(n).warning??``}`)),U(e,r)}",
     "replace": "i=e=>{let n=k(()=>T0(t.conflict,kn.current));var r=G();L(()=>W(r,`${B(n).description??``}\n    ${B(n).warning??``}`)),U(e,r);t.konziloCompare&&t.conflict?.type===`modified`&&globalThis.konziloCompareButton&&U(e,globalThis.konziloCompareButton(t.konziloCompare))}"
+  },
+  {
+    "module": "@sveltia/cms/locales/sv.json",
+    "why": "Sveltia's Swedish says *Återställ standard* in the menu of a field that is Sveltia's own, a required term's, where the core's groups say *Återställ standardvärde*; an editor meets one word for one act (ADR 0066).",
+    "find": "\"restore_default\":\"Återställ standard\"",
+    "replace": "\"restore_default\":\"Återställ standardvärde\""
   }
 ]
