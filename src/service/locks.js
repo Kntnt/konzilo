@@ -25,17 +25,23 @@ export const isAdminsForm = (form) => ADMINS_FORMS.has(form.split('/')[0]);
 // has a form open calls at least each time its wait is up, so a lock ends within `alive` and a
 // sweep after its tab stops answering, and never while it answers, however idle its holder.
 //
-// Gives { version, hold(form, person, tab, takeOver), release(form, tab), touch(tab), sweep(),
-// list(), onChange(listener) }: `version`, a number that changes with each change to the locks;
-// `hold` gives { held: { since } } where the form was free or is the tab's own, or where it takes
-// it over, and { holder: { name, login, since } } where another tab holds it; `person` is
-// { login, name }; `release` lets a form go where `tab` holds it; `touch` says the tab answers;
+// Gives { version, hold(form, person, tab, takeOver), release(form, tab), end(tab), touch(tab),
+// sweep(), list(), onChange(listener) }: `version`, a number that changes with each change to the
+// locks; `hold` gives { held: { since } } where the form was free or is the tab's own, or where it
+// takes it over, { holder: { name, login, since } } where another tab holds it, and { ended: true }
+// where the tab has ended; `person` is { login, name }; `release` lets a form go where `tab` holds
+// it; `end` lets go every form `tab` holds, as its page is closed, and holds none for it after,
+// since a hold the page sent before may reach the service after its end, and would make a lock no
+// tab lets go; an ended tab is forgotten as one that has stopped answering is; `touch` says the
+// tab answers;
 // `sweep` lets go every lock whose tab has stopped answering; `list` gives each lock, { form, tab,
 // login, name, since }, `since` a Date; `onChange` calls `listener` at each change until the
 // function it gives is called.
 export function lockTable({ now = () => new Date(), alive = 90_000 } = {}) {
   const held = new Map();
   const seen = new Map();
+  // Each tab that has ended, by the moment it ended.
+  const ended = new Map();
   const listeners = new Set();
   let version = 1;
   const changed = () => {
@@ -49,6 +55,7 @@ export function lockTable({ now = () => new Date(), alive = 90_000 } = {}) {
       return version;
     },
     hold(form, { login, name }, tab, takeOver = false) {
+      if (ended.has(tab)) return { ended: true };
       touch(tab);
       const lock = held.get(form);
       if (lock?.tab === tab) return { held: { since: lock.since } };
@@ -63,6 +70,17 @@ export function lockTable({ now = () => new Date(), alive = 90_000 } = {}) {
       held.delete(form);
       changed();
     },
+    end(tab) {
+      ended.set(tab, now().getTime());
+      seen.delete(tab);
+      let gone = false;
+      for (const [form, lock] of held) {
+        if (lock.tab !== tab) continue;
+        held.delete(form);
+        gone = true;
+      }
+      if (gone) changed();
+    },
     touch,
     sweep() {
       const moment = now().getTime();
@@ -73,6 +91,7 @@ export function lockTable({ now = () => new Date(), alive = 90_000 } = {}) {
         gone = true;
       }
       for (const [tab, at] of seen) if (moment - at >= alive) seen.delete(tab);
+      for (const [tab, at] of ended) if (moment - at >= alive) ended.delete(tab);
       if (gone) changed();
     },
     list: () => [...held].map(([form, lock]) => ({ form, ...lock })),

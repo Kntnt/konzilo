@@ -11,6 +11,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The core needs Astro 7.4.13, which a new site pins. A site that raises its pin to this release raises its Astro to 7.4.13 in the same install, as the site template's guide now says; npm refuses the raise without it.
 - A site run with Compose runs Forgejo 17.0.2, Caddy 2.11.9 for its web server, and Node 24.22.3 for its builder, its live preview, its service and the editor's build.
 
+### Fixed
+
+- A form left by loading the editor's page again, or closing it, just as the form opened no longer stays locked behind the closed tab for up to two minutes, telling everyone who opens it that it is open in another tab.
+
 ### Security
 
 - A site builds with Astro 7.4.13, which no longer lets an element name taken from a page's input, such as an address's query, carry an attribute into the page, a script among them.

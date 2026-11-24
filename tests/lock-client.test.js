@@ -84,3 +84,13 @@ test('lets a form go with nothing that could cut the call short as the page goes
   await client.release('a/b');
   assert.deepEqual(inits.map(({ signal }) => signal), [undefined, undefined]);
 });
+
+test('ends the tab as its page is closed, by a call that outlives the page, with nothing that could cut it short', async () => {
+  const inits = [];
+  const client = lockClient({ tab: 'tab-aaaaaaaa', credential: () => 'token mine', ask: async (address, init) => {
+    inits.push({ address, method: init.method, keepalive: init.keepalive, signal: init.signal });
+    return answer(204);
+  } });
+  await client.end();
+  assert.deepEqual(inits, [{ address: '/_konzilo/locks?tab=tab-aaaaaaaa', method: 'DELETE', keepalive: true, signal: undefined }]);
+});

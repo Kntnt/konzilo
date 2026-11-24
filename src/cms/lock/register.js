@@ -149,7 +149,14 @@ export function registerLock(CMS) {
   };
   globalThis.addEventListener('hashchange', follow);
   follow();
-  globalThis.addEventListener('pagehide', () => {
+  // A page closed or loaded again ends its tab, which lets go every form it holds, and which a hold
+  // still on its way, which may reach the service after, cannot outlast; a page the browser keeps
+  // to come back to lets its forms go, and takes its form again as it comes back.
+  globalThis.addEventListener('pagehide', ({ persisted }) => {
+    if (!persisted) {
+      void client.end();
+      return;
+    }
     for (const form of keeper.toLetGo()) void client.release(form);
   });
   globalThis.konziloLockSettled = () => keeper.settled();

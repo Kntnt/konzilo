@@ -1,11 +1,13 @@
 // What a tab asks of the service about the locks of the editor's forms (ADR 0073), by the name it
 // gives itself as it loads, `tab`, with what Sveltia signed in with.
 //
-// Gives { hold(form, { takeOver }), release(form), locks(after, signal), watch(seen) }:
+// Gives { hold(form, { takeOver }), release(form), end(), locks(after, signal), watch(seen) }:
 // `hold` gives { held: true, since }, { holder: { name, since, yours } }, { adminOnly: true }, or
 // null where the service cannot be asked, does not answer within `answersWithin` milliseconds, or
 // answers otherwise; `release` lets the form go, by a call that outlives the page, so that a form
-// left just before the page is, or as it is, goes too; `locks` gives { version, locks } once they differ from
+// left just before the page is, or as it is, goes too; `end` ends the tab as its page is closed,
+// by such a call, after which the service lets go every form it holds and holds none for it, a
+// hold still on its way among them; `locks` gives { version, locks } once they differ from
 // `after`, or null; `watch` asks for them again and again, for as long as the page is open, and
 // hands each answer to `seen`, waiting a while after an answer it cannot read.
 
@@ -53,6 +55,9 @@ export function lockClient({ tab, credential, ask = (...args) => globalThis.fetc
     },
     async release(form) {
       await call('DELETE', lockOf(form), {}, { keepalive: true });
+    },
+    async end() {
+      await call('DELETE', LOCKS, {}, { keepalive: true });
     },
     async locks(after, signal) {
       const answer = await call('GET', LOCKS, after === null ? {} : { after: String(after) }, signal ? { signal } : {});

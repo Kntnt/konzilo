@@ -167,6 +167,22 @@ describe('the locks of the editor\'s forms', () => {
     assert.equal((await locks('anna', TAB_A)).body.locks.length, 0);
   }));
 
+  // A page closed while its hold of a form is on its way: the end of its tab may reach the service
+  // first, and the hold must not then make a lock that no tab will ever let go.
+  test('ends a tab as its page is closed, letting go of every form it holds, and holds nothing for it after', withService({}, async ({ call, hold, locks }) => {
+    await hold('articles/aaaaaaaaaaaa', 'anna', TAB_A);
+    await hold('articles/bbbbbbbbbbbb', 'anna', TAB_A);
+    await hold('articles/cccccccccccc', 'ebba', TAB_B);
+    assert.equal((await call('DELETE', '/_konzilo/locks', 'anna', { tab: TAB_A })).status, 204);
+    assert.deepEqual((await locks('ebba', TAB_B)).body.locks.map(({ form }) => form), ['articles/cccccccccccc'], 'only the forms of the tab that ended go');
+    const late = await hold('articles/dddddddddddd', 'anna', TAB_A);
+    assert.equal(late.status, 410);
+    assert.deepEqual((await locks('ebba', TAB_B)).body.locks.map(({ form }) => form), ['articles/cccccccccccc'], 'a hold that comes after holds nothing');
+    assert.equal((await hold('articles/dddddddddddd', 'ebba', TAB_B)).status, 200, 'the form is free for another tab');
+    assert.equal((await call('DELETE', '/_konzilo/locks', 'rut', { tab: TAB_B })).status, 401, 'only someone who may write ends a tab');
+    assert.equal((await locks('ebba', TAB_B)).body.locks.length, 2);
+  }));
+
   test('ends a lock within two minutes of its tab stopping to answer, and never while it answers, however idle', withService({}, async ({ hold, locks, service, clock }) => {
     await hold('articles/aaaaaaaaaaaa', 'ebba', TAB_B);
     await hold('articles/bbbbbbbbbbbb', 'anna', TAB_A);

@@ -130,7 +130,7 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
   // The locks of the editor's forms (ADR 0073). A tab asks for them all, and the call is held open
   // until they change or the wait is up, so that a tab whose form is taken over is told at once,
   // and each call says the tab answers. A form is held, or taken over, by PUT, and let go by
-  // DELETE, each with the tab's name.
+  // DELETE, each with the tab's name; a DELETE of them all ends the tab, as its page is closed.
   const table = lockTable({ now, ...(alive ? { alive } : {}) });
   const locksShown = (person, tab) => ({
     version: table.version,
@@ -138,7 +138,7 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
   });
   const answerLocks = async (incoming, outgoing, below, searchParams) => {
     incoming.resume();
-    const methods = below === '' ? ['GET'] : ['PUT', 'DELETE'];
+    const methods = below === '' ? ['GET', 'DELETE'] : ['PUT', 'DELETE'];
     if (!methods.includes(incoming.method)) {
       outgoing.writeHead(405, { allow: methods.join(', '), 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
       return outgoing.end('{}');
@@ -147,6 +147,11 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
     if (person === null) return answerJson(outgoing, 401, {});
     const tab = searchParams.get('tab');
     if (!isTab(tab)) return answerJson(outgoing, 400, {});
+    if (below === '' && incoming.method === 'DELETE') {
+      table.end(tab);
+      outgoing.writeHead(204, { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+      return outgoing.end();
+    }
     table.touch(tab);
     if (below === '') {
       const after = searchParams.get('after');
@@ -180,6 +185,7 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
     }
     if (isAdminsForm(form) && !await person.admin()) return answerJson(outgoing, 403, { adminOnly: true });
     const result = table.hold(form, person, tab, searchParams.get('takeOver') === 'true');
+    if (result.ended) return answerJson(outgoing, 410, {});
     if (result.held) return answerJson(outgoing, 200, { held: true, since: result.held.since.toISOString() });
     const { name, login, since } = result.holder;
     return answerJson(outgoing, 409, { holder: { name, since: since.toISOString(), yours: login === person.login } });
