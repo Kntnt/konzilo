@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- A site run with Compose runs Node 26.13.1, the current long-term release, for its builder, its live preview, its service and the editor's build.
+
 ## [0.7.0] – 2026-11-24
 
 ### Changed
