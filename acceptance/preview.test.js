@@ -18,6 +18,17 @@ import { makeSite } from './lib/site.js';
 
 const POST = 'Northern islands and the meadow';
 const ON_THE_PAGE = 30_000;
+
+// A request sent on a kept connection that the web server lets go of just then gets no answer; a
+// browser sends it again on a new one, and so does this.
+const fetchAgain = async (url, init) => {
+  try {
+    return await fetch(url, init);
+  } catch (error) {
+    if (error.cause?.code !== 'UND_ERR_SOCKET') throw error;
+    return fetch(url, init);
+  }
+};
 // An article of the demo content, as a tab of its own is opened at it.
 const ARTICLE = '/golden-harbours-and-the-harbour/';
 const ARTICLE_TITLE = 'Golden harbours and the harbour';
@@ -193,7 +204,7 @@ describe('the live preview', () => {
     });
 
     test('gives no session to a credential that cannot write, or from another origin', async () => {
-      const session = (headers) => fetch(`${site.origin.preview}/_konzilo/preview/session`, { method: 'POST', headers });
+      const session = (headers) => fetchAgain(`${site.origin.preview}/_konzilo/preview/session`, { method: 'POST', headers });
       assert.equal((await session({ origin: site.origin.admin, authorization: 'token nothing-of-the-kind' })).status, 403);
       assert.equal((await session({ origin: site.origin.site, authorization: 'token nothing-of-the-kind' })).status, 403);
       const reader = site.compose('exec', '-T', 'preview', 'cat', '/secret/read-token').trim();
@@ -202,17 +213,7 @@ describe('the live preview', () => {
 
     test('its credential can read the source, and nothing else', async () => {
       const reader = site.compose('exec', '-T', 'preview', 'cat', '/secret/read-token').trim();
-      // A request sent on a kept connection that the web server lets go of just then gets no
-      // answer; a browser sends it again on a new one, and so does this.
-      const api = async (path, init) => {
-        const send = () => fetch(`${site.origin.git}/api/v1${path}`, { ...init, headers: { authorization: `token ${reader}`, 'content-type': 'application/json' } });
-        try {
-          return await send();
-        } catch (error) {
-          if (error.cause?.code !== 'UND_ERR_SOCKET') throw error;
-          return send();
-        }
-      };
+      const api = (path, init) => fetchAgain(`${site.origin.git}/api/v1${path}`, { ...init, headers: { authorization: `token ${reader}`, 'content-type': 'application/json' } });
       assert.equal((await api(`/repos/${site.name}/source`)).status, 200);
       const { permissions } = await (await api(`/repos/${site.name}/source`)).json();
       assert.equal(permissions.push, false);
