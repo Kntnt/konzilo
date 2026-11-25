@@ -11,6 +11,8 @@
 
 import { parse } from 'yaml';
 
+import { FEED_ITEM } from '../../format/feed-post.js';
+
 const FRONT_MATTER = /^---[ \t]*\n(?:(?<head>[\s\S]*?)\n)?---[ \t]*(?:\n(?<body>[\s\S]*))?$/s;
 
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -44,11 +46,13 @@ export function grouped(data, groups) {
 // What a post holds, as its source file holds it: each group's fields in the group's place, in
 // its order, and nothing of a field left empty, as Sveltia leaves out an empty optional field. A
 // field of a group found beside it, from a file written otherwise, goes, since the group's is
-// what the form shows.
+// what the form shows. What marks a post made from a feed goes too, since only the feed reader
+// writes it, and a copy of such a post saved here is a post like any other (ADR 0079).
 export function flattened(data, groups) {
   const covered = new Set(Object.keys(data).filter((key) => isObject(data[key]) && Object.hasOwn(groups, key)).flatMap((key) => groups[key]));
   const flat = {};
   for (const [key, value] of Object.entries(data)) {
+    if (key === FEED_ITEM) continue;
     if (Object.hasOwn(groups, key) && isObject(value)) {
       for (const name of groups[key]) if (Object.hasOwn(value, name) && !isEmpty(value[name])) flat[name] = value[name];
     } else if (!covered.has(key)) {
