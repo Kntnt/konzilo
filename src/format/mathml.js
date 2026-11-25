@@ -11,19 +11,34 @@ const OPTIONS = Object.freeze({ annotate: true, trust: false });
 // shows an error, its LaTeX marked, which the intake never publishes.
 export const mathML = (latex, display = false) => temml.renderToString(latex, { ...OPTIONS, displayMode: display, throwOnError: false });
 
-// What Temml says it cannot read in a formula, without where: its own words, in English.
+// What Temml says it cannot read in a formula, without where: its own words, in English, which a
+// refusal gives only beside what it could not read.
 function problemOf(error) {
   if (error?.name !== 'ParseError') return { name: 'about.math-error', values: {} };
   return error.message.replace(/\s+at (?:position \d+|end of input)\b[\s\S]*$/, '').trim().replace(/\.$/, '');
 }
 
+// The LaTeX Temml could not read in a formula: what it underlines where it stopped; null where the
+// formula ends before it is whole, with nothing to point at; and the whole formula where Temml
+// stops at an error of its own.
+function unreadIn(latex, error) {
+  if (error?.name !== 'ParseError') return latex;
+  if (error.position === latex.length) return null;
+  return /(?:[^\u0332]\u0332)+/.exec(error.message)?.[0].replaceAll('\u0332', '').trim() || latex;
+}
+
 // Why the site cannot publish a formula, by its name in the core's catalogues and the values that
-// fill it, or null for one Temml reads.
+// fill it, or null for one Temml reads: the formula, `formula`, the LaTeX in it Temml could not
+// read, `unread`, unless it ends before it is whole, and Temml's own words, `problem`.
 export function formulaReason(latex, display = false) {
   try {
     temml.renderToString(latex, { ...OPTIONS, displayMode: display, throwOnError: true });
     return null;
   } catch (error) {
-    return { name: 'refusal.math-unreadable', values: { formula: latex, problem: problemOf(error) } };
+    const unread = unreadIn(latex, error);
+    const problem = problemOf(error);
+    return unread === null
+      ? { name: 'refusal.math-unfinished', values: { formula: latex, problem } }
+      : { name: 'refusal.math-unreadable', values: { formula: latex, unread, problem } };
   }
 }

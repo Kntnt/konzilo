@@ -130,6 +130,7 @@ const cases = {
   'math-empty': [() => inArticle('$$\n\n$$'), inBlock('block-math')],
   'math-block-place': [() => inArticle('Text and $$x^2$$ beside it'), inBlock('paragraph')],
   'math-unreadable': [() => inArticle('A formula, $\\foo + 1$, here'), inBlock('paragraph')],
+  'math-unfinished': [() => inArticle('A formula, $\\frac{1}{$, here'), inBlock('paragraph')],
   'code-language': [() => inArticle('```js\nlet x;\n```'), inBlock('code'), 'warning'],
   'table-row': [() => inArticle('| A |\n| --- |\n| 1 | 2 |'), inBlock('table')],
   'table-no-header': [() => inArticle('|  |\n| --- |\n| 1 |'), inBlock('table')],

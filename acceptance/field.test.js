@@ -2095,7 +2095,7 @@ describe('the body field, alone', () => {
       assert.equal(await latex(editing).inputValue(), 'x');
       await latex(editing).fill('\\foo');
       await editing.getByRole('button', { name: 'Done' }).click();
-      assert.match(await editing.getByRole('alert').textContent(), /cannot read it: Unsupported function name: \\foo/);
+      assert.match(await editing.getByRole('alert').textContent(), /cannot read "\\foo" in it; correct its LaTeX \(Temml says: Unsupported function name: \\foo\)/);
       await latex(editing).fill('y^2');
       assert.equal(await editing.locator('.konzilo-formula-preview math annotation').textContent(), 'y^2');
       await latex(editing).fill('a $ b');
@@ -2142,7 +2142,7 @@ describe('the body field, alone', () => {
     test('the early check refuses what the intake refuses', async () => {
       const body = 'A $\\foo$ b';
       assert.equal(await call('open', body), 'editor');
-      assert.match((await call('check', body, FORMS)).reasons.join(), /cannot read it: Unsupported function name: \\foo/);
+      assert.match((await call('check', body, FORMS)).reasons.join(), /cannot read "\\foo" in it; correct its LaTeX \(Temml says: Unsupported function name: \\foo\)/);
     });
   });
 

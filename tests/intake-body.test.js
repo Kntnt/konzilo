@@ -258,8 +258,11 @@ test('a block formula stands at the top of a body', () => {
   assert.deepEqual(refusalsOf('- $$x$$').map(({ name, block }) => [name, block]), [['refusal.math-block-place', 'list']]);
 });
 
-test('a formula Temml cannot read is named with what Temml says of it', () => {
-  assert.deepEqual(refusalsOf('Here $\\foo + 1$ stops'), [{ name: 'refusal.math-unreadable', block: 'paragraph', values: { formula: '\\foo + 1', problem: 'Unsupported function name: \\foo' } }]);
-  assert.deepEqual(refusalsOf('$$\n\\frac{1}{\n$$'), [{ name: 'refusal.math-unreadable', block: 'block-math', values: { formula: '\\frac{1}{', problem: 'Unexpected end of input in a macro argument, expected \'}\'' } }]);
-  assert.deepEqual(refusalsOf('Here $x^$ stops')[0].values.problem, { name: 'about.math-error', values: {} });
+test('a formula Temml cannot read is named with the LaTeX it could not read, and Temml\'s own words beside', () => {
+  assert.deepEqual(refusalsOf('Here $\\foo + 1$ stops'), [{ name: 'refusal.math-unreadable', block: 'paragraph', values: { formula: '\\foo + 1', unread: '\\foo', problem: 'Unsupported function name: \\foo' } }]);
+  assert.deepEqual(refusalsOf('$$\na & b\n$$')[0].values.unread, '&');
+  // One that ends before it is whole has nothing to point at.
+  assert.deepEqual(refusalsOf('$$\n\\frac{1}{\n$$'), [{ name: 'refusal.math-unfinished', block: 'block-math', values: { formula: '\\frac{1}{', problem: 'Unexpected end of input in a macro argument, expected \'}\'' } }]);
+  // Where Temml stops at an error of its own, the whole formula is what it could not read.
+  assert.deepEqual(refusalsOf('Here $x^$ stops')[0].values, { formula: 'x^', unread: 'x^', problem: { name: 'about.math-error', values: {} } });
 });
