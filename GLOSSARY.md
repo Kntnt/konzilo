@@ -200,7 +200,9 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 ## Media
 
-**Original**: The file an editor uploads, kept private in Git LFS. _Avoid_: upload, source image.
+**Original**: The file an editor uploads, kept private in Git LFS: the WebP the editor's browser made of the image chosen, upright, in sRGB, no larger than the site's settings allow and without metadata, or an SVG as it was chosen. _Avoid_: upload, source image.
+
+**Lossless compression**: The choice, made in the image library before an image is uploaded and ticked for a PNG, that keeps every pixel: the original is a lossless WebP, and its master and every version made of it are lossless too. Without it, an image is compressed as hard as can be done without it showing. _Avoid_: lossless mode, PNG quality.
 
 **Master**: The public version of an original that the intake writes at the site's set size and format, without metadata; of an SVG, the SVG itself, checked and optimised. _Avoid_: derivative, rendition.
 

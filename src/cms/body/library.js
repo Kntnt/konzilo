@@ -10,6 +10,7 @@
 import { IMAGE_LIBRARY_FOLDER, MEDIA_FOLDER } from '../../format/masters.js';
 import { kindOf } from '../../format/originals.js';
 import { base64 } from '../base64.js';
+import { uploadSettingsOf } from '../image/upload-settings.js';
 
 export const THUMBNAIL_PATH = '/_konzilo/thumbnail';
 
@@ -86,13 +87,14 @@ export function imageLibrary({ api, repository, branch = 'main', credential, get
     },
 
     // A new entry, with its original, as what `list` gives. The same file twice is one original.
-    async add({ file, alt, caption = '' }) {
+    // `lossless`: the editor uploaded it with *Lossless compression*, which the entry records.
+    async add({ file, alt, caption = '', lossless = false }) {
       const bytes = new Uint8Array(await file.arrayBuffer());
       const extension = EXTENSIONS[kindOf(bytes)];
       if (!extension) throw new Error('this file is no image the site can take');
       const name = `${stemOf(file.name)}-${hex(await digest(bytes)).slice(0, 10)}.${extension}`;
       const path = `${MEDIA_FOLDER}/${name}`;
-      const entry = { src: `/${path}`, alt: alt.trim(), caption: caption.trim() };
+      const entry = { src: `/${path}`, alt: alt.trim(), caption: caption.trim(), ...(lossless ? { lossless: true } : {}) };
       const { caption: written, ...always } = entry;
       const text = `${JSON.stringify(written === '' ? always : entry, null, 2)}\n`;
       const put = async () => {
@@ -108,6 +110,23 @@ export function imageLibrary({ api, repository, branch = 'main', credential, get
         return put();
       });
       return entry;
+    },
+
+    // How an upload is converted, as the site's settings stand now, so that an Admin's change
+    // holds from the next upload: { longestSide, quality }.
+    async uploadSettings() {
+      let answer;
+      try {
+        answer = await ask(`/contents/settings.json?ref=${encodeURIComponent(branch)}`);
+      } catch (error) {
+        if (error.status === 404) return uploadSettingsOf({});
+        throw error;
+      }
+      try {
+        return uploadSettingsOf(JSON.parse(decoded(answer.content ?? '')));
+      } catch {
+        return uploadSettingsOf({});
+      }
     },
 
     // An address to show a small picture of an image at, or null when there is none to show.

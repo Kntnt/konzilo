@@ -14,7 +14,7 @@ import { MENU_DESCRIPTION_LENGTH } from '../format/menus.js';
 import { DRAFT, POST_STATUSES } from '../format/post-status.js';
 import { declaredNames } from '../site-description.js';
 import { SHARING_SAFE, SHARING_SIZE } from '../format/article-parts.js';
-import { IMAGE_WIDGET } from './image/widget.js';
+import { IMAGE_WIDGET, LOSSLESS_WIDGET } from './image/widget.js';
 import { STRUCTURE_WIDGET } from './structure/widget.js';
 import { AUTHORS_WIDGET } from './authors/widget.js';
 import { SCHEMA_WIDGET, SLUG_WIDGET, TEXT_WIDGET } from './parts/widgets.js';
@@ -104,11 +104,13 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     // A default that says where its value comes from, such as the site's title, is
     // the intake's to resolve; Sveltia takes only a plain value.
     const given = ['string', 'number', 'boolean'].includes(typeof setting.default) ? { default: setting.default } : {};
+    // A number's bounds, which Sveltia's field holds it within before the intake would refuse it.
+    const bounds = { ...(setting.min === undefined ? {} : { min: setting.min }), ...(setting.max === undefined ? {} : { max: setting.max }) };
     switch (setting.type) {
       case 'number':
-        return { ...common, ...given, widget: 'number', value_type: 'float' };
+        return { ...common, ...given, ...bounds, widget: 'number', value_type: 'float' };
       case 'integer':
-        return { ...common, ...given, widget: 'number', value_type: 'int' };
+        return { ...common, ...given, ...bounds, widget: 'number', value_type: 'int' };
       case 'boolean':
         return { ...common, ...given, widget: 'boolean', required: false };
       case 'date':
@@ -543,6 +545,8 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     fields: [
       // The entry's own file, which a new entry uploads, and is chosen from nowhere else.
       { name: 'src', label: say('file'), widget: IMAGE_WIDGET, text: true, upload: true, required: true, ...smallest },
+      // Whether the file was uploaded with Lossless compression, which the file's field draws.
+      { name: 'lossless', label: say('lossless'), widget: LOSSLESS_WIDGET, required: false },
       { name: 'alt', label: say('alt'), widget: 'string', required: true, hint: say('libraryHint') },
       { name: 'caption', label: say('caption'), widget: 'string', required: false },
     ],

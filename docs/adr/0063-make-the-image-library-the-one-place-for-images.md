@@ -1,11 +1,12 @@
 # ADR 0063: Make the image library the one place for images
 
-**Date:** 2026-11-10, amended 2026-11-24 · **Status:** Accepted. That the library is where images are chosen, with their texts copied into the post, is settled (ADR 0055), and so is closing Sveltia's Asset Library (Thomas, 2026-11-24). Making the library the only place, and what deleting an image does, is a technical choice; Thomas may veto.
+**Date:** 2026-11-10, amended 2026-11-24 and 2026-11-25 · **Status:** Accepted. That the library is where images are chosen, with their texts copied into the post, is settled (ADR 0055), and so is closing Sveltia's Asset Library (Thomas, 2026-11-24). Making the library the only place, and what deleting an image does, is a technical choice; Thomas may veto. Settled by Thomas on 2026-11-25 (#114): an entry gets the checkbox *Lossless compression*, ticked by default for a PNG, which the editor sets before the upload is converted ([ADR 0022](0022-make-each-images-master-from-its-original-and-write-images-and-galleries-in-markdown.md)). Technical choices of #114 Thomas may veto: the entry holds it as `"lossless": true`, left out where it is not ticked; the checkbox stands under the file, in the entry's form and in the chooser's upload, offered once a file that is converted is chosen, and in a saved entry shown, greyed, as the file was uploaded; and a field of its own, which draws nothing, writes it into the entry, since a field of Sveltia's writes only its own value.
 
 ## Decision
 
 - **Every image field chooses from the library,** with the chooser `/image` uses: a post's featured image, its teaser's and its sharing image, and the settings' images, the logo and the site icon among them. Choosing copies the library's alt text into the field, where it can be changed for that use. The field's value is as the source held it before, `{ src, alt }`, `{ src }` without alt text, and on a site in several languages each language's.
-- **The library's own entry uploads its file** through Sveltia's `addFile`, under the name the library's upload gives, so the entry and its file are saved in one commit, and a file the repository already holds is named, not uploaded again.
+- **The library's own entry uploads its file** through Sveltia's `addFile`, under the name the library's upload gives, so the entry and its file are saved in one commit, and a file the repository already holds is named, not uploaded again. The file is converted as it is chosen, as every upload is (ADR 0022).
+- **Lossless compression** is a checkbox under the file, in the entry's form and in the chooser's upload, with what it does under it, which a screen reader reads with it. It is offered once a JPEG, PNG or WebP is chosen, ticked for a PNG, and none for an SVG, which is uploaded as it is. Changing it converts the file chosen again while the entry is unsaved; in a saved entry it is greyed, and shows how the file was uploaded. The entry holds it as `"lossless": true`, left out otherwise, beside `src`, `alt` and `caption`. In the entry's form the file's field draws it, since it decides how that file is converted, and a field of its own, `konzilo-lossless`, which draws nothing, writes what the file's field chose once the file is converted, so that the entry never says other than its file.
 - **Media is in neither menu, and its address leads to the list of entries,** as the editor's own start does, for every role, whether it names the Asset Library, a folder or a file. A file of the media folder is added and deleted only through a library entry's form: its upload, and its deletion with the entry. Sveltia's file dialogs inside a form are not the Asset Library, and no field of the core's opens one.
 - **Deleting a library image deletes its file in the same commit,** as Sveltia deletes an entry's associated files, unless another entry names the file: a post that shows it, or another library entry with the same file. Then the file stays, so that nothing in use is lost.
 - **A field whose image falls back to the main image** shows it, faded, while none is chosen. **The sharing image is shown cropped** to 1200 × 630, with what lies outside the 1080 × 566 every service shows tinted red.
@@ -17,12 +18,16 @@
 - Sveltia's Asset Library moves a file between folders and renames it, changing every entry that names it in the same commit, under no lock ([ADR 0073](0073-lock-a-form-to-the-tab-that-has-it-open-and-refuse-a-save-older-than-the-latest.md)), and deletes a file that posts still name, which the intake then refuses. Nothing in the core uses it.
 - Sveltia already deletes an entry's associated files in one commit, and computes them only for media folders inside an entry's folder; making a library entry's file such a file reuses that rather than adding a second deletion.
 
+- A checkbox under the file says what it does where the file is chosen, and the file's own field is the one that knows what was chosen and when the conversion is done.
+
 ## Considered and rejected
 
 - **Refusing to delete an image a post uses, listing the posts.** Kept for later: keeping the file loses nothing, and needs no new dialog.
 - **Deleting the file anyway, and letting those posts fail at the intake.** A delete would then break published pages without a word.
 - **Locking the Asset Library's moves, renames and deletions.** Thomas chose to close it instead (2026-11-24): nothing in the core uses it.
 - **The Asset Library's address showing Sveltia's *Page not found*,** as an address it does not know does. The list of entries is where an editor goes on from.
+- **Lossless compression as a field of Sveltia's own, a switch beside the file.** Its default depends on the file chosen, which only the file's field knows, and a field of Sveltia's cannot be set from another.
+- **Lossless compression changeable in a saved entry.** The file is the entry, and a lossy file encoded again losslessly would only keep, pixel for pixel, what was already lost; a file chosen again is another entry.
 - **The deletion rule in Konzilo's own code.** Sveltia has no seam for an entry's associated files, so it is a patch of its build, as ADR 0029 allows, until there is one.
 
 ## Consequences

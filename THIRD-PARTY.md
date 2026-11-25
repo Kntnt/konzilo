@@ -115,6 +115,7 @@ Every package that `package-lock.json` names, on every platform, with the versio
 | [`@img/sharp-win32-ia32`](https://www.npmjs.com/package/@img/sharp-win32-ia32) | 0.35.5 | Apache-2.0 AND LGPL-3.0-or-later |
 | [`@img/sharp-win32-x64`](https://www.npmjs.com/package/@img/sharp-win32-x64) | 0.35.5 | Apache-2.0 AND LGPL-3.0-or-later |
 | [`@jridgewell/sourcemap-codec`](https://www.npmjs.com/package/@jridgewell/sourcemap-codec) | 1.6.0 | MIT |
+| [`@jsquash/webp`](https://www.npmjs.com/package/@jsquash/webp) | 1.5.0 | Apache-2.0 |
 | [`@lezer/common`](https://www.npmjs.com/package/@lezer/common) | 1.5.5 | MIT |
 | [`@lezer/cpp`](https://www.npmjs.com/package/@lezer/cpp) | 1.1.6 | MIT |
 | [`@lezer/css`](https://www.npmjs.com/package/@lezer/css) | 1.3.9 | MIT |
@@ -505,6 +506,7 @@ Every package that `package-lock.json` names, on every platform, with the versio
 | [`vue`](https://www.npmjs.com/package/vue) | 3.5.44 | MIT |
 | [`w3c-keyname`](https://www.npmjs.com/package/w3c-keyname) | 2.2.8 | MIT |
 | [`w3c-xmlserializer`](https://www.npmjs.com/package/w3c-xmlserializer) | 6.0.0 | MIT |
+| [`wasm-feature-detect`](https://www.npmjs.com/package/wasm-feature-detect) | 1.10.1 | Apache-2.0 |
 | [`webidl-conversions`](https://www.npmjs.com/package/webidl-conversions) | 8.0.1 | BSD-2-Clause |
 | [`whatwg-mimetype`](https://www.npmjs.com/package/whatwg-mimetype) | 5.0.0 | MIT |
 | [`whatwg-url`](https://www.npmjs.com/package/whatwg-url) | 17.3.0 | MIT |

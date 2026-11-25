@@ -408,8 +408,8 @@ function requiredBy(read, before, path, problems) {
 // of a part per post type of every structured data type the core knows may be
 // its type's (`structuredDataTypes`), which offers each type those it offers,
 // its default the first of them, and declares no default of its own.
-// A number may have a least value (`min`), which its default and every
-// value kept must reach. A yes-or-no setting may require another
+// A number may have a least value (`min`) and a greatest (`max`), which its default and
+// every value kept must keep within. A yes-or-no setting may require another
 // (`requires`, checked by settingsOf()), any setting may have a help text
 // the page shows with its control (`help`, from the catalogues, as its label
 // and its options' labels are, below `named`). A text a visitor reads
@@ -425,16 +425,18 @@ function settingOf(name, setting, path, problems, where, named) {
     problems.push(`${path}: must be an object`);
     return null;
   }
-  const { default: given, defaultFor, except, template, metaLine, requires, patterns, format, translated, min, structuredDataTypes, ...declared } = setting;
+  const { default: given, defaultFor, except, template, metaLine, requires, patterns, format, translated, min, max, structuredDataTypes, ...declared } = setting;
   // A label the catalogues lack is a problem already, so the field is read with its name.
   const label = textsOf(`${named}.label`, path, problems);
   const read = ownField(name, { ...withoutTexts(declared, ['label', 'help'], path, named, problems), label: label ?? name }, path, problems, WHOLE);
   if (read.options) read.optionLabels = optionLabelsOf(read.options, `${path}.options`, `${named}.options`, problems);
-  if (min !== undefined) {
-    if (read.type !== 'integer' && read.type !== 'number') problems.push(`${path}.min: only a number has a least value`);
-    else if (read.type === 'integer' ? !Number.isSafeInteger(min) : typeof min !== 'number' || !Number.isFinite(min)) problems.push(`${path}.min: must be ${expected[read.type]}`);
-    else read.min = min;
+  for (const [key, bound, what] of [['min', min, 'a least value'], ['max', max, 'a greatest value']]) {
+    if (bound === undefined) continue;
+    if (read.type !== 'integer' && read.type !== 'number') problems.push(`${path}.${key}: only a number has ${what}`);
+    else if (read.type === 'integer' ? !Number.isSafeInteger(bound) : typeof bound !== 'number' || !Number.isFinite(bound)) problems.push(`${path}.${key}: must be ${expected[read.type]}`);
+    else read[key] = bound;
   }
+  if (read.min !== undefined && read.max !== undefined && read.min > read.max) problems.push(`${path}.max: must not be below its least value, ${read.min}`);
   if (translatedOf(translated, read, path, problems)) read.translated = true;
   const help = textsOf(`${named}.help`, path, problems, false);
   if (help !== null) read.help = help;
@@ -672,9 +674,9 @@ function defaultOf(given, read, path, problems) {
     return undefined;
   }
   const value = published.value instanceof Date ? published.yaml : published.value;
-  const least = leastProblem(value, read);
-  if (least !== null) {
-    problems.push(`${path}: ${british(least)}`);
+  const outside = rangeProblem(value, read);
+  if (outside !== null) {
+    problems.push(`${path}: ${british(outside)}`);
     return undefined;
   }
   if (value === given) return value;
@@ -682,11 +684,14 @@ function defaultOf(given, read, path, problems) {
   return undefined;
 }
 
-// Why a number is below the least value its setting takes (`min`), or null
-// when it is not, or the setting takes any.
-export function leastProblem(value, { type, min }) {
-  if (min === undefined || typeof value !== 'number' || value >= min) return null;
-  return { name: 'refusal.value-least', values: { value, kind: { name: type === 'integer' ? 'about.kind-integer' : 'about.kind-number' }, min } };
+// Why a number is outside the values its setting takes, below its least (`min`) or above its
+// greatest (`max`), or null when it is within them, or the setting takes any.
+export function rangeProblem(value, { type, min, max }) {
+  if (typeof value !== 'number') return null;
+  const kind = { name: type === 'integer' ? 'about.kind-integer' : 'about.kind-number' };
+  if (min !== undefined && value < min) return { name: 'refusal.value-least', values: { value, kind, min } };
+  if (max !== undefined && value > max) return { name: 'refusal.value-most', values: { value, kind, max } };
+  return null;
 }
 
 // A default as text, read as a kept value is; undefined when it is not of its setting's

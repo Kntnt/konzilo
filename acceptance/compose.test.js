@@ -513,11 +513,16 @@ describe('a site in Compose', () => {
 
         const entry = (await libraryEntries()).find(({ alt }) => alt === `Uploaded in ${engine}`);
         assert.equal(entry.caption, `Its caption in ${engine}`);
-        assert.match(entry.src, new RegExp(`^/media/en-ny-bild-i-${engine}-[0-9a-f]{10}\\.png$`));
+        // Converted in the browser, a PNG losslessly unless the editor says otherwise (#114).
+        assert.match(entry.src, new RegExp(`^/media/en-ny-bild-i-${engine}-[0-9a-f]{10}\\.webp$`));
+        assert.equal(entry.lossless, true);
         const inGit = await (await get(`${site.origin.git}/api/v1${repository()}/raw${entry.src}`, { headers: { authorization: `token ${token}` } })).text();
         assert.match(inGit, /^version https:\/\/git-lfs/, 'Git holds a pointer');
         const inLfs = await get(`${site.origin.git}/api/v1${repository()}/media${entry.src}`, { headers: { authorization: `token ${token}` } });
-        assert.deepEqual(Buffer.from(await inLfs.arrayBuffer()), bytes, 'and LFS the file');
+        const uploaded = Buffer.from(await inLfs.arrayBuffer());
+        assert.equal(uploaded.subarray(12, 16).toString('latin1'), 'VP8L', 'and LFS the file, a lossless WebP');
+        const [given, kept] = await Promise.all([bytes, uploaded].map((one) => sharp(one).removeAlpha().raw().toBuffer()));
+        assert.ok(given.equals(kept), 'with every pixel of the PNG chosen');
         const commit = await lastCommit(entry.place);
         assert.equal((await lastCommit(entry.src.slice(1))).sha, commit.sha, 'both in one commit');
         assert.equal(commit.author?.login ?? commit.commit.author.name, 'anna');
@@ -756,12 +761,24 @@ describe('a site in Compose', () => {
         const place = page.locator('.field[data-key-path="src"]');
         await place.locator('input[type=file]').first().setInputFiles({ name: 'from-the-form.jpg', mimeType: 'image/jpeg', buffer: bytes });
         await place.locator('img').waitFor();
+        // Converted as it is chosen, a JPEG lossy unless the editor says otherwise, which converts
+        // it again (#114).
+        const lossless = place.getByRole('checkbox', { name: 'Lossless compression' });
+        assert.equal(await lossless.isChecked(), false);
+        const lossy = await place.locator('.konzilo-pick-name').textContent();
+        await lossless.focus();
+        await page.keyboard.press('Space');
+        await page.waitForFunction((was) => document.querySelector('.field[data-key-path="src"] .konzilo-pick-name')?.textContent !== was, lossy, { timeout: 60_000 });
+        assert.equal(await lossless.isChecked(), true);
         await page.getByRole('button', { name: 'Save', exact: true }).click();
         let entry;
         for (const deadline = Date.now() + 30_000; !entry && Date.now() < deadline; await page.waitForTimeout(500)) entry = (await libraryEntries()).find(({ alt }) => alt === 'Made in the form');
         assert.ok(entry, 'the entry reached the repository');
         assert.equal(entry.caption, undefined);
-        assert.match(entry.src, /^\/media\/from-the-form-[0-9a-f]{10}\.jpg$/, 'named as the library names an upload');
+        assert.match(entry.src, /^\/media\/from-the-form-[0-9a-f]{10}\.webp$/, 'named as the library names an upload');
+        assert.equal(entry.lossless, true, 'and said to be lossless, as its file is');
+        const inLfs = await get(`${site.origin.git}/api/v1${repository()}/media${entry.src}`, { headers: { authorization: `token ${token}` } });
+        assert.equal(Buffer.from(await inLfs.arrayBuffer()).subarray(12, 16).toString('latin1'), 'VP8L');
 
         // The chooser reads Forgejo for itself, so a post opened now has it.
         await page.goto(`${site.origin.admin}/#/collections/articles/new`);

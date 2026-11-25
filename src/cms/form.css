@@ -37,3 +37,9 @@ section.field:is([data-field-type='list'], [data-field-type='object']) > header 
 .sui.menu [role='menuitem'] > .label::first-letter {
   text-transform: uppercase;
 }
+
+/* The field that writes a library entry's Lossless compression, which its file's field draws
+   (image/register.js), draws nothing, and has no place in the form. */
+section.field[data-field-type='konzilo-lossless'] {
+  display: none;
+}

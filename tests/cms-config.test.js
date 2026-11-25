@@ -396,6 +396,30 @@ describe('the interface language', () => {
     });
   });
 
+  // The longest side and quality an upload is converted to in the browser (#114), from 1, and
+  // the quality to 100, as Sveltia's own number field holds them.
+  test('shows how images are converted before they are uploaded among the settings groups, with their defaults and their bounds', () => {
+    const upload = (language) => {
+      const made = cmsConfig(swedish, { ...place, language });
+      const group = field(made.collections.find((one) => one.name === 'settings').files[0].fields, 'imageUpload');
+      const setting = (name) => {
+        const { label, field: shown } = field(group.fields, name);
+        return { label, widget: shown.widget, default: shown.default, min: shown.min, max: shown.max };
+      };
+      return { heading: group.label, longestSide: setting('longestSide'), quality: setting('quality') };
+    };
+    assert.deepEqual(upload('en'), {
+      heading: 'Image uploads',
+      longestSide: { label: 'Longest side in pixels', widget: 'number', default: 3840, min: 1, max: 16383 },
+      quality: { label: 'Quality', widget: 'number', default: 90, min: 1, max: 100 },
+    });
+    assert.deepEqual(upload('sv'), {
+      heading: 'Bilduppladdning',
+      longestSide: { label: 'Längsta sida i pixlar', widget: 'number', default: 3840, min: 1, max: 16383 },
+      quality: { label: 'Kvalitet', widget: 'number', default: 90, min: 1, max: 100 },
+    });
+  });
+
   test('shows every settings text of the catalogues in the settings groups, and in Swedish nothing beside them but the site\'s own', () => {
     const given = declared();
     given.forms = { contact: { label: 'Contact', fields: [{ name: 'email', label: 'Email', kind: 'email', required: true }] } };
@@ -629,7 +653,8 @@ describe('the image library', () => {
     assert.equal(library.format, 'json');
     assert.equal(library.create, true);
     assert.equal(library.i18n, undefined, 'in one language, since what a post holds of it is the post\'s');
-    assert.deepEqual(library.fields.map(({ name, widget, required }) => [name, widget, required]), [['src', 'konzilo-image', true], ['alt', 'string', true], ['caption', 'string', false]]);
+    // Lossless compression, which the file's own field draws, and a field of its own writes (#114).
+    assert.deepEqual(library.fields.map(({ name, widget, required }) => [name, widget, required]), [['src', 'konzilo-image', true], ['lossless', 'konzilo-lossless', false], ['alt', 'string', true], ['caption', 'string', false]]);
     assert.equal(library.fields[0].upload, true, 'its own file is uploaded, not chosen');
     assert.equal(library.thumbnail, 'src');
   });

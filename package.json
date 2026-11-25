@@ -56,6 +56,7 @@
     "astro": "7.4.13"
   },
   "devDependencies": {
+    "@jsquash/webp": "1.5.0",
     "@milkdown/crepe": "7.23.0",
     "@milkdown/kit": "7.23.0",
     "@sveltia/cms": "0.271.2",

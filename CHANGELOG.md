@@ -6,8 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- *Lossless compression* for an image uploaded to the image library, ticked by default for a PNG, which keeps every pixel of a drawing, a diagram or a screenshot, in its master too.
+- The settings group *Image uploads*, where an Admin sets the longest side an uploaded image is scaled down to, 3840 pixels by default, and its quality, 90 by default.
+
 ### Changed
 
+- An image is converted in the browser before it is uploaded: turned upright, converted to sRGB, scaled down to the longest side set, never enlarged, and saved as WebP, without its metadata, so the place a photograph was taken never leaves the editor's computer. An SVG is uploaded as it is, and a file that reaches the source another way still goes through the checks as before.
 - The window the editor opens for a sign-in opens empty and goes straight to Forgejo's sign-in page. It used to load the whole editor first, only to be sent on from there, so a sign-in now starts sooner.
 
 ## [0.9.0] – 2026-11-25

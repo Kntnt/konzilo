@@ -162,5 +162,9 @@
   "related": {
     "freshness": true,
     "halfLife": 90
+  },
+  "imageUpload": {
+    "longestSide": 3840,
+    "quality": 90
   }
 }

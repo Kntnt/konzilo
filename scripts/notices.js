@@ -125,9 +125,16 @@ export function editorNotices({ core, files, kept = {} }) {
     const manifest = JSON.parse(readFileSync(join(folder, 'package.json'), 'utf8'));
     const { name, version } = manifest;
     const key = `${name}@${version}`;
-    // The package's own license files, and those beside a file it gave the bundle, such as a font's.
+    // The package's own license files, those beside a file it gave the bundle, such as a font's, and
+    // every one in a folder above such a file, within the package, such as a codec's above its
+    // builds, whose WebAssembly holds a library no source map names.
     const beside = new Set(bundled.map((file) => dirname(file)).filter((at) => at !== folder));
-    const paths = [...licenseFiles(folder), ...[...beside].sort(byText).flatMap((at) => licenseFiles(at).filter((path) => bundled.some((file) => isBeside(file, path))))];
+    const above = new Set();
+    for (const at of beside) for (let up = dirname(at); up.startsWith(`${folder}${sep}`); up = dirname(up)) above.add(up);
+    const paths = [
+      ...licenseFiles(folder),
+      ...[...new Set([...beside, ...above])].sort(byText).flatMap((at) => licenseFiles(at).filter((path) => above.has(at) || bundled.some((file) => isBeside(file, path)))),
+    ];
     const texts = paths.map((path) => ({ file: relative(folder, path).split(sep).join('/'), text: readFileSync(path, 'utf8') }));
     const license = licenseOf(manifest);
     const keeping = texts.length === 0 ? kept[key] : undefined;

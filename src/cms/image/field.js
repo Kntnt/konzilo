@@ -8,6 +8,11 @@
 // A field whose image falls back to the post's main image (`fallback`) shows that image, faded,
 // while none is chosen. A field whose image is cropped to a size (`crop`, { width, height })
 // shows it so, with the part every service shows (`safe`) marked in the middle.
+//
+// The library's own entry converts the file chosen before it is added (ADR 0022), with
+// *Lossless compression*, ticked for a PNG, under the file: changing it converts the file again
+// while the entry is unsaved, and once it is saved, it shows how the file was uploaded
+// (`lossless`), and changes nothing. What was chosen is told to `chosenLossless`.
 
 import '../body/field.css';
 import { chooseImage } from '../body/chooser.js';
@@ -18,6 +23,7 @@ import { say } from '../interface-language.js';
 import { MEDIA_FOLDER } from '../../format/masters.js';
 import { kindOf } from '../../format/originals.js';
 import { wordsShown } from '../refusals.js';
+import { isConverted, kindOfFile, losslessBox, losslessByDefault, preparedUpload } from './upload.js';
 import './field.css';
 
 const EXTENSIONS = { jpeg: 'jpg', png: 'png', webp: 'webp', svg: 'svg' };
@@ -33,7 +39,7 @@ const fileNameOf = (address) => {
   }
 };
 
-export function mountImageField(host, { value, changed, addFile, library, exists, alt: withAlt = true, text = false, upload = false, smallestWidth = null, fallback = false, crop = null, safe = null }) {
+export function mountImageField(host, { value, changed, addFile, library, exists, alt: withAlt = true, text = false, upload = false, smallestWidth = null, fallback = false, crop = null, safe = null, lossless: savedLossless = false, chosenLossless = () => {} }) {
   const hasAlt = withAlt && !text;
   let src = '';
   let altText = '';
@@ -68,6 +74,9 @@ export function mountImageField(host, { value, changed, addFile, library, exists
     input.accept = 'image/jpeg,image/png,image/webp,image/svg+xml';
     input.hidden = true;
   }
+  const lossless = upload ? losslessBox(side, 'konzilo-pick-check') : null;
+  const status = made('p', 'konzilo-pick-status', side);
+  status.setAttribute('role', 'status');
   const note = made('p', 'konzilo-pick-note', side);
   note.setAttribute('role', 'alert');
   const altRow = hasAlt ? made('label', 'konzilo-pick-alt', root) : null;
@@ -86,6 +95,9 @@ export function mountImageField(host, { value, changed, addFile, library, exists
   // An uploaded file has a blob: address until the entry is saved. The name it gets is kept
   // here, so that the field shows it and not the address.
   const uploadedNames = new Map();
+  // The file chosen, kept while the entry is unsaved, so that it can be converted again.
+  let original = null;
+  let working = false;
 
   // An image shows once fetched, and only if no other has been chosen meanwhile.
   let shownFor = 0;
@@ -102,6 +114,13 @@ export function mountImageField(host, { value, changed, addFile, library, exists
     if (pick) {
       pick.hidden = shown && !unsaved;
       pick.textContent = say(unsaved ? 'image.pickOther' : 'image.pickFile');
+    }
+    // Changed only while the file chosen is in hand, which a saved entry's is not.
+    if (lossless) {
+      const inHand = original !== null && uploadedNames.has(src);
+      lossless.row.hidden = inHand ? false : !shown || /\.svg$/i.test(uploadedNames.get(src) ?? src);
+      lossless.input.disabled = !inHand || working;
+      if (!inHand) lossless.input.checked = savedLossless;
     }
     if (altRow) altRow.hidden = !shown;
     if (altInput && altInput.value !== altText) altInput.value = altText;
@@ -148,43 +167,74 @@ export function mountImageField(host, { value, changed, addFile, library, exists
     emit();
   });
 
+  // The file converted as `losslessly` says, and added under the name the library's upload gives,
+  // the same file twice being one original. Whether it was.
+  const added = async (file, losslessly) => {
+    note.textContent = '';
+    working = true;
+    pick.disabled = true;
+    lossless.input.disabled = true;
+    status.textContent = say('body.converting');
+    try {
+      const prepared = await preparedUpload(file, { library, lossless: losslessly, smallestWidth });
+      if (prepared.problem) {
+        note.textContent = wordsShown(prepared.problem);
+        return false;
+      }
+      const bytes = new Uint8Array(await prepared.file.arrayBuffer());
+      const named = `${stemOf(file.name)}-${hex(await globalThis.crypto.subtle.digest('SHA-256', bytes)).slice(0, 10)}.${EXTENSIONS[kindOf(bytes)]}`;
+      src = (await exists(`${MEDIA_FOLDER}/${named}`)) ? `/${MEDIA_FOLDER}/${named}` : await addFile(new File([bytes], named, { type: prepared.file.type }));
+      uploadedNames.set(src, named);
+      chosenLossless(losslessly);
+      emit();
+      return true;
+    } catch (error) {
+      console.warn(`The file was not added: ${error.message}`);
+      note.textContent = say(error.converting ? 'body.convertFailed' : 'image.notAdded');
+      return false;
+    } finally {
+      working = false;
+      pick.disabled = false;
+      status.textContent = '';
+      render();
+    }
+  };
+
   pick?.addEventListener('click', () => input.click());
   input?.addEventListener('change', async () => {
     const [file] = input.files;
     input.value = '';
     if (!file) return;
     note.textContent = '';
-    pick.disabled = true;
-    try {
-      const problem = await uploadProblem(file, { smallestWidth }).catch(() => null);
-      if (problem !== null) {
-        note.textContent = wordsShown(problem);
-        return;
-      }
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      const extension = EXTENSIONS[kindOf(bytes)];
-      if (!extension) {
-        note.textContent = say('image.notImage');
-        return;
-      }
-      // The name the library's upload gives: the same file twice is one original.
-      const named = `${stemOf(file.name)}-${hex(await globalThis.crypto.subtle.digest('SHA-256', bytes)).slice(0, 10)}.${extension}`;
-      src = (await exists(`${MEDIA_FOLDER}/${named}`)) ? `/${MEDIA_FOLDER}/${named}` : await addFile(new File([bytes], named, { type: file.type }));
-      uploadedNames.set(src, named);
-      render();
-      emit();
-    } catch (error) {
-      console.warn(`The file was not added: ${error.message}`);
-      note.textContent = say('image.notAdded');
-    } finally {
-      pick.disabled = false;
+    const problem = await uploadProblem(file).catch(() => null);
+    if (problem !== null) {
+      note.textContent = wordsShown(problem);
+      return;
     }
+    const kind = await kindOfFile(file);
+    if (!isConverted(kind) && kind !== 'svg') {
+      note.textContent = say('image.notImage');
+      return;
+    }
+    original = isConverted(kind) ? file : null;
+    lossless.input.checked = losslessByDefault(kind);
+    await added(file, lossless.input.checked);
+  });
+  lossless?.input.addEventListener('change', async () => {
+    if (original === null) return;
+    const wanted = lossless.input.checked;
+    if (!(await added(original, wanted))) lossless.input.checked = !wanted;
   });
 
   ({ src, alt: altText } = read(value));
   render();
 
   return {
+    setLossless(next) {
+      if (savedLossless === (next === true)) return;
+      savedLossless = next === true;
+      render();
+    },
     setStandIn(next) {
       const given = typeof next === 'string' ? next : '';
       if (given === standIn) return;
