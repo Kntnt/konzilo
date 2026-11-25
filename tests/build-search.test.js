@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { searchDocumentsCommand, siteSearch } from '../src/build/search-index.js';
 import { scopedSearchKey, searchDocuments, searchParameters } from '../src/search.js';
 import { siteDescription } from '../src/site-description.js';
+import { ENDS_WITHIN } from './lib/astro.js';
 import { standInTypesense } from './lib/typesense.js';
 
 const article = { label: 'Article', plural: 'Articles', collection: 'articles', address: '/{slug}/', elements: ['paragraph'], fields: { date: {} } };
@@ -30,7 +31,7 @@ function folders() {
   writeFileSync(join(content, 'articles/hello.md'), '---\ntitle: "Hello"\ndate: 2026-10-01T08:00:00Z\n---\n\nA word only this post holds: quetzal.\n');
   mkdirSync(join(root, 'search'));
   writeFileSync(join(root, 'site-description.json'), JSON.stringify(declared));
-  const documents = searchDocumentsCommand({ program, site: join(root, 'site-description.json'), content, environment: { PATH: process.env.PATH } });
+  const documents = searchDocumentsCommand({ program, site: join(root, 'site-description.json'), content, environment: { PATH: process.env.PATH }, limit: ENDS_WITHIN });
   return { root, content, documents, route: join(root, 'search/search-route.caddy') };
 }
 
@@ -67,7 +68,7 @@ test('makes documents of more than a pipe holds, and the builder reads them whol
   try {
     const words = Array.from({ length: 40_000 }, (_, at) => `word${at}`).join(' ');
     writeFileSync(join(content, 'articles/long.md'), `---\ntitle: "Long"\ndate: 2026-10-03T08:00:00Z\n---\n\n${words}\n`);
-    const made = await searchDocumentsCommand({ program, site: join(root, 'site-description.json'), content, environment: { PATH: process.env.PATH } })();
+    const made = await searchDocumentsCommand({ program, site: join(root, 'site-description.json'), content, environment: { PATH: process.env.PATH }, limit: ENDS_WITHIN })();
     const long = made.documents.find(({ id }) => id === 'articles/long');
     assert.ok(long.body.length > 300_000, `a body of ${long.body.length} characters`);
     assert.ok(long.body.endsWith('word39999'));
@@ -97,7 +98,7 @@ test('says why when Typesense does not answer or the documents cannot be made, a
     await assert.rejects(search(), /Typesense does not answer at http:\/\/127\.0\.0\.1:9/);
     assert.equal(readFileSync(route, 'utf8'), 'the route before\n');
     assert.deepEqual(readdirSync(join(root, 'search')), ['search-route.caddy']);
-    const broken = siteSearch({ typesense: 'http://127.0.0.1:9', key: 'a-key', searchKey: 'a-search-key', collection: 'a-site', site: searching, documents: searchDocumentsCommand({ program, site: join(root, 'no-such-file.json'), content: root, environment: { PATH: process.env.PATH } }), route });
+    const broken = siteSearch({ typesense: 'http://127.0.0.1:9', key: 'a-key', searchKey: 'a-search-key', collection: 'a-site', site: searching, documents: searchDocumentsCommand({ program, site: join(root, 'no-such-file.json'), content: root, environment: { PATH: process.env.PATH }, limit: ENDS_WITHIN }), route });
     await assert.rejects(broken(), /^Error: the search documents could not be made: konzilo-search: the site description cannot be read/);
     assert.equal(readFileSync(route, 'utf8'), 'the route before\n');
   } finally {
@@ -172,6 +173,23 @@ test('on a site in several languages, holds a term by its slug alone, which ever
   try {
     assert.deepEqual(documents.map((document) => [document.terms_category_sv ?? document.terms_category_en, document.slugs_category]), [[['News'], ['nyheter']], [['Hamnar'], ['hamnar', 'nyheter']], [['Nyheter'], ['nyheter']]]);
     assert.deepEqual(schema.fields.filter((field) => field.name.startsWith('slugs_')).map((field) => field.name), ['slugs_authors', 'slugs_category', 'slugs_topics']);
+  } finally {
+    rmSync(content, { recursive: true, force: true });
+  }
+});
+
+test('holds each post at the address its date and its term\'s whole path give, in its language', () => {
+  const several = { ...withArticles, language: undefined, languages: ['sv_SE', 'en_GB'], types: { article: { ...withArticles.types.article, address: { sv_SE: '/{category}/{year}/{slug}/', en_GB: '/news/{year}/{month}/{slug}/' } } } };
+  const { content, documents } = articleSite(several, {
+    'articles/sv-SE/hamnen.md': '---\ntitle: "Hamnen"\ndate: 2026-03-07T23:30:00Z\nheadline: "Hamnen"\nauthors: []\ncategory: ["sv-SE/hamnar"]\ntopics: []\n---\n\nHamnen.\n',
+    'articles/en-GB/harbour.md': '---\ntitle: "Harbour"\ndate: 2026-03-07T23:30:00Z\nheadline: "Harbour"\nauthors: []\ncategory: ["en-GB/hamnar"]\ntopics: []\n---\n\nThe harbour.\n',
+    'categories/sv-SE/nyheter.json': '{ "name": "Nyheter" }',
+    'categories/sv-SE/hamnar.json': '{ "name": "Hamnar", "parent": "sv-SE/nyheter" }',
+    'categories/en-GB/nyheter.json': '{ "name": "News" }',
+    'categories/en-GB/hamnar.json': '{ "name": "Harbours", "parent": "en-GB/nyheter" }',
+  });
+  try {
+    assert.deepEqual(documents.map(({ address }) => address).sort(), ['/en/news/2026/03/harbour/', '/sv/nyheter/hamnar/2026/hamnen/']);
   } finally {
     rmSync(content, { recursive: true, force: true });
   }

@@ -2,7 +2,8 @@
 // of the site's own holds one, a post's other addresses and the rules that lead to it, and
 // which of its old addresses still answer.
 
-import { feedAt, feedWords, listPageOwners, publicAddress, searchPages, unprefixedAddress } from '../format/addresses.js';
+import { addressTermFields, feedAt, feedWords, listPageOwners, publicAddress, searchPages, unprefixedAddress } from '../format/addresses.js';
+import { momentOf } from '../format/moment.js';
 import { keyOf, REDIRECTS_FILE, reservedBy, SHOW } from '../format/redirects.js';
 import { START_ADDRESS, startFile } from '../format/start-page.js';
 import { otherAddressesIn, slugOf } from './post-file.js';
@@ -34,6 +35,23 @@ function pathOf(post, run) {
     next = parent;
   }
   return { name: names.join('/') };
+}
+
+// The values a post fills its type's address with (format/addresses.js): `name`, its slug, or
+// its path; its date as its file has it, its own, the moment its triggers came to hold, else
+// when the intake first took it; and the path of the term of each field its address holds, the
+// slugs of the term's parents from the top and its own, as it stands now. A draft and a
+// scheduled post are at the address their date gives as it stands.
+export function addressValues(post, run, name) {
+  const terms = {};
+  for (const field of addressTermFields(post.type)) {
+    const given = post.fields[field.name];
+    const id = Array.isArray(given) ? given[0] : given;
+    const term = id === undefined || id === null || id === '' ? undefined : run.terms.get(`${field.taxonomy.collection}/${id}`);
+    if (term) terms[field.name] = term.chain.map((one) => one.slug).join('/');
+  }
+  const date = post.dated ?? momentOf(post.fields.date ?? '') ?? run.ledger.posts[post.key]?.taken ?? run.nowText;
+  return { name, date, terms };
 }
 
 // A post on its own way comes before one a live preview shows whatever its status and moment,
@@ -82,7 +100,7 @@ export function holdAddresses(run) {
     post.place = {
       name: place.name,
       file: post.startPage ? startFile(post.type) : `${post.type.collection}/${post.tag ? `${post.tag}/` : ''}${place.name}.md`,
-      address: post.startPage ? START_ADDRESS : publicAddress(post.type, place.name, post.language),
+      address: post.startPage ? START_ADDRESS : publicAddress(post.type, addressValues(post, run, place.name), post.language),
     };
     if (post.place.address) claim(keyOf(post.place.address), { post });
     claim(`file:${post.place.file}`, { post });
@@ -176,7 +194,8 @@ export function addressWanted(post, run) {
   if (slugOf(post).reason) return null;
   const place = pathOf(post, run);
   if (place.reason) return null;
-  const address = publicAddress(post.type, place.name, post.language);
+  const address = publicAddress(post.type, addressValues(post, run, place.name), post.language);
+  if (address === null) return null;
   const key = keyOf(address);
   const held = run.held && (run.held.byAddress.has(key) || run.held.others.has(key) || run.held.exact.has(key));
   if (held || siteHolder(address, run.site) || [...(run.termPages?.values() ?? [])].some((page) => keyOf(page) === key)) return null;
@@ -213,7 +232,7 @@ export function oldAddressesOf(post, run) {
   const { address } = post.place;
   const live = new Set(run.ledger.posts[post.key]?.addresses ?? []);
   if (run.several && post.language?.main) {
-    const bare = unprefixedAddress(post.type, post.place.name, post.language);
+    const bare = unprefixedAddress(post.type, addressValues(post, run, post.place.name), post.language);
     if (bare) live.add(bare);
   }
   const own = keyOf(address);

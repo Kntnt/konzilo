@@ -17,6 +17,7 @@ test('gives what Compose arranges where nothing is set', () => {
     secrets: '/secret',
     work: '/work',
     listen: null,
+    commandTimeLimit: 600_000,
   });
 });
 
@@ -37,8 +38,24 @@ test('takes each setting where it is given, and leaves the others as they were',
   }
 });
 
+// How long the builder waits for a command of a build before it stops it (ADR 0031), in whole
+// seconds or minutes, as ten minutes is said by default.
+test('takes the builder\'s time limit in whole seconds or minutes', () => {
+  const compose = arrangement({});
+  for (const [value, limit] of [['90s', 90_000], ['1s', 1_000], ['15m', 900_000], ['1m', 60_000], ['600s', 600_000]]) {
+    assert.deepEqual(arrangement({ KONZILO_COMMAND_TIME_LIMIT: value }), { ...compose, commandTimeLimit: limit }, value);
+  }
+});
+
+// A limit the builder cannot keep would stop every command at once, or never.
+test('refuses a time limit that is not a positive whole number of seconds or minutes, naming the setting', () => {
+  for (const value of ['10', '0m', '0s', '-5m', '1.5m', '10 m', '10min', '1h', 'm', 'ten minutes', '99999999m']) {
+    assert.throws(() => arrangement({ KONZILO_COMMAND_TIME_LIMIT: value }), /^Error: KONZILO_COMMAND_TIME_LIMIT is ".*", which is no whole number of seconds or minutes the builder can wait, such as 10m or 90s$/, value);
+  }
+});
+
 test('reads an empty setting as none, as Compose reads one', () => {
-  assert.deepEqual(arrangement({ KONZILO_PEER_FORGEJO: '', KONZILO_FOLDER_WORK: '', KONZILO_LISTEN: '' }), arrangement({}));
+  assert.deepEqual(arrangement({ KONZILO_PEER_FORGEJO: '', KONZILO_FOLDER_WORK: '', KONZILO_LISTEN: '', KONZILO_COMMAND_TIME_LIMIT: '' }), arrangement({}));
 });
 
 // A peer's address goes into addresses, a Git remote and the web server's configuration, which
