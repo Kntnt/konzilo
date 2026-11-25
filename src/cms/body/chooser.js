@@ -1,16 +1,18 @@
 // The chooser `/image` opens (ADR 0055): the library's entries as small pictures, and a way to
 // upload a new one, which joins the library and becomes the choice. It is a dialog of plain
-// elements over the whole page, and gives what was chosen, { src, alt, caption }, or null. With
+// elements over the whole page, and gives what was chosen, { src, alt, caption, displayWidth },
+// its display width only where it has one, or null. With
 // `several`, as for a gallery, each click picks or lets go, an upload is picked too, and it gives
 // what was picked, in that order, or null.
 
 import { uploadProblem } from './chooser-check.js';
 import { button, dialogOf, made, textRow } from './dialog.js';
+import { displayWidthBox, displayWidthOfFile } from '../image/display-width.js';
 import { isConverted, kindOfFile, losslessBox, losslessByDefault, preparedUpload } from '../image/upload.js';
 import { wordsShown } from '../refusals.js';
 import { say } from '../interface-language.js';
 
-const same = (one, other) => one.src === other.src && one.alt === other.alt && (one.caption ?? '') === (other.caption ?? '');
+const same = (one, other) => one.src === other.src && one.alt === other.alt && (one.caption ?? '') === (other.caption ?? '') && (one.displayWidth ?? null) === (other.displayWidth ?? null);
 
 export function chooseImage({ library, smallestWidth = null, several = false, root = document.body }) {
   return new Promise((resolve) => {
@@ -66,6 +68,8 @@ export function chooseImage({ library, smallestWidth = null, several = false, ro
       // Offered once a file that is converted is chosen, ticked for a PNG.
       const lossless = losslessBox(form);
       lossless.row.hidden = true;
+      // Filled in for a figure whose name says it is saved at twice or three times its size.
+      const width = displayWidthBox(form);
       const alt = textRow(form, say('body.alt'), { required: true });
       const caption = textRow(form, say('body.uploadCaption'));
       const note = made('p', 'konzilo-dialog-note', form);
@@ -92,6 +96,8 @@ export function chooseImage({ library, smallestWidth = null, several = false, ro
         if (now !== chosen) return;
         lossless.input.checked = losslessByDefault(kind);
         lossless.row.hidden = !isConverted(kind);
+        const byName = isConverted(kind) ? await displayWidthOfFile(file) : null;
+        if (now === chosen) width.set(byName);
       });
       form.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -105,6 +111,7 @@ export function chooseImage({ library, smallestWidth = null, several = false, ro
           alt.focus();
           return;
         }
+        if (!width.check()) return;
         note.textContent = '';
         send.disabled = true;
         send.textContent = say('body.uploading');
@@ -125,7 +132,7 @@ export function chooseImage({ library, smallestWidth = null, several = false, ro
           }
           send.textContent = say('body.uploading');
           status.textContent = say('body.uploading');
-          const entry = await library.add({ file: prepared.file, alt: alt.value, caption: caption.value, lossless: losslessly });
+          const entry = await library.add({ file: prepared.file, alt: alt.value, caption: caption.value, lossless: losslessly, displayWidth: width.read()?.width ?? null });
           if (!several) {
             finish(entry);
             return;

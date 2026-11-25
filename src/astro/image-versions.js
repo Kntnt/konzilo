@@ -68,24 +68,65 @@ const isTag = (node, tagName) => node?.type === 'element' && node.tagName === ta
 // lightbox's widths too, which Astro's own plugin after it hands to its image service with the
 // rest of the image's properties. It runs after figures.js, which makes a gallery its figure.
 // An SVG is kept as it is (ADR 0023), in no widths.
+//
+// An image standing alone with a display width of its own, which figures.js gives its `width`,
+// is drawn at most that wide: the image service is asked to write its `width` and `height` at
+// that width (DISPLAY_WIDTH, image-service.js), its versions are as any other's, up to its
+// master's, so that a dense screen gets its full pixels, and its `sizes` says it is drawn no
+// wider (sizesNoWider()).
 export function versionsInBody(contexts = IMAGE_CONTEXTS) {
   return {
     name: 'konzilo-image-versions',
     element: {
       filter: ['img'],
       visit(node, ctx) {
-        const { src } = node.properties ?? {};
+        const { src, width } = node.properties ?? {};
         if (typeof src !== 'string' || !ctx.data.astro?.localImagePaths.has(decodeURI(src))) return;
+        const display = Number(width) > 0 ? Number(width) : null;
+        if (display !== null) {
+          ctx.setProperty(node, 'width', null);
+          ctx.setProperty(node, DISPLAY_WIDTH, display);
+        }
         if (/\.svg$/i.test(src.split(/[?#]/)[0])) return;
         const figure = ctx.parent(node);
         const inGallery = isTag(figure, 'figure') && isTag(ctx.parent(figure), 'figure') && (ctx.parent(figure).properties?.className ?? []).includes('konzilo-gallery');
         const context = contexts[inGallery ? 'gallery' : 'body'];
         const widths = [...new Set([...context.widths, ...contexts.lightbox.widths])].sort((a, b) => a - b);
         ctx.setProperty(node, 'widths', widths);
-        ctx.setProperty(node, 'sizes', context.sizes);
+        ctx.setProperty(node, 'sizes', display === null ? context.sizes : sizesNoWider(context.sizes, display));
       },
     },
   };
+}
+
+// The option by which an image is asked to be written at most so wide, in pixels, its display
+// width, with its versions and its `src` as they would be without it (image-service.js).
+export const DISPLAY_WIDTH = 'konziloDisplayWidth';
+
+// The parts of a `sizes`, or of one of its sizes, split where `by` stands outside any
+// parentheses, as in `(min-width: 40rem) calc(50vw - 1rem)`.
+function splitOutside(text, by) {
+  const parts = [''];
+  let depth = 0;
+  for (const character of text) {
+    if (character === '(') depth += 1;
+    if (character === ')') depth = Math.max(0, depth - 1);
+    if (depth === 0 && by.test(character)) parts.push('');
+    else parts[parts.length - 1] += character;
+  }
+  return parts.map((part) => part.trim()).filter(Boolean);
+}
+
+// A `sizes` that says no image is drawn wider than `most` pixels: each size of it no wider, by
+// `min()`, its media condition as it was. `auto`, the drawn width itself, is that already.
+export function sizesNoWider(sizes, most) {
+  return splitOutside(sizes, /,/).map((size) => {
+    const words = splitOutside(size, /\s/);
+    const value = words.at(-1);
+    if (value.toLowerCase() === 'auto') return size;
+    const condition = size.slice(0, size.length - value.length).trim();
+    return `${condition === '' ? '' : `${condition} `}min(${value}, ${most}px)`;
+  }).join(', ');
 }
 
 // The widths an image of a master `own` pixels wide is made in, asked for in `widths`: each up

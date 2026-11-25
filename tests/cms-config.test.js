@@ -663,8 +663,9 @@ describe('the image library', () => {
     assert.equal(library.format, 'json');
     assert.equal(library.create, true);
     assert.equal(library.i18n, undefined, 'in one language, since what a post holds of it is the post\'s');
-    // Lossless compression, which the file's own field draws, and a field of its own writes (#114).
-    assert.deepEqual(library.fields.map(({ name, widget, required }) => [name, widget, required]), [['src', 'konzilo-image', true], ['lossless', 'konzilo-lossless', false], ['alt', 'string', true], ['caption', 'string', false]]);
+    // Lossless compression, which the file's own field draws, and a field of its own writes (#114),
+    // and the display width, a field of its own after the file (#109).
+    assert.deepEqual(library.fields.map(({ name, widget, required }) => [name, widget, required]), [['src', 'konzilo-image', true], ['lossless', 'konzilo-lossless', false], ['displayWidth', 'konzilo-display-width', false], ['alt', 'string', true], ['caption', 'string', false]]);
     assert.equal(library.fields[0].upload, true, 'its own file is uploaded, not chosen');
     assert.equal(library.thumbnail, 'src');
   });

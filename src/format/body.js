@@ -25,7 +25,9 @@
 //   link       (id, fragment) gives { href }, { text: true, warning } or { reason }
 //              for a link `konzilo:<id>#<fragment>`, whose warning's `text` the
 //              check fills with the link's text
-//   image      (address) gives { src, warning }, or { reason }
+//   image      (address, { sized }) gives { src, warning }, or { reason }; `sized` where
+//              the image stands alone with a display width of its own, which is not
+//              warned of for being narrow
 //   adminHost  the host no link may lead to, or null
 //   formula    (latex, display) gives the reason the site cannot show a formula, or null
 //              (mathml.js); optional
@@ -558,6 +560,23 @@ function linesOf(children) {
   return lines;
 }
 
+// The widest display width an image may have, in pixels: the widest image there is,
+// as libwebp makes one.
+export const DISPLAY_WIDTH_MOST = 16383;
+
+// What an image's title says, as the format reads it: null where it has none; its
+// display width, { width }, where it is `width=` and a whole number of pixels from 1 to
+// DISPLAY_WIDTH_MOST, the widest an image standing alone in a body is drawn; { wrong },
+// what follows `width=` where that is not such a number; and { other } for any other
+// title, which the site cannot publish.
+export function displayWidthIn(title) {
+  if (typeof title !== 'string' || title.trim() === '') return null;
+  const match = /^width=(.*)$/s.exec(title.trim());
+  if (match === null) return { other: true };
+  const width = /^\d+$/.test(match[1]) ? Number(match[1]) : NaN;
+  return width >= 1 && width <= DISPLAY_WIDTH_MOST ? { width } : { wrong: match[1] };
+}
+
 // An image alone in a paragraph with its caption, or a gallery of two or more with
 // their captions and its own. Anything else with an image in it is refused.
 function figureOf(node, visible, scope) {
@@ -592,12 +611,17 @@ function figureOf(node, visible, scope) {
   };
   const images = items.map(({ image, captionNodes: own }) => {
     const alt = image.alt.trim();
+    const title = displayWidthIn(image.title);
     if (!scope.written) {
-      if (image.title) refuse(scope, image, element, 'image-title');
+      if (title?.other) refuse(scope, image, element, 'image-title');
+      else if (title?.wrong !== undefined) refuse(scope, image, element, 'image-display-width', { given: title.wrong, most: DISPLAY_WIDTH_MOST });
       if (alt === '') refuse(scope, image, element, 'image-alt');
       else if (alt.includes('\n')) refuse(scope, image, element, 'image-alt-lines');
     }
-    return at({ type: 'image', alt, src: image.url, caption: captionOf(own) }, { path: scope.path, line: lineOf(image), element });
+    // A gallery's image keeps its display width, which the site does not draw it at, so that
+    // it has it again should it stand alone.
+    const width = title?.width === undefined ? {} : { width: title.width };
+    return at({ type: 'image', alt, src: image.url, ...width, caption: captionOf(own) }, { path: scope.path, line: lineOf(image), element });
   });
   return [element === 'image' ? images[0] : { type: 'gallery', images, caption: captionOf(captionNodes) }];
 }
@@ -1190,9 +1214,10 @@ function resolved(nodes, scope) {
 const plainText = (nodes) => nodes.map((node) => node.value ?? node.alt ?? plainText(node.children ?? [])).join('');
 
 // An image's master, a figure's or one in a list's item, with the site's reason or warning
-// at the block it stands in.
-function resolveImage(node, scope, path) {
-  const given = scope.image(node.src);
+// at the block it stands in. `sized`: the image stands alone with a display width of its
+// own, which the site draws it at.
+function resolveImage(node, scope, path, { sized = false } = {}) {
+  const given = scope.image(node.src, { sized });
   const where = node.at ?? {};
   const entry = { path: where.path ?? path, name: where.element ?? 'image', line: where.line };
   if (given.reason) scope.problems.push({ ...entry, reason: given.reason });
@@ -1230,10 +1255,13 @@ function resolveBlock(node, scope, path) {
       break;
     case 'image':
       if (node.caption) node.caption = resolved(node.caption, scope);
-      resolveImage(node, scope, path);
+      resolveImage(node, scope, path, { sized: node.width !== undefined });
       break;
     case 'gallery':
-      for (const image of node.images) resolveBlock(image, scope, path);
+      for (const image of node.images) {
+        if (image.caption) image.caption = resolved(image.caption, scope);
+        resolveImage(image, scope, path);
+      }
       if (node.caption) node.caption = resolved(node.caption, scope);
       break;
     default:
@@ -1588,8 +1616,10 @@ function altText(alt, level, scope) {
   return level >= 1 ? splitAutolinks(out) : out;
 }
 
+// A figure's image, its display width, where it has one, as its title.
 function imageText(node, level, scope) {
-  const image = `![${altText(node.alt, level, scope)}](${linkAddress(node.src, {})})`;
+  const title = node.width === undefined ? '' : ` "width=${node.width}"`;
+  const image = `![${altText(node.alt, level, scope)}](${linkAddress(node.src, {})}${title})`;
   return node.caption ? `${image}\\\n${inlineText(node.caption, inlineContext(level, scope))}` : image;
 }
 

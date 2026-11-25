@@ -199,6 +199,7 @@ export function mountStructureField(host, { value: given, changed, key, forms = 
         if (!chosen) return;
         node.src = chosen.src;
         if (chosen.alt) node.alt = chosen.alt;
+        node.width = chosen.displayWidth ?? null;
         edited();
         render();
       },

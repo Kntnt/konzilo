@@ -14,7 +14,7 @@ import { MENU_DESCRIPTION_LENGTH } from '../format/menus.js';
 import { DRAFT, POST_STATUSES } from '../format/post-status.js';
 import { declaredNames } from '../site-description.js';
 import { SHARING_SAFE, SHARING_SIZE } from '../format/article-parts.js';
-import { IMAGE_WIDGET, LOSSLESS_WIDGET } from './image/widget.js';
+import { DISPLAY_WIDTH_WIDGET, IMAGE_WIDGET, LOSSLESS_WIDGET } from './image/widget.js';
 import { STRUCTURE_WIDGET } from './structure/widget.js';
 import { AUTHORS_WIDGET } from './authors/widget.js';
 import { SCHEMA_WIDGET, SLUG_WIDGET, TEXT_WIDGET } from './parts/widgets.js';
@@ -576,6 +576,8 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
       { name: 'src', label: say('file'), widget: IMAGE_WIDGET, text: true, upload: true, required: true, ...smallest },
       // Whether the file was uploaded with Lossless compression, which the file's field draws.
       { name: 'lossless', label: say('lossless'), widget: LOSSLESS_WIDGET, required: false },
+      // The widest the image is drawn where it stands alone in a body, copied into a post with it.
+      { name: 'displayWidth', label: say('displayWidth'), widget: DISPLAY_WIDTH_WIDGET, required: false },
       { name: 'alt', label: say('alt'), widget: 'string', required: true, hint: say('libraryHint') },
       { name: 'caption', label: say('caption'), widget: 'string', required: false },
     ],

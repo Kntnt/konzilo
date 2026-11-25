@@ -1069,6 +1069,12 @@ describe('source files as the editing tool writes them', () => {
     assert.match(body, /!\[A landscape with a low sun\]\(\/media\/every-element-[0-9a-f]{10}\.webp\)/);
   });
 
+  test('hold a body\'s image with a display width by its place, with its display width', () => {
+    const published = [{ path: 'pages/a-figure.md', content: '---\ntitle: "A figure"\ndate: 2026-01-17T08:00:00Z\nmodified: 2026-01-17T08:00:00Z\n---\n\n![A flow](../media/a-figure-0123456789.webp "width=632")\\\nThe flow\n' }];
+    const [page] = sourceFrom(description, published).filter(({ path }) => path.startsWith('pages/'));
+    assert.match(page.content, /\n!\[A flow\]\(\/media\/a-figure-0123456789\.webp "width=632"\)\\\nThe flow\n$/);
+  });
+
   test('come back from what the intake writes, as the same source', () => {
     const files = source.map(({ path, content }) => ({ path, contents: content }));
     const result = intake({ files, site: description, now: NOW, images: namedImages() });

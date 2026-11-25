@@ -11,7 +11,13 @@
 // responsive versions from the master at the address, so each figure keeps
 // the <img> the reader made of the Markdown image.
 //
+// An image's title is its display width, `width=632`, the widest it is drawn where it
+// stands alone, which its <img> takes as its `width`; a gallery's image, which fills what
+// the design gives it, has none.
+//
 // A gallery carries Konzilo's own class, and nothing else here carries one.
+
+import { displayWidthIn } from '../format/body.js';
 
 const element = (tagName, children, properties = {}) => ({ type: 'element', tagName, properties, children });
 const isTag = (node, tagName) => node?.type === 'element' && node.tagName === tagName;
@@ -41,6 +47,15 @@ function linesOf(paragraph) {
   return lines;
 }
 
+// An image as its figure holds it: its display width, where it has one and stands `alone`,
+// as its `width`, and no title of the format's.
+function sized(picture, alone) {
+  const { title, ...properties } = picture.properties ?? {};
+  const given = displayWidthIn(title);
+  if (given === null || given.other) return picture;
+  return { ...picture, properties: alone && given.width !== undefined ? { ...properties, width: given.width } : properties };
+}
+
 // The figure a paragraph shows, as a hast element: an image's, a gallery's,
 // or null when the paragraph is neither an image alone, with its caption, nor
 // a gallery.
@@ -62,7 +77,7 @@ export function figureOf(paragraph) {
     else return null;
   }
   const figures = items.map((item) => element('figure', [
-    item.picture,
+    sized(item.picture, items.length === 1),
     ...(item.caption ? [element('figcaption', item.caption)] : []),
   ]));
   if (figures.length === 1) return figures[0];

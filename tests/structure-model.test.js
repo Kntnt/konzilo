@@ -43,3 +43,13 @@ test('sums up an item that is a picture by its alt text', () => {
   const [list] = root.children[0].children;
   assert.deepEqual(list.children.map((item) => summaryOf(item)), ['The harbour office', 'The guild']);
 });
+
+test('reads an image with a display width as an image, and writes it back with it', () => {
+  const written = '![A flow](/media/flow.webp "width=632")\n\n![A photo](/media/photo.webp)';
+  const root = parseBody(written);
+  assert.deepEqual(root.children.map(({ kind, alt, width }) => [kind, alt, width]), [['image', 'A flow', 632], ['image', 'A photo', null]]);
+  assert.equal(writeBody(root), written);
+  root.children[1].width = 300;
+  root.children[0].width = null;
+  assert.equal(writeBody(root), '![A flow](/media/flow.webp)\n\n![A photo](/media/photo.webp "width=300")');
+});

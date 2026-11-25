@@ -802,3 +802,41 @@ textarea.konzilo-formula-latex {
 /* The block a click in the preview went to, framed for a moment. */
 .konzilo-body-ring { position: absolute; z-index: 2; border: 2px solid var(--sui-primary-accent-color, #2563eb); border-radius: 6px; pointer-events: none; animation: konzilo-body-ring 1.6s ease-out forwards; }
 @keyframes konzilo-body-ring { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
+
+/* An image's Display width (display-width.js): Fill the column, or At most a number of pixels,
+   each on a line of its own, its name for a screen reader alone where a form names it. */
+fieldset.konzilo-display-width {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.konzilo-display-width legend {
+  padding: 0;
+  margin-bottom: 4px;
+}
+
+.konzilo-display-width legend.konzilo-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+label.konzilo-display-width-choice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+}
+
+input.konzilo-display-width-pixels {
+  width: 7em;
+}
+
+input.konzilo-display-width-pixels:disabled {
+  opacity: 0.6;
+}

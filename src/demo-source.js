@@ -79,7 +79,7 @@ const HTML_LINK = /(<a href=")(\/[^"#]*)(#[^"]*)?"/g;
 // their place in the media folder, as the editing tool stores them.
 function bodyAsSource(body, ids) {
   return body
-    .replace(/(!\[[^\]\n]*\]\()(?:\.\.\/)*media\/([^)\s]+)\)/g, (_, open, name) => `${open}/media/${name})`)
+    .replace(/(!\[[^\]\n]*\]\()(?:\.\.\/)*media\/([^)\s]+)((?: "[^"\n]*")?)\)/g, (_, open, name, title) => `${open}/media/${name}${title})`)
     .replace(MARKDOWN_LINK, (whole, open, address, fragment = '') => (ids.has(address) ? `${open}konzilo:${ids.get(address)}${fragment})` : whole))
     .replace(HTML_LINK, (whole, open, address, fragment = '') => (ids.has(address) ? `${open}konzilo:${ids.get(address)}${fragment}"` : whole));
 }

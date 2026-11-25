@@ -220,7 +220,9 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Image in body text**: An image placed between the blocks of a body and shown as its master, with alt text and an optional caption that belong to that use. _Avoid_: inline image, figure.
 
-**Image library**: The collection of images an editor chooses from in a body, each with alt text and an optional caption that are copied into the post at the choice. _Avoid_: media library, image bank.
+**Image library**: The collection of images an editor chooses from in a body, each with alt text, an optional caption and a display width that are copied into the post at the choice. _Avoid_: media library, image bank.
+
+**Display width**: The widest an image standing alone in a body is drawn, in pixels, set in the image library and copied into the post with the image, for a figure saved at twice or three times the size it is meant to be read at, which a file named `@2x` or `@3x` fills in at upload; without one, the image fills the column. It is no density: the image keeps its full pixels for a dense screen. Not the site description's `images.displayWidth`, the width the site usually shows images at. _Avoid_: pixel density, retina, intrinsic size.
 
 **Gallery**: Two or more images in body text shown together, with an optional caption of its own. _Avoid_: slideshow, carousel.
 

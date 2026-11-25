@@ -150,6 +150,7 @@ const cases = {
   'image-alt': [() => inArticle('![](/media/a.png)'), inBlock('image')],
   'image-alt-lines': [() => inArticle('![one\ntwo](/media/a.png)'), inBlock('image')],
   'image-title': [() => inArticle('![an image](/media/a.png "a title")'), inBlock('image')],
+  'image-display-width': [() => inArticle('![an image](/media/a.png "width=0")'), inBlock('image')],
   'image-link-alt': [() => inArticle('- [![](/media/a.png)](/x/)'), inBlock('list')],
   'embed-place': [() => inArticle('> https://vimeo.com/76979871'), inBlock('embed')],
   'embed-caption': [() => inArticle('<https://vimeo.com/76979871>\\\nA caption'), inBlock('embed')],

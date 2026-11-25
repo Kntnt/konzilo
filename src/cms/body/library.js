@@ -7,6 +7,7 @@
 // other, and at once, so that a post can name the file from the first moment. Forgejo stores the
 // original in Git LFS by the repository's `.gitattributes`, as it does for any save.
 
+import { displayWidthIn } from '../../format/body.js';
 import { IMAGE_LIBRARY_FOLDER, MEDIA_FOLDER } from '../../format/masters.js';
 import { kindOf } from '../../format/originals.js';
 import { base64 } from '../base64.js';
@@ -35,11 +36,17 @@ export function mediaNameOf(address) {
   }
 }
 
-// What an entry's file says, or null for one that says nothing a post could use.
+// An entry's display width, as a post's body takes it, or null where it fills the column.
+export const displayWidthOf = (given) => (Number.isInteger(given) ? displayWidthIn(`width=${given}`)?.width ?? null : null);
+
+// What an entry's file says, or null for one that says nothing a post could use: its display width
+// only where it has one a post can hold.
 function entryOf(text) {
   try {
-    const { src, alt, caption } = JSON.parse(text);
-    return typeof src === 'string' && src !== '' ? { src, alt: typeof alt === 'string' ? alt : '', caption: typeof caption === 'string' ? caption : '' } : null;
+    const { src, alt, caption, displayWidth } = JSON.parse(text);
+    if (typeof src !== 'string' || src === '') return null;
+    const width = displayWidthOf(displayWidth);
+    return { src, alt: typeof alt === 'string' ? alt : '', caption: typeof caption === 'string' ? caption : '', ...(width === null ? {} : { displayWidth: width }) };
   } catch {
     return null;
   }
@@ -75,7 +82,8 @@ export function imageLibrary({ api, repository, branch = 'main', credential, get
   });
 
   return {
-    // Each entry that can be used, as { src, alt, caption }, in the order of its alt text.
+    // Each entry that can be used, as { src, alt, caption, displayWidth }, in the order of its alt
+    // text, its display width only where it has one.
     async list() {
       const files = (await filesInRepository()).filter(({ path }) => path.startsWith(`${IMAGE_LIBRARY_FOLDER}/`) && path.endsWith('.json'));
       const unknown = files.map(({ sha }) => sha).filter((sha) => !known.has(sha));
@@ -88,13 +96,15 @@ export function imageLibrary({ api, repository, branch = 'main', credential, get
 
     // A new entry, with its original, as what `list` gives. The same file twice is one original.
     // `lossless`: the editor uploaded it with *Lossless compression*, which the entry records.
-    async add({ file, alt, caption = '', lossless = false }) {
+    // `displayWidth`: the widest it is drawn in a body, in pixels, or null where it fills the column.
+    async add({ file, alt, caption = '', lossless = false, displayWidth = null }) {
       const bytes = new Uint8Array(await file.arrayBuffer());
       const extension = EXTENSIONS[kindOf(bytes)];
       if (!extension) throw new Error('this file is no image the site can take');
       const name = `${stemOf(file.name)}-${hex(await digest(bytes)).slice(0, 10)}.${extension}`;
       const path = `${MEDIA_FOLDER}/${name}`;
-      const entry = { src: `/${path}`, alt: alt.trim(), caption: caption.trim(), ...(lossless ? { lossless: true } : {}) };
+      const width = displayWidthOf(displayWidth);
+      const entry = { src: `/${path}`, alt: alt.trim(), caption: caption.trim(), ...(lossless ? { lossless: true } : {}), ...(width === null ? {} : { displayWidth: width }) };
       const { caption: written, ...always } = entry;
       const text = `${JSON.stringify(written === '' ? always : entry, null, 2)}\n`;
       const put = async () => {
