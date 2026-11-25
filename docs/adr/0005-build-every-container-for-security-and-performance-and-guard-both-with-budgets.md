@@ -1,6 +1,6 @@
 # ADR 0005: Build every container for security and performance, and guard both with budgets
 
-**Date:** 2026-11-02, amended 2026-11-12 · **Status:** Accepted, settled by Thomas on 2026-11-02: since Docker runs everything, build it right from the first day. The details are technical choices; Thomas may veto. Settled on 2026-11-12, as a technical choice Thomas may veto: the separation below is Compose's, and an arrangement that runs the programs together gives up their own networks, read-only file systems and limits, and says so where it does.
+**Date:** 2026-11-02, amended 2026-11-12 and 2026-11-25 · **Status:** Accepted, settled by Thomas on 2026-11-02: since Docker runs everything, build it right from the first day. The details are technical choices; Thomas may veto. Settled on 2026-11-12, as a technical choice Thomas may veto: the separation below is Compose's, and an arrangement that runs the programs together gives up their own networks, read-only file systems and limits, and says so where it does.
 
 ## Decision
 
@@ -69,5 +69,7 @@ The first row is another server type, so it is no fair baseline. Under user name
 | Build memory | 1.9 GiB warm and 2.45 GiB cold at 1,000 articles |
 | Disk at 1,000 articles | LFS 608 MB, content history 746 MB, Astro's cache 543 MB, each release 553 MB |
 | First build | 14.4 min: 10 min for 1,000 masters one at a time (it could run in parallel), 3.8 min for Astro |
+
+**Where they stand after image versions** (2026-11-25), reckoned from what [ADR 0022](0022-make-each-images-master-from-its-original-and-write-images-and-galleries-in-markdown.md) measured, not measured again at 1,000 articles: each image is now served in a few fixed widths, which made a release's images 1.64 times the bytes on photographs, and a first build some 60 ms longer an image on a 12-core Mac. A release at 1,000 articles, each with a photograph, so holds at most about 900 MB, were every byte of its 553 MB an image's, and less, since its pages and drawings grow little, and the disk's budget has to allow that for each release kept. The first build makes the versions of 1,000 images, about a minute on that Mac and a few on 4 vCPU, so about 16 to 18 minutes in all; a later build takes them from Astro's cache and makes only a new image's, so the save to a public page stays about 21 s. Both are to be measured again at 1,000 articles before the budgets are set.
 
 Not measured: a build at 1,000 articles on 2 vCPU, where 20 articles took twice as long, or several customers building at once.
