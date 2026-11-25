@@ -101,8 +101,18 @@ function formulasIn(elements) {
   return elements.includes('block-math') ? 'display' : false;
 }
 
-// Whether a formula the reader found is written `$$…$$`, a block formula's delimiters.
-const isDisplay = (node, scope) => scope.source?.[node.position?.start?.offset] === '$' && scope.source?.[node.position.start.offset + 1] === '$';
+// Whether a formula the reader found in a text, `node`, is written `$$…$$`, a block formula's
+// delimiters, in `source`, what the reader read: the intake's, the field's and the site's test.
+export function writtenAsBlock(node, source) {
+  const offset = node?.position?.start?.offset;
+  return node?.type === 'inlineMath' && typeof source === 'string' && Number.isInteger(offset) && source.startsWith('$$', offset);
+}
+
+// An inline formula as a body writes it, the intake's and the field's alike: its LaTeX between two
+// `$`, a `|` escaped in a table's cell, and the empty comment after it where a digit or another
+// formula follows, `after`, which its closing `$` would otherwise not close; but not in the minimal
+// form, before the first fallback, `fallback` false.
+export const formulaText = (latex, { cell = false, after = '', fallback = true } = {}) => `$${cell ? latex.replaceAll('|', '\\|') : latex}$${fallback && /^[\d$]/.test(after ?? '') ? COMMENT : ''}`;
 
 function nameOf(node) {
   if (node.type === 'directive') return node.element;
@@ -187,7 +197,7 @@ function inlineOf(children, allowed, scope, element, inLink = false) {
         if (check('code', node)) push({ type: 'code', value: node.value.replace(/\n/g, ' ') });
         break;
       case 'inlineMath':
-        if (isDisplay(node, scope)) {
+        if (writtenAsBlock(node, scope.source)) {
           if (scope.written) push({ type: 'unreadable' });
           else {
             // Named once: what holds it is no emptier for it.
@@ -492,7 +502,7 @@ function paragraphOf(node, scope) {
   const element = 'paragraph';
   const visible = node.children.filter((child) => !isComment(child));
   if (visible.some((child) => child.type === 'image')) return figureOf(node, visible, scope);
-  if (!scope.written && visible.length === 1 && visible[0].type === 'inlineMath' && isDisplay(visible[0], scope)) return blockFormulaOf(node, visible[0].value, scope);
+  if (!scope.written && visible.length === 1 && writtenAsBlock(visible[0], scope.source)) return blockFormulaOf(node, visible[0].value, scope);
   const address = loneAddress(node, visible, scope);
   if (address !== null) return embedAt(node, address, scope);
   const caption = captionedAddress(visible, scope);
@@ -1403,8 +1413,7 @@ function inlineText(nodes, context) {
       case 'math':
         // A formula's closing `$` that a digit or another formula follows closes none: the first
         // fallback ends it with the empty comment.
-        out += `$${context.cell ? node.value.replaceAll('|', '\\|') : node.value}$`;
-        if (context.level >= 1 && /^[\d$]/.test(after ?? '')) out += COMMENT;
+        out += formulaText(node.value, { cell: context.cell, after, fallback: context.level >= 1 });
         break;
       case 'footnote':
         out += `[^${node.n}]`;

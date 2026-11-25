@@ -8,6 +8,7 @@
 // writes back as the formula (html-to-markdown.js), and search and a summary read as its text.
 
 import { markdownToMdast } from 'satteri';
+import { writtenAsBlock } from '../format/body.js';
 import { readFormulas } from '../format/formula-reading.js';
 import { mathML } from '../format/mathml.js';
 
@@ -32,9 +33,7 @@ export const formulas = {
   name: 'konzilo-formulas',
   options: { position: true },
   inlineMath(node, ctx) {
-    const start = node.position?.start?.offset;
-    const display = start !== undefined && ctx.source.startsWith('$$', start);
-    ctx.replaceNode(node, { type: 'html', value: mathML(node.value, display) });
+    ctx.replaceNode(node, { type: 'html', value: mathML(node.value, writtenAsBlock(node, ctx.source)) });
   },
   math(node, ctx) {
     ctx.replaceNode(node, { type: 'html', value: `<div class="konzilo-math">${mathML(node.value, true)}</div>` });

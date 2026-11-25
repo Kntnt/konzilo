@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { checkBody } from '../src/format/body.js';
+import { checkBody, formulaText, writtenAsBlock } from '../src/format/body.js';
 import { embedOf } from '../src/format/embeds.js';
 import rules from '../src/format/rules.json' with { type: 'json' };
 import { reader } from '../src/intake/reader.js';
@@ -256,6 +256,25 @@ test('a type that takes block formulas alone reads $…$ as text', () => {
 test('a block formula stands at the top of a body', () => {
   assert.deepEqual(refusalsOf('> $$\n> x\n> $$').map(({ name, block }) => [name, block]), [['refusal.quote-block', 'quote']]);
   assert.deepEqual(refusalsOf('- $$x$$').map(({ name, block }) => [name, block]), [['refusal.math-block-place', 'list']]);
+});
+
+// One writing of an inline formula and one test of `$$` in a text, for the intake, the field and
+// the site alike.
+test('an inline formula is written between two `$`, a `|` escaped in a cell, the empty comment after it where a digit or another formula would follow', () => {
+  assert.equal(formulaText('a|b'), '$a|b$');
+  assert.equal(formulaText('a|b', { cell: true }), '$a\\|b$');
+  assert.equal(formulaText('x', { after: '5 more' }), '$x$<!-- -->');
+  assert.equal(formulaText('x', { after: '$y$' }), '$x$<!-- -->');
+  assert.equal(formulaText('x', { after: ' and' }), '$x$');
+  assert.equal(formulaText('x', { after: '5', fallback: false }), '$x$', 'the minimal form, before the first fallback');
+});
+
+test('a formula in a text is written as a block formula\'s where its source opens it with `$$`', () => {
+  const at = (offset) => ({ type: 'inlineMath', value: 'x', position: { start: { offset } } });
+  assert.equal(writtenAsBlock(at(2), 'A $$x$$ b'), true);
+  assert.equal(writtenAsBlock(at(2), 'A $x$ b'), false);
+  assert.equal(writtenAsBlock({ type: 'inlineMath', value: 'x' }, '$$x$$'), false, 'not without where it stands');
+  assert.equal(writtenAsBlock({ ...at(0), type: 'text' }, '$$x$$'), false, 'nor what is no formula');
 });
 
 test('a formula Temml cannot read is named with the LaTeX it could not read, and Temml\'s own words beside', () => {

@@ -3,7 +3,7 @@
 // are the intake's (ADR 0027), so the writer's duty is the meaning, as Sätteri reads it,
 // and the field opens as Markdown where it cannot keep that (see `open` in field.js).
 
-import { displayWidthIn, linkAddress, splitAutolinks } from '../../format/body.js';
+import { displayWidthIn, formulaText, linkAddress, splitAutolinks, writtenAsBlock } from '../../format/body.js';
 import { embedOf } from '../../format/embeds.js';
 import rules from '../../format/rules.json' with { type: 'json' };
 import { siteComponents } from './components.js';
@@ -31,15 +31,12 @@ const sliceOf = (node, source) => {
 // What the type's elements call each node the parser meets at the top level.
 const ELEMENT_OF = { heading: 'heading', list: 'list', blockquote: 'quote', code: 'code', math: 'block-math', table: 'table', footnoteDefinition: 'footnotes' };
 
-// A formula written `$$…$$` in a paragraph's text, which is a block formula's delimiters.
-const isDisplayIn = (node, source) => node.type === 'inlineMath' && source.startsWith('$$', node.position?.start?.offset ?? -1);
-
-// A paragraph that is a `$$…$$` alone, the intake's block formula, as the field holds one.
-const asBlockFormula = (node, source) => (node.type === 'paragraph' && node.children?.length === 1 && isDisplayIn(node.children[0], source) ? { type: 'math', value: node.children[0].value, position: node.position } : null);
+// A paragraph that is a `$$…$$` alone (writtenAsBlock()), the intake's block formula, as the field holds one.
+const asBlockFormula = (node, source) => (node.type === 'paragraph' && node.children?.length === 1 && writtenAsBlock(node.children[0], source) ? { type: 'math', value: node.children[0].value, position: node.position } : null);
 
 // Whether a node holds a formula the field has no place for: a block formula below the top, or a
 // `$$…$$` in text.
-const holdsStrayFormula = (node, source) => (node.children ?? []).some((child) => child.type === 'math' || isDisplayIn(child, source) || holdsStrayFormula(child, source));
+const holdsStrayFormula = (node, source) => (node.children ?? []).some((child) => child.type === 'math' || writtenAsBlock(child, source) || holdsStrayFormula(child, source));
 
 const isLoneHtml = (node) => node.children?.length === 1 && node.children[0].type === 'html';
 
@@ -305,11 +302,9 @@ const CAPTION = 'konziloCaption';
 const LINE = 'konziloLine';
 const FORMULA = 'konziloFormula';
 
-// An inline formula, between two `$`, a `|` in it escaped in a table's cell, and the empty comment
-// after it where a digit or another formula follows, which its `$` would otherwise not close.
+// An inline formula, as the body check writes one (formulaText()).
 function formula(node, _, state, info) {
-  const latex = state.stack.includes('tableCell') ? node.value.replaceAll('|', '\\|') : node.value;
-  return `$${latex}$${/^[\d$]/.test(info.after ?? '') ? '<!-- -->' : ''}`;
+  return formulaText(node.value, { cell: state.stack.includes('tableCell'), after: info.after });
 }
 formula.peek = () => '$';
 
