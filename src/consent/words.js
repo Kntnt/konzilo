@@ -66,8 +66,11 @@ function below(catalogue, prefix) {
 // `transferred`, each for a service whose facts list what it stores, and
 // each with `WithoutStorage` after it, such as `providedWithoutStorage`,
 // for one whose facts list nothing, which says nothing of storing; `on`, `thisHost`, `shared` and `unnamedDomain` say where
-// an item is stored; and `objectionLinks` are the words of the link for a
-// text of the right to object that marks none.
+// an item is stored; `banner` is the banner's default text, `text`, around
+// the sentence on the services that ask for consent, `services`, or, where
+// any of them does what its `actions` name, `servicesThat`, with them in a
+// list; and `objectionLinks` are the words of the link for a text of the
+// right to object that marks none.
 export function wordsFor(language, catalogues) {
   const given = cataloguesOf(catalogues);
   const catalogue = { ...given[SOURCE], ...given[wordsLanguage(language, given)] };
@@ -78,6 +81,7 @@ export function wordsFor(language, catalogues) {
     serviceCount: at('serviceCount.'),
     kinds: at('kind.'),
     placeholder: at('placeholder.'),
+    banner: { ...at('banner.'), actions: at('banner.action.') },
     objection: Object.fromEntries(OBJECTION.map((name) => [name, catalogue[`site.settings.consent.objection${capital(name)}`]])),
     objectionLinks: at('objectionLink.'),
     declaration: {

@@ -135,7 +135,9 @@ const registrySchema = z.strictObject({
   })),
   departures: z.array(z.strictObject({ departure: z.enum(Object.keys(DEPARTURES)), service: z.string().optional(), reason: text, privacySignals: z.enum(PRIVACY_SIGNALS).optional() })),
   texts: z.strictObject({
-    banner: z.strictObject({ title: text, text, accept: text, reject: text, customise: text }),
+    // The banner's text only where an Admin has written one; else the
+    // markup writes it from the services' facts.
+    banner: z.strictObject({ title: text, text: text.optional(), accept: text, reject: text, customise: text }),
     dialog: z.strictObject({ title: text, introduction: text, accept: text, reject: text, save: text, close: text }),
     footer: z.strictObject({ change: text, withdraw: text }),
     notice: z.strictObject({ withdrawn: text }),

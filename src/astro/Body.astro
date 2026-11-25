@@ -17,17 +17,23 @@
 // rendered here again, so that a directive in a container's body gets its
 // component too, and as a hast tree in the prop `content`, for a component
 // that lays itself out by what it holds (bodyTree() in directives.js), with
-// the live preview's marks on its blocks. In the live preview, a component
+// the live preview's marks on its blocks. A container is given each block at
+// the top of its body as a named slot as well, `block-<index>` by the block's
+// index in that tree (blockSlot() in directives.js), rendered here as the
+// default slot renders it, so that a component that lays its items out by the
+// tree has each item's blocks drawn as a body is. Astro renders a slot only
+// when the component asks for it. In the live preview, a component
 // and a presentation are given their own block's mark as well, in the prop
 // `data-konzilo-block`, to place on their root (BlockMark.astro). The body is
 // read once, components' bodies within at any depth (bodyParts()), and its
 // lists are evaluated in the order they are written, before any is rendered
 // (bodyPostLists() in post-lists.js), so that each leaves out the posts the
-// lists above it showed wherever each stands; a component's body is rendered
-// from its parts as read here, since Astro renders components side by side
-// in no order of the body's. A body without such a directive comes out as
-// Content renders it, but for each image's lightbox (lightbox.js), which is
-// the page's and no part of the body's own HTML.
+// lists above it showed wherever each stands; a component's body, and each of
+// its blocks, is rendered from its parts as read here, since Astro renders
+// components side by side in no order of the body's. Each dialog is numbered
+// as it is rendered, so a block rendered twice has two. A body without such a
+// directive comes out as Content renders it, but for each image's lightbox
+// (lightbox.js), which is the page's and no part of the body's own HTML.
 //
 // `page`: the page of the post shown, from 1, as the site's route has it
 // from postPages() (post-lists.js): the one list with pages of its own shows
@@ -69,5 +75,5 @@ const lightboxes = {
     return marked(<Presentation posts={posts} options={options} empty={empty} pager={pager} list={list} {...mark} />);
   }
   const Component = components[part.name];
-  return marked(part.body === null ? <Component {...part.attributes} {...mark} /> : <Component {...part.attributes} {...mark} content={part.content}><Astro.self parts={part.parts} /></Component>);
+  return marked(part.body === null ? <Component {...part.attributes} {...mark} /> : <Component {...part.attributes} {...mark} content={part.content}><Astro.self parts={part.parts} />{part.blocks.map(({ slot, parts }) => <Astro.self parts={parts} slot={slot} />)}</Component>);
 })}
