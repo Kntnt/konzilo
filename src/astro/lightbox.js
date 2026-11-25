@@ -9,6 +9,7 @@
 
 import { textsOf } from '../catalogues.js';
 import { endOf, nextTag } from './directives.js';
+import { IMAGE_CONTEXTS } from './image-versions.js';
 
 // What a visitor reads of the lightbox, in the catalogues (ADR 0066) under `site.lightbox.`.
 const TEXTS = 'site.lightbox.';
@@ -86,9 +87,10 @@ function dialogFor(html, { pictures }, id, texts, sizes) {
 
 // A part of a body's HTML with its lightboxes. `next()` gives the number for the next dialog's id,
 // which is unique on a page however many bodies it renders. `locale` is the page's language.
-// `sizes`: how wide the lightbox draws an image, the lightbox's sizes (image-versions.js), by which
-// a browser picks one of the image's versions from the srcset it has on the page.
-export function withLightboxes(html, { next, locale, sizes = '100vw' }) {
+// `sizes`: how wide the lightbox draws an image, the lightbox's sizes, the site's or else the
+// core's (image-versions.js), by which a browser picks one of the image's versions from the srcset
+// it has on the page.
+export function withLightboxes(html, { next, locale, sizes = IMAGE_CONTEXTS.lightbox.sizes }) {
   if (!html.includes('<img')) return html;
   const found = figuresIn(html);
   if (found.length === 0) return html;

@@ -129,15 +129,19 @@ export function sizesNoWider(sizes, most) {
   }).join(', ');
 }
 
+// How near below the widest version of an image another may be and still be made: a width within
+// a tenth below it is so near in pixels, and so in bytes, that a browser choosing between the two
+// gains nothing, so a master 1300 px wide is made in 1300 and not in 1200 as well (ADR 0022).
+const NEAR_DUPLICATE = 0.9;
+
 // The widths an image of a master `own` pixels wide is made in, asked for in `widths`: each up
 // to the master's width and WIDEST, and in place of those wider, the master's own width, or
-// WIDEST, without a width so near it as to be a near duplicate.
-const NEAR = 0.9;
+// WIDEST, without a width within a tenth below it (NEAR_DUPLICATE).
 
 export function versionWidths(widths, own) {
   const widest = Math.min(own, WIDEST);
   const sorted = [...new Set(widths.map(Math.round))].sort((a, b) => a - b);
   const within = sorted.filter((width) => width <= widest);
   if (within.length === sorted.length) return within;
-  return [...within.filter((width) => width < widest * NEAR), widest];
+  return [...within.filter((width) => width < widest * NEAR_DUPLICATE), widest];
 }
