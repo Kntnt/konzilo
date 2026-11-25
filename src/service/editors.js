@@ -1,8 +1,9 @@
 // The service's part for editors (ADR 0044): what starts a build, what a post's status is, a
 // small picture of an image in the library (ADR 0055), the forms' submissions (ADR 0045), how the
 // site mails them and how long it keeps them, which an Admin sets on the *Mail* page (ADR 0003),
-// and a person's submissions, which an Admin finds, downloads and erases on the *Personal data*
-// page. Forgejo's webhook only says that something may have happened: the build looks for itself,
+// a person's submissions, which an Admin finds, downloads and erases on the *Personal data*
+// page, and the addresses visitors asked for in vain, which an Admin reads and hides on the
+// *Addresses not found* page (ADR 0040). Forgejo's webhook only says that something may have happened: the build looks for itself,
 // so a request here decides nothing, and needs no secret. Everything an editor asks goes by what
 // Forgejo says of the one asking, each time.
 
@@ -30,6 +31,9 @@ const PERSONAL_DATA = '/_konzilo/personal-data';
 const LOCKS = '/_konzilo/locks';
 const REVISIONS = '/_konzilo/revisions';
 const DELETED = '/_konzilo/deleted';
+const NOT_FOUND = '/_konzilo/not-found';
+// The most an address to hide takes, as JSON.
+const HIDDEN_BODY_LIMIT = 4096;
 // The most the *Mail* page's settings take, as JSON.
 const MAIL_BODY_LIMIT = 64 * 1024;
 // A form's submissions are shown this many at a time, newest first.
@@ -67,8 +71,9 @@ const PICTURE_HOLDS = 3600;
 // them is held open until they change, and { alive }, as locks.js has it. `revisions`: how a form's
 // revisions are given, { perPage }, as revisions.js has it. `deletable()`: whether a file in the
 // source is a post, a term or an image library entry, by the site description in use, as
-// deleted.js's deletableIn() tells it.
-export function editorsService({ forgejo, repository, token, rolesToken = null, pushesToken = null, control, pictures = null, store = null, forms = () => ({}), local = false, isPost = () => true, deletable = () => () => null, now = () => new Date(), warn = console.error, get = fetch, locks: { waitAtMost = 25_000, alive } = {}, revisions = {} }) {
+// deleted.js's deletableIn() tells it. `notFound`: the log of addresses not found, as not-found.js
+// gives it, or null where there is none.
+export function editorsService({ forgejo, repository, token, rolesToken = null, pushesToken = null, control, pictures = null, store = null, forms = () => ({}), local = false, isPost = () => true, deletable = () => () => null, notFound = null, now = () => new Date(), warn = console.error, get = fetch, locks: { waitAtMost = 25_000, alive } = {}, revisions = {} }) {
   const answers = new Map();
   const mayWriteLately = async (credential) => {
     const held = answers.get(credential);
@@ -324,6 +329,77 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
     }));
   };
 
+  // The rules the source's `redirects.json` holds, as it stands now: an Admin's save of a rule
+  // has just written it, before any build. None where there is no file, or none the site reads.
+  // Throws where Forgejo cannot be asked.
+  const sourceRules = async () => {
+    const answer = await get(`${forgejo}/api/v1/repos/${repository}/raw/redirects.json?ref=main`, { headers: { authorization: `token ${token}` } });
+    if (answer.status === 404) return [];
+    if (!answer.ok) throw new Error(`Forgejo answered ${answer.status} about redirects.json`);
+    let given;
+    try {
+      given = JSON.parse(await answer.text());
+    } catch {
+      return [];
+    }
+    return Array.isArray(given) ? given : Array.isArray(given?.rules) ? given.rules : [];
+  };
+
+  // The addresses visitors asked for in vain (ADR 0040), to an Admin alone, folded as the page
+  // asks: each with how often and when last, most asked first, but those an Admin hid and those a
+  // rule holds; and one hidden, which goes on being counted. An Editor is told only that it is an
+  // Admin's, and whoever may not write nothing.
+  const answerNotFound = async (incoming, outgoing, below) => {
+    const method = below === '' ? 'GET' : 'POST';
+    if (below !== '' && below !== '/hidden') {
+      incoming.resume();
+      return answerJson(outgoing, 404, {});
+    }
+    if (incoming.method !== method) {
+      incoming.resume();
+      outgoing.writeHead(405, { allow: method, 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+      return outgoing.end('{}');
+    }
+    if (!notFound) {
+      incoming.resume();
+      return answerJson(outgoing, 404, {});
+    }
+    const role = await roleOf(incoming.headers.authorization);
+    if (!usesAdminPages(role)) {
+      incoming.resume();
+      return answerJson(outgoing, role === null ? 401 : 403, {});
+    }
+    if (method === 'POST') {
+      if ((incoming.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase() !== 'application/json') {
+        incoming.resume();
+        return answerJson(outgoing, 415, {});
+      }
+      const body = await bodyOf(incoming, HIDDEN_BODY_LIMIT);
+      if (body === null) {
+        outgoing.shouldKeepAlive = false;
+        return answerJson(outgoing, 413, {});
+      }
+      let address;
+      try {
+        ({ address } = JSON.parse(body.toString('utf8')) ?? {});
+      } catch {
+        address = undefined;
+      }
+      if (typeof address !== 'string') return answerJson(outgoing, 400, {});
+      if (!notFound.hide(address)) return answerJson(outgoing, 404, {});
+    } else {
+      incoming.resume();
+    }
+    let rules;
+    try {
+      rules = await sourceRules();
+    } catch (error) {
+      warn(`The addresses not found could not be told: ${error.message}`);
+      return answerJson(outgoing, 502, {});
+    }
+    return answerJson(outgoing, 200, { addresses: notFound.listed({ sourceRules: rules }) });
+  };
+
   const answerPicture = async (incoming, outgoing, of) => {
     if (incoming.method !== 'GET') return answerJson(outgoing, 405, {});
     if (!pictures) return answerJson(outgoing, 404, {});
@@ -459,6 +535,7 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
       if (pathname === LOCKS || pathname.startsWith(`${LOCKS}/`)) return answerLocks(incoming, outgoing, pathname.slice(LOCKS.length), searchParams);
       if (pathname === REVISIONS) return answerRevisions(incoming, outgoing, searchParams);
       if (pathname === DELETED) return answerDeleted(incoming, outgoing, searchParams);
+      if (pathname === NOT_FOUND || pathname.startsWith(`${NOT_FOUND}/`)) return answerNotFound(incoming, outgoing, pathname.slice(NOT_FOUND.length));
       return answerJson(outgoing, 404, {});
     },
 

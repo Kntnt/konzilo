@@ -7,7 +7,9 @@
 //   mails each to its form's recipients through the adapter an Admin chooses (ADR 0003), or, in a
 //   local copy, writes it to its log, forgets each once its form's retention has passed, and lets
 //   an Admin find, export and erase a person's, and lists a form's revisions and the deleted
-//   posts, terms and image library entries from the source history. It has a credential that can
+//   posts, terms and image library entries from the source history. It folds the web server's
+//   log of addresses not found into the counts it keeps every five minutes, and shows Admins the
+//   addresses visitors asked for in vain (ADR 0040). It has a credential that can
 //   only read the source repository, one that can only read who is an Admin, and a read-only token
 //   of the instance's account, by which it reads who pushed what.
 // - `visitors`: it takes what visitors' browsers send below /_konzilo/, which the web server
@@ -28,6 +30,7 @@ import { editorsService, nextMinute } from '../src/service/editors.js';
 import { liveDescription } from '../src/service/live-description.js';
 import { mailDuty } from '../src/service/mail.js';
 import { mailDelivery } from '../src/service/mail-delivery.js';
+import { notFoundLog } from '../src/service/not-found.js';
 import { retentionDuty } from '../src/service/retention.js';
 import { openStore, STORE_FILE } from '../src/service/store.js';
 import { thumbnails } from '../src/service/thumbnails.js';
@@ -42,6 +45,14 @@ const SERVICE_DATA = '/service-data';
 
 // How often the duty looks for a submission to mail, in milliseconds.
 const MAIL_EVERY = 5000;
+
+// The log of addresses not found (ADR 0040): the web server's log, which it writes in a volume of
+// its own that this role reads; the counts, in a volume of this role's own that no archive holds;
+// and the release visitors get, which the builder writes. It is folded every five minutes.
+const NOT_FOUND_LOG = '/not-found-log';
+const NOT_FOUND_COUNTS = '/not-found/counts.json';
+const RELEASE = '/public/current';
+const FOLD_EVERY = 5 * 60_000;
 
 const { forgejo: FORGEJO, secrets, listen } = arrangement();
 
@@ -81,6 +92,17 @@ function editors(store) {
   // A local copy sends no mail, and writes each to the log instead.
   const local = process.env.KONZILO_MAIL_TO_LOG === 'true';
 
+  const notFound = notFoundLog({ log: NOT_FOUND_LOG, counts: NOT_FOUND_COUNTS, release: RELEASE });
+  const fold = () => {
+    try {
+      notFound.fold();
+    } catch (error) {
+      console.error(`The log of addresses not found could not be folded: ${error.stack ?? error.message}`);
+    }
+  };
+  fold();
+  setInterval(fold, FOLD_EVERY).unref();
+
   const service = editorsService({
     forgejo: FORGEJO,
     repository,
@@ -94,6 +116,7 @@ function editors(store) {
     local,
     isPost: (file) => file.endsWith('.md') && collections.includes(file.split('/')[0]),
     deletable: () => deletableIn(described()),
+    notFound,
   });
   serve(service, PORT);
   // The locks of tabs that have stopped answering let go, well within the two minutes ADR 0073

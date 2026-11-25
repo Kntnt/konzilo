@@ -216,16 +216,43 @@ test('answers for its own names alone, on each of its four hosts, and refuses ev
   for (const [, name, block] of hosts) {
     const directives = level(block, 1);
     assert.equal(directives[0], 'import own_hosts', name);
-    // `root` only sets where the files are, which the public site's errors read too.
-    assert.deepEqual(directives.slice(1).filter((line) => !line.startsWith('root ')), ['handle {', ...(name === 'SITE' ? ['handle_errors {'] : [])], name);
+    // `root` only sets where the files are, which the public site's errors read too, and the log
+    // of addresses not found only what is written of an answer, which nothing is of a refusal.
+    const own = name === 'SITE' ? ['log_skip', 'log {', 'handle {', 'handle_errors {'] : ['handle {'];
+    assert.deepEqual(directives.slice(1).filter((line) => !line.startsWith('root ')), own, name);
   }
   const errors = hosts.find(([, name]) => name === 'SITE')[2].split('\n\thandle_errors {\n')[1];
-  assert.deepEqual(level(errors, 2), ['handle @foreign {', 'handle {']);
+  assert.deepEqual(level(errors, 2).filter((line) => !/^(@konzilo_not_found \{|vars |log_append )/.test(line)), ['handle @foreign {', 'handle {']);
   assert.match(errors, /^\t\thandle @foreign \{\n\t\t\trespond 421\n\t\t\}$/m);
   // The names, a local copy's by default, which a server sets to its own; the web server alone reads them.
   const blocks = servicesOf(compose);
   assert.match(blocks.web, /^ {6}KONZILO_WEB_HOSTS: \$\{KONZILO_WEB_HOSTS:-localhost 127\.0\.0\.1 ::1 \*\.localhost\}$/m);
   for (const [name, block] of Object.entries(blocks)) if (name !== 'web') assert.doesNotMatch(block, /KONZILO_WEB_HOSTS/, name);
+});
+
+// The log of addresses not found (ADR 0040): Real Caddy writes it in the acceptance suite, which
+// reads every line it writes.
+test('logs the public host\'s addresses not found with the time and the path alone, and nothing of any other answer or host', () => {
+  const caddyfile = read('compose/web/Caddyfile');
+  const host = /^:\{\$KONZILO_PORT_SITE\} \{\n([\s\S]*?)\n\}$/m.exec(caddyfile)[1];
+  assert.equal((caddyfile.match(/^\t+log \{$/gm) ?? []).length, 1, 'one log, the public host\'s');
+  assert.match(host, /^\tlog_skip$/m);
+  const log = /^\tlog \{\n([\s\S]*?)\n\t\}$/m.exec(host)[1];
+  assert.match(log, /^\t\toutput file \/srv\/not-found\/not-found\.log \{$/m);
+  const deleted = [...log.matchAll(/^\t{4}([a-z_]+) delete$/gm)].map(([, field]) => field).sort();
+  assert.deepEqual(deleted, ['bytes_read', 'duration', 'request', 'resp_headers', 'size', 'status', 'user_id']);
+  assert.match(log, /^\t{4}path regexp "\\\?\.\*" ""$/m);
+  const errors = host.split('\n\thandle_errors {\n')[1];
+  const matcher = /^\t\t@konzilo_not_found \{\n([\s\S]*?)\n\t\t\}$/m.exec(errors)[1].split('\n').map((line) => line.trim());
+  assert.deepEqual(matcher, ['expression `{err.status_code} == 404`', 'method GET HEAD', 'not path /_konzilo /_konzilo/*', 'vars_regexp {http.request.orig_uri} ^/[^?]{0,299}(?:\\?|$)']);
+  assert.match(errors, /^\t\tvars log_skip true\n\t\tvars @konzilo_not_found log_skip false\n\t\tlog_append @konzilo_not_found path \{http\.request\.orig_uri\}$/m);
+  // Where the web server writes it, and the service reads it, each in a volume of its own.
+  const blocks = servicesOf(compose);
+  assert.match(blocks.web, /^ {6}- not-found-log:\/srv\/not-found$/m);
+  assert.match(blocks.editors, /^ {6}- not-found-log:\/not-found-log:ro$/m);
+  assert.match(blocks.editors, /^ {6}- not-found:\/not-found$/m);
+  assert.match(blocks.editors, /^ {6}- site-public:\/public:ro$/m);
+  for (const [name, block] of Object.entries(blocks)) if (!['web', 'editors'].includes(name)) assert.doesNotMatch(block, /not-found/, name);
 });
 
 test('mounts Docker\'s socket nowhere', () => {

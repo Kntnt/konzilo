@@ -31,6 +31,37 @@
 	import own_hosts
 	# Where its files are, which its errors read too.
 	root * /srv/site/current/pages
+	# The log of addresses not found (ADR 0040): a line for each 404 the host answers a GET or a
+	# HEAD of a path of at most 300 characters, none below /_konzilo/, with the time and the path as
+	# the browser sent it, its query cut off, and nothing else: its filter deletes the request and
+	# the answer before the line is written, so that no address, browser or referrer of a
+	# visitor's is ever written. Every other answer is logged by nothing. It rolls over to one
+	# older file beside it at 10 MiB, which the service folds into its counts every five minutes.
+	log_skip
+	log {
+		output file /srv/not-found/not-found.log {
+			roll_size 10MiB
+			roll_keep 1
+			roll_uncompressed
+		}
+		format filter {
+			wrap json {
+				message_key ""
+				level_key ""
+				name_key ""
+			}
+			fields {
+				request delete
+				resp_headers delete
+				bytes_read delete
+				user_id delete
+				duration delete
+				size delete
+				status delete
+				path regexp "\?.*" ""
+			}
+		}
+	}
 	handle {
 		import /srv/site/current/web-rules*.caddy
 		# Search (ADR 0053): the route to Typesense, with its key, which every build writes outside
@@ -83,6 +114,17 @@
 		file_server
 	}
 	handle_errors {
+		# An address not found, as the log counts it: every other error is logged by nothing, one
+		# before any route too.
+		@konzilo_not_found {
+			expression `{err.status_code} == 404`
+			method GET HEAD
+			not path /_konzilo /_konzilo/*
+			vars_regexp {http.request.orig_uri} ^/[^?]{0,299}(?:\?|$)
+		}
+		vars log_skip true
+		vars @konzilo_not_found log_skip false
+		log_append @konzilo_not_found path {http.request.orig_uri}
 		# An error before any route, such as Caddy's own for an empty host.
 		handle @foreign {
 			respond 421
@@ -144,9 +186,10 @@
 		# submissions and a person's (ADR 0045), how the site mails them and keeps them
 		# (ADR 0003), the locks of the editor's forms (ADR 0073), whose call a tab makes is held
 		# open until they change, a form's revisions, at /_konzilo/revisions (ADR 0074), and the
-		# deleted posts, terms and image library entries, at /_konzilo/deleted (ADR 0077), from the
+		# deleted posts, terms and image library entries, at /_konzilo/deleted (ADR 0077), and the
+		# addresses visitors asked for in vain, at /_konzilo/not-found (ADR 0040), from the
 		# service, which asks Forgejo who is asking.
-		@service path /_konzilo/status /_konzilo/thumbnail /_konzilo/submissions /_konzilo/submissions/* /_konzilo/mail /_konzilo/personal-data /_konzilo/personal-data.csv /_konzilo/locks /_konzilo/locks/* /_konzilo/revisions /_konzilo/deleted
+		@service path /_konzilo/status /_konzilo/thumbnail /_konzilo/submissions /_konzilo/submissions/* /_konzilo/mail /_konzilo/personal-data /_konzilo/personal-data.csv /_konzilo/locks /_konzilo/locks/* /_konzilo/revisions /_konzilo/deleted /_konzilo/not-found /_konzilo/not-found/*
 		handle @service {
 			reverse_proxy {$KONZILO_PEER_EDITORS:http://editors:4100} {
 				header_up -X-Real-IP

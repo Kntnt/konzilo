@@ -214,8 +214,9 @@ export function notFoundLog({ log, counts, release, now = () => Math.floor(Date.
         .map(([address, { count, last }]) => ({ address, count, last: new Date(last * 1000).toISOString() }));
     },
 
-    /** Takes an address off the page, while it goes on being counted. Whether it was counted. */
+    /** Takes an address off the page, while it goes on being counted, after a fold. Whether it was counted. */
     hide(address) {
+      fold();
       const { addresses, ...rest } = readCountsFile(counts);
       if (!Object.hasOwn(addresses, address)) return false;
       addresses[address] = { ...addresses[address], hidden: true };
