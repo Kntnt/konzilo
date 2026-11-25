@@ -84,6 +84,15 @@ export function contentRepository({ remote, folder, access, command = run }) {
       const listed = await git('ls-tree', '-r', 'HEAD');
       return createHash('sha256').update(listed.split('\n').filter((line) => !line.endsWith(`\t${POST_IDS_FILE}`)).join('\n')).digest('hex');
     },
+    // Puts back what the last commit holds, and removes what it does not, as what an intake that
+    // was stopped may have written in part; before the first commit, every file.
+    async undo() {
+      if (!existsSync(join(folder, '.git'))) return;
+      const committed = await git('rev-parse', '--verify', '--quiet', 'HEAD').then(() => true, () => false);
+      if (committed) await git('reset', '--quiet', '--hard', 'HEAD');
+      else await git('rm', '--quiet', '--cached', '-r', '--ignore-unmatch', '.');
+      await git('clean', '--quiet', '--force', '-d');
+    },
     push: () => git('push', '--quiet', 'origin', 'main'),
   };
 }

@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- `KONZILO_COMMAND_TIME_LIMIT`, how long the builder waits for a command of a build, the intake, the site's build or its search documents, in whole minutes or seconds, `10m` by default. A value that is neither stops the builder as it starts, saying so.
+
+### Fixed
+
+- A build no longer keeps publishing still for good. Every Node the builder starts keeps V8's baseline compiler on its main thread, which makes Node's deadlock as it exits rare (nodejs/node#67596), and a command still running at the time limit is stopped, with every process it started. The build then runs once more from the start, its line in the build log saying `retried`; stopped again, it fails, and the post's publish status and the build log say that the build took too long and was stopped, while visitors keep the version they have. Nothing a stopped build wrote is published.
+
 ## [0.10.0] – 2026-11-25
 
 ### Added
