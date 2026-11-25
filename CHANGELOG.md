@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- A *Feeds* page in the editor, in Swedish *Flöden*, where an Admin adds, changes and removes RSS 2.0 and Atom feeds of other sites, each read every five minutes, or at the interval the Admin chooses, into a type of the Admin's choice, and on a site in several languages into a language. Each item a feed gives after it was added becomes a published post of that type, with the item's title, text, date and a link to the original, which a template finds as `originalAddress`. The post mirrors its item: it follows the item's corrections, its slug and so its address kept, and is deleted when the item is withdrawn, while one that fell out of a feed of its latest items stays. No one can change, unpublish or delete it in the editor, where its form opens read-only and says why, and the build refuses a change to it pushed any other way. A trigger waiting for a post of its type releases its post in the build that publishes it. A feed that cannot be read says so on the *Publishing* page until it can. Removing a feed leaves its posts published, as posts like any other. A type whose posts need more than a feed gives, such as a featured image, cannot be chosen, and nothing of an item's images is taken.
+
 ## [0.10.0] – 2026-11-25
 
 ### Added
