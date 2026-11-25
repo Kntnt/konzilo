@@ -49,6 +49,9 @@ export function sourceRepository({ remote, folder, access, command = run }) {
         return [path, about.split(' ')[2]];
       }));
     },
+    // Lets the checkout go, as after a purge, which may have taken what it holds (ADR 0078); the
+    // next refresh makes it anew.
+    forget: () => rmSync(folder, { recursive: true, force: true }),
     // The commits a push brought, of those this checkout has: none of another branch's.
     async commitsOf(after, before) {
       try {
@@ -85,5 +88,8 @@ export function contentRepository({ remote, folder, access, command = run }) {
       return createHash('sha256').update(listed.split('\n').filter((line) => !line.endsWith(`\t${POST_IDS_FILE}`)).join('\n')).digest('hex');
     },
     push: () => git('push', '--quiet', 'origin', 'main'),
+    // Lets the checkout go, as after a purge, which rewrote the history it holds (ADR 0078); the
+    // next build takes it anew from the repository.
+    forget: () => rmSync(folder, { recursive: true, force: true }),
   };
 }

@@ -18,6 +18,7 @@ import { releases } from '../src/build/release.js';
 import { contentRepository, sourceRepository } from '../src/build/repositories.js';
 import { buildOnRequest } from '../src/build/requests.js';
 import { forgejoRoles } from '../src/build/roles.js';
+import { purgeMarks, purgeRecordReader } from '../src/purge/mark.js';
 import { searchDocumentsCommand, siteSearch } from '../src/build/search-index.js';
 import { walk } from '../src/intake/content-folder.js';
 import { prepareSiteCode } from '../src/site-code.js';
@@ -72,6 +73,10 @@ const control = buildControl('/control');
 const live = releases('/public');
 const source = sourceRepository({ remote: `${FORGEJO}/${repository}.git`, folder: join(work, 'source'), access });
 const content = contentRepository({ remote: `${FORGEJO}/${repository.split('/')[0]}/content.git`, folder: `${SITE_FOLDER}/content`, access });
+// The record of purges (ADR 0078): whether one was made since the last build that took one in,
+// which then makes both checkouts and the release anew, and who pushed each save it rewrote.
+const purgeRecords = purgeRecordReader({ forgejo: FORGEJO, repository, token });
+const purges = purgeMarks({ reader: purgeRecords, file: join(work, 'purge-mark') });
 
 const build = siteBuild({
   site,
@@ -79,7 +84,8 @@ const build = siteBuild({
   code: codeOf('/site', `${SITE_FOLDER}/node_modules/@kntnt/konzilo`),
   source,
   content,
-  roles: forgejoRoles({ forgejo: FORGEJO, repository, token: secret('roles-token'), instance: INSTANCE, folder: join(work, 'roles') }),
+  roles: forgejoRoles({ forgejo: FORGEJO, repository, token: secret('roles-token'), instance: INSTANCE, folder: join(work, 'roles'), carried: async () => (await purgeRecords.record()).pushes }),
+  purges,
   control,
   live,
   intake: intakeCommand({
