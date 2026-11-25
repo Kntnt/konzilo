@@ -146,6 +146,21 @@ h6.body-text :is(h2, h3, h4, h5, h6) { font-size: 0.95em; }
   text-align: start;
 }
 
+/* A cell of an aligned column, as the core writes its alignment: to the
+   start of the line, the centre or its end, which on a right-to-left page
+   is the left. */
+.body-text :is(th, td)[data-align="start"] {
+  text-align: start;
+}
+
+.body-text :is(th, td)[data-align="center"] {
+  text-align: center;
+}
+
+.body-text :is(th, td)[data-align="end"] {
+  text-align: end;
+}
+
 .body-text th {
   font-weight: 600;
   background-color: var(--body-surface);

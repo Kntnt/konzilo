@@ -15,7 +15,10 @@
 // address, and page `n` from 2 `<address>page/<n>/`. The site's route for a
 // type builds them from postPages(), and gives Body and Head the page; the
 // list shows that page's slice, the other lists their first, and the
-// presentation is given the pager's data, which Pager.astro renders.
+// presentation is given the pager's data, which Pager.astro renders. A list
+// with `firstPage` is drawn on page 1 alone, and leaves out its posts from
+// the lists below it on every page all the same, so that each page's slice
+// is the same wherever it is drawn.
 //
 // The evaluator itself is ../post-lists.js, a pure function free of Astro.
 // What it needs of the site, the integration gives through its module
@@ -62,7 +65,9 @@ const paged = new WeakSet();
 // A list, by its attributes as Body reads them from the list's plain
 // rendering: { component, posts, options, empty, pager, list }, the
 // presentation's component and what it is given, `list` what the whole
-// list holds (wholeListOf()). `post`: the entry of the
+// list holds (wholeListOf()), or null for a list with `firstPage` on a later
+// page, which is drawn there not at all, its posts joining `shown` as on
+// page 1. `post`: the entry of the
 // post the list sits in, if any. `shown`: shownOnPage() of the page, which
 // the list's own posts join. `page`: the page of the post shown, from 1,
 // which a list with pages of its own shows; every other list shows its
@@ -79,6 +84,7 @@ export async function postList(given, { post, shown = shownOnPage(), page = 1 } 
     if (address !== null) at = page;
   }
   const { posts, pages, list } = await listed(read.query, { post, shown, page: at, counting: address !== null, whole: true });
+  if (read.settings.firstPage === true && page > 1) return null;
   const component = presentations[read.settings.presentation];
   const declared = site.lists.presentations[read.settings.presentation];
   const options = Object.fromEntries(declared.options.map((option) => [option.name, read.settings[option.name] ?? (option.type === 'boolean' ? false : undefined)]));
