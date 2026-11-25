@@ -7,6 +7,7 @@ import { describe, test } from 'node:test';
 import { uploadProblem } from '../src/cms/body/chooser-check.js';
 import { wordsIn } from '../src/refusals.js';
 import { imageLibrary, mediaNameOf, stemOf } from '../src/cms/body/library.js';
+import { displayWidthByName } from '../src/cms/image/display-width.js';
 
 const encoded = (text) => Buffer.from(text).toString('base64');
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEBgIApD5fRAAAAABJRU5ErkJggg==', 'base64');
@@ -62,6 +63,23 @@ describe('the image library', () => {
     assert.ok(stand.asked.every(({ authorization }) => authorization === 'token mine'));
     const asked = stand.asked.find(({ pathname }) => pathname.endsWith('/git/blobs')).query.shas.split(',').sort();
     assert.deepEqual(asked, ['a1', 'b1', 'c1', 'd1'], 'nothing but entries is read');
+  });
+
+  test('gives an entry\'s display width with it, and none where it fills the column or says what no width is', async () => {
+    const stand = forgejo({
+      files: {
+        'image-library/a.json': { sha: 'a1', ...entry({ src: '/media/a.webp', alt: 'A flow', displayWidth: 632 }) },
+        'image-library/b.json': { sha: 'b1', ...entry({ src: '/media/b.webp', alt: 'B photo' }) },
+        'image-library/c.json': { sha: 'c1', ...entry({ src: '/media/c.webp', alt: 'C wrong', displayWidth: 'wide' }) },
+        'image-library/d.json': { sha: 'd1', ...entry({ src: '/media/d.webp', alt: 'D none', displayWidth: 0 }) },
+      },
+    });
+    assert.deepEqual(await libraryOf(stand).list(), [
+      { src: '/media/a.webp', alt: 'A flow', caption: '', displayWidth: 632 },
+      { src: '/media/b.webp', alt: 'B photo', caption: '' },
+      { src: '/media/c.webp', alt: 'C wrong', caption: '' },
+      { src: '/media/d.webp', alt: 'D none', caption: '' },
+    ]);
   });
 
   test('reads a long tree page by page, and asks for each file once while a page is open', async () => {
@@ -144,6 +162,16 @@ describe('the image library', () => {
       const plain = forgejo();
       assert.deepEqual(Object.keys(await libraryOf(plain).add({ file: file(), alt: 'A photo', lossless: false })), ['src', 'alt', 'caption']);
       assert.doesNotMatch(bytesOf(commitOf(plain).body.files[1].content).toString(), /lossless/);
+    });
+
+    test('writes the display width in the entry, and nothing where the image fills the column', async () => {
+      const stand = forgejo();
+      const added = await libraryOf(stand).add({ file: file(), alt: 'A diagram', lossless: true, displayWidth: 632 });
+      assert.deepEqual(added, { src: added.src, alt: 'A diagram', caption: '', lossless: true, displayWidth: 632 });
+      assert.equal(bytesOf(commitOf(stand).body.files[1].content).toString(), `${JSON.stringify({ src: added.src, alt: 'A diagram', lossless: true, displayWidth: 632 }, null, 2)}\n`);
+      const filling = forgejo();
+      assert.deepEqual(Object.keys(await libraryOf(filling).add({ file: file(), alt: 'A photo', displayWidth: null })), ['src', 'alt', 'caption']);
+      assert.doesNotMatch(bytesOf(commitOf(filling).body.files[1].content).toString(), /displayWidth/);
     });
 
     test('takes nothing that is no image, whatever it is called', async () => {
@@ -273,4 +301,20 @@ describe('what the chooser turns away, before anything is sent', () => {
   test('and an SVG goes on to the check that can read it', async () => {
     assert.equal(await uploadProblem(named(header('<svg xmlns="http://www.w3.org/2000/svg"/>')), { smallestWidth: 400 }), null);
   });
+});
+
+// A figure saved at twice or three times the size it is meant to be read at, as its name says by
+// `@2x` or `@3x` before its extension, gets that size as its display width at upload (#109).
+test('fills in the display width of a file named @2x or @3x by its pixel width, and none of any other', () => {
+  const cases = [
+    ['figure@2x.png', 1264, 632],
+    ['Flow of work@3X.webp', 1900, 633],
+    ['screen@2x.final.png', 1264, null],
+    ['figure@2x', 1264, 632],
+    ['figure.png', 1264, null],
+    ['figure@4x.png', 1264, null],
+    ['figure@2x.png', 1, 1],
+    ['figure@2x.png', null, null],
+  ];
+  for (const [name, width, wanted] of cases) assert.equal(displayWidthByName(name, width), wanted, `${name} of ${width} px`);
 });

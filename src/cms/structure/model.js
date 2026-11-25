@@ -30,8 +30,9 @@ function blockOf(lines) {
   const first = lines[0];
   const heading = /^(#{2,6}) (.*)$/.exec(first);
   if (heading && lines.length === 1) return made({ kind: 'heading', level: heading[1].length, text: heading[2] });
-  const picture = /^!\[(.*)\]\(([^)\s]+)\)$/.exec(first);
-  if (picture && lines.length === 1) return made({ kind: 'image', alt: picture[1], src: picture[2] });
+  // An image, with its display width as its title where it has one.
+  const picture = /^!\[(.*)\]\(([^)\s]+)(?: "width=([1-9]\d*)")?\)$/.exec(first);
+  if (picture && lines.length === 1) return made({ kind: 'image', alt: picture[1], src: picture[2], width: picture[3] ? Number(picture[3]) : null });
   if (/^- /.test(first) || /^\d+\. /.test(first)) {
     const ordered = /^\d/.test(first);
     const items = [];
@@ -43,7 +44,8 @@ function blockOf(lines) {
     return made({ kind: 'list', ordered, children: items });
   }
   if (/^> ?/.test(first)) return made({ kind: 'quote', text: lines.join('\n') });
-  if (/^!\[.*\]\([^)\s]+\)\\?$/.test(first) && lines.filter((line) => /^!\[.*\]\([^)\s]+\)\\?$/.test(line)).length >= 2) return made({ kind: 'gallery', text: lines.join('\n') });
+  const pictureLine = /^!\[.*\]\([^)\s]+(?: "[^"]*")?\)\\?$/;
+  if (pictureLine.test(first) && lines.filter((line) => pictureLine.test(line)).length >= 2) return made({ kind: 'gallery', text: lines.join('\n') });
   if (lines.length === 1 && /^<?https?:\/\/\S+>?$/.test(first)) return made({ kind: 'embed', text: first });
   if (/^[|<]/.test(first)) return made({ kind: 'other', text: lines.join('\n') });
   return made({ kind: 'paragraph', text: lines.join('\n') });
@@ -93,7 +95,7 @@ export const parseBody = (markdown) => made({ kind: 'root', children: parseLines
 function blockText(node) {
   switch (node.kind) {
     case 'heading': return `${'#'.repeat(node.level)} ${node.text}`;
-    case 'image': return `![${node.alt}](${node.src})`;
+    case 'image': return `![${node.alt}](${node.src}${node.width ? ` "width=${node.width}"` : ''})`;
     case 'list': return node.children.map((item, index) => `${node.ordered ? `${index + 1}.` : '-'} ${item.text}`).join('\n');
     case 'leaf': return `::${node.name}${node.label === null ? '' : `[${node.label}]`}${attributesText(node.attrs)}`;
     case 'container': {

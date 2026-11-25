@@ -12,7 +12,9 @@
 // The library's own entry converts the file chosen before it is added (ADR 0022), with
 // *Lossless compression*, ticked for a PNG, under the file: changing it converts the file again
 // while the entry is unsaved, and once it is saved, it shows how the file was uploaded
-// (`lossless`), and changes nothing. What was chosen is told to `chosenLossless`.
+// (`lossless`), and changes nothing. What was chosen is told to `chosenLossless`. The display width
+// a file's name gives, `@2x` or `@3x`, or null for any other, is told to `chosenDisplayWidth` once
+// the file is added, for the entry's own field of it.
 
 import '../body/field.css';
 import { chooseImage } from '../body/chooser.js';
@@ -23,6 +25,7 @@ import { say } from '../interface-language.js';
 import { MEDIA_FOLDER } from '../../format/masters.js';
 import { kindOf } from '../../format/originals.js';
 import { wordsShown } from '../refusals.js';
+import { displayWidthOfFile } from './display-width.js';
 import { isConverted, kindOfFile, losslessBox, losslessByDefault, preparedUpload } from './upload.js';
 import './field.css';
 
@@ -39,7 +42,7 @@ const fileNameOf = (address) => {
   }
 };
 
-export function mountImageField(host, { value, changed, addFile, library, exists, alt: withAlt = true, text = false, upload = false, smallestWidth = null, fallback = false, crop = null, safe = null, lossless: savedLossless = false, chosenLossless = () => {} }) {
+export function mountImageField(host, { value, changed, addFile, library, exists, alt: withAlt = true, text = false, upload = false, smallestWidth = null, fallback = false, crop = null, safe = null, lossless: savedLossless = false, chosenLossless = () => {}, chosenDisplayWidth = () => {} }) {
   const hasAlt = withAlt && !text;
   let src = '';
   let altText = '';
@@ -218,7 +221,8 @@ export function mountImageField(host, { value, changed, addFile, library, exists
     }
     original = isConverted(kind) ? file : null;
     lossless.input.checked = losslessByDefault(kind);
-    await added(file, lossless.input.checked);
+    const byName = isConverted(kind) ? await displayWidthOfFile(file) : null;
+    if (await added(file, lossless.input.checked)) chosenDisplayWidth(byName);
   });
   lossless?.input.addEventListener('change', async () => {
     if (original === null) return;

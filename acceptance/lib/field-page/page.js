@@ -8,6 +8,7 @@ import { Selection, TextSelection } from '@milkdown/kit/prose/state';
 import { mountAuthorsField } from '../../../src/cms/authors/field.js';
 import { base64 } from '../../../src/cms/base64.js';
 import { convertForUpload } from '../../../src/cms/image/convert.js';
+import { displayWidthBox } from '../../../src/cms/image/display-width.js';
 import { mountImageField } from '../../../src/cms/image/field.js';
 import { handsFor, loadFormulas, loadReader } from '../../../src/cms/body/check.js';
 import { blockAt } from '../../../src/cms/body/place.js';
@@ -40,11 +41,12 @@ const libraryWith = ({ entries = [], throwing = {}, settings = { longestSide: 38
     async uploadSettings() {
       return settings;
     },
-    async add({ file, alt, caption, lossless = false }) {
+    async add({ file, alt, caption, lossless = false, displayWidth = null }) {
       if (this.throwing.add) throw new Error('the upload failed');
-      added.push({ name: file.name, type: file.type, alt, caption, lossless });
+      const width = displayWidth === null ? {} : { displayWidth };
+      added.push({ name: file.name, type: file.type, alt, caption, lossless, ...width });
       addedBytes.push(base64(new Uint8Array(await file.arrayBuffer())));
-      const entry = { src: `/media/${file.name}`, alt: alt.trim(), caption: caption.trim() };
+      const entry = { src: `/media/${file.name}`, alt: alt.trim(), caption: caption.trim(), ...width };
       return entry;
     },
     picture: async (address) => (address.includes('no-picture') ? null : PICTURE),
@@ -116,6 +118,8 @@ const toEnd = (index = 0) => {
   view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
   view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
 };
+
+const imageHeld = (node) => ({ src: node.attrs.src, alt: node.attrs.alt, caption: node.textContent, ...(node.attrs.width ? { width: node.attrs.width } : {}) });
 
 globalThis.fieldPage = {
   async open(value, options) {
@@ -226,11 +230,11 @@ globalThis.fieldPage = {
   stopThrowing() {
     current().library.throwing = {};
   },
-  // Each image as the document holds it.
+  // Each image as the document holds it, its display width only where it has one.
   images() {
     const found = [];
     viewOf().state.doc.descendants((node) => {
-      if (node.type.name === 'konzilo_image') found.push({ src: node.attrs.src, alt: node.attrs.alt, caption: node.textContent });
+      if (node.type.name === 'konzilo_image') found.push(imageHeld(node));
     });
     return found;
   },
@@ -272,7 +276,7 @@ globalThis.fieldPage = {
       if (node.type.name !== 'konzilo_gallery') return;
       const images = [];
       node.forEach((child) => {
-        if (child.type.name === 'konzilo_image') images.push({ src: child.attrs.src, alt: child.attrs.alt, caption: child.textContent });
+        if (child.type.name === 'konzilo_image') images.push(imageHeld(child));
       });
       found.push({ images, caption: node.lastChild.textContent });
     });
@@ -372,6 +376,7 @@ globalThis.authorsPage = {
 // behind them: what it added, as Sveltia's `addFile` would take it, with its bytes as base64, what
 // it wrote, and each choice of Lossless compression it told.
 let imageField = null;
+let displayWidth = null;
 globalThis.imagePage = {
   open({ value = '', lossless = false, settings = { longestSide: 3840, quality: 90 }, smallestWidth = null } = {}) {
     imageField?.field.destroy();
@@ -380,7 +385,7 @@ globalThis.imagePage = {
     const host = document.createElement('div');
     host.className = 'the-image-field';
     document.body.append(host);
-    const record = { added: [], values: [], told: [] };
+    const record = { added: [], values: [], told: [], widths: [] };
     const field = mountImageField(host, {
       value,
       changed: (next) => record.values.push(next),
@@ -395,10 +400,24 @@ globalThis.imagePage = {
       smallestWidth,
       lossless,
       chosenLossless: (chosen) => record.told.push(chosen),
+      chosenDisplayWidth: (width) => record.widths.push(width),
     });
     imageField = { field, host, record };
   },
   record: () => imageField.record,
+  // An image library entry's Display width alone, as its own field draws it, with what it told.
+  openDisplayWidth(width = null) {
+    displayWidth?.host.remove();
+    useInterfaceLanguage('en');
+    const host = document.createElement('div');
+    host.className = 'the-display-width';
+    document.body.append(host);
+    const told = [];
+    const box = displayWidthBox(host, { label: false, changed: (read) => told.push(read) });
+    box.set(width);
+    displayWidth = { host, box, told };
+  },
+  displayWidthTold: () => displayWidth.told,
   note: () => imageField.host.querySelector('.konzilo-pick-note').textContent,
 };
 

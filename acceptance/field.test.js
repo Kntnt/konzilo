@@ -22,6 +22,7 @@ import { contentFormat, exampleFile, markedExamples } from '../tests/lib/content
 import { everyElement, pageFile, pagePath, pageSource, run, written } from '../tests/lib/intake.js';
 import { ENGINES } from './lib/editor.js';
 import { openFieldPage } from './lib/field-page.js';
+import { sharp } from '../tests/lib/images.js';
 import { JSDOM } from 'jsdom';
 import { markdownToHtml } from 'satteri';
 import { blockMarks } from '../src/astro/block-marks.js';
@@ -1148,6 +1149,37 @@ describe('the body field, alone', () => {
       });
     });
 
+    describe('with a display width', () => {
+      const FLOW = '![A flow](/media/flow.webp "width=632")\\\nThe flow\n\n![One](/media/one.webp "width=300")\n![Two](/media/two.webp)';
+
+      test('keeps it, alone and in a gallery, through an edit', async () => {
+        await call('open', FLOW);
+        assert.deepEqual(await call('images'), [
+          { src: '/media/flow.webp', alt: 'A flow', caption: 'The flow', width: 632 },
+          { src: '/media/one.webp', alt: 'One', caption: '', width: 300 },
+          { src: '/media/two.webp', alt: 'Two', caption: '' },
+        ]);
+        await setAlt('A flow of work');
+        await call('flush');
+        assert.equal(await call('value'), FLOW.replace('[A flow]', '[A flow of work]'));
+      });
+
+      test('copies it from the library with the image', async () => {
+        await call('open', '', { library: { entries: [{ src: '/media/flow.webp', alt: 'A flow', caption: '', displayWidth: 632 }] } });
+        await openMenu();
+        await chooser().getByRole('button', { name: 'A flow' }).click();
+        await chooser().waitFor({ state: 'detached' });
+        await call('flush');
+        assert.equal(await call('value'), '![A flow](/media/flow.webp "width=632")');
+      });
+
+      test('keeps what is no display width as source, for the check to speak of', async () => {
+        await call('open', '![A flow](/media/flow.webp "width=wide")');
+        assert.deepEqual(await call('images'), []);
+        assert.equal(await call('value'), '![A flow](/media/flow.webp "width=wide")');
+      });
+    });
+
     describe('uploaded in the chooser', () => {
       const upload = async (file = { name: 'A new one.png', mimeType: 'image/png', buffer: PNG }) => {
         await chooser().getByRole('button', { name: 'Upload a new image' }).click();
@@ -1165,6 +1197,68 @@ describe('the body field, alone', () => {
         // Converted before it is sent, a PNG losslessly unless the editor says otherwise (#114).
         assert.deepEqual(await call('added'), [{ name: 'A new one.webp', type: 'image/webp', alt: ' A new one ', caption: ' Its caption ', lossless: true }]);
         assert.deepEqual(await call('images'), [{ src: '/media/A new one.webp', alt: 'A new one', caption: 'Its caption' }]);
+      });
+
+      test('fills in the display width of a file named @2x, which the keyboard changes, and uploads the image with it', async () => {
+        const figure = await sharp({ create: { width: 1264, height: 800, channels: 3, background: '#fafafa' } }).png().toBuffer();
+        const width = () => chooser().getByRole('group', { name: 'Display width' });
+        const pixels = () => width().getByRole('spinbutton', { name: 'Display width in pixels' });
+        await call('open', '', { library: LIBRARY });
+        await openMenu();
+        await upload({ name: 'figure@2x.png', mimeType: 'image/png', buffer: figure });
+        await page.waitForFunction(() => document.querySelector('.konzilo-display-width-pixels')?.value === '632');
+        assert.equal(await width().getByRole('radio', { name: 'At most' }).isChecked(), true);
+        assert.match(await pixels().getAttribute('aria-describedby'), /./, 'with what it does, for a screen reader');
+        await pixels().focus();
+        await page.keyboard.press('ArrowUp');
+        assert.equal(await pixels().inputValue(), '633');
+        await chooser().getByRole('textbox', { name: 'Alt text' }).fill('A flow');
+        await chooser().getByRole('button', { name: 'Upload and use' }).click();
+        await chooser().waitFor({ state: 'detached', timeout: 60_000 });
+        assert.deepEqual((await call('added')).map(({ name, displayWidth }) => [name, displayWidth]), [['figure@2x.webp', 633]]);
+        assert.deepEqual(await call('images'), [{ src: '/media/figure@2x.webp', alt: 'A flow', caption: '', width: 633 }]);
+      });
+
+      test('fills the column for a file named otherwise, and back again by the keyboard', async () => {
+        const figure = await sharp({ create: { width: 1264, height: 800, channels: 3, background: '#fafafa' } }).png().toBuffer();
+        const width = () => chooser().getByRole('group', { name: 'Display width' });
+        await call('open', '', { library: LIBRARY });
+        await openMenu();
+        await upload({ name: 'figure@2x.png', mimeType: 'image/png', buffer: figure });
+        await page.waitForFunction(() => document.querySelector('.konzilo-display-width-pixels')?.value === '632');
+        await chooser().locator('input[type=file]').setInputFiles({ name: 'figure.png', mimeType: 'image/png', buffer: figure });
+        await page.waitForFunction(() => document.querySelector('.konzilo-display-width input[type=radio]')?.checked);
+        assert.equal(await width().getByRole('radio', { name: 'Fill the column' }).isChecked(), true);
+        assert.equal(await width().getByRole('spinbutton').isDisabled(), true);
+        await width().getByRole('radio', { name: 'Fill the column' }).focus();
+        await page.keyboard.press('ArrowDown');
+        assert.equal(await width().getByRole('radio', { name: 'At most' }).isChecked(), true);
+        await page.keyboard.press('Tab');
+        await page.keyboard.press('ArrowDown');
+        assert.equal(await width().getByRole('spinbutton').inputValue(), '631', 'the width it had, and one less');
+        await page.keyboard.press('Shift+Tab');
+        await page.keyboard.press('ArrowUp');
+        assert.equal(await width().getByRole('radio', { name: 'Fill the column' }).isChecked(), true);
+        assert.equal(await width().getByRole('spinbutton').isDisabled(), true);
+        await chooser().getByRole('textbox', { name: 'Alt text' }).fill('A photo');
+        await chooser().getByRole('button', { name: 'Upload and use' }).click();
+        await chooser().waitFor({ state: 'detached', timeout: 60_000 });
+        assert.deepEqual((await call('added')).map(({ displayWidth }) => displayWidth), [undefined]);
+        assert.deepEqual(await call('images'), [{ src: '/media/figure.webp', alt: 'A photo', caption: '' }]);
+      });
+
+      test('takes no display width that is no whole number of pixels, and says why', async () => {
+        const width = () => chooser().getByRole('group', { name: 'Display width' });
+        await call('open', '', { library: LIBRARY });
+        await openMenu();
+        await upload();
+        await width().getByRole('radio', { name: 'At most' }).check();
+        await chooser().getByRole('textbox', { name: 'Alt text' }).fill('A dot');
+        await chooser().getByRole('button', { name: 'Upload and use' }).click();
+        await width().getByRole('alert').filter({ hasText: 'Give a whole number of pixels from 1 to 16383.' }).waitFor();
+        assert.equal(await width().getByRole('spinbutton').getAttribute('aria-invalid'), 'true');
+        assert.deepEqual(await call('added'), []);
+        await page.keyboard.press('Escape');
       });
 
       test('needs a file and an alt text, and adds nothing until it has them', async () => {

@@ -3,7 +3,7 @@
 // are the intake's (ADR 0027), so the writer's duty is the meaning, as Sätteri reads it,
 // and the field opens as Markdown where it cannot keep that (see `open` in field.js).
 
-import { linkAddress, splitAutolinks } from '../../format/body.js';
+import { displayWidthIn, linkAddress, splitAutolinks } from '../../format/body.js';
 import { embedOf } from '../../format/embeds.js';
 import rules from '../../format/rules.json' with { type: 'json' };
 import { siteComponents } from './components.js';
@@ -73,8 +73,10 @@ const inCaption = (node) => {
   return (node.type === 'strong' || node.type === 'emphasis') && node.children.every(inCaption);
 };
 
-const canHold = (image) => !image.title && !(image.alt ?? '').includes('\n');
-const imageOf = (image, caption = []) => ({ type: 'konziloImage', src: image.url, alt: image.alt ?? '', children: caption });
+// An image's title is its display width, or something the site cannot publish, which the field
+// leaves as it stands.
+const canHold = (image) => (!image.title || displayWidthIn(image.title)?.width !== undefined) && !(image.alt ?? '').includes('\n');
+const imageOf = (image, caption = []) => ({ type: 'konziloImage', src: image.url, alt: image.alt ?? '', width: displayWidthIn(image.title)?.width ?? null, children: caption });
 
 // A paragraph as the image the editor holds, or null where it is no image the site can show as
 // one, which stays as it stands and has the check's word at Save.
@@ -327,7 +329,8 @@ function text(node, _, state, info) {
 // escaped, a `$` that could open a formula among it, and a colon as anywhere.
 const altWritten = (alt) => alt.trim().replace(/[\\*`[\]_&<~$]|:(?=[\p{L}\p{N}])/gu, '\\$&');
 
-const image = (node) => `![${altWritten(node.alt)}](${linkAddress(node.url)})`;
+// An image, with its display width as its title where it has one.
+const image = (node) => `![${altWritten(node.alt)}](${linkAddress(node.url)}${node.title ? ` "${node.title}"` : ''})`;
 
 function caption(node, _, state, info) {
   const exit = state.enter(CAPTION);

@@ -11,11 +11,11 @@
 import { signedInCredential } from '../credential.js';
 import { imageLibrary } from '../body/library.js';
 
-import { IMAGE_WIDGET, LOSSLESS_WIDGET } from './widget.js';
-import { losslessChoice } from './lossless-choice.js';
+import { DISPLAY_WIDTH_WIDGET, IMAGE_WIDGET, LOSSLESS_WIDGET } from './widget.js';
+import { displayWidthChoice, losslessChoice } from './lossless-choice.js';
 import { plain } from '../plain.js';
 
-export { IMAGE_WIDGET, LOSSLESS_WIDGET };
+export { DISPLAY_WIDTH_WIDGET, IMAGE_WIDGET, LOSSLESS_WIDGET };
 
 export function registerImageField(CMS, config) {
   const { api_root: api, repo: repository, branch = 'main' } = config.backend;
@@ -62,6 +62,7 @@ export function registerImageField(CMS, config) {
           safe: sized('safe'),
           lossless: latest.current.lossless,
           chosenLossless: (chosen) => losslessChoice.tell(chosen),
+          chosenDisplayWidth: (width) => displayWidthChoice.tell(width),
         });
         live.current.setStandIn(latest.current.standIn);
       });
@@ -90,5 +91,44 @@ export function registerImageField(CMS, config) {
     latest.current = onChange;
     React.useEffect(() => losslessChoice.watch((chosen) => latest.current(chosen ? true : '')), []);
     return null;
+  });
+
+  // A library entry's *Display width*: *Fill the column*, which leaves it out of the file, or *At
+  // most* a number of pixels. The file field fills it in for a file named `@2x` or `@3x`, and the
+  // editor may change it at any time. Sveltia's label names it, and the choice's own name is there
+  // for a screen reader alone.
+  CMS.registerFieldType(DISPLAY_WIDTH_WIDGET, function KonziloDisplayWidth({ value, onChange, forID }) {
+    const React = window.__SVELTIA_CMS_REACT__;
+    const host = React.useRef(null);
+    const live = React.useRef(null);
+    const latest = React.useRef({ onChange, value });
+    latest.current = { onChange, value };
+    const written = (width) => latest.current.onChange(width ?? '');
+    React.useEffect(() => {
+      let gone = false;
+      void import('./display-width.js').then(({ displayWidthBox }) => {
+        if (gone) return;
+        live.current = displayWidthBox(host.current, { label: false, className: 'konzilo-pick-check', changed: (read) => written(read?.width ?? null) });
+        live.current.first.id = forID;
+        live.current.set(plain(latest.current.value));
+      });
+      const stop = displayWidthChoice.watch((width) => {
+        live.current?.set(width);
+        written(width);
+      });
+      return () => {
+        gone = true;
+        stop();
+        live.current?.row.remove();
+      };
+    }, []);
+    // A value from outside, as a saved entry's, unless it is what the choice says already, which it
+    // is while *At most* waits for its pixels.
+    React.useEffect(() => {
+      const box = live.current;
+      const given = plain(value);
+      if (box && (box.read()?.width ?? null) !== (Number.isInteger(given) ? given : null)) box.set(given);
+    }, [value]);
+    return React.createElement('div', { ref: host, className: 'konzilo-pick-host konzilo-display-width-host' });
   });
 }

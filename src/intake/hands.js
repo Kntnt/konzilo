@@ -14,8 +14,10 @@ const fileFolders = (path) => path.split('/').length - 1;
 // content folder's root.
 export const climb = (path) => '../'.repeat(fileFolders(path));
 
-// A master for an image a post names: { src, warning }, or { reason }.
-export function masterFor(run, address, stem, from, { icon = false } = {}) {
+// A master for an image a post names: { src, warning }, or { reason }. `sized`: an image
+// with a display width of its own, standing alone in a body, whose size is chosen, so it is not
+// warned of for being narrower than the width the site usually shows images at.
+export function masterFor(run, address, stem, from, { icon = false, sized = false } = {}) {
   const name = mediaName(address);
   if (name === null) return { reason: say('refusal.image-outside', { address: String(address) }) };
   const facts = run.images(`media/${name}`);
@@ -28,7 +30,7 @@ export function masterFor(run, address, stem, from, { icon = false } = {}) {
   } else if (!facts.svg && widths) {
     if (widths.smallestWidth !== null && facts.width < widths.smallestWidth) return { reason: say('refusal.image-small', { width: facts.width, smallest: widths.smallestWidth }) };
   }
-  const warning = !icon && !facts.svg && widths?.displayWidth && facts.width < widths.displayWidth ? say('warning.image-narrow', { name, width: facts.width, display: widths.displayWidth }) : undefined;
+  const warning = !icon && !sized && !facts.svg && widths?.displayWidth && facts.width < widths.displayWidth ? say('warning.image-narrow', { name, width: facts.width, display: widths.displayWidth }) : undefined;
   const master = `${stem}-${hashDigits(facts.hash)}.${facts.extension}`;
   return { src: `${from}media/${master}`, warning, master, contents: facts.contents };
 }
@@ -116,8 +118,8 @@ export function handsFor(post, run, from) {
     components: run.components,
     listTerms: listTermsOf(run),
     link: (id, fragment) => linkTarget(run, post, id, fragment),
-    image: (address) => {
-      const master = masterFor(run, address, slug, from);
+    image: (address, { sized = false } = {}) => {
+      const master = masterFor(run, address, slug, from, { sized });
       if (master.master) post.masters.set(`media/${master.master}`, master.contents);
       return master;
     },

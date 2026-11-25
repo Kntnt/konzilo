@@ -10,7 +10,8 @@ const NOT_TAKEN = new Set(['GIF', 'HEIC', 'TIFF', 'BMP']);
 // A WebP says it moves in its extended header's flags.
 const movesAsWebp = (head) => String.fromCharCode(...head.subarray(12, 16)) === 'VP8X' && (head[20] & 0x02) !== 0;
 
-const measured = async (file) => {
+// A raster's size as the browser decodes it, upright: { width, height }.
+export const measured = async (file) => {
   const bitmap = await globalThis.createImageBitmap(file);
   const size = { width: bitmap.width, height: bitmap.height };
   bitmap.close();

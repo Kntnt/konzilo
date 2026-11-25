@@ -152,6 +152,38 @@ for (const [name, engine] of Object.entries(ENGINES)) {
         assert.equal(await lossless().isChecked(), true);
         assert.equal(await lossless().isEnabled(), false);
       });
+
+      // The display width a file's name gives (#109), which the entry's own field of it takes.
+      test('tells the display width of a file named @2x by its pixels, and to fill the column for any other', async () => {
+        const figure = await sharp({ create: { width: 1264, height: 800, channels: 3, background: '#fafafa' } }).png().toBuffer();
+        await call('open');
+        await choose({ name: 'figure@2x.png', mimeType: 'image/png', buffer: figure });
+        await page.waitForFunction(() => globalThis.imagePage.record().widths.length === 1);
+        assert.deepEqual((await call('record')).widths, [632]);
+        await call('open');
+        await choose({ name: 'figure.png', mimeType: 'image/png', buffer: figure });
+        await page.waitForFunction(() => globalThis.imagePage.record().widths.length === 1);
+        assert.deepEqual((await call('record')).widths, [null]);
+      });
+
+      test('draws the display width as a group a screen reader names, which the keyboard sets', async () => {
+        await call('openDisplayWidth', 632);
+        const group = page.locator('.the-display-width').getByRole('group', { name: 'Display width' });
+        const most = group.getByRole('radio', { name: 'At most' });
+        const pixels = group.getByRole('spinbutton', { name: 'Display width in pixels' });
+        assert.equal(await most.isChecked(), true);
+        assert.equal(await pixels.inputValue(), '632');
+        assert.match(await pixels.getAttribute('aria-describedby'), /./, 'with what it does');
+        await most.focus();
+        await page.keyboard.press('ArrowUp');
+        assert.equal(await group.getByRole('radio', { name: 'Fill the column' }).isChecked(), true);
+        assert.equal(await pixels.isDisabled(), true);
+        await page.keyboard.press('ArrowDown');
+        await page.keyboard.press('Tab');
+        assert.equal(await pixels.evaluate((element) => element === document.activeElement), true);
+        await page.keyboard.press('ArrowUp');
+        assert.deepEqual(await call('displayWidthTold'), [null, { width: 632 }, { width: 633 }]);
+      });
     });
 
     describe('in the chooser\'s upload', () => {

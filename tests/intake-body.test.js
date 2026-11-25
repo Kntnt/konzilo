@@ -11,7 +11,7 @@ import { checkBody } from '../src/format/body.js';
 import { embedOf } from '../src/format/embeds.js';
 import rules from '../src/format/rules.json' with { type: 'json' };
 import { reader } from '../src/intake/reader.js';
-import { everyElement, pageFile, pagePath, pageSource, run, sourcePost, written } from './lib/intake.js';
+import { everyElement, namedImages, pageFile, pagePath, pageSource, run, sourcePost, written } from './lib/intake.js';
 
 const out = (body, site = everyElement, extra = {}) => {
   const result = run({ [pagePath]: pageSource(body), ...extra }, site);
@@ -110,6 +110,27 @@ test('replaces an image\'s path with its master, from where the file is', () => 
   assert.deepEqual(result.refusals, []);
   assert.equal(written(result)['pages/parent/child.md'], '---\ntitle: "Child"\ndate: 2026-11-03T12:00:00Z\nmodified: 2026-11-03T12:00:00Z\n---\n\n![A barn](../../media/child-faf546aae9.webp)\\\nThe barn\n');
   assert.equal(written(result)['media/child-faf546aae9.webp'], 'the master of media/barn-faf546aae9.jpg');
+});
+
+test('keeps an image\'s display width, its title, alone and in a gallery, in the exact form', () => {
+  const source = "![A flow](/media/flow-faf546aae9.png 'width=0632')\\\nThe flow\n\n![One](/media/one-500a71b248.png (width=300))\n![Two](/media/two-3f9a1c2b7d.png)";
+  const { text } = out(source);
+  assert.equal(text, pageFile('![A flow](../media/hello-world-faf546aae9.webp "width=632")\\\nThe flow\n\n![One](../media/hello-world-500a71b248.webp "width=300")\n![Two](../media/hello-world-3f9a1c2b7d.webp)'));
+  assert.equal(out(text.split('---\n\n')[1].trim()).text, text, 'and reads it back the same');
+});
+
+test('warns of no image with a display width of its own for being narrow, standing alone, and still refuses one narrower than the smallest', () => {
+  const site = { ...everyElement, images: { smallestWidth: 400, displayWidth: 1280 } };
+  const body = '![Sized](/media/sized.png "width=400")\n\n![Filling](/media/filling.png)\n\n![In a gallery](/media/one.png "width=400")\n![Beside it](/media/two.png)';
+  const narrow = run({ [pagePath]: pageSource(body) }, site, { images: namedImages({ width: 800, height: 500 }) });
+  assert.deepEqual(narrow.refusals, []);
+  assert.deepEqual(narrow.warnings.filter(({ post }) => post).map(({ name, block, values }) => [name, block.path, values.name]), [
+    ['warning.image-narrow', '2', 'filling.png'],
+    ['warning.image-narrow', '3', 'one.png'],
+    ['warning.image-narrow', '3', 'two.png'],
+  ]);
+  const small = run({ [pagePath]: pageSource('![Sized](/media/sized.png "width=200")') }, site, { images: namedImages({ width: 300, height: 200 }) });
+  assert.deepEqual(small.refusals.map(({ name, values }) => [name, values]), [['refusal.image-small', { width: 300, smallest: 400 }]]);
 });
 
 test('writes a post list\'s attributes in the registry\'s order, off their defaults, its terms as slugs', () => {

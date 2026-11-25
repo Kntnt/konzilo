@@ -33,6 +33,7 @@ const MASTERS = {
   'tall.webp': { width: 1120, height: 1680 },
   'small.webp': { width: 600, height: 400 },
   'drawing.webp': { width: 1300, height: 800, lossless: true },
+  'figure.webp': { width: 1264, height: 800, lossless: true },
 };
 
 const posts = [
@@ -46,6 +47,19 @@ const posts = [
       '![A small boat](../media/small.webp)',
       '![A drawing of the pier](../media/drawing.webp)',
       '![A tall lighthouse](../media/tall.webp)\n![A wide harbour again](../media/wide.webp)\nTwo views',
+    ),
+  }),
+  // A figure saved at twice the size it is meant to be drawn at, with its display width: alone,
+  // in a gallery, and one whose display width is wider than its master.
+  post({
+    ID: 2,
+    slug: 'figures',
+    title: 'Figures',
+    body: paragraphs(
+      '![A flow of work](../media/figure.webp "width=632")\\\nThe flow',
+      '![The flow again](../media/figure.webp "width=632")\n![A tall lighthouse](../media/tall.webp)',
+      '![A small boat](../media/small.webp "width=900")',
+      '![A plan of the pier](../media/plan.svg "width=200")',
     ),
   }),
 ];
@@ -90,12 +104,18 @@ async function siteRepository(options) {
   siteSettingsArgs(repository);
   const exported = writeContent(repository, posts);
   assert.equal(exported.status, 0, exported.stderr);
+  write(repository, 'content/media/plan.svg', '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400" viewBox="0 0 800 400"><rect width="800" height="400" fill="#246"/></svg>\n');
   for (const [name, { width, height, lossless }] of Object.entries(MASTERS)) {
     const drawn = await plainImage(sharp, { width, height, format: 'png' });
     write(repository, `content/media/${name}`, await sharp(drawn).webp(lossless ? { lossless: true } : { quality: 90 }).toBuffer());
   }
   return repository;
 }
+
+const pageOf = (repository, slug) => {
+  const page = join(repository, `dist/${slug}/index.html`);
+  return existsSync(page) ? readFileSync(page, 'utf8') : '';
+};
 
 const build = (repository) => nodeSync([astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
 
@@ -130,13 +150,16 @@ describe('a build of a site that gives no widths of its own', () => {
   let built;
   let html;
   let images;
+  let figuresHtml;
+  let figures;
 
   before(async () => {
     repository = await siteRepository();
     built = build(repository);
-    const page = join(repository, 'dist/harbour/index.html');
-    html = existsSync(page) ? readFileSync(page, 'utf8') : '';
+    html = pageOf(repository, 'harbour');
     images = imagesOf(html);
+    figuresHtml = pageOf(repository, 'figures');
+    figures = imagesOf(figuresHtml);
   });
 
   after(() => rmSync(repository, { recursive: true, force: true }));
@@ -191,6 +214,36 @@ describe('a build of a site that gives no widths of its own', () => {
     for (const name of all) assert.ok((await sharp(join(repository, 'dist/_astro', name)).metadata()).width <= 2520, name);
   });
 
+  test('writes an image with a display width at that width, by its master\'s proportions, in every version up to its master\'s, at sizes no wider', () => {
+    const [sized] = figures;
+    assert.deepEqual([sized.width, sized.height], ['632', '400']);
+    assert.deepEqual(versionsOf(sized).map(({ width }) => width), [480, 800, 1264], 'its full pixels, for a dense screen');
+    assert.equal(sized.src, versionsOf(sized).at(-1).file);
+    assert.equal(sized.sizes, '(min-width: 46rem) min(46rem, 632px), min(100vw, 632px)');
+    assert.equal(sized.title, undefined, 'and no title');
+    assert.doesNotMatch(figuresHtml, /displaywidth|width=632"/i, 'nor anything else of how it was asked for');
+  });
+
+  test('draws a gallery\'s image as it would any other, and an image no wider than its display width as before', () => {
+    const [, inGallery, , small] = figures;
+    assert.deepEqual([inGallery.width, inGallery.height, inGallery.title], ['1264', '800', undefined]);
+    assert.equal(inGallery.sizes, '(min-width: 46rem) 15rem, (min-width: 28rem) 50vw, 100vw');
+    assert.deepEqual([small.width, small.height, small.title], ['600', '400', undefined]);
+    assert.equal(small.sizes, '(min-width: 46rem) min(46rem, 900px), min(100vw, 900px)');
+  });
+
+  test('writes an SVG with a display width at that width, as itself, in no widths', () => {
+    const plan = figures.find(({ alt }) => alt === 'A plan of the pier');
+    assert.deepEqual([plan.width, plan.height, plan.srcset, plan.title], ['200', '100', undefined, undefined]);
+    assert.match(plan.src, /\.svg$/);
+  });
+
+  test('shows an image with a display width across the window in its lightbox', () => {
+    const [sized] = imagesOf(figuresHtml, { lightbox: true });
+    assert.equal(sized.sizes, '100vw');
+    assert.equal(sized.srcset, figures[0].srcset);
+  });
+
   test('makes every version of a lossless master lossless, and the others lossy', () => {
     const [wide, , drawing] = images;
     for (const { file } of versionsOf(drawing)) assert.ok(isLossless(readFileSync(join(repository, 'dist', file))), file);
@@ -222,6 +275,12 @@ describe('a build of a site that gives widths and sizes of its own', () => {
     const [wide] = images;
     assert.deepEqual(versionsOf(wide).map(({ width }) => width), [400, 900, 1800]);
     assert.equal(wide.sizes, '(min-width: 60rem) 40rem, 90vw');
+  });
+
+  test('writes an image with a display width at the site\'s sizes, none wider than that width', () => {
+    const [sized] = imagesOf(pageOf(repository, 'figures'));
+    assert.equal(sized.sizes, '(min-width: 60rem) min(40rem, 632px), min(90vw, 632px)');
+    assert.deepEqual(versionsOf(sized).map(({ width }) => width), [400, 900, 1264]);
   });
 
   test('keeps the core\'s widths for a context the site gives only its sizes', () => {

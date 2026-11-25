@@ -799,7 +799,7 @@ describe('a site in Compose', () => {
         page.on('console', (message) => {
           if (message.type() === 'warning' && !/configuration schema/.test(message.text())) warned.push(message.text());
         });
-        await place.locator('input[type=file]').first().setInputFiles({ name: 'from-the-form.jpg', mimeType: 'image/jpeg', buffer: bytes });
+        await place.locator('input[type=file]').first().setInputFiles({ name: 'from-the-form@2x.jpg', mimeType: 'image/jpeg', buffer: bytes });
         await page.waitForFunction(() => {
           const field = document.querySelector('.field[data-key-path="src"]');
           return field.querySelector('.konzilo-pick-picture img:not([hidden])') || field.querySelector('.konzilo-pick-note').textContent !== '';
@@ -814,13 +814,18 @@ describe('a site in Compose', () => {
         await page.keyboard.press('Space');
         await page.waitForFunction((was) => document.querySelector('.field[data-key-path="src"] .konzilo-pick-name')?.textContent !== was, lossy, { timeout: 60_000 });
         assert.equal(await lossless.isChecked(), true);
+        // A file named @2x has half its pixels as its display width, in a field of its own (#109).
+        const width = page.locator('.field[data-key-path="displayWidth"]').getByRole('group', { name: 'Display width' });
+        assert.equal(await width.getByRole('radio', { name: 'At most' }).isChecked(), true);
+        assert.equal(await width.getByRole('spinbutton', { name: 'Display width in pixels' }).inputValue(), '650');
         await page.getByRole('button', { name: 'Save', exact: true }).click();
         let entry;
         for (const deadline = Date.now() + 30_000; !entry && Date.now() < deadline; await page.waitForTimeout(500)) entry = (await libraryEntries()).find(({ alt }) => alt === 'Made in the form');
         assert.ok(entry, 'the entry reached the repository');
         assert.equal(entry.caption, undefined);
-        assert.match(entry.src, /^\/media\/from-the-form-[0-9a-f]{10}\.webp$/, 'named as the library names an upload');
+        assert.match(entry.src, /^\/media\/from-the-form-2x-[0-9a-f]{10}\.webp$/, 'named as the library names an upload');
         assert.equal(entry.lossless, true, 'and said to be lossless, as its file is');
+        assert.equal(entry.displayWidth, 650, 'with its display width');
         const inLfs = await get(`${site.origin.git}/api/v1${repository()}/media${entry.src}`, { headers: { authorization: `token ${token}` } });
         assert.equal(Buffer.from(await inLfs.arrayBuffer()).subarray(12, 16).toString('latin1'), 'VP8L');
 
