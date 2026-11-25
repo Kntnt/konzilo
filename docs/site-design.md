@@ -54,6 +54,21 @@ content.children.forEach((node, index) => {
 
 A post list in a component's body is evaluated in its place among the body's lists, in the order they are written, whether the component renders its body, part of it or none of it: the lists written below it leave out its posts even where the component shows none of them. In the tree it stands as its plain rendering, so a design that wants its posts shown places the slot, or the list's own block's slot, which draws the posts the list was given in its place, however many times it is drawn.
 
+A template is given its post's body as the same tree by `bodyTree(entry)` from `@kntnt/konzilo/astro`, a promise of the tree a component holding the whole body would be given as `content`: each heading with its ID, an image as the page draws it but for the lightbox, a component and a post list as their plain rendering, holding their bodies, and in the live preview each block's mark, so that a component's `content` is its part of it. Given HTML in place of the entry, `bodyTree(html)` gives that HTML's tree, read the same way, so a template's own component around `Body` reads the body as the page renders it, each component as the site's component drew it and each post list by its presentation: `const tree = await bodyTree(await Astro.slots.render('default'))`. Each call gives a new tree, which the template may change. A template that draws a block from the tree with its properties keeps the block's mark, so that a click on it in the live preview leads to the block, as on a component that draws its tree. A table of contents, which points at a block rather than draws it, leaves the mark off, since the page shows a block a field asks for at the first element that holds its mark:
+
+```astro
+---
+import { bodyTree } from '@kntnt/konzilo/astro';
+const { entry } = Astro.props;
+const tree = await bodyTree(entry);
+const words = (node) => (node.type === 'text' ? node.value : (node.children ?? []).map(words).join(''));
+const stops = tree.children.filter((node) => node.type === 'element' && node.tagName === 'h2');
+---
+<nav class="…"><ol>{stops.map((node) => <li><a href={`#${node.properties.id}`}>{words(node)}</a></li>)}</ol></nav>
+```
+
+A component with an anchor stands in the tree from the entry as its plain rendering, its anchor among its `data-` properties, `dataAnchor` for an attribute `anchor`, and in the tree of what `Body` rendered as the site's component drew it, such as an `aside` whose `id` is the anchor.
+
 A post list is drawn by the component the site gives for its presentation through `presentations`. It is given `posts`, the posts of the page it shows, each `{ entry, url }`, the post's entry and its address below the site's base, or null for a type without one; `options`, the presentation's options as the list sets them; `empty`, the text for a list that matches nothing; `pager`, the pager's data for a list with pages of its own, else null; and `list`, what the whole list holds over all its pages, after its offset and the posts it leaves out, in the page's language:
 
 ```js
