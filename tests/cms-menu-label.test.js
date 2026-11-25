@@ -23,7 +23,7 @@ function forgejo(files) {
 }
 
 const menu = (items) => `${JSON.stringify({ items }, null, 2)}\n`;
-const reader = (stand, credential = () => 'token mine') => menuLabelReader({ api: 'http://git/api/v1', repository: 'org/source', credential, get: stand.get });
+const reader = (stand, credential = () => 'token mine') => menuLabelReader({ api: 'http://git/api/v1', repository: 'org/source', branch: 'main', credential, get: stand.get });
 
 describe('the label of the menu entry that leads to a post', () => {
   const files = {

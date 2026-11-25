@@ -30,6 +30,7 @@ import { say } from '../interface-language.js';
 import { computedDefault } from '../groups/menu.js';
 import { postValues } from '../groups/values.js';
 import { signedInCredential } from '../credential.js';
+import { sourceOf, sourceReader } from '../source.js';
 import { menuLabelReader } from './menu-label.js';
 import { SCHEMA_WIDGET, SLUG_WIDGET, TEXT_WIDGET } from './widgets.js';
 import './form.css';
@@ -40,17 +41,14 @@ const dataOf = (entry) => postValues(entry?.get?.('data'));
 
 // The site's settings in the source repository, read once.
 function settingsReader(config) {
-  const { api_root: api, repo: repository, branch = 'main' } = config.backend;
+  const where = sourceOf(config);
+  const source = sourceReader({ ...where, credential: signedInCredential });
   let asked = null;
   return () => {
     asked ??= (async () => {
-      const held = signedInCredential();
-      if (!api || !held) return {};
-      const answer = await fetch(`${api}/repos/${repository}/contents/settings.json?ref=${encodeURIComponent(branch)}`, { headers: { authorization: held } });
-      if (!answer.ok) return {};
-      const file = await answer.json();
-      const bytes = Uint8Array.from(atob(file.content.replace(/\s/g, '')), (character) => character.charCodeAt(0));
-      return JSON.parse(new TextDecoder().decode(bytes)) ?? {};
+      if (!where.api) return {};
+      const text = await source.text('settings.json');
+      return text === null ? {} : JSON.parse(text) ?? {};
     })().catch(() => ({}));
     return asked;
   };
@@ -65,8 +63,7 @@ export function registerParts(CMS, config) {
   const h = React.createElement;
   const site = config.site_url;
   const readSettings = settingsReader(config);
-  const { api_root: api, repo: repository, branch = 'main' } = config.backend;
-  const menuLabelFor = menuLabelReader({ api, repository, branch, credential: signedInCredential });
+  const menuLabelFor = menuLabelReader({ ...sourceOf(config), credential: signedInCredential });
 
   // What each part left empty falls back to. A field's own value is left out, so that the
   // placeholder shows the part's default and not what is written.

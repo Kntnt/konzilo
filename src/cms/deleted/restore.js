@@ -63,12 +63,13 @@ const refusalOf = (latest) => {
 };
 
 // Restores `entry`, as the service lists it: { path, collection, commit, last: { commit, text },
-// along }, `commit` its deletion's. `api`: Forgejo's. `credential()`: what Sveltia signed in with.
+// along }, `commit` its deletion's. `api`, `repository` and `branch`: the source, as sourceOf()
+// names it. `credential()`: what Sveltia signed in with.
 // `lock`: the keeper's, which holds the form for the restore. `latestSave(path)`: the account and
 // moment of the file's latest save, as its history has them, or null. `opened()`: opens its form,
 // once it is saved, before the lock held for it goes. Gives { restored: true } or { refusal }, by its
 // name and values; throws where Forgejo cannot be asked or answers otherwise.
-export async function restoreDeleted({ entry, api, repository, branch = 'main', credential, ask = (...args) => globalThis.fetch(...args), lock, latestSave, opened = async () => {}, pause = (ms) => new Promise((go) => setTimeout(go, ms)) }) {
+export async function restoreDeleted({ entry, api, repository, branch, credential, ask = (...args) => globalThis.fetch(...args), lock, latestSave, opened = async () => {}, pause = (ms) => new Promise((go) => setTimeout(go, ms)) }) {
   const { path, collection } = entry;
   const held = await lock.beforeRestoring(formOfEntry(entry));
   if (held.refusal) return { refusal: held.refusal };

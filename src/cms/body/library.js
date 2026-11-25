@@ -11,6 +11,7 @@ import { displayWidthIn } from '../../format/body.js';
 import { IMAGE_LIBRARY_FOLDER, MEDIA_FOLDER } from '../../format/masters.js';
 import { kindOf } from '../../format/originals.js';
 import { base64 } from '../base64.js';
+import { contentsPath, decodedContent } from '../source.js';
 import { uploadSettingsOf } from '../image/upload-settings.js';
 
 export const THUMBNAIL_PATH = '/_konzilo/thumbnail';
@@ -20,7 +21,6 @@ const EXTENSIONS = { jpeg: 'jpg', png: 'png', webp: 'webp', svg: 'svg' };
 
 const hex = (buffer) => [...new Uint8Array(buffer)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 
-const decoded = (content) => new TextDecoder().decode(Uint8Array.from(atob(content), (character) => character.charCodeAt(0)));
 
 // A file's name as words a site's address can hold, with no leading or trailing hyphen.
 export const stemOf = (name) => name.replace(/\.[^.]*$/, '').normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60).replace(/-+$/, '') || 'image';
@@ -52,8 +52,8 @@ function entryOf(text) {
   }
 }
 
-// `api`: Forgejo's. `credential()`: the signed-in editor's.
-export function imageLibrary({ api, repository, branch = 'main', credential, get = (...args) => globalThis.fetch(...args), id = () => globalThis.crypto.randomUUID().replaceAll('-', '').slice(0, 12), digest = (bytes) => globalThis.crypto.subtle.digest('SHA-256', bytes) }) {
+// The source as sourceOf() names it, and `credential()`, the signed-in editor's.
+export function imageLibrary({ api, repository, branch, credential, get = (...args) => globalThis.fetch(...args), id = () => globalThis.crypto.randomUUID().replaceAll('-', '').slice(0, 12), digest = (bytes) => globalThis.crypto.subtle.digest('SHA-256', bytes) }) {
   const ask = async (path, options = {}) => {
     const held = credential();
     if (!held) throw new Error('nobody is signed in');
@@ -89,7 +89,7 @@ export function imageLibrary({ api, repository, branch = 'main', credential, get
       const unknown = files.map(({ sha }) => sha).filter((sha) => !known.has(sha));
       for (let at = 0; at < unknown.length; at += BLOBS_AT_ONCE) {
         const blobs = await ask(`/git/blobs?shas=${unknown.slice(at, at + BLOBS_AT_ONCE).join(',')}`);
-        for (const blob of blobs ?? []) if (blob) known.set(blob.sha, entryOf(decoded(blob.content)));
+        for (const blob of blobs ?? []) if (blob) known.set(blob.sha, entryOf(decodedContent(blob.content)));
       }
       return files.map(({ sha }) => known.get(sha)).filter(Boolean).sort((one, other) => one.alt.localeCompare(other.alt));
     },
@@ -127,13 +127,13 @@ export function imageLibrary({ api, repository, branch = 'main', credential, get
     async uploadSettings() {
       let answer;
       try {
-        answer = await ask(`/contents/settings.json?ref=${encodeURIComponent(branch)}`);
+        answer = await ask(contentsPath('settings.json', branch));
       } catch (error) {
         if (error.status === 404) return uploadSettingsOf({});
         throw error;
       }
       try {
-        return uploadSettingsOf(JSON.parse(decoded(answer.content ?? '')));
+        return uploadSettingsOf(JSON.parse(decodedContent(answer.content)));
       } catch {
         return uploadSettingsOf({});
       }

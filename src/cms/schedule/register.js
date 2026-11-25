@@ -23,6 +23,7 @@ import { useReadOnly } from '../lock/read-only.js';
 import { plain } from '../plain.js';
 import { readStatus } from '../publishing/status.js';
 import { refuseAtSave } from '../refusals.js';
+import { sourceOf } from '../source.js';
 import { authorsIn } from '../authors/terms.js';
 import { addCondition, addTrigger, changeCondition, changeTrigger, cycleThrough, problemAtSave, removeCondition, removeTrigger, rowsIn, stampedAtSave, writtenFrom } from './model.js';
 import { kindOf } from '../../format/triggers.js';
@@ -48,7 +49,7 @@ const CONDITIONS = [['type', 'schedule.kindType'], ['words', 'schedule.kindWords
 export function registerSchedule(CMS, config) {
   const React = globalThis.__SVELTIA_CMS_REACT__;
   const h = React.createElement;
-  const { api_root: api, repo: repository, branch = 'main' } = config.backend;
+  const { api, repository, branch } = sourceOf(config);
   // Each taxonomy's terms, read once while the page is open (authors/terms.js reads any folder of
   // terms).
   const termsRead = new Map();

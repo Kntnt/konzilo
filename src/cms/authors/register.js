@@ -7,13 +7,14 @@
 
 import { signedInCredential } from '../credential.js';
 import { plain } from '../plain.js';
+import { sourceOf } from '../source.js';
 import { authorsIn } from './terms.js';
 import { AUTHORS_WIDGET, ESCAPE_EVENT } from './widget.js';
 
 export { AUTHORS_WIDGET };
 
 export function registerAuthorsField(CMS, config) {
-  const { api_root: api, repo: repository, branch = 'main' } = config.backend;
+  const { api, repository, branch } = sourceOf(config);
   // One for each folder while the page is open, so that each file is read once.
   const readers = new Map();
   const readerOf = (folder) => {

@@ -35,7 +35,7 @@ function forgejo({ files = {}, failing = {} } = {}) {
   return { asked, get, files };
 }
 
-const authorsOf = (stand, { folder = 'authors', credential = () => 'token mine', id = '0123456789ab' } = {}) => authorsIn({ api: 'http://git/api/v1', repository: 'org/source', folder, credential, get: stand.get, id: () => id });
+const authorsOf = (stand, { folder = 'authors', credential = () => 'token mine', id = '0123456789ab' } = {}) => authorsIn({ api: 'http://git/api/v1', repository: 'org/source', branch: 'main', folder, credential, get: stand.get, id: () => id });
 const term = (values, sha) => ({ sha, text: `${JSON.stringify(values, null, 2)}\n` });
 
 describe('the authors', () => {

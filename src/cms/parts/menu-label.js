@@ -9,27 +9,25 @@
 // gives none here.
 
 import { firstEntry, labelOf } from '../../format/menus.js';
+import { sourceReader } from '../source.js';
 
-const decoded = (content) => new TextDecoder().decode(Uint8Array.from(atob(content.replace(/\s/g, '')), (character) => character.charCodeAt(0)));
-
-// `api`: Forgejo's. `credential()`: the signed-in editor's. Gives labelFor(id, files), the label
-// for the post by its ID among the menus in `files`, their paths in the source repository, in
-// order; '' for none.
-export function menuLabelReader({ api, repository, branch = 'main', credential, get = (...args) => globalThis.fetch(...args) }) {
+// The source as sourceOf() names it, and `credential()`, the signed-in editor's. Gives
+// labelFor(id, files), the label for the post by its ID among the menus in `files`, their paths in
+// the source repository, in order; '' for none.
+export function menuLabelReader({ api, repository, branch, credential, get }) {
+  const source = sourceReader({ api, repository, branch, credential, get });
   // A menu's entries, none where its file cannot be read.
-  const entriesIn = async (path, held) => {
+  const entriesIn = async (path) => {
     try {
-      const answer = await get(`${api}/repos/${repository}/contents/${path.split('/').map(encodeURIComponent).join('/')}?ref=${encodeURIComponent(branch)}`, { headers: { authorization: held } });
-      if (!answer.ok) return [];
-      return JSON.parse(decoded((await answer.json()).content))?.items ?? [];
+      const text = await source.text(path);
+      return text === null ? [] : JSON.parse(text)?.items ?? [];
     } catch {
       return [];
     }
   };
   return async (id, files) => {
-    const held = credential();
-    if (!api || !held || !id || files.length === 0) return '';
-    const menus = await Promise.all(files.map((path) => entriesIn(path, held)));
+    if (!api || !credential() || !id || files.length === 0) return '';
+    const menus = await Promise.all(files.map(entriesIn));
     return labelOf(firstEntry(menus, (entry) => entry.post !== undefined && entry.post !== null && String(entry.post) === id));
   };
 }

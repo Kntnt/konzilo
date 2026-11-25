@@ -14,22 +14,18 @@ import { imageLibrary } from '../body/library.js';
 import { DISPLAY_WIDTH_WIDGET, IMAGE_WIDGET, LOSSLESS_WIDGET } from './widget.js';
 import { displayWidthChoice, losslessChoice } from './lossless-choice.js';
 import { plain } from '../plain.js';
+import { sourceOf, sourceReader } from '../source.js';
 
 export { DISPLAY_WIDTH_WIDGET, IMAGE_WIDGET, LOSSLESS_WIDGET };
 
 export function registerImageField(CMS, config) {
-  const { api_root: api, repo: repository, branch = 'main' } = config.backend;
+  const { api, repository, branch } = sourceOf(config);
   const library = api ? imageLibrary({ api, repository, branch, credential: signedInCredential }) : null;
+  const source = sourceReader({ api, repository, branch, credential: signedInCredential });
 
   // Whether the file is in the repository already: then the entry names it, and the same file
-  // is not uploaded twice.
-  const exists = async (path) => {
-    const held = signedInCredential();
-    if (!api || !held) return false;
-    const address = `${api}/repos/${repository}/contents/${path.split('/').map(encodeURIComponent).join('/')}?ref=${encodeURIComponent(branch)}`;
-    const answer = await fetch(address, { headers: { authorization: held } });
-    return answer.ok;
-  };
+  // is not uploaded twice. Where that cannot be asked, it is uploaded.
+  const exists = (path) => (api ? source.exists(path).catch(() => false) : Promise.resolve(false));
 
   CMS.registerFieldType(IMAGE_WIDGET, function KonziloImage(props) {
     const React = window.__SVELTIA_CMS_REACT__;

@@ -20,6 +20,7 @@ import { imageLibrary } from '../body/library.js';
 import { languageTag, say } from '../interface-language.js';
 import { onReadOnly, readOnlyNow } from '../lock/read-only.js';
 import { PUBLISHING_WIDGET } from '../publishing/widget.js';
+import { sourceOf } from '../source.js';
 import { latestSaveOf, revisionsOf } from './client.js';
 import { compareForms, restoredValues } from './compare.js';
 import { bodiesBetween, wordsBetween } from './differences.js';
@@ -64,7 +65,7 @@ function formOf(entryDraft) {
 const mayRestore = () => !readOnlyNow() && !globalThis.konziloReadOnly?.current;
 
 export function registerHistory(CMS, config) {
-  const { api_root: api, repo: repository, branch = 'main' } = config.backend ?? {};
+  const { api, repository, branch } = sourceOf(config);
   const library = api ? imageLibrary({ api, repository, branch, credential: signedInCredential }) : null;
   // The unsaved changes a restore replaced, by form, newest first, for as long as the page is open.
   const replaced = new Map();

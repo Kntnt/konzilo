@@ -7,10 +7,10 @@
 // the first moment, and Sveltia finds the file the next time it looks at the repository.
 
 import { base64 } from '../base64.js';
+import { contentsPath, decodedContent } from '../source.js';
 
 const BLOBS_AT_ONCE = 30;
 
-const decoded = (content) => new TextDecoder().decode(Uint8Array.from(atob(content), (character) => character.charCodeAt(0)));
 
 // What a term's file says of its author, its name and, in a hierarchical taxonomy, its parent's
 // ID, or null for one with no name to show.
@@ -24,9 +24,9 @@ function termIn(text) {
   }
 }
 
-// `api`: Forgejo's. `folder`: the authors' files, `authors` or `authors/<tag>`. `credential()`: the
-// signed-in editor's. An ID is made as Sveltia makes one, the last part of a random UUID.
-export function authorsIn({ api, repository, branch = 'main', folder, credential, get = (...args) => globalThis.fetch(...args), id = () => globalThis.crypto.randomUUID().split('-').pop() }) {
+// The source as sourceOf() names it. `folder`: the authors' files, `authors` or `authors/<tag>`.
+// `credential()`: the signed-in editor's. An ID is made as Sveltia makes one, the last part of a random UUID.
+export function authorsIn({ api, repository, branch, folder, credential, get = (...args) => globalThis.fetch(...args), id = () => globalThis.crypto.randomUUID().split('-').pop() }) {
   const ask = async (path, options = {}) => {
     const held = credential();
     if (!held) throw new Error('nobody is signed in');
@@ -34,7 +34,7 @@ export function authorsIn({ api, repository, branch = 'main', folder, credential
     if (!answer.ok) throw Object.assign(new Error(`Forgejo answered ${answer.status}`), { status: answer.status });
     return answer.json();
   };
-  const where = `/contents/${folder.split('/').map(encodeURIComponent).join('/')}?ref=${encodeURIComponent(branch)}`;
+  const where = contentsPath(folder, branch);
 
   // A file never changes under its hash, so each is asked for once while a page is open.
   const known = new Map();
@@ -50,7 +50,7 @@ export function authorsIn({ api, repository, branch = 'main', folder, credential
       const unknown = files.map(({ sha }) => sha).filter((sha) => !known.has(sha));
       for (let at = 0; at < unknown.length; at += BLOBS_AT_ONCE) {
         const blobs = await ask(`/git/blobs?shas=${unknown.slice(at, at + BLOBS_AT_ONCE).join(',')}`);
-        for (const blob of blobs ?? []) if (blob) known.set(blob.sha, termIn(decoded(blob.content)));
+        for (const blob of blobs ?? []) if (blob) known.set(blob.sha, termIn(decodedContent(blob.content)));
       }
       return files.filter(({ sha }) => known.get(sha)).map(({ name, sha }) => ({ id: name.slice(0, -'.json'.length), ...known.get(sha) }));
     },

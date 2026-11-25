@@ -40,7 +40,7 @@ function forgejo({ files = {}, truncatedAt = null, failing = {}, settings = null
   return { asked, get };
 }
 
-const libraryOf = (stand, credential = () => 'token mine') => imageLibrary({ api: 'http://git/api/v1', repository: 'org/source', credential, get: stand.get, id: () => 'aaaaaaaaaaaa' });
+const libraryOf = (stand, credential = () => 'token mine') => imageLibrary({ api: 'http://git/api/v1', repository: 'org/source', branch: 'main', credential, get: stand.get, id: () => 'aaaaaaaaaaaa' });
 
 const entry = (values) => ({ text: JSON.stringify(values) });
 

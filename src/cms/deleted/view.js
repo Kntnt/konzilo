@@ -12,6 +12,7 @@ import { latestSaveOf, revisionsOf } from '../history/client.js';
 import { accountWords, choiceWords, savedWords, withMoment } from '../history/words.js';
 import { deletedPages, entryTitle } from './client.js';
 import { idOf, restoreDeleted } from './restore.js';
+import { sourceOf } from '../source.js';
 import './deleted.css';
 
 const react = () => globalThis.__SVELTIA_CMS_REACT__;
@@ -147,7 +148,7 @@ function Revisions({ row, fields, history }) {
 }
 
 // A deleted entry, read-only, as its last revision left it, with the way to restore it.
-function DeletedEntry({ row, collection, history, lock, api, repository, onBack }) {
+function DeletedEntry({ row, collection, history, lock, api, repository, branch, onBack }) {
   const { createElement: h, useEffect, useRef, useState } = react();
   const heading = useRef(null);
   const drawn = useRef(null);
@@ -172,6 +173,7 @@ function DeletedEntry({ row, collection, history, lock, api, repository, onBack 
         entry: row,
         api,
         repository,
+        branch,
         credential: signedInCredential,
         lock,
         latestSave: (path) => latestSaveOf({ path, credential: signedInCredential }),
@@ -207,7 +209,7 @@ function DeletedEntry({ row, collection, history, lock, api, repository, onBack 
 // `config`: Sveltia's configuration, whose folder collections are the types of what can be
 // deleted. `history`: what registerHistory() gives. `lock`: what registerLock() gives.
 export function deletedPage({ config, history, lock }) {
-  const { api_root: api, repo: repository } = config.backend ?? {};
+  const { api, repository, branch } = sourceOf(config);
   const collections = (config.collections ?? []).filter(({ folder }) => typeof folder === 'string');
   const collectionOf = (name) => collections.find((one) => one.name === name);
   return function KonziloDeletedPage() {
@@ -237,6 +239,7 @@ export function deletedPage({ config, history, lock }) {
         lock,
         api,
         repository,
+        branch,
         onBack: () => {
           back.current = opened.path;
           setOpened(null);

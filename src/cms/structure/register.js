@@ -5,9 +5,10 @@ import { signedInCredential } from '../credential.js';
 import { imageLibrary } from '../body/library.js';
 import { STRUCTURE_WIDGET } from './widget.js';
 import { plain } from '../plain.js';
+import { sourceOf } from '../source.js';
 
 export function registerStructureField(CMS, config) {
-  const { api_root: api, repo: repository, branch } = config.backend;
+  const { api, repository, branch } = sourceOf(config);
   const library = api ? imageLibrary({ api, repository, branch, credential: signedInCredential }) : null;
   const adminHost = new URL(config.site_url).hostname === globalThis.location.hostname ? null : globalThis.location.hostname;
 

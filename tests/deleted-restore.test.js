@@ -76,6 +76,7 @@ const restoring = (stand, overrides = {}) => restoreDeleted({
   entry: entryOf(),
   api: API,
   repository: 'org/source',
+  branch: 'main',
   credential: () => 'token ebba',
   ask: stand.ask,
   lock: lockOf(),
