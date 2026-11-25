@@ -102,6 +102,7 @@ export function feedReader({ store, site, forgejo, repository, token, get = fetc
   // A source file as the branch holds it: { text, sha }, or null where it holds none.
   const fileOf = async (path) => {
     const answer = await asked(`/contents/${encodedPath(path)}?ref=${BRANCH}`);
+    if (!answer.ok) await answer.arrayBuffer().catch(() => {});
     if (answer.status === 404) return null;
     if (!answer.ok) throw new Error(`Forgejo answered ${answer.status} for ${path}`);
     const { content, sha } = await answer.json();
@@ -126,6 +127,7 @@ export function feedReader({ store, site, forgejo, repository, token, get = fetc
       }
       if (files.length === 0) return;
       const answer = await asked('/contents', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ branch: BRANCH, message, files }) });
+      await answer.arrayBuffer().catch(() => {});
       if (answer.ok) return;
       const again = [409, 422, 423].includes(answer.status) || answer.status >= 500;
       if (!again || tried >= TRIES) throw new Error(`Forgejo answered ${answer.status} to the feed reader's save`);
