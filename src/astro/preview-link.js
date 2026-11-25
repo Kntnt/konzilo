@@ -18,8 +18,8 @@ export function previewLink(kind, showKind, readyKind) {
   const BLOCK = '[data-konzilo-block]';
   const ITS_OWN = 'a[href], button, summary, input, select, textarea, label, iframe, dialog';
   // What a page shows that is no text a person wrote: a footnote's marks, words for screen
-  // readers, and an embed's panel.
-  const NOT_WRITTEN = '[data-footnote-ref], [data-footnote-backref], .sr-only, .konzilo-embed, dialog';
+  // readers, an embed's panel, and a formula, which the field holds as no text.
+  const NOT_WRITTEN = '[data-footnote-ref], [data-footnote-backref], .sr-only, .konzilo-embed, dialog, math';
   const LONGEST = 200;
 
   const textsOf = (block) => {

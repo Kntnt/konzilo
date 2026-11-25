@@ -58,6 +58,8 @@ const shown = {
     gallery: /<figure class="konzilo-gallery"><figure>.*<figcaption>A farm in summer<\/figcaption><\/figure>/s,
     'post-list': /<ul class="post-list">.*<a href="\/harbour-lights\/">Harbour lights &amp; lanterns<\/a>/s,
     form: /<form class="konzilo-form" id="konzilo-form-contact" method="post" action="\/_konzilo\/forms\/contact"/,
+    'inline-math': /a formula, <math><semantics>.*<annotation encoding="application\/x-tex">\\pi r\^2<\/annotation><\/semantics><\/math>/s,
+    'block-math': /<div class="konzilo-math"><math display="block"[^>]*><semantics>.*<annotation encoding="application\/x-tex">a\^2 \+ b\^2 = c\^2<\/annotation><\/semantics><\/math><\/div>/s,
   },
   inline: {
     strong: /<strong>bold<\/strong>/,
@@ -69,6 +71,7 @@ const shown = {
     code: /<code>inline code<\/code>/,
     s: /<del>struck<\/del>/,
     footnote: /<sup><a href="#user-content-fn-1"/,
+    math: /a formula, <math>/,
   },
 };
 

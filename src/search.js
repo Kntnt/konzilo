@@ -13,6 +13,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { htmlToHast } from 'satteri';
 import { registryOf } from './astro/directives.js';
+import { latexOf } from './astro/formulas.js';
 import { readContentFile } from './astro/reader.js';
 import { ownSummary } from './astro/summary.js';
 import { labelIn } from './catalogues.js';
@@ -170,9 +171,9 @@ function entriesOf(folder, type, languages) {
 }
 
 // What a reader reads of a body the site renders: its text, an image's alt
-// text and the text of every element, in order, but for what is no text of
-// the post's: an embed's panel, a <template>, the core's own words for
-// footnotes and the marks that lead to and from them.
+// text, a formula's LaTeX and the text of every element, in order, but for what
+// is no text of the post's: an embed's panel, a <template>, the core's own words
+// for footnotes and the marks that lead to and from them.
 const BLOCKS = new Set(['p', 'div', 'li', 'ul', 'ol', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'figure', 'figcaption', 'blockquote', 'pre', 'table', 'tr', 'td', 'th', 'section', 'br', 'hr', 'dt', 'dd']);
 
 function plainText(html) {
@@ -187,6 +188,11 @@ function plainText(html) {
     for (const node of nodes) {
       if (node.type === 'text') parts.push(node.value);
       if (node.type !== 'element' || skipped(node)) continue;
+      const latex = latexOf(node);
+      if (latex !== null) {
+        parts.push(` ${latex} `);
+        continue;
+      }
       const block = BLOCKS.has(node.tagName);
       if (block) parts.push(' ');
       if (node.tagName === 'img' && typeof node.properties.alt === 'string') parts.push(` ${node.properties.alt} `);

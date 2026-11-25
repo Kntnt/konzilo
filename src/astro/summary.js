@@ -6,13 +6,14 @@
 //
 // The body's text is what a reader reads of the page the site renders from
 // it, through the site's own reader (reader.js): its paragraphs, headings,
-// lists, quotes and tables, each block's text apart from the next. Footnote
-// marks and the footnotes, code blocks, images, galleries and embeds are no
-// part of it.
+// lists, quotes and tables, each block's text apart from the next, a formula in
+// the text as its LaTeX. Footnote marks and the footnotes, code blocks, block
+// formulas, images, galleries and embeds are no part of it.
 
 import { htmlToHast, markdownToHtml } from 'satteri';
 import { directiveReader } from './directives.js';
-import { markdownFeatures, markdownHastPlugins } from './reader.js';
+import { isFormulaBox, latexOf } from './formulas.js';
+import { formulaPlugins, markdownFeatures, markdownHastPlugins } from './reader.js';
 
 // The most characters a summary of a body holds, as search results show a
 // description.
@@ -47,7 +48,7 @@ export function ownSummary(data = {}) {
 export function plainText(body) {
   if (body.trim() === '') return '';
   const reader = directiveReader(() => {});
-  const { html } = markdownToHtml(body, { features: markdownFeatures, mdastPlugins: [reader], hastPlugins: [...markdownHastPlugins] });
+  const { html } = markdownToHtml(body, { features: markdownFeatures, mdastPlugins: [...formulaPlugins, reader], hastPlugins: [...markdownHastPlugins] });
   const parts = [];
   textOf(htmlToHast(html), parts);
   return collapse(parts.join(''));
@@ -59,7 +60,12 @@ function textOf(node, parts) {
     return;
   }
   if (node.type === 'element') {
-    if (LEFT_OUT.has(node.tagName) || isFootnotes(node)) return;
+    if (LEFT_OUT.has(node.tagName) || isFootnotes(node) || isFormulaBox(node)) return;
+    const latex = latexOf(node);
+    if (latex !== null) {
+      parts.push(latex);
+      return;
+    }
     if (BLOCKS.has(node.tagName)) parts.push(' ');
   }
   for (const child of node.children ?? []) textOf(child, parts);

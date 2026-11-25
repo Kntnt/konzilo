@@ -20,8 +20,8 @@ const shipped = execFileSync('git', ['ls-files', 'src', 'bin'], { cwd: core, enc
   .filter((path) => /\.(js|mjs|astro)$/.test(path));
 
 // A site has Astro by its own pin, and only the web server's image holds the editor,
-// built from this repository's own dependencies.
-const provided = new Set(['astro', '@sveltia/cms', '@milkdown/crepe', '@milkdown/kit', ...builtinModules, ...builtinModules.map((name) => `node:${name}`)]);
+// built from this repository's own dependencies, remark-math for the body field among them.
+const provided = new Set(['astro', '@sveltia/cms', '@milkdown/crepe', '@milkdown/kit', 'remark-math', ...builtinModules, ...builtinModules.map((name) => `node:${name}`)]);
 
 const packageOf = (specifier) => specifier.split('/').slice(0, specifier.startsWith('@') ? 2 : 1).join('/');
 

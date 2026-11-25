@@ -64,3 +64,8 @@ test('a post with neither an excerpt nor body text has an empty summary', () => 
   assert.equal(summary({ data: {}, body: '' }), '');
   assert.equal(summary({ data: {}, body: '```\ncode();\n```' }), '');
 });
+
+test('a formula in the text is its LaTeX in a summary, and a block formula is left out, as code is', () => {
+  const body = 'The area is $\\pi r^2$, as shown.\n\n$$\n\\int_0^1 x \\, dx\n$$\n\nThen more.';
+  assert.equal(summary({ data: {}, body }), 'The area is \\pi r^2, as shown. Then more.');
+});

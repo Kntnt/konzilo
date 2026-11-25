@@ -7,6 +7,7 @@ import { htmlToHast, markdownToHtml, markdownToMdast } from 'satteri';
 import { directiveReader, readDirective, withDefaults } from './directives.js';
 import { embedsIn } from './embeds.js';
 import { figures } from './figures.js';
+import { formulaReading, formulas } from './formulas.js';
 import { markdownFeatures } from './reader-features.js';
 import { tables } from './tables.js';
 
@@ -48,7 +49,11 @@ export function markdownHastPluginsIn(locale, languages = []) {
 // language changes.
 export const markdownHastPlugins = Object.freeze(markdownHastPluginsIn(null));
 
-// Sätteri's Markdown tree plugins, for the site: its directives,
+// Sätteri's Markdown tree plugins that read a body's formulas and write them as MathML
+// (formulas.js), first among the site's.
+export const formulaPlugins = Object.freeze([formulaReading, formulas]);
+
+// Sätteri's Markdown tree plugins, for the site: its formulas, and its directives,
 // each one the registry refuses failing the build, naming the file, the line
 // and the reason. `known`: the registry of the site's directives, the core's
 // and its components (directives.js). `checks`: the site's own checks of a directive, by its
@@ -58,7 +63,7 @@ export const markdownHastPlugins = Object.freeze(markdownHastPluginsIn(null));
 // `warn(message)`, naming the file and the line, rather than failing the
 // build.
 export function markdownMdastPlugins({ checks, leaveOut, warn = () => {}, known } = {}) {
-  return [directiveReader(({ file, line, reason }) => {
+  return [...formulaPlugins, directiveReader(({ file, line, reason }) => {
     throw new Error(`${file ?? 'a content file'}: line ${line}: ${reason}`);
   }, { checks, leaveOut, known, warn: ({ file, line, reason }) => warn(`${file ?? 'a content file'}: line ${line}: ${reason}`) })];
 }
@@ -77,7 +82,7 @@ export function readContentFile(text, { known } = {}) {
   return {
     data: frontmatter,
     tree: markdownToMdast(body, { features: markdownFeatures, position: false }),
-    html: markdownToHtml(body, { features: markdownFeatures, mdastPlugins: [reader], hastPlugins: [...markdownHastPlugins] }).html,
+    html: markdownToHtml(body, { features: markdownFeatures, mdastPlugins: [...formulaPlugins, reader], hastPlugins: [...markdownHastPlugins] }).html,
     problems,
   };
 }

@@ -1,6 +1,7 @@
 // The editor itself: `CrepeBuilder` with the parts ADR 0030 names, and a type's elements
 // deciding its schema, toolbar and block menu. Left out for every type: Crepe's image block,
-// LaTeX, CodeMirror, the top bar and AI, a separator, a task list and an upload.
+// LaTeX, CodeMirror, the top bar and AI, a separator, a task list and an upload. Formulas are the
+// field's own (formulas.js).
 
 import { CrepeBuilder } from '@milkdown/crepe/builder';
 import { blockEdit } from '@milkdown/crepe/feature/block-edit';
@@ -130,6 +131,7 @@ const ICONS = {
   embed: ICON('<path d="M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zm0 2v10h16V7zm6 2 5 3-5 3z"/>'),
   gallery: ICON('<path d="M22 16V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2m-11-4 2.03 2.71L16 11l4 5H8zM2 6v14c0 1.1.9 2 2 2h14v-2H4V6z"/>'),
   image: ICON('<path d="M5 21q-.825 0-1.412-.587T3 19V5q0-.825.588-1.412T5 3h14q.825 0 1.413.588T21 5v14q0 .825-.587 1.413T19 21zm0-2h14V5H5zm1-2h12l-3.75-5-3 4L9 13zM5 19V5z"/>'),
+  formula: ICON('<path d="M18 4H6v2.2l6.2 5.8L6 17.8V20h12v-3h-2v1H9.4l5.6-6-5.6-6H16v1h2z"/>'),
 };
 
 // What an element brings, which goes when a type does not take it.
@@ -146,7 +148,7 @@ const PARTS = {
 // empty line, an id on a heading, and a `# ` that makes a level 1 heading.
 const NEVER = [docSchema, hrAttr, hrSchema, insertHrCommand, insertHrInputRule, imageAttr, imageSchema, insertImageCommand, updateImageCommand, wrapInTaskListInputRule, uploadPlugin, remarkPreserveEmptyLinePlugin, syncHeadingIdPlugin, wrapInHeadingInputRule];
 
-const menu = (takes, images) => {
+const menu = (takes, images, formulas) => {
   const headings = takes('heading') ? {} : null;
   const withImages = takes('image') && images !== null;
   const withGalleries = withImages && takes('gallery');
@@ -167,7 +169,7 @@ const menu = (takes, images) => {
       divider: null,
     },
     listGroup: takes('list') ? { label: say('body.listGroup'), bulletList: item('body.bulletList'), orderedList: item('body.orderedList'), taskList: null } : null,
-    advancedGroup: takes('code') || takes('table') || withImages || takes('embed')
+    advancedGroup: takes('code') || takes('table') || withImages || takes('embed') || takes('block-math')
       ? { label: say('body.moreGroup'), image: null, math: null, codeBlock: takes('code') ? item('body.code') : null, table: takes('table') ? item('body.table') : null }
       : null,
     buildMenu(builder) {
@@ -193,6 +195,20 @@ const menu = (takes, images) => {
               if (answer) commands.call(insertEmbed.key, answer.address);
               ctx.get(editorViewCtx).focus();
             }).catch((error) => console.warn(`The embed was not put in: ${error.message}`));
+          },
+        });
+      }
+      if (takes('block-math')) {
+        builder.getGroup('advanced').addItem('formula', {
+          label: say('body.blockFormula'),
+          icon: ICONS.formula,
+          onRun: (ctx) => {
+            const commands = ctx.get(commandsCtx);
+            commands.call(clearTextInCurrentBlockCommand.key);
+            void formulas.editFormula({ display: true }).then((answer) => {
+              if (answer?.latex) commands.call(formulas.insertBlockFormula.key, answer.latex);
+              ctx.get(editorViewCtx).focus();
+            }).catch((error) => console.warn(`The formula was not put in: ${error.message}`));
           },
         });
       }
@@ -228,7 +244,7 @@ const menu = (takes, images) => {
   };
 };
 
-const toolbarOptions = (takes) => ({
+const toolbarOptions = (takes, formulas) => ({
   boldLabel: say('body.bold'),
   italicLabel: say('body.italic'),
   strikethroughLabel: say('body.strikethrough'),
@@ -244,6 +260,14 @@ const toolbarOptions = (takes) => ({
     });
     mark('superscript', 'body.superscript', superscript, toggleSuperscript);
     mark('subscript', 'body.subscript', subscript, toggleSubscript);
+    if (takes('inline-math')) {
+      group.addItem('formula', {
+        icon: ICONS.formula,
+        label: say('body.formula'),
+        active: () => false,
+        onRun: (ctx) => ctx.get(commandsCtx).call(formulas.insertFormula.key),
+      });
+    }
     if (takes('footnotes')) {
       group.addItem('footnote', {
         icon: ICONS.footnote,
@@ -274,6 +298,8 @@ export async function makeEditor({ root, value, elements, changed, images = null
   const takes = (element) => taken.has(element);
   const policy = { takes, pasting: false };
   let ownPaste = false;
+  // Formulas, and Temml with them, load only for a type that takes them.
+  const formulas = takes('inline-math') || takes('block-math') ? await import('./formulas.js') : null;
   const crepe = new CrepeBuilder({ root, defaultValue: value });
   const { editor } = crepe;
 
@@ -335,13 +361,17 @@ export async function makeEditor({ root, value, elements, changed, images = null
     }));
   });
 
-  editor.use(bodyDocument(takes('image') || takes('embed'))).use(markOrder.flat()).use(keptBlock).use(superscript).use(subscript).use(toggleSuperscript).use(toggleSubscript);
+  editor.use(bodyDocument(takes('image') || takes('embed') || takes('block-math'))).use(markOrder.flat()).use(keptBlock).use(superscript).use(subscript).use(toggleSuperscript).use(toggleSubscript);
   if (takes('embed')) editor.use(embedNode).use(insertEmbed).use(embedView);
   if (takes('image')) editor.use(imageNode).use(insertImage).use(imageStaysAnImage).use(imageView(images?.picture ?? null));
   if (takes('image') && takes('gallery')) editor.use(galleryCaption).use(galleryNode).use(insertGallery).use(galleriesHoldTwo).use(galleryView(images)).use(galleryCaptionView);
   if (takes('heading')) editor.use(headingWithAnchor).use(headingInputRule);
   if (takes('quote')) editor.use(citation).use(quoteWithCitation).use(toggleCitation);
   if (takes('footnotes')) editor.use(insertFootnote).use(footnotesInStep);
+  // Formulas, read by the rule: `$…$` too where the type takes inline formulas.
+  if (formulas) editor.use(formulas.remarkFormulas(takes('inline-math'))).use(formulas.formulaReading);
+  if (takes('inline-math')) editor.use(formulas.inlineFormula).use(formulas.inlineFormulaView).use(formulas.insertFormula).use(formulas.formulaInputRule);
+  if (takes('block-math')) editor.use(formulas.blockFormula).use(formulas.blockFormulaView).use(formulas.insertBlockFormula);
   editor.use(noLevelOne).use(fieldKeys).use(fieldMarks(takes('heading'))).use(onDocumentChange(changed));
   // Last among the transforms, so that it reads what Milkdown's own have made of the tree.
   editor.use($remark('konziloFormat', () => readFormat(policy)));
@@ -350,8 +380,8 @@ export async function makeEditor({ root, value, elements, changed, images = null
     .addFeature(cursor, {})
     .addFeature(linkTooltip, { inputPlaceholder: say('body.linkPlaceholder') })
     .addFeature(placeholder, { text: say('body.placeholder'), mode: 'block' })
-    .addFeature(toolbar, toolbarOptions(takes))
-    .addFeature(blockEdit, menu(takes, images));
+    .addFeature(toolbar, toolbarOptions(takes, formulas))
+    .addFeature(blockEdit, menu(takes, images, formulas));
   if (takes('list')) crepe.addFeature(listItem, {});
   if (takes('table')) crepe.addFeature(tableFeature, {});
   // After the block feature, which sets its own: a gallery has one handle, and each image in it

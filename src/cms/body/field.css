@@ -231,6 +231,48 @@
   overflow-wrap: anywhere;
 }
 
+/* A formula in the field, drawn as the site draws it, which a click or its pen opens. */
+.milkdown .ProseMirror .konzilo-formula {
+  padding: 0 2px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.milkdown .ProseMirror .konzilo-formula:hover,
+.milkdown .ProseMirror .konzilo-formula.ProseMirror-selectednode {
+  background: var(--crepe-color-surface-low);
+  outline: 1px solid var(--crepe-color-primary);
+}
+
+.milkdown .ProseMirror .konzilo-formula-field {
+  position: relative;
+  margin: 16px 0;
+  padding: 12px 48px 12px 14px;
+  border-radius: 4px;
+  background: var(--crepe-color-surface-low);
+  color: var(--crepe-color-on-surface);
+  overflow-x: auto;
+  cursor: default;
+}
+
+.milkdown .ProseMirror .konzilo-formula-field.ProseMirror-selectednode {
+  outline: 2px solid var(--crepe-color-primary);
+}
+
+.konzilo-formula-latex {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+textarea.konzilo-formula-latex {
+  resize: vertical;
+}
+
+.konzilo-formula-preview {
+  min-height: 2em;
+  margin: 8px 0;
+  overflow-x: auto;
+}
+
 /* A gallery in the field, its images side by side. */
 .milkdown .ProseMirror .konzilo-gallery-field {
   position: relative;
