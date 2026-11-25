@@ -86,11 +86,10 @@ describe('a body\'s image, as a browser loads it from the site template\'s demo 
     origin = `http://127.0.0.1:${server.address().port}`;
   });
 
+  // A build that failed has no server to close.
   after(async () => {
-    await new Promise((resolve) => {
-      server?.close(resolve);
-    });
-    rmSync(repository, { recursive: true, force: true });
+    if (server) await new Promise((resolve) => server.close(resolve));
+    if (repository) rmSync(repository, { recursive: true, force: true });
   });
 
   // In a window `width` wide at a screen's `density`: the width the page draws the first image
