@@ -17,7 +17,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { feedTitle, siteFeeds } from '../src/astro/feeds.js';
+import { feedSafe, feedTitle, siteFeeds } from '../src/astro/feeds.js';
 import { renderTemplate } from '../src/metadata-templates.js';
 import { ALTERNATES, headTags, templateValues } from '../src/astro/search-and-sharing.js';
 import { siteDescription } from '../src/site-description.js';
@@ -525,4 +525,10 @@ describe('a site built with astro build for https://www.example.com', () => {
     // The start page of a site without a description has none.
     assert.deepEqual(head('').map(([name]) => name).filter((name) => name.includes('description')), []);
   });
+});
+
+test('a feed holds a formula as its MathML, which a reader draws, with its LaTeX, and without a style', async () => {
+  const { readContentFile } = await import('../src/astro/reader.js');
+  const { html } = readContentFile('---\ntitle: "Area"\n---\n\nThe area is $\\pi r^2$.\n\n$$\nx\n$$\n');
+  assert.equal(feedSafe(html, 'https://example.com/area/'), '<p>The area is <math><semantics><mrow><mi>π</mi><msup><mi>r</mi><mn class="tml-sml-pad">2</mn></msup></mrow><annotation encoding="application/x-tex">\\pi r^2</annotation></semantics></math>.</p>\n<div class="konzilo-math"><math display="block" class="tml-display"><semantics><mi>x</mi><annotation encoding="application/x-tex">x</annotation></semantics></math></div>\n');
 });

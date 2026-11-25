@@ -3,7 +3,7 @@
 // the draft stays in the form. The intake remains the check that counts, so a check that
 // could not run lets the save through, and the field has told the editor it is off.
 
-import { handsFor, loadReader, refusalsOf } from './check.js';
+import { handsFor, loadFormulas, loadReader, refusalsOf, takesFormulas } from './check.js';
 import { wordsShown } from '../refusals.js';
 import { say } from '../interface-language.js';
 
@@ -19,10 +19,11 @@ const words = ({ path, reason }) => (path ? `${say('body.block', { path })}: ${w
 export async function refusalOf(entry, body) {
   const reader = await loadReader();
   if (!reader) return null;
+  const formula = takesFormulas(body.elements) ? await loadFormulas() : null;
   const refused = [];
   try {
     for (const { locale, body: value } of bodiesOf(entry)) {
-      for (const problem of refusalsOf(value, handsFor(reader, body))) refused.push(locale ? `${locale}: ${words(problem)}` : words(problem));
+      for (const problem of refusalsOf(value, handsFor(reader, { ...body, formula }))) refused.push(locale ? `${locale}: ${words(problem)}` : words(problem));
     }
   } catch (error) {
     console.warn(`The early check could not run: ${error.message}`);

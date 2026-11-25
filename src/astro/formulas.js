@@ -26,13 +26,38 @@ export const formulaReading = (context) => {
   };
 };
 
-// Sätteri's Markdown tree plugin that writes each formula as its MathML.
+// Sätteri's Markdown tree plugin that writes each formula as its MathML: one written `$$…$$` in
+// the text, which no content file holds, as a block formula's, in its place.
 export const formulas = {
   name: 'konzilo-formulas',
+  options: { position: true },
   inlineMath(node, ctx) {
-    ctx.replaceNode(node, { type: 'html', value: mathML(node.value) });
+    const start = node.position?.start?.offset;
+    const display = start !== undefined && ctx.source.startsWith('$$', start);
+    ctx.replaceNode(node, { type: 'html', value: mathML(node.value, display) });
   },
   math(node, ctx) {
     ctx.replaceNode(node, { type: 'html', value: `<div class="konzilo-math">${mathML(node.value, true)}</div>` });
   },
 };
+
+const TEX = 'application/x-tex';
+
+// A formula's LaTeX, by the annotation of its `math` element in an HTML tree, or null for an
+// element that is none of the site's formulas.
+export function latexOf(node) {
+  if (node?.type !== 'element' || node.tagName !== 'math') return null;
+  const find = (within) => {
+    for (const child of within.children ?? []) {
+      if (child.type !== 'element') continue;
+      if (child.tagName === 'annotation' && child.properties?.encoding === TEX) return (child.children ?? []).map((one) => one.value ?? '').join('');
+      const found = find(child);
+      if (found !== null) return found;
+    }
+    return null;
+  };
+  return find(node);
+}
+
+// Whether an element of an HTML tree is a block formula's box.
+export const isFormulaBox = (node) => node?.type === 'element' && node.tagName === 'div' && [node.properties?.className ?? []].flat().includes('konzilo-math');

@@ -46,23 +46,33 @@ function placedIn(tree, added, markdown) {
   return tree;
 }
 
-// `markdown` read by the rule, by `parse(text)`, which gives a reader's tree with its places:
-// { tree, changed }, `changed` where the rule read a `$` otherwise than the reader did. The tree's
-// places are in `markdown`.
-export function readFormulas(markdown, parse) {
-  if (!markdown.includes('$')) return { tree: parse(markdown), changed: false };
+// `markdown` as the rule reads it, by `parse(text)`, which gives a reader's tree with its places:
+// { tree, text, added }, `text` the Markdown with a backslash before each `$` the rule reads as a
+// dollar sign where the reader did not, at the offsets `added`, and `tree` the reader's of it.
+function ruled(markdown, parse) {
   let text = markdown;
   const added = [];
   for (;;) {
     const tree = parse(text);
-    const failing = fallen(tree, text);
-    if (failing === null) return added.length === 0 ? { tree, changed: false } : { tree: placedIn(tree, added, markdown), changed: true };
+    const failing = text.includes('$') ? fallen(tree, text) : null;
+    if (failing === null) return { tree, text, added };
     const at = failing.position.start.offset;
     for (let index = 0; index < added.length; index += 1) if (added[index] >= at) added[index] += 1;
     added.push(at);
     text = `${text.slice(0, at)}\\${text.slice(at)}`;
   }
 }
+
+// `markdown` read by the rule: { tree, changed }, `changed` where the rule read a `$` otherwise
+// than the reader did. The tree's places are in `markdown`.
+export function readFormulas(markdown, parse) {
+  const { tree, added } = ruled(markdown, parse);
+  return added.length === 0 ? { tree, changed: false } : { tree: placedIn(tree, added, markdown), changed: true };
+}
+
+// `markdown` written so that a reader that reads `$` as `parse` does reads it as the rule does:
+// with a backslash before each `$` the rule reads as a dollar sign where that reader would not.
+export const formulaText = (markdown, parse) => ruled(markdown, parse).text;
 
 // The reader the body check is handed, by Sätteri's `markdownToMdast` and the site's `features`:
 // { tree(markdown, { math }) }, with its places. `math` is true to read formulas both ways, by the

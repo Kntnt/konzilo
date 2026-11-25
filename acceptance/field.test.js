@@ -14,6 +14,7 @@ import { handsFor } from '../src/cms/body/check.js';
 import { cmsConfig } from '../src/cms/config.js';
 import { demoSource } from '../src/demo-source.js';
 import { checkBody } from '../src/format/body.js';
+import { formulaReason } from '../src/format/mathml.js';
 import { reader } from '../src/intake/reader.js';
 import { british } from '../src/refusals.js';
 import { readSiteDescription, siteDescription } from '../src/site-description.js';
@@ -25,7 +26,7 @@ import { JSDOM } from 'jsdom';
 import { markdownToHtml } from 'satteri';
 import { blockMarks } from '../src/astro/block-marks.js';
 import { directiveReader } from '../src/astro/directives.js';
-import { markdownFeatures, markdownHastPlugins } from '../src/astro/reader.js';
+import { formulaPlugins, markdownFeatures, markdownHastPlugins } from '../src/astro/reader.js';
 
 const fixturesRoot = fileURLToPath(new URL('../tests/fixtures/', import.meta.url));
 const core = fileURLToPath(new URL('../', import.meta.url));
@@ -98,9 +99,9 @@ function intake(body) {
 
 // Each block of a body as the live preview marks it, with the start of its text as the page's
 // script takes it (src/astro/preview-link.js).
-const NOT_WRITTEN = '[data-footnote-ref], [data-footnote-backref], .sr-only, .konzilo-embed, dialog';
+const NOT_WRITTEN = '[data-footnote-ref], [data-footnote-backref], .sr-only, .konzilo-embed, dialog, math';
 function previewMarks(body) {
-  const { html } = markdownToHtml(body, { features: markdownFeatures, mdastPlugins: [directiveReader(() => {})], hastPlugins: [...markdownHastPlugins, blockMarks] });
+  const { html } = markdownToHtml(body, { features: markdownFeatures, mdastPlugins: [...formulaPlugins, directiveReader(() => {})], hastPlugins: [...markdownHastPlugins, blockMarks] });
   const { document, NodeFilter } = new JSDOM(`<body>${html}</body>`).window;
   // A body's top-level blocks: a block within one, a list's item say, is found by its path.
   return [...document.querySelectorAll('[data-konzilo-block]')].filter((element) => !element.dataset.konziloBlock.includes('.')).map((element) => {
@@ -209,7 +210,7 @@ describe('the body field, alone', () => {
     for (const { name, body } of [...fixtures, ...examples, ...demoBodies]) {
       test(name, async () => {
         const inBrowser = await call('check', body, FORMS);
-        const onServer = checkBody(body, handsFor(reader, { elements: everyElement.types.page.elements, forms: FORMS }));
+        const onServer = checkBody(body, handsFor(reader, { elements: everyElement.types.page.elements, forms: FORMS, formula: formulaReason }));
         assert.deepEqual(inBrowser, { written: onServer.body, reasons: onServer.problems.map(({ reason }) => british(reason)) }, 'the browser\'s check gives the intake\'s verdict');
 
         const mode = await call('open', body);
@@ -1947,6 +1948,107 @@ describe('the body field, alone', () => {
   test('has asked nothing outside, and broken no policy', () => {
     assert.deepEqual(seen.outside, []);
     assert.deepEqual(seen.refused, []);
+  });
+
+  describe('a formula', () => {
+    const dialogNamed = (name) => page.getByRole('dialog', { name });
+    const latex = (dialog) => dialog.getByRole('textbox', { name: 'LaTeX' });
+    const done = async (dialog) => {
+      await dialog.getByRole('button', { name: 'Done' }).click();
+      await dialog.waitFor({ state: 'detached' });
+      await call('flush');
+    };
+
+    test('opens as Temml draws it, in the text and as a block, and changes nothing', async () => {
+      const body = 'The area is $\\pi r^2$.\n\n$$\n\\int_0^1 x \\, dx\n$$';
+      assert.equal(await call('open', body), 'editor', (await call('notes')).join(' '));
+      assert.equal(await page.locator('.konzilo-formula math annotation').textContent(), '\\pi r^2');
+      assert.equal(await page.locator('.konzilo-formula-field math[display="block"] annotation').textContent(), '\\int_0^1 x \\, dx');
+      assert.equal(await page.locator('.konzilo-kept').count(), 0);
+      await call('poke');
+      assert.deepEqual(await call('changes'), []);
+      assert.equal(await call('value'), body);
+    });
+
+    test('is typed between two $ by Pandoc\'s rule, and a price stays text', async () => {
+      await call('open', '');
+      await typeAtTheEnd('A $x^2$ b');
+      assert.equal(await page.locator('.konzilo-formula').count(), 1);
+      await page.keyboard.press('Enter');
+      await page.keyboard.type('It costs $5 and $10', { delay: KEY_DELAY });
+      await call('flush');
+      assert.equal(await page.locator('.konzilo-formula').count(), 1, 'no formula of a price');
+      assert.equal(intake(await call('value')), pageFile('A $x^2$ b\n\nIt costs $5 and $10'));
+    });
+
+    test('is made of the text selected from the toolbar', async () => {
+      await call('open', 'A x^2 b');
+      await call('selectText', 'x^2');
+      await page.locator('.milkdown-toolbar [aria-label="Formula"]').click();
+      const adding = dialogNamed('Write a formula');
+      await adding.waitFor();
+      assert.equal(await latex(adding).inputValue(), 'x^2');
+      await done(adding);
+      assert.equal(await call('value'), 'A $x^2$ b');
+    });
+
+    test('opens in its dialog by a click, drawn as it is typed, which takes no formula Temml cannot read', async () => {
+      await call('open', 'A $x$ b');
+      await page.locator('.konzilo-formula').click();
+      const editing = dialogNamed('Edit the formula');
+      await editing.waitFor();
+      assert.equal(await latex(editing).inputValue(), 'x');
+      await latex(editing).fill('\\foo');
+      await editing.getByRole('button', { name: 'Done' }).click();
+      assert.match(await editing.getByRole('alert').textContent(), /cannot read it: Unsupported function name: \\foo/);
+      await latex(editing).fill('y^2');
+      assert.equal(await editing.locator('.konzilo-formula-preview math annotation').textContent(), 'y^2');
+      await latex(editing).fill('a $ b');
+      await editing.getByRole('button', { name: 'Done' }).click();
+      assert.match(await editing.getByRole('alert').textContent(), /cannot hold a \$/);
+      await latex(editing).fill('y^2');
+      await done(editing);
+      assert.equal(await call('value'), 'A $y^2$ b');
+    });
+
+    test('as a block, comes from the block menu, and its pen edits and removes it', async () => {
+      await call('open', 'One');
+      await call('focusEnd');
+      await page.keyboard.press('Enter');
+      await page.keyboard.type('/formula', { delay: KEY_DELAY });
+      await page.locator('.milkdown-slash-menu li.hover', { hasText: 'Block formula' }).waitFor();
+      await page.keyboard.press('Enter');
+      const adding = dialogNamed('Write a block formula');
+      await adding.waitFor();
+      await latex(adding).fill('a^2 + b^2\n= c^2');
+      await done(adding);
+      assert.equal(await call('value'), 'One\n\n$$\na^2 + b^2\n= c^2\n$$');
+      assert.deepEqual((await call('check', await call('value'), FORMS)).reasons, []);
+      await page.getByRole('button', { name: 'Edit the block formula' }).click();
+      const editing = dialogNamed('Edit the block formula');
+      await editing.getByRole('button', { name: 'Remove the formula' }).click();
+      await editing.getByRole('button', { name: 'Remove' }).click();
+      await editing.waitFor({ state: 'detached' });
+      await call('flush');
+      assert.equal(await call('value'), 'One');
+    });
+
+    test('where a type takes none, a $ is text, and nothing offers one', async () => {
+      assert.equal(await call('open', 'A $x$ b', { elements: ['paragraph', 'heading'] }), 'editor');
+      assert.equal(await page.locator('.konzilo-formula').count(), 0);
+      await typeAtTheEnd(' and $y$');
+      assert.equal(await page.locator('.konzilo-formula').count(), 0);
+      assert.equal(await call('value'), 'A $x$ b and $y$');
+      await call('selectText', 'b');
+      await page.locator('.milkdown-toolbar [aria-label="Bold"]').waitFor();
+      assert.equal(await page.locator('.milkdown-toolbar [aria-label="Formula"]').count(), 0);
+    });
+
+    test('the early check refuses what the intake refuses', async () => {
+      const body = 'A $\\foo$ b';
+      assert.equal(await call('open', body), 'editor');
+      assert.match((await call('check', body, FORMS)).reasons.join(), /cannot read it: Unsupported function name: \\foo/);
+    });
   });
 
   describe('a kept block', () => {

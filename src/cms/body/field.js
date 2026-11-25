@@ -22,7 +22,7 @@ function ring(frame, block) {
   frame.append(shown);
   setTimeout(() => shown.remove(), RING_FOR);
 }
-import { changeBetween, handsFor, loadReader } from './check.js';
+import { changeBetween, handsFor, loadFormulas, loadReader, takesFormulas } from './check.js';
 import { chooseImage } from './chooser.js';
 import { makeEditor } from './crepe.js';
 import './field.css';
@@ -42,6 +42,8 @@ const ELEMENTS = {
   gallery: 'body.element.gallery',
   'post-list': 'body.element.post-list',
   form: 'body.element.form',
+  'inline-math': 'body.element.inline-math',
+  'block-math': 'body.element.block-math',
 };
 
 // An element of the rule data by name, as it stands in a sentence: "a paragraph".
@@ -183,7 +185,8 @@ export function mountBodyField(host, { value: given, changed, elements, forms, e
     let made;
     try {
       const reader = await loadReader();
-      hands = reader ? handsFor(reader, { elements, forms, editable, adminHost }) : null;
+      const formula = takesFormulas(elements) ? await loadFormulas() : null;
+      hands = reader ? handsFor(reader, { elements, forms, editable, adminHost, formula }) : null;
       showNote(offNote, reader ? null : say('body.checkOff'));
       made = await makeEditor({ root: visual, value: opening, elements, changed: () => schedule(), images });
     } catch (error) {

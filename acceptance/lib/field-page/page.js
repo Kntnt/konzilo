@@ -6,7 +6,7 @@ import { undo } from '@milkdown/kit/prose/history';
 import { Selection, TextSelection } from '@milkdown/kit/prose/state';
 
 import { mountAuthorsField } from '../../../src/cms/authors/field.js';
-import { handsFor, loadReader } from '../../../src/cms/body/check.js';
+import { handsFor, loadFormulas, loadReader } from '../../../src/cms/body/check.js';
 import { blockAt } from '../../../src/cms/body/place.js';
 import { mountBodyField } from '../../../src/cms/body/field.js';
 import { useInterfaceLanguage } from '../../../src/cms/interface-language.js';
@@ -14,7 +14,7 @@ import { PLACE_EVENT } from '../../../src/cms/preview/paths.js';
 import { wordsShown } from '../../../src/cms/refusals.js';
 import { checkBody } from '../../../src/format/body.js';
 
-const EVERY_ELEMENT = ['paragraph', 'heading', 'list', 'quote', 'code', 'table', 'footnotes', 'embed', 'image', 'gallery', 'post-list', 'form'];
+const EVERY_ELEMENT = ['paragraph', 'heading', 'list', 'quote', 'code', 'table', 'footnotes', 'embed', 'image', 'gallery', 'post-list', 'form', 'inline-math', 'block-math'];
 
 let fields = [];
 
@@ -208,7 +208,7 @@ globalThis.fieldPage = {
   },
   // The early check's verdict, as the browser gives it, each reason in the interface language.
   async check(body, forms) {
-    const { body: written, problems } = checkBody(body, handsFor(await loadReader(), { elements: EVERY_ELEMENT, forms }));
+    const { body: written, problems } = checkBody(body, handsFor(await loadReader(), { elements: EVERY_ELEMENT, forms, formula: await loadFormulas() }));
     return { written, reasons: problems.map(({ reason }) => wordsShown(reason)) };
   },
   added: () => current().library.added,

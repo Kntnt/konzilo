@@ -6,6 +6,7 @@
 import { markdownFeatures } from '../../astro/reader-features.js';
 import { checkBody, readBody } from '../../format/body.js';
 import { embedOf } from '../../format/embeds.js';
+import { formulaReader } from '../../format/formula-reading.js';
 import { withComponents } from '../../format/components.js';
 import rules from '../../format/rules.json' with { type: 'json' };
 import { siteComponents } from './components.js';
@@ -14,13 +15,12 @@ import { siteComponents } from './components.js';
 const LOAD_LIMIT = 10_000;
 
 let reader = null;
+let temml = null;
 
 // The reader, or null if it did not load, which stays the answer until the page reloads.
 export function loadReader() {
   reader ??= Promise.race([
-    import('satteri').then(({ markdownToMdast }) => ({
-      tree: (markdown) => markdownToMdast(markdown, { features: markdownFeatures, position: true }),
-    })),
+    import('satteri').then(({ markdownToMdast }) => formulaReader(markdownToMdast, markdownFeatures)),
     new Promise((_, reject) => {
       setTimeout(() => reject(new Error('the reader took too long to load')), LOAD_LIMIT);
     }),
@@ -31,7 +31,21 @@ export function loadReader() {
   return reader;
 }
 
-export const handsFor = (tree, { elements, forms = [], editable = {}, adminHost = null }) => ({
+// Whether a type's body takes formulas, which only such a type loads Temml for.
+export const takesFormulas = (elements = []) => elements.includes('inline-math') || elements.includes('block-math');
+
+// Temml's check of a formula, or null if it did not load, which stays the answer until the page
+// reloads: the intake remains the check that counts.
+export function loadFormulas() {
+  temml ??= import('../../format/mathml.js').then(({ formulaReason }) => formulaReason).catch((error) => {
+    console.warn(`The body field's early check of formulas is off: ${error.message}`);
+    return null;
+  });
+  return temml;
+}
+
+// `formula`: Temml's check, for a type that takes formulas (loadFormulas()).
+export const handsFor = (tree, { elements, forms = [], editable = {}, adminHost = null, formula = null }) => ({
   reader: tree,
   rules: withComponents(rules, siteComponents()),
   elements,
@@ -40,6 +54,7 @@ export const handsFor = (tree, { elements, forms = [], editable = {}, adminHost 
   declared: { forms, editable },
   link: (id, fragment) => ({ href: `/${id}/${fragment === null ? '' : `#${fragment}`}` }),
   image: (address) => ({ src: address }),
+  ...(formula ? { formula } : {}),
 });
 
 const WRAPPERS = new Set(['strong', 'em', 's', 'sup', 'sub', 'link']);
@@ -63,7 +78,7 @@ function flattened(nodes, around = []) {
   return out;
 }
 
-const isInline = (nodes) => Array.isArray(nodes) && nodes.length > 0 && nodes.every((node) => WRAPPERS.has(node?.type) || ['text', 'code', 'break', 'footnote', 'image'].includes(node?.type));
+const isInline = (nodes) => Array.isArray(nodes) && nodes.length > 0 && nodes.every((node) => WRAPPERS.has(node?.type) || ['text', 'code', 'math', 'break', 'footnote', 'image'].includes(node?.type));
 
 function inOneOrder(value) {
   if (Array.isArray(value)) return isInline(value) ? flattened(value) : value.map(inOneOrder);

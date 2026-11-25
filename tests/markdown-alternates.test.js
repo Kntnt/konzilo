@@ -588,3 +588,18 @@ What we **packed**
 | Total | 120   |
 `);
 });
+
+test('writes a formula back as its LaTeX, between $ in the text and on lines of $$ for a block', async () => {
+  const { readContentFile } = await import('../src/astro/reader.js');
+  const body = 'The area is $\\pi r^2$ here.\n\n$$\n\\int_0^1 x \\, dx\n$$';
+  const { html } = readContentFile(`---\ntitle: "Formulas"\n---\n\n${body}\n`);
+  assert.equal(pageMarkdown({ html: `<main>${html}</main>`, url: 'https://example.com/a/', title: 'Formulas' }).markdown, `
+# Formulas
+
+The area is $\\pi r^2$ here.
+
+$$
+\\int_0^1 x \\, dx
+$$
+`);
+});

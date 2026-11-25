@@ -29,7 +29,17 @@ const sliceOf = (node, source) => {
 };
 
 // What the type's elements call each node the parser meets at the top level.
-const ELEMENT_OF = { heading: 'heading', list: 'list', blockquote: 'quote', code: 'code', table: 'table', footnoteDefinition: 'footnotes' };
+const ELEMENT_OF = { heading: 'heading', list: 'list', blockquote: 'quote', code: 'code', math: 'block-math', table: 'table', footnoteDefinition: 'footnotes' };
+
+// A formula written `$$…$$` in a paragraph's text, which is a block formula's delimiters.
+const isDisplayIn = (node, source) => node.type === 'inlineMath' && source.startsWith('$$', node.position?.start?.offset ?? -1);
+
+// A paragraph that is a `$$…$$` alone, the intake's block formula, as the field holds one.
+const asBlockFormula = (node, source) => (node.type === 'paragraph' && node.children?.length === 1 && isDisplayIn(node.children[0], source) ? { type: 'math', value: node.children[0].value, position: node.position } : null);
+
+// Whether a node holds a formula the field has no place for: a block formula below the top, or a
+// `$$…$$` in text.
+const holdsStrayFormula = (node, source) => (node.children ?? []).some((child) => child.type === 'math' || isDisplayIn(child, source) || holdsStrayFormula(child, source));
 
 const isLoneHtml = (node) => node.children?.length === 1 && node.children[0].type === 'html';
 
@@ -121,6 +131,7 @@ const holdsImage = (node) => node.type === 'image' || (node.children ?? []).some
 // does not take, and the field has no form of it yet.
 function keptAs(node, source, policy) {
   if (node.type === 'heading' && node.depth === 1) return 'other';
+  if (holdsStrayFormula(node, source)) return 'other';
   if (node.type === 'thematicBreak') return 'other';
   if (node.type === 'html') return 'html';
   if (node.type === 'definition') return 'other';
@@ -139,7 +150,7 @@ function keptAs(node, source, policy) {
 function keepLaterElements(children, source, policy) {
   const out = [];
   for (let index = 0; index < children.length; index += 1) {
-    const node = children[index];
+    const node = asBlockFormula(children[index], source) ?? children[index];
     const kind = keptAs(node, source, policy);
     if (kind === null) {
       out.push(node);
@@ -290,6 +301,15 @@ const rawRun = (tag, type) => (node, _, state) => {
 
 const CAPTION = 'konziloCaption';
 const LINE = 'konziloLine';
+const FORMULA = 'konziloFormula';
+
+// An inline formula, between two `$`, a `|` in it escaped in a table's cell, and the empty comment
+// after it where a digit or another formula follows, which its `$` would otherwise not close.
+function formula(node, _, state, info) {
+  const latex = state.stack.includes('tableCell') ? node.value.replaceAll('|', '\\|') : node.value;
+  return `$${latex}$${/^[\d$]/.test(info.after ?? '') ? '<!-- -->' : ''}`;
+}
+formula.peek = () => '$';
 
 // A caption takes no link, and Sätteri makes one of an address however it is escaped, so what
 // remark escapes there is split, as the intake splits it.
@@ -304,8 +324,8 @@ function text(node, _, state, info) {
 }
 
 // Alt text is read as inline text and shown flat, so whatever could be read as a format goes
-// escaped, and a colon as anywhere.
-const altWritten = (alt) => alt.trim().replace(/[\\*`[\]_&<~]|:(?=[\p{L}\p{N}])/gu, '\\$&');
+// escaped, a `$` that could open a formula among it, and a colon as anywhere.
+const altWritten = (alt) => alt.trim().replace(/[\\*`[\]_&<~$]|:(?=[\p{L}\p{N}])/gu, '\\$&');
 
 const image = (node) => `![${altWritten(node.alt)}](${linkAddress(node.url)})`;
 
@@ -389,6 +409,7 @@ export const writerOptions = (options) => ({
     image,
     [CAPTION]: caption,
     [LINE]: () => '\n',
+    [FORMULA]: formula,
     root(node, _, state, info) {
       tidy(node);
       return state.containerFlow(node, info);

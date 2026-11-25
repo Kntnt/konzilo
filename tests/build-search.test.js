@@ -193,3 +193,15 @@ test('holds the article an Admin chose as the start page at /, by its file at th
     rmSync(content, { recursive: true, force: true });
   }
 });
+
+test('holds a formula of a post\'s body as its LaTeX', () => {
+  const site = { ...withArticles, types: { article: { ...withArticles.types.article, elements: ['paragraph', 'inline-math', 'block-math'] } } };
+  const { content, documents } = articleSite(site, {
+    'articles/area.md': '---\ntitle: "Area"\ndate: 2026-10-01T08:00:00Z\nheadline: "Area"\nauthors: []\ncategory: []\ntopics: []\n---\n\nThe area is $\\pi r^2$ here.\n\n$$\nE = mc^2\n$$\n',
+  });
+  try {
+    assert.equal(documents[0].body, 'The area is \\pi r^2 here. E = mc^2');
+  } finally {
+    rmSync(content, { recursive: true, force: true });
+  }
+});

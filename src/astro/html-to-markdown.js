@@ -2,19 +2,21 @@
 //
 // The page's main content is its one <main>, or the one element its design
 // marks with `data-konzilo-main`. Inside it, dialog, nav, script, style and template
-// are left out, and an embed's panel becomes the link to its address that it holds.
+// are left out, an embed's panel becomes the link to its address that it holds, and a
+// formula its LaTeX, `$…$` in the text and on lines of `$$` as a block.
 // The front matter comes as the build wrote it, then the page's title as a
 // heading, unless the body begins with it, then the body. Every relative link
 // and image is written from the page's canonical address.
 
 import { htmlToHast } from 'satteri';
+import { isFormulaBox, latexOf } from './formulas.js';
 
 // The mark of the element that holds a page's main content.
 export const MAIN_MARK = 'data-konzilo-main';
 
 const LEFT_OUT = new Set(['dialog', 'nav', 'script', 'style', 'template']);
 const HEADINGS = { h1: 1, h2: 2, h3: 3, h4: 4, h5: 5, h6: 6 };
-const INLINE = new Set(['a', 'abbr', 'b', 'bdi', 'bdo', 'br', 'cite', 'code', 'data', 'del', 'dfn', 'em', 'i', 'img', 'ins', 'kbd', 'mark', 'q', 's', 'samp', 'small', 'span', 'strike', 'strong', 'sub', 'sup', 'time', 'u', 'var', 'wbr']);
+const INLINE = new Set(['a', 'abbr', 'b', 'bdi', 'bdo', 'br', 'cite', 'code', 'data', 'del', 'dfn', 'em', 'i', 'img', 'ins', 'kbd', 'mark', 'math', 'q', 's', 'samp', 'small', 'span', 'strike', 'strong', 'sub', 'sup', 'time', 'u', 'var', 'wbr']);
 
 const isElement = (node) => node?.type === 'element';
 const propertiesOf = (node) => node.properties ?? {};
@@ -106,6 +108,10 @@ function inlineNode(node, base) {
       return wrapped('~~', inner());
     case 'code':
       return codeSpan(plainText(node));
+    case 'math': {
+      const latex = latexOf(node);
+      return latex === null ? inner() : `$${latex}$`;
+    }
     case 'br':
       return '  \n';
     case 'img': {
@@ -229,6 +235,9 @@ function blocks(nodes, base) {
       out.push(quoted(blocks(node.children ?? [], base).join('\n\n')));
     } else if (tagName === 'pre') {
       out.push(codeBlock(node));
+    } else if (isFormulaBox(node)) {
+      const latex = latexOf((node.children ?? []).find((child) => latexOf(child) !== null));
+      if (latex !== null) out.push(`$$\n${latex}\n$$`);
     } else if (tagName === 'table') {
       const text = pipeTable(node, base);
       if (text !== '') out.push(text);

@@ -57,7 +57,7 @@ export const keptBlock = $nodeSchema('konzilo_kept', () => ({
 
 // An image or an embed stands at the top of a body, never in a quote or a list, so that is all the
 // schema lets it do, by a group of its own beside the blocks.
-const TOP_ONLY = 'konzilo_top';
+export const TOP_ONLY = 'konzilo_top';
 
 export const bodyDocument = (withTopOnly) => $node('doc', () => ({
   content: withTopOnly ? `(block | ${TOP_ONLY})+` : 'block+',
@@ -240,7 +240,7 @@ const imageOf = ({ schema }, chosen) => schema.nodes[IMAGE].create({ src: chosen
 
 // A block in place of an empty block, or after the block at the cursor, with the cursor after it,
 // so that writing can go on.
-function putAtCursor(state, dispatch, node) {
+export function putAtCursor(state, dispatch, node) {
   const { $from } = state.selection;
   const at = $from.depth === 0 ? $from.pos : $from.before(1);
   const block = state.doc.nodeAt(at);
@@ -309,7 +309,7 @@ export const galleriesHoldTwo = $prose(() => new Plugin({
 
 const PEN_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M14.06 9.02L14.98 9.94L5.92 19H5V18.08L14.06 9.02ZM17.66 3C17.41 3 17.15 3.1 16.96 3.29L15.13 5.12L18.88 8.87L20.71 7.04C21.1 6.65 21.1 6.02 20.71 5.63L18.37 3.29C18.17 3.09 17.92 3 17.66 3ZM14.06 6.19L3 17.25V21H6.75L17.81 9.94L14.06 6.19Z"/></svg>';
 
-const penOn = (parent, words, run) => {
+export const penOn = (parent, words, run) => {
   const pen = made('button', 'konzilo-image-edit', parent);
   pen.type = 'button';
   pen.title = words;

@@ -104,6 +104,14 @@ An image is a `figure` with no class of its own, holding its `figcaption` if it 
 
 The box is the core's, written when a body is rendered, and no content file holds it ([ADR 0021](adr/0021-write-a-simple-table-as-a-pipe-table-and-a-structured-table-as-html.md)). A design sizes and scrolls the box, and leaves the table inside it its table layout: `.konzilo-table { overflow-x: auto }` lets a wide table scroll in its own box at a phone's width while the page does not, and a rule on `.konzilo-table > table` lets a narrow one fill its column. A table's caption stays the table's own, `.konzilo-table > table > caption`, inside the box with it. The box is the block: in the live preview its mark stands on the `div`, a component's tree holds the `div` as the page does, and the Markdown alternate writes the table alone. The core gives the box no `tabindex` and no role, since it cannot know whether a design makes it scroll, and a stop for the keyboard at every table that does not scroll would be one too many.
 
+### Formulas in a body
+
+| Class | On | State |
+|---|---|---|
+| `.konzilo-math` | The `div` each block formula of a body stands in, holding its `math` element, with `display="block"`, and nothing else | |
+
+A formula is MathML, as Temml writes it, which the browser draws with no script, stylesheet or font of the core's: an inline formula is its `math` element in the text, and a block formula's stands in the core's box ([ADR 0075](adr/0075-write-a-formula-as-latex-and-show-it-as-temmls-static-mathml.md)). Inside a `math` element are Temml's own classes, `tml-*`, and the `style` attributes it writes, such as a colour a formula asks for, which a design may style as Temml's stylesheet does, or leave to the browser; the site's security policy allows each `style` it writes. The box is the core's, written when a body is rendered, and no content file holds it. A design sizes and scrolls the box, as a table's: `.konzilo-math { overflow-x: auto }` lets a wide formula scroll in its own box at a phone's width while the page does not. A design that wants a font for formulas sets it on `math`, such as a math font of its own, `font-family: "Latin Modern Math", math`. The box is the block: in the live preview its mark stands on the `div`, a component's tree holds the `div` as the page does, and the Markdown alternate writes the formula as its LaTeX. The core gives the box no `tabindex` and no role, as it gives a table's none.
+
 ### The rest of a body
 
 The rest of a body is plain elements with no class of Konzilo's, as `content-format.md` shows each. Three come from the reader, with marks of their own:

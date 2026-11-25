@@ -107,7 +107,7 @@ The site description every example in this document is of:
     "article": {
       "collection": "articles",
       "address": "/{slug}/",
-      "elements": ["paragraph", "heading", "list", "quote", "code", "table", "footnotes", "embed", "image", "gallery", "post-list", "form"],
+      "elements": ["paragraph", "heading", "list", "quote", "code", "table", "footnotes", "embed", "image", "gallery", "post-list", "form", "inline-math", "block-math"],
       "fields": {
         "readingTime": { "label": "Reading time", "type": "integer", "control": "number" },
         "rating": { "label": "Rating", "type": "number", "control": "number" },
@@ -120,7 +120,7 @@ The site description every example in this document is of:
       "collection": "pages",
       "hierarchical": true,
       "address": "/pages/{path}/",
-      "elements": ["paragraph", "heading", "list", "quote", "code", "table", "footnotes", "embed", "image", "gallery", "post-list", "form"]
+      "elements": ["paragraph", "heading", "list", "quote", "code", "table", "footnotes", "embed", "image", "gallery", "post-list", "form", "inline-math", "block-math"]
     },
     "canvas": {
       "collection": "canvases",
@@ -357,6 +357,7 @@ The body is Markdown, as GFM, GitHub's Markdown, writes it, with raw HTML where 
 | [Lists](#lists) | `list` |
 | [Quotes](#quotes) | `quote` |
 | [Code blocks](#code-blocks) | `code` |
+| [Formulas](#formulas) | `inline-math` for one in the text, `block-math` for one on lines of its own |
 | [Simple tables](#simple-tables) and [structured tables](#structured-tables) | `table` |
 | [Footnotes](#footnotes) | `footnotes`, with the footnote marks in the text |
 | [Embeds](#embeds) | `embed` |
@@ -468,6 +469,33 @@ nested
 ```
 ````
 `````
+
+### Formulas
+
+A formula is LaTeX, as [Temml](https://temml.org) reads it, which the site shows as MathML, drawn by the browser itself. One in the text, an *inline formula*, is its LaTeX between two `$`, `$\pi r^2$`, on the block's one line, a soft line break in it a space; it stands where inline code does ([Inline elements](#inline-elements)). One on lines of its own, a *block formula*, is `$$` on a line, its LaTeX on the lines after it, and `$$` on a line again, without spaces at the ends of its lines or blank lines at its own; it stands at the top level of the body, never in a quote or a list. A type takes them by the names `inline-math` and `block-math`, each by itself. A type that takes neither reads a `$` as text, and one that takes block formulas alone reads `$…$` as text.
+
+**When a `$` opens a formula** follows Pandoc's rule: the LaTeX after it neither starts nor ends with a space, holds no `$`, and is ended by the next `$`, which no digit follows; so "It costs $5 and $10." holds no formula. A `$` that would open one where none is meant is written `\$`, and since a formula ends at the next `$`, written `\$` or not, a `$` before such a `\$` that would open a formula ending there is written `\$` too ([Escapes and fallbacks](#escapes-and-fallbacks)). A digit or another formula right after a formula follows the empty comment, `<!-- -->` ([Escapes and fallbacks](#escapes-and-fallbacks)). An inline formula's LaTeX cannot hold a `$`, not even as `\$`; a block formula's can.
+
+The LaTeX is what Temml reads in its default settings, without the commands it trusts only when told to, such as `\href`, `\url`, `\class`, `\style` and `\includegraphics`, and a block formula's in display mode, where an environment such as `aligned` or `\tag` is read. A file whose formula Temml cannot read is refused, naming what Temml says it cannot read. A formula is numbered by none but itself: no number or reference reaches from one formula to another.
+
+```markdown body read
+The area of a circle is $\pi r^2$, and it costs $5 and $10.
+
+$$
+\int_0^1 x^2 \, dx = \frac{1}{3}
+$$
+```
+
+```html rendered
+<p>The area of a circle is <math><semantics><mrow><mi>π</mi><msup><mi>r</mi><mn class="tml-sml-pad">2</mn></msup></mrow><annotation encoding="application/x-tex">\pi r^2</annotation></semantics></math>, and it costs $5 and $10.</p>
+<div class="konzilo-math"><math display="block" class="tml-display" style="display:block math;"><semantics><mrow><msubsup><mo movablelimits="false">∫</mo><mn>0</mn><mn>1</mn></msubsup><msup><mi>x</mi><mn class="tml-sml-pad">2</mn></msup><mspace width="0.1667em"></mspace><mi>d</mi><mi>x</mi><mo>=</mo><mfrac><mn>1</mn><mn>3</mn></mfrac></mrow><annotation encoding="application/x-tex">\int_0^1 x^2 \, dx = \frac{1}{3}</annotation></semantics></math></div>
+```
+
+The site shows an inline formula as Temml's `math` element in the text, and a block formula as its `math` element with `display="block"`, in a `div` of the class `konzilo-math`; each keeps its LaTeX in its annotation. A dollar sign that is text, and a formula that is none, read so:
+
+```markdown body
+Write \$x$ for a formula, and $x$ for $x$.
+```
 
 ### Simple tables
 
@@ -716,6 +744,7 @@ Within a block's text, by their names in the rule data's `inline`:
 | Subscript | `sub` | Raw `<sub>2</sub>` |
 | A line break | `br` | A backslash at the end of the line |
 | Inline code | `code` | `` `code` ``, between the shortest run of backticks the code does not hold, with a space inside each end where the code starts or ends with a backtick, or starts and ends with a space |
+| An inline formula | `math` | `$\pi r^2$`, in a type that takes `inline-math` ([Formulas](#formulas)) |
 | Strikethrough | `s` | `~~struck~~` |
 | A footnote's mark | `footnote` | `[^1]` ([Footnotes](#footnotes)) |
 
@@ -751,9 +780,10 @@ A character is written as typed, with no smart punctuation, but where Markdown w
 - `\`, `*` and `` ` `` always; `_` outside a word (`snake_case` stays);
 - `&` before what reads as a character reference (`\&copy;`), and `<` before what reads as a tag (`\<b>`);
 - at the start of a line, `#`, `>`, `-`, `+` and `*`, and the `.` or `)` after a number (`2024\. A year`);
-- a colon that would begin a directive: before a name no colon follows, unless a colon comes right before it (`10\:30`, `a\:b`, but `:smile:` stays), and at a line's start before two or more colons (`\::x`).
+- a colon that would begin a directive: before a name no colon follows, unless a colon comes right before it (`10\:30`, `a\:b`, but `:smile:` stays), and at a line's start before two or more colons (`\::x`);
+- a `$` beside another `$`, and one that would open a formula, in every type, since the site reads every file's formulas ([Formulas](#formulas)): `\$x$`, but `$5 and $10`.
 
-Code, inline code and a structured table take none.
+Code, inline code, a formula and a structured table take none, but a `|` in a formula in a table's cell, `\|`.
 
 ```markdown body
 2\*3\*4, \`code\`, a back\\slash, snake_case and \_emphasis\_.
@@ -767,8 +797,8 @@ Code, inline code and a structured table take none.
 
 Where the minimal form does not read back as the content, the block takes a *fallback*, each level adding to those below it, the block's own alone:
 
-1. **The empty comment.** What GFM would make a link of itself, an address or an email address in the text, is split by an empty HTML comment, which no page shows: `www<!-- -->.example.com`, `https<!-- -->://…`, `name<!-- -->@example.com`.
-2. **Strict escaping.** `[`, `]`, `!`, `~` and `|` too, `=` and `-` at a line's start, a `#` that ends a heading, and every colon before a letter or a digit.
+1. **The empty comment.** What GFM would make a link of itself, an address or an email address in the text, is split by an empty HTML comment, which no page shows: `www<!-- -->.example.com`, `https<!-- -->://…`, `name<!-- -->@example.com`. A formula that a digit or another formula follows ends with one: `$n$<!-- -->2`.
+2. **Strict escaping.** `[`, `]`, `!`, `~`, `|` and `$` too, `=` and `-` at a line's start, a `#` that ends a heading, and every colon before a letter or a digit.
 3. **Raw emphasis.** Bold and italic that Markdown cannot close as `**` and `_` are raw `<strong>` and `<em>`, and strikethrough raw `<del>`.
 
 ```markdown body
@@ -1516,7 +1546,7 @@ A site in one language is written as if it declared no languages.
 Three forms meet in a content file:
 
 - **The exact form**, the one this document describes: what the intake writes, byte for byte, and the one another tool should write. Each example above that is not marked as read is in it.
-- **What the site's reader takes besides.** The reader is [Sätteri](https://github.com/bruits/satteri) 0.11.7 with GFM, raw HTML and directives on and smart punctuation off, the reader Astro uses. It renders any Markdown and any raw HTML a file holds as ordinary Markdown and HTML, below; the intake never writes it.
+- **What the site's reader takes besides.** The reader is [Sätteri](https://github.com/bruits/satteri) 0.11.7 with GFM, raw HTML, directives and formulas on and smart punctuation off, the reader Astro uses, its formulas read by the rule of [Formulas](#formulas). It renders any Markdown and any raw HTML a file holds as ordinary Markdown and HTML, below; the intake never writes it.
 - **The shapes the site gives a meaning of its own**, below.
 
 ### What more the reader takes
@@ -1532,6 +1562,8 @@ and the next, without a backslash.
 Visit https://example.com today, linked by GFM.
 
 <span class="note">Raw HTML</span>, as written.
+
+$$x^2 + y^2$$
 ```
 
 ```html rendered
@@ -1540,6 +1572,7 @@ Visit https://example.com today, linked by GFM.
 and the next, without a backslash.</p>
 <p>Visit <a href="https://example.com">https://example.com</a> today, linked by GFM.</p>
 <p><span class="note">Raw HTML</span>, as written.</p>
+<p><math display="block" class="tml-display" style="display:block math;"><semantics><mrow><msup><mi>x</mi><mn class="tml-sml-pad">2</mn></msup><mo>+</mo><msup><mi>y</mi><mn class="tml-sml-pad">2</mn></msup></mrow><annotation encoding="application/x-tex">x^2 + y^2</annotation></semantics></math></p>
 ```
 
 ````markdown body read reader-only
@@ -1579,6 +1612,7 @@ The site's reader gives these shapes a meaning beyond Markdown's:
 - **An empty `<a id>` before a heading's text** is the heading's id ([Headings](#headings)).
 - **A quote's last paragraph wrapped in `<cite>`** is its citation ([Quotes](#quotes)).
 - **A directive the rule data registers**, the post list or the form, or one of the site's own components, is that component; any other reads as its text ([Post lists](#post-lists), [Forms](#forms), [A site's own components](#a-sites-own-components)).
+- **A formula**, `$…$` in the text or `$$` on lines around a block of LaTeX, is Temml's MathML ([Formulas](#formulas)).
 - **An empty HTML comment**, `<!-- -->`, shows nothing.
 
 ## Source files
@@ -1618,7 +1652,7 @@ date: 2026-11-03T12:00:00Z
 modified: 2026-11-03T12:00:00Z
 ---
 
-A paragraph with **bold**, _italic_, `inline code`, ~~struck~~ text, H<sub>2</sub>O, E = mc<sup>2</sup>, 10 kg and a footnote[^1].\
+A paragraph with **bold**, _italic_, `inline code`, ~~struck~~ text, H<sub>2</sub>O, E = mc<sup>2</sup>, a formula, $\pi r^2$, 10 kg and a footnote[^1].\
 A line break, [a link](https://example.com/), [a page of the site](/pages/about-us/) and <a href="https://example.com/offer" target="_blank" rel="noopener nofollow">a link that opens in a new tab</a>.
 
 ## <a id="headings"></a>A heading at level 2
@@ -1645,6 +1679,10 @@ A line break, [a link](https://example.com/), [a page of the site](/pages/about-
 ```
 npm test
 ```
+
+$$
+a^2 + b^2 = c^2
+$$
 
 | Item | Price |
 | --- | ---: |
