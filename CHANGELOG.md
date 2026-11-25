@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- A type's address can hold its post's date and its term, before the slug: `{year}`, `{year}/{month}` or `{year}/{month}/{day}`, as in `/{year}/{month}/{day}/{slug}/`, from the post's date in UTC, the month and the day in two digits; and the term of a field that takes exactly one, `"most": 1` and `"required": true`, by the field's name, as in `/articles/{category}/{slug}/`, the term's whole path in a hierarchical taxonomy, `/articles/health/ptsd/{slug}/`. The built-in article's category becomes required where its address holds it. A changed date or term, or a term renamed or moved under another parent, moves the post, and the address it was live at leads to the new one with `301`. A draft's and a scheduled post's address in the form and the live preview follows its date and term as they are edited. The site description's checker refuses every other shape, naming the type with an example that works, and two types whose addresses would give each other's every address. A site whose addresses hold only `{slug}` or `{path}` keeps the addresses it had.
+
 ## [0.10.0] – 2026-11-25
 
 ### Added

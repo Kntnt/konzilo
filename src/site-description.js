@@ -202,7 +202,8 @@ const results = new WeakSet();
 // visitors read them. A type's address is
 // where visitors reach each of its posts, a path from the site's root with
 // `{slug}` as its last segment, or `{path}` in a hierarchical type, whose
-// posts have parents (format/addresses.js); null for a type whose posts have
+// posts have parents, and before it tokens of the post's date and of the term
+// of a field that takes one (format/addresses.js); null for a type whose posts have
 // no page of their own. On a site with several languages it may be an object
 // of an address by locale, one for each language, as declared. A type's
 // `search` says whether its posts are in the site's search: every
