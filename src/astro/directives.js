@@ -302,11 +302,14 @@ export function directiveReader(problem, { checks, leaveOut = {}, warn = () => {
 // post's Content, split at each directive's plain rendering whose name is in
 // `names`, the directives the site gives a component of its own. Returns
 // the parts in order: HTML as a text, and each such directive as { name,
-// attributes, body, content, parts, block }, its attributes typed, with their
-// defaults, its body's HTML, its body as a hast tree (bodyTree()) and its
-// body's own parts, read as these are, all three null for a directive
-// without a body, and the live preview's mark on it. So a body's parts hold
-// every such directive at any depth, in the order written, and Body.astro
+// attributes, body, content, parts, blocks, block }, its attributes typed, with
+// their defaults, its body's HTML, its body as a hast tree (bodyTree()), its
+// body's own parts, read as these are, and the blocks at the top of its body,
+// each with its slot's name and the parts it holds (blocksOf()), none for a
+// leaf's label, all four null for a directive without a body, and the live
+// preview's mark on it. So a
+// body's parts hold every such directive at any depth, in the order written,
+// each once, a block's parts being the same parts as its body's, and Body.astro
 // evaluates the post lists among them in that order before it renders any.
 // HTML without such a directive is one part, as it is.
 //
@@ -315,7 +318,12 @@ export function directiveReader(problem, { checks, leaveOut = {}, warn = () => {
 // element has no end, and an element ends where the end tag of its name
 // that matches it is.
 export function bodyParts(html, names, known = siteRegistry()) {
-  if (names.length === 0 || !html.includes('data-directive=')) return [html];
+  return placedParts(html, names, known).map(({ part }) => part);
+}
+
+// bodyParts(), each part with where it stands in `html`: { part, start, end }.
+function placedParts(html, names, known) {
+  if (names.length === 0 || !html.includes('data-directive=')) return [{ part: html, start: 0, end: html.length }];
   const parts = [];
   let from = 0;
   let at = 0;
@@ -327,20 +335,82 @@ export function bodyParts(html, names, known = siteRegistry()) {
     if (name === undefined || !names.includes(name) || !known.has(name) || tag.void) continue;
     const close = endOf(html, tag);
     const entry = known.get(name);
-    if (tag.start > from) parts.push(html.slice(from, tag.start));
+    if (tag.start > from) parts.push({ part: html.slice(from, tag.start), start: from, end: tag.start });
     const body = entry.body === 'none' ? null : html.slice(tag.end, close.start);
+    const within = body === null ? null : placedParts(body, names, known);
+    const content = body === null ? null : bodyTree(body);
     parts.push({
-      name,
-      attributes: attributesOf(entry, tag.attributes),
-      body,
-      content: body === null ? null : bodyTree(body),
-      parts: body === null ? null : bodyParts(body, names, known),
-      block: tag.attributes['data-konzilo-block'] ?? null,
+      part: {
+        name,
+        attributes: attributesOf(entry, tag.attributes),
+        body,
+        content,
+        parts: within?.map(({ part }) => part) ?? null,
+        blocks: body === null ? null : entry.body === 'blocks' ? blocksOf(body, within, content) : [],
+        block: tag.attributes['data-konzilo-block'] ?? null,
+      },
+      start: tag.start,
+      end: close.end,
     });
     from = at = close.end;
   }
-  if (from < html.length) parts.push(html.slice(from));
+  if (from < html.length) parts.push({ part: html.slice(from), start: from, end: html.length });
   return parts;
+}
+
+// The name of the slot through which a container's component is given the block at `index`
+// among the nodes at the top of its tree, `content.children`: `block-0`, `block-1` and on. A
+// node that is no block, text of whitespace alone or a comment, takes its index and has no slot.
+export const blockSlot = (index) => `block-${index}`;
+
+// HTML's whitespace, which text between a body's blocks is.
+const WHITESPACE = /^[ \t\n\f\r]*$/;
+
+// The blocks at the top of a container's body, `html`, its tree `tree` and its parts `within`,
+// each part with where it stands (placedParts()): each { slot, parts }, the name of its slot
+// (blockSlot()) and the parts it holds, the same parts as the body's, a part of HTML cut to the
+// block, so that a list is evaluated once whichever of its body's slots a component renders. None
+// where the scan does not find at the top of the body the nodes the tree has there.
+function blocksOf(html, within, tree) {
+  const nodes = topNodes(html);
+  const read = (node, index) => node.type === tree.children[index].type && (node.type !== 'element' || node.name === tree.children[index].tagName);
+  if (nodes === null || nodes.length !== tree.children.length || !nodes.every(read)) return [];
+  return nodes.flatMap((node, index) => {
+    if (node.type === 'comment' || (node.type === 'text' && WHITESPACE.test(tree.children[index].value))) return [];
+    const parts = within
+      .filter(({ start, end }) => start < node.end && end > node.start)
+      .map(({ part, start }) => (typeof part === 'string' ? part.slice(Math.max(node.start - start, 0), node.end - start) : part));
+    return [{ slot: blockSlot(index), parts }];
+  });
+}
+
+// The nodes at the top of `html`, as a parser reads them, each { type, name, start, end }: an
+// element, by its name, to the end of its end tag; a comment; or text, up to the next tag or
+// comment. Null where an end tag stands at the top, which no element there opened.
+function topNodes(html) {
+  const nodes = [];
+  let comment = html.indexOf('<!--');
+  for (let at = 0; at < html.length;) {
+    const tag = nextTag(html, at);
+    if (comment !== -1 && comment < at) comment = html.indexOf('<!--', at);
+    const next = Math.min(tag?.start ?? html.length, comment === -1 ? html.length : comment);
+    if (next > at) {
+      nodes.push({ type: 'text', start: at, end: next });
+      at = next;
+    } else if (comment === at) {
+      const close = html.indexOf('-->', at + 4);
+      const end = close === -1 ? html.length : close + 3;
+      nodes.push({ type: 'comment', start: at, end });
+      at = end;
+    } else if (tag.closing) {
+      return null;
+    } else {
+      const end = tag.void ? tag.end : endOf(html, tag).end;
+      nodes.push({ type: 'element', name: tag.name, start: at, end });
+      at = end;
+    }
+  }
+  return nodes;
 }
 
 // A component's body as a hast tree, a `root` of what its HTML holds, as Sätteri reads it:

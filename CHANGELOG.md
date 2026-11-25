@@ -8,11 +8,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- A site's container component is given each block at the top of its body as a slot of its own, `block-<index>` by the block's index in its tree, `content.children`, beside its default slot. A component that lays its items out by what it holds, cards, tabs or questions split at their headings, draws each item's blocks through their slots, and the core draws them as it draws a body: a component within by the site's own component, an image that opens in the lightbox, a form, a post list by its presentation, and in the live preview each block's mark. A component that asks for no block's slot renders as before.
 - A *Deleted* page in the editor, in Swedish *Raderat*, for every Editor and Admin. It lists the posts, terms and images of the image library that have been deleted, newest first, with what each was called, its type, when it was deleted and by whom, and lets you show one type at a time. Each opens read-only as it was last saved, with its earlier revisions to read and compare. *Restore* saves it again as a draft under its own ID, so that links, menus and other posts find it again, and opens its form, whose history then holds its revisions from before the deletion. An image comes back with its file. A deleted entry is listed for as long as the history holds it.
 
 ### Changed
 
 - The window the editor opens for a sign-in opens empty and goes straight to Forgejo's sign-in page. It used to load the whole editor first, only to be sent on from there, so a sign-in now starts sooner.
+- The consent banner's default text is written from the facts of the services that ask for consent, as an embed's placeholder already is: it says that they may store data in the browser, use what they learn for their own purposes, or send data to countries outside the EU and EEA only where one of them does. A banner text an Admin has written is shown as before, and one saved that is word for word the old default now gives the new one. The settings show the banner's text empty where no Admin has written one, with a hint of what the banner then says.
+
+### Fixed
+
+- A site that embeds Datawrapper declares a transfer to the USA with no safeguard its provider documents, in its cookie declaration, and its placeholder says that data about the visit may be processed outside the EU and EEA. Datawrapper's privacy policy keeps published charts in the USA; the core's facts listed no transfer.
 
 ## [0.9.0] – 2026-11-25
 
