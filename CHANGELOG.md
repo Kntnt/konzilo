@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- A site's container component is given each block at the top of its body as a slot of its own, `block-<index>` by the block's index in its tree, `content.children`, beside its default slot. A component that lays its items out by what it holds, cards, tabs or questions split at their headings, draws each item's blocks through their slots, and the core draws them as it draws a body: a component within by the site's own component, an image that opens in the lightbox, a form, a post list by its presentation, and in the live preview each block's mark. A component that asks for no block's slot renders as before.
+
 ### Changed
 
 - The window the editor opens for a sign-in opens empty and goes straight to Forgejo's sign-in page. It used to load the whole editor first, only to be sent on from there, so a sign-in now starts sooner.
