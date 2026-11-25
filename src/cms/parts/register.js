@@ -14,13 +14,17 @@
 //                         settings, and `separator`, the separator's default, where they
 //                         give none;
 //                         or ownAddress, the post's own address on the public site, from
-//                         `address`, its type's with {slug}, or one by the language tag of
-//                         each pane, while the post has a slug and no parent
+//                         `address`, its type's with its tokens, or one by the language tag
+//                         of each pane, while the post has a slug and no parent, filled with
+//                         the form's values as they stand, the path of the term of each field
+//                         `addressTerms` names read from the term files in the language folder
+//                         `termFolder` (address.js)
 //   add: <words>          an optional part: a button with the words until something is written
 //   multiline: true       a text of several lines
 //   placeholder: <words>  the placeholder of a field without a fallback, or while its
 //                         fallback gives nothing
-// The slug's: `address`, the type's address with {slug}, to open the post's page.
+// The slug's: `address`, the type's address with its tokens, with `addressTerms` and
+// `termFolder` as above, to open the post's page.
 // The structured data type's: `options`, `type` and `typeLabel`, the post's type and its plural as
 // it stands in a phrase, and `preset`, its type's structured data type until the site's settings
 // say another.
@@ -31,6 +35,7 @@ import { computedDefault } from '../groups/menu.js';
 import { postValues } from '../groups/values.js';
 import { signedInCredential } from '../credential.js';
 import { sourceOf, sourceReader } from '../source.js';
+import { formAddress, termIdIn, termPathReader } from './address.js';
 import { menuLabelReader } from './menu-label.js';
 import { SCHEMA_WIDGET, SLUG_WIDGET, TEXT_WIDGET } from './widgets.js';
 import './form.css';
@@ -54,16 +59,34 @@ function settingsReader(config) {
   };
 }
 
-// A post's address on the public site, from its type's address and its slug, where the
-// address holds the slug alone.
-const addressOf = (site, address, slug) => (typeof address === 'string' && address.includes('{slug}') && slug ? new URL(address.replace('{slug}', slug), site).href : '');
-
 export function registerParts(CMS, config) {
   const React = globalThis.__SVELTIA_CMS_REACT__;
   const h = React.createElement;
   const site = config.site_url;
   const readSettings = settingsReader(config);
   const menuLabelFor = menuLabelReader({ ...sourceOf(config), credential: signedInCredential });
+  const termPathOf = termPathReader({ ...sourceOf(config), credential: signedInCredential });
+
+  // The path of the term of each field a type's address holds, as the field's settings name
+  // them, `addressTerms` and `termFolder`, by the field's name, from the form's values as they
+  // stand, read again as a term is chosen.
+  const useAddressTerms = (field, data) => {
+    const wanted = plain(field.get('addressTerms')) ?? [];
+    const folder = plain(field.get('termFolder')) ?? null;
+    const ids = wanted.map(({ name }) => termIdIn(data?.[name]));
+    const [terms, setTerms] = React.useState({});
+    React.useEffect(() => {
+      if (wanted.length === 0) return undefined;
+      let gone = false;
+      void Promise.all(wanted.map(({ collection }, at) => termPathOf(collection, ids[at], folder))).then((paths) => {
+        if (!gone) setTerms(Object.fromEntries(wanted.map(({ name }, at) => [name, paths[at]]).filter(([, path]) => path)));
+      });
+      return () => {
+        gone = true;
+      };
+    }, [ids.join('\n')]);
+    return terms;
+  };
 
   // What each part left empty falls back to. A field's own value is left out, so that the
   // placeholder shows the part's default and not what is written.
@@ -76,10 +99,7 @@ export function registerParts(CMS, config) {
     socialTitle: (data) => socialTitleOf(data),
     socialDescription: (data) => socialDescriptionOf(data),
     // A post below another has its parents' slugs in its address, which the form does not hold.
-    ownAddress: (data, { address, locale }) => {
-      const own = typeof address === 'string' ? address : address?.[locale];
-      return own && data.slug && !data.parent ? addressOf(site, own, data.slug) : '';
-    },
+    ownAddress: (data, { address, locale, terms }) => formAddress(site, typeof address === 'string' ? address : address?.[locale], data, terms),
   };
 
   CMS.registerFieldType(TEXT_WIDGET, function KonziloText({ value, onChange, field, forID, entry }) {
@@ -93,6 +113,7 @@ export function registerParts(CMS, config) {
     const [menuLabel, setMenuLabel] = React.useState('');
     const input = React.useRef(null);
     const composing = React.useRef(false);
+    const terms = useAddressTerms(field, dataOf(entry));
     // The language of the pane the field is in, on a site in several languages.
     React.useEffect(() => {
       setLocale(input.current?.closest('[data-locale]')?.dataset.locale ?? null);
@@ -144,7 +165,7 @@ export function registerParts(CMS, config) {
     if (add && !value && !open) {
       return h('button', { type: 'button', id: forID, className: 'konzilo-part-add', onClick: () => setOpen(true) }, `+ ${add}`);
     }
-    const placeholder = (fallback && RULES[fallback] ? RULES[fallback](dataOf(entry), { name, separator, menuLabel, address: plain(field.get('address')), locale }) : '') || (plain(field.get('placeholder')) ?? '');
+    const placeholder = (fallback && RULES[fallback] ? RULES[fallback](dataOf(entry), { name, separator, menuLabel, address: plain(field.get('address')), locale, terms }) : '') || (plain(field.get('placeholder')) ?? '');
     return h(multiline ? 'textarea' : 'input', {
       ref: input,
       id: forID,
@@ -176,6 +197,7 @@ export function registerParts(CMS, config) {
   CMS.registerFieldType(SLUG_WIDGET, function KonziloSlug({ value, onChange, field, forID, entry }) {
     const address = plain(field.get('address'));
     const proposed = computedDefault('slug', dataOf(entry));
+    const terms = useAddressTerms(field, dataOf(entry));
     const following = React.useRef(!value);
     const [editing, setEditing] = React.useState(false);
     const [draft, setDraft] = React.useState(value ?? '');
@@ -188,7 +210,7 @@ export function registerParts(CMS, config) {
       following.current = true;
       if (proposed) onChange(proposed);
     }, [value]);
-    const page = addressOf(site, address, value);
+    const page = formAddress(site, address, { ...dataOf(entry), slug: value }, terms);
     const press = () => {
       if (!editing) {
         setDraft(value ?? '');

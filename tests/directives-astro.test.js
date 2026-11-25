@@ -246,12 +246,12 @@ describe("a site's own components", () => {
     ].join(''));
   });
 
-  test("puts each table in its box, simple or structured, in the body and in a component's tree, its mark on the box in the live preview", () => {
+  test("puts each table in its box, simple or structured, in the body and in a component's tree, its mark on the box in the live preview, and each aligned cell's alignment in data-align and no style", () => {
     const withTables = { ...withDivider, types: { post: { ...withDivider.types.post, elements: [...withDivider.types.post.elements, 'table'] } } };
     const tablesBody = [
-      '| A | B |\n| --- | ---: |\n| 1 | 2 |',
+      '| A | B | C | D |\n| :--- | :---: | ---: | --- |\n| 1 | 2 | 3 | 4 |',
       ':::panel',
-      '<table>\n<caption>Packed</caption>\n<thead>\n<tr><th>Item</th></tr>\n</thead>\n<tbody>\n<tr><td>Tent</td></tr>\n</tbody>\n</table>',
+      '<table>\n<caption>Packed</caption>\n<thead>\n<tr><th style="text-align: left">Item</th><th style="text-align: center">Size</th><th style="text-align: right">Price</th></tr>\n</thead>\n<tbody>\n<tr><td style="text-align: left">Tent</td><td style="text-align: center">M</td><td style="text-align: right">120</td></tr>\n</tbody>\n</table>',
       ':::',
     ].join('\n\n');
     const files = { 'content/articles/hello-world.md': post(tablesBody), ...fromTree };
@@ -260,15 +260,15 @@ describe("a site's own components", () => {
     assert.equal(published.status, 0, published.output);
     assert.equal(previewed.status, 0, previewed.output);
     assert.equal(published.article('hello-world').replaceAll('\n', ''), [
-      '<div class="konzilo-table"><table><thead><tr><th>A</th><th style="text-align: right">B</th></tr></thead><tbody><tr><td>1</td><td style="text-align: right">2</td></tr></tbody></table></div>',
+      '<div class="konzilo-table"><table><thead><tr><th data-align="start">A</th><th data-align="center">B</th><th data-align="end">C</th><th>D</th></tr></thead><tbody><tr><td data-align="start">1</td><td data-align="center">2</td><td data-align="end">3</td><td>4</td></tr></tbody></table></div>',
       '<section class="site-panel" data-tone="plain" data-headings="0">',
-      '<div class="konzilo-table"><table><caption>Packed</caption><thead><tr><th>Item</th></tr></thead><tbody><tr><td>Tent</td></tr></tbody></table></div>',
+      '<div class="konzilo-table"><table><caption>Packed</caption><thead><tr><th data-align="start">Item</th><th data-align="center">Size</th><th data-align="end">Price</th></tr></thead><tbody><tr><td data-align="start">Tent</td><td data-align="center">M</td><td data-align="end">120</td></tr></tbody></table></div>',
       '</section>',
     ].join(''));
     assert.equal(previewed.article('hello-world').replaceAll('\n', ''), [
-      '<div class="konzilo-table" data-konzilo-block="0"><table><thead><tr><th>A</th><th style="text-align: right">B</th></tr></thead><tbody><tr><td>1</td><td style="text-align: right">2</td></tr></tbody></table></div>',
+      '<div class="konzilo-table" data-konzilo-block="0"><table><thead><tr><th data-align="start">A</th><th data-align="center">B</th><th data-align="end">C</th><th>D</th></tr></thead><tbody><tr><td data-align="start">1</td><td data-align="center">2</td><td data-align="end">3</td><td>4</td></tr></tbody></table></div>',
       '<section data-konzilo-block="1" class="site-panel" data-tone="plain" data-headings="0">',
-      '<div class="konzilo-table" data-konzilo-block="1.0"><table><caption>Packed</caption><thead><tr><th>Item</th></tr></thead><tbody><tr><td>Tent</td></tr></tbody></table></div>',
+      '<div class="konzilo-table" data-konzilo-block="1.0"><table><caption>Packed</caption><thead><tr><th data-align="start">Item</th><th data-align="center">Size</th><th data-align="end">Price</th></tr></thead><tbody><tr><td data-align="start">Tent</td><td data-align="center">M</td><td data-align="end">120</td></tr></tbody></table></div>',
       '</section>',
     ].join(''));
   });

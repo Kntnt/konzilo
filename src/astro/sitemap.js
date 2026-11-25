@@ -90,7 +90,7 @@ export async function sitemapAddresses(types, entries, taxonomies = {}, language
     // Each translation set's members, found once for the whole collection.
     const sets = several ? Map.groupBy(all.filter((entry) => entry.data?.[TRANSLATION_KEY]), (entry) => entry.data[TRANSLATION_KEY]) : new Map();
     for (const entry of all) {
-      const path = entryAddress(type, entry.id, languages);
+      const path = entryAddress(type, entry, languages);
       if (path === null) continue;
       if (postListsIn(entry.body).some((list) => list.pages === true)) withPages.add(path);
       const lastmod = (modified && entry.data[modified]) || (date && entry.data[date]) || undefined;

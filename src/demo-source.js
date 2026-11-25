@@ -11,7 +11,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { isObject } from './checks.js';
 import { isScheduled, readPost } from './demo-content.js';
-import { publicAddress } from './format/addresses.js';
+import { contentValues, publicAddress } from './format/addresses.js';
 import { pageTypeOf } from './format/built-in-types.js';
 import { IMAGE_LIBRARY_FOLDER } from './format/masters.js';
 import { NOT_FOUND_FILE } from './format/not-found.js';
@@ -49,6 +49,12 @@ const mediaPath = (src) => `/media/${src.split('/').at(-1)}`;
 function postsOf(description, published, now) {
   const several = description.languages.length > 1;
   const posts = [];
+  // A term's published file, by its collection and its name there, which a post's address may
+  // take the term's path from.
+  const termIn = (collection, name) => {
+    const found = published.find(({ path }) => path === `${collection}/${name}.json`);
+    return found ? JSON.parse(found.content) : null;
+  };
   for (const type of Object.values(description.types)) {
     const start = several || type.address === null ? undefined : published.find(({ path }) => path === startFile(type));
     if (start) {
@@ -63,7 +69,8 @@ function postsOf(description, published, now) {
       const language = several ? description.languages.find((one) => one.tag === tag) : description.languages[0] ?? null;
       const place = several ? within.slice(tag.length + 1) : within;
       const { fields, body } = readPost(content);
-      posts.push({ path, type, tag, language, place, fields, body, id: idOf(type.collection, place), address: type.address === null ? null : publicAddress(type, place, language), scheduled: isScheduled(fields, now) });
+      const address = type.address === null ? null : publicAddress(type, contentValues(type, place, fields, termIn), language);
+      posts.push({ path, type, tag, language, place, fields, body, id: idOf(type.collection, place), address, scheduled: isScheduled(fields, now) });
     }
   }
   return posts;
