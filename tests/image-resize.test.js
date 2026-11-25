@@ -1,4 +1,4 @@
-// How the editor scales an image down before it is uploaded (#114), in plain JavaScript, so that
+// How the editor scales an image down before it is uploaded, in plain JavaScript, so that
 // every browser gives the same pixels of the same decoded picture: the size it fits within the
 // longest side an Admin sets, and a Lanczos filter as sharp's, which the intake uses.
 

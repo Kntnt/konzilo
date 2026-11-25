@@ -548,7 +548,7 @@ describe('a site in Compose', () => {
 
         const entry = (await libraryEntries()).find(({ alt }) => alt === `Uploaded in ${engine}`);
         assert.equal(entry.caption, `Its caption in ${engine}`);
-        // Converted in the browser, a PNG losslessly unless the editor says otherwise (#114).
+        // Converted in the browser, a PNG losslessly unless the editor says otherwise.
         assert.match(entry.src, new RegExp(`^/media/en-ny-bild-i-${engine}-[0-9a-f]{10}\\.webp$`));
         assert.equal(entry.lossless, true);
         const inGit = await (await get(`${site.origin.git}/api/v1${repository()}/raw${entry.src}`, { headers: { authorization: `token ${token}` } })).text();
@@ -806,7 +806,7 @@ describe('a site in Compose', () => {
         }, null, { timeout: 60_000 });
         assert.equal(await place.locator('.konzilo-pick-note').textContent(), '', warned.join('\n'));
         // Converted as it is chosen, a JPEG lossy unless the editor says otherwise, which converts
-        // it again (#114).
+        // it again.
         const lossless = place.getByRole('checkbox', { name: 'Lossless compression' });
         assert.equal(await lossless.isChecked(), false);
         const lossy = await place.locator('.konzilo-pick-name').textContent();
@@ -814,7 +814,7 @@ describe('a site in Compose', () => {
         await page.keyboard.press('Space');
         await page.waitForFunction((was) => document.querySelector('.field[data-key-path="src"] .konzilo-pick-name')?.textContent !== was, lossy, { timeout: 60_000 });
         assert.equal(await lossless.isChecked(), true);
-        // A file named @2x has half its pixels as its display width, in a field of its own (#109).
+        // A file named @2x has half its pixels as its display width, in a field of its own.
         const width = page.locator('.field[data-key-path="displayWidth"]').getByRole('group', { name: 'Display width' });
         assert.equal(await width.getByRole('radio', { name: 'At most' }).isChecked(), true);
         assert.equal(await width.getByRole('spinbutton', { name: 'Display width in pixels' }).inputValue(), '650');

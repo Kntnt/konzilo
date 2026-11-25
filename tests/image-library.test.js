@@ -153,7 +153,7 @@ describe('the image library', () => {
       await assert.rejects(libraryOf(stand).add({ file: file(), alt: 'One' }), /Forgejo answered 500/);
     });
 
-    // The editor's choice of *Lossless compression* (#114), which the file itself carries too.
+    // The editor's choice of *Lossless compression*, which the file itself carries too.
     test('writes in the entry that it was uploaded with lossless compression, and nothing where it was not', async () => {
       const stand = forgejo();
       const added = await libraryOf(stand).add({ file: file(), alt: 'A diagram', lossless: true });
@@ -179,7 +179,7 @@ describe('the image library', () => {
     });
   });
 
-  // What an Admin sets in the settings group `imageUpload` (#114), read at each upload, so that
+  // What an Admin sets in the settings group `imageUpload`, read at each upload, so that
   // the next one follows a change.
   describe('how an upload is converted', () => {
     const asked = (stand) => stand.asked.map(({ pathname, query, authorization }) => [pathname, query.ref, authorization]);
@@ -304,7 +304,7 @@ describe('what the chooser turns away, before anything is sent', () => {
 });
 
 // A figure saved at twice or three times the size it is meant to be read at, as its name says by
-// `@2x` or `@3x` before its extension, gets that size as its display width at upload (#109).
+// `@2x` or `@3x` before its extension, gets that size as its display width at upload.
 test('fills in the display width of a file named @2x or @3x by its pixel width, and none of any other', () => {
   const cases = [
     ['figure@2x.png', 1264, 632],

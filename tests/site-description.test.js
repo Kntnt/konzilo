@@ -299,7 +299,7 @@ describe('the settings groups\' texts', () => {
     assert.equal(group.settings[0].help, undefined);
   });
 
-  // The longest side and the quality of an upload are bounded both ways (#114).
+  // The longest side and the quality of an upload are bounded both ways.
   test('holds a number within the least and the greatest value declared, its default too', () => {
     const posts = (bounds) => ({ feeds: { settings: { posts: { type: 'integer', control: 'number', default: 10, ...bounds } } } });
     const [group] = siteDescription(site, posts({ min: 1, max: 50 })).groups;

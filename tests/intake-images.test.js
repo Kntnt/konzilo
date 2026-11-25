@@ -56,7 +56,7 @@ describe('a raster original', () => {
     assert.equal(master.orientation, undefined);
   });
 
-  // The editor's mark of *Lossless compression* is the original's own encoding (#114).
+  // The editor's mark of *Lossless compression* is the original's own encoding.
   test('is lossless where the original is a lossless WebP, and lossy otherwise, a PNG among them', async () => {
     const pixels = { width: 300, height: 200, channels: 3, noise: { type: 'gaussian', mean: 128, sigma: 40 } };
     const lossless = await sharp({ create: pixels }).webp({ lossless: true }).toBuffer();

@@ -1194,7 +1194,7 @@ describe('the body field, alone', () => {
         await chooser().getByRole('textbox', { name: 'Caption' }).fill(' Its caption ');
         await chooser().getByRole('button', { name: 'Upload and use' }).click();
         await chooser().waitFor({ state: 'detached' });
-        // Converted before it is sent, a PNG losslessly unless the editor says otherwise (#114).
+        // Converted before it is sent, a PNG losslessly unless the editor says otherwise.
         assert.deepEqual(await call('added'), [{ name: 'A new one.webp', type: 'image/webp', alt: ' A new one ', caption: ' Its caption ', lossless: true }]);
         assert.deepEqual(await call('images'), [{ src: '/media/A new one.webp', alt: 'A new one', caption: 'Its caption' }]);
       });

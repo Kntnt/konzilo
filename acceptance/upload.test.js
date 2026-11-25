@@ -176,7 +176,7 @@ for (const [name, engine] of Object.entries(ENGINES)) {
         assert.equal(await lossless().isEnabled(), false);
       });
 
-      // The display width a file's name gives (#109), which the entry's own field of it takes.
+      // The display width a file's name gives, which the entry's own field of it takes.
       test('tells the display width of a file named @2x by its pixels, and to fill the column for any other', async () => {
         const figure = await sharp({ create: { width: 1264, height: 800, channels: 3, background: '#fafafa' } }).png().toBuffer();
         await call('open');

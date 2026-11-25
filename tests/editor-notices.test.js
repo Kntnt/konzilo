@@ -131,7 +131,7 @@ test('names the packages within a package\'s own bundle from its source map, wit
 });
 
 // A codec built into WebAssembly holds a library of its own, with no source map to name it, and
-// its package keeps that library's license in the codec's folder, above its builds (#114).
+// its package keeps that library's license in the codec's folder, above its builds.
 test('takes the license files in a folder above what a package bundled, within the package, as a codec\'s above its builds', (t) => {
   const root = folder(t, {
     'node_modules/@x/codec/package.json': { name: '@x/codec', version: '1.0.0', license: 'Apache-2.0' },
