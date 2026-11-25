@@ -73,16 +73,16 @@ describe('what a status says', () => {
     ];
     const moment = (at) => `<${at.slice(0, 10)}>`;
     try {
-      const said = statusWords({ status: 'scheduled', at: null, triggers }, moment);
+      const said = statusWords({ status: 'scheduled', at: null, triggers }, moment, moment);
       assert.equal(said.tone, 'quiet');
       assert.equal(said.words, 'Scheduled: goes live once a trigger on each row has happened.');
       assert.deepEqual(said.rows, [
         [{ words: 'on <2026-12-01>', happened: false }, { words: 'once a post is published that is of the type article or has “launch” in its title, and has the term Harbours', happened: true }],
         [{ words: 'once a post is published that is published between <2026-11-21> and <2026-12-31>', happened: false }],
       ]);
-      assert.equal(statusWords({ status: 'scheduled', at: '2026-12-01T09:00:00Z', triggers }, moment).words, 'Scheduled: goes live <2026-12-01>, once a trigger on each row has happened.');
+      assert.equal(statusWords({ status: 'scheduled', at: '2026-12-01T09:00:00Z', triggers }, moment, moment).words, 'Scheduled: goes live <2026-12-01>, once a trigger on each row has happened.');
       useInterfaceLanguage('sv');
-      const swedish = statusWords({ status: 'scheduled', at: null, triggers }, moment);
+      const swedish = statusWords({ status: 'scheduled', at: null, triggers }, moment, moment);
       assert.equal(swedish.words, 'Schemalagd: publiceras när en utlösare på varje rad har inträffat.');
       assert.deepEqual(swedish.rows[0].map(({ words }) => words), ['den <2026-12-01>', 'när ett inlägg publiceras som är av typen article eller har ”launch” i sin titel och har termen Harbours']);
     } finally {

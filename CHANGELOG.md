@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- A scheduled post can wait for triggers: a moment, as before, or the publishing of another post of a given type, with given words in its title, with a given term, or published within a given window. Triggers on one row are alternatives, and every row must hold; a post-published trigger's conditions are laid out the same way. The post goes out once they hold, however late a build sees it, dated by the moment they came to hold, a chain of such posts in one build, and stays out whatever later becomes of the post that released it. Its publish status and the *Publishing* page show each trigger, ticked once it has happened. The form stops a save whose window has wholly passed, and one whose posts would wait for each other in a cycle. The live preview's timeline places such a post where it will go out, and its toolbar lists one that waits for something nothing scheduled tells the moment of. A post scheduled for a moment alone is unchanged.
+
 ### Changed
 
 - The window the editor opens for a sign-in opens empty and goes straight to Forgejo's sign-in page. It used to load the whole editor first, only to be sent on from there, so a sign-in now starts sooner.

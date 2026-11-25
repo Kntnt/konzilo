@@ -1,7 +1,7 @@
 // How publishing stands, as the service says (ADR 0031): reading it, keeping it up to date while
 // someone looks, and what a status means in words. It holds no React.
 
-import { triggerWords } from '../../trigger-words.js';
+import { momentInZone, triggerWords } from '../../trigger-words.js';
 import { interfaceLanguage, languageTag, say } from '../interface-language.js';
 import { refusalShown, wordsShown } from '../refusals.js';
 
@@ -79,8 +79,8 @@ const reasonsOf = (list = []) => list.map(refusalShown);
 
 // What a status says: its `tone`, `good`, `busy`, `bad` or `quiet`, its `words`, and any `details`;
 // for a post that waits for its triggers, `rows`, each trigger on each row in `words`, and whether
-// it has `happened` (ADR 0076).
-export function statusWords(status, moment = (at) => new Date(at).toLocaleString(languageTag())) {
+// it has `happened` (ADR 0076), each moment among them by `inWords`, as a refusal names one.
+export function statusWords(status, moment = (at) => new Date(at).toLocaleString(languageTag()), inWords = momentInZone(languageTag())) {
   switch (status.status) {
     case 'live': {
       const warnings = reasonsOf(status.warnings);
@@ -94,7 +94,7 @@ export function statusWords(status, moment = (at) => new Date(at).toLocaleString
           tone: 'quiet',
           words: status.at ? say('publishing.triggersAt', { at: moment(status.at) }) : say('publishing.triggers'),
           details: [],
-          rows: status.triggers.map((row) => row.map((trigger) => ({ words: triggerWords(trigger, interfaceLanguage(), moment), happened: trigger.happened === true }))),
+          rows: status.triggers.map((row) => row.map((trigger) => ({ words: triggerWords(trigger, interfaceLanguage(), inWords), happened: trigger.happened === true }))),
         };
       }
       return { tone: 'quiet', words: say('publishing.scheduled', { at: moment(status.at) }), details: [] };

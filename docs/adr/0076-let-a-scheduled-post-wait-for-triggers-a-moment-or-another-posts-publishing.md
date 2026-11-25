@@ -1,0 +1,49 @@
+# ADR 0076: Let a scheduled post wait for triggers, a moment or another post's publishing
+
+**Date:** 2026-11-25 · **Status:** Accepted. Settled by Thomas on 2026-11-25, in triage: a scheduled post waits for **triggers**, a moment or the publishing of another post that meets the conditions an Editor gives, its type, words in its title, a term of any taxonomy and a window it is published within; triggers on a row combined by *or* and the rows by *and*, a post-published trigger's conditions laid out the same way; choosing *Scheduled* gives one trigger, a moment, as before, and a post scheduled so behaves, is stored and is shown exactly as before; only a post published after the trigger was saved counts; what has happened counts however late it is seen, and the post is dated by the moment its triggers came to hold; out is out; a post whose triggers never hold waits until an Editor changes it, with each trigger shown and ticked; a chain goes out in one build; a cycle and a window wholly passed are stopped at Save; and the live preview reckons by the same rules, placing a post at a moment of its own where the rest is unknown, and listing one with none as waiting. The rest is a technical choice; Thomas may veto, among them, chosen in building it on 2026-11-25:
+
+- **A source file** holds a moment alone in `date`, as before, and any other triggers in `triggers`, with no `date`: a list of rows, each a list of triggers, `{ "moment" }` or `{ "published": [[<condition>, …], …], "since" }`, a condition `{ "type" }`, `{ "words" }`, `{ "term" }` or `{ "from", "to" }` (`content-format.md`, *Triggers*). A file with both is refused, as are triggers of another shape, a moment that is none, a type the site does not have, and a window that ends before it starts. Triggers that are a moment alone are read as that moment.
+- **When a trigger was saved** is its `since`, which the form writes when the trigger is made and again whenever its conditions change, since a changed trigger is a new one; a post-published trigger without it is refused. The moment of its last change in the form stands for the save, a few minutes before it at most.
+- **A post is published** at its date on the site: its own, else the moment the intake first took it. A post published after `since` and within a window, whose start counts from `since` where it has passed, meets the trigger; one refused, a draft and one a live preview alone shows publish nothing, and a run in which a post that released another ends refused is made again without it.
+- **Words in a title** match whole, whatever their case, every word given among the title's words; **a term** matches a post with it or with one below it; **a type** by its name.
+- **The content files** hold nothing of triggers: a post that went out by them has its `date`, the moment they came to hold, the latest an *and* needs.
+- **The ledger:** `awaited` holds, for a post with triggers, the SHA-256 of its triggers as read, where it holds a moment for a moment alone; `released`, new, holds `{ triggers, at }` for each post that went out by its triggers, kept while it keeps the same ones, so that it stays out at that date whatever becomes of what released it. A post whose triggers change waits for its new ones, as one moved to a moment ahead does. The file names `released` only where a post has one.
+- **ADR 0069's warning** has a sister, `warning.triggers-passed`, for a post whose triggers had held before the site first read it, on the field Triggers, naming the moment; one whose triggers come to hold at the very build that first reads it says nothing.
+- **The timer** learns of the moment a post that waits for another will go out as it learns of a moment: `next` is the earliest moment a waiting post's triggers will hold by what is scheduled, a chain included. A moment that cannot release a post by itself, beside a trigger nothing scheduled answers, asks for no build; a post published by a save comes with its own.
+- **The reckoning** goes round on round over every post until nothing changes, so a chain goes out in one build, each after the one it waited for, and posts that wait for each other in a cycle never come to hold by themselves; the intake refuses none of them.
+- **The form:** `triggers`, the core's own field in the status group, shown while the post is scheduled. While a moment alone is all, the date holds it, as before, with two buttons under it, *Or another trigger* and *And another row*, which move its moment into the rows beside the new trigger and put the date out of sight; a moment left alone goes back into the date. Each row is a `fieldset` with a legend, each trigger and each row of conditions a named group, each control the browser's own with a label, and every moment in UTC, as the date's is. A new post-published trigger starts with one condition, the site's first type, and a term is chosen among each taxonomy's terms, read from the source repository.
+- **The check at Save** stops a scheduled post with a moment among its triggers that is not ahead, a window whose end has passed or something left empty, and keeps the words it had for a moment alone. It stops a cycle as the last build read the other posts, from the service's status: a row with no moment on it waits for each post that meets one of its post-published triggers, windows aside, and a cycle back to the post in the form names the first post it runs through. A row with a moment on it comes to hold in time, and makes no cycle.
+- **The publish status** gives a waiting post's triggers in their rows, each with whether it has happened, and the post's terms, which the check at Save reads; the field and the *Publishing* page show each row as an item, the alternatives joined by *or* and each row after the first begun by *and*, a tick with words a screen reader reads.
+- **The live preview** runs the intake with the moment it stands at now as `assume`: a post-published trigger that no post the timeline knows of meets is taken to happen by the latest of its post's own moments, where that is still to come, and the post is placed there, marked in the timeline's list and on its page's toolbar as going out if the rest happens in time. A post with no such moment is not on the timeline: the preview shows it as a draft, from now, and its toolbar lists it apart, with what it still waits for, its moments in UTC.
+
+## Decision
+
+- **A trigger** is a moment, which has happened once it has passed, or the publishing of another post that meets the given conditions, which has happened once such a post is published. Triggers stand in rows: the alternatives on a row by *or*, the rows by *and*. A post-published trigger's conditions stand in rows the same way, all about one post.
+- **A trigger is a state, not an edge.** What has happened counts at the next look, however late, and the post goes out dated by the moment its triggers came to hold, so that the same source gives the same date.
+- **Out is out.** A post that went out stays published whatever becomes of what released it.
+- **Waiting is shown.** A waiting post's publish status and the *Publishing* page show each trigger, ticked where it has happened.
+- **The preview reckons as the intake does,** at the moment of the timeline it shows.
+
+## Why
+
+- A post that answers another, a follow-up or a reaction, goes out when the other does, without an Editor watching for it.
+- A moment alone, the commonest schedule, stays exactly as it was: nothing an Editor or a site has learned changes.
+- Rows of alternatives can say any combination, and are drawn as a form, without a language to learn.
+- A state, not an edge, makes a build that ran late, or failed, harmless: nothing is missed for want of being seen at the right moment.
+- `since` in the source, rather than a moment in the ledger, makes the preview and the intake reckon alike, and a build that runs late count every post published after the save.
+
+## Considered and rejected
+
+- **A text language for the conditions.** Rows cover every combination, and a form can draw them.
+- **The moment a trigger was first seen by a build, in the ledger.** A post published between the save and the next build that ran would count only by luck, and the preview, which has no such ledger, could not reckon alike.
+- **The time of the commit that saved the file.** Whoever commits sets it (ADR 0069).
+- **Counting a post that is refused as published.** A post would go out for one that did not.
+- **Unpublishing a post when what released it changes.** Out of scope, and a post's going out is not undone by another's change.
+- **Stopping every cycle of conditions, rows with moments among them too.** A moment brings such a row to hold in time, and the chain goes out.
+
+## Consequences
+
+- `src/format/triggers.js` reads and reckons with triggers, alike in the intake, the editor and the preview; `src/intake/triggers.js` reckons over every post, `src/cms/schedule/` is the form and its checks, and `src/trigger-words.js` says a trigger in each interface language.
+- No field of a site's own is named `triggers`.
+- `tests/intake-triggers.test.js` holds the intake's rules, `tests/cms-schedule.test.js` the form's and the check at Save's, `tests/preview-runner.test.js` and `tests/preview-gate.test.js` the timeline and the toolbar, `tests/publishing-client.test.js` the words, and `acceptance/triggers.test.js` and `acceptance/preview-toolbar.test.js` the form, the check at Save, the *Publishing* page and the toolbar in the three browser engines.
+- [ADR 0031](0031-show-a-publish-within-a-minute-with-its-status-and-any-refusal.md) and [ADR 0069](0069-publish-at-once-a-scheduled-post-whose-moment-has-passed-and-say-so.md) are amended where they change.

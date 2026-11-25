@@ -4,8 +4,14 @@
 
 import { labelInPhrase, text } from './catalogues.js';
 
-// A moment in a language's own form, in UTC, which it names, where nothing knows the reader's zone.
-export const momentInUtc = (language) => (at) => new Date(at).toLocaleString(language, { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC', timeZoneName: 'short' });
+const MOMENT = { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' };
+
+// A moment in a language's own form, `1 January 2026 at 09:00 CET`, in the reader's time zone,
+// which it names, as a moment in a refusal is.
+export const momentInZone = (language) => (at) => new Date(at).toLocaleString(language, MOMENT);
+
+// The same in UTC, where nothing knows the reader's zone.
+export const momentInUtc = (language) => (at) => new Date(at).toLocaleString(language, { ...MOMENT, timeZone: 'UTC' });
 
 /**
  * One trigger in words, as the intake tells of it: a moment, or another post's publishing, its
