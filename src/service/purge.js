@@ -50,6 +50,8 @@ export function purgeKeeper({ table, control, now = () => new Date(), reloadWith
   }
 
   return {
+    // Who has which form open: { form, name, since }.
+    formsOpen,
     // What an Admin is told of the purge that runs, or the last that ended, or null.
     forAdmin() {
       if (current === null) return last;

@@ -168,7 +168,7 @@ describe('an Admin\'s purge', () => {
     assert.equal((await cancel('ebba')).status, 403);
     const own = await shown('anna');
     assert.equal(own.status, 200);
-    assert.deepEqual(own.body, { purge: null, purges: [] });
+    assert.deepEqual(own.body, { purge: null, purges: [], open: [] });
   }));
 
   test('purges an entry the Deleted page lists, and no other', withService({}, async ({ purge }) => {
@@ -220,6 +220,7 @@ describe('an Admin\'s purge', () => {
 
   test('wait: keeps every form shut until the last one open closes, then purges, and an Admin may stop waiting', withService({}, async ({ purge, control, step, hold, release, locks, cancel, shown }) => {
     await hold('articles/bbbbbbbbbbbb', 'ebba', TAB_B);
+    assert.deepEqual((await shown('anna')).body.open, [{ form: 'articles/bbbbbbbbbbbb', name: 'Ebba Editor', since: '2026-11-26T10:00:00.000Z' }], 'an Admin sees who has which form open before choosing');
     const asked = await purge('anna', { path: ARTICLE, course: 'wait' });
     assert.equal(asked.body.purge.state, 'waiting');
     assert.deepEqual(asked.body.purge.forms, [{ form: 'articles/bbbbbbbbbbbb', name: 'Ebba Editor', since: '2026-11-26T10:00:00.000Z' }]);

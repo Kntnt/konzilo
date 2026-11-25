@@ -244,8 +244,8 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
     }
   };
 
-  // An Admin's purge of a deleted entry (ADR 0078), to an Admin alone: how it stands, with who
-  // has which form open, and the purges made before, who and when; asked for by an entry's path
+  // An Admin's purge of a deleted entry (ADR 0078), to an Admin alone: how it stands, who has
+  // which form open, and the purges made before, who and when; asked for by an entry's path
   // and the course to take with the forms open, `anyway` or `wait`; and one that waits stopped.
   const answerPurge = async (incoming, outgoing) => {
     if (!['GET', 'POST', 'DELETE'].includes(incoming.method)) {
@@ -266,7 +266,7 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
       } catch (error) {
         warn(`The record of purges could not be read: ${error.message}`);
       }
-      return answerJson(outgoing, 200, { purge: purge.forAdmin(), purges });
+      return answerJson(outgoing, 200, { purge: purge.forAdmin(), purges, open: purge.formsOpen() });
     }
     if (incoming.method === 'DELETE') {
       incoming.resume();

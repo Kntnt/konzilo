@@ -2,8 +2,8 @@
 // gives itself as it loads, `tab`, with what Sveltia signed in with.
 //
 // Gives { hold(form, { takeOver }), release(form), end(), locks(after, signal), watch(seen) }:
-// `hold` gives { held: true, since }, { holder: { name, since, yours } }, { adminOnly: true }, or
-// null where the service cannot be asked, does not answer within `answersWithin` milliseconds, or
+// `hold` gives { held: true, since }, { holder: { name, since, yours } }, { adminOnly: true },
+// { shut: true } while an Admin's purge waits or runs (ADR 0078), or null where the service cannot be asked, does not answer within `answersWithin` milliseconds, or
 // answers otherwise; `release` lets the form go, by a call that outlives the page, so that a form
 // left just before the page is, or as it is, goes too; `end` ends the tab as its page is closed,
 // by such a call, after which the service lets go every form it holds and holds none for it, a
@@ -51,6 +51,7 @@ export function lockClient({ tab, credential, ask = (...args) => globalThis.fetc
         return holder ? { holder: { name: holder.name, since: holder.since, yours: holder.yours === true } } : null;
       }
       if (answer.status === 403) return { adminOnly: true };
+      if (answer.status === 423) return { shut: true };
       return null;
     },
     async release(form) {

@@ -10,14 +10,16 @@ import { formOf, lockKeeper } from '../src/cms/lock/keeper.js';
 const EBBA = { name: 'Ebba Editor', since: '2026-11-23T10:00:00.000Z', yours: false };
 
 // A service that answers as `held` says: each form's holder, by form, or `mine` for this tab's.
-const standIn = ({ held = {}, adminOnly = [], down = false } = {}) => {
+const standIn = ({ held = {}, adminOnly = [], down = false, shut = false } = {}) => {
   const asked = [];
-  return {
+  const service = {
     asked,
     held,
+    shut,
     async hold(form, { takeOver = false } = {}) {
       asked.push(['hold', form, takeOver]);
       if (down) return null;
+      if (service.shut && held[form] !== 'mine') return { shut: true };
       if (adminOnly.includes(form.split('/')[0])) return { adminOnly: true };
       if (held[form] && held[form] !== 'mine' && !takeOver) return { holder: held[form] };
       held[form] = 'mine';
@@ -28,14 +30,16 @@ const standIn = ({ held = {}, adminOnly = [], down = false } = {}) => {
       if (held[form] === 'mine') delete held[form];
     },
   };
+  return service;
 };
 
 const keeping = (options) => {
   const service = standIn(options);
   const shown = [];
   const marked = [];
-  const keeper = lockKeeper({ service, show: (state) => shown.push(state), mark: (marks) => marked.push(marks) });
-  return { service, keeper, shown, marked, last: () => shown.at(-1) };
+  const told = [];
+  const keeper = lockKeeper({ service, show: (state) => shown.push(state), mark: (marks) => marked.push(marks), purged: (news) => told.push(news) });
+  return { service, keeper, shown, marked, told, last: () => shown.at(-1) };
 };
 
 describe('the keeper of a tab\'s lock', () => {
@@ -292,5 +296,43 @@ describe('the keeper of a tab\'s lock', () => {
     await keeper.open('articles/aaaaaaaaaaaa');
     keeper.staleBackup('2026-11-23T09:00:00.000Z');
     assert.equal(last().mode, 'asking');
+  });
+
+  describe('while an Admin\'s purge waits or runs (ADR 0078)', () => {
+    test('opens no form, read-only with the way back, and opens it once the purge has ended otherwise than done', async () => {
+      const { keeper, service, last, told } = keeping({ shut: true });
+      await keeper.open('articles/aaaaaaaaaaaa');
+      assert.deepEqual(last(), { form: 'articles/aaaaaaaaaaaa', mode: 'shut' });
+      assert.equal(keeper.readOnly(), true);
+      await keeper.seen({ version: 2, locks: [], purge: { id: 'p1', state: 'waiting', reload: false } });
+      assert.deepEqual(told.at(-1), 'shut');
+      service.shut = false;
+      await keeper.seen({ version: 3, locks: [], purge: null });
+      assert.deepEqual(told.at(-1), 'open');
+      assert.deepEqual(last(), { form: 'articles/aaaaaaaaaaaa', mode: 'editing' }, 'a purge stopped while it waited');
+    });
+
+    test('refuses a save, a deletion and a restore where the forms are shut, and turns the form read-only', async () => {
+      const { keeper, service, last } = keeping();
+      await keeper.open('articles/aaaaaaaaaaaa');
+      service.shut = true;
+      delete service.held['articles/aaaaaaaaaaaa'];
+      assert.deepEqual(await keeper.beforeSave(), { name: 'lock.refusedPurge' });
+      assert.deepEqual(last(), { form: 'articles/aaaaaaaaaaaa', mode: 'shut' });
+      assert.deepEqual((await keeper.beforeDeleting(['articles/bbbbbbbbbbbb'])).refusal, { name: 'lock.refusedPurge' });
+      assert.deepEqual((await keeper.beforeRestoring('articles/cccccccccccc')).refusal, { name: 'lock.refusedPurge' });
+    });
+
+    test('tells a tab with a form open to reload where the purge runs anyway, and every tab that saw it coming to reload once it is done', async () => {
+      const { keeper, told } = keeping();
+      await keeper.seen({ version: 2, locks: [], purge: { id: 'p1', state: 'done' } });
+      assert.deepEqual(told, ['open'], 'one done before the tab saw it is nothing to it');
+      await keeper.seen({ version: 3, locks: [], purge: { id: 'p2', state: 'warning', reload: true } });
+      assert.equal(told.at(-1), 'warn');
+      await keeper.seen({ version: 4, locks: [], purge: { id: 'p2', state: 'running', reload: false } });
+      assert.equal(told.at(-1), 'shut');
+      await keeper.seen({ version: 5, locks: [], purge: { id: 'p2', state: 'done' } });
+      assert.equal(told.at(-1), 'reload');
+    });
   });
 });
