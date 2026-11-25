@@ -606,9 +606,10 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
         // Each page's Markdown alternate, made from the page as the dev
         // server renders it, at its own address; a preview has none.
         if (isPublicBuild(base)) server.middlewares.use(devMarkdown({ server, logger }));
-        // The Link headers of every page, and a page's Markdown at its own
-        // address to a request that prefers it, as the public host has them.
-        if (isPublicBuild(base)) server.middlewares.use(devDiscovery({ server, logger, origin: origin(), related: [LLMS, LLMS_FULL] }));
+        // The Link headers of a page with an alternate, and its Markdown at
+        // its own address to a request that prefers it, as the public host
+        // has them.
+        if (isPublicBuild(base)) server.middlewares.use(devDiscovery({ server, logger, origin: origin(), related: { llms: LLMS, llmsFull: LLMS_FULL } }));
         // llms-full.txt with them, made the same way, and llms.txt, which
         // lists the pages that have one; a preview has neither.
         if (isPublicBuild(base)) server.middlewares.use(devLlmsFull({ server, logger }));
@@ -629,7 +630,7 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
         if (alternates.length > 0) logger.info(`made the Markdown alternates of ${alternates.length} pages`);
         // The list of them for the public host's web server; a preview has
         // none.
-        if (isPublicBuild(base)) writeFileSync(new URL(MARKDOWN_LIST, dir), markdownList(alternates));
+        if (isPublicBuild(base)) writeFileSync(new URL(MARKDOWN_LIST, dir), markdownList(alternates, { llms: LLMS, llmsFull: LLMS_FULL }));
         // llms-full.txt holds them, as written, and llms.txt lists the
         // pages that have one.
         const full = writeLlmsFull(dir, (message) => logger.warn(message));
