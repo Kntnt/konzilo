@@ -23,6 +23,7 @@ import { registerPublishing } from './publishing/register.js';
 import { registerSubmissions } from './submissions/register.js';
 import { registerMail } from './mail/register.js';
 import { registerPersonalData } from './personal-data/register.js';
+import { registerViolations } from './violations/register.js';
 import { registerSettings } from './settings/register.js';
 import { registerLock } from './lock/register.js';
 import { registerHistory } from './history/register.js';
@@ -66,6 +67,8 @@ function start() {
     registerMail(CMS);
     registerPersonalData(CMS);
   }
+  // Every release has a policy, which reports what it blocks (ADR 0051).
+  registerViolations(CMS);
   // Before the parts' check at Save, which reads what the groups hold.
   registerGroups(CMS, config, konzilo.groups);
   registerParts(CMS, config);
