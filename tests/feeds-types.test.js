@@ -34,3 +34,16 @@ test('a type can be chosen for a feed where a feed gives all it requires', () =>
     gallery: false,
   });
 });
+
+test('a type whose address holds a term cannot be chosen, since the term is required, and one whose address holds the date can', () => {
+  const site = siteDescription({
+    language: 'en_GB',
+    images: { smallestWidth: 400, displayWidth: 1280 },
+    types: {
+      article: { collection: 'articles', address: '/{category}/{slug}/', elements: ['paragraph'] },
+      page: { collection: 'pages', address: '/{year}/{month}/{slug}/', elements: ['paragraph'] },
+    },
+    taxonomies: { category: { address: '/category/{path}/' } },
+  });
+  assert.deepEqual(feedTypes(site).map(({ name, choosable }) => [name, choosable]), [['article', false], ['page', true]]);
+});

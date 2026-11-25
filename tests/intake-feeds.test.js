@@ -173,3 +173,23 @@ describe('a post waiting for a post of the feed\'s type', () => {
     assert.match(written(after)['pages/after.md'], /^date: 2026-11-03T09:00:00Z$/m);
   });
 });
+
+describe('a feed\'s post of a type whose address holds the date', () => {
+  test('moves with a corrected date, its old address leading to the new, and keeps it with a corrected title', () => {
+    const dated = { ...declared, types: { ...declared.types, page: { collection: 'pages', address: '/{year}/{month}/{slug}/', elements: ['paragraph'] } } };
+    const datedSite = siteDescription(dated);
+    const PAGE = 'pages/f00d00000002.md';
+    const file = (item) => feedPostFile(item, { site: datedSite, type: datedSite.types.page, seen: '2026-11-03T09:01:00Z', now: '2026-12-03T09:01:00Z', slug: 'harbour-opens' }).text;
+    let ledger = null;
+    const build = (item) => {
+      const result = run({ [PAGE]: file(item) }, dated, { ledger, changes: pushedBy(FEED_READER, PAGE), now: new Date('2026-12-03T09:02:00Z') });
+      ledger = result.ledger;
+      return result;
+    };
+    assert.equal(build(ITEM).posts[0].address, '/2026/11/harbour-opens/');
+    const moved = build({ ...ITEM, date: '2026-12-01T09:00:00Z' });
+    assert.equal(moved.posts[0].address, '/2026/12/harbour-opens/');
+    assert.match(written(moved)['pages/harbour-opens.md'], /^oldAddresses: \["\/2026\/11\/harbour-opens\/"\]$/m);
+    assert.equal(build({ ...ITEM, date: '2026-12-01T09:00:00Z', title: 'Harbour opens late' }).posts[0].address, '/2026/12/harbour-opens/');
+  });
+});
