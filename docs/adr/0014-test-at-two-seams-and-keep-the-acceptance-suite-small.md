@@ -1,6 +1,6 @@
 # ADR 0014: Test at two seams, and keep the acceptance suite small
 
-**Date:** 2026-11-03 · **Status:** Accepted. Settled by Thomas on 2026-10-27: tests sit at two seams and check external behaviour only. The rest is a technical choice; Thomas may veto.
+**Date:** 2026-11-03, amended 2026-11-25 · **Status:** Accepted. Settled by Thomas on 2026-10-27: tests sit at two seams and check external behaviour only. The rest is a technical choice; Thomas may veto, among them, chosen on 2026-11-25: on macOS a dev server of the suite looks at the files itself, in place of taking the system's file events; every Node a run of the suite starts keeps V8's baseline compiler to its main thread; and a build the suite waits for is stopped after ten minutes, failing its test.
 
 ## Decision
 
@@ -13,12 +13,17 @@
 - **One interface to the site under test,** for local and live; the environment names the site, a wait is three times as long on a live copy, and what a copy does not have is skipped, saying so.
 - **A test does what an editor, an Admin, the operator or a visitor does,** so internals can be rebuilt without touching tests. Setting a user up in the browser is proved in one test; the others make their users directly, through the same functions, with a second factor. A test that logs in computes the code.
 - **The suite must not grow to two hours,** and a failure must mean a fault. A release runs the suite twice, so its cost counts double.
+- **On macOS a dev server of the suite looks at the files itself.** Each Astro configuration the suite writes sets Vite's watcher to poll there (`WATCH` in `tests/lib/astro.js`), and the dev server of a site made by `new-site` is given a configuration beside the site, which is the site's own with the watcher set. In Linux a dev server keeps the kernel's file events, as a site in Compose has them.
+- **Every Node a run of the suite starts keeps V8's baseline compiler to its main thread.** `scripts/test.js` has each load `tests/lib/node-exit.js` first, through `NODE_OPTIONS`, which every child inherits.
+- **A build the suite waits for has ten minutes.** `commandSync()` and `nodeSync()` in `tests/lib/astro.js` stop one that has not ended by then, and its test fails saying which command it was.
 
 ## Why
 
 - These are the fewest seams that cover the core.
 - A case added as a file needs no code, and hand-written expected bytes can disagree with the code.
 - A suite that is slow and fails at random stops being read.
+- A test of the Astro side checks what Konzilo does once Astro's dev server has heard of a change, and how soon macOS tells a watcher of one is not Konzilo's. A dev server that asks the file system hears of a change within a moment, whatever else the machine is writing.
+- A Node that never ends keeps the whole run waiting at one line of its output, with no word of why. Node 26.13.1 can do so as it exits (nodejs/node#67596), and Astro's command exits by `process.exit()` after every build.
 
 ## Considered and rejected
 
@@ -27,6 +32,12 @@
 - **pytest with Playwright, or Cypress.** A second language beside the Node core, or a runner inside the browser.
 - **`ignoreHTTPSErrors`.** It would hide a broken certificate.
 - **A test copy of each site now.** A change is tested locally and in CI; a test copy on demand can come later.
+- **Waiting longer for a dev server.** The system's file events came more than a minute late, and some never, and a dev server that restarted as it started never got its content however long it ran.
+- **Fewer than 50,001 posts in the sitemap's test.** The limit of 50,000 addresses is the sitemap protocol's, and a real build past it is the check. Other work on the machine makes the file events late too.
+- **`CHOKIDAR_USEPOLLING` in the dev server's environment.** Vite's watcher takes it, and on macOS goes on taking the system's file events all the same; only `server.watch.usePolling` in the configuration turns them off.
+- **Polling in Linux too.** The kernel's file events there are what a site in Compose gets, and the suite should go on meeting them.
+- **A setting of the integration's that makes a site's dev server poll.** It would be a setting of the core's for the sake of its tests.
+- **Node's flag in the tests' own commands.** `NODE_OPTIONS` refuses `--no-concurrent-sparkplug`, and a flag given to `npm run build` reaches npm alone, not the build it starts. What a module loaded first sets reaches every Node of the run.
 
 ## What practice has shown
 
@@ -35,3 +46,6 @@
 - A test that took ten minutes to open a hundred posts in the editor stood at its limit; a limit a third over what a test takes is the least.
 - A rig's browser builds are not the browsers people have: Chrome and Firefox as installed were not run, and Safari itself only for sign-in and saving.
 - The field's round trip needs no Compose: a small page, built in a second and served under the admin host's policy, takes every fixture, example and demo post through a real keyboard in Chromium in about half a minute, with Sveltia on its test repository for a site in two languages, which Compose does not have.
+- On macOS the system hands out file events late while many files are written anywhere on the machine. With 50,001 files written and removed elsewhere, as the sitemap's test writes its posts, a watcher on another folder was handed its events in batches 15 seconds apart for the half minute after, one event 47 seconds after its write and after later ones, and some not within a minute. With other work alone on the machine, the events came 7 to 10 seconds late at the median for minutes on end, the system's own daemon for file events at a whole processor core. A new watcher is also told of what was written before it started: the event of a file written just before came 0.1 to 15 seconds after the watching began.
+- A dev server started in a repository written a moment before was so told of its own `astro.config.mjs`, took it for a changed configuration and restarted. A restart that came while it started left it answering with no content for as long as it ran, its log saying `transport was disconnected, cannot call "fetchModule"` and `Content config not loaded`. A touch of the configuration while Astro's dev server starts, in a site with one collection and no Konzilo, did the same in each of six runs. One that had started took up a changed content file only when its event came, three times not within its test's 90 seconds. The dev server tests, three runs at once, failed so in 10 of 24 runs on macOS, and in none of 12 once their dev servers polled. In Linux, where the kernel tells a watcher only of what happens after it starts, and at once, it was not seen.
+- Node 26.13.1 on macOS never ended in 39 of 800 runs of a script of a dozen lines that compiles many small functions and calls `process.exit()`, eight at a time, each with its main thread joining V8's workers while a worker in the concurrent baseline compiler waited for a garbage collection. With `--no-concurrent-sparkplug`, none of 400 did where it was given as a flag, and none of 400 where a module loaded first set it. An `astro build` was once seen to stand so after writing its `dist/` in full, and the test that waited for it kept a whole run still; in 3,562 builds run for the purpose none did.
