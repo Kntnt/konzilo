@@ -8,9 +8,11 @@
 // The same levels as the page's structured data (breadcrumb-levels.js): a
 // navigation labelled in the site's language, holding an ordered list with
 // one item per level, a link for each but the last, and the last, the page
-// itself, marked as the current page, with no link. Where the type's
-// setting leaves the page itself out, the list ends at the level above it,
-// a link too, and a page right under the start page shows nothing. Its links keep the
+// itself, marked as the current page, with no link. Where the breadcrumbs
+// end above the page itself, by default for a post of a type that is not
+// hierarchical whose name in breadcrumbs is not filled in (breadcrumbs.js),
+// the list ends at the level above it, a link too, and a page right under
+// the start page shows nothing. Its links keep the
 // preview's base. It carries no styling of its own. The start
 // page shows nothing, and so does a page of the site's own that gives no
 // `title`. `texts` gives any of the site's own texts over the core's
