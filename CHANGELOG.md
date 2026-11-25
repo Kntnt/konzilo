@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Each visitor's choice in the consent is now kept as the site's proof of it: the consent ID, when it was made, the consent revision, what was allowed, whether it was made in the banner, the privacy settings, an embed's panel or by withdrawing, and the page and its language, with nothing of the visitor's address or browser. A record is kept only from the site's own pages, of a revision the site has published, and with that revision's words as the visitor saw them, also after an Admin changes them. A record is kept 13 months and then forgotten for good. Over 3600 records in an hour, or 100 from one visitor in ten minutes, are counted and not kept.
+- A *Consent records* page in the editor, in Swedish *Samtycken*, for Admins alone: the choices per day, the last 30 days at first, by *Accept all*, *Reject optional*, *Save my choices*, *Allow one service* and *Withdraw consent*, with those counted and not kept; a visitor's records found by the consent ID their cookie declaration shows, each with what the banner and the privacy settings said to them; and a span of days downloaded as CSV. Days and times are in UTC.
+
 ## [0.10.0] – 2026-11-25
 
 ### Added
