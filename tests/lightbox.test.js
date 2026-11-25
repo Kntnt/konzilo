@@ -52,6 +52,16 @@ describe('the lightbox, as a body\'s figures are written', () => {
     assert.match(dialog, /<button class="konzilo-modal-close" type="button" commandfor="konzilo-modal-1" command="close" aria-label="Close">/);
   });
 
+  test('shows a cropped image whole, from the hidden picture beside it, which it takes out of the figure', () => {
+    const cropped = '<img alt="A barn" width="1000" height="1000" src="/_astro/barn-square.webp" srcset="/_astro/barn-square.webp 1000w">';
+    const whole = '<img alt="A barn" sizes="100vw" hidden="" data-konzilo-whole="" width="1500" height="1000" src="/_astro/barn-whole.webp" srcset="/_astro/barn-whole.webp 1500w">';
+    const out = written(`<figure class="konzilo-gallery"><figure>${cropped}${whole}<figcaption>The barn</figcaption></figure><figure>${IMAGE}</figure></figure>`);
+    const [page, dialog] = out.split('<dialog');
+    assert.equal(page, `<figure class="konzilo-gallery"><figure><button class="konzilo-lightbox-open" type="button" commandfor="konzilo-modal-1" command="show-modal" data-konzilo-at="0" aria-label="Show larger: A barn">${cropped}</button><figcaption>The barn</figcaption></figure><figure><button class="konzilo-lightbox-open" type="button" commandfor="konzilo-modal-1" command="show-modal" data-konzilo-at="1" aria-label="Show larger: A red &quot;barn&quot; &amp; more">${IMAGE}</button></figure></figure>`);
+    assert.match(dialog, /<li><figure><img src="\/_astro\/barn-whole.webp" srcset="\/_astro\/barn-whole.webp 1500w" width="1500" height="1000" alt="A barn" sizes="100vw" loading="lazy" decoding="async"><figcaption>The barn<\/figcaption>/);
+    assert.match(dialog, /<img src="\/_astro\/barn.webp" srcset="[^"]+" width="2520"/, 'and an image that is not cropped as it is');
+  });
+
   test('draws each image at the sizes it is handed for the lightbox, and across the window by default', () => {
     const dialog = withLightboxes(FIGURE, { next: counter(), locale: 'en_GB', sizes: '(min-width: 80rem) 80rem, 100vw' }).split('<dialog')[1];
     assert.match(dialog, /<img src="\/_astro\/barn.webp" [^>]*alt="A red &quot;barn&quot; &amp; more" sizes="\(min-width: 80rem\) 80rem, 100vw" loading="lazy"/);

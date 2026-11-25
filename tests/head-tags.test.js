@@ -19,6 +19,7 @@ import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { feedSafe, feedTitle, siteFeeds } from '../src/astro/feeds.js';
 import { renderTemplate } from '../src/metadata-templates.js';
+import { focusPosition } from '../src/astro/image-versions.js';
 import { ALTERNATES, headTags, templateValues } from '../src/astro/search-and-sharing.js';
 import { siteDescription } from '../src/site-description.js';
 import { astroConfig, astroEnvironment, nodeSync } from './lib/astro.js';
@@ -177,6 +178,26 @@ test('a page with no image to share has X\'s small card, and the alternates of t
     'alternate application/atom+xml https://www.example.com/harbour-lights/feed/',
     'alternate application/rss+xml https://www.example.com/feed/ Articles',
     'application/ld+json',
+  ]);
+});
+
+test('a sharing image is cropped around the focal point of the image it is made of, its own or the featured image\'s, and around the middle of one without', async () => {
+  const asked = [];
+  const getImage = async (options) => {
+    asked.push(options);
+    return { src: `/_astro/${options.src}.jpg`, attributes: { width: 1200, height: 630 } };
+  };
+  const shared = (data) => headTags(
+    { entry: { ...article, data: { ...article.data, ...data } }, path: '/harbour-lights/', settings: { title: 'Lantern', search: { separator: '–' } }, site: model, origin: 'https://www.example.com', locale: 'en_GB', languageTag: 'en-GB' },
+    { getImage, getEntries: async () => [] },
+  );
+  await shared({ image: { src: 'featured', alt: 'The lantern', focalPoint: { x: 0.1, y: 0.3 } } });
+  await shared({ image: { src: 'featured', alt: 'The lantern', focalPoint: { x: 0.1, y: 0.3 } }, seo: { socialImage: 'own', socialImageAlt: 'A letter', socialImageFocalPoint: { x: 0.8, y: 0.2 } } });
+  await shared({ image: { src: 'featured', alt: 'The lantern' } });
+  assert.deepEqual(asked.map(({ src, width, height, fit, position }) => ({ src, width, height, fit, position })), [
+    { src: 'featured', width: 1200, height: 630, fit: 'cover', position: focusPosition({ x: 0.1, y: 0.3 }) },
+    { src: 'own', width: 1200, height: 630, fit: 'cover', position: focusPosition({ x: 0.8, y: 0.2 }) },
+    { src: 'featured', width: 1200, height: 630, fit: 'cover', position: undefined },
   ]);
 });
 
@@ -531,4 +552,9 @@ test('a feed holds a formula as its MathML, which a reader draws, with its LaTeX
   const { readContentFile } = await import('../src/astro/reader.js');
   const { html } = readContentFile('---\ntitle: "Area"\n---\n\nThe area is $\\pi r^2$.\n\n$$\nx\n$$\n');
   assert.equal(feedSafe(html, 'https://example.com/area/'), '<p>The area is <math><semantics><mrow><mi>π</mi><msup><mi>r</mi><mn class="tml-sml-pad">2</mn></msup></mrow><annotation encoding="application/x-tex">\\pi r^2</annotation></semantics></math>.</p>\n<div class="konzilo-math"><math display="block" class="tml-display"><semantics><mi>x</mi><annotation encoding="application/x-tex">x</annotation></semantics></math></div>\n');
+});
+
+test('a feed holds an image cropped to its context as it is, without the whole picture its lightbox shows', () => {
+  const html = '<figure><img alt="A barn" src="/_astro/barn-square.webp" width="1000" height="1000"><img alt="A barn" hidden="" data-konzilo-whole="" src="/_astro/barn-whole.webp" width="1500" height="1000"></figure>';
+  assert.equal(feedSafe(html, 'https://example.com/barn/'), '<figure><img alt="A barn" src="https://example.com/_astro/barn-square.webp" width="1000" height="1000"></figure>');
 });

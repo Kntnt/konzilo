@@ -267,7 +267,7 @@ export function rssDocument(channel, items) {
 // absolute address `page`: every address absolute, an embed's panel a link
 // to its address, a directive's plain rendering its body alone, and no
 // script, style, template or frame, nor a style or an event handler on an
-// element.
+// element, nor the whole picture the lightbox shows of a cropped image.
 export function feedSafe(body, page) {
   const tree = htmlToHast(body, { fragment: true });
   return tree.children.flatMap((node) => safe(node, page)).map(serialize).join('');
@@ -283,6 +283,9 @@ function safe(node, page) {
   if (node.type === 'text') return [node];
   if (node.type !== 'element' || LEFT_OUT.has(node.tagName)) return [];
   const { properties } = node;
+  // The whole picture beside an image cropped to its context, which only the lightbox shows
+  // (image-versions.js).
+  if (node.tagName === 'img' && properties.dataKonziloWhole !== undefined) return [];
   // An embed's panel (embeds.js): the link to the content's address.
   if (node.tagName === 'figure' && properties.dataEmbed !== undefined) {
     const link = node.children.find((child) => child.type === 'element' && child.tagName === 'a');

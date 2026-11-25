@@ -44,10 +44,10 @@ const RED = [220, 30, 30];
 const GREEN = [30, 180, 30];
 const BLUE = [30, 30, 220];
 
-async function stripes(sharp) {
-  const third = STRIPES.width / 3;
-  const part = (colour) => ({ create: { width: third, height: STRIPES.height, channels: 3, background: { r: colour[0], g: colour[1], b: colour[2] } } });
-  return sharp({ create: { ...STRIPES, channels: 3, background: '#000' } })
+async function stripes(sharp, size = STRIPES) {
+  const third = size.width / 3;
+  const part = (colour) => ({ create: { width: third, height: size.height, channels: 3, background: { r: colour[0], g: colour[1], b: colour[2] } } });
+  return sharp({ create: { ...size, channels: 3, background: '#000' } })
     .composite([RED, GREEN, BLUE].map((colour, index) => ({ input: part(colour), left: third * index, top: 0 })))
     .webp({ quality: 90 })
     .toBuffer();
@@ -473,4 +473,30 @@ test('gives each context its aspect ratio, the site\'s design\'s, or none, the i
   assert.deepEqual(contexts.card.widths, IMAGE_CONTEXTS.card.widths);
   assert.equal(contexts.body.ratio, null);
   assert.equal(contexts.hero.ratio, null);
+});
+
+// A sharing image is asked of the image service at its size, to fill it, with the focal point as
+// its position (search-and-sharing.js), and is cropped around it as a context's versions are.
+test('makes a picture asked for at a size to fill around a focal point as the crop around that point, enlarged where it is smaller', async () => {
+  const { default: service } = await import('../src/astro/image-service.js');
+  const { focusPosition } = await import('../src/astro/image-versions.js');
+  const config = { service: { config: {} } };
+  const logger = { warn: () => {} };
+  const asked = { src: '/stripes.webp', width: 1200, height: 630, fit: 'cover', format: 'jpeg', background: '#ffffff' };
+  const made = async (input, position) => (await service.transform(input, { ...asked, ...(position ? { position } : {}) }, config, logger)).data;
+  // Three times as wide as high, so that 1.91:1 crops it across.
+  const picture = await stripes(sharp, { width: 3000, height: 1000 });
+  const held = await shapeOf(await made(picture, focusPosition({ x: 0.1, y: 0.5 })));
+  assert.deepEqual([held.width, held.height], [1200, 630]);
+  assert.ok(alike(held.left, RED, 24), `${held.left}`);
+  assert.ok(alike(held.right, GREEN, 24), `${held.right}`);
+  assert.equal(held.blue, 0);
+  const right = await shapeOf(await made(picture, focusPosition({ x: 1, y: 0 })));
+  assert.ok(alike(right.left, GREEN, 24) && alike(right.right, BLUE, 24), `${right.left} ${right.right}`);
+  const small = await sharp(picture).resize({ width: 900 }).webp().toBuffer();
+  const enlarged = await shapeOf(await made(small, focusPosition({ x: 0.1, y: 0.5 })));
+  assert.deepEqual([enlarged.width, enlarged.height], [1200, 630]);
+  assert.equal(enlarged.blue, 0);
+  const middle = await shapeOf(await made(picture, null));
+  assert.ok(alike(middle.left, RED, 24) && alike(middle.right, BLUE, 24), `around the middle without one: ${middle.left} ${middle.right}`);
 });
