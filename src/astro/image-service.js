@@ -20,13 +20,13 @@
 // of its versions and no version is wider than it needs to be. A WebP is made
 // at the core's quality unless another is asked for, and a lossless master's
 // WebP is lossless, at any width (ADR 0022). A picture asked for at a display
-// width (DISPLAY_WIDTH) narrower than it is written with its `width` and
+// width (DISPLAY_WIDTH_OPTION) narrower than it is written with its `width` and
 // `height` at that width, by its proportions, so that the page draws it at most
 // that wide, its `src` and its versions as they were.
 
 import sharpService from 'astro/assets/services/sharp';
 import { isLosslessWebp } from '../format/originals.js';
-import { DISPLAY_WIDTH, QUALITY, versionWidths } from './image-versions.js';
+import { DISPLAY_WIDTH_OPTION, QUALITY, versionWidths } from './image-versions.js';
 
 // An SVG, as Astro's own detector knows one: an <svg> tag in its first
 // kilobyte.
@@ -94,7 +94,7 @@ const service = {
     return validated;
   },
   async getHTMLAttributes(options, imageConfig, logger) {
-    const { [DISPLAY_WIDTH]: display, ...rest } = options;
+    const { [DISPLAY_WIDTH_OPTION]: display, ...rest } = options;
     const attributes = await sharpService.getHTMLAttributes(rest, imageConfig, logger);
     const { width, height } = attributes;
     if (!(display > 0) || !(width > display)) return attributes;

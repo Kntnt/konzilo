@@ -12,7 +12,7 @@ import { signedInCredential } from '../credential.js';
 import { imageLibrary } from '../body/library.js';
 
 import { DISPLAY_WIDTH_WIDGET, IMAGE_WIDGET, LOSSLESS_WIDGET } from './widget.js';
-import { displayWidthChoice, losslessChoice } from './lossless-choice.js';
+import { displayWidthChoice, losslessChoice } from './entry-choices.js';
 import { DISPLAY_WIDTH_MOST } from '../../format/body.js';
 import { say } from '../interface-language.js';
 import { plain } from '../plain.js';
@@ -34,7 +34,7 @@ export function registerImageField(CMS, config) {
     const React = window.__SVELTIA_CMS_REACT__;
     const { value, onChange, addFile, field, forID, entry } = props;
     const standIn = plain(field.get('fallback')) === true ? plain(entry?.getIn?.(['data', 'image', 'src'])) ?? '' : '';
-    // How a library entry's saved file was uploaded, which its own field writes (lossless-choice.js).
+    // How a library entry's saved file was uploaded, which its own field writes (entry-choices.js).
     const lossless = plain(field.get('upload')) === true && plain(entry?.getIn?.(['data', 'lossless'])) === true;
     const sized = (key) => { const pair = plain(field.get(key)); return Array.isArray(pair) ? { width: pair[0], height: pair[1] } : null; };
     const host = React.useRef(null);

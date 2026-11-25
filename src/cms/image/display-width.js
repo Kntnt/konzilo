@@ -8,19 +8,26 @@ import { measured } from '../body/chooser-check.js';
 import { made } from '../body/dialog.js';
 import { say, sayParts } from '../interface-language.js';
 
+// The scale a file's name says it was saved at, 2 or 3, for a name that ends in `@2x` or `@3x`
+// before its extension, or null for any other.
+export function scaleInName(name) {
+  const match = /@([23])x$/i.exec(String(name).replace(/\.[^./@]*$/, ''));
+  return match === null ? null : Number(match[1]);
+}
+
 // The display width a file's name gives an image `width` pixels wide: half of it for a name that
 // ends in `@2x` before its extension, a third for `@3x`, and null for any other, which fills the
 // column.
 export function displayWidthByName(name, width) {
-  const match = /@([23])x$/i.exec(String(name).replace(/\.[^./@]*$/, ''));
-  if (match === null || !(width > 0)) return null;
-  return Math.min(DISPLAY_WIDTH_MOST, Math.max(1, Math.round(width / Number(match[1]))));
+  const scale = scaleInName(name);
+  if (scale === null || !(width > 0)) return null;
+  return Math.min(DISPLAY_WIDTH_MOST, Math.max(1, Math.round(width / scale)));
 }
 
 // The display width a raster file's name gives it, by its pixel width as the browser decodes it,
 // which is measured only where its name says it is such a figure; null for any other.
 export async function displayWidthOfFile(file, measure = measured) {
-  if (displayWidthByName(file.name, 1) === null) return null;
+  if (scaleInName(file.name) === null) return null;
   const size = await measure(file).catch(() => null);
   return displayWidthByName(file.name, size?.width);
 }

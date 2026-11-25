@@ -7,7 +7,7 @@ import { describe, test } from 'node:test';
 import { uploadProblem } from '../src/cms/body/chooser-check.js';
 import { wordsIn } from '../src/refusals.js';
 import { imageLibrary, mediaNameOf, stemOf } from '../src/cms/body/library.js';
-import { displayWidthByName } from '../src/cms/image/display-width.js';
+import { displayWidthByName, scaleInName } from '../src/cms/image/display-width.js';
 
 const encoded = (text) => Buffer.from(text).toString('base64');
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEBgIApD5fRAAAAABJRU5ErkJggg==', 'base64');
@@ -317,4 +317,5 @@ test('fills in the display width of a file named @2x or @3x by its pixel width, 
     ['figure@2x.png', null, null],
   ];
   for (const [name, width, wanted] of cases) assert.equal(displayWidthByName(name, width), wanted, `${name} of ${width} px`);
+  assert.deepEqual(['figure@2x.png', 'Flow of work@3X.webp', 'screen@2x.final.png', 'figure.png', 'figure@4x.png'].map(scaleInName), [2, 3, null, null, null], 'the scale a name says, before anything is measured');
 });

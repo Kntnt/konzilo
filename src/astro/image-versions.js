@@ -71,7 +71,7 @@ const isTag = (node, tagName) => node?.type === 'element' && node.tagName === ta
 //
 // An image standing alone with a display width of its own, which figures.js gives its `width`,
 // is drawn at most that wide: the image service is asked to write its `width` and `height` at
-// that width (DISPLAY_WIDTH, image-service.js), its versions are as any other's, up to its
+// that width (DISPLAY_WIDTH_OPTION, image-service.js), its versions are as any other's, up to its
 // master's, so that a dense screen gets its full pixels, and its `sizes` says it is drawn no
 // wider (sizesNoWider()).
 export function versionsInBody(contexts = IMAGE_CONTEXTS) {
@@ -85,7 +85,7 @@ export function versionsInBody(contexts = IMAGE_CONTEXTS) {
         const display = Number(width) > 0 ? Number(width) : null;
         if (display !== null) {
           ctx.setProperty(node, 'width', null);
-          ctx.setProperty(node, DISPLAY_WIDTH, display);
+          ctx.setProperty(node, DISPLAY_WIDTH_OPTION, display);
         }
         if (/\.svg$/i.test(src.split(/[?#]/)[0])) return;
         const figure = ctx.parent(node);
@@ -101,7 +101,7 @@ export function versionsInBody(contexts = IMAGE_CONTEXTS) {
 
 // The option by which an image is asked to be written at most so wide, in pixels, its display
 // width, with its versions and its `src` as they would be without it (image-service.js).
-export const DISPLAY_WIDTH = 'konziloDisplayWidth';
+export const DISPLAY_WIDTH_OPTION = 'konziloDisplayWidth';
 
 // The parts of a `sizes`, or of one of its sizes, split where `by` stands outside any
 // parentheses, as in `(min-width: 40rem) calc(50vw - 1rem)`.
