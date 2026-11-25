@@ -111,7 +111,6 @@ Between two images, and before the gallery's caption, is a soft line break; betw
 - **A display width in the alt text,** as `|632` after it, as some note-taking tools write it. A screen reader would read it.
 - **A raw `<img width>`.** Astro makes no versions of an image in raw HTML.
 - **A width of the image's own in the content file's frontmatter, by its address.** Two uses of one image in a post could not differ, and the body's image would no longer say all of itself.
-
 - **A package to read a PNG,** such as jSquash's PNG decoder or `fast-png`. The reader is short, and every PNG a browser reads is one of the few kinds the format has, so a package's code and its notices would bring nothing more.
 - **WebGL's reading of a texture,** which keeps the alpha apart. Not every engine has WebGL in a worker, and it would draw the picture on the graphics card of each machine.
 - **libwebp built for the core.** The core has no Emscripten of its own to build it with, and jSquash's is the build Google's Squoosh shipped, kept up and widely used.
