@@ -11,10 +11,10 @@ const BODIES = new Set(['konzilo-body', 'markdown', 'richtext']);
 const IMAGES = new Set(['konzilo-image', 'image']);
 const FILES = new Set(['file']);
 const HOLDERS = new Set(['object', 'konzilo-group']);
-// A post's own status and its moment, which restoring leaves as they are, so that it never publishes
-// or unpublishes by itself: the post's top-level fields so named, which a field group only shows
-// together in the form.
-const KEPT = ['status', 'date'];
+// A post's own status, its moment and its triggers, which restoring leaves as they are, so that it
+// never publishes or unpublishes by itself: the post's top-level fields so named, which a field group
+// only shows together in the form.
+const KEPT = ['status', 'date', 'triggers'];
 const GROUP = 'konzilo-group';
 
 const labelOf = (field) => (typeof field.label === 'string' && field.label !== '' ? field.label : field.name);

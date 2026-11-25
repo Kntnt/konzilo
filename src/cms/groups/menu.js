@@ -20,6 +20,16 @@ export function computedDefault(name, data) {
   return Object.hasOwn(COMPUTED, name) ? COMPUTED[name](data) : '';
 }
 
+// Each rule a field's `hiddenWhen` names, by which a group leaves the field out of sight while it
+// holds, from what the group's fields hold now: a scheduled post's triggers are shown only while it
+// is scheduled, and its date not while the triggers hold its moments (ADR 0076).
+const HIDDEN = {
+  notScheduled: (values) => values.status !== 'scheduled',
+  scheduledByTriggers: (values) => values.status === 'scheduled' && Array.isArray(values.triggers) && values.triggers.length > 0,
+};
+
+export const hiddenBy = (rule, values) => Object.hasOwn(HIDDEN, rule) && HIDDEN[rule](values);
+
 const isEmpty = (value) => value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0);
 const same = (one, other) => (isEmpty(one) && isEmpty(other)) || JSON.stringify(one) === JSON.stringify(other);
 

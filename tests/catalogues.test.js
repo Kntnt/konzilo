@@ -56,10 +56,10 @@ for (const name of files.filter((one) => one !== `${SOURCE_LANGUAGE}.json`)) {
 // The editor's own code in the browser, the body field's, the image field's, the structure
 // field's, the preview's, the publish status's, the Submissions page's, the Mail page's, the
 // Personal data page's, the article parts' fields', the authors field's, the field groups', the
-// lock's, the History's and the Deleted page's, names each text whole, as `say('body.loading')`, so
-// that a name it asks for and the source can be held side by side: a name the source lacks would
-// throw in the editor, and a text no code names is dead.
-const EDITOR_AREAS = ['body', 'image', 'structure', 'preview', 'publishing', 'submissions', 'mail', 'personalData', 'parts', 'authors', 'groups', 'lock', 'history', 'deleted'];
+// lock's, the History's, the Deleted page's and a scheduled post's triggers', names each text
+// whole, as `say('body.loading')`, so that a name it asks for and the source can be held side by
+// side: a name the source lacks would throw in the editor, and a text no code names is dead.
+const EDITOR_AREAS = ['body', 'image', 'structure', 'preview', 'publishing', 'submissions', 'mail', 'personalData', 'parts', 'authors', 'groups', 'lock', 'history', 'deleted', 'schedule'];
 const editorCode = fileURLToPath(new URL('../src/cms/', import.meta.url));
 const namedInCode = () => {
   const name = new RegExp(String.raw`(['"\`])((?:${EDITOR_AREAS.join('|')})\.[a-zA-Z0-9.-]+)\1`, 'g');
@@ -88,6 +88,15 @@ test('every text the preview\'s own pages name is in the source, and every text 
   assert.ok(named.size > 0);
   assert.deepEqual([...named].filter((key) => !Object.hasOwn(source, key)), [], 'names the source does not have');
   assert.deepEqual(Object.keys(source).filter((key) => key.startsWith('previewTab.') && !named.has(key)), [], 'texts no code names');
+});
+
+// A scheduled post's triggers in words, which the publish status and the preview's toolbar share,
+// name their texts whole in their own module (ADR 0076).
+test('every text of a trigger in words is named in its module, and every name it asks for is in the source', () => {
+  const named = new Set([...readFileSync(fileURLToPath(new URL('../src/trigger-words.js', import.meta.url)), 'utf8').matchAll(/['"`](trigger\.[a-zA-Z0-9.-]+)['"`]/g)].map(([, found]) => found));
+  assert.ok(named.size > 0);
+  assert.deepEqual([...named].filter((key) => !Object.hasOwn(source, key)), [], 'names the source does not have');
+  assert.deepEqual(Object.keys(source).filter((key) => key.startsWith('trigger.') && !named.has(key)), [], 'texts no code names');
 });
 
 // The mail a form's submission is sent in, which the service writes in the page's language, names

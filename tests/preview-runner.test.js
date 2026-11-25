@@ -165,6 +165,52 @@ describe('the runs', () => {
     assert.ok(preview.shows(null));
   });
 
+  // A post that waits for another's publishing, by the same rules as the intake (ADR 0076).
+  describe('a post that waits for triggers', () => {
+    const waitsFor = (words, extra = []) => [[...extra, { published: [[{ words }]], since: '2026-11-01T00:00:00Z' }]];
+    const waiter = (title, triggers) => sourcePost({ title, status: 'scheduled', triggers }, 'Words.');
+
+    test('goes out on the timeline when the post it waits for does, a chain of them too, and shows there', async () => {
+      files['pages/b.md'] = sourcePost({ title: 'Bridge opening', status: 'scheduled', date: '2026-11-06T12:00:00Z' }, 'Words.');
+      files['pages/a.md'] = waiter('After the bridge', waitsFor('bridge'));
+      files['pages/c.md'] = waiter('Chained', waitsFor('after'));
+      const preview = runner();
+      await preview.refresh();
+      assert.deepEqual(preview.timeline(), [
+        { at: null, posts: [] },
+        { at: '2026-11-06T12:00:00Z', posts: [{ title: 'After the bridge', file: 'pages/a.md' }, { title: 'Bridge opening', file: 'pages/b.md' }, { title: 'Chained', file: 'pages/c.md' }] },
+      ]);
+      assert.deepEqual(preview.waiting(), []);
+      await preview.show(null);
+      for (const path of ['pages/after-the-bridge.md', 'pages/bridge-opening.md', 'pages/chained.md']) assert.equal(existsSync(join(content, path)), false, path);
+      assert.equal(preview.moment('2026-11-07T12:00:00Z'), '2026-11-06T12:00:00Z', 'four days ahead stands at the bridge\'s moment');
+      await preview.show('2026-11-06T12:00:00Z');
+      for (const path of ['pages/after-the-bridge.md', 'pages/bridge-opening.md', 'pages/chained.md']) assert.ok(existsSync(join(content, path)), path);
+      assert.deepEqual(preview.at('/pages/after-the-bridge/', '2026-11-06T12:00:00Z'), { kind: 'post', file: 'pages/a.md', title: 'After the bridge', status: 'scheduled', at: '2026-11-06T12:00:00Z', refusals: [] });
+    });
+
+    test('with a moment of its own among its triggers, is placed at it, what the timeline does not know of taken as on time', async () => {
+      files['pages/a.md'] = waiter('Assumed', [[{ moment: '2026-11-10T09:00:00Z' }], ...waitsFor('nobody')]);
+      const preview = runner();
+      await preview.refresh();
+      assert.deepEqual(preview.timeline(), [{ at: null, posts: [] }, { at: '2026-11-10T09:00:00Z', posts: [{ title: 'Assumed', file: 'pages/a.md', assumed: true }] }]);
+      await preview.show('2026-11-10T09:00:00Z');
+      assert.ok(existsSync(join(content, 'pages/assumed.md')));
+      assert.equal(preview.at('/pages/assumed/', '2026-11-10T09:00:00Z').assumed, true);
+    });
+
+    test('with none, is not on the timeline, but listed as waiting with what it waits for, and shown as a draft is', async () => {
+      files['pages/a.md'] = waiter('Unknown', [[{ moment: '2026-11-01T09:00:00Z' }], ...waitsFor('nobody')]);
+      const preview = runner();
+      await preview.refresh();
+      assert.deepEqual(preview.timeline(), [{ at: null, posts: [] }]);
+      assert.deepEqual(preview.waiting(), [{ title: 'Unknown', file: 'pages/a.md', triggers: [[{ moment: '2026-11-01T09:00:00Z', happened: true }], [{ published: [[{ words: 'nobody' }]], since: '2026-11-01T00:00:00Z', happened: false }]] }]);
+      await preview.show(null);
+      assert.ok(existsSync(join(content, 'pages/unknown.md')));
+      assert.deepEqual(preview.at('/pages/unknown/'), { kind: 'post', file: 'pages/a.md', title: 'Unknown', status: 'scheduled', at: null, refusals: [] });
+    });
+  });
+
   test('takes a moment asked for to the one on the timeline the site then stands at, and one passed to now', async () => {
     files['pages/ahead.md'] = sourcePost({ title: 'Ahead', status: 'scheduled', date: '2026-12-24T09:00:00Z' }, 'Words.');
     const preview = runner();

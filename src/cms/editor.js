@@ -17,6 +17,7 @@ import { registerImageField } from './image/register.js';
 import { registerGroups } from './groups/register.js';
 import { registerAuthorsField } from './authors/register.js';
 import { registerParts } from './parts/register.js';
+import { registerSchedule } from './schedule/register.js';
 import { registerStructureField } from './structure/register.js';
 import { registerPublishing } from './publishing/register.js';
 import { registerSubmissions } from './submissions/register.js';
@@ -68,6 +69,7 @@ function start() {
   // Before the parts' check at Save, which reads what the groups hold.
   registerGroups(CMS, config, konzilo.groups);
   registerParts(CMS, config);
+  registerSchedule(CMS, config);
   registerImageField(CMS, config);
   registerAuthorsField(CMS, config);
   registerStructureField(CMS, config);
