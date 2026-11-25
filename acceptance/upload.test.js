@@ -89,6 +89,29 @@ for (const [name, engine] of Object.entries(ENGINES)) {
       assert.ok(given.equals(kept), 'every pixel as it was');
     });
 
+    // A browser's canvas may keep its pixels multiplied by their alpha, which loses most of a
+    // colour where little of it shows.
+    test('keeps every pixel of a PNG with semi-transparent pixels, its colour and its alpha alike', async () => {
+      const width = 256;
+      const height = 64;
+      const data = Buffer.alloc(width * height * 4);
+      for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) data.set([(x * 37 + y) % 256, (y * 53 + x) % 256, ((x + y) * 29) % 256, 1 + ((x * 7 + y * 13) % 255)], (y * width + x) * 4);
+      }
+      data.set([200, 100, 50, 3], 0);
+      const drawing = await sharp(data, { raw: { width, height, channels: 4 } }).png().toBuffer();
+      const converted = await convert(drawing, 'overlay.png', { longestSide: 3840, quality: 90, lossless: true });
+      assert.deepEqual(converted.size, { width, height });
+      const [given, kept] = await Promise.all([drawing, converted.bytes].map((bytes) => sharp(bytes).ensureAlpha().raw().toBuffer()));
+      const first = [...kept.subarray(0, 4)];
+      assert.deepEqual(first, [200, 100, 50, 3], 'a colour that hardly shows, as it was');
+      const differing = [];
+      for (let at = 0; at < given.length && differing.length < 3; at += 4) {
+        if (!given.subarray(at, at + 4).equals(kept.subarray(at, at + 4))) differing.push(`${[...given.subarray(at, at + 4)]} became ${[...kept.subarray(at, at + 4)]}`);
+      }
+      assert.deepEqual(differing, [], 'every pixel as it was');
+    });
+
     test('follows the longest side and the quality it is given', async () => {
       const photo = await sharp({ create: { width: 2000, height: 1500, channels: 3, background: '#887766', noise: { type: 'gaussian', mean: 120, sigma: 30 } } }).blur(1).jpeg({ quality: 95 }).toBuffer();
       const fine = await convert(photo, 'photo.jpg', { longestSide: 1000, quality: 95 });
