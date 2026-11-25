@@ -246,7 +246,7 @@ async function postPage({ entry, type, path, number, search, site }, known, getE
     ? seo.title || render(home.title) || known.settings?.title || entry.data.title
     : seo.title || shown((data) => searchTitleOf(data, known.settings?.title ?? '', search.separator ?? '')) || render(templates.title) || entry.data.title;
   const metaDescription = start ? seo.description || render(home.description) : seo.description || shown(searchDescriptionOf) || render(templates.description);
-  const address = entryAddress(type, entry.id, site.languages);
+  const address = entryAddress(type, entry, site.languages);
   const later = number > 1;
   const schema = structuredDataTypeOf(type, seo.schema, templates.schema);
   return {

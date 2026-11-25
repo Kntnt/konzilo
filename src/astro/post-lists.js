@@ -314,7 +314,7 @@ export async function termPages(routePattern, { number = TERM_PAGE_POSTS } = {})
 // its address below the site's base, or null for a type without one.
 function listedEntry({ entry, typeName }) {
   const base = import.meta.env.BASE_URL.replace(/\/$/, '');
-  const address = entryAddress(describedSite().types[typeName], entry.id, siteLanguages());
+  const address = entryAddress(describedSite().types[typeName], entry, siteLanguages());
   return { entry, url: address === null ? null : `${base}${address}` };
 }
 
@@ -360,7 +360,7 @@ async function listed(query, { post, shown, page = 1, counting = false, whole = 
   // in several languages, whose prefix its address takes.
   return {
     posts: posts.map(({ id }) => {
-      const address = entryAddress(declared, id, languages);
+      const address = entryAddress(declared, byId.get(id), languages);
       return { entry: byId.get(id), url: address === null ? null : `${base}${address}` };
     }),
     pages,
@@ -440,7 +440,7 @@ function typeOf(entry) {
 // language, or null for a type without one.
 function addressOf(entry) {
   const [name] = typeOf(entry);
-  return name ? entryAddress(describedSite().types[name], entry.id, siteLanguages()) : null;
+  return name ? entryAddress(describedSite().types[name], entry, siteLanguages()) : null;
 }
 
 // The language of the post a list sits in, or the main language's outside

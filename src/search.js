@@ -14,10 +14,11 @@ import { join } from 'node:path';
 import { htmlToHast } from 'satteri';
 import { registryOf } from './astro/directives.js';
 import { latexOf } from './astro/formulas.js';
+import { termFilesIn } from './astro/languages.js';
 import { readContentFile } from './astro/reader.js';
 import { ownSummary } from './astro/summary.js';
 import { labelIn } from './catalogues.js';
-import { publicAddress } from './format/addresses.js';
+import { contentValues, publicAddress } from './format/addresses.js';
 import { START_ADDRESS, startPageFiles } from './format/start-page.js';
 import { siteDescription } from './site-description.js';
 
@@ -90,6 +91,7 @@ export function searchDocuments({ site, content }) {
     return slugs;
   };
   const documents = [];
+  const terms = termFilesIn(content);
   // The page an Admin chose as the start page, on a site in one language, at the root.
   const starts = several ? [] : startPageFiles(content, described);
   for (const type of Object.values(described.types)) {
@@ -97,12 +99,15 @@ export function searchDocuments({ site, content }) {
     const seo = type.fields.find((field) => field.kind === 'seo');
     const files = [
       ...entriesOf(join(content, type.collection), type, several ? described.languages : null)
-        .map(({ id, path, language }) => ({ file: `${type.collection}/${id}.md`, address: publicAddress(type, path, language), language })),
+        .map(({ id, path, language }) => ({ file: `${type.collection}/${id}.md`, path, language })),
       ...starts.filter((start) => start.type === type).map(({ file }) => ({ file, address: START_ADDRESS, language: null })),
     ];
-    for (const { file, address, language } of files) {
+    for (const { file, path, address: start, language } of files) {
       const { data, html } = readContentFile(readFileSync(join(content, file), 'utf8'), { known: registryOf(described) });
       if (seo && data[seo.name]?.noindex === true) continue;
+      // A post's address may hold its date and its term too, which its file gives.
+      const address = start ?? publicAddress(type, contentValues(type, path, data, terms), language);
+      if (address === null) continue;
       const locale = language?.locale ?? described.language;
       const document = {
         id: file.slice(0, -'.md'.length),
