@@ -29,6 +29,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
+import { FEED_READER } from '../src/format/feed-post.js';
 import { POST_IDS_FILE } from '../src/format/write.js';
 import { postFiles, walk, writeContent } from '../src/intake/content-folder.js';
 import { componentChecksOf } from '../src/intake/component-checks.js';
@@ -66,8 +67,10 @@ const content = resolve(parsed.values.content ?? process.env.KONZILO_CONTENT ?? 
 // Who last changed each of the paths: Git's log, newest first, and the first time a
 // path is named is the last time it changed. Without renames, or moving a file away would
 // name only where it went. A shallow clone would blame its one commit for every file, so
-// it stops the check. A commit no one is known to have pushed is no Admin's, and no
-// Reviewer's. A Reviewer is one whatever else their account is (ADR 0008).
+// it stops the check. A commit no one is known to have pushed is no Admin's, no
+// Reviewer's and not the feed reader's. A Reviewer is one whatever else their account is
+// (ADR 0008), and the feed reader is the one account that changes a post made from a feed
+// (ADR 0079).
 function lastChanges(admins, reviewers, pushers) {
   const shallow = execFileSync('git', ['rev-parse', '--is-shallow-repository'], { cwd: checkout, encoding: 'utf8' }).trim();
   if (shallow !== 'false') throw new Error('a shallow clone cannot say who last changed a file; give the intake the whole history');
@@ -79,7 +82,7 @@ function lastChanges(admins, reviewers, pushers) {
     for (const path of paths) {
       if (path === '' || Object.hasOwn(changes, path)) continue;
       const reviewer = by !== null && reviewers.includes(by);
-      changes[path] = { by, admin: !reviewer && by !== null && admins.includes(by), reviewer };
+      changes[path] = { by, admin: !reviewer && by !== null && admins.includes(by), reviewer, feedReader: by === FEED_READER };
     }
   }
   return changes;

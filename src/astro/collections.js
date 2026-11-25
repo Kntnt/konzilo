@@ -36,6 +36,7 @@ import { createReference } from 'astro/content/runtime';
 import { glob } from 'astro/loaders';
 import { z } from 'astro/zod';
 import { canonicalAddress } from '../format/addresses.js';
+import { ORIGINAL_ADDRESS } from '../format/feed-post.js';
 import { CATEGORIES, CONSENT_FILE, CONSENT_GROUP, HOST_KINDS, LIFETIME, SAFEGUARDS, STORAGE_KINDS } from '../format/consent.js';
 import { NOT_FOUND, NOT_FOUND_FILE, NOT_FOUND_FOLDER } from '../format/not-found.js';
 import { isSource, OTHER_ANSWERS } from '../format/redirects.js';
@@ -191,6 +192,9 @@ function postSchema(type, image) {
     ['title', z.string()],
     ...type.fields.map((field) => [field.name, fieldSchema(field, image)]),
     [TRANSLATION_KEY, z.string().regex(/^[0-9a-f]{16}$/).optional()],
+    // The address of the original its text was first published at, as a post made from a feed has
+    // its item's link (ADR 0079).
+    [ORIGINAL_ADDRESS, z.string().refine((address) => canonicalAddress(address) !== null, 'not a whole web address').optional()],
     ...(type.address === null ? [] : [[OLD_ADDRESSES, old], [OTHER_ADDRESSES, other]]),
     // The start page an Admin chose keeps its own slug in its file, and its parent's path, which
     // its file's name at the content folder's root does not hold (start-page.js).
