@@ -11,7 +11,7 @@ function statusOf({ post, held, reason }, version) {
   if (about?.state === 'live' && held === version) return { status: 'live', warnings: about.warnings };
   if (held === version && about === null) return { status: 'live', warnings: post?.warnings ?? [] };
   if (about && reason && (about.state === 'live' || held !== undefined)) return { status: 'failed', reason, stillShown: held !== undefined };
-  if (about?.state === 'waiting') return { status: 'scheduled', at: about.at, stillShown: about.shown };
+  if (about?.state === 'waiting') return { status: 'scheduled', at: about.at, stillShown: about.shown, ...(about.triggers ? { triggers: about.triggers, terms: about.terms ?? [] } : {}) };
   if (about?.state === 'off') return { status: 'draft', stillShown: about.shown };
   return { status: 'being-published', stillShown: held !== undefined };
 }
