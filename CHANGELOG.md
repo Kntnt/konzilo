@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- `bodyTree()` from `@kntnt/konzilo/astro` gives a template its post's body as a tree, the same hast tree a component is given as `content`, so that a template can build a table of contents from the body's crossheads and the components that carry an anchor without parsing HTML. Given the post's entry, each heading holds its ID, a component and a post list stand as the core's plain rendering, and in the live preview each block holds its mark. Given HTML, such as what `Body` rendered inside a component of the template's own, it gives that HTML's tree, each component as the site's component drew it and each post list by its presentation.
+
 ## [0.10.0] – 2026-11-25
 
 ### Added
