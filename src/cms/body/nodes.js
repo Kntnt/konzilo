@@ -14,7 +14,7 @@ import { $command, $inputRule, $markSchema, $node, $nodeSchema, $prose, $view } 
 
 import rules from '../../format/rules.json' with { type: 'json' };
 import { made } from './dialog.js';
-import { displayWidthIn } from '../../format/body.js';
+import { displayWidthTitle, isDisplayWidth } from '../../format/body.js';
 import { embedOf } from '../../format/embeds.js';
 import { editEmbed } from './embed-edit.js';
 import { CAPTION_NODE, LINE_NODE } from './format.js';
@@ -94,7 +94,7 @@ const writeCaption = (state, node) => {
 };
 
 const writeImage = (state, node) => {
-  state.addNode('image', undefined, undefined, { url: node.attrs.src, alt: node.attrs.alt, title: node.attrs.width ? `width=${node.attrs.width}` : null });
+  state.addNode('image', undefined, undefined, { url: node.attrs.src, alt: node.attrs.alt, title: node.attrs.width ? displayWidthTitle(node.attrs.width) : null });
   if (hasCaption(node)) {
     state.addNode('break');
     writeCaption(state, node);
@@ -118,7 +118,7 @@ export const imageNode = $nodeSchema(IMAGE, () => ({
     {
       tag: 'figure[data-konzilo-image]',
       contentElement: 'figcaption',
-      getAttrs: (dom) => ({ src: dom.dataset.src ?? '', alt: dom.dataset.alt ?? '', width: displayWidthIn(`width=${dom.dataset.width ?? ''}`)?.width ?? null }),
+      getAttrs: (dom) => ({ src: dom.dataset.src ?? '', alt: dom.dataset.alt ?? '', width: isDisplayWidth(Number(dom.dataset.width)) ? Number(dom.dataset.width) : null }),
     },
   ],
   toDOM: ({ attrs: { src, alt, width } }) => ['figure', { 'data-konzilo-image': '', 'data-src': src, 'data-alt': alt, ...(width ? { 'data-width': String(width) } : {}) }, ['figcaption', 0]],

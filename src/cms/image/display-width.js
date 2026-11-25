@@ -3,10 +3,9 @@
 // a body, for a figure saved at twice the size it is meant to be read at. The entry's own form and
 // the chooser's upload draw it alike, and a file whose name says it is such a figure fills it in.
 
-import { DISPLAY_WIDTH_MOST } from '../../format/body.js';
+import { DISPLAY_WIDTH_MOST, isDisplayWidth } from '../../format/body.js';
 import { measured } from '../body/chooser-check.js';
 import { made } from '../body/dialog.js';
-import { displayWidthOf } from '../body/library.js';
 import { say } from '../interface-language.js';
 
 // The display width a file's name gives an image `width` pixels wide: half of it for a name that
@@ -65,8 +64,8 @@ export function displayWidthBox(parent, { changed = () => {}, label = true, clas
 
   const read = () => {
     if (!most.input.checked) return null;
-    const width = /^\d+$/.test(pixels.value.trim()) ? displayWidthOf(Number(pixels.value.trim())) : null;
-    return width === null ? { wrong: pixels.value } : { width };
+    const width = /^\d+$/.test(pixels.value.trim()) ? Number(pixels.value.trim()) : NaN;
+    return isDisplayWidth(width) ? { width } : { wrong: pixels.value };
   };
   // What is shown of the choice: the pixels only for *At most*, and why it cannot be taken.
   const shown = ({ telling = false } = {}) => {
@@ -83,7 +82,7 @@ export function displayWidthBox(parent, { changed = () => {}, label = true, clas
     }
   };
   const set = (width) => {
-    const given = displayWidthOf(width);
+    const given = isDisplayWidth(width) ? width : null;
     filling.input.checked = given === null;
     most.input.checked = given !== null;
     if (given !== null) pixels.value = String(given);

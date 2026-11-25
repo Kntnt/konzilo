@@ -7,7 +7,7 @@
 // other, and at once, so that a post can name the file from the first moment. Forgejo stores the
 // original in Git LFS by the repository's `.gitattributes`, as it does for any save.
 
-import { displayWidthIn } from '../../format/body.js';
+import { isDisplayWidth } from '../../format/body.js';
 import { IMAGE_LIBRARY_FOLDER, MEDIA_FOLDER } from '../../format/masters.js';
 import { kindOf } from '../../format/originals.js';
 import { base64 } from '../base64.js';
@@ -37,7 +37,7 @@ export function mediaNameOf(address) {
 }
 
 // An entry's display width, as a post's body takes it, or null where it fills the column.
-export const displayWidthOf = (given) => (Number.isInteger(given) ? displayWidthIn(`width=${given}`)?.width ?? null : null);
+export const displayWidthOf = (given) => (isDisplayWidth(given) ? given : null);
 
 // What an entry's file says, or null for one that says nothing a post could use: its display width
 // only where it has one a post can hold.

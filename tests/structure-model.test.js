@@ -53,3 +53,15 @@ test('reads an image with a display width as an image, and writes it back with i
   root.children[0].width = null;
   assert.equal(writeBody(root), '![A flow](/media/flow.webp)\n\n![A photo](/media/photo.webp "width=300")');
 });
+
+// As the intake reads an image's title (displayWidthIn() of format/body.js): a width with a
+// leading zero is its number, and one past the widest is none, which the intake refuses.
+test('reads a display width as the intake does: one with a leading zero as its number, one past the widest as no image', () => {
+  const [zero] = parseBody('![A flow](/media/flow.webp "width=0632")').children;
+  assert.deepEqual([zero.kind, zero.width], ['image', 632]);
+  const wide = '![A flow](/media/flow.webp "width=20000")';
+  const [past] = parseBody(wide).children;
+  assert.equal(past.kind, 'paragraph', 'kept as its text, for the intake to refuse');
+  assert.equal(writeBody(parseBody(wide)), wide);
+  assert.equal(parseBody('![A flow](/media/flow.webp "width=0")').children[0].kind, 'paragraph');
+});

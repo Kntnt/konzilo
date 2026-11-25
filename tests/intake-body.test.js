@@ -277,6 +277,11 @@ test('a formula in a text is written as a block formula\'s where its source open
   assert.equal(writtenAsBlock({ ...at(0), type: 'text' }, '$$x$$'), false, 'nor what is no formula');
 });
 
+test('an image\'s display width with a leading zero is its number, and one past the widest is refused, as the structure field reads them', () => {
+  assert.deepEqual(refusalsOf('![A flow](/media/flow.png "width=0632")'), []);
+  assert.deepEqual(refusalsOf('![A flow](/media/flow.png "width=20000")').map(({ name }) => name), ['refusal.image-display-width']);
+});
+
 test('a formula Temml cannot read is named with the LaTeX it could not read, and Temml\'s own words beside', () => {
   assert.deepEqual(refusalsOf('Here $\\foo + 1$ stops'), [{ name: 'refusal.math-unreadable', block: 'paragraph', values: { formula: '\\foo + 1', unread: '\\foo', problem: 'Unsupported function name: \\foo' } }]);
   assert.deepEqual(refusalsOf('$$\na & b\n$$')[0].values.unread, '&');

@@ -574,17 +574,25 @@ function linesOf(children) {
 // as libwebp makes one.
 export const DISPLAY_WIDTH_MOST = 16383;
 
+// Whether a number is a display width an image may have: a whole number of pixels from 1
+// to DISPLAY_WIDTH_MOST.
+export const isDisplayWidth = (width) => Number.isInteger(width) && width >= 1 && width <= DISPLAY_WIDTH_MOST;
+
+// An image's title that gives it a display width, `width=632`: the one writing of it, for
+// the intake, the body field and the structure field alike, which displayWidthIn() reads.
+export const displayWidthTitle = (width) => `width=${width}`;
+
 // What an image's title says, as the format reads it: null where it has none; its
 // display width, { width }, where it is `width=` and a whole number of pixels from 1 to
 // DISPLAY_WIDTH_MOST, the widest an image standing alone in a body is drawn; { wrong },
 // what follows `width=` where that is not such a number; and { other } for any other
-// title, which the site cannot publish.
+// title, which the site cannot publish. The one reading of it.
 export function displayWidthIn(title) {
   if (typeof title !== 'string' || title.trim() === '') return null;
   const match = /^width=(.*)$/s.exec(title.trim());
   if (match === null) return { other: true };
   const width = /^\d+$/.test(match[1]) ? Number(match[1]) : NaN;
-  return width >= 1 && width <= DISPLAY_WIDTH_MOST ? { width } : { wrong: match[1] };
+  return isDisplayWidth(width) ? { width } : { wrong: match[1] };
 }
 
 // An image alone in a paragraph with its caption, or a gallery of two or more with
@@ -1627,7 +1635,7 @@ function altText(alt, level, scope) {
 
 // A figure's image, its display width, where it has one, as its title.
 function imageText(node, level, scope) {
-  const title = node.width === undefined ? '' : ` "width=${node.width}"`;
+  const title = node.width === undefined ? '' : ` "${displayWidthTitle(node.width)}"`;
   const image = `![${altText(node.alt, level, scope)}](${linkAddress(node.src, {})}${title})`;
   return node.caption ? `${image}\\\n${inlineText(node.caption, inlineContext(level, scope))}` : image;
 }
