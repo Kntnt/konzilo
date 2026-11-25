@@ -4,7 +4,7 @@
 // line on that exact form, which keeps the field small and synchronous; the field says so where a
 // value is written otherwise, and the intake remains the check that counts.
 
-import { displayWidthIn, displayWidthTitle } from '../../format/body.js';
+import { imageTitle, imageTitleIn, isImageTitle } from '../../format/body.js';
 
 const OPEN = /^(:{3,})([a-z][a-z0-9-]*)(\{.*\})?\s*$/;
 const LEAF = /^::([a-z][a-z0-9-]*)(?:\[(.*)\])?(\{.*\})?\s*$/;
@@ -32,11 +32,11 @@ function blockOf(lines) {
   const first = lines[0];
   const heading = /^(#{2,6}) (.*)$/.exec(first);
   if (heading && lines.length === 1) return made({ kind: 'heading', level: heading[1].length, text: heading[2] });
-  // An image, with its display width as its title where it has one, read as the intake reads it;
-  // one with another title stays its text, for the intake to speak of.
+  // An image, with its display width and its focal point as its title where it has them, read as
+  // the intake reads it; one with another title stays its text, for the intake to speak of.
   const picture = /^!\[(.*)\]\(([^)\s]+)(?: "([^"]*)")?\)$/.exec(first);
-  const title = picture ? displayWidthIn(picture[3] ?? null) : null;
-  if (picture && lines.length === 1 && (title === null || title.width !== undefined)) return made({ kind: 'image', alt: picture[1], src: picture[2], width: title?.width ?? null });
+  const title = picture ? imageTitleIn(picture[3] ?? null) : null;
+  if (picture && lines.length === 1 && isImageTitle(picture[3] ?? null)) return made({ kind: 'image', alt: picture[1], src: picture[2], width: title?.width ?? null, focus: title?.focus ?? null });
   if (/^- /.test(first) || /^\d+\. /.test(first)) {
     const ordered = /^\d/.test(first);
     const items = [];
@@ -99,7 +99,10 @@ export const parseBody = (markdown) => made({ kind: 'root', children: parseLines
 function blockText(node) {
   switch (node.kind) {
     case 'heading': return `${'#'.repeat(node.level)} ${node.text}`;
-    case 'image': return `![${node.alt}](${node.src}${node.width ? ` "${displayWidthTitle(node.width)}"` : ''})`;
+    case 'image': {
+      const title = imageTitle({ width: node.width ?? null, focus: node.focus ?? null });
+      return `![${node.alt}](${node.src}${title === '' ? '' : ` "${title}"`})`;
+    }
     case 'list': return node.children.map((item, index) => `${node.ordered ? `${index + 1}.` : '-'} ${item.text}`).join('\n');
     case 'leaf': return `::${node.name}${node.label === null ? '' : `[${node.label}]`}${attributesText(node.attrs)}`;
     case 'container': {

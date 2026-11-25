@@ -940,6 +940,7 @@
   "refusal.image-link-alt": "webbplatsen kan inte publicera en länkad bild utan alternativtext; ange vart länken leder",
   "refusal.image-title": "webbplatsen kan inte publicera en bild med en titel; ta bort titeln, eller gör den till bildtext",
   "refusal.image-display-width": "en bilds visningsbredd är ett helt antal pixlar från 1 till {most}, inte \"{given}\"; välj bilden igen ur bildbiblioteket",
+  "refusal.image-focal-point": "en bilds fokuspunkt är två bråk från 0 till 1, av dess bredd och dess höjd, med ett komma emellan, inte \"{given}\"; flytta punkten igen i bildens dialog",
   "refusal.embed-place": "en inbäddning står överst i brödtexten, aldrig i ett citat eller en lista; flytta ut den",
   "refusal.embed-caption": "webbplatsen kan inte visa en bildtext med inbäddningen {address}; ta bort bildtexten",
   "refusal.directive-unknown": "webbplatsen har inget direktiv {name}; välj ett som den erbjuder, eller skriv kolonen som \\:",

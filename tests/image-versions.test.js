@@ -11,9 +11,10 @@ import { dirname, join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import konzilo from '../src/astro/index.js';
+import { IMAGE_CONTEXTS, imageContexts } from '../src/astro/image-versions.js';
 import { astroConfig, astroEnvironment, nodeSync } from './lib/astro.js';
 import { paragraphs, post, siteSettingsArgs, writeContent } from './lib/content.js';
-import { plainImage, sharp } from './lib/images.js';
+import { alike, plainImage, sharp } from './lib/images.js';
 
 const core = fileURLToPath(new URL('../', import.meta.url));
 const astro = join(core, 'node_modules/astro/bin/astro.mjs');
@@ -35,6 +36,22 @@ const MASTERS = {
   'drawing.webp': { width: 1300, height: 800, lossless: true },
   'figure.webp': { width: 1264, height: 800, lossless: true },
 };
+
+// A 3:2 image of three stripes, red, green and blue from the left, each a third of its width, for
+// the crops; and a square one, which a square context does not crop.
+const STRIPES = { width: 1500, height: 1000 };
+const RED = [220, 30, 30];
+const GREEN = [30, 180, 30];
+const BLUE = [30, 30, 220];
+
+async function stripes(sharp) {
+  const third = STRIPES.width / 3;
+  const part = (colour) => ({ create: { width: third, height: STRIPES.height, channels: 3, background: { r: colour[0], g: colour[1], b: colour[2] } } });
+  return sharp({ create: { ...STRIPES, channels: 3, background: '#000' } })
+    .composite([RED, GREEN, BLUE].map((colour, index) => ({ input: part(colour), left: third * index, top: 0 })))
+    .webp({ quality: 90 })
+    .toBuffer();
+}
 
 const posts = [
   post({
@@ -62,7 +79,33 @@ const posts = [
       '![A plan of the pier](../media/plan.svg "width=200")',
     ),
   }),
+  // The stripes with a focal point near the left edge and without one, a square image, a gallery
+  // of the stripes with its point near the right edge, and the stripes with a display width.
+  post({
+    ID: 3,
+    slug: 'crops',
+    title: 'Crops',
+    body: paragraphs(
+      '![Stripes, held at the left](../media/stripes.webp "focus=0.1,0.5")',
+      '![Stripes, around the middle](../media/stripes.webp)',
+      '![A square](../media/square.webp "focus=0.9,0.9")',
+      '![Stripes, held at the right](../media/stripes.webp "focus=0.9,0.5")\n![A square again](../media/square.webp)',
+      '![Stripes, drawn smaller](../media/stripes.webp "width=600 focus=0.1,0.5")',
+    ),
+  }),
 ];
+
+// A page that draws the stripes as a card, with its focal point near the right edge, through the
+// widths and sizes a template takes.
+const cards = [
+  '---',
+  "import { Image } from 'astro:assets';",
+  "import { imageVersions } from '@kntnt/konzilo/astro/images';",
+  "import stripes from '../../content/media/stripes.webp';",
+  '---',
+  '<html><head><title>Cards</title></head><body><Image src={stripes} alt="Stripes as a card" {...imageVersions(\'card\', { focalPoint: { x: 0.9, y: 0.5 } })} /><Image src={stripes} alt="Stripes as a hero" {...imageVersions(\'hero\')} /></body></html>',
+  '',
+].join('\n');
 
 const article = [
   '---',
@@ -99,11 +142,14 @@ async function siteRepository(options) {
     'site-description.json': JSON.stringify(site),
     'src/pages/index.astro': '<html><head><title>Start</title></head><body><h1>Start</h1></body></html>\n',
     'src/pages/[slug].astro': article,
+    'src/pages/cards.astro': cards,
   };
   for (const [path, contents] of Object.entries(sources)) write(repository, path, contents);
   siteSettingsArgs(repository);
   const exported = writeContent(repository, posts);
   assert.equal(exported.status, 0, exported.stderr);
+  write(repository, 'content/media/stripes.webp', await stripes(sharp));
+  write(repository, 'content/media/square.webp', await sharp(await plainImage(sharp, { width: 1000, height: 1000, format: 'png' })).webp({ quality: 90 }).toBuffer());
   write(repository, 'content/media/plan.svg', '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400" viewBox="0 0 800 400"><rect width="800" height="400" fill="#246"/></svg>\n');
   for (const [name, { width, height, lossless }] of Object.entries(MASTERS)) {
     const drawn = await plainImage(sharp, { width, height, format: 'png' });
@@ -143,6 +189,22 @@ function isLossless(bytes) {
     at += 8 + bytes.readUInt32LE(at + 4) + (bytes.readUInt32LE(at + 4) % 2);
   }
   return false;
+}
+
+// The mean colour of a column of a picture, `at` its left edge or its right, two pixels wide, and
+// how many of its pixels are blue.
+async function shapeOf(bytes) {
+  const { data, info } = await sharp(bytes).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  const column = (from) => {
+    const sum = [0, 0, 0];
+    for (let y = 0; y < info.height; y += 1) {
+      for (let x = from; x < from + 2; x += 1) for (let c = 0; c < 3; c += 1) sum[c] += data[(y * info.width + x) * 3 + c];
+    }
+    return sum.map((total) => Math.round(total / (info.height * 2)));
+  };
+  let blue = 0;
+  for (let at = 0; at < data.length; at += 3) if (data[at + 2] > 150 && data[at] < 100 && data[at + 1] < 100) blue += 1;
+  return { width: info.width, height: info.height, left: column(0), right: column(info.width - 2), blue };
 }
 
 describe('a build of a site that gives no widths of its own', () => {
@@ -296,6 +358,95 @@ describe('a build of a site that gives widths and sizes of its own', () => {
   });
 });
 
+describe('a build of a site whose design names aspect ratios', () => {
+  let repository;
+  let built;
+  let html;
+  let images;
+  let cardsHtml;
+  const fileOf = (version) => readFileSync(join(repository, 'dist', version.file));
+
+  before(async () => {
+    repository = await siteRepository({ images: { body: { ratio: '1:1' }, gallery: { ratio: '1:1' }, card: { ratio: '1:1' } } });
+    built = build(repository);
+    html = pageOf(repository, 'crops');
+    images = imagesOf(html);
+    cardsHtml = pageOf(repository, 'cards');
+  });
+
+  after(() => rmSync(repository, { recursive: true, force: true }));
+
+  test('succeeds', () => {
+    assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
+  });
+
+  test('serves a 3:2 image with its point near its left edge, drawn in a 1:1 context, as square versions whose crop holds the point, with no pixels from outside the crop', async () => {
+    const [held] = images;
+    assert.deepEqual([held.width, held.height], ['1000', '1000']);
+    assert.deepEqual(versionsOf(held).map(({ width }) => width), [480, 800, 1000]);
+    assert.equal(held.src, versionsOf(held).at(-1).file);
+    for (const version of versionsOf(held)) {
+      const shape = await shapeOf(fileOf(version));
+      assert.deepEqual([shape.width, shape.height], [version.width, version.width], version.file);
+      assert.ok(alike(shape.left, RED, 24), `red at the left, where the point is: ${shape.left}`);
+      assert.ok(alike(shape.right, GREEN, 24), `green at the right: ${shape.right}`);
+      assert.equal(shape.blue, 0, 'and nothing of the blue third, outside the crop');
+    }
+  });
+
+  test('crops an image without a focal point around its middle', async () => {
+    const [, middle] = images;
+    const shape = await shapeOf(fileOf(versionsOf(middle).at(-1)));
+    assert.deepEqual([shape.width, shape.height], [1000, 1000]);
+    assert.ok(alike(shape.left, RED, 24), `${shape.left}`);
+    assert.ok(alike(shape.right, BLUE, 24), `${shape.right}`);
+  });
+
+  test('crops a gallery\'s image to the gallery\'s ratio around its point', async () => {
+    const [, , , inGallery] = images;
+    assert.deepEqual([inGallery.width, inGallery.height], ['1000', '1000']);
+    const shape = await shapeOf(fileOf(versionsOf(inGallery).at(-1)));
+    assert.ok(alike(shape.left, GREEN, 24), `${shape.left}`);
+    assert.ok(alike(shape.right, BLUE, 24), `${shape.right}`);
+  });
+
+  test('writes an image with a display width at that width in the crop\'s ratio', () => {
+    const smaller = images.at(-1);
+    assert.deepEqual([smaller.width, smaller.height], ['600', '600']);
+    assert.deepEqual(versionsOf(smaller).map(({ width }) => width), [480, 800, 1000]);
+  });
+
+  test('does not crop an image in the context\'s own ratio, whose versions are its whole picture\'s', () => {
+    const [, , square] = images;
+    const [, , whole] = imagesOf(html, { lightbox: true });
+    assert.deepEqual([square.width, square.height], ['1000', '1000']);
+    assert.equal(versionsOf(square).at(-1).file, versionsOf(whole).at(-1).file);
+  });
+
+  test('shows each image whole in its lightbox, from versions of the whole picture', async () => {
+    const shown = imagesOf(html, { lightbox: true });
+    assert.equal(shown.length, images.length, 'one in a lightbox for each on the page, and no other on the page');
+    const [held] = shown;
+    assert.deepEqual([held.width, held.height], ['1500', '1000']);
+    assert.equal(held.sizes, '100vw');
+    assert.deepEqual(versionsOf(held).map(({ width }) => width), [1500]);
+    const shape = await shapeOf(fileOf(versionsOf(held)[0]));
+    assert.deepEqual([shape.width, shape.height], [1500, 1000]);
+    assert.ok(alike(shape.right, BLUE, 24), `${shape.right}`);
+    assert.doesNotMatch(html.replace(/<style\b[\s\S]*?<\/style>/g, ''), /\shidden\b|data-konzilo-whole/, 'nor anything of how it came there');
+  });
+
+  test('crops an image a template draws in a context of the design\'s ratio around the point it is given, and one in a context with none not at all', async () => {
+    const [card, hero] = imagesOf(cardsHtml);
+    assert.deepEqual([card.width, card.height], ['1000', '1000']);
+    const shape = await shapeOf(fileOf(versionsOf(card).at(-1)));
+    assert.ok(alike(shape.left, GREEN, 24), `${shape.left}`);
+    assert.ok(alike(shape.right, BLUE, 24), `${shape.right}`);
+    assert.deepEqual([hero.width, hero.height], ['1500', '1000']);
+    assert.doesNotMatch(cardsHtml, /konzilo/i, 'and nothing of how it was asked for');
+  });
+});
+
 test('refuses widths and sizes the core cannot use, naming what is wrong', () => {
   const refused = [
     [{ galery: { sizes: '100vw' } }, /names the context galery, which the core does not know: body, gallery, lightbox, hero, card/],
@@ -303,10 +454,23 @@ test('refuses widths and sizes the core cannot use, naming what is wrong', () =>
     [{ body: { widths: [] } }, /must give body its widths as a list of whole numbers of pixels/],
     [{ card: { widths: [480.5] } }, /must give card its widths as a list of whole numbers of pixels/],
     [{ gallery: { sizes: ' ' } }, /must give gallery its sizes as the text of a sizes attribute/],
-    [{ body: { width: [480] } }, /gives body width, where a context has its widths and its sizes/],
-    [{ body: '100vw' }, /must give body its widths, its sizes or both/],
+    [{ body: { width: [480] } }, /gives body width, where a context has its widths, its sizes and its aspect ratio/],
+    [{ body: '100vw' }, /must give body its widths, its sizes, its aspect ratio or any of these/],
     [['body'], /must give each context the site draws images in by its name/],
+    [{ card: { ratio: '4/3' } }, /must give card its aspect ratio as a width and a height with a colon between, such as '16:9', not 4\/3/],
+    [{ card: { ratio: 1.5 } }, /must give card its aspect ratio as a width and a height with a colon between, such as '16:9', not 1.5/],
+    [{ lightbox: { ratio: '1:1' } }, /gives lightbox an aspect ratio, where the lightbox shows each image whole/],
   ];
   for (const [images, reason] of refused) assert.throws(() => konzilo({ images }), reason, JSON.stringify(images));
   assert.doesNotThrow(() => konzilo({ images: { hero: { widths: [2520] }, card: {} } }));
+  assert.doesNotThrow(() => konzilo({ images: { hero: { ratio: '21:9' }, card: { widths: [400], ratio: ' 1:1 ' } } }));
+});
+
+test('gives each context its aspect ratio, the site\'s design\'s, or none, the image\'s own, by default', () => {
+  assert.deepEqual(Object.values(IMAGE_CONTEXTS).map(({ ratio }) => ratio), [null, null, null, null, null]);
+  const contexts = imageContexts({ card: { ratio: ' 1:1 ' }, body: { widths: [480] } });
+  assert.equal(contexts.card.ratio, '1:1');
+  assert.deepEqual(contexts.card.widths, IMAGE_CONTEXTS.card.widths);
+  assert.equal(contexts.body.ratio, null);
+  assert.equal(contexts.hero.ratio, null);
 });
