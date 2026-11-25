@@ -1,9 +1,10 @@
 // The consent records (ADR 0049), through the service: in its role for visitors, a record of each
 // choice taken at /_konzilo/consent, as the web server passes it on, checked against the consent
 // revisions the site has published, each kept with what it showed the visitor, and stored, or
-// counted past the limits; and its timed duty, which forgets a record after 13 months. What is
-// kept is read back from the service's store. The client's sending is proved in
-// consent-client.test.js, the Admin's page in consent-records-page.test.js, and they meet in a
+// counted past the limits; its timed duty, which forgets a record after 13 months; and, in its
+// role for editors, what an Admin's *Consent records* page asks of it, against a stand-in for
+// Forgejo. What is kept is read back from the service's store. The client's sending is proved in
+// consent-client.test.js, the page's asking in consent-records-client.test.js, and they meet in a
 // real browser in the Compose acceptance suite.
 
 import assert from 'node:assert/strict';
@@ -13,7 +14,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, afterEach, before, beforeEach, describe, test } from 'node:test';
 
+import { buildControl } from '../src/build/record.js';
 import { consentRetention } from '../src/service/consent-records.js';
+import { editorsService } from '../src/service/editors.js';
 import { openStore } from '../src/service/store.js';
 import { visitorsService } from '../src/service/visitors.js';
 import { siteDescription } from '../src/site-description.js';
@@ -341,5 +344,147 @@ describe('keeping the consent records for 13 months', () => {
     for (const held of [file, `${file}-wal`]) {
       if (existsSync(held)) assert.ok(!readFileSync(held).includes('a-page-to-be-forgotten'), held);
     }
+  });
+});
+
+describe('the consent records, for Admins', () => {
+  let folder;
+  let file;
+  let store;
+  let server;
+  let origin;
+
+  // Who each credential is, to Forgejo: an Admin in the team `admins`, an Editor, and a reader of
+  // the repository who may not write.
+  const PEOPLE = {
+    'token anna': { login: 'anna', is_admin: false, push: true },
+    'token erik': { login: 'erik', is_admin: false, push: true },
+    'token rita': { login: 'rita', is_admin: false, push: false },
+  };
+  const ADMIN = { authorization: 'token anna' };
+  const answerOf = (body, status = 200) => ({ ok: status < 400, status, json: async () => body });
+  const forgejo = async (url, { headers }) => {
+    const { pathname } = new URL(url);
+    const person = PEOPLE[headers.authorization];
+    if (pathname === '/api/v1/user') return person ? answerOf(person) : answerOf({}, 401);
+    if (pathname === '/api/v1/repos/org/source') return person ? answerOf({ permissions: { push: person.push } }) : answerOf({}, 401);
+    if (headers.authorization !== 'token roles') return answerOf({}, 404);
+    if (pathname === '/api/v1/orgs/org/teams') return answerOf([{ id: 7, name: 'admins' }]);
+    if (pathname === '/api/v1/teams/7/members') return answerOf([{ login: 'anna' }]);
+    throw new Error(`nothing to say of ${pathname}`);
+  };
+  const ask = (path, { method = 'GET', headers = ADMIN } = {}) => fetch(`${origin}${path}`, { method, headers });
+  const json = async (path, options) => {
+    const answer = await ask(path, options);
+    return { status: answer.status, body: await answer.json() };
+  };
+
+  const ADA = '6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b';
+  const BEA = '7a2d3b4c-5e6f-4a70-9b8c-0d1e2f3a4b5c';
+  // Ada accepted in the banner, chose in the dialog the next day, and withdrew; Bea rejected, in
+  // Swedish, and allowed YouTube in its panel; one record more was not stored.
+  const keepAdaAndBea = () => {
+    store.consentRecords.keepRevision(published(), new Date('2026-11-01T00:00:00Z'));
+    store.consentRecords.keep(recordOf({ id: ADA, chosen: '2026-11-09T23:59:59.000Z' }));
+    store.consentRecords.keep(recordOf({ id: ADA, chosen: '2026-11-10T08:00:00.000Z', how: 'dialog', control: 'save', categories: { necessary: true, functional: false, statistics: true, marketing: true }, services: { konzilo: true, youtube: false, matomo: true } }));
+    store.consentRecords.keep(recordOf({ id: ADA, chosen: '2026-11-10T09:00:00.000Z', how: 'withdrawal', control: 'withdraw', categories: { necessary: true, functional: false, statistics: false, marketing: true }, services: { konzilo: true, youtube: false, matomo: false } }));
+    store.consentRecords.keep(recordOf({ id: BEA, chosen: '2026-11-10T10:00:00.000Z', control: 'reject', language: 'sv-SE', path: '/sv/om-oss/', categories: { necessary: true, functional: false, statistics: false, marketing: true }, services: { konzilo: true, youtube: false, matomo: false } }));
+    store.consentRecords.keep(recordOf({ id: BEA, chosen: '2026-11-10T10:05:00.000Z', how: 'placeholder', control: 'allow', language: 'sv-SE', path: '/sv/om-oss/', categories: { necessary: true, functional: true, statistics: false, marketing: true }, services: { konzilo: true, youtube: true, matomo: false } }));
+    store.consentRecords.notStored(new Date('2026-11-10T12:00:00Z'));
+  };
+
+  before(() => {
+    folder = mkdtempSync(join(tmpdir(), 'konzilo-consent-admin-'));
+    file = join(folder, 'service.sqlite');
+  });
+  after(() => rmSync(folder, { recursive: true, force: true }));
+  beforeEach(async () => {
+    rmSync(file, { force: true });
+    store = openStore(file);
+    const service = editorsService({ forgejo: 'http://forgejo', repository: 'org/source', token: 'read-token', rolesToken: 'roles', control: buildControl(join(folder, 'control')), store, get: forgejo });
+    server = createServer((incoming, outgoing) => service.request(incoming, outgoing));
+    await new Promise((go) => server.listen(0, '127.0.0.1', go));
+    origin = `http://127.0.0.1:${server.address().port}`;
+  });
+  afterEach(async () => {
+    server.closeAllConnections();
+    await new Promise((go) => server.close(go));
+    store.close();
+  });
+
+  test('gives the choices of each day of a span, in UTC, by the control each was made with, and those not stored', async () => {
+    keepAdaAndBea();
+    const { status, body } = await json('/_konzilo/consent-records?from=2026-11-08&to=2026-11-11');
+    assert.equal(status, 200);
+    assert.deepEqual(body, {
+      days: [
+        { day: '2026-11-08', accept: 0, reject: 0, save: 0, allow: 0, withdraw: 0, notStored: 0 },
+        { day: '2026-11-09', accept: 1, reject: 0, save: 0, allow: 0, withdraw: 0, notStored: 0 },
+        { day: '2026-11-10', accept: 0, reject: 1, save: 1, allow: 1, withdraw: 1, notStored: 1 },
+        { day: '2026-11-11', accept: 0, reject: 0, save: 0, allow: 0, withdraw: 0, notStored: 0 },
+      ],
+    });
+  });
+
+  test('finds a consent ID\'s records, oldest first, each with what its revision showed in its language', async () => {
+    keepAdaAndBea();
+    const { status, body } = await json(`/_konzilo/consent-records?id=${BEA.toUpperCase()}`);
+    assert.equal(status, 200);
+    assert.deepEqual(body.records.map(({ chosen, control, language, path }) => [chosen, control, language, path]), [
+      ['2026-11-10T10:00:00.000Z', 'reject', 'sv-SE', '/sv/om-oss/'],
+      ['2026-11-10T10:05:00.000Z', 'allow', 'sv-SE', '/sv/om-oss/'],
+    ]);
+    assert.deepEqual(body.records[1], {
+      ...recordOf({ id: BEA, chosen: '2026-11-10T10:05:00.000Z', how: 'placeholder', control: 'allow', language: 'sv-SE', path: '/sv/om-oss/', categories: { necessary: true, functional: true, statistics: false, marketing: true }, services: { konzilo: true, youtube: true, matomo: false } }),
+      shown: shown('Kakor'),
+    });
+    assert.deepEqual((await json('/_konzilo/consent-records?id=00000000-0000-4000-8000-000000000000')).body, { records: [] });
+  });
+
+  test('exports the records of a span of days as CSV, oldest first, in UTC, by the separator, in the reader\'s language', async () => {
+    keepAdaAndBea();
+    const answer = await ask('/_konzilo/consent-records.csv?from=2026-11-10&to=2026-11-10&separator=semicolon&language=en');
+    assert.equal(answer.status, 200);
+    assert.equal(answer.headers.get('content-type'), 'text/csv; charset=utf-8; header=present');
+    assert.equal(answer.headers.get('content-disposition'), 'attachment; filename="consent-records.csv"');
+    assert.equal(answer.headers.get('cache-control'), 'no-store');
+    assert.equal(new TextDecoder('utf-8', { ignoreBOM: true }).decode(await answer.arrayBuffer()), [
+      '\uFEFFConsent ID;Made at (UTC);Consent revision;Language;Page;Made in;Choice;Necessary;Functional;Statistics;Marketing;Services allowed;Services refused',
+      `${ADA};2026-11-10 08:00:00;${REVISION};en-GB;/about/;Privacy settings;Save my choices;Yes;No;Yes;Yes;konzilo matomo;youtube`,
+      `${ADA};2026-11-10 09:00:00;${REVISION};en-GB;/about/;Withdrawal;Withdraw consent;Yes;No;No;Yes;konzilo;matomo youtube`,
+      `${BEA};2026-11-10 10:00:00;${REVISION};sv-SE;/sv/om-oss/;Banner;Reject optional;Yes;No;No;Yes;konzilo;matomo youtube`,
+      `${BEA};2026-11-10 10:05:00;${REVISION};sv-SE;/sv/om-oss/;An embed's panel;Allow one service;Yes;Yes;No;Yes;konzilo youtube;matomo`,
+      '',
+    ].join('\r\n'));
+    const swedish = await (await ask('/_konzilo/consent-records.csv?from=2026-11-09&to=2026-11-09&separator=comma&language=sv')).text();
+    assert.match(swedish, /^Samtyckes-ID,Gjort \(UTC\),Samtyckesversion,Språk,Sida,Gjort i,Val,Nödvändiga,Funktionella,Statistik,Marknadsföring,Tillåtna tjänster,Nekade tjänster\r\n/);
+    assert.match(swedish, /\r\n6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b,2026-11-09 23:59:59,/);
+  });
+
+  test('is an Admin\'s alone: an Editor is told only that, and whoever may not write nothing', async () => {
+    keepAdaAndBea();
+    for (const path of ['/_konzilo/consent-records?from=2026-11-10&to=2026-11-10', `/_konzilo/consent-records?id=${ADA}`, '/_konzilo/consent-records.csv?from=2026-11-10&to=2026-11-10&separator=comma']) {
+      assert.deepEqual(await json(path, { headers: { authorization: 'token erik' } }), { status: 403, body: {} }, path);
+      for (const headers of [{}, { authorization: 'token rita' }, { authorization: 'token nobody' }]) {
+        assert.deepEqual(await json(path, { headers }), { status: 401, body: {} }, `${path} ${JSON.stringify(headers)}`);
+      }
+    }
+  });
+
+  test('refuses a span that is no span of at most 400 days, a consent ID of another shape, and a method or a path it does not take', async () => {
+    for (const path of [
+      '/_konzilo/consent-records',
+      '/_konzilo/consent-records?from=2026-11-10',
+      '/_konzilo/consent-records?from=2026-11-10&to=2026-11-09',
+      '/_konzilo/consent-records?from=2026-11-31&to=2026-12-01',
+      '/_konzilo/consent-records?from=10/11/2026&to=2026-11-11',
+      '/_konzilo/consent-records?from=2025-01-01&to=2026-02-05',
+      '/_konzilo/consent-records?id=ada',
+      '/_konzilo/consent-records.csv?from=2026-11-10&to=2026-11-10',
+      '/_konzilo/consent-records.csv?from=2026-11-10&to=2026-11-10&separator=tab',
+    ]) assert.equal((await ask(path)).status, 400, path);
+    assert.equal((await ask('/_konzilo/consent-records?from=2025-01-01&to=2026-02-04')).status, 200, 'four hundred days');
+    assert.equal((await ask('/_konzilo/consent-records?from=2026-11-10&to=2026-11-10', { method: 'DELETE' })).status, 405);
+    assert.equal((await ask('/_konzilo/consent-records/more?from=2026-11-10&to=2026-11-10')).status, 404);
   });
 });
