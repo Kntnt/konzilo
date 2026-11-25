@@ -11,6 +11,7 @@ import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { cmsConfig } from '../src/cms/config.js';
+import { designRatios } from '../src/cms/design-ratios.js';
 import { demoSource } from '../src/demo-source.js';
 import { SCHEMA_TYPES, SEO_KEYS, siteDescription } from '../src/site-description.js';
 
@@ -665,7 +666,7 @@ describe('the image library', () => {
     assert.equal(library.i18n, undefined, 'in one language, since what a post holds of it is the post\'s');
     // Lossless compression, which the file's own field draws, and a field of its own writes,
     // and the display width, a field of its own after the file.
-    assert.deepEqual(library.fields.map(({ name, widget, required }) => [name, widget, required]), [['src', 'konzilo-image', true], ['lossless', 'konzilo-lossless', false], ['displayWidth', 'konzilo-display-width', false], ['alt', 'string', true], ['caption', 'string', false]]);
+    assert.deepEqual(library.fields.map(({ name, widget, required }) => [name, widget, required]), [['src', 'konzilo-image', true], ['lossless', 'konzilo-lossless', false], ['displayWidth', 'konzilo-display-width', false], ['focalPoint', 'konzilo-focal-point', false], ['alt', 'string', true], ['caption', 'string', false]]);
     assert.equal(library.fields[0].upload, true, 'its own file is uploaded, not chosen');
     assert.equal(library.thumbnail, 'src');
   });
@@ -679,6 +680,30 @@ describe('the image library', () => {
   test('tells a body how narrow an upload may be', () => {
     const [page] = cmsConfig(describedWith(['paragraph', 'image']), place).collections;
     assert.equal(page.fields.find(({ name }) => name === 'body').smallestWidth, 400);
+  });
+
+  test('gives the focal point, and every place a post holds an image, a frame for each aspect ratio the site\'s design names and the sharing image\'s', () => {
+    const sharing = { ratio: 1200 / 630, text: '1.91:1', contexts: ['sharing'] };
+    const plain = cmsConfig(describedWith(['paragraph', 'image', 'gallery']), place);
+    const focus = (config) => config.collections.find(({ name }) => name === 'image-library').fields.find(({ name }) => name === 'focalPoint');
+    assert.deepEqual(focus(plain).frames, [sharing], 'only the sharing image\'s where the design names none');
+    const designed = cmsConfig(describedWith(['paragraph', 'image', 'gallery']), { ...place, ratios: { gallery: '1:1', hero: '21:9', card: '1:1' } });
+    const frames = [{ ratio: 1, text: '1:1', contexts: ['gallery', 'card'] }, { ratio: 21 / 9, text: '21:9', contexts: ['hero'] }, sharing];
+    assert.deepEqual(focus(designed).frames, frames);
+    const [page] = designed.collections;
+    assert.deepEqual(page.fields.find(({ name }) => name === 'body').frames, frames);
+  });
+
+  test('lets a post move the focal point of its featured image, its teaser\'s and its sharing image, the last by the sharing image\'s frame alone, and the settings\' images not', () => {
+    const designed = cmsConfig(description, { ...place, ratios: { card: '1:1' } });
+    const { fields } = designed.collections.find(({ name }) => name === 'articles');
+    const card = { ratio: 1, text: '1:1', contexts: ['card'] };
+    const sharing = { ratio: 1200 / 630, text: '1.91:1', contexts: ['sharing'] };
+    assert.deepEqual(field(fields, 'image').frames, [card, sharing]);
+    assert.deepEqual(field(field(fields, 'teaser').fields, 'image').frames, [card, sharing]);
+    assert.deepEqual(field(field(fields, 'sharing').fields, 'image').frames, [sharing]);
+    const settings = designed.collections.find(({ name }) => name === 'settings').files[0].fields;
+    assert.deepEqual(settings.filter(({ name }) => ['logo', 'icon'].includes(name)).map(({ frames }) => frames), [undefined, undefined]);
   });
 
   test('is no name a type may take', () => {
@@ -1075,5 +1100,41 @@ describe('a required field that stands alone', () => {
   test('is in no group a source file is read into, since it holds its field under the field\'s own name', () => {
     const { groups } = cmsConfig(siteDescription(withReview()), place).konzilo;
     assert.deepEqual(Object.keys(groups.frontmatter).sort(), ['group-name', 'group-status']);
+  });
+});
+
+// The editor's frames are the design's ratios, which konzilo-cms reads from the site's own Astro
+// configuration, where its design package hands them to konzilo({ images }).
+describe('the aspect ratios of a site\'s design, as the editor\'s configuration reads them', () => {
+  const integration = file('src/astro/index.js');
+  const siteWith = (config) => {
+    const folder = mkdtempSync(join(tmpdir(), 'konzilo-design-ratios-'));
+    if (config !== null) writeFileSync(join(folder, 'astro.config.mjs'), config);
+    return folder;
+  };
+
+  test('are each context\'s that names one, from the site\'s konzilo({ images })', async () => {
+    const folder = siteWith(`import konzilo from ${JSON.stringify(integration)};\nexport default { integrations: [[konzilo({ images: { card: { ratio: ' 1:1 ' }, hero: { widths: [800] }, gallery: { ratio: '4:3' } } })]] };\n`);
+    try {
+      assert.deepEqual(await designRatios(folder), { gallery: '4:3', card: '1:1' });
+    } finally {
+      rmSync(folder, { recursive: true, force: true });
+    }
+  });
+
+  test('are none for a site without them, or whose configuration cannot be read, which is said', async () => {
+    const warned = [];
+    const none = siteWith(null);
+    const plain = siteWith(`import konzilo from ${JSON.stringify(integration)};\nexport default { integrations: [konzilo()] };\n`);
+    const broken = siteWith('throw new Error(\'no design\');\n');
+    try {
+      assert.deepEqual(await designRatios(none, (message) => warned.push(message)), {});
+      assert.deepEqual(await designRatios(plain, (message) => warned.push(message)), {});
+      assert.deepEqual(await designRatios(broken, (message) => warned.push(message)), {});
+      assert.equal(warned.length, 1);
+      assert.match(warned[0], /could not read the aspect ratios of the site's design from astro\.config\.mjs: no design/);
+    } finally {
+      for (const folder of [none, plain, broken]) rmSync(folder, { recursive: true, force: true });
+    }
   });
 });

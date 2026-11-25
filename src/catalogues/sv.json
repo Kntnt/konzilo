@@ -856,6 +856,8 @@
   "form.caption": "Bildtext",
   "form.lossless": "Förlustfri komprimering",
   "form.displayWidth": "Visningsbredd",
+  "form.focalPoint": "Fokuspunkt",
+  "form.focalPointHint": "Det som varje beskärning av bilden behåller, och som ett inlägg tar med bilden och får flytta. Utan den behåller varje beskärning mitten.",
   "form.libraryHint": "Kopieras in i ett inlägg när bilden väljs där, och kan sedan ändras för just den användningen.",
   "form.menus": "Menyer",
   "form.menuInLanguage": "{menu} ({language})",

@@ -856,6 +856,8 @@
   "form.caption": "Caption",
   "form.lossless": "Lossless compression",
   "form.displayWidth": "Display width",
+  "form.focalPoint": "Focal point",
+  "form.focalPointHint": "What every crop of the image keeps, which a post takes with the image and may move. Without one, each crop keeps the middle.",
   "form.libraryHint": "Copied into a post when the image is chosen there, where it can then be changed for that use.",
   "form.menus": "Menus",
   "form.menuInLanguage": "{menu} ({language})",

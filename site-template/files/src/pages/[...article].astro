@@ -62,7 +62,7 @@ const { recommendedReading } = pageTexts(Astro.url);
           <ul class="topics">{topics.map((topic) => <li>{topic.data.name}</li>)}</ul>
         </div>
       )}
-      {article.data.image && <Image class="featured-image" src={article.data.image.src} alt={article.data.image.alt} {...imageVersions('body')} />}
+      {article.data.image && <Image class="featured-image" src={article.data.image.src} alt={article.data.image.alt} {...imageVersions('body', article.data.image)} />}
       <Body post={article} page={page}><Content /></Body>
       <CookieDeclaration />
     </article>

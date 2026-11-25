@@ -453,6 +453,9 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
   const formNotSent = () => siteFormNotSentPage(root, { locale: language, languageTag: languageTag(language), texts: ownFormTexts, folder: contentFolder(), languages });
   return {
     name: '@kntnt/konzilo',
+    // The contexts the site draws images in, with the widths, sizes and aspect ratios its design
+    // gives, which the editor's configuration reads for its frames (cms/design-ratios.js).
+    imageContexts: contexts,
     hooks: {
       'astro:config:setup': ({ config, command, injectRoute, injectScript, updateConfig, logger }) => {
         body = bodyStylesOf({ bodyStyles }, config.root);

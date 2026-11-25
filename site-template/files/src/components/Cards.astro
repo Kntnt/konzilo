@@ -1,7 +1,8 @@
 ---
 // The presentation `cards` (site-description.json, astro.config.mjs): a post
 // list as a card per post, its featured image, in the widths and sizes of a
-// card (konzilo({ images }) in astro.config.mjs), its title linked to the post
+// card (konzilo({ images }) in astro.config.mjs), cropped around its focal
+// point where the design gives a card an aspect ratio, its title linked to the post
 // and what it says of itself, its excerpt, else its teaser's text, else its
 // standfirst, by Konzilo's ownSummary(), in two, three or four columns, three where the list
 // says nothing. Konzilo gives it `posts`, each { entry,
@@ -24,7 +25,7 @@ const columns = options.columns ?? '3';
   <ul class:list={['post-cards', `post-cards-${columns}`]}>
     {posts.map(({ entry, url }) => (
       <li class="post-card">
-        {entry.data.image && <Image class="post-card-image" src={entry.data.image.src} alt={entry.data.image.alt} {...imageVersions('card')} />}
+        {entry.data.image && <Image class="post-card-image" src={entry.data.image.src} alt={entry.data.image.alt} {...imageVersions('card', entry.data.image)} />}
         <p class="post-card-title">{url ? <a href={url}>{entry.data.title}</a> : entry.data.title}</p>
         {ownSummary(entry.data) && <p class="post-card-excerpt">{ownSummary(entry.data)}</p>}
       </li>

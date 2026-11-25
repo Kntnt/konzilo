@@ -14,7 +14,8 @@ import { MENU_DESCRIPTION_LENGTH } from '../format/menus.js';
 import { DRAFT, POST_STATUSES } from '../format/post-status.js';
 import { declaredNames } from '../site-description.js';
 import { SHARING_SAFE, SHARING_SIZE } from '../format/article-parts.js';
-import { DISPLAY_WIDTH_WIDGET, IMAGE_WIDGET, LOSSLESS_WIDGET } from './image/widget.js';
+import { DISPLAY_WIDTH_WIDGET, FOCAL_POINT_WIDGET, IMAGE_WIDGET, LOSSLESS_WIDGET } from './image/widget.js';
+import { framesOf, sharingFrame } from './image/frames.js';
 import { STRUCTURE_WIDGET } from './structure/widget.js';
 import { AUTHORS_WIDGET } from './authors/widget.js';
 import { SCHEMA_WIDGET, SLUG_WIDGET, TEXT_WIDGET } from './parts/widgets.js';
@@ -46,8 +47,11 @@ const SAME_IN_EACH = { i18n: 'duplicate' };
  * @param {string} place.clientId the OAuth client of this Forgejo
  * @param {string} place.site the public site's origin
  * @param {string} [place.language] the interface language, by default the site's
+ * @param {object} [place.ratios] the aspect ratio of each context the site's design draws images
+ *   in, as its konzilo({ images }) names them, { card: '1:1' } (design-ratios.js), for the frames
+ *   an editor places an image's focal point by
  */
-export function cmsConfig(description, { forgejo, repository, clientId, site, preview = null, language: interfaceLanguage = description.interfaceLanguage }) {
+export function cmsConfig(description, { forgejo, repository, clientId, site, preview = null, language: interfaceLanguage = description.interfaceLanguage, ratios = {} }) {
   const say = (key, values) => text(interfaceLanguage, `form.${key}`, values);
   // A label of the site's own, as its site description gives it, in the interface language.
   const own = (label) => labelIn(label, interfaceLanguage);
@@ -60,9 +64,16 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
 
   const required = (field) => ({ required: field === true });
 
+  // The frames an editor places an image's focal point by (image/focal-point.js), each an aspect
+  // ratio and the contexts that crop an image to it: the design's, and the sharing image's; and
+  // the sharing image's alone, for the image a post shares and nothing else draws.
+  const frames = framesOf(ratios);
+  const sharingFrames = [sharingFrame()];
+
   // An image from the image library, the one place an editor finds images, with its alt text
   // copied in where the field has one (image/register.js). Its value is { src, alt }, as the
-  // source holds it.
+  // source holds it, and a post's image its focal point too, `focalPoint`, where the field has
+  // `frames`.
   const smallest = description.images?.smallestWidth ? { smallestWidth: description.images.smallestWidth } : {};
   // On a site in several languages its value is each language's, so that the alt text is too.
   const imageField = (name, label, extra = {}, withAlt = true) => ({
@@ -236,7 +247,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
         { name: 'nofollow', label: say('seoNofollow'), widget: 'boolean' },
       ]),
       group('sharing', [
-        imageField('image', say('seoSocialImage'), { required: false, crop: [SHARING_SIZE.width, SHARING_SIZE.height], safe: [SHARING_SAFE.width, SHARING_SAFE.height], ...(type.fields.some((field) => field.kind === 'image') ? { fallback: true } : {}) }),
+        imageField('image', say('seoSocialImage'), { required: false, crop: [SHARING_SIZE.width, SHARING_SIZE.height], safe: [SHARING_SAFE.width, SHARING_SAFE.height], frames: sharingFrames, ...(type.fields.some((field) => field.kind === 'image') ? { fallback: true } : {}) }),
         { name: 'title', label: say('seoSocialTitle'), widget: 'string', ...shown('socialTitle') },
         { name: 'description', label: say('seoSocialDescription'), widget: 'text', ...(teaser ? { widget: TEXT_WIDGET, multiline: true, fallback: 'socialDescription' } : {}) },
       ]),
@@ -259,7 +270,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     collapsed: true,
     ...within(TRANSLATED),
     fields: [
-      imageField('image', say('file'), { required: false, ...(type.fields.some((one) => one.kind === 'image') ? { fallback: true } : {}) }),
+      imageField('image', say('file'), { required: false, frames, ...(type.fields.some((one) => one.kind === 'image') ? { fallback: true } : {}) }),
       { name: 'headline', label: say('teaserHeadline'), widget: TEXT_WIDGET, fallback: 'teaserHeadline', required: false },
       { name: 'text', label: say('teaserText'), widget: TEXT_WIDGET, multiline: true, fallback: 'teaserText', required: false },
     ],
@@ -296,7 +307,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
       case 'excerpt':
         return { name: 'excerpt', label: say('excerpt'), widget: 'text', ...required(field.required), ...within(TRANSLATED) };
       case 'image':
-        return imageField('image', say('image'), { required: field.required === true, ...within(SAME_IN_EACH) });
+        return imageField('image', say('image'), { required: field.required === true, frames, ...within(SAME_IN_EACH) });
       case 'seo':
         return seoFields(type);
       case 'teaser':
@@ -493,7 +504,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
       // type of the site's own has it.
       publishing: () => ({ name: 'publishing', label: say('publishing'), widget: PUBLISHING_WIDGET, required: false, ...within(SAME_IN_EACH) }),
       parent: () => (type.hierarchical ? { name: 'parent', label: say('parent'), ...relation(type.collection, POST_TITLE), required: false, ...within(SAME_IN_EACH) } : null),
-      body: () => ({ name: 'body', label: say('body'), widget: type.editor === 'structure' ? STRUCTURE_WIDGET : BODY_WIDGET, required: false, elements: type.elements, forms, editable, ...(description.images?.smallestWidth ? { smallestWidth: description.images.smallestWidth } : {}), ...within(TRANSLATED) }),
+      body: () => ({ name: 'body', label: say('body'), widget: type.editor === 'structure' ? STRUCTURE_WIDGET : BODY_WIDGET, required: false, elements: type.elements, forms, editable, ...(description.images?.smallestWidth ? { smallestWidth: description.images.smallestWidth } : {}), frames, ...within(TRANSLATED) }),
       headline: () => (headline.length === 0 ? null : coreGroup('headline', say('groupHeadline'), headline)),
       terms: () => (terms.length === 0 ? null : termsGroup(terms)),
       own: () => (mine.length === 0 ? null : coreGroup('own', say('groupOwn'), mine)),
@@ -578,6 +589,8 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
       { name: 'lossless', label: say('lossless'), widget: LOSSLESS_WIDGET, required: false },
       // The widest the image is drawn where it stands alone in a body, copied into a post with it.
       { name: 'displayWidth', label: say('displayWidth'), widget: DISPLAY_WIDTH_WIDGET, required: false },
+      // What every crop of the image keeps, copied into a post with it.
+      { name: 'focalPoint', label: say('focalPoint'), widget: FOCAL_POINT_WIDGET, required: false, frames, hint: say('focalPointHint') },
       { name: 'alt', label: say('alt'), widget: 'string', required: true, hint: say('libraryHint') },
       { name: 'caption', label: say('caption'), widget: 'string', required: false },
     ],

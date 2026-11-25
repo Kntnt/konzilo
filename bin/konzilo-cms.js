@@ -10,13 +10,16 @@
 //
 // KONZILO_FORGEJO_ORIGIN, KONZILO_SITE_ORIGIN, KONZILO_REPOSITORY and
 // KONZILO_OAUTH_CLIENT say where, and KONZILO_PREVIEW_ORIGIN where its live preview
-// is, if it has one. Refuses a description the checker refuses.
+// is, if it has one. Refuses a description the checker refuses. The aspect ratios
+// of the site's design, for the frames an editor places an image's focal point by,
+// come from its Astro configuration, which its installed code loads.
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
 import { INTERFACE_LANGUAGES } from '../src/catalogues.js';
 import { cmsConfig } from '../src/cms/config.js';
+import { designRatios } from '../src/cms/design-ratios.js';
 import { readSiteDescription, SITE_DESCRIPTION_FILE } from '../src/site-description.js';
 
 const [site, out] = process.argv.slice(2);
@@ -41,6 +44,7 @@ const place = {
   repository: needed('KONZILO_REPOSITORY'),
   clientId: needed('KONZILO_OAUTH_CLIENT'),
   preview: process.env.KONZILO_PREVIEW_ORIGIN || null,
+  ratios: await designRatios(resolve(site)),
 };
 const write = (file, config) => writeFileSync(file, `${JSON.stringify(config, null, 2)}\n`);
 
