@@ -17,8 +17,10 @@
 //   `{ banner, dialog, footer, notice, placeholder, objection }`, with
 //   `categories`, the name and description of a category by its id, where
 //   the page's differ from the registry's; the registry's own `texts` by
-//   default. Texts without `objection`, or without some of its texts, take
-//   the consent texts' defaults for it from the catalogues (words.js). In
+//   default. A banner without its own `text` has one written from the
+//   facts of the services that ask for consent (bannerDefault()). Texts
+//   without `objection`, or without some of its texts, take the consent
+//   texts' defaults for it from the catalogues (words.js). In
 //   its `text` and `objected`, the words in square brackets are the link
 //   (linked()).
 // - `legalPages`: `{ privacyPolicy, cookiePolicy }`, each `{ title, href }`
@@ -111,6 +113,35 @@ function categoryWords(category, texts) {
   return { name: own.name ?? category.name, description: own.description ?? category.description };
 }
 
+// What the services that ask the visitor for consent do, by their facts,
+// in the order the banner's default says it: store in the browser, where
+// one lists what it stores; use what they learn for their own purposes,
+// where one is marketing, which a provider that advertises or profiles with
+// it makes its service; and send data out of the EU and EEA, where one
+// lists a transfer.
+const ACTIONS = [
+  ['storage', (service) => service.storage.length > 0],
+  ['ownPurposes', (service) => service.category === 'marketing'],
+  ['transfers', (service) => service.transfers.length > 0],
+];
+
+// The banner's default text, written from the facts of the optional
+// services in the core's words (wordsFor()): what the site needs to work,
+// what the services that ask for consent may do, of what ACTIONS names
+// only what one of them does, in a list as the locale writes one, and how
+// to change or withdraw consent.
+function bannerDefault(optional, words, locale) {
+  const actions = ACTIONS.filter(([, does]) => optional.some(does)).map(([action]) => words.banner.actions[action]);
+  const services = actions.length > 0
+    ? fill(words.banner.servicesThat, { actions: new Intl.ListFormat(locale, { type: 'conjunction' }).format(actions) })
+    : words.banner.services;
+  return fill(words.banner.text, { services });
+}
+
+// Whether a consent text is one of the page's own, written there, and not
+// left to its default.
+const written = (text) => typeof text === 'string' && text.trim() !== '';
+
 // What the banner, the dialog, the footer controls and the placeholders
 // show of the input, in its language: { asks, texts, policies,
 // declaration, categories, placeholders, objection, labels, data }: whether
@@ -121,11 +152,14 @@ function categoryWords(category, texts) {
 // the placeholder of each optional service that shows in a frame says, the
 // texts of the right to object (objectionOf()), where the registry offers
 // it, else null, the core's words, and
-// what the client reads from the page, as JSON.
-export function consentView({ registry, texts = registry.texts, legalPages = {}, language = 'en', catalogues, locales }) {
+// what the client reads from the page, as JSON. The banner's text is the
+// page's own where it has one, else written from the facts
+// (bannerDefault()).
+export function consentView({ registry, texts: given = registry.texts, legalPages = {}, language = 'en', catalogues, locales }) {
   const words = wordsFor(language, catalogues);
+  const locale = formatLocale(language, catalogues, locales);
   const services = new Map(registry.services.map((service) => [service.id, service]));
-  const plural = new Intl.PluralRules(formatLocale(language, catalogues, locales));
+  const plural = new Intl.PluralRules(locale);
   const count = (number) => fill(words.serviceCount[plural.select(number) === 'one' ? 'one' : 'other'], { count: String(number) });
   const { country, kind, lifetime } = factWords(language, catalogues, locales);
   const describe = (service) => ({
@@ -138,6 +172,7 @@ export function consentView({ registry, texts = registry.texts, legalPages = {},
     storage: service.storage.map((item) => ({ name: item.name, kind: kind(item.kind), lifetime: lifetime(item.lifetime), where: { party: item.party, domain: item.domain ?? null } })),
   });
   const optional = registry.services.filter((service) => !isNecessary(service));
+  const texts = written(given.banner?.text) ? given : { ...given, banner: { ...given.banner, text: bannerDefault(optional, words, locale) } };
   // What a placeholder says of its service follows its facts, as the
   // cookie declaration does: that it may store data in the browser only
   // where its facts list what it stores, and else no more than who receives

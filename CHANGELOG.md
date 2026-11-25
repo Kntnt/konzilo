@@ -6,11 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- A site's container component is given each block at the top of its body as a slot of its own, `block-<index>` by the block's index in its tree, `content.children`, beside its default slot. A component that lays its items out by what it holds, cards, tabs or questions split at their headings, draws each item's blocks through their slots, and the core draws them as it draws a body: a component within by the site's own component, an image that opens in the lightbox, a form, a post list by its presentation, and in the live preview each block's mark. A component that asks for no block's slot renders as before.
+
 ### Changed
 
 - A level of the breadcrumbs, and of the structured data's `BreadcrumbList`, whose post has no name in breadcrumbs is named by the label of the menu entry that leads to the post, in the page's language, before its title: of the menus in the order the site description declares them, the first that has such an entry, and in it the first. The post's form shows that label in its empty name in breadcrumbs, as it shows the title, and saves neither.
 - Breadcrumbs end with the page itself by default for a post of a hierarchical type, such as a page, so that a page at the root, such as a cookie policy, shows the start page and itself, and still end above the page for a post of another type, such as an article. A post whose name in breadcrumbs is filled in ends its breadcrumbs with itself whatever its type. A site whose pages' breadcrumbs should end above them turns *The page itself last* off for pages under *Breadcrumbs* in the site settings.
 - The window the editor opens for a sign-in opens empty and goes straight to Forgejo's sign-in page. It used to load the whole editor first, only to be sent on from there, so a sign-in now starts sooner.
+- The consent banner's default text is written from the facts of the services that ask for consent, as an embed's placeholder already is: it says that they may store data in the browser, use what they learn for their own purposes, or send data to countries outside the EU and EEA only where one of them does. A banner text an Admin has written is shown as before, and one saved that is word for word the old default now gives the new one. The settings show the banner's text empty where no Admin has written one, with a hint of what the banner then says.
+
+### Fixed
+
+- A site that embeds Datawrapper declares a transfer to the USA with no safeguard its provider documents, in its cookie declaration, and its placeholder says that data about the visit may be processed outside the EU and EEA. Datawrapper's privacy policy keeps published charts in the USA; the core's facts listed no transfer.
 
 ## [0.9.0] – 2026-11-25
 

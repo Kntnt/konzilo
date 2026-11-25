@@ -317,6 +317,16 @@ describe('the interface language', () => {
     assert.equal(field(english, 'bannerTitle').field.default, 'Your privacy');
   });
 
+  test('shows the banner\'s text with no default, since the banner writes it from the services\' facts where it is empty, and says so in the interface language', () => {
+    const consentOf = (made) => field(made.collections.find((one) => one.name === 'settings').files[0].fields, 'consent').fields;
+    for (const [language, hint] of [['sv', /^Lämnas den tom skrivs bannerns text utifrån fakta om de tjänster som ber om samtycke/], ['en', /^Left empty, the banner's text is written from the facts of the services that ask for consent/]]) {
+      const text = field(consentOf(cmsConfig(siteDescription({ ...declared(), language: 'sv_SE', interfaceLanguage: 'en' }), { ...place, language })), 'bannerText');
+      assert.equal(text.widget, 'text', language);
+      assert.equal('default' in text, false, language);
+      assert.match(text.hint, hint, language);
+    }
+  });
+
   test('shows the core\'s settings groups in the interface language, Breadcrumbs among them, with their headings, labels and help', () => {
     const breadcrumbs = (language) => {
       const made = cmsConfig(swedish, { ...place, language });
