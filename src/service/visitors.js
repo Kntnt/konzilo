@@ -73,12 +73,13 @@ function write(outgoing, { status, json = {}, location = null, retryAfter = null
 // The service for visitors. `site()`: the site description of the code in use, as checked.
 // `store`: as store.js opens it. `hosts`: the site's public hosts, each a host with its port where
 // it has one. `releases`: the folder the web server serves the releases from, read-only, whose
-// release in use holds its consent revision, or null. `now()`: the moment.
+// release in use holds its consent revision, or null. `now()`: the moment. `warn`: where it says
+// what it could not read.
 //
 // Gives { request(incoming, outgoing) }, which answers one request, and { look() }, which keeps
 // the consent revision of the release in use where it has moved.
-export function visitorsService({ site, store, hosts = [], releases = null, now = () => new Date() }) {
-  const revisions = publishedRevisions({ folder: releases, store });
+export function visitorsService({ site, store, hosts = [], releases = null, now = () => new Date(), warn = console.error }) {
+  const revisions = publishedRevisions({ folder: releases, store, warn });
   revisions.look();
   const kinds = [formsKind({ site, store, now }), consentRecordsKind({ store, revisions, now })];
   const clientKey = createHmac('sha256', store.key).update('clients').digest();

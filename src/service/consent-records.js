@@ -248,7 +248,7 @@ function recordIn(body, now) {
 // Whether a record names exactly its revision's categories and services, and a language its pages
 // were shown in.
 function matches(record, { categories, languages }) {
-  const services = Object.values(categories).flat();
+  const services = [...new Set(Object.values(categories).flat())];
   return statesOf(record.categories, Object.keys(categories))
     && statesOf(record.services, services)
     && languages.includes(record.language);
@@ -284,10 +284,21 @@ export function publishedRevisions({ folder, store, warn = console.error }) {
         if (error.code !== 'ENOENT') warn(`The service could not read the consent revision of the release in use: ${error.message}`);
         return;
       }
+      if (!isRevision(held)) {
+        warn(`The service could not read the consent revision of the release in use: ${RELEASE_CONSENT_FILE} is not one`);
+        return;
+      }
       store.consentRecords.keepRevision(held, live);
     },
   };
 }
+
+// Whether a release's file holds a consent revision, as the build writes one: { revision,
+// categories, languages }, each category its services' ids, and each language's words an object.
+const isRevision = (held) => isObject(held)
+  && typeof held.revision === 'string' && REVISION.test(held.revision)
+  && isObject(held.categories) && Object.values(held.categories).every((services) => Array.isArray(services) && services.every((service) => typeof service === 'string'))
+  && isObject(held.languages) && Object.values(held.languages).every(isObject);
 
 // The kind (ADR 0044) that takes the records. `store`: as store.js opens it. `revisions`: as
 // publishedRevisions() gives them. `now()`: the moment.

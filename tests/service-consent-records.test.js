@@ -285,6 +285,24 @@ describe('the consent records, for visitors', () => {
     assert.equal((await sendRecord(nth(n), fromThePage('192.0.2.200'))).status, 204, 'in the next hour');
   });
 
+  test('refuses every record of a release whose consent revision it cannot read, and says so, and takes them again once a release holds one', async () => {
+    const warned = [];
+    await stop();
+    rmSync(join(folder, 'service.sqlite'), { force: true });
+    rmSync(join(folder, 'service.sqlite-wal'), { force: true });
+    release({ revision: REVISION, categories: { necessary: 'konzilo' }, languages: [] });
+    store = openStore(join(folder, 'service.sqlite'));
+    const site = siteDescription({ language: 'en_GB', types: { note: { label: 'Note', plural: 'Notes', collection: 'notes', address: '/{slug}/', elements: ['paragraph'], fields: {} } } });
+    const service = visitorsService({ site: () => site, store, hosts: [HOST], releases, now: () => clock, warn: (message) => warned.push(message) });
+    server = createServer((incoming, outgoing) => service.request(incoming, outgoing));
+    await new Promise((go) => server.listen(0, '127.0.0.1', go));
+    origin = `http://127.0.0.1:${server.address().port}`;
+    assert.equal((await sendRecord()).status, 400);
+    assert.equal(warned.length, 1, warned.join('\n'));
+    release(published());
+    assert.equal((await sendRecord()).status, 204);
+  });
+
   test('refuses every record while no release in use holds a consent revision, and takes one once a release does', async () => {
     rmSync(join(releases, 'current'), { force: true });
     await stop();
