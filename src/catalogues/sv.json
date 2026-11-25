@@ -311,6 +311,7 @@
   "body.displayWidthUnit": "px",
   "body.displayWidthHint": "Hur bred bilden ritas där den står ensam i en text, för en teckning eller en skärmbild som sparats dubbelt så stor som den är tänkt att läsas i, vilket en fil som heter …@2x fyller i. I ett galleri, och som utvald bild eller i en puff, fyller den det som designen ger den.",
   "body.displayWidthWrong": "Ange ett helt antal pixlar från 1 till {most}.",
+  "body.displayWidthRefused": "Visningsbreddens ”Högst” behöver ett helt antal pixlar från 1 till {most}. Ange ett, eller välj ”Fyll spalten”.",
   "body.converting": "Konverterar bilden…",
   "body.convertFailed": "Bilden gick inte att konvertera i den här webbläsaren. Inget har lagts till.",
   "body.element.paragraph": "ett stycke",

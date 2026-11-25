@@ -311,6 +311,7 @@
   "body.displayWidthUnit": "px",
   "body.displayWidthHint": "How wide the image is drawn where it stands alone in a text, for a drawing or a screenshot saved at twice the size it is meant to be read at, which a file named …@2x fills in. In a gallery, and as a featured image or a teaser's, it fills what the design gives it.",
   "body.displayWidthWrong": "Give a whole number of pixels from 1 to {most}.",
+  "body.displayWidthRefused": "The display width's “At most” needs a whole number of pixels from 1 to {most}. Give one, or choose “Fill the column”.",
   "body.converting": "Converting the image…",
   "body.convertFailed": "The image could not be converted in this browser. Nothing has been added.",
   "body.element.paragraph": "a paragraph",

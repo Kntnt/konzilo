@@ -818,6 +818,17 @@ describe('a site in Compose', () => {
         const width = page.locator('.field[data-key-path="displayWidth"]').getByRole('group', { name: 'Display width' });
         assert.equal(await width.getByRole('radio', { name: 'At most' }).isChecked(), true);
         assert.equal(await width.getByRole('spinbutton', { name: 'Display width in pixels' }).inputValue(), '650');
+        // At most without a width it can take stops the save, saying why, rather than saving the
+        // entry to fill the column.
+        const pixels = width.getByRole('spinbutton', { name: 'Display width in pixels' });
+        await pixels.fill('0');
+        await page.getByRole('button', { name: 'Save', exact: true }).click();
+        const refused = page.getByRole('alertdialog');
+        await refused.getByText('The display width\'s “At most” needs a whole number of pixels from 1 to 16383. Give one, or choose “Fill the column”.').waitFor();
+        await refused.getByRole('button', { name: 'OK' }).click();
+        assert.equal(await width.getByRole('alert').textContent(), 'Give a whole number of pixels from 1 to 16383.');
+        assert.match(await page.evaluate(() => window.location.hash), /\/new$/, 'nothing is saved');
+        await pixels.fill('650');
         await page.getByRole('button', { name: 'Save', exact: true }).click();
         let entry;
         for (const deadline = Date.now() + 30_000; !entry && Date.now() < deadline; await page.waitForTimeout(500)) entry = (await libraryEntries()).find(({ alt }) => alt === 'Made in the form');

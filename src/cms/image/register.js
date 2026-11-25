@@ -13,7 +13,10 @@ import { imageLibrary } from '../body/library.js';
 
 import { DISPLAY_WIDTH_WIDGET, IMAGE_WIDGET, LOSSLESS_WIDGET } from './widget.js';
 import { displayWidthChoice, losslessChoice } from './lossless-choice.js';
+import { DISPLAY_WIDTH_MOST } from '../../format/body.js';
+import { say } from '../interface-language.js';
 import { plain } from '../plain.js';
+import { refuseAtSave } from '../refusals.js';
 import { sourceOf, sourceReader } from '../source.js';
 
 export { DISPLAY_WIDTH_WIDGET, IMAGE_WIDGET, LOSSLESS_WIDGET };
@@ -93,6 +96,17 @@ export function registerImageField(CMS, config) {
   // most* a number of pixels. The file field fills it in for a file named `@2x` or `@3x`, and the
   // editor may change it at any time. Sveltia's label names it, and the choice's own name is there
   // for a screen reader alone.
+  // The display widths drawn in an entry's form, one while it is open. Where *At most* is chosen
+  // without a width it can take, the Save is refused and the choice says why, with the focus in its
+  // pixels, as the chooser's upload is, rather than the entry saved to fill the column.
+  const choosing = new Set();
+  CMS.registerEventListener({
+    name: 'preSave',
+    handler: () => {
+      for (const box of choosing) if (!box.check()) refuseAtSave(say('body.displayWidthRefused', { most: DISPLAY_WIDTH_MOST }));
+    },
+  });
+
   CMS.registerFieldType(DISPLAY_WIDTH_WIDGET, function KonziloDisplayWidth({ value, onChange, forID }) {
     const React = window.__SVELTIA_CMS_REACT__;
     const host = React.useRef(null);
@@ -107,6 +121,7 @@ export function registerImageField(CMS, config) {
         live.current = displayWidthBox(host.current, { label: false, className: 'konzilo-pick-check', changed: (read) => written(read?.width ?? null) });
         live.current.first.id = forID;
         live.current.set(plain(latest.current.value));
+        choosing.add(live.current);
       });
       const stop = displayWidthChoice.watch((width) => {
         live.current?.set(width);
@@ -115,6 +130,7 @@ export function registerImageField(CMS, config) {
       return () => {
         gone = true;
         stop();
+        choosing.delete(live.current);
         live.current?.row.remove();
       };
     }, []);
