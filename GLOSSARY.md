@@ -280,7 +280,7 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Log of addresses not found**: The counts of the addresses visitors asked for in vain: each address, how often, and when last, kept 30 days. _Avoid_: access log.
 
-**Log of policy violations**: The counts of what the public site's policy blocked, kept 30 days. _Avoid_: CSP log.
+**Log of policy violations**: The counts of what the public site's policy blocked, by page, directive and what was blocked, each kept 30 days after it was last seen, which an Admin reads on *Policy violations*. _Avoid_: CSP log.
 
 ## Visitor functions
 
