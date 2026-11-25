@@ -502,7 +502,12 @@
     "purpose": { "text": "site.service.datawrapper.purpose" },
     "advertising": false,
     "storage": [],
-    "transfers": [],
+    "transfers": [
+      {
+        "country": "US",
+        "safeguards": []
+      }
+    ],
     "sources": {
       "provider": {
         "url": "https://www.datawrapper.de/privacy",
@@ -522,8 +527,9 @@
         "note": "Datawrapper's page on embed privacy says that embedded visualisations set no cookies and use no trackers. Its privacy policy, https://www.datawrapper.de/privacy, says that it counts the views of published charts with a self-hosted tracking system with cookies, and names none. The two disagree, neither names an item, and neither says anything of local storage, session storage or IndexedDB, so none is listed."
       },
       "transfers": {
-        "url": "https://www.datawrapper.de/embed-privacy",
-        "checked": "2026-10-30"
+        "url": "https://www.datawrapper.de/privacy",
+        "checked": "2026-11-25",
+        "note": "Datawrapper's privacy policy says, under Where is the data stored?, that it uses AWS EU-Frankfurt (eu-central-1) for user data and USA-Virginia (us-east-1) for published charts. It names no safeguard for that transfer, no adequacy decision, Data Privacy Framework, standard contractual clauses or binding corporate rules: it says only, of its services in general, that those outside the EU give the level of protection of Article 44 of the GDPR, and that they were checked against rules such as updated Safe Harbour policies, an arrangement the Court of Justice of the EU struck down in 2015. Its page on embed privacy, https://www.datawrapper.de/embed-privacy, says that all user data stays within the EEA, and that published visualisations are served through a content delivery network distributed around the world, whose provider it does not name. The two disagree, and the policy's words are followed, since a declaration that says too much is safer than one that says too little."
       }
     }
   },
