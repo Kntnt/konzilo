@@ -1,6 +1,6 @@
 # ADR 0014: Test at two seams, and keep the acceptance suite small
 
-**Date:** 2026-11-03, amended 2026-11-25 · **Status:** Accepted. Settled by Thomas on 2026-10-27: tests sit at two seams and check external behaviour only. The rest is a technical choice; Thomas may veto, among them, chosen on 2026-11-25: on macOS a dev server of the suite looks at the files itself, in place of taking the system's file events; every Node a run of the suite starts keeps V8's baseline compiler to its main thread; and a build the suite waits for is stopped after ten minutes, failing its test.
+**Date:** 2026-11-03, amended 2026-11-25 and 2026-11-26 · **Status:** Accepted. Settled by Thomas on 2026-10-27: tests sit at two seams and check external behaviour only. The rest is a technical choice; Thomas may veto, among them, chosen on 2026-11-25: on macOS a dev server of the suite looks at the files itself, in place of taking the system's file events; every Node a run of the suite starts keeps V8's baseline compiler to its main thread; and a build the suite waits for is stopped after ten minutes, failing its test. Chosen on 2026-11-26: the module that keeps the compiler there is the core's `src/node-exit.js`, which every Node the builder starts loads too ([ADR 0031](0031-show-a-publish-within-a-minute-with-its-status-and-any-refusal.md)), in place of one of the suite's own.
 
 ## Decision
 
@@ -14,7 +14,7 @@
 - **A test does what an editor, an Admin, the operator or a visitor does,** so internals can be rebuilt without touching tests. Setting a user up in the browser is proved in one test; the others make their users directly, through the same functions, with a second factor. A test that logs in computes the code.
 - **The suite must not grow to two hours,** and a failure must mean a fault. A release runs the suite twice, so its cost counts double.
 - **On macOS a dev server of the suite looks at the files itself.** Each Astro configuration the suite writes sets Vite's watcher to poll there (`WATCH` in `tests/lib/astro.js`), and the dev server of a site made by `new-site` is given a configuration beside the site, which is the site's own with the watcher set. In Linux a dev server keeps the kernel's file events, as a site in Compose has them.
-- **Every Node a run of the suite starts keeps V8's baseline compiler to its main thread.** `scripts/test.js` has each load `tests/lib/node-exit.js` first, through `NODE_OPTIONS`, which every child inherits.
+- **Every Node a run of the suite starts keeps V8's baseline compiler to its main thread.** `scripts/test.js` has each load the core's `src/node-exit.js` first, through `NODE_OPTIONS`, which every child inherits, as the builder has each Node it starts load it (ADR 0031).
 - **A build the suite waits for has ten minutes.** `commandSync()` and `nodeSync()` in `tests/lib/astro.js` stop one that has not ended by then, and its test fails saying which command it was.
 
 ## Why

@@ -3,7 +3,9 @@
 // editor's configuration, and then sleeps and builds when asked. It builds once at each start,
 // which costs nothing when nothing has changed, since a new image is new code. A first build
 // that makes no site stops it, so that `up --wait` says so at once. It finds Forgejo, Typesense,
-// its credentials and the folder it works in where the arrangement says (src/arrangement.js).
+// its credentials and the folder it works in where the arrangement says (src/arrangement.js), and
+// there too how long it waits for a command of a build, a setting refused at once where it is
+// not one. Every Node it starts loads the core's src/node-exit.js first (src/build/command.js).
 
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -13,6 +15,7 @@ import { promisify } from 'node:util';
 
 import { arrangement } from '../src/arrangement.js';
 import { astroBuild, intakeCommand, siteBuild } from '../src/build/build.js';
+import { nodeOptions } from '../src/build/command.js';
 import { buildControl } from '../src/build/record.js';
 import { releases } from '../src/build/release.js';
 import { contentRepository, sourceRepository } from '../src/build/repositories.js';
@@ -26,7 +29,10 @@ import { readSiteDescription } from '../src/site-description.js';
 const run = promisify(execFile);
 
 // Forgejo, and Typesense, which the web server's route to search reaches at the same address.
-const { forgejo: FORGEJO, typesense: TYPESENSE, secrets, work } = arrangement();
+const { forgejo: FORGEJO, typesense: TYPESENSE, secrets, work, commandTimeLimit: limit } = arrangement();
+// What it starts with its own environment, the site's install and the editor's configuration,
+// as what a build runs with one of its own.
+process.env.NODE_OPTIONS = nodeOptions(process.env.NODE_OPTIONS);
 const SITE_FOLDER = join(work, 'site');
 // Where the web server reads the route to search from, outside every release.
 const SEARCH_ROUTE_FILE = '/search-route/search-route.caddy';
@@ -88,8 +94,9 @@ const build = siteBuild({
     contentFolder: content.folder,
     // A link to the admin host is refused, unless the site has the same name, as on a local copy.
     environment: { PATH: process.env.PATH, HOME, ...(new URL(adminOrigin).hostname === new URL(origin).hostname ? {} : { KONZILO_ADMIN_ORIGIN: adminOrigin }) },
+    limit,
   }),
-  astro: astroBuild({ folder: SITE_FOLDER, environment }),
+  astro: astroBuild({ folder: SITE_FOLDER, environment, limit }),
   // Of the site's code as it stands, which is the same for this builder's life; its documents by
   // the core the site has installed, which has the site's Astro to read its content files with.
   index: siteSearch({
@@ -103,6 +110,7 @@ const build = siteBuild({
       site: join(SITE_FOLDER, 'site-description.json'),
       content: content.folder,
       environment,
+      limit,
     }),
     route: SEARCH_ROUTE_FILE,
   }),

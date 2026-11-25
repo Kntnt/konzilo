@@ -5,23 +5,23 @@
 // whole or not at all, since the web server reads it by itself as it changes. A site without
 // search asks nothing of Typesense, and its route says that it has none.
 
-import { execFile } from 'node:child_process';
 import { renameSync, writeFileSync } from 'node:fs';
-import { promisify } from 'node:util';
 
 import { ensureSearchKey, indexSearch, scopedSearchKey } from '../typesense.js';
+import { commandWithin } from './command.js';
 import { searchRoute } from './web-server.js';
 
-const run = promisify(execFile);
 const BIG = 1024 * 1024 * 256;
 
 // The site's search documents, its collection's schema and the search every query runs, as the
 // site's own installed core makes them (`konzilo-search documents`), reading the content files
 // as the site does, with Astro's reader: a program of its own, as the intake and Astro are,
 // since the builder has no Astro. `program`: that command's file in the site's dependencies.
-// `site`, `content`: the site description's file and the content folder. Gives
+// `site`, `content`: the site description's file and the content folder. `limit`: how long it may
+// take, in milliseconds (src/arrangement.js), after which it is stopped. Gives
 // { schema, parameters, documents }, or throws, saying why.
-export function searchDocumentsCommand({ program, site, content, environment, command = run }) {
+export function searchDocumentsCommand({ program, site, content, environment, limit }) {
+  const command = commandWithin(limit);
   return async () => {
     let stdout;
     try {

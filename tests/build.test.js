@@ -10,13 +10,15 @@ import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
-import { CHECK_BROKE, intakeCommand, NOT_BUILT, NOT_READ, NOT_RELEASED, siteBuild } from '../src/build/build.js';
+import { CHECK_BROKE, intakeCommand, NOT_BUILT, NOT_READ, NOT_RELEASED, siteBuild, TOOK_TOO_LONG } from '../src/build/build.js';
+import { TookTooLong } from '../src/build/command.js';
 import { buildControl } from '../src/build/record.js';
 import { releases } from '../src/build/release.js';
 import { contentRepository, sourceRepository } from '../src/build/repositories.js';
 import { publishStatus } from '../src/build/status.js';
 import { STOPPED } from '../src/intake/guard.js';
 import { wordsIn } from '../src/refusals.js';
+import { ENDS_WITHIN } from './lib/astro.js';
 import { sourcePost } from './lib/intake.js';
 
 const run = promisify(execFile);
@@ -100,6 +102,7 @@ describe('a build', () => {
         return { admins: join(rolesFile, 'admins.json'), reviewers: join(rolesFile, 'reviewers.json'), pushers: join(rolesFile, 'pushers.json') };
       },
     };
+    const intake = intakeCommand({ program: join(core, 'bin/konzilo-intake.js'), siteFolder, contentFolder: content.folder, environment: { PATH: process.env.PATH, HOME: root }, limit: ENDS_WITHIN });
     const build = (options = {}) => siteBuild({
       site: 'a-site',
       origin: 'http://localhost:1',
@@ -110,14 +113,29 @@ describe('a build', () => {
       control,
       live,
       astro,
-      intake: intakeCommand({ program: join(core, 'bin/konzilo-intake.js'), siteFolder, contentFolder: content.folder, environment: { PATH: process.env.PATH, HOME: root } }),
+      intake,
       warn: (words) => seen.warned.push(words),
       ...options,
     });
     const logged = () => readFileSync(join(root, 'control/build-log.jsonl'), 'utf8').trim().split('\n').map((line) => JSON.parse(line));
     const pushed = () => git(remote.content, 'ls-tree', '-r', '--name-only', 'main').trim().split('\n');
-    return { root, save, version, build, control, live, seen, siteFolder, remote, logged, pushed, content };
+    return { root, save, version, build, control, live, seen, siteFolder, remote, logged, pushed, content, astro, intake };
   };
+
+  // A command of the build that has not ended within its time limit the first `times` it runs,
+  // having done `first` the while, and then does as `command` does.
+  const tooLong = (command, times, first = () => {}) => {
+    let runs = 0;
+    const stand = async (...args) => {
+      runs += 1;
+      if (runs > times) return command(...args);
+      first(...args);
+      throw new TookTooLong('the command', 600_000);
+    };
+    stand.runs = () => runs;
+    return stand;
+  };
+  const STOPPED_WORDS = 'the command had not ended after 10 minutes, and was stopped with every process it started';
 
   const statusOf = (site, path) => publishStatus(site.control.record(), path, site.version(path));
 
@@ -310,7 +328,9 @@ describe('a build', () => {
     await site.build()();
     const release = readlinkSync(join(site.root, 'public/current'));
     site.save({ 'articles/aaaaaaaaaaaa.md': post('first', {}, 'New words.') });
-    const record = await site.build({ astro: async () => { throw Object.assign(new Error('no'), { stderr: 'it broke' }); } })();
+    let tries = 0;
+    const record = await site.build({ astro: async () => { tries += 1; throw Object.assign(new Error('no'), { stderr: 'it broke' }); } })();
+    assert.equal(tries, 1, 'a build that failed otherwise is not tried again');
     assert.equal(record.outcome, 'failed');
     assert.deepEqual(record.reason, NOT_BUILT);
     assert.equal(readlinkSync(join(site.root, 'public/current')), release);
@@ -327,6 +347,99 @@ describe('a build', () => {
     await site.build()();
     assert.equal(statusOf(site, 'articles/aaaaaaaaaaaa.md').status, 'live');
     assert.notEqual(readlinkSync(join(site.root, 'public/current')), release);
+  });
+
+  // Node 26.13.1 can deadlock as it exits (nodejs/node#67596), by chance, so a command that has not
+  // ended within the builder's time limit is stopped and the whole build runs once more.
+  test('builds once more from the start when the site\'s build takes too long, publishes then, and says so', async () => {
+    const site = newSite({ 'articles/aaaaaaaaaaaa.md': post('first') });
+    await site.build()();
+    const release = readlinkSync(join(site.root, 'public/current'));
+    site.save({ 'articles/aaaaaaaaaaaa.md': post('first', {}, 'New words.') });
+    const astro = tooLong(site.astro, 1, () => {
+      mkdirSync(join(site.root, 'dist'), { recursive: true });
+      writeFileSync(join(site.root, 'dist/index.html'), 'half');
+    });
+    const record = await site.build({ astro })();
+    assert.equal(astro.runs(), 2);
+    assert.equal(record.outcome, 'live');
+    assert.equal(record.reason, null);
+    assert.notEqual(readlinkSync(join(site.root, 'public/current')), release);
+    assert.equal(readFileSync(join(site.root, 'public/current/pages/index.html'), 'utf8'), 'built 2');
+    assert.equal(statusOf(site, 'articles/aaaaaaaaaaaa.md').status, 'live');
+    assert.equal(site.logged().length, 2, 'one line for the build');
+    assert.deepEqual(site.logged().at(-1).failures, []);
+    assert.equal(site.logged().at(-1).retried, STOPPED_WORDS, 'which says why it ran once more');
+    assert.deepEqual(site.seen.warned, [`A command of the build took too long, so the build runs once more from the start: ${STOPPED_WORDS}`]);
+  });
+
+  test('records a build whose site\'s build takes too long twice as failed, with a reason of its own, and keeps the release', async () => {
+    const site = newSite({ 'articles/aaaaaaaaaaaa.md': post('first') });
+    await site.build()();
+    const release = readlinkSync(join(site.root, 'public/current'));
+    site.save({ 'articles/aaaaaaaaaaaa.md': post('first', {}, 'New words.') });
+    const astro = tooLong(site.astro, 2, () => {
+      mkdirSync(join(site.root, 'dist'), { recursive: true });
+      writeFileSync(join(site.root, 'dist/index.html'), 'half');
+    });
+    const record = await site.build({ astro })();
+    assert.equal(astro.runs(), 2, 'tried once more, and no more');
+    assert.equal(record.outcome, 'failed');
+    assert.deepEqual(record.reason, TOOK_TOO_LONG);
+    assert.equal(readlinkSync(join(site.root, 'public/current')), release);
+    assert.equal(readFileSync(join(site.root, 'public/current/pages/index.html'), 'utf8'), 'built 1', 'nothing of what the stopped build wrote');
+    const status = statusOf(site, 'articles/aaaaaaaaaaaa.md');
+    assert.equal(status.status, 'failed');
+    assert.deepEqual(status.reason, TOOK_TOO_LONG);
+    assert.equal(status.stillShown, true);
+    assert.equal(wordsIn('sv', status.reason), 'bygget tog för lång tid och stoppades, så besökare ser fortfarande den senaste versionen');
+    const line = site.logged().at(-1);
+    assert.equal(site.logged().length, 2);
+    assert.deepEqual(line.failures, [{ name: 'failure.took-too-long', values: {}, reason: 'the build took too long and was stopped, so visitors still see the last version' }]);
+    assert.equal(line.retried, STOPPED_WORDS);
+    assert.match(site.seen.warned.at(-1), /^A command of the build took too long again, so the build failed: /);
+    assert.equal(record.source, execFileSync('git', ['rev-parse', 'main'], { cwd: site.remote.source, encoding: 'utf8', env: ENV }).trim(), 'it has taken its request, and does not start again by itself');
+    await site.build()();
+    assert.equal(statusOf(site, 'articles/aaaaaaaaaaaa.md').status, 'live');
+  });
+
+  test('runs the intake once more when it takes too long, with what it wrote undone and a confirmed deletion still confirmed', async () => {
+    const site = newSite({
+      'articles/aaaaaaaaaaaa.md': post('first'),
+      'articles/bbbbbbbbbbbb.md': post('second'),
+      'articles/cccccccccccc.md': post('third'),
+    });
+    await site.build()();
+    site.save({ 'articles/aaaaaaaaaaaa.md': null, 'articles/bbbbbbbbbbbb.md': null });
+    const stopped = await site.build()();
+    assert.deepEqual(stopped.reason, STOPPED);
+    site.control.confirm(stopped.stopped.code);
+    const intake = tooLong(site.intake, 1, () => {
+      writeFileSync(join(site.siteFolder, 'content/articles/half.md'), 'half');
+      writeFileSync(join(site.siteFolder, 'content/articles/third.md'), 'half');
+    });
+    const record = await site.build({ intake })();
+    assert.equal(intake.runs(), 2);
+    assert.equal(record.reason, null);
+    assert.deepEqual(readdirSync(join(site.siteFolder, 'content/articles')), ['third.md']);
+    assert.match(readFileSync(join(site.siteFolder, 'content/articles/third.md'), 'utf8'), /^---\n/);
+    assert.equal(site.logged().at(-1).retried, STOPPED_WORDS);
+  });
+
+  test('records a build whose intake takes too long twice as failed, undoing what it wrote', async () => {
+    const site = newSite({ 'articles/aaaaaaaaaaaa.md': post('first') });
+    await site.build()();
+    const release = readlinkSync(join(site.root, 'public/current'));
+    site.save({ 'articles/aaaaaaaaaaaa.md': post('first', {}, 'New words.') });
+    const intake = tooLong(site.intake, 2, () => writeFileSync(join(site.siteFolder, 'content/articles/first.md'), 'half'));
+    const record = await site.build({ intake })();
+    assert.equal(intake.runs(), 2);
+    assert.deepEqual(record.reason, TOOK_TOO_LONG);
+    assert.equal(readlinkSync(join(site.root, 'public/current')), release);
+    assert.doesNotMatch(readFileSync(join(site.siteFolder, 'content/articles/first.md'), 'utf8'), /half|New words/);
+    assert.equal(statusOf(site, 'articles/aaaaaaaaaaaa.md').status, 'being-published', 'a version no build has read');
+    assert.deepEqual(site.logged().at(-1).failures, [TOOK_TOO_LONG]);
+    assert.equal(site.seen.astro, 1);
   });
 
   test('keeps the release when what a build wrote for the web server cannot be taken', async () => {
