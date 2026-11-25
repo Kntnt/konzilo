@@ -12,6 +12,7 @@ import { formulaReason } from '../format/mathml.js';
 import { readPostList, SECOND_PAGED_LIST } from '../format/post-list.js';
 import { isSource, OTHER_ANSWERS, SHOW } from '../format/redirects.js';
 import rules from '../format/rules.json' with { type: 'json' };
+import { WITHOUT_STORAGE } from '../format/tag-manager.js';
 import { declaredNames, postListModel, SCHEMA_TYPES, SEO_KEYS, SEO_PARTS, siteRules, TEXT_FIELDS } from '../site-description.js';
 import { sha256 } from './source.js';
 import { fieldValued, notOffered, say } from './words.js';
@@ -221,13 +222,18 @@ export function fieldsOf(post, context, derived = {}) {
   return { lines, problems, warnings };
 }
 
+// The directive that places the right to object to counting without storage (ADR 0049).
+const OBJECTION = rules.elements['consent-objection'].directive.name;
+
 // What a body takes of the site: the reader, the rule data with the site's components,
 // and the site's own checks, `components` what its components hold (componentProblems()
 // of the module its description names), or null. `list` is a post's own state: a
-// second list with pages of its own is refused.
+// second list with pages of its own is refused. The right to object is warned of on a
+// site that counts no visits without storage before consent, where it shows nothing.
 export function bodyHands(site, post, { reader, adminHost, listTerms, link, image, components = null }) {
   const lists = postListModel(site);
   const attributes = rules.elements['post-list'].directive.attributes;
+  const counts = site.consent.departures.some((departure) => departure.departure === WITHOUT_STORAGE);
   let paged = 0;
   return {
     reader,
@@ -241,6 +247,7 @@ export function bodyHands(site, post, { reader, adminHost, listTerms, link, imag
     image,
     formula: formulaReason,
     directive(name, values) {
+      if (name === OBJECTION) return { reasons: [], warnings: counts ? [] : [say('warning.consent-objection-none')], values };
       if (name !== 'post-list') return { reasons: [], warnings: [], values };
       const warnings = [];
       const given = { ...values };
