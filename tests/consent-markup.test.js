@@ -205,6 +205,54 @@ test('the declaration says in plain words that the statistics count without stor
   assert.match(counting('stop', 'sv-SE')[0].text, /^Webbplatsens statistik räknar varje besök .* räknas inte alls\.$/);
 });
 
+describe('the banner\'s default, written from the facts of the services that ask for consent', () => {
+  // A registry whose one optional service has the facts given, beside the
+  // consent's own, which stores, and a necessary service that stores,
+  // advertises and transfers, neither of which asks for consent; and texts
+  // whose banner has no text of its own.
+  const asking = ({ stores = false, advertises = false, transfers = false }) => {
+    const optional = { ...registry.services[2], category: advertises ? 'marketing' : 'functional', storage: stores ? [{ name: 'vid', kind: 'cookie', lifetime: 'P1Y', party: 'third', domain: null }] : [], transfers: transfers ? [{ country: 'US', safeguards: [] }] : [] };
+    const always = { ...registry.services[1], id: 'always', category: 'necessary', transfers: [{ country: 'US', safeguards: ['scc'] }], necessity: 'It is needed.' };
+    return {
+      ...registry,
+      categories: [{ ...registry.categories[0], services: ['consent', 'always'] }, { id: optional.category, name: 'Optional', description: 'Optional.', services: ['video'] }],
+      services: [registry.services[0], always, optional],
+    };
+  };
+  const { text: _, ...banner } = registry.texts.banner;
+  const texts = { ...registry.texts, banner };
+  const said = (facts, language = 'en-GB', given = texts) => text(parse(consentMarkup({ ...input, registry: asking(facts), texts: given, language })).querySelector('.konzilo-consent-banner .konzilo-consent-text'));
+  const english = (middle) => `This site uses only what it needs to work, unless you allow more. ${middle} You can change or withdraw your consent at any time, from the bottom of every page.`;
+  const swedish = (middle) => `Webbplatsen använder bara det den behöver för att fungera, om du inte tillåter mer. ${middle} Du kan ändra eller återkalla ditt samtycke när som helst, längst ned på varje sida.`;
+
+  test('says nothing of storing, own purposes or transfers where no service that asks for consent stores, advertises or transfers, whatever the necessary ones do', () => {
+    assert.equal(said({}), english('With your consent it also uses other services.'));
+    assert.equal(said({}, 'sv-SE'), swedish('Med ditt samtycke använder den också andra tjänster.'));
+  });
+
+  test('says each thing alone where a service that asks for consent does that alone', () => {
+    assert.equal(said({ stores: true }), english('With your consent it also uses other services, which may store data in your browser.'));
+    assert.equal(said({ advertises: true }), english('With your consent it also uses other services, which may use what they learn for their own purposes.'));
+    assert.equal(said({ transfers: true }), english('With your consent it also uses other services, which may send data to countries outside the EU and EEA.'));
+    assert.equal(said({ stores: true }, 'sv-SE'), swedish('Med ditt samtycke använder den också andra tjänster, som kan lagra uppgifter i din webbläsare.'));
+    assert.equal(said({ advertises: true }, 'sv-SE'), swedish('Med ditt samtycke använder den också andra tjänster, som kan använda det de får veta för egna syften.'));
+    assert.equal(said({ transfers: true }, 'sv-SE'), swedish('Med ditt samtycke använder den också andra tjänster, som kan skicka uppgifter till länder utanför EU och EES.'));
+  });
+
+  test('says them together, as a list in the language\'s own way, where the services do more than one', () => {
+    assert.equal(said({ stores: true, transfers: true }), english('With your consent it also uses other services, which may store data in your browser and send data to countries outside the EU and EEA.'));
+    assert.equal(said({ stores: true, advertises: true, transfers: true }), english('With your consent it also uses other services, which may store data in your browser, use what they learn for their own purposes and send data to countries outside the EU and EEA.'));
+    assert.equal(said({ advertises: true, transfers: true }, 'sv-SE'), swedish('Med ditt samtycke använder den också andra tjänster, som kan använda det de får veta för egna syften och skicka uppgifter till länder utanför EU och EES.'));
+    assert.equal(said({ stores: true, advertises: true, transfers: true }, 'sv-SE'), swedish('Med ditt samtycke använder den också andra tjänster, som kan lagra uppgifter i din webbläsare, använda det de får veta för egna syften och skicka uppgifter till länder utanför EU och EES.'));
+  });
+
+  test('gives way to a text of the page\'s own, shown as it is written', () => {
+    const own = { ...texts, banner: { ...banner, text: 'We ask <first>, whatever the services do.' } };
+    assert.equal(said({ stores: true, advertises: true, transfers: true }, 'en-GB', own), 'We ask <first>, whatever the services do.');
+    assert.equal(said({}, 'sv-SE', own), 'We ask <first>, whatever the services do.');
+  });
+});
+
 describe('where the statistics count visits without storage before consent', () => {
   const counting = { ...registry, departures: [{ departure: 'statisticsWithoutStorageBeforeConsent', reason: 'Every visit counts.', privacySignals: 'ignore' }] };
   const offered = { ...input, registry: counting };

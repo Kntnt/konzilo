@@ -299,7 +299,10 @@
         "type": "string",
         "control": "textarea",
         "translated": true,
-        "default": { "text": "site.settings.consent.bannerText" }
+        "formerDefaults": [
+          "This site uses only what it needs to work, unless you allow more. With your consent it also loads content from other services, such as videos, which may store data in your browser and use what they learn for their own purposes. You can change or withdraw your consent at any time, from the bottom of every page.",
+          "Webbplatsen använder bara det den behöver för att fungera, om du inte tillåter mer. Med ditt samtycke laddar den också innehåll från andra tjänster, till exempel videor, som kan lagra uppgifter i din webbläsare och använda det de får veta för egna syften. Du kan ändra eller återkalla ditt samtycke när som helst, längst ned på varje sida."
+        ]
       },
       "bannerAccept": {
         "type": "string",
