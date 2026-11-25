@@ -1,0 +1,44 @@
+# ADR 0077: Find, read and restore a deleted post, term or image library entry from the source history
+
+**Date:** 2026-11-25 · **Status:** Accepted. Settled by Thomas in triage on 2026-11-25: a *Deleted* page in the editor, in Swedish *Raderat*, lists the posts, terms and image library entries deleted from the source repository, for as long as the history holds them; every Editor, Admins included, reads one read-only with its revisions, and restores it as a draft under its own ID, its revisions following it back. The rest is a technical choice; Thomas may veto, among them, chosen in building it on 2026-11-25:
+
+- **How the service finds deleted files:** the service's role for editors learns the branch's history through Forgejo's API, fifty commits at a time with the files each changed, and keeps in memory alone, for each file, the newest commit that changed it. A file of a post, a term or an image library entry that the branch no longer holds was removed by that commit, so its newest change is its deletion, and the revision before it is the file at that commit's parent. After the first walk it asks only for the commits after the last one it learned, `not` that one; where none of them stands on it, as after a purge, which writes the history anew, it learns the history again from its start, so that what is purged is in no list. Nothing is written beside the history.
+- **How it pages through them:** at `/_konzilo/deleted?page=<n>&collection=<name>` on the admin host, twenty at a time, newest deletion first, by the order of the history, one collection where it is named. Each is given with its path, its collection, the deletion's commit, the moment and the account of the push that brought it, as a form's revisions are (ADR 0074), the text of its last revision, and the files that went with it: a library entry's original, where the same commit removed it. What is a post, a term or a library entry the service tells from the site description as it stands: `.md` in a type's collection, `.json` in a taxonomy's, on a site in several languages in a language's folder below either, and `.json` in the image library's folder, which is in one language.
+- **Who may use it:** whoever may write, which the service asks Forgejo of with what the editor signed in with, as for a form's revisions; a Reviewer, who may not, and anyone signed out are answered nothing. The page is always in the editor, which a Reviewer never enters.
+- **A row is a source file.** On a site in several languages each translation of a deleted post is a row of its own, named as it was last saved in its language, and restored on its own, as each translation is a post of its own (ADR 0074).
+- **The read-only view** is the page's own, not Sveltia's form, which has no entry to draw: each field of the last revision under the form's labels, as the History's comparison shows a field alike on both sides, a body as its Markdown and an image by its small picture, beside the entry's revisions, which the History's own dialog compares. A revision is read through Sveltia's reading of a file for its collection, as a form's is. No revision is restored into anything from there; once the entry is back, an earlier one is restored from its form's History, as any form's is.
+- **How the restore saves:** in the editor, through Forgejo's API, with what the editor signed in with, as Sveltia's own saves are, so that Forgejo records the Editor's push and the service writes nothing: one commit that makes the file at its own path, `Restore <collection> “<ID>”`, with a library entry's original read from the commit before the deletion. A post's status is made a draft by its line in the front matter, or, where that line holds more than the word, by its front matter written anew; a post without a status is a draft already. Sveltia then fetches it by its own check for changes, which it makes as a tab is focused, and its form opens; where Sveltia has not fetched it, the editor loads again.
+- **The restore's guards:** the lock of the entry's form, `<collection>/<ID>`, held for the restore as for a deletion from the list, and refused where another tab holds it, naming who; and the check against the latest save, which for a deleted entry is its deletion: where the branch's newest commit of the file is another, it is refused, naming the account that pushed that save and when, as the history has them. Forgejo itself makes no file that is there. A restore turned away because another commit came first, or answered with a server error, is tried again, at most three times more, each time after the check is made anew; one that went in all the same is done.
+
+## Decision
+
+- **A *Deleted* page** in the editor lists every post, term and image library entry whose source file a save removed, in one list, newest deletion first, with a choice of one type. Menus and settings are not deleted, only changed, and their revisions already cover that.
+- **Each row** shows what the entry was called as it was last saved, its type, the moment it was deleted and the account that pushed the deletion, both as Forgejo recorded the push ([ADR 0008](0008-give-customers-three-roles-admin-editor-and-reviewer.md)). An entry deleted, restored and deleted again is one row, by its latest deletion.
+- **For as long as the history holds it.** What is purged is in no list, and nothing is stored beside the history.
+- **Every Editor, Admins included,** sees the page; a Reviewer, who never enters Sveltia, does not.
+- **A deleted entry opens read-only**, as a locked form does ([ADR 0073](0073-lock-a-form-to-the-tab-that-has-it-open-and-refuse-a-save-older-than-the-latest.md)), at its last revision, with its earlier revisions to read and compare as a form's are ([ADR 0074](0074-show-a-forms-revisions-from-the-source-history-compare-any-two-and-restore-one-into-the-form.md)).
+- ***Restore*** saves the entry's last revision at once, as a draft, at its own path, so under its own ID, and then opens its form. Every reference to it by ID holds again. Its form's revisions then show its whole history, the deletion and the restore among them, and an earlier revision is restored from there. It goes out only when an Editor saves it as published or scheduled. An image library entry comes back with its original, where the deletion took the file too ([ADR 0063](0063-make-the-image-library-the-one-place-for-images.md)).
+- **Its slug and address are as they were,** with no check at the restore; an address another post has taken since is met when it is published, by the same rules as any post's.
+- **An entry is restored alone,** even where its parent, a term or an image it names is still deleted; publishing it then meets what is missing as any post would, and the Editor restores those from the page, one by one.
+- **A restore is a save like any other:** an ordinary commit to the source repository, under the lock and the check against the latest save, so the build, the intake, the publish status and the lock see nothing new.
+
+## Why
+
+- Deleting is a save like any other, so everything a deleted entry held is still in the history until it is purged; only someone who works in Git could reach it, and a deleted entry has no form to show its revisions in.
+- Restoring under its own ID brings back every reference to it, in menus, in links and in other posts' fields, which a copy under a new ID would leave broken.
+- A draft goes out only when an Editor chooses, so a restore never publishes by itself, as restoring a revision never does.
+- The history and Forgejo's record of each push are already where a form's revisions come from, so the page needs nothing new to keep and nothing new to trust.
+
+## Considered and rejected
+
+- **Deleted entries in Sveltia's own lists of entries.** Sveltia lists what the branch holds; a deleted entry there would need its own state in every list and form.
+- **A store of deleted entries, or a time limit.** The history already holds them, and a copy would have to be purged and moved with it.
+- **Restoring an entry together with what it depends on.** Which of its parent, its terms and its images to bring back is the Editor's to choose, one by one.
+- **The service saving the restore by a credential of its own.** Forgejo would then record the service, not the Editor, as the one who pushed it, and the role check and every revision go by who pushed.
+- **One row for all of an entry's translations.** Each translation is a post of its own, named in its own language, and may be deleted on its own.
+
+## Consequences
+
+- A purge rewrites the history, which the service learns anew, so a purged entry leaves the list with nothing more to do.
+- The service learns the whole history once after each start, fifty commits at a time; a site with a long history waits for its first list a while longer.
+- `GLOSSARY.md` defines a deleted post.

@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- A *Deleted* page in the editor, in Swedish *Raderat*, for every Editor and Admin. It lists the posts, terms and images of the image library that have been deleted, newest first, with what each was called, its type, when it was deleted and by whom, and lets you show one type at a time. Each opens read-only as it was last saved, with its earlier revisions to read and compare. *Restore* saves it again as a draft under its own ID, so that links, menus and other posts find it again, and opens its form, whose history then holds its revisions from before the deletion. An image comes back with its file. A deleted entry is listed for as long as the history holds it.
+
 ### Changed
 
 - The window the editor opens for a sign-in opens empty and goes straight to Forgejo's sign-in page. It used to load the whole editor first, only to be sent on from there, so a sign-in now starts sooner.

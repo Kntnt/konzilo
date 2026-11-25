@@ -1,6 +1,6 @@
 # ADR 0074: Show a form's revisions from the source history, compare any two, and restore one into the form
 
-**Date:** 2026-11-23 · **Status:** Accepted. Settled by Thomas on 2026-11-22 and 2026-11-23: an Editor sees every **revision** of a form, compares any two field by field, and restores one into the form as unsaved changes; nothing new is stored. The rest is a technical choice; Thomas may veto, among them, chosen in building it on 2026-11-23:
+**Date:** 2026-11-23, amended 2026-11-25 · **Status:** Accepted. Settled by Thomas on 2026-11-22 and 2026-11-23: an Editor sees every **revision** of a form, compares any two field by field, and restores one into the form as unsaved changes; nothing new is stored. The rest is a technical choice; Thomas may veto, among them, chosen in building it on 2026-11-23:
 
 - **Who reads the history:** the service's role for editors, at `/_konzilo/revisions?path=<file>&page=<n>` on the admin host, with its own credential that reads the source, to whoever may write, which is whoever may open a form. It lists the commits that changed the file through Forgejo's API, twenty at a time, newest first, and gives each with the file as that commit left it, so that a page of the list needs one call, and a commit no longer in the history, as after a purge, is in no answer. Nothing is kept of a file's text.
 - **The account and the moment of a revision** are those of the push that brought its commit, from the repository's activity feed, as the builder learns them for the role check (ADR 0008), each push's commits listed by Forgejo's API. A private account's pushes the feed shows only to those who run Forgejo, so the service reads it by a token of the instance's account that can do nothing but read, as the builder does, which the seed makes at a start that finds it missing; the service keeps what it has learned in memory alone, and asks the feed only for what is new. Forgejo records a push in the feed a moment after it, so the push of a commit made within the last two minutes is waited for, ten seconds at most. A commit the feed has no push of says that Forgejo has no record of its account, and its moment is the commit's own.
@@ -38,5 +38,5 @@
 
 ## Consequences
 
-- Restoring a deleted entry, which has no form, is not part of this decision.
+- A deleted entry, which has no form, is read and restored from the *Deleted* page ([ADR 0077](0077-find-read-and-restore-a-deleted-post-term-or-image-library-entry-from-the-source-history.md)), its revisions compared as a form's are.
 - `GLOSSARY.md` defines a revision.

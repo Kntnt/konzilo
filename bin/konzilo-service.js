@@ -6,8 +6,10 @@
 //   pictures of images, shows Admins and Editors the forms' submissions from the service's data,
 //   mails each to its form's recipients through the adapter an Admin chooses (ADR 0003), or, in a
 //   local copy, writes it to its log, forgets each once its form's retention has passed, and lets
-//   an Admin find, export and erase a person's. It has a credential that can only read the source
-//   repository, and one that can only read who is an Admin.
+//   an Admin find, export and erase a person's, and lists a form's revisions and the deleted
+//   posts, terms and image library entries from the source history. It has a credential that can
+//   only read the source repository, one that can only read who is an Admin, and a read-only token
+//   of the instance's account, by which it reads who pushed what.
 // - `visitors`: it takes what visitors' browsers send below /_konzilo/, which the web server
 //   passes on, such as a site's forms (ADR 0045), and keeps it in the service's data. It reaches
 //   nothing.
@@ -21,6 +23,7 @@ import { join } from 'node:path';
 
 import { arrangement } from '../src/arrangement.js';
 import { buildControl } from '../src/build/record.js';
+import { deletableIn } from '../src/service/deleted.js';
 import { editorsService, nextMinute } from '../src/service/editors.js';
 import { liveDescription } from '../src/service/live-description.js';
 import { mailDuty } from '../src/service/mail.js';
@@ -90,6 +93,7 @@ function editors(store) {
     forms: () => described().forms,
     local,
     isPost: (file) => file.endsWith('.md') && collections.includes(file.split('/')[0]),
+    deletable: () => deletableIn(described()),
   });
   serve(service, PORT);
   // The locks of tabs that have stopped answering let go, well within the two minutes ADR 0073
