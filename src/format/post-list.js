@@ -69,6 +69,8 @@ export function readPostList(given, lists, { attributes } = {}) {
     const order = listOrder(values, type, problems);
     Object.assign(query, order);
   }
+  // A list with pages of its own has its later pages, so it is never on the first page alone.
+  if (values.pages === true && values.firstPage === true) problems.push(said('refusal.list-first-page'));
 
   const known = Object.keys(lists.presentations);
   const presentation = typeof values.presentation === 'string' && Object.hasOwn(lists.presentations, values.presentation) ? lists.presentations[values.presentation] : null;

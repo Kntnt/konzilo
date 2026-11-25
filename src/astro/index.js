@@ -65,6 +65,9 @@
 // there to the site's endpoint, which KONZILO_ENDPOINT names, but for
 // /_konzilo/search, which it passes to the local Typesense (search.js).
 //
+// A template asks bodyTree() for its post's body as the tree a component is given as `content`
+// (body-tree.js), to build what stands beside the body from it, such as a table of contents.
+//
 // A template places a form the site description declares with Form.astro, and
 // every page's script file sends it where JavaScript runs (forms.js). Every build
 // holds the page that says a form's message was not sent, which the public host
@@ -125,6 +128,7 @@ import { themeColors, writeThemeColors } from './theme-colors.js';
 import { devHeaders, HEADER_LIMIT, HEADERS_FILE, headersFile, securityHeaders } from './security-headers.js';
 import { contentSecurityPolicy, readRegistry, releaseCode } from './content-security-policy.js';
 
+export { bodyTree } from './body-tree.js';
 export { collections } from './collections.js';
 export { publicSite } from './public-site.js';
 export { securityHeaders } from './security-headers.js';
