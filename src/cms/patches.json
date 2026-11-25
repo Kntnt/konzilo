@@ -313,9 +313,9 @@
   },
   {
     "module": "@sveltia/cms/npm/index.js",
-    "why": "A revision is read through the same format the form's file is read with, the core's own among them, into the values Sveltia holds a form's in, and restoring one fills the form as unsaved changes, as Sveltia restores a draft backup, with the changes it replaces kept as one first (ADR 0074). The core is handed Sveltia's own ways of doing each.",
+    "why": "A revision is read through the same format the form's file is read with, the core's own among them, into the values Sveltia holds a form's in, and restoring one fills the form as unsaved changes, as Sveltia restores a draft backup, with the changes it replaces kept as one first (ADR 0074). The core is handed Sveltia's own ways of doing each. A deleted entry restored outside a form is fetched into Sveltia by its own check for changes, before its form opens (ADR 0077).",
     "find": "dje=e=>{_6.delete(e)},",
-    "replace": "dje=e=>{_6.delete(e)},konziloHands=(globalThis.konziloSveltia={parse:async({text:e,path:t,collectionName:n,fileName:r})=>Ri(await globalThis.konziloParseEntryFile({text:e,path:`${t}#konzilo-revision`,folder:{collectionName:n,fileName:r}})??{}),pathOf:e=>vt(e)[0],modified:e=>ll(e),saveBackup:e=>fxe(e),restore:(e,t)=>V1({backup:t,draft:e}),entries:()=>Te.current}),"
+    "replace": "dje=e=>{_6.delete(e)},konziloHands=(globalThis.konziloSveltia={parse:async({text:e,path:t,collectionName:n,fileName:r})=>Ri(await globalThis.konziloParseEntryFile({text:e,path:`${t}#konzilo-revision`,folder:{collectionName:n,fileName:r}})??{}),pathOf:e=>vt(e)[0],modified:e=>ll(e),saveBackup:e=>fxe(e),restore:(e,t)=>V1({backup:t,draft:e}),entries:()=>Te.current,refresh:()=>Nm()}),"
   },
   {
     "module": "@sveltia/cms/npm/chunks/init-BNH7Gwj6.js",

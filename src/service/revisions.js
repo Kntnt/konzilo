@@ -4,10 +4,12 @@
 // its author anyone who writes can make up, so it names no one (ADR 0008). Nothing is stored beside
 // the history: what has been purged from it is in no revision. What the service learns of who
 // pushed what it keeps in memory alone, since a commit's pusher never changes, and a restart learns
-// it again from the feed.
+// it again from the feed. The same history, and the same pushes, give the deleted posts, terms and
+// image library entries (deleted.js, ADR 0077).
 
 import { addPushers, eventsAfter } from '../build/pushers.js';
 import { accountName } from '../forgejo.js';
+import { deletions } from './deleted.js';
 
 // The feed's and a push's commits are asked for this many at a time.
 const PAGE = 50;
@@ -73,31 +75,40 @@ export function sourceHistory({ forgejo, repository, token, pushesToken = token,
     }
   };
 
+  // The moment and the account of each commit's push, { [sha]: { moment, account } }, `account`
+  // { login, name } or null where the feed has no push of it, and `moment` the push's, else the
+  // commit's own `date`: the feed learned first, unless `learnt` says it is, and a commit made
+  // lately waited for a moment.
+  const saved = async (commits, { learnt = false } = {}) => {
+    if (!learnt) await learn();
+    const awaited = () => commits.some(({ sha, date }) => !Object.hasOwn(known.commits, sha) && now().getTime() - Date.parse(date ?? '') < LATELY);
+    for (let waited = 0; waited < SETTLED && awaited(); waited += STEP) {
+      await sleep(STEP);
+      await learn();
+    }
+    return Object.fromEntries(commits.map(({ sha, date }) => {
+      const push = known.commits[sha];
+      return [sha, { moment: push?.at ?? date ?? null, account: push ? { login: push.login, name: push.name } : null }];
+    }));
+  };
+
+  const removed = deletions({ ask: (path) => ask(path), textAt, saved });
+
   return {
     // A page of the revisions of the file at `path`, newest first: { revisions, more }, each
-    // { commit, moment, account, text }, `account` { login, name } or null where the feed has no
-    // push of it, and `moment` the push's, else the commit's own.
+    // { commit, moment, account, text }, as saved() gives the moment and the account.
     async revisions(path, { page = 1 } = {}) {
       const [shown] = await Promise.all([
         ask(`/commits?path=${encodeURIComponent(path)}&limit=${perPage}&page=${page}&${LIST}`).then((answer) => answer.json()),
         learn(),
       ]);
-      const dateOf = ({ commit }) => Date.parse(commit?.committer?.date ?? commit?.author?.date ?? '');
-      const awaited = () => shown.some((one) => !Object.hasOwn(known.commits, one.sha) && now().getTime() - dateOf(one) < LATELY);
-      for (let waited = 0; waited < SETTLED && awaited(); waited += STEP) {
-        await sleep(STEP);
-        await learn();
-      }
-      const revisions = await Promise.all(shown.map(async ({ sha, commit }) => {
-        const push = known.commits[sha];
-        return {
-          commit: sha,
-          moment: push?.at ?? commit?.committer?.date ?? commit?.author?.date ?? null,
-          account: push ? { login: push.login, name: push.name } : null,
-          text: await textAt(path, sha),
-        };
-      }));
+      const pushes = await saved(shown.map(({ sha, commit }) => ({ sha, date: commit?.committer?.date ?? commit?.author?.date ?? null })), { learnt: true });
+      const revisions = await Promise.all(shown.map(async ({ sha }) => ({ commit: sha, ...pushes[sha], text: await textAt(path, sha) })));
       return { revisions, more: shown.length === perPage };
     },
+
+    // A page of the deleted posts, terms and image library entries, newest deletion first, as
+    // deleted.js lists them, with the moment and the account of the push that deleted each.
+    deleted: ({ page = 1, collection = null, deletable }) => removed.list({ page, perPage, collection, deletable }),
   };
 }

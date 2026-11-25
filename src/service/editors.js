@@ -29,6 +29,7 @@ const MAIL = '/_konzilo/mail';
 const PERSONAL_DATA = '/_konzilo/personal-data';
 const LOCKS = '/_konzilo/locks';
 const REVISIONS = '/_konzilo/revisions';
+const DELETED = '/_konzilo/deleted';
 // The most the *Mail* page's settings take, as JSON.
 const MAIL_BODY_LIMIT = 64 * 1024;
 // A form's submissions are shown this many at a time, newest first.
@@ -64,8 +65,10 @@ const PICTURE_HOLDS = 3600;
 // description in use declares. `local`: whether this is a local copy, which sends no mail.
 // `locks`: how the locks of the editor's forms wait, { waitAtMost }, the longest a tab's call for
 // them is held open until they change, and { alive }, as locks.js has it. `revisions`: how a form's
-// revisions are given, { perPage }, as revisions.js has it.
-export function editorsService({ forgejo, repository, token, rolesToken = null, pushesToken = null, control, pictures = null, store = null, forms = () => ({}), local = false, isPost = () => true, now = () => new Date(), warn = console.error, get = fetch, locks: { waitAtMost = 25_000, alive } = {}, revisions = {} }) {
+// revisions are given, { perPage }, as revisions.js has it. `deletable()`: whether a file in the
+// source is a post, a term or an image library entry, by the site description in use, as
+// deleted.js's deletableIn() tells it.
+export function editorsService({ forgejo, repository, token, rolesToken = null, pushesToken = null, control, pictures = null, store = null, forms = () => ({}), local = false, isPost = () => true, deletable = () => () => null, now = () => new Date(), warn = console.error, get = fetch, locks: { waitAtMost = 25_000, alive } = {}, revisions = {} }) {
   const answers = new Map();
   const mayWriteLately = async (credential) => {
     const held = answers.get(credential);
@@ -208,6 +211,26 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
       return answerJson(outgoing, 200, await history.revisions(path, { page }));
     } catch (error) {
       warn(`The revisions of ${path} could not be read: ${error.message}`);
+      return answerJson(outgoing, 502, {});
+    }
+  };
+
+  // The deleted posts, terms and image library entries (ADR 0077), to whoever may write, who may
+  // open their forms: a page at a time, newest deletion first, of one collection where it is named.
+  const answerDeleted = async (incoming, outgoing, searchParams) => {
+    incoming.resume();
+    if (incoming.method !== 'GET') {
+      outgoing.writeHead(405, { allow: 'GET', 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+      return outgoing.end('{}');
+    }
+    if (await personOf(incoming.headers.authorization) === null) return answerJson(outgoing, 401, {});
+    const page = Number(searchParams.get('page') ?? '1');
+    const collection = searchParams.get('collection');
+    if (!Number.isInteger(page) || page < 1 || (collection !== null && !/^[\w-]{1,64}$/.test(collection))) return answerJson(outgoing, 400, {});
+    try {
+      return answerJson(outgoing, 200, await history.deleted({ page, collection, deletable: deletable() }));
+    } catch (error) {
+      warn(`The deleted entries could not be read: ${error.message}`);
       return answerJson(outgoing, 502, {});
     }
   };
@@ -435,6 +458,7 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
       if (pathname === PERSONAL_DATA || pathname === `${PERSONAL_DATA}.csv`) return answerPersonalData(incoming, outgoing, pathname.endsWith('.csv'), searchParams);
       if (pathname === LOCKS || pathname.startsWith(`${LOCKS}/`)) return answerLocks(incoming, outgoing, pathname.slice(LOCKS.length), searchParams);
       if (pathname === REVISIONS) return answerRevisions(incoming, outgoing, searchParams);
+      if (pathname === DELETED) return answerDeleted(incoming, outgoing, searchParams);
       return answerJson(outgoing, 404, {});
     },
 

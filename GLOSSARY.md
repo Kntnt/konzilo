@@ -128,6 +128,8 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Revision**: A form's content as one save left it, kept in the source repository's history; an Editor sees, compares and restores them. _Avoid_: version, history entry.
 
+**Deleted post**: A post whose source file a save removed, which the source history keeps until it is purged; an Editor finds it on the *Deleted* page, in Swedish *Raderat*, reads it with its revisions, and restores it as a draft under its own ID, its revisions following it back. A term or an image library entry is deleted and restored alike. _Avoid_: trashed, archived; trash, bin.
+
 **Refusal**: The intake's or `preSave`'s no to something it cannot publish, or to a save made from a form older than the latest save, naming the post, the block or the field, or the file and line, and the reason, by its name in the catalogues, which the editor shows in the interface language. _Avoid_: error, validation failure.
 
 **Warning**: The intake's word about a post it publishes otherwise than it holds, such as a link shown as text while its target has no page. _Avoid_: refusal, error.
