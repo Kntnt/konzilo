@@ -941,6 +941,7 @@
   "refusal.image-title": "the site cannot publish an image with a title; take the title out, or make it the caption",
   "refusal.image-display-width": "an image's display width is a whole number of pixels from 1 to {most}, not \"{given}\"; choose the image again from the image library",
   "refusal.image-focal-point": "an image's focal point is two fractions from 0 to 1, of its width and its height, with a comma between, not \"{given}\"; move the point again in the image's dialog",
+  "refusal.focal-point": "an image's focal point is two fractions from 0 to 1, of its width from the left and of its height from the top; move the point again, or choose the image again from the image library",
   "refusal.embed-place": "an embed stands at the top of the body, never in a quote or a list; move it out",
   "refusal.embed-caption": "the site cannot show a caption with the embed {address}; take the caption out",
   "refusal.directive-unknown": "the site has no directive {name}; choose one it offers, or write the colons as \\:",

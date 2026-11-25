@@ -198,6 +198,13 @@ function postSchema(type, image) {
   ]);
 }
 
+// An image's focal point (focal-point.js): two fractions, of its width from the left and of its
+// height from the top.
+const focalPoint = () => z.strictObject({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) });
+
+// A post's image: its master, its alt text and its focal point, where it has one.
+const postImage = (image) => z.strictObject({ src: image(), alt: z.string().min(1), focalPoint: focalPoint().optional() });
+
 function fieldSchema(field, image) {
   switch (field.kind) {
     case 'date':
@@ -211,10 +218,10 @@ function fieldSchema(field, image) {
     case 'standfirst':
       return optional(z.string(), field);
     case 'image':
-      return optional(z.strictObject({ src: image(), alt: z.string().min(1) }), field);
+      return optional(postImage(image), field);
     case 'teaser':
       return z.strictObject({
-        image: z.strictObject({ src: image(), alt: z.string().min(1) }).optional(),
+        image: postImage(image).optional(),
         headline: z.string().min(1).optional(),
         text: z.string().min(1).optional(),
       }).optional();
@@ -230,7 +237,8 @@ function fieldSchema(field, image) {
 }
 
 // The search and sharing fields: only what the post sets, its sharing image
-// an image as the featured image's is, always with its alt text.
+// an image as the featured image's is, always with its alt text, and its focal
+// point where it has one.
 function seoSchema(image) {
   const text = z.string().min(1).optional();
   return z.strictObject({
@@ -241,6 +249,7 @@ function seoSchema(image) {
     socialDescription: text,
     socialImage: image().optional(),
     socialImageAlt: text,
+    socialImageFocalPoint: focalPoint().optional(),
     schema: z.enum(SCHEMA_TYPES).optional(),
     noindex: z.literal(true).optional(),
     nofollow: z.literal(true).optional(),

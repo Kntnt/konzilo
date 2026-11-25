@@ -384,6 +384,26 @@ Text.
 `);
   });
 
+  test('a featured image\'s and a sharing image\'s focal point is written with it, to the thousandth', () => {
+    const given = run({
+      'articles/aaaaaaaaaaaa.md': article({
+        image: { src: '/media/barn-aaaaaaaaaa.jpg', alt: 'A barn', focalPoint: { x: 0.25, y: 1 / 3 } },
+        sharing: { image: { src: '/media/share-bbbbbbbbbb.jpg', alt: 'Shared', focalPoint: { x: 0, y: 0.9 } } },
+      }),
+    }, site);
+    assert.deepEqual(given.refusals, []);
+    const text = written(given)['articles/an-article.md'];
+    assert.match(text, /\nimage: \{"src":"\.\.\/media\/an-article-aaaaaaaaaa\.webp","alt":"A barn","focalPoint":\{"x":0\.25,"y":0\.333\}\}\n/);
+    assert.match(text, /\nseo: \{"socialImage":"\.\.\/media\/an-article-bbbbbbbbbb\.webp","socialImageAlt":"Shared","socialImageFocalPoint":\{"x":0,"y":0\.9\}\}\n/);
+  });
+
+  test('a focal point that is no two fractions from 0 to 1 is refused, naming the field', () => {
+    const featured = run({ 'articles/aaaaaaaaaaaa.md': article({ image: { src: '/media/barn-aaaaaaaaaa.jpg', alt: 'A barn', focalPoint: { x: 2, y: 0.5 } } }) }, site);
+    assert.deepEqual(featured.refusals.map(({ name, field }) => [name, field?.name]), [['refusal.focal-point', 'image']]);
+    const shared = run({ 'articles/aaaaaaaaaaaa.md': article({ sharing: { image: { src: '/media/share-bbbbbbbbbb.jpg', alt: 'Shared', focalPoint: 'middle' } } }) }, site);
+    assert.deepEqual(shared.refusals.map(({ name, field }) => [name, field?.name]), [['refusal.focal-point', 'sharing.image']]);
+  });
+
   test('a canonical address under search is written among the search and sharing fields, as a browser sends it', () => {
     const given = run({ 'articles/aaaaaaaaaaaa.md': article({ search: { title: 'A title', canonical: ' https://Elsewhere.example.org/the-original?from=lantern ' } }) }, site);
     assert.deepEqual(given.refusals, []);
