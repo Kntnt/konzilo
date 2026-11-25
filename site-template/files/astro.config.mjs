@@ -17,7 +17,9 @@ export default defineConfig({
   // the address site-description.json declares, and the term page at the
   // address of each taxonomy that declares one. The tokens name the custom
   // properties that hold the site's colours: `primary` and `base` are the web
-  // app manifest's colours and each page's theme-color.
+  // app manifest's colours and each page's theme-color. Each image is served in
+  // the widths and sizes of the context it is drawn in, the core's, which fit
+  // these styles, unless `images` gives the site's own.
   integrations: [konzilo({
     bodyStyles: ['./src/styles/body.css'],
     presentations: { list: './src/components/List.astro', cards: './src/components/Cards.astro' },

@@ -171,6 +171,22 @@ describe('a build', () => {
     assert.equal(statusOf(site, 'articles/aaaaaaaaaaaa.md').stillShown, false);
   });
 
+  test('keeps a post that waits for another\'s publishing scheduled, with its triggers, and takes it in the build that publishes one', async () => {
+    const triggers = [[{ published: [[{ words: 'launch' }]], since: '2026-01-01T00:00:00Z' }]];
+    const site = newSite({ 'articles/aaaaaaaaaaaa.md': post('waiting', { status: 'scheduled', triggers }) });
+    const record = await site.build()();
+    assert.equal(record.next, null);
+    const waiting = statusOf(site, 'articles/aaaaaaaaaaaa.md');
+    assert.equal(waiting.status, 'scheduled');
+    assert.equal(waiting.at, null);
+    assert.deepEqual(waiting.triggers, [[{ published: [[{ words: 'launch' }]], since: '2026-01-01T00:00:00Z', happened: false }]]);
+    assert.deepEqual(waiting.terms, []);
+    site.save({ 'articles/bbbbbbbbbbbb.md': post('launch') });
+    await site.build()();
+    assert.equal(statusOf(site, 'articles/aaaaaaaaaaaa.md').status, 'live');
+    assert.deepEqual(readdirSync(join(site.siteFolder, 'content/articles')).sort(), ['launch.md', 'waiting.md']);
+  });
+
   test('takes a scheduled post once its moment has passed', async () => {
     const moment = new Date(Math.ceil((Date.now() + 2000) / 1000) * 1000).toISOString().replace('.000', '');
     const site = newSite({ 'articles/aaaaaaaaaaaa.md': post('first', { status: 'scheduled', date: moment }), 'articles/bbbbbbbbbbbb.md': post('second') });

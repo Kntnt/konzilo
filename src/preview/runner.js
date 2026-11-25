@@ -33,15 +33,18 @@ const NAMED_IMAGE = /\/media\/([^\s)"'>?#\\]+)/g;
 const shownRefusal = ({ field = null, block, name, values, reason }) => ({ field, ...(block ? { block } : {}), ...(name ? { name, values } : {}), reason });
 
 // A post's status as a page of the preview shows it, at whichever moment: a draft's, and else
-// `scheduled` while its moment has not come now, `at`, whatever it says, and else `published`,
-// where it is on its way to the public site by its own.
-const statusOf = (status, at) => (status === DRAFT ? DRAFT : at ? SCHEDULED : PUBLISHED);
+// `scheduled` while its moment has not come now, `at`, whatever it says, or while it waits for
+// triggers nothing known tells the moment of, and else `published`, where it is on its way to the
+// public site by its own.
+const statusOf = (status, at, untimed = false) => (status === DRAFT ? DRAFT : at || untimed ? SCHEDULED : PUBLISHED);
 
 // Each page in the preview by its address, as a run at a moment left them: a post's, { kind:
 // 'post', file, title, status, at, refusals }, and a term's, { kind: 'term', file, title,
 // refusals }. A refused post is at the address its kept page has and at the one it would have,
 // and a post shown there comes first. `notFound`: the post each 404 page is built from, by its
-// content file. `waiting`: the moment each post waits for now, by its source file.
+// content file. `waiting`: what each post waits for now, by its source file: { at, assumed,
+// untimed }, `assumed` where its moment takes what the timeline knows nothing of as on time, and
+// `untimed` where nothing known tells when it goes out (ADR 0076).
 function pagesOf(result, waiting) {
   const pages = new Map();
   const notFound = new Map();
@@ -50,8 +53,9 @@ function pagesOf(result, waiting) {
   const posts = [...result.posts].sort((a, b) => Number(a.state !== 'refused') - Number(b.state !== 'refused'));
   for (const post of posts) {
     const { file, title, state, address, wanted } = post;
-    const status = statusOf(post.status, waiting.get(file) ?? null);
-    const about = { kind: 'post', file, title, status, at: status === SCHEDULED ? waiting.get(file) : null, refusals: state === 'refused' ? (refusals[file] ?? []).map(shownRefusal) : [] };
+    const waits = waiting.get(file) ?? {};
+    const status = statusOf(post.status, waits.at ?? null, waits.untimed);
+    const about = { kind: 'post', file, title, status, at: status === SCHEDULED ? waits.at ?? null : null, ...(status === SCHEDULED && waits.assumed ? { assumed: true } : {}), refusals: state === 'refused' ? (refusals[file] ?? []).map(shownRefusal) : [] };
     for (const at of state === 'refused' ? [address, wanted] : state === 'live' ? [address] : []) if (at) pages.set(keyOf(at), about);
     if (post.notFound) notFound.set(post.notFound, about);
   }
@@ -169,8 +173,11 @@ export function previewRunner({ site: described, source, content, adminHost = nu
     return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : null;
   };
 
-  // The moment each post waits for now, by its source file.
-  const waitingNow = () => new Map((runs.get(NOW)?.result.posts ?? []).filter(({ state, at }) => state === 'waiting' && at).map(({ file, at }) => [file, at]));
+  // What each post waits for now, by its source file: its moment, and whether that is assumed, or
+  // that nothing known tells it.
+  const waitingNow = () => new Map((runs.get(NOW)?.result.posts ?? [])
+    .filter(({ state, at, untimed }) => (state === 'waiting' && at) || untimed)
+    .map(({ file, at, assumed = false, untimed = false }) => [file, { at, assumed, untimed }]));
 
   // The run at `moment`, made again where what is read has changed since, or, now's, where a
   // moment it waited for has come.
@@ -179,7 +186,7 @@ export function previewRunner({ site: described, source, content, adminHost = nu
     const last = runs.get(key);
     const clock = moment === null ? now() : new Date(moment);
     if (last?.from === input.from && !(moment === null && last.result.next && new Date(last.result.next) <= clock)) return last;
-    const given = { files: input.files, site, now: clock, ledger: ledgerFor(key), images: input.images, adminHost, components };
+    const given = { files: input.files, site, now: clock, ledger: ledgerFor(key), images: input.images, adminHost, components, assume: now() };
     // Every saved post, as it stands at this moment. Should its check break on one, the preview
     // goes on as it was before it showed them, with the drafts someone looks at alone.
     let result;
@@ -222,7 +229,7 @@ export function previewRunner({ site: described, source, content, adminHost = nu
   function timelineOf(result) {
     const waiting = result.posts.filter(({ state, at }) => state === 'waiting' && at);
     const moments = [...new Set(waiting.map(({ at }) => at))].sort();
-    return moments.map((at) => ({ at, posts: waiting.filter((post) => post.at === at).map(({ title, file }) => ({ title, file })) }));
+    return moments.map((at) => ({ at, posts: waiting.filter((post) => post.at === at).map(({ title, file, assumed }) => ({ title, file, ...(assumed ? { assumed: true } : {}) })) }));
   }
 
   return {
@@ -237,8 +244,14 @@ export function previewRunner({ site: described, source, content, adminHost = nu
     }),
 
     // The timeline: now, { at: null, posts: [] }, then each later moment at which something
-    // goes out, { at, posts }, each post that goes out then by its title and its source file.
+    // goes out, { at, posts }, each post that goes out then by its title and its source file, and
+    // `assumed` where it goes out then only if what the timeline knows nothing of happens on time.
     timeline: () => [{ at: null, posts: [] }, ...(runs.has(NOW) ? timelineOf(runs.get(NOW).result) : [])],
+
+    // The posts that wait for triggers nothing known tells the moment of, which are not on the
+    // timeline: each by its title and its source file, with its triggers in their rows, each ticked
+    // where it has happened (ADR 0076).
+    waiting: () => (runs.get(NOW)?.result.posts ?? []).filter(({ untimed }) => untimed).map(({ title, file, triggers }) => ({ title, file, triggers })),
 
     // The moment on the timeline that a moment asked for stands at: the last at or before it, now
     // for one passed, or for anything that is not a moment.
@@ -342,6 +355,7 @@ export function runnerOncePrepared({ described, prepared, folder, ...options }) 
     prepare: async (moment) => (await ready).prepare(moment),
     show: async (moment) => (await ready).show(moment),
     timeline: () => (runner === null ? [{ at: null, posts: [] }] : runner.timeline()),
+    waiting: () => (runner === null ? [] : runner.waiting()),
     moment: (asked) => (runner === null ? null : runner.moment(asked)),
     version: (moment) => (runner === null ? null : runner.version(moment)),
     shows: (moment) => (runner === null ? false : runner.shows(moment)),

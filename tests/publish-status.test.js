@@ -70,6 +70,13 @@ describe('a post\'s publish status', () => {
     const waiting = publishStatus(record({ posts: { [FILE]: post({ state: 'waiting', at: '2999-01-01T00:00:00Z', shown: false, version: 'v2' }) }, held: {} }), FILE, 'v2');
     assert.equal(waiting.status, 'scheduled');
     assert.equal(waiting.at, '2999-01-01T00:00:00Z');
+    assert.equal(waiting.triggers, undefined, 'a moment alone is its moment');
+  });
+
+  test('is scheduled with its triggers, in their rows, and its terms, when it waits for them', () => {
+    const triggers = [[{ moment: '2999-01-01T00:00:00Z', happened: false }, { published: [[{ words: 'launch' }]], since: '2026-01-01T00:00:00Z', happened: false }]];
+    const waiting = publishStatus(record({ posts: { [FILE]: post({ state: 'waiting', at: null, shown: false, version: 'v2', triggers, terms: ['abc'] }) }, held: {} }), FILE, 'v2');
+    assert.deepEqual({ status: waiting.status, at: waiting.at, triggers: waiting.triggers, terms: waiting.terms }, { status: 'scheduled', at: null, triggers, terms: ['abc'] });
   });
 
   test('stays a draft through a failed build, and is failed only for one the site still shows', () => {

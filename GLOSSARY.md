@@ -128,17 +128,21 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Revision**: A form's content as one save left it, kept in the source repository's history; an Editor sees, compares and restores them. _Avoid_: version, history entry.
 
+**Deleted post**: A post whose source file a save removed, which the source history keeps until it is purged; an Editor finds it on the *Deleted* page, in Swedish *Raderat*, reads it with its revisions, and restores it as a draft under its own ID, its revisions following it back. A term or an image library entry is deleted and restored alike. _Avoid_: trashed, archived; trash, bin.
+
 **Refusal**: The intake's or `preSave`'s no to something it cannot publish, or to a save made from a form older than the latest save, naming the post, the block or the field, or the file and line, and the reason, by its name in the catalogues, which the editor shows in the interface language. _Avoid_: error, validation failure.
 
 **Warning**: The intake's word about a post it publishes otherwise than it holds, such as a link shown as text while its target has no page. _Avoid_: refusal, error.
 
-**Ledger**: `.post-ids.json` in the content repository, which only the intake writes: per ID the paths a post has had, the addresses it had while live, the source file's hash and its times; and the moment each scheduled post was seen waiting for. _Avoid_: index, mapping.
+**Ledger**: `.post-ids.json` in the content repository, which only the intake writes: per ID the paths a post has had, the addresses it had while live, the source file's hash and its times; what each scheduled post was seen waiting for; and the moment each post that went out by its triggers did. _Avoid_: index, mapping.
 
 **Content files**: The Markdown and JSON files the intake writes; the published state of a site. A file means *published*. _Avoid_: export, dump.
 
 **Content repository**: The git repository of a site's content files and their history. _Avoid_: content repo.
 
 **Publish**: To make a post's status published, or save a published post. _Avoid_: deploy, release.
+
+**Trigger**: What a scheduled post waits for before it goes out, in Swedish *utlösare*: a moment, the default, or the publishing of another post that meets the conditions an Editor gives; a post's triggers are combined by *and* and *or*, and one that has happened counts however late it is seen. _Avoid_: event (for a trigger), condition (for the trigger as a whole), build request.
 
 **Build**: The run that takes the source files through the intake, commits the content files and makes a new release. _Avoid_: deploy, rebuild.
 
@@ -156,7 +160,7 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Live preview**: The site from its own templates, as it stands at a moment of the timeline, from Astro's dev server on an origin of its own: the page beside the form in Sveltia, at the moment the post being edited goes out, about a second after an editor stops typing, and the site in a tab of its own, browsed as a visitor would, by anyone who may read the site's source, a Reviewer too, signed in through Forgejo. _Avoid_: staging, test copy.
 
-**Timeline**: The moments at which the site will change, *now* first and then each moment a scheduled post or a draft with a moment goes out; the live preview shows the site as it stands at one of them. _Avoid_: time travel, future view.
+**Timeline**: The moments at which the site will change, *now* first and then each moment a scheduled post or a draft with a moment goes out, or a post whose triggers hold then; the live preview shows the site as it stands at one of them. _Avoid_: time travel, future view.
 
 **Share link**: A secret link to one post not yet published, which lets someone without a login read it in a static preview build for three days, or until revoked. _Avoid_: public preview, magic link.
 
@@ -205,6 +209,10 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 **Lossless compression**: The choice, made in the image library before an image is uploaded and ticked for a PNG, that keeps every pixel: the original is a lossless WebP, and its master and every version made of it are lossless too. Without it, an image is compressed as hard as can be done without it showing. _Avoid_: lossless mode, PNG quality.
 
 **Master**: The public version of an original that the intake writes at the site's set size and format, without metadata; of an SVG, the SVG itself, checked and optimised. _Avoid_: derivative, rendition.
+
+**Image version**: One of the fixed widths a build makes of a master, as WebP, never wider than the master, which a page lists in an image's `srcset` for the browser to choose from by the image's `sizes`. _Avoid_: rendition, derivative, thumbnail.
+
+**Image context**: Where a site draws an image, a body, a gallery, the lightbox, a hero or a card, each with the widths of its versions and its `sizes`, from the site's design or the core's. _Avoid_: slot, placement.
 
 **Featured image**: The image a post is shown with, beside its body, with alt text that belongs to the post. _Avoid_: hero image, cover.
 

@@ -14,6 +14,9 @@ const DOT = (tone) => ({ flex: 'none', width: 10, height: 10, borderRadius: '50%
 const LIST = { margin: '4px 0 8px 18px', padding: 0, font: '14px/1.4 system-ui, sans-serif', overflowWrap: 'anywhere' };
 const CELL = { padding: '8px 12px', verticalAlign: 'top', textAlign: 'start', font: '14px/1.4 system-ui, sans-serif', overflowWrap: 'anywhere' };
 const ORDER = { failed: 0, 'being-published': 1, scheduled: 2, live: 3, draft: 4 };
+// What a screen reader reads and the eye does not, and a trigger's tick, which says it in words too.
+const UNSEEN = { position: 'absolute', width: 1, height: 1, margin: -1, padding: 0, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0 };
+const TICK = (happened) => ({ display: 'inline-block', width: '1.2em', color: happened ? TONES.good : TONES.quiet, fontWeight: 600 });
 
 const react = () => globalThis.__SVELTIA_CMS_REACT__;
 
@@ -27,15 +30,30 @@ function useStatus(credential) {
   return status;
 }
 
+// A post's triggers, a row to an item, each trigger ticked where it has happened, the alternatives
+// on a row joined by or and each row after the first begun by and (ADR 0076).
+function TriggerRows({ rows }) {
+  const { createElement: h, Fragment } = react();
+  return h('ul', { style: LIST, 'data-triggers': '' }, rows.map((row, at) => h('li', { key: at, style: { margin: '2px 0' } },
+    at > 0 ? `${say('publishing.and')} ` : null,
+    row.map(({ words, happened }, one) => h(Fragment, { key: one },
+      one > 0 ? ` ${say('publishing.or')} ` : null,
+      h('span', { 'data-happened': happened },
+        h('span', { 'aria-hidden': true, style: TICK(happened) }, happened ? '✓' : '○'),
+        h('span', { style: UNSEEN }, `${say(happened ? 'publishing.happened' : 'publishing.notYet')}: `),
+        words))))));
+}
+
 function PostStatus({ post, site, withLanguage }) {
   const { createElement: h } = react();
-  const { tone, words, details } = statusWords(post);
+  const { tone, words, details, rows } = statusWords(post);
   const language = withLanguage ? languageOf(post) : null;
   return h('div', { role: 'status' },
     h('p', { style: LINE },
       h('span', { 'aria-hidden': true, style: DOT(tone) }),
       h('span', null, language ? `${language}: ${words}` : words, post.status === 'live' && post.address ? ' ' : null,
         post.status === 'live' && post.address ? h('a', { href: new URL(post.address, site).href, target: '_blank', rel: 'noopener' }, say('publishing.showPage')) : null)),
+    rows ? h(TriggerRows, { rows }) : null,
     details.length > 0 ? h('ul', { style: LIST }, details.map((detail) => h('li', { key: detail }, detail))) : null);
 }
 

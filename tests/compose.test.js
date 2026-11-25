@@ -361,6 +361,15 @@ test('passes a form\'s revisions to the service for editors, on the admin host',
   assert.ok(matcher.includes('/_konzilo/revisions'));
 });
 
+// The deleted posts, terms and image library entries (ADR 0077) are listed by the service for
+// editors, from the same history.
+test('passes the deleted entries to the service for editors, on the admin host', () => {
+  const caddyfile = read('compose/web/Caddyfile');
+  const admin = caddyfile.slice(caddyfile.indexOf(':{$KONZILO_PORT_ADMIN}'), caddyfile.indexOf(':{$KONZILO_PORT_PREVIEW}'));
+  const matcher = /@service path (.*)$/m.exec(admin)?.[1].split(' ') ?? [];
+  assert.ok(matcher.includes('/_konzilo/deleted'));
+});
+
 // Who pushed what a private account pushed, Forgejo's feed tells only those who run it, so the
 // service reads the feed by a token of the instance's account that can do nothing but read.
 test('lets the service for editors read who pushed each commit', () => {

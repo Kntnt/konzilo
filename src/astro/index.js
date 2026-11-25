@@ -48,6 +48,11 @@
 // image-service.js has it: an SVG master asked for as a PNG or WebP at a width is
 // drawn at that width. A site that names an image service of its own keeps it.
 //
+// Each image of a body is served in fixed widths, by `srcset` and `sizes`, those
+// of the context it is drawn in, a body's or a gallery's, with the lightbox's
+// widths too, from the site's design or else the core's (image-versions.js); a
+// site's templates take a hero's and a card's from `@kntnt/konzilo/astro/images`.
+//
 // The body styles a site names are loaded by every page (body-styles.js).
 //
 // Every build resolves the colours the site names as its tokens on its start page
@@ -92,6 +97,7 @@ import { contentFolder } from './collections.js';
 import { consentClient, cookieDeclaration, datawrapperHeights, embedPanels, matomoTracker } from '../consent/client.js';
 import { CONSENT_RECORDS, CONSENT_SCRIPT_HEADERS, consentDomain, devConsentScripts, writeConsentScripts } from './consent.js';
 import { pagesWithBareEmbeds } from './embeds.js';
+import { imageContexts, versionsInBody } from './image-versions.js';
 import { lightboxClient } from './lightbox.js';
 import { resolvedColors, tokensOf } from './theme-tokens.js';
 import { blockMarks } from './block-marks.js';
@@ -205,6 +211,19 @@ function ownAddresses() {
       if (!real.startsWith(CORE + sep) || !/\.(js|mjs)$/.test(real)) return null;
       return { code: code.replaceAll('import.meta.url', JSON.stringify(pathToFileURL(real).href)), map: null };
     },
+  };
+}
+
+// The module images.js and Body.astro take the widths and sizes of each context
+// the site draws images in from (image-versions.js).
+const IMAGES = 'virtual:konzilo/images';
+
+function imagesModule(contexts) {
+  const code = `export default ${JSON.stringify(contexts)};\n`;
+  return {
+    name: 'konzilo-images',
+    resolveId: (id) => (id === IMAGES ? `\0${IMAGES}` : undefined),
+    load: (id) => (id === `\0${IMAGES}` ? code : undefined),
   };
 }
 
@@ -398,7 +417,14 @@ function checkPresentations(described, components) {
 // `tokens`: the custom properties that hold the site's colours, by the role each
 // takes, `primary` and `base`, which every build resolves as the site's theme
 // colours (theme-colors.js); none by default.
-export default function konzilo({ directives = {}, presentations = {}, emptyList, formTexts = {}, texts = {}, searchPage, termPage, bodyStyles, tokens } = {}) {
+// `images`: the widths and sizes in which the site's design draws an image, by
+// the context it is drawn in, `body`, `gallery`, `lightbox`, `hero` and `card`,
+// each `{ widths, sizes }`, its widths whole numbers of pixels up to the widest
+// version the core makes, and its sizes the text of a sizes attribute
+// (`{ body: { widths: [480, 960], sizes: '(min-width: 40rem) 40rem, 100vw' } }`);
+// a context or a part of one left out has the core's (image-versions.js).
+export default function konzilo({ directives = {}, presentations = {}, emptyList, formTexts = {}, texts = {}, searchPage, termPage, bodyStyles, tokens, images } = {}) {
+  const contexts = imageContexts(images);
   const ownFormTexts = siteFormTexts(formTexts);
   const ownTexts = givenTexts(texts);
   if (emptyList !== undefined && (typeof emptyList !== 'string' || emptyList.trim() === '')) throw new Error('Konzilo: emptyList must be a text');
@@ -481,6 +507,8 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
         // An embed's panel says in the site's language, its post's on a site
         // in several, that the site's script has not run, until it runs.
         processor.options.hastPlugins.push(...markdownHastPluginsIn(described?.language ?? null, languages));
+        // Each image of a body in the widths and sizes of the context it is drawn in.
+        processor.options.hastPlugins.push(versionsInBody(contexts));
         // In the live preview, each block of a body says which it is, so that a click on it leads
         // to the field.
         if (isLivePreview()) processor.options.hastPlugins.push(blockMarks);
@@ -490,7 +518,7 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
         for (const locale of Object.keys(ownTexts).filter((given) => !languages.some((one) => one.locale === given))) {
           logger.warn(`konzilo({ texts }) gives texts in ${locale}, which the site description does not declare`);
         }
-        updateConfig({ vite: { plugins: [ownAddresses(), directiveComponents(fileURLToPath(config.root), directives), postListModule(fileURLToPath(config.root), presentations, described), formsModule(described), textsModule(shown.texts)] } });
+        updateConfig({ vite: { plugins: [ownAddresses(), directiveComponents(fileURLToPath(config.root), directives), postListModule(fileURLToPath(config.root), presentations, described), formsModule(described), textsModule(shown.texts), imagesModule(contexts)] } });
         // A content file links to a page by its path on the site, as the
         // public site has it. A build below a base of its own, as a preview
         // and a share's preview are, leads each such

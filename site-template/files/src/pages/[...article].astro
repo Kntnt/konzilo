@@ -7,7 +7,8 @@
 // language, with Konzilo's helpers: by default its date, its category and its
 // byline, its authors in the order the editor gave them, each linked to its
 // page where its taxonomy declares an address. Then its topics
-// and its main image, wrapped in the class the body styles
+// and its main image, in the widths and sizes of a body's image, since it
+// stands in the body's column, wrapped in the class the body styles
 // name (astro.config.mjs), in the page's <main>, which its Markdown alternate is
 // made from. Its body goes through Konzilo's Body, which renders each post list
 // in it with its presentation. The cookie declaration follows the body of the
@@ -29,6 +30,7 @@
 import Body from '@kntnt/konzilo/astro/Body.astro';
 import CookieDeclaration from '@kntnt/konzilo/astro/CookieDeclaration.astro';
 import { entryPages, pageTexts } from '@kntnt/konzilo/astro/languages';
+import { imageVersions } from '@kntnt/konzilo/astro/images';
 import { relatedPosts } from '@kntnt/konzilo/astro/post-lists';
 import { Image } from 'astro:assets';
 import { getEntries, render } from 'astro:content';
@@ -60,7 +62,7 @@ const { recommendedReading } = pageTexts(Astro.url);
           <ul class="topics">{topics.map((topic) => <li>{topic.data.name}</li>)}</ul>
         </div>
       )}
-      {article.data.image && <Image class="featured-image" src={article.data.image.src} alt={article.data.image.alt} />}
+      {article.data.image && <Image class="featured-image" src={article.data.image.src} alt={article.data.image.alt} {...imageVersions('body')} />}
       <Body post={article} page={page}><Content /></Body>
       <CookieDeclaration />
     </article>

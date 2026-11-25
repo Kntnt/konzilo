@@ -17,6 +17,7 @@ import { registerImageField } from './image/register.js';
 import { registerGroups } from './groups/register.js';
 import { registerAuthorsField } from './authors/register.js';
 import { registerParts } from './parts/register.js';
+import { registerSchedule } from './schedule/register.js';
 import { registerStructureField } from './structure/register.js';
 import { registerPublishing } from './publishing/register.js';
 import { registerSubmissions } from './submissions/register.js';
@@ -25,6 +26,7 @@ import { registerPersonalData } from './personal-data/register.js';
 import { registerSettings } from './settings/register.js';
 import { registerLock } from './lock/register.js';
 import { registerHistory } from './history/register.js';
+import { registerDeleted } from './deleted/register.js';
 import { chosenLanguage, followSite, languageChanged, loadedWith, say, useInterfaceLanguage } from './interface-language.js';
 import './form.css';
 // The preview's window hides its pane by these; template.js, which shows it, is read by tests too.
@@ -54,10 +56,11 @@ function start() {
   globalThis.__KONZILO_READS_ONLY__ = konzilo.preview ? say('preview.readsOnlyAt', { address: konzilo.preview.origin }) : say('preview.readsOnly');
   useComponents(konzilo.components);
   // First, so that its check of the lock comes before every other check at Save (ADR 0073).
-  registerLock(CMS);
-  registerHistory(CMS, config);
+  const lock = registerLock(CMS);
+  const history = registerHistory(CMS, config);
   registerBodyField(CMS, config);
   registerPublishing(CMS, config);
+  registerDeleted(CMS, config, { history, lock });
   if (konzilo.forms) {
     registerSubmissions(CMS);
     registerMail(CMS);
@@ -66,6 +69,7 @@ function start() {
   // Before the parts' check at Save, which reads what the groups hold.
   registerGroups(CMS, config, konzilo.groups);
   registerParts(CMS, config);
+  registerSchedule(CMS, config);
   registerImageField(CMS, config);
   registerAuthorsField(CMS, config);
   registerStructureField(CMS, config);

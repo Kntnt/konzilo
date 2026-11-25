@@ -205,6 +205,13 @@ const cases = {
   status: [() => onePost({ status: 'perhaps' }), { field: 'status' }],
   'scheduled-date': [() => onePost({ status: 'scheduled' }), { field: 'status' }],
   'scheduled-passed': [() => onePost({ status: 'scheduled', date: '2026-01-01T00:00:00Z' }), { post: true, field: 'date' }, 'warning'],
+  'triggers-date': [() => onePost({ status: 'scheduled', date: '2026-12-01T00:00:00Z', triggers: [[{ moment: '2026-12-01T00:00:00Z' }]] }), { field: 'triggers' }],
+  'triggers-shape': [() => onePost({ status: 'scheduled', triggers: 'soon' }), { field: 'triggers' }],
+  'trigger-moment': [() => onePost({ status: 'scheduled', triggers: [[{ moment: 'soon' }]] }), { field: 'triggers' }],
+  'trigger-since': [() => onePost({ status: 'scheduled', triggers: [[{ published: [[{ type: 'story' }]] }]] }), { field: 'triggers' }],
+  'trigger-type': [() => onePost({ status: 'scheduled', triggers: [[{ published: [[{ type: 'essay' }]], since: '2026-11-01T00:00:00Z' }]] }), { field: 'triggers' }],
+  'trigger-window': [() => onePost({ status: 'scheduled', triggers: [[{ published: [[{ from: '2026-12-02T00:00:00Z', to: '2026-12-01T00:00:00Z' }]], since: '2026-11-01T00:00:00Z' }]] }), { field: 'triggers' }],
+  'triggers-passed': [() => onePost({ status: 'scheduled', triggers: [[{ moment: '2026-10-01T00:00:00Z' }], [{ moment: '2026-10-02T00:00:00Z' }]] }), { post: true, field: 'triggers' }, 'warning'],
   'language-folder': [() => run({
     'articles/sv-SE/aaaaaaaaaaaa.md': article({}, 'Text.'),
     'articles/de-DE/bbbbbbbbbbbb.md': article({ slug: 'annat' }, 'Text.'),

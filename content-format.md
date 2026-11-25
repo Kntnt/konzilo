@@ -1162,7 +1162,8 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
 An ID is text, the name of the post's source file, such as `96ba709ec918`, which never changes. A post's translations share it, so on a site in several languages an entry's key is `<tag>/<ID>`. The file holds, each sorted by its keys:
 
 - **`posts`**, by key, each with `path`, the post's file now, `null` while it has none; `paths`, every path it has had, the first first; `address`, where the current release shows it, which stays while it is off the site; `addresses`, those it had while live, from which its `oldAddresses` come; `title`, as it was published; `source`, the SHA-256 of the source file of its published version, and `published`, that of its published file without `modified`; `taken`, when the intake first took it, the post's `date` where it has none of its own; `modified`, when its published version last changed; and `names`, what its file names, `media`, `terms` and `embeds`, which stay for it while it is refused.
-- **`awaited`**, by key, the moment a scheduled post was seen waiting for, kept while it stays scheduled for that moment, so that it goes live at it with no warning.
+- **`awaited`**, by key, what a scheduled post was seen waiting for, kept while it stays scheduled for it, so that it goes live with no warning: its moment, for a post scheduled for a moment alone, or the SHA-256 of its [triggers](#triggers) as the intake read them.
+- **`released`**, by key, for a post that went out by its triggers, `triggers`, their SHA-256, and `at`, the moment they came to hold, its date, kept while it keeps the same triggers, so that it stays out whatever becomes of what released it. The file names it only where a post has one.
 - **`terms`**, by the term's ID, each with the `address` of its page and the `addresses` it has had, for a taxonomy with an address.
 - **`files`**, the SHA-256 of each of an Admin's source files the site last took.
 - **`chosen`**, the posts the settings last chose as `legalPages` and for `notFound`, and as `startPage`, which it names only where one is chosen.
@@ -1598,7 +1599,33 @@ The source files are what the intake reads: what editors save, one file per thin
 | `media/<name>` | Originals, in Git LFS. One the editor uploads is a WebP its browser made of the chosen JPEG, PNG or WebP, upright, in sRGB, its longest side at most `imageUpload.longestSide` in the settings, at `imageUpload.quality`, and without metadata; or, with *Lossless compression*, a lossless WebP, which marks the image lossless. An SVG is as it was chosen, and a file that reaches the source another way, as an import, as it came. |
 | `image-library/<ID>.json` | An entry of the image library, which no content file reads: `src`, `/media/<name>`; `alt`; `caption`, left out when it has none; and `lossless`, `true` where the editor uploaded the file with *Lossless compression*, else left out. It records the editor's choice, and the original's own encoding is what the intake and the build go by. |
 
-A post's frontmatter holds `title`; `slug`, made from the title if left empty; `parent`, the ID of a post of its type, in a hierarchical type; `status`, `draft`, `scheduled` or `published`, a draft when left out; `date`, which also says when a scheduled post goes live, and a scheduled post whose moment had passed when the intake first read it goes live at once, with that moment as its date and a warning; each field its type declares, a taxonomy's terms by their IDs, a list or, for a field of one term at most, the ID alone, an image by `/media/<name>`; where the type has the search and sharing fields, `search` (`title`, `description`, `canonical`, `noindex`, `nofollow`), `sharing` (`image`, `{ "src", "alt" }`, `title`, `description`) and `structured` (`schema`), three groups the intake writes as the one `seo` map, and never `seo` itself, which is refused; `otherAddresses`, each `{ "address", "answer" }`; and on a site in several languages `translationKey` where the same ID does not tie a translation set. What the intake derives is in no source file: `modified`, `oldAddresses`, masters, `consent.json` and `not-found.md`.
+A post's frontmatter holds `title`; `slug`, made from the title if left empty; `parent`, the ID of a post of its type, in a hierarchical type; `status`, `draft`, `scheduled` or `published`, a draft when left out; `date`, which also says when a scheduled post goes live, and a scheduled post whose moment had passed when the intake first read it goes live at once, with that moment as its date and a warning; `triggers`, in place of `date`, on a scheduled post that waits for more than a moment alone ([Triggers](#triggers)); each field its type declares, a taxonomy's terms by their IDs, a list or, for a field of one term at most, the ID alone, an image by `/media/<name>`; where the type has the search and sharing fields, `search` (`title`, `description`, `canonical`, `noindex`, `nofollow`), `sharing` (`image`, `{ "src", "alt" }`, `title`, `description`) and `structured` (`schema`), three groups the intake writes as the one `seo` map, and never `seo` itself, which is refused; `otherAddresses`, each `{ "address", "answer" }`; and on a site in several languages `translationKey` where the same ID does not tie a translation set. What the intake derives is in no source file: `modified`, `oldAddresses`, masters, `consent.json` and `not-found.md`.
+
+### Triggers
+
+A scheduled post waits for its *triggers* before it goes out: a moment, which has happened once it has passed, or the publishing of another post that meets the conditions an Editor gives, which has happened once such a post is published. One scheduled for a moment alone holds it in `date`, as it always has. One that waits for more holds them all in `triggers`, and no `date`: a list of rows, each a list of triggers, those on one row alternatives, combined by *or*, and the rows combined by *and*.
+
+- **A moment**, `{ "moment": "<moment>" }`.
+- **A post published**, `{ "published": [[<condition>, …], …], "since": "<moment>" }`: its conditions in rows the same way, every one of them about the same post. `since` is when the trigger was last changed, which the form writes; only a post published from then on counts. A condition is `{ "type": "<type>" }`, the post is of the type, by its name in the site description; `{ "words": "<words>" }`, its title holds each word, whole and whatever its case; `{ "term": "<ID>" }`, it has the term, of any taxonomy, or one below it; or `{ "from": "<moment>", "to": "<moment>" }`, it is published within the window, either end left out where it has none, and never before `since`.
+
+A post is published at its date on the site: its own, else the moment the intake first took it. The waiting post never counts for itself, nor a post that is refused. A trigger is a state, not an edge: a moment passed or a matching post published while no build ran still counts at the next. The post's `date` on the site is the moment its triggers came to hold, the last of those an *and* needs, so the same source gives the same date. A post that waits for a post that itself waited goes out in the same build, after it, and posts that wait for each other in a cycle wait. One that went out stays out, by the ledger's `released`, whatever becomes of what released it; one whose triggers change waits for its new ones. One whose triggers had held before the site first read it goes out at once, with that moment as its date and a warning, as a passed moment does. A post with triggers is refused where it also has a `date`, where they are not of this shape, where a moment is none, where a post-published trigger has no `since`, where a type is none of the site's, and where a window ends before it starts.
+
+```yaml
+status: scheduled
+triggers:
+  - - moment: 2026-12-01T08:00:00Z
+    - published:
+        - - type: article
+        - - words: harbour opening
+          - term: 3f9a1c2b7d01
+      since: 2026-11-25T10:00:00Z
+  - - published:
+        - - from: 2026-11-26T00:00:00Z
+            to: 2026-12-31T00:00:00Z
+      since: 2026-11-25T10:00:00Z
+```
+
+This post goes out on the 1st of December, or before it once an article whose title holds both words, or which has the term, is published; and in either case not before some post is published within the window.
 
 A site's demo content, the fictional content a local copy starts with, is content files, never source files, and holds a scheduled post as a post whose `date` lies ahead. Compose's seed makes each post a source file with `status: published`, but one dated after the moment it seeds, which it makes `scheduled` for that `date`. A copy without Compose leaves such a post out of the content folder it fills, and one filled after the post's moment holds it as published. The page for addresses not found, `not-found.md`, is never scheduled, whatever its date: the seed makes it `published`, and a copy holds it.
 

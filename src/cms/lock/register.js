@@ -8,7 +8,8 @@
 // deletion, `konziloBeforeDeleting`; for a save older than the latest, `konziloConflictWords` and
 // the words of its Reload; for a draft backup that can no longer be saved, `konziloStaleBackup`; and
 // before it looks for a draft backup, `konziloLockSettled`, so that it finds the form's lock known.
-// Before each save the keeper checks the lock, as a `preSave` handler.
+// Before each save the keeper checks the lock, as a `preSave` handler, and the *Deleted* page holds
+// a deleted entry's form for its restore by what registerLock() gives.
 
 import { signedInCredential } from '../credential.js';
 import { made, madeButton } from '../elements.js';
@@ -189,4 +190,8 @@ export function registerLock(CMS) {
   globalThis.konziloConflictWords = conflictWords;
   globalThis.__KONZILO_RELOAD_WORDS__ = say('lock.reload');
   globalThis.konziloStaleBackup = (timestamp) => keeper.staleBackup(new Date(timestamp).toISOString());
+
+  // What the *Deleted* page restores a deleted entry under (ADR 0077): the lock of its form, held
+  // for the restore, as for a deletion from the list.
+  return { beforeRestoring: (form) => keeper.beforeRestoring(form) };
 }

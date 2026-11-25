@@ -33,6 +33,9 @@ function postsFrom(report, versions) {
     title: post.title,
     state: post.state,
     at: post.at,
+    // A scheduled post's triggers and its terms, which the editor's check at Save looks for a
+    // cycle among (ADR 0076).
+    ...(post.triggers ? { triggers: post.triggers, terms: post.terms ?? [] } : {}),
     address: post.address,
     shown: post.shown,
     version: versions[post.file],
