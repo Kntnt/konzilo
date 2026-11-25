@@ -15,7 +15,7 @@
 // is content-security-policy.test.js's.
 
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -23,7 +23,7 @@ import { dirname, join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { HEADER_LIMIT } from '../src/astro/security-headers.js';
-import { astroConfig, astroEnvironment } from './lib/astro.js';
+import { astroConfig, astroEnvironment, nodeSync } from './lib/astro.js';
 
 // The npm package, which a site installs beside Astro.
 const core = fileURLToPath(new URL('../', import.meta.url));
@@ -130,7 +130,7 @@ describe('the static build', () => {
     };
     for (const [name, description] of Object.entries(descriptions)) {
       const repository = siteRepository(description);
-      const built = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
+      const built = nodeSync([astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
       builds[name] = { repository, built };
     }
   });

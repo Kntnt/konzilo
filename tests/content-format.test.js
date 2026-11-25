@@ -11,7 +11,6 @@
 // data knows.
 
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -21,7 +20,7 @@ import { registryOf } from '../src/astro/directives.js';
 import { BUILT_IN_TAXONOMIES, BUILT_IN_TYPES } from '../src/format/built-in-types.js';
 import { readContentFile } from '../src/astro/reader.js';
 import { CORE_FIELDS, FIELD_TYPES, IDENTITY, OLD_ADDRESSES, OTHER_ADDRESSES, SEO_FIELD, SEO_KEYS, SETTING_TYPES, siteDescription, TRANSLATION_KEY } from '../src/site-description.js';
-import { astroEnvironment } from './lib/astro.js';
+import { astroEnvironment, nodeSync } from './lib/astro.js';
 import { contentFormat, exampleFile, markedExamples, siteOf, unnamed } from './lib/content-format.js';
 import { drawing, plainImage, sharp } from './lib/images.js';
 
@@ -135,7 +134,7 @@ describe('the content format document\'s files, as a site built from the site te
       writeFileSync(join(content, 'media', master), bytes);
     }
 
-    const built = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
+    const built = nodeSync([astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
     assert.equal(built.status, 0, built.stderr + built.stdout);
     const file = join(repository, 'dist/pages/a-tour/index.html');
     page = existsSync(file) ? readFileSync(file, 'utf8') : '';

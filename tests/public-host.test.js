@@ -5,13 +5,12 @@
 // is not told its public host fails at once, naming what to set.
 
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { astroConfig, astroEnvironment, ORIGIN } from './lib/astro.js';
+import { astroConfig, astroEnvironment, nodeSync, ORIGIN } from './lib/astro.js';
 import { paragraphs, post, siteSettingsArgs, writeContent } from './lib/content.js';
 
 // The npm package, which a site installs beside Astro, and its command.
@@ -81,7 +80,7 @@ function build(description, environment) {
   siteSettingsArgs(repository);
   const exported = writeContent(repository, posts);
   assert.equal(exported.status, 0, exported.stderr);
-  const built = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: environment });
+  const built = nodeSync([astro, 'build'], { cwd: repository, encoding: 'utf8', env: environment });
   return { repository, built, output: (path) => readFileSync(join(repository, 'dist', path), 'utf8') };
 }
 

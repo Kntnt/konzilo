@@ -9,7 +9,7 @@
 //   what would tell the visitor apart, and shows no page of its own there.
 
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer, request as httpRequest } from 'node:http';
 import { createServer as createNetServer } from 'node:net';
@@ -17,7 +17,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { astroConfig, astroEnvironment } from './lib/astro.js';
+import { astroConfig, astroEnvironment, nodeSync } from './lib/astro.js';
 
 // The npm package, which a site installs beside Astro.
 const core = fileURLToPath(new URL('../', import.meta.url));
@@ -66,7 +66,7 @@ function siteRepository(files) {
 function build(files) {
   const repository = siteRepository(files);
   try {
-    const built = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
+    const built = nodeSync([astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
     return { ...built, formNotSent: existsSync(join(repository, 'dist/_konzilo/form-not-sent.html')) };
   } finally {
     rmSync(repository, { recursive: true, force: true });

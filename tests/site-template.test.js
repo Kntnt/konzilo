@@ -17,13 +17,12 @@
 // page's language.
 
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { astroEnvironment } from './lib/astro.js';
+import { astroEnvironment, nodeSync } from './lib/astro.js';
 import { paragraphs, post, term, writeContent } from './lib/content.js';
 import { drawing, plainImage, sharp, shortHash } from './lib/images.js';
 
@@ -77,7 +76,7 @@ function build(repository, identity, { given = posts, settings: own = {}, menu =
   writeFileSync(file, JSON.stringify({ menus: { main: menu }, settings: { footerText: 'Open every day.', ...own }, redirects: [], identity }));
   const exported = writeContent(repository, given);
   assert.equal(exported.status, 0, exported.stderr);
-  const built = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
+  const built = nodeSync([astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
   assert.equal(built.status, 0, built.stderr + built.stdout);
   const page = (path) => (existsSync(join(repository, 'dist', path)) ? readFileSync(join(repository, 'dist', path), 'utf8') : null);
   return page;
@@ -703,7 +702,7 @@ describe('the site template in Swedish and English, built by Astro', () => {
     for (const tag of ['sv', 'en']) menuPage(repository, `${tag}/menu.astro`);
     const exported = writeContent(repository, given);
     assert.equal(exported.status, 0, exported.stderr);
-    built = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
+    built = nodeSync([astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
     page = (path) => (existsSync(join(repository, 'dist', path)) ? readFileSync(join(repository, 'dist', path), 'utf8') : null);
   });
 
@@ -988,7 +987,7 @@ describe('the site template in Swedish and English, built by Astro', () => {
     writeFileSync(file, JSON.stringify({ menus: {}, settings: {}, redirects: [], identity, languages: { en_GB: { title: 'The Lantern' } } }));
     const again = writeContent(repository, given);
     assert.equal(again.status, 0, again.stderr);
-    const rebuilt = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
+    const rebuilt = nodeSync([astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
     assert.equal(rebuilt.status, 0, rebuilt.stderr + rebuilt.stdout);
     for (const path of ['sv/index.html', 'en/index.html']) {
       assert.match(header(page(path)), /<img src="\/_astro\/logo-[^"]+\.svg" alt="En lykta"/, path);
@@ -1007,7 +1006,7 @@ describe('the site template in Swedish and English, built by Astro', () => {
     const again = writeContent(repository, given);
     assert.equal(again.status, 0, again.stderr);
     assert.ok(existsSync(join(repository, 'content', 'not-found', 'en-GB.md')));
-    const rebuilt = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
+    const rebuilt = nodeSync([astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
     assert.equal(rebuilt.status, 0, rebuilt.stderr + rebuilt.stdout);
     for (const path of ['404.html', 'sv/404.html']) {
       assert.match(main(page(path)), /<h1>Hamnen<\/h1>\s*<p>Hamnen\.<\/p>/, path);

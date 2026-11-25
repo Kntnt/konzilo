@@ -13,7 +13,7 @@
 //   route and shows the results, the pages of them and its messages.
 
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer, request as httpRequest } from 'node:http';
 import { createRequire } from 'node:module';
@@ -24,7 +24,7 @@ import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { scopedSearchKey, searchParameters } from '@kntnt/konzilo/search';
 import { searchClient } from '../src/astro/search-client.js';
-import { astroConfig, astroEnvironment, ORIGIN } from './lib/astro.js';
+import { astroConfig, astroEnvironment, nodeSync, ORIGIN } from './lib/astro.js';
 
 const core = fileURLToPath(new URL('../', import.meta.url));
 const astro = join(core, 'node_modules/astro/bin/astro.mjs');
@@ -99,7 +99,7 @@ function build(site, options, base, more = {}) {
   const repository = siteRepository({ ...more, 'site-description.json': JSON.stringify(site), 'astro.config.mjs': astroConfig(integration, options) });
   try {
     const args = [astro, 'build', ...(base ? ['--base', base] : [])];
-    const built = spawnSync(process.execPath, args, { cwd: repository, encoding: 'utf8', env: astroEnvironment });
+    const built = nodeSync(args, { cwd: repository, encoding: 'utf8', env: astroEnvironment });
     const dist = join(repository, 'dist');
     const files = {};
     const walk = (folder, prefix) => {

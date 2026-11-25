@@ -13,14 +13,13 @@
 // handed: the container is seen as the script element the page adds.
 
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { astroConfig, astroEnvironment, ORIGIN } from './lib/astro.js';
+import { astroConfig, astroEnvironment, nodeSync, ORIGIN } from './lib/astro.js';
 import { paragraphs, post, identity, siteSettingsArgs, writeContent } from './lib/content.js';
 
 const core = fileURLToPath(new URL('../', import.meta.url));
@@ -93,7 +92,7 @@ function build({ tagManager = MATOMO, consent, launched = '1', base = '/' } = {}
     const environment = { ...astroEnvironment };
     if (launched === null) delete environment.KONZILO_LAUNCHED;
     else environment.KONZILO_LAUNCHED = launched;
-    const built = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: environment });
+    const built = nodeSync([astro, 'build'], { cwd: repository, encoding: 'utf8', env: environment });
     assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
     log = `${built.stdout}\n${built.stderr}`;
   } catch (error) {

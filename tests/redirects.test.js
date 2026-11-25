@@ -15,14 +15,14 @@
 //   that reads no such list.
 
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { astroConfig, astroEnvironment } from './lib/astro.js';
+import { astroConfig, astroEnvironment, nodeSync } from './lib/astro.js';
 import { paragraphs, post, writeContent } from './lib/content.js';
 
 // The npm package, which a site installs beside Astro, and its command.
@@ -144,7 +144,7 @@ describe('the static build', () => {
     repository = siteRepository();
     writeInto(repository, posts);
     write(repository, 'content/articles/elsewhere.md', listingTaken);
-    built = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
+    built = nodeSync([astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
   });
 
   after(() => rmSync(repository, { recursive: true, force: true }));
@@ -468,7 +468,7 @@ describe('a site in several languages', () => {
       { id: 51, from: '/gammal/', to: '/sv/hamnljus/', status: 301 },
     ]);
     try {
-      const built = spawnSync(process.execPath, [astro, 'build'], { cwd: own, encoding: 'utf8', env: astroEnvironment });
+      const built = nodeSync([astro, 'build'], { cwd: own, encoding: 'utf8', env: astroEnvironment });
       assert.equal(built.status, 0, built.stderr + built.stdout);
       const page = (path) => readFileSync(join(own, 'dist', path), 'utf8');
       assert.match(page('en/old/index.html'), /<html lang="en-GB">/);
@@ -487,7 +487,7 @@ describe('a site in several languages', () => {
   test('a build whose design has a page of its own at the root keeps it there, and warns that the root does not lead to the main language\'s start page', () => {
     const own = languagesRepository({ 'src/pages/index.astro': '<h1>Our own root</h1>\n' });
     try {
-      const built = spawnSync(process.execPath, [astro, 'build'], { cwd: own, encoding: 'utf8', env: astroEnvironment });
+      const built = nodeSync([astro, 'build'], { cwd: own, encoding: 'utf8', env: astroEnvironment });
       assert.equal(built.status, 0, built.stderr + built.stdout);
       assert.match(readFileSync(join(own, 'dist/index.html'), 'utf8'), /Our own root/);
       assert.doesNotMatch(readFileSync(join(own, 'dist/_redirects'), 'utf8'), /^\/ /m);

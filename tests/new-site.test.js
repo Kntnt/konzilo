@@ -5,14 +5,14 @@
 // code. It needs no PHP, no database and no container.
 
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { WATCH } from './lib/astro.js';
+import { commandSync, WATCH } from './lib/astro.js';
 import { OWN_DEMO, writeOwnDemoContent } from './lib/demo-content.js';
 
 const core = fileURLToPath(new URL('../', import.meta.url));
@@ -20,7 +20,7 @@ const environment = { ...process.env, ASTRO_TELEMETRY_DISABLED: '1' };
 delete environment.KONZILO_ORIGIN;
 
 function run(command, args, cwd, env = environment) {
-  return spawnSync(command, args, { cwd, encoding: 'utf8', env });
+  return commandSync(command, args, { cwd, encoding: 'utf8', env });
 }
 
 const freePort = () => new Promise((resolve, reject) => {

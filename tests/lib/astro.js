@@ -1,5 +1,6 @@
 // The Astro configuration of a throwaway site repository in this suite, with
-// Konzilo's integration, and the environment its builds run in.
+// Konzilo's integration, the environment its builds run in, and how the suite
+// waits for a build.
 //
 // Each such repository links node_modules to the core's, so Astro's default
 // cache, node_modules/.astro, would be one folder for every build the suite
@@ -24,6 +25,8 @@
 // file events do. In Linux it keeps the kernel's events, which come at once and
 // only for what happens after the watching starts.
 
+import { spawnSync } from 'node:child_process';
+
 export const CACHE_DIR = '.astro-cache';
 
 // How Vite's watcher learns of a change, as its `server.watch`.
@@ -45,4 +48,26 @@ export const astroEnvironment = { ...process.env, ASTRO_TELEMETRY_DISABLED: '1',
 export function astroConfig(integration, options) {
   const given = options === undefined ? '' : JSON.stringify(options);
   return `import konzilo from ${JSON.stringify(integration)};\n\nexport default { cacheDir: './${CACHE_DIR}', vite: { cacheDir: './${CACHE_DIR}/vite', server: { watch: ${JSON.stringify(WATCH)} } }, integrations: [konzilo(${given})] };\n`;
+}
+
+// How long the suite waits for a build, or another command it starts and waits for, before
+// it stops it: several times what the slowest takes while the machine is at its busiest.
+export const ENDS_WITHIN = 600_000;
+
+// `command` with `args`, waited for as spawnSync() waits, with its `options`, but no longer
+// than ENDS_WITHIN: one that has not ended by then is stopped, and its test fails saying
+// so, where it would have kept the whole run waiting with no word of why.
+export function commandSync(command, args, options = {}) {
+  const within = options.timeout ?? ENDS_WITHIN;
+  // Stopped outright: a Node whose main thread waits in its exit runs no handler of a signal.
+  const result = spawnSync(command, args, { killSignal: 'SIGKILL', ...options, timeout: within });
+  if (result.error?.code === 'ETIMEDOUT') {
+    throw new Error(`${[command, ...args].join(' ')} had not ended after ${within / 1000} seconds, and was stopped`);
+  }
+  return result;
+}
+
+// Node with `args`, as a build of the suite runs Astro's command, waited for likewise.
+export function nodeSync(args, options) {
+  return commandSync(process.execPath, args, options);
 }

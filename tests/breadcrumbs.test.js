@@ -13,14 +13,13 @@
 // of them. Built again below a preview's base, and again in Swedish.
 
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { astroConfig, astroEnvironment } from './lib/astro.js';
+import { astroConfig, astroEnvironment, nodeSync } from './lib/astro.js';
 import { paragraphs, post, writeContent } from './lib/content.js';
 
 const ORIGIN = 'https://www.example.com';
@@ -118,7 +117,7 @@ function build(language, base, current = true) {
   write('site-settings.json', JSON.stringify({ menus: {}, settings: { breadcrumbs: ending }, redirects: [], identity: { title: 'The Quiet Lantern', logo: null, icon: null } }));
   const exported = writeContent(repository, posts());
   assert.equal(exported.status, 0, exported.stderr);
-  const built = spawnSync(process.execPath, [astro, 'build', ...(base ? ['--base', base] : [])], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
+  const built = nodeSync([astro, 'build', ...(base ? ['--base', base] : [])], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
   assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
   return (path) => new JSDOM(readFileSync(join(repository, 'dist', path, 'index.html'), 'utf8')).window.document;
 }

@@ -12,7 +12,7 @@
 //   types, and follows each change of the content at once.
 
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -22,7 +22,7 @@ import { fileURLToPath } from 'node:url';
 import { GROUP, robotsTxt } from '../src/astro/robots.js';
 import { LIMIT, sitemapAddresses, sitemapFiles } from '../src/astro/sitemap.js';
 import { siteDescription } from '../src/site-description.js';
-import { astroConfig, astroEnvironment, ORIGIN } from './lib/astro.js';
+import { astroConfig, astroEnvironment, nodeSync, ORIGIN } from './lib/astro.js';
 import { paragraphs, post, writeContent } from './lib/content.js';
 
 // The npm package, which a site installs beside Astro, and its command.
@@ -115,7 +115,7 @@ function writeInto(repository, exported) {
 }
 
 function build(repository) {
-  return spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
+  return nodeSync([astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
 }
 
 // The sitemap of the posts above, for https://www.example.com, written by

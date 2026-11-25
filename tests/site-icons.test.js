@@ -7,14 +7,14 @@
 // A site without an icon gets none of them.
 
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { astroConfig, astroEnvironment } from './lib/astro.js';
+import { astroConfig, astroEnvironment, nodeSync } from './lib/astro.js';
 import { paragraphs, post, writeContent } from './lib/content.js';
 import { sharp } from './lib/images.js';
 
@@ -101,7 +101,7 @@ function writeWith(repository, identity) {
 // icon's master the writer wrote, if any; and the build's log.
 function build(repository, identity, { args = [], outDir = 'dist' } = {}) {
   writeWith(repository, identity);
-  const built = spawnSync(process.execPath, [astro, 'build', '--outDir', outDir, ...args], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
+  const built = nodeSync([astro, 'build', '--outDir', outDir, ...args], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
   assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
   const dist = join(repository, outDir);
   const icons = Object.fromEntries(ICONS.map((name) => [name, existsSync(join(dist, name)) ? readFileSync(join(dist, name)) : undefined]));
@@ -282,7 +282,7 @@ describe('a site with an icon file of its own', () => {
       try {
         mkdirSync(dirname(join(repository, path)), { recursive: true });
         writeFileSync(join(repository, path), contents);
-        const built = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
+        const built = nodeSync([astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
         assert.notEqual(built.status, 0, path);
         assert.ok(`${built.stdout}${built.stderr}`.includes(`Konzilo writes the site's ${address} itself, so the site may not have one of its own: remove ${path}`), `${built.stdout}${built.stderr}`);
       } finally {

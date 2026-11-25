@@ -11,13 +11,12 @@
 // declares an address without a term page fails its build, naming it.
 
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { CACHE_DIR, astroEnvironment } from './lib/astro.js';
+import { astroEnvironment, CACHE_DIR, nodeSync } from './lib/astro.js';
 
 const core = fileURLToPath(new URL('../', import.meta.url));
 const astro = join(core, 'node_modules/astro/bin/astro.mjs');
@@ -148,7 +147,7 @@ function build(files, given = options) {
   write('src/content.config.mjs', `import { collections as konziloCollections } from ${JSON.stringify(integration)};\n\nexport const collections = konziloCollections();\n`);
   write('site-description.json', JSON.stringify(site));
   for (const [path, contents] of Object.entries({ ...components, ...content, ...files })) write(path, contents);
-  const built = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
+  const built = nodeSync([astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
   const file = (path) => join(repository, 'dist', path);
   const part = (tag) => (path) => new RegExp(`<${tag}>(.*)</${tag}>`, 's').exec(readFileSync(file(join(path, 'index.html')), 'utf8'))?.[1].replaceAll('\n', '');
   return { status: built.status, output: `${built.stdout}\n${built.stderr}`, main: part('main'), head: part('head'), has: (path) => existsSync(file(path)), text: (path) => readFileSync(file(path), 'utf8') };

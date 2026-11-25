@@ -15,7 +15,6 @@
 // (security-headers.test.js).
 
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -23,7 +22,7 @@ import { dirname, join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { contentSecurityPolicy, policyText, releaseCode } from '../src/astro/content-security-policy.js';
-import { astroConfig, astroEnvironment } from './lib/astro.js';
+import { astroConfig, astroEnvironment, nodeSync } from './lib/astro.js';
 import { post, identity, siteSettingsArgs, writeContent } from './lib/content.js';
 
 // The npm package, which a site installs beside Astro, and its command.
@@ -121,7 +120,7 @@ function build({ pages = {}, posts = [article], services = [] } = {}) {
   siteSettingsArgs(repository, siteSettings);
     const exported = writeContent(repository, posts);
   assert.equal(exported.status, 0, exported.stderr);
-  const built = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
+  const built = nodeSync([astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
   return { repository, built, output: `${built.stdout}\n${built.stderr}` };
 }
 

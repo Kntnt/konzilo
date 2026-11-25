@@ -9,7 +9,6 @@
 // script run on the built page under jsdom.
 
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
@@ -19,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { isCookiePolicy } from '../src/astro/consent.js';
 import { CATALOGUES } from '../src/catalogues.js';
 import { declarationView } from '../src/consent/markup.js';
-import { astroConfig, astroEnvironment, ORIGIN } from './lib/astro.js';
+import { astroConfig, astroEnvironment, nodeSync, ORIGIN } from './lib/astro.js';
 import { paragraphs, post, siteSettingsArgs, writeContent } from './lib/content.js';
 
 // The npm package, which a site installs beside Astro, and its command.
@@ -139,7 +138,7 @@ function build({ language = 'en_GB', posts = [videos, privacy, cookies], setting
     siteSettingsArgs(repository, settings);
     const exported = writeContent(repository, posts);
     assert.equal(exported.status, 0, exported.stderr);
-    const built = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
+    const built = nodeSync([astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
     assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
   } catch (error) {
     rmSync(repository, { recursive: true, force: true });

@@ -11,13 +11,12 @@
 // register fails, naming it.
 
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { CACHE_DIR, astroEnvironment } from './lib/astro.js';
+import { astroEnvironment, CACHE_DIR, nodeSync } from './lib/astro.js';
 import { settingsFile } from './lib/content.js';
 
 const core = fileURLToPath(new URL('../', import.meta.url));
@@ -170,7 +169,7 @@ function build(files, options, { base = content, env = {} } = {}) {
   write('src/pages/[...slug].astro', template('articles'));
   write('src/pages/pages/[...slug].astro', template('pages'));
   for (const [path, contents] of Object.entries({ ...components, ...base, ...files })) write(path, contents);
-  const built = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: { ...astroEnvironment, ...env } });
+  const built = nodeSync([astro, 'build'], { cwd: repository, encoding: 'utf8', env: { ...astroEnvironment, ...env } });
   const file = (path) => join(repository, 'dist', path);
   const part = (tag) => (path) => new RegExp(`<${tag}>(.*)</${tag}>`, 's').exec(readFileSync(file(join(path, 'index.html')), 'utf8'))?.[1].replaceAll('\n', '');
   const has = (path) => existsSync(file(path));

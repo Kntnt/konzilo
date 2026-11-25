@@ -11,7 +11,6 @@
 //   page's exactly.
 
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
@@ -22,7 +21,7 @@ import { feedTitle, siteFeeds } from '../src/astro/feeds.js';
 import { renderTemplate } from '../src/metadata-templates.js';
 import { ALTERNATES, headTags, templateValues } from '../src/astro/search-and-sharing.js';
 import { siteDescription } from '../src/site-description.js';
-import { astroConfig, astroEnvironment } from './lib/astro.js';
+import { astroConfig, astroEnvironment, nodeSync } from './lib/astro.js';
 import { paragraphs, post as sitePost, writeContent } from './lib/content.js';
 import { alike, drawing, plainImage, QUARTERS, quarterColours, sharp, shortHash } from './lib/images.js';
 
@@ -335,7 +334,7 @@ describe('a site built with astro build for https://www.example.com', () => {
     write('site-settings.json', JSON.stringify(siteSettings(search)));
     const exported = writeContent(repository, posts());
     assert.equal(exported.status, 0, exported.stderr);
-    const built = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
+    const built = nodeSync([astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
     assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
     return (path) => headOf(readFileSync(join(repository, 'dist', path, 'index.html'), 'utf8'));
   }

@@ -3,13 +3,12 @@
 // none builds as before.
 
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { astroConfig, astroEnvironment } from './lib/astro.js';
+import { astroConfig, astroEnvironment, nodeSync } from './lib/astro.js';
 import { paragraphs, post, siteSettingsArgs, writeContent } from './lib/content.js';
 
 // The npm package, which a site installs beside Astro, and its command.
@@ -108,7 +107,7 @@ function write(repository, path, contents) {
   writeFileSync(join(repository, path), contents);
 }
 
-const build = (repository) => spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
+const build = (repository) => nodeSync([astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
 
 // The CSS a built page loads: its stylesheets' and its own style elements'.
 function cssOf(dist, page) {

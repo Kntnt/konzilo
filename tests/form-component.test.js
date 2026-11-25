@@ -7,7 +7,6 @@
 // form to the real service in a browser (acceptance/compose.test.js).
 
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
@@ -15,7 +14,7 @@ import { dirname, join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { FORM_NOT_SENT } from '../src/astro/forms.js';
-import { astroConfig, astroEnvironment, ORIGIN } from './lib/astro.js';
+import { astroConfig, astroEnvironment, nodeSync, ORIGIN } from './lib/astro.js';
 import { identity, siteSettingsArgs, writeContent } from './lib/content.js';
 
 // The npm package, which a site installs beside Astro, and its command.
@@ -112,7 +111,7 @@ function build({ language = 'en_GB', languages, declared = forms, siteSettings =
     siteSettingsArgs(repository, siteSettings);
     const exported = writeContent(repository, []);
     assert.equal(exported.status, 0, exported.stderr);
-    const built = spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
+    const built = nodeSync([astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
     if (fails) {
       rmSync(repository, { recursive: true, force: true });
       assert.notEqual(built.status, 0, 'the build fails');

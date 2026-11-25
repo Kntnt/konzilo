@@ -2,14 +2,14 @@
 // what takes part, what each gives, and how the dev server answers them.
 
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { astroConfig, astroEnvironment } from './lib/astro.js';
+import { astroConfig, astroEnvironment, nodeSync } from './lib/astro.js';
 import { postFile, settingsFile, writeFiles } from './lib/content.js';
 import { plainImage, sharp } from './lib/images.js';
 import { markdownAddress, markdownAlternate, pageOfMarkdown, prefersMarkdown } from '../src/astro/markdown-alternates.js';
@@ -239,7 +239,7 @@ function writeInto(repository, disk, ai = AI) {
 }
 
 function build(repository) {
-  return spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
+  return nodeSync([astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
 }
 
 // Every .md file of a release, by its path from the release's root.

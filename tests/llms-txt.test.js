@@ -20,14 +20,14 @@
 // - A file of the site's own at either address fails the build.
 
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { astroConfig, astroEnvironment } from './lib/astro.js';
+import { astroConfig, astroEnvironment, nodeSync } from './lib/astro.js';
 import { paragraphs, post, writeContent } from './lib/content.js';
 import { llmsTxt, typesInOrder } from '../src/astro/llms-txt.js';
 import { siteDescription } from '../src/site-description.js';
@@ -238,7 +238,7 @@ function writeInto(repository, ai = DEFAULTS, description = DESCRIPTION) {
 }
 
 function build(repository) {
-  return spawnSync(process.execPath, [astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
+  return nodeSync([astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
 }
 
 test('orders the types of both files: the built-in page, then the built-in article, then the rest as declared', () => {
