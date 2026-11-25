@@ -204,7 +204,11 @@ test('publishes ports on the web server alone, and on this machine alone', () =>
 test('answers for its own names alone, on each of its four hosts, and refuses every other first', () => {
   const caddyfile = read('compose/web/Caddyfile');
   const code = (text) => text.split('\n').filter((line) => !/^\s*#/.test(line)).join('\n');
-  assert.match(code(caddyfile), /^\(own_hosts\) \{\n\t@foreign not host \{\$KONZILO_WEB_HOSTS\}\n\thandle @foreign \{\n\t\trespond 421\n\t\}\n\}$/m);
+  // The names by a setting, by default a local copy's, as Compose's own default gives them, so that
+  // the web image started without it answers for the loopback's names, as each peer by default is
+  // where Compose puts it; Caddy 2.11 reads a default with spaces as its names, one by one.
+  const [, fallback] = /^\(own_hosts\) \{\n\t@foreign not host \{\$KONZILO_WEB_HOSTS:([^}]+)\}\n\thandle @foreign \{\n\t\trespond 421\n\t\}\n\}$/m.exec(code(caddyfile)) ?? [];
+  assert.equal(fallback, 'localhost 127.0.0.1 ::1 *.localhost');
   // At its own level, as Caddy sorts it: the refusal, and one handle that holds the rest.
   const level = (block, depth) => code(block).split('\n').filter((line) => new RegExp(`^\\t{${depth}}[^\\t}]`).test(line)).map((line) => line.trim());
   const hosts = [...caddyfile.matchAll(/^:\{\$KONZILO_PORT_([A-Z]+)\} \{\n([\s\S]*?)\n\}$/gm)];

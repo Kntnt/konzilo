@@ -2,9 +2,9 @@
 # a setting of its own says, KONZILO_PEER_*, by default where Compose puts it, which Compose leaves
 # as it is (compose/README.md, What another arrangement sets).
 #
-# Each host answers for the web server's own names alone, KONZILO_WEB_HOSTS, a local copy's the
-# loopback's, which a page elsewhere cannot make its own, as it can a name of its own that it makes
-# lead to the loopback (ADR 0002). Every other host is refused before anything else of the host's
+# Each host answers for the web server's own names alone, KONZILO_WEB_HOSTS, by default a local
+# copy's, the loopback's, which a page elsewhere cannot make its own, as it can a name of its own
+# that it makes lead to the loopback (ADR 0002). Every other host is refused before anything else of the host's
 # runs: Caddy runs a release's redirects and headers before any `handle`, and a `handle` with a path
 # before one without, so each host's own is in the one `handle` after the refusal.
 
@@ -17,7 +17,7 @@
 
 # Misdirected, with nothing of the host's, and nothing logged.
 (own_hosts) {
-	@foreign not host {$KONZILO_WEB_HOSTS}
+	@foreign not host {$KONZILO_WEB_HOSTS:localhost 127.0.0.1 ::1 *.localhost}
 	handle @foreign {
 		respond 421
 	}
