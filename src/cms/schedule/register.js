@@ -88,6 +88,8 @@ export function registerSchedule(CMS, config) {
       asked = h('span', { className: 'konzilo-schedule-choice' },
         h('label', { htmlFor: `${id}-term` }, say('schedule.term')),
         h('select', { id: `${id}-term`, className: 'konzilo-part-input konzilo-part-select', value: condition.term, disabled, onChange: (event) => change({ term: event.target.value }) },
+          // None chosen yet, or one no longer among the terms read, shown as it is.
+          condition.term ? null : h('option', { value: '' }, ''),
           known || !condition.term ? null : h('option', { value: condition.term }, condition.term),
           terms.map((one) => h('option', { key: one.id, value: one.id }, one.label))));
     } else {
