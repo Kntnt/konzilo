@@ -127,3 +127,12 @@ describe('the lightbox, as a body\'s figures are written', () => {
     assert.ok(out.endsWith('</dialog></div></section>'), out);
   });
 });
+
+// A component's `content` and a template's tree are the body as the page draws it but for the
+// lightbox (directives.js), which the whole picture beside a cropped image is for.
+test('a body\'s tree holds an image cropped to its context, and not the whole picture its lightbox shows', async () => {
+  const { bodyTree } = await import('../src/astro/directives.js');
+  const tree = bodyTree('<figure><img alt="A barn" src="/_astro/barn-square.webp"><img alt="A barn" hidden="" data-konzilo-whole="" src="/_astro/barn-whole.webp"><figcaption>The barn</figcaption></figure>');
+  const [figure] = tree.children;
+  assert.deepEqual(figure.children.map(({ tagName, properties }) => [tagName, properties.src]), [['img', '/_astro/barn-square.webp'], ['figcaption', undefined]]);
+});
