@@ -19,6 +19,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - A site that embeds Datawrapper declares a transfer to the USA with no safeguard its provider documents, in its cookie declaration, and its placeholder says that data about the visit may be processed outside the EU and EEA. Datawrapper's privacy policy keeps published charts in the USA; the core's facts listed no transfer.
 
+### Security
+
+- A site run locally with Compose answers on its public site, editor, Forgejo and live preview only for `localhost`, `127.0.0.1`, `[::1]` and a name one label under `.localhost`, such as `site.localhost`, and refuses any other name with `421 Misdirected Request` and nothing else. A page on another site could make a name of its own lead to this machine and read what the copy answered as its own. A server names its own hosts in `KONZILO_WEB_HOSTS`.
+
 ## [0.9.0] – 2026-11-25
 
 ### Removed
