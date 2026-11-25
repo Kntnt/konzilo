@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { copyDemoContent } from '../src/demo-content.js';
-import { demoSource, leadsToLeftOut } from '../src/demo-source.js';
+import { demoSource, idOf, leadsToLeftOut } from '../src/demo-source.js';
 import { intake } from '../src/intake/index.js';
 import { siteDescription } from '../src/site-description.js';
 import { namedImages } from './lib/intake.js';
@@ -181,6 +181,32 @@ describe('a demo content file that says it is a draft', () => {
       rmSync(demo, { recursive: true, force: true });
     }
   });
+});
+
+// The core's demo content gives a local copy's Reviewer something the live preview shows and the
+// public site does not.
+test('the core\'s demo content holds one draft, an article, which the live preview shows and neither the public site nor a copy does', () => {
+  const template = siteDescription(JSON.parse(readFileSync(fileURLToPath(new URL('../site-template/files/site-description.json', import.meta.url)), 'utf8')));
+  const core = fileURLToPath(new URL('../site-template/demo-content', import.meta.url));
+  const now = new Date('2026-11-25T12:00:00Z');
+  const source = demoSource(template, core, { now });
+  const drafts = source.filter(({ content }) => typeof content === 'string' && /^status: "draft"$/m.test(content));
+  assert.deepEqual(drafts.map(({ path }) => path), [`articles/${idOf('articles', 'distant-workshops-and-the-river')}.md`]);
+  const files = source.map(({ path, content }) => ({ path, contents: content }));
+  const published = intake({ files, site: template, now, images: namedImages() });
+  assert.deepEqual(published.refusals, []);
+  assert.equal(published.files.some(({ path }) => path === 'articles/distant-workshops-and-the-river.md'), false);
+  const previewed = intake({ files, site: template, now, images: namedImages(), preview: [drafts[0].path] });
+  assert.deepEqual(previewed.refusals, []);
+  assert.match(previewed.files.find(({ path }) => path === 'articles/distant-workshops-and-the-river.md').contents, /^headline: "Distant workshops and the river"$/m);
+  const site = mkdtempSync(join(tmpdir(), 'konzilo-demo-core-'));
+  try {
+    const copied = copyDemoContent(site, join(site, 'content'), { now });
+    assert.deepEqual([copied.drafts, copied.scheduled], [['articles/distant-workshops-and-the-river.md'], []]);
+    assert.equal(existsSync(join(site, 'content/articles/distant-workshops-and-the-river.md')), false);
+  } finally {
+    rmSync(site, { recursive: true, force: true });
+  }
 });
 
 // A date as YAML may write it, in single quotes, with a comment after it, or with Windows line

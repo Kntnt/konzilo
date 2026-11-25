@@ -513,8 +513,9 @@ test('every file of the demo source fits the collections, by ID', () => {
   assert.ok(paths.some((path) => /^media\/.+\.webp$/.test(path)));
   assert.equal(paths.includes('consent.json'), false, 'the intake makes that');
   const posts = files.filter((one) => /^(articles|pages)\//.test(one.path));
-  assert.equal(posts.length, 15);
+  assert.equal(posts.length, 16);
   for (const post of posts) assert.match(post.path, /^(articles|pages)\/[0-9a-f]{12}\.md$/);
+  assert.deepEqual(posts.filter((one) => /\nstatus: "draft"\n/.test(one.content)).map((one) => /\ntitle: "(.*)"\n/.exec(`\n${one.content}`)[1]), ['Distant workshops and the river']);
 
   const terms = new Set(files.filter((one) => one.path.startsWith('categories/')).map((one) => /([0-9a-f]{12})\.json$/.exec(one.path)[1]));
   const article = posts.find((one) => one.content.includes('title: "Quiet harbours and the lantern"')).content;
