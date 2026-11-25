@@ -11,7 +11,7 @@ import { imageLibrary, mediaNameOf, stemOf } from '../src/cms/body/library.js';
 const encoded = (text) => Buffer.from(text).toString('base64');
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEBgIApD5fRAAAAABJRU5ErkJggg==', 'base64');
 
-function forgejo({ files = {}, truncatedAt = null, failing = {} } = {}) {
+function forgejo({ files = {}, truncatedAt = null, failing = {}, settings = null } = {}) {
   const asked = [];
   const answer = (body, status = 200) => ({ ok: status < 400, status, json: async () => body, blob: async () => new Blob(['picture']) });
   const get = async (url, { method = 'GET', headers = {}, body } = {}) => {
@@ -32,6 +32,7 @@ function forgejo({ files = {}, truncatedAt = null, failing = {} } = {}) {
       return answer(blobs);
     }
     if (pathname.endsWith('/contents')) return answer({}, 201);
+    if (pathname.endsWith('/contents/settings.json')) return settings === null ? answer({ message: 'not found' }, 404) : answer({ content: encoded(typeof settings === 'string' ? settings : JSON.stringify(settings)), encoding: 'base64' });
     if (pathname === '/_konzilo/thumbnail') return answer({}, searchParams.get('of') === 'gone.webp' ? 404 : 200);
     throw new Error(`nothing to say of ${pathname}`);
   };
@@ -134,8 +135,46 @@ describe('the image library', () => {
       await assert.rejects(libraryOf(stand).add({ file: file(), alt: 'One' }), /Forgejo answered 500/);
     });
 
+    // The editor's choice of *Lossless compression* (#114), which the file itself carries too.
+    test('writes in the entry that it was uploaded with lossless compression, and nothing where it was not', async () => {
+      const stand = forgejo();
+      const added = await libraryOf(stand).add({ file: file(), alt: 'A diagram', lossless: true });
+      assert.deepEqual(added, { src: added.src, alt: 'A diagram', caption: '', lossless: true });
+      assert.equal(bytesOf(commitOf(stand).body.files[1].content).toString(), `${JSON.stringify({ src: added.src, alt: 'A diagram', lossless: true }, null, 2)}\n`);
+      const plain = forgejo();
+      assert.deepEqual(Object.keys(await libraryOf(plain).add({ file: file(), alt: 'A photo', lossless: false })), ['src', 'alt', 'caption']);
+      assert.doesNotMatch(bytesOf(commitOf(plain).body.files[1].content).toString(), /lossless/);
+    });
+
     test('takes nothing that is no image, whatever it is called', async () => {
       await assert.rejects(libraryOf(forgejo()).add({ file: file('a.png', Buffer.from('words')), alt: 'One' }), /no image/);
+    });
+  });
+
+  // What an Admin sets in the settings group `imageUpload` (#114), read at each upload, so that
+  // the next one follows a change.
+  describe('how an upload is converted', () => {
+    const asked = (stand) => stand.asked.map(({ pathname, query, authorization }) => [pathname, query.ref, authorization]);
+
+    test('follows the settings as they stand, with the credential of whoever is signed in', async () => {
+      const stand = forgejo({ settings: { title: 'A site', imageUpload: { longestSide: 2000, quality: 75 } } });
+      assert.deepEqual(await libraryOf(stand).uploadSettings(), { longestSide: 2000, quality: 75 });
+      assert.deepEqual(asked(stand), [['/api/v1/repos/org/source/contents/settings.json', 'main', 'token mine']]);
+    });
+
+    test('takes the default of each the settings do not give, or give outside its bounds', async () => {
+      const read = (settings) => libraryOf(forgejo({ settings })).uploadSettings();
+      assert.deepEqual(await read(null), { longestSide: 3840, quality: 90 }, 'no settings file');
+      assert.deepEqual(await read({ imageUpload: { quality: 60 } }), { longestSide: 3840, quality: 60 });
+      assert.deepEqual(await read({ imageUpload: { longestSide: 0, quality: 101 } }), { longestSide: 3840, quality: 90 });
+      assert.deepEqual(await read({ imageUpload: { longestSide: '2000', quality: 72.5 } }), { longestSide: 3840, quality: 90 });
+      assert.deepEqual(await read({ imageUpload: 'big' }), { longestSide: 3840, quality: 90 });
+      assert.deepEqual(await read('not json'), { longestSide: 3840, quality: 90 });
+    });
+
+    test('says when Forgejo will not answer, rather than guess', async () => {
+      const stand = forgejo({ failing: { '/api/v1/repos/org/source/contents/settings.json': 500 } });
+      await assert.rejects(libraryOf(stand).uploadSettings(), /Forgejo answered 500/);
     });
   });
 

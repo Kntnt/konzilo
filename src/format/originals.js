@@ -25,6 +25,22 @@ export function kindOf(bytes) {
   return 'unknown';
 }
 
+// Whether a WebP is lossless, the mark of an image an editor uploaded with *Lossless compression*
+// (ADR 0022): its picture is in a `VP8L` chunk, first or after its extended header, where a lossy
+// one's is in `VP8 `. Read from its chunks, so that the original says it and its master, made
+// lossless from it, says it again to whatever reads the master.
+export function isLosslessWebp(bytes) {
+  if (kindOf(bytes) !== 'webp') return false;
+  for (let at = 12; at + 8 <= bytes.length;) {
+    const chunk = ascii(bytes, at, at + 4);
+    if (chunk === 'VP8L') return true;
+    if (chunk === 'VP8 ') return false;
+    const size = bytes[at + 4] | (bytes[at + 5] << 8) | (bytes[at + 6] << 16) | (bytes[at + 7] << 24);
+    at += 8 + size + (size % 2);
+  }
+  return false;
+}
+
 // The width of the master a raster of this size becomes: its longest side at most what the site
 // keeps, scaled down only.
 export const masterWidth = ({ width, height }) => Math.round(width * Math.min(1, LONGEST_SIDE / Math.max(width, height)));

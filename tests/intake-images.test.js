@@ -8,6 +8,7 @@ import { gzipSync } from 'node:zlib';
 import { describe, test } from 'node:test';
 import { imagesFrom, namedOriginals, originalFacts, svgMaster } from '../src/intake/images.js';
 import { svgProblem } from '../src/intake/svg.js';
+import { isLosslessWebp } from '../src/format/originals.js';
 import { CATALOGUES } from '../src/catalogues.js';
 import { british } from '../src/refusals.js';
 import { sharp } from './lib/images.js';
@@ -17,6 +18,9 @@ const words = (key) => new RegExp(`^${CATALOGUES.en[`refusal.${key}`].replace(/[
 const picture = ({ width = 600, height = 400, format = 'jpeg', ...options } = {}) => sharp({ create: { width, height, channels: 3, background: '#a33' } })[format](options);
 
 const png = await picture({ format: 'png' }).toBuffer();
+
+// The chunk a WebP's image is in: `VP8L` lossless, `VP8 ` lossy.
+const chunkOf = (bytes) => bytes.subarray(12, 16).toString('latin1');
 
 describe('a raster original', () => {
   test('becomes a WebP named by its hash, measured as its master', async () => {
@@ -50,6 +54,29 @@ describe('a raster original', () => {
     const master = await sharp(facts.contents).metadata();
     assert.equal(master.exif, undefined);
     assert.equal(master.orientation, undefined);
+  });
+
+  // The editor's mark of *Lossless compression* is the original's own encoding (#114).
+  test('is lossless where the original is a lossless WebP, and lossy otherwise, a PNG among them', async () => {
+    const pixels = { width: 300, height: 200, channels: 3, noise: { type: 'gaussian', mean: 128, sigma: 40 } };
+    const lossless = await sharp({ create: pixels }).webp({ lossless: true }).toBuffer();
+    const master = await originalFacts(lossless);
+    assert.equal(chunkOf(master.contents), 'VP8L');
+    const [kept, given] = await Promise.all([master.contents, lossless].map((bytes) => sharp(bytes).raw().toBuffer()));
+    assert.ok(kept.equals(given), 'every pixel kept');
+    for (const bytes of [await sharp({ create: pixels }).webp({ quality: 90 }).toBuffer(), await sharp({ create: pixels }).png().toBuffer()]) {
+      assert.equal(chunkOf((await originalFacts(bytes)).contents), 'VP8 ');
+    }
+  });
+
+  test('reads the mark behind an extended header too, as an image with a profile or transparency has it', async () => {
+    const pixels = { width: 30, height: 20, channels: 4, background: { r: 200, g: 40, b: 40, alpha: 0.5 } };
+    const [lossless, lossy] = await Promise.all([{ lossless: true }, { quality: 90 }].map((options) => sharp({ create: pixels }).withIccProfile('srgb').webp(options).toBuffer()));
+    assert.deepEqual([lossless, lossy].map(chunkOf), ['VP8X', 'VP8X']);
+    assert.equal(isLosslessWebp(lossless), true);
+    assert.equal(isLosslessWebp(lossy), false);
+    assert.equal(isLosslessWebp(png), false);
+    assert.equal(isLosslessWebp(lossless.subarray(0, 20)), false, 'nor a WebP cut short');
   });
 
   test('a master already made of it is left alone, by the hash in its name', async () => {

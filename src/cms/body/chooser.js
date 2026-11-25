@@ -6,6 +6,7 @@
 
 import { uploadProblem } from './chooser-check.js';
 import { button, dialogOf, made, textRow } from './dialog.js';
+import { isConverted, kindOfFile, losslessBox, losslessByDefault, preparedUpload } from '../image/upload.js';
 import { wordsShown } from '../refusals.js';
 import { say } from '../interface-language.js';
 
@@ -62,22 +63,35 @@ export function chooseImage({ library, smallestWidth = null, several = false, ro
       const preview = made('img', 'konzilo-chooser-preview', form);
       preview.alt = '';
       preview.hidden = true;
+      // Offered once a file that is converted is chosen, ticked for a PNG.
+      const lossless = losslessBox(form);
+      lossless.row.hidden = true;
       const alt = textRow(form, say('body.alt'), { required: true });
       const caption = textRow(form, say('body.uploadCaption'));
       const note = made('p', 'konzilo-dialog-note', form);
       note.setAttribute('role', 'alert');
+      const status = made('p', 'konzilo-dialog-status', form);
+      status.setAttribute('role', 'status');
       const send = made('button', 'konzilo-chooser-send', form);
       send.type = 'submit';
       send.textContent = say('body.upload');
 
-      input.addEventListener('change', () => {
+      // The file chosen last, and its kind, which a slower read of an earlier one does not undo.
+      let chosen = 0;
+      input.addEventListener('change', async () => {
         letGoOfFile();
         const [file] = input.files;
+        const now = ++chosen;
         note.textContent = '';
         preview.hidden = !file;
+        lossless.row.hidden = true;
         if (!file) return;
         shownFile = URL.createObjectURL(file);
         preview.src = shownFile;
+        const kind = await kindOfFile(file).catch(() => 'unknown');
+        if (now !== chosen) return;
+        lossless.input.checked = losslessByDefault(kind);
+        lossless.row.hidden = !isConverted(kind);
       });
       form.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -95,12 +109,23 @@ export function chooseImage({ library, smallestWidth = null, several = false, ro
         send.disabled = true;
         send.textContent = say('body.uploading');
         try {
-          const problem = await uploadProblem(file, { smallestWidth });
+          const problem = await uploadProblem(file);
           if (problem !== null) {
             note.textContent = wordsShown(problem);
             return;
           }
-          const entry = await library.add({ file, alt: alt.value, caption: caption.value });
+          const kind = await kindOfFile(file);
+          const losslessly = isConverted(kind) && lossless.input.checked;
+          send.textContent = say('body.converting');
+          status.textContent = say('body.converting');
+          const prepared = await preparedUpload(file, { library, lossless: losslessly, smallestWidth });
+          if (prepared.problem) {
+            note.textContent = wordsShown(prepared.problem);
+            return;
+          }
+          send.textContent = say('body.uploading');
+          status.textContent = say('body.uploading');
+          const entry = await library.add({ file: prepared.file, alt: alt.value, caption: caption.value, lossless: losslessly });
           if (!several) {
             finish(entry);
             return;
@@ -110,8 +135,9 @@ export function chooseImage({ library, smallestWidth = null, several = false, ro
           returnTo();
         } catch (error) {
           console.warn(`The image was not uploaded: ${error.message}`);
-          note.textContent = say('body.uploadFailed');
+          note.textContent = say(error.converting ? 'body.convertFailed' : 'body.uploadFailed');
         } finally {
+          status.textContent = '';
           send.disabled = false;
           send.textContent = say('body.upload');
         }

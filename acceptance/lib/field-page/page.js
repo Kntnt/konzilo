@@ -6,6 +6,9 @@ import { undo } from '@milkdown/kit/prose/history';
 import { Selection, TextSelection } from '@milkdown/kit/prose/state';
 
 import { mountAuthorsField } from '../../../src/cms/authors/field.js';
+import { base64 } from '../../../src/cms/base64.js';
+import { convertForUpload } from '../../../src/cms/image/convert.js';
+import { mountImageField } from '../../../src/cms/image/field.js';
 import { handsFor, loadFormulas, loadReader } from '../../../src/cms/body/check.js';
 import { blockAt } from '../../../src/cms/body/place.js';
 import { mountBodyField } from '../../../src/cms/body/field.js';
@@ -19,21 +22,28 @@ const EVERY_ELEMENT = ['paragraph', 'heading', 'list', 'quote', 'code', 'table',
 let fields = [];
 
 // A library with nothing behind it, for what the field does with one. `throwing` says what it
-// fails at; `added` is what it was asked to add.
+// fails at; `added` is what it was asked to add, and `addedBytes` each file's bytes, as base64.
+// `settings` is how an upload is converted, as the site's settings would say.
 const PICTURE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEBgIApD5fRAAAAABJRU5ErkJggg==';
-const libraryWith = ({ entries = [], throwing = {} }) => {
+const libraryWith = ({ entries = [], throwing = {}, settings = { longestSide: 3840, quality: 90 } }) => {
   const added = [];
+  const addedBytes = [];
   return {
     added,
+    addedBytes,
     entries,
     throwing,
     async list() {
       if (this.throwing.list) throw new Error('the list failed');
       return this.entries;
     },
-    async add({ file, alt, caption }) {
+    async uploadSettings() {
+      return settings;
+    },
+    async add({ file, alt, caption, lossless = false }) {
       if (this.throwing.add) throw new Error('the upload failed');
-      added.push({ name: file.name, size: file.size, alt, caption });
+      added.push({ name: file.name, type: file.type, alt, caption, lossless });
+      addedBytes.push(base64(new Uint8Array(await file.arrayBuffer())));
       const entry = { src: `/media/${file.name}`, alt: alt.trim(), caption: caption.trim() };
       return entry;
     },
@@ -212,6 +222,7 @@ globalThis.fieldPage = {
     return { written, reasons: problems.map(({ reason }) => wordsShown(reason)) };
   },
   added: () => current().library.added,
+  addedBytes: () => current().library.addedBytes,
   stopThrowing() {
     current().library.throwing = {};
   },
@@ -354,5 +365,49 @@ globalThis.authorsPage = {
   setValue: (value) => authorsField.field.setValue(value),
   stopThrowing() {
     Object.assign(failing, { list: false, add: false });
+  },
+};
+
+// The image library entry's own file field (ADR 0063), on a library and a draft with nothing
+// behind them: what it added, as Sveltia's `addFile` would take it, with its bytes as base64, what
+// it wrote, and each choice of Lossless compression it told.
+let imageField = null;
+globalThis.imagePage = {
+  open({ value = '', lossless = false, settings = { longestSide: 3840, quality: 90 }, smallestWidth = null } = {}) {
+    imageField?.field.destroy();
+    imageField?.host.remove();
+    useInterfaceLanguage('en');
+    const host = document.createElement('div');
+    host.className = 'the-image-field';
+    document.body.append(host);
+    const record = { added: [], values: [], told: [] };
+    const field = mountImageField(host, {
+      value,
+      changed: (next) => record.values.push(next),
+      addFile: async (file) => {
+        record.added.push({ name: file.name, type: file.type, bytes: base64(new Uint8Array(await file.arrayBuffer())) });
+        return URL.createObjectURL(file);
+      },
+      library: { uploadSettings: async () => settings, picture: async () => null },
+      exists: async () => false,
+      text: true,
+      upload: true,
+      smallestWidth,
+      lossless,
+      chosenLossless: (chosen) => record.told.push(chosen),
+    });
+    imageField = { field, host, record };
+  },
+  record: () => imageField.record,
+  note: () => imageField.host.querySelector('.konzilo-pick-note').textContent,
+};
+
+// The conversion before an upload alone (ADR 0022): a file's bytes in, as base64, and what would be
+// uploaded out, with its name, its type and its size.
+globalThis.uploadPage = {
+  async convert(encoded, name, options) {
+    const bytes = Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0));
+    const { file, size } = await convertForUpload(new File([bytes], name), options);
+    return { name: file.name, type: file.type, size, bytes: base64(new Uint8Array(await file.arrayBuffer())) };
   },
 };

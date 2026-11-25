@@ -9,7 +9,7 @@ import { ownValue } from '../format/frontmatter.js';
 import { START_PAGE } from '../format/start-page.js';
 import { metaLineProblems, metaLineVariables } from '../meta-line.js';
 import { templateProblems, variablesOf } from '../metadata-templates.js';
-import { groupsIn, isSiteTitle, leastProblem, TYPES } from '../settings-groups.js';
+import { groupsIn, isSiteTitle, rangeProblem, TYPES } from '../settings-groups.js';
 import { IMAGE, POST, SCHEMA_TYPES } from '../site-description.js';
 import { notOffered, say } from './words.js';
 
@@ -50,8 +50,8 @@ function plainValue(setting, stored, variables) {
   if (read.reason) return { reason: read.reason };
   if (read.value === undefined) return {};
   const value = read.value instanceof Date ? read.yaml : read.value;
-  const least = leastProblem(value, setting);
-  if (least) return { reason: least };
+  const outside = rangeProblem(value, setting);
+  if (outside) return { reason: outside };
   if (typeof value === 'string') {
     const problem = textProblem(setting, value, variables);
     if (problem) return { reason: problem };

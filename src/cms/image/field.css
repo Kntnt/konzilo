@@ -24,3 +24,10 @@
 /* What lies outside the safe zone is tinted red, and what lies inside is shown as it is. */
 .konzilo-pick-safe { position: absolute; inset: 0; margin: auto; box-shadow: 0 0 0 100vmax rgb(220 38 38 / 0.4); pointer-events: none; }
 .konzilo-pick-standin img { opacity: 0.45; }
+/* The library entry's Lossless compression under its file, and what it does, with what the field
+   is busy with. */
+.konzilo-pick-check label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.konzilo-pick-check input:disabled + span { color: var(--sui-secondary-foreground-color); }
+.konzilo-pick-check .konzilo-dialog-hint { margin: 4px 0 0; font-size: 13px; color: var(--sui-tertiary-foreground-color, var(--sui-secondary-foreground-color)); }
+.konzilo-pick-status { margin: 0; color: var(--sui-secondary-foreground-color); }
+.konzilo-pick-status:empty { display: none; }

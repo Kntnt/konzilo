@@ -130,6 +130,25 @@ test('names the packages within a package\'s own bundle from its source map, wit
   ]);
 });
 
+// A codec built into WebAssembly holds a library of its own, with no source map to name it, and
+// its package keeps that library's license in the codec's folder, above its builds (#114).
+test('takes the license files in a folder above what a package bundled, within the package, as a codec\'s above its builds', (t) => {
+  const root = folder(t, {
+    'node_modules/@x/codec/package.json': { name: '@x/codec', version: '1.0.0', license: 'Apache-2.0' },
+    'node_modules/@x/codec/LICENSE': 'Apache License',
+    'node_modules/@x/codec/encode.js': '',
+    'node_modules/@x/codec/codec/LICENSE.codec.md': 'Copyright (c) 2010, Google Inc. BSD',
+    'node_modules/@x/codec/codec/README.md': 'not a license',
+    'node_modules/@x/codec/codec/enc/encoder.js': '',
+    'node_modules/@x/codec/codec/enc/encoder.wasm': '',
+    'node_modules/@x/codec/other/LICENSE.other.md': 'above nothing bundled',
+  });
+  const files = ['encode.js', 'codec/enc/encoder.js', 'codec/enc/encoder.wasm'].map((path) => join(root, 'node_modules/@x/codec', path));
+  assert.deepEqual(editorNotices({ core: root, files }).packages, [
+    { name: '@x/codec', version: '1.0.0', license: 'Apache-2.0', texts: [{ file: 'LICENSE', text: 'Apache License' }, { file: 'codec/LICENSE.codec.md', text: 'Copyright (c) 2010, Google Inc. BSD' }] },
+  ]);
+});
+
 test('writes the notices as one text, each package with its license and its texts, and refuses to write them while one is missing', (t) => {
   const root = folder(t, {
     'node_modules/plain/package.json': { name: 'plain', version: '1.2.3', license: 'MIT' },
@@ -190,7 +209,8 @@ test('the editor\'s build writes the notices beside the bundle, with every packa
 
   // What the editor is known to hold: Sveltia and what its own bundle holds, Milkdown and
   // ProseMirror, Shiki's grammars, the Markdown reader's WebAssembly and its runtime, and Vite's helpers.
-  for (const name of ['@sveltia/cms', 'svelte', 'react', 'isomorphic-git', '@milkdown/crepe', 'prosemirror-view', '@shikijs/langs', '@bruits/satteri-wasm32-wasi', '@napi-rs/wasm-runtime', 'vite']) {
+  // And the WebP encoder an upload is converted with, libwebp's license above its builds.
+  for (const name of ['@sveltia/cms', 'svelte', 'react', 'isomorphic-git', '@milkdown/crepe', 'prosemirror-view', '@shikijs/langs', '@bruits/satteri-wasm32-wasi', '@napi-rs/wasm-runtime', 'vite', '@jsquash/webp', 'wasm-feature-detect']) {
     assert.ok(named.has(name), name);
   }
   assert.match(named.get('svelte'), /, within @sveltia\/cms$/);
@@ -200,6 +220,7 @@ test('the editor\'s build writes the notices beside the bundle, with every packa
   const sveltia = fileURLToPath(new URL('../node_modules/@sveltia/cms/', import.meta.url));
   assert.ok(text.includes(readFileSync(join(sveltia, 'LICENSE.txt'), 'utf8').trim()));
   assert.ok(text.includes(readFileSync(join(sveltia, 'npm/assets/noto-mono.LICENSE.txt'), 'utf8').trim()));
+  assert.ok(text.includes(readFileSync(fileURLToPath(new URL('../node_modules/@jsquash/webp/codec/LICENSE.codec.md', import.meta.url)), 'utf8').trim()), 'libwebp\'s');
 });
 
 // The bundler writes helpers of its own into the bundle, as modules with no file, `\0vite/…`

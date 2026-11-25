@@ -299,6 +299,18 @@ describe('the settings groups\' texts', () => {
     assert.equal(group.settings[0].help, undefined);
   });
 
+  // The longest side and the quality of an upload are bounded both ways (#114).
+  test('holds a number within the least and the greatest value declared, its default too', () => {
+    const posts = (bounds) => ({ feeds: { settings: { posts: { type: 'integer', control: 'number', default: 10, ...bounds } } } });
+    const [group] = siteDescription(site, posts({ min: 1, max: 50 })).groups;
+    assert.deepEqual([group.settings[0].min, group.settings[0].max], [1, 50]);
+    const refused = (bounds, problem) => assert.throws(() => siteDescription(site, posts(bounds)), (error) => error.message.includes(problem) || assert.fail(error.message));
+    refused({ max: 5 }, 'feeds.settings.posts.default: the site cannot publish 10 here, which takes a whole number up to 5');
+    refused({ min: 20, max: 10 }, 'feeds.settings.posts.max: must not be below its least value, 20');
+    refused({ max: 1.5 }, 'feeds.settings.posts.max: must be a whole number');
+    assert.throws(() => siteDescription(site, { feeds: { settings: { posts: { type: 'string', control: 'text', max: 5 } } } }), /feeds\.settings\.posts\.max: only a number has a greatest value/);
+  });
+
   test('refuses a setting whose texts the catalogues lack, naming the text it needs', () => {
     const halfLife = { type: 'integer', control: 'number', min: 1, default: 90 };
     assert.throws(

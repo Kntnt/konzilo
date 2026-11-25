@@ -20,8 +20,10 @@ const shipped = execFileSync('git', ['ls-files', 'src', 'bin'], { cwd: core, enc
   .filter((path) => /\.(js|mjs|astro)$/.test(path));
 
 // A site has Astro by its own pin, and only the web server's image holds the editor,
-// built from this repository's own dependencies, remark-math for the body field among them.
-const provided = new Set(['astro', '@sveltia/cms', '@milkdown/crepe', '@milkdown/kit', 'remark-math', ...builtinModules, ...builtinModules.map((name) => `node:${name}`)]);
+// built from this repository's own dependencies, remark-math for the body field and the WebP
+// encoder its uploads are converted with among them.
+const EDITOR = ['@sveltia/cms', '@milkdown/crepe', '@milkdown/kit', 'remark-math', '@jsquash/webp'];
+const provided = new Set(['astro', ...EDITOR, ...builtinModules, ...builtinModules.map((name) => `node:${name}`)]);
 
 const packageOf = (specifier) => specifier.split('/').slice(0, specifier.startsWith('@') ? 2 : 1).join('/');
 
@@ -40,7 +42,7 @@ test('every package the shipped code imports is declared', () => {
 });
 
 test('the editor is not among them, since only the web server\'s image holds it', () => {
-  assert.equal(manifest.dependencies['@sveltia/cms'], undefined);
+  for (const name of EDITOR) assert.equal(manifest.dependencies[name], undefined, name);
   assert.equal(manifest.devDependencies['@sveltia/cms'], execFileSync('sh', [join(core, 'scripts/versions'), 'SVELTIA'], { encoding: 'utf8' }).trim());
   const milkdown = execFileSync('sh', [join(core, 'scripts/versions'), 'MILKDOWN'], { encoding: 'utf8' }).trim();
   for (const name of ['@milkdown/crepe', '@milkdown/kit']) {

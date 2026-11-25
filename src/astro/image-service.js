@@ -22,6 +22,7 @@
 // WebP is lossless, at any width (ADR 0022).
 
 import sharpService from 'astro/assets/services/sharp';
+import { isLosslessWebp } from '../format/originals.js';
 import { QUALITY, versionWidths } from './image-versions.js';
 
 // An SVG, as Astro's own detector knows one: an <svg> tag in its first
@@ -71,20 +72,6 @@ async function smallerThanAskedToFill(sharp, input, { width, height, fit }) {
   return across < width || down < height;
 }
 
-// Whether `bytes` are a WebP whose picture is lossless: its first picture's
-// chunk is VP8L, where a lossy one's is `VP8 `.
-export function isLosslessWebp(bytes) {
-  if (bytes.length < 12 || bytes.toString('latin1', 0, 4) !== 'RIFF' || bytes.toString('latin1', 8, 12) !== 'WEBP') return false;
-  for (let at = 12; at + 8 <= bytes.length;) {
-    const kind = bytes.toString('latin1', at, at + 4);
-    if (kind === 'VP8L') return true;
-    if (kind === 'VP8 ') return false;
-    const size = bytes.readUInt32LE(at + 4);
-    at += 8 + size + (size % 2);
-  }
-  return false;
-}
-
 // A picture of Astro's own, imported, as its pipeline hands one over.
 const isImported = (src) => typeof src === 'object' && src !== null && typeof src.width === 'number' && typeof src.height === 'number';
 
@@ -107,7 +94,7 @@ const service = {
     const { default: sharp } = await import('sharp');
     if (!isSvg(input)) {
       // A lossless master's versions are lossless, whatever the quality.
-      if ((options.format ?? 'webp') === 'webp' && isLosslessWebp(Buffer.from(input.buffer, input.byteOffset, input.byteLength))) {
+      if ((options.format ?? 'webp') === 'webp' && isLosslessWebp(input)) {
         const own = config.service?.config ?? {};
         config = { ...config, service: { ...config.service, config: { ...own, webp: { ...own.webp, lossless: true } } } };
       }

@@ -8,7 +8,7 @@ import { createHash } from 'node:crypto';
 import sharp from 'sharp';
 import { optimize } from 'svgo';
 import { IMAGE_LIBRARY_FOLDER } from '../format/masters.js';
-import { kindOf, LONGEST_SIDE, MOST_BYTES } from '../format/originals.js';
+import { isLosslessWebp, kindOf, LONGEST_SIDE, MOST_BYTES } from '../format/originals.js';
 import { svgProblem, svgSize } from './svg.js';
 import { say } from './words.js';
 
@@ -19,13 +19,14 @@ export const hashDigits = (hash) => hash.slice(0, 10);
 
 // The master of a still raster: a WebP at quality 90, its longest side at most 2520
 // pixels, scaled down only, upright, in sRGB by the original's own profile, and without
-// any metadata, which sharp drops unless told otherwise.
+// any metadata, which sharp drops unless told otherwise. An original that is a lossless WebP,
+// as an editor's upload with *Lossless compression* is, gets a lossless master.
 export function rasterMaster(bytes) {
   return sharp(bytes)
     .rotate()
     .resize({ width: LONGEST_SIDE, height: LONGEST_SIDE, fit: 'inside', withoutEnlargement: true })
     .toColourspace('srgb')
-    .webp({ quality: QUALITY })
+    .webp(isLosslessWebp(bytes) ? { lossless: true } : { quality: QUALITY })
     .toBuffer();
 }
 
