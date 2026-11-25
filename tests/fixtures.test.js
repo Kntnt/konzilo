@@ -5,8 +5,8 @@
 // it is a change to what a site renders, which a site's CSS may rest on.
 //
 // No body element carries a class but those the reader has a reason for: the
-// core's own, `konzilo-*`, and what GFM writes of a task list, a code block's
-// language and the footnotes' heading.
+// core's own, `konzilo-*`, what GFM writes of a task list, a code block's
+// language and the footnotes' heading, and Temml's own, `tml-*`, inside a formula.
 
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -18,7 +18,7 @@ import { readContentFile } from '../src/astro/reader.js';
 const root = fileURLToPath(new URL('./fixtures/', import.meta.url));
 const rendered = JSON.parse(readFileSync(join(root, 'rendered.json'), 'utf8'));
 const frontmatter = '---\ntitle: "Hello world"\n---\n\n';
-const ALLOWED_CLASS = /^(?:konzilo-[a-z-]+|language-[a-z0-9-]+|sr-only|footnotes|contains-task-list|task-list-item|data-footnote-backref)$/;
+const ALLOWED_CLASS = /^(?:konzilo-[a-z-]+|tml-[a-z-]+|language-[a-z0-9-]+|sr-only|footnotes|contains-task-list|task-list-item|data-footnote-backref)$/;
 
 const elements = readdirSync(root, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
 

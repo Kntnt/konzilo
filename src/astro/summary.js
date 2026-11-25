@@ -12,7 +12,7 @@
 
 import { htmlToHast, markdownToHtml } from 'satteri';
 import { directiveReader } from './directives.js';
-import { markdownFeatures, markdownHastPlugins } from './reader.js';
+import { formulaPlugins, markdownFeatures, markdownHastPlugins } from './reader.js';
 
 // The most characters a summary of a body holds, as search results show a
 // description.
@@ -47,7 +47,7 @@ export function ownSummary(data = {}) {
 export function plainText(body) {
   if (body.trim() === '') return '';
   const reader = directiveReader(() => {});
-  const { html } = markdownToHtml(body, { features: markdownFeatures, mdastPlugins: [reader], hastPlugins: [...markdownHastPlugins] });
+  const { html } = markdownToHtml(body, { features: markdownFeatures, mdastPlugins: [...formulaPlugins, reader], hastPlugins: [...markdownHastPlugins] });
   const parts = [];
   textOf(htmlToHast(html), parts);
   return collapse(parts.join(''));

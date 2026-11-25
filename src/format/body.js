@@ -8,7 +8,9 @@
 //
 // What it is handed:
 //
-//   reader     { tree(markdown) }: Sätteri's Markdown tree, with positions
+//   reader     { tree(markdown, { math }) }: Sätteri's Markdown tree, with positions, its
+//              formulas read by the rule of formula-reading.js; `math` false where a `$`
+//              is text, `display` where `$$` alone opens a formula, true where both do
 //   rules      the rule data (rules.json)
 //   elements   the names of the body elements the post's type takes
 //   embedOf    (address, rules) gives the embed, or { reason } (embeds.js)
@@ -25,6 +27,8 @@
 //              check fills with the link's text
 //   image      (address) gives { src, warning }, or { reason }
 //   adminHost  the host no link may lead to, or null
+//   formula    (latex, display) gives the reason the site cannot show a formula, or null
+//              (mathml.js); optional
 //
 // A problem is { path, name, line, reason }: the block by its path, `2.1`, and its
 // element's name, the line in `source`, and the reason an editor can act on, by its
@@ -73,7 +77,7 @@ export function readBody(source, hands) {
   const scope = { ...hands, source, written: false, problems: [], warnings: [], anchors: new Map(), marks: [], definitions: [] };
   const blocks = [];
   let path = 0;
-  for (const child of hands.reader.tree(source).children ?? []) {
+  for (const child of hands.reader.tree(source, { math: formulasIn(hands.elements) }).children ?? []) {
     if (child.type === 'footnoteDefinition') {
       scope.definitions.push(child);
       continue;
@@ -87,6 +91,16 @@ export function readBody(source, hands) {
 }
 
 const lineOf = (node) => node?.position?.start?.line ?? null;
+
+// How a type's body reads a `$`: as a formula of either kind where it takes inline formulas, as a
+// block formula alone where it takes those alone, and as text where it takes neither.
+function formulasIn(elements) {
+  if (elements === undefined || elements.includes('inline-math')) return true;
+  return elements.includes('block-math') ? 'display' : false;
+}
+
+// Whether a formula the reader found is written `$$…$$`, a block formula's delimiters.
+const isDisplay = (node, scope) => scope.source?.[node.position?.start?.offset] === '$' && scope.source?.[node.position.start.offset + 1] === '$';
 
 function nameOf(node) {
   if (node.type === 'directive') return node.element;
@@ -126,6 +140,7 @@ function blockOf(node, scope) {
     case 'list': return listOf(node, scope);
     case 'blockquote': return quoteOf(node, scope);
     case 'code': return codeOf(node, scope);
+    case 'math': return blockFormulaOf(node, [node.meta, node.value].filter(Boolean).join('\n'), scope);
     case 'table': return tableOf(node, scope);
     case 'html': return htmlBlockOf(node, scope);
     case 'leafDirective':
@@ -168,6 +183,16 @@ function inlineOf(children, allowed, scope, element, inLink = false) {
         break;
       case 'inlineCode':
         if (check('code', node)) push({ type: 'code', value: node.value.replace(/\n/g, ' ') });
+        break;
+      case 'inlineMath':
+        if (isDisplay(node, scope)) {
+          if (scope.written) push({ type: 'unreadable' });
+          else {
+            // Named once: what holds it is no emptier for it.
+            refuse(scope, node, element, 'math-block-place');
+            push({ type: 'text', value: `$$${node.value}$$` });
+          }
+        } else if (check('math', node) && taken(scope, node, 'inline-math')) push(inlineFormula(node, scope, element));
         break;
       case 'break':
         if (check('br', node)) push({ type: 'break' });
@@ -217,6 +242,14 @@ function inlineOf(children, allowed, scope, element, inLink = false) {
   }
   if (stack.length > 1) refuse(scope, children.at(-1), element, 'raw-unclosed', { tag: stack.at(-1).tag });
   return root;
+}
+
+// A formula in a block's text, on the block's one line, which Temml must read.
+function inlineFormula(node, scope, element) {
+  const value = node.value.replace(/\n/g, ' ');
+  const reason = scope.written ? null : scope.formula?.(value, false);
+  if (reason) scope.problems.push({ path: scope.path, name: element, line: lineOf(node), reason });
+  return { type: 'math', value };
 }
 
 // An image in the text of what takes one, a list's item: its alt text and its original's
@@ -457,6 +490,7 @@ function paragraphOf(node, scope) {
   const element = 'paragraph';
   const visible = node.children.filter((child) => !isComment(child));
   if (visible.some((child) => child.type === 'image')) return figureOf(node, visible, scope);
+  if (!scope.written && visible.length === 1 && visible[0].type === 'inlineMath' && isDisplay(visible[0], scope)) return blockFormulaOf(node, visible[0].value, scope);
   const address = loneAddress(node, visible, scope);
   if (address !== null) return embedAt(node, address, scope);
   const caption = captionedAddress(visible, scope);
@@ -684,7 +718,7 @@ function quoteOf(node, scope) {
 }
 
 function labelOfNode(node, rules) {
-  const names = { code: 'code', table: 'table', html: 'table', leafDirective: 'post-list', containerDirective: 'post-list', footnoteDefinition: 'footnotes' };
+  const names = { code: 'code', math: 'block-math', table: 'table', html: 'table', leafDirective: 'post-list', containerDirective: 'post-list', footnoteDefinition: 'footnotes' };
   return labelOf(rules, names[node.type] ?? node.type);
 }
 
@@ -715,6 +749,29 @@ function codeOf(node, scope) {
   }
   if (!scope.written && node.lang) scope.warnings.push({ path: scope.path, name: element, line: lineOf(node), reason: said('warning.code-language', { language: node.lang }) });
   return [{ type: 'code', value }];
+}
+
+// A block formula, `$$` on the lines around its LaTeX, which stands at the top of a body, never
+// in a quote or a list, as a code block does: never empty, its lines without spaces at their
+// ends, nor blank lines at its own. Temml must read it. A source's `$$…$$` alone in a paragraph
+// is one, and what follows a block's opening `$$` on its line is the first line of its LaTeX.
+function blockFormulaOf(node, value, scope) {
+  const element = 'block-math';
+  if (!scope.written && !scope.top) {
+    refuse(scope, node, element, 'math-block-place');
+    return [];
+  }
+  if (!taken(scope, node, element)) return [];
+  const latex = value.replace(/[ \t]+$/gm, '').replace(/^(?:[ \t]*\n)+/, '').replace(/(?:\n[ \t]*)+$/, '');
+  if (!scope.written) {
+    if (latex.trim() === '') {
+      refuse(scope, node, element, 'math-empty');
+      return [];
+    }
+    const reason = scope.formula?.(latex, true);
+    if (reason) scope.problems.push({ path: scope.path, name: element, line: lineOf(node), reason });
+  }
+  return [{ type: 'block-math', value: latex }];
 }
 
 // A pipe table, as the model of a table of either form.
@@ -1194,6 +1251,7 @@ function escapedText(value, context) {
   const { level, cell } = context;
   let out = '';
   const chars = [...value];
+  const dollars = escapedDollars(chars, level, context.before, context.after);
   const atStart = context.lineStart;
   for (let i = 0; i < chars.length; i += 1) {
     const c = chars[i];
@@ -1205,6 +1263,7 @@ function escapedText(value, context) {
     else if (c === '&') out += readsAsEntity(`${c}${rest()}`, context) ? `\\${c}` : c;
     else if (c === '<') out += readsAsTag(rest(), atStart && i === 0) ? `\\${c}` : c;
     else if (c === ':') out += beginsDirective(rest(), before, atStart && i === 0, level) || (context.afterMark && i === 0) ? `\\${c}` : c;
+    else if (c === '$') out += dollars.has(i) ? '\\$' : c;
     else if (c === '|' && (cell || level >= 2)) out += `\\${c}`;
     else if (level >= 2 && (c === '[' || c === ']' || c === '!' || c === '~')) out += `\\${c}`;
     else if (atStart && i === 0 && startsLine(c, rest(), level)) out += `\\${c}`;
@@ -1215,6 +1274,30 @@ function escapedText(value, context) {
   }
   if (level >= 1 && (!context.inLink || context.loneSelf)) out = splitAutolinks(out);
   return out;
+}
+
+const SPACE = /\s/u;
+
+// The `$`s of a text that are written `\$`, by its characters, so that the rule reads none of
+// them as a formula's (formula-reading.js): every `$` beside another, and each that would open a
+// formula that stands with the next `$`, or with a formula's right after the text, `after`, one
+// at a time, since a `\$` ends a formula opened before it as well as a `$` does. Strictly, all.
+function escapedDollars(chars, level, before, after) {
+  const dollars = chars.flatMap((c, i) => (c === '$' ? [i] : []));
+  if (dollars.length === 0 || level >= 2) return new Set(dollars);
+  const escaped = new Set(dollars.filter((i) => chars[i + 1] === '$' || (i === 0 ? before : chars[i - 1]) === '$'));
+  const opens = (i, k) => {
+    if (escaped.has(i)) return false;
+    const j = dollars[k + 1] ?? (after === '$' ? chars.length : null);
+    if (j === null || j === i + 1 || SPACE.test(chars[i + 1])) return false;
+    if (!escaped.has(j) && SPACE.test(chars[j - 1])) return false;
+    return j === chars.length || !/^\d/.test(chars[j + 1] ?? after ?? '');
+  };
+  for (;;) {
+    const opener = dollars.find(opens);
+    if (opener === undefined) return escaped;
+    escaped.add(opener);
+  }
 }
 
 // What GFM would make a link of itself, split by an empty comment. The reader takes a
@@ -1262,6 +1345,7 @@ function readsAsTag(rest, lineStart) {
 
 const firstChar = (node) => {
   if (node === undefined) return undefined;
+  if (node.type === 'math') return '$';
   return node.type === 'text' ? [...node.value][0] : '*';
 };
 
@@ -1287,6 +1371,12 @@ function inlineText(nodes, context) {
         break;
       case 'code':
         out += inlineCode(node.value, context);
+        break;
+      case 'math':
+        // A formula's closing `$` that a digit or another formula follows closes none: the first
+        // fallback ends it with the empty comment.
+        out += `$${context.cell ? node.value.replaceAll('|', '\\|') : node.value}$`;
+        if (context.level >= 1 && /^[\d$]/.test(after ?? '')) out += COMMENT;
         break;
       case 'footnote':
         out += `[^${node.n}]`;
@@ -1481,11 +1571,13 @@ function spannedRows(rows, align, tag) {
 // inline text; the rest as in a paragraph.
 function altText(alt, level, scope) {
   const chars = [...alt];
+  const dollars = escapedDollars(chars, level, undefined, undefined);
   let out = '';
   for (let i = 0; i < chars.length; i += 1) {
     const c = chars[i];
     const rest = () => chars.slice(i + 1).join('');
     if ('\\*`[]'.includes(c)) out += `\\${c}`;
+    else if (c === '$') out += dollars.has(i) ? '\\$' : c;
     else if (c === '_') out += ALNUM.test(chars[i - 1] ?? '') && ALNUM.test(chars[i + 1] ?? '') ? c : `\\${c}`;
     else if (c === '&') out += readsAsEntity(`${c}${rest()}`, { scope }) ? `\\${c}` : c;
     else if (c === '<') out += readsAsTag(rest(), false) ? `\\${c}` : c;
@@ -1531,6 +1623,7 @@ function blockText(node, level, scope, second = false) {
     case 'list': return listText(node, level, scope, second);
     case 'quote': return quoteText(node, level, scope);
     case 'code': return codeText(node.value);
+    case 'block-math': return `$$\n${node.value}\n$$`;
     case 'table': return tableText(node, level, scope);
     // A bare address GFM would end early reads back whole in angle brackets.
     case 'embed': return level >= 1 ? `<${node.address}>` : node.address;

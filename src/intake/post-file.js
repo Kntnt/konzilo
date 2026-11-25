@@ -7,6 +7,7 @@ import { checkBody, readBody } from '../format/body.js';
 import { canonicalAddress } from '../format/addresses.js';
 import { embedOf } from '../format/embeds.js';
 import { ownValue } from '../format/frontmatter.js';
+import { formulaReason } from '../format/mathml.js';
 import { readPostList, SECOND_PAGED_LIST } from '../format/post-list.js';
 import { isSource, OTHER_ANSWERS, SHOW } from '../format/redirects.js';
 import rules from '../format/rules.json' with { type: 'json' };
@@ -246,6 +247,7 @@ export function bodyHands(site, post, { reader, adminHost, listTerms, link, imag
     declared: declaredNames(site),
     link,
     image,
+    formula: formulaReason,
     directive(name, values) {
       if (name !== 'post-list') return { reasons: [], warnings: [], values };
       const warnings = [];

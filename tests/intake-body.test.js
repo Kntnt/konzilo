@@ -58,6 +58,12 @@ const evened = [
   ['a table in other spacing', '<table><thead><tr>\n  <th>A</th></tr></thead><tfoot><tr><td> 1 </td></tr></tfoot></table>', '<table>\n<thead>\n<tr><th>A</th></tr>\n</thead>\n<tfoot>\n<tr><td>1</td></tr>\n</tfoot>\n</table>'],
   ['a cell\'s attributes in another order', '<table>\n<thead>\n<tr><th style="text-align:right" colspan="2">A</th></tr>\n</thead>\n<tbody>\n<tr><td style="text-align: right">1</td><td>2</td></tr>\n</tbody>\n</table>', '<table>\n<thead>\n<tr><th colspan="2" style="text-align: right">A</th></tr>\n</thead>\n<tbody>\n<tr><td style="text-align: right">1</td><td>2</td></tr>\n</tbody>\n</table>'],
   ['an empty paragraph', 'One\n\n&#32;\n\nTwo', 'One\n\nTwo'],
+  ['a block formula on one line', '$$x^2 + y^2$$', '$$\nx^2 + y^2\n$$'],
+  ['a block formula begun beside its $$', '$$ x^2\n+ y\n$$', '$$\nx^2\n+ y\n$$'],
+  ['spaces and blank lines in a block formula', '$$\n\nx  \n\n  y\t\n\n$$', '$$\nx\n\n  y\n$$'],
+  ['a formula over two lines of its paragraph', 'A $x\ny$ here', 'A $x y$ here'],
+  ['a $ escaped where it need not be', 'It costs \\$5 and \\$10', 'It costs $5 and $10'],
+  ['a formula in a sentence', 'Write $x$ here', 'Write $x$ here'],
 ];
 
 for (const [what, source, exact] of evened) {
@@ -139,7 +145,7 @@ test('reads a source the same with any other parser that gives the same tree', (
 
 test('whatever an editor types comes back as typed, in any block, and is a fixed point', () => {
   const hands = { reader, rules, embedOf, elements: Object.keys(rules.elements), link: () => ({ href: '/x/' }), image: (address) => ({ src: address }) };
-  const pieces = ['*', '_', '`', '~', '[', ']', '(', ')', '<', '>', '&', '#', '|', '\\', ':', '!', '-', '+', '=', '.', '1', 'a', ' ', '^', '"', 'www.', '@', 'b', '/', ';', '{', '}', 'é', ' '];
+  const pieces = ['$', '*', '_', '`', '~', '[', ']', '(', ')', '<', '>', '&', '#', '|', '\\', ':', '!', '-', '+', '=', '.', '1', 'a', ' ', '^', '"', 'www.', '@', 'b', '/', ';', '{', '}', 'é', ' '];
   let seed = 1;
   const next = (below) => {
     seed = (seed * 1664525 + 1013904223) >>> 0;
@@ -180,4 +186,59 @@ test('keeps each task\'s box, ticked or not, beside plain items, and escapes a p
 test('takes an image in a list\'s item, as a link too, resolved to its master', () => {
   const { text } = out('- ![Harbour](/media/harbour.png)\n- [![Guild](/media/harbour.png)](https://example.com/)', everyElement, { 'media/harbour.png': 'an original' });
   assert.match(text, /^- !\[Harbour\]\(\.\.\/media\/hello-world-[0-9a-f]{10}\.webp\)\n- \[!\[Guild\]\(\.\.\/media\/hello-world-[0-9a-f]{10}\.webp\)\]\(https:\/\/example\.com\/\)$/m);
+});
+
+// A site whose pages take formulas of one kind, or of none.
+const takingFormulas = (...kinds) => ({ ...everyElement, types: { page: { ...everyElement.types.page, elements: ['paragraph', 'quote', ...kinds] } } });
+const refusalsOf = (body, site = everyElement) => run({ [pagePath]: pageSource(body) }, site).refusals.map(({ name, block, values }) => ({ name, block: block?.name, values }));
+
+test('a formula a digit or another formula follows ends with the empty comment', () => {
+  for (const exact of ['The $n$<!-- -->2 term', 'Both $x$<!-- -->$y$ at once']) {
+    assert.equal(out(exact).text, pageFile(exact));
+  }
+  assert.equal(out('The $n$<!---->2 term').text, pageFile('The $n$<!-- -->2 term'));
+});
+
+test('a formula in a table\'s cell keeps a pipe in it escaped', () => {
+  const exact = '| Norm |\n| --- |\n| $\\|x\\|$ |';
+  assert.equal(out(exact).text, pageFile(exact));
+});
+
+test('a $ beside a formula, in a quote and in an image\'s alt text is written so that it stays text', () => {
+  for (const [source, exact] of [
+    // A `\$` ends a formula a `$` before it opened, so the `$` before 10 needs its backslash too.
+    ['It costs $5 and \\$10, and \\$x$ too', 'It costs $5 and \\$10, and \\$x$ too'],
+    ['Pay \\$5, now $x$', 'Pay $5, now $x$'],
+    ['> Pay \\$5 for \\$y$', '> Pay \\$5 for \\$y$'],
+    ['![A \\$x$ sign](/media/a.png)', '![A \\$x$ sign](../media/hello-world-612e706e67.webp)'],
+  ]) {
+    const { text } = out(source, everyElement, { 'media/a.png': 'an original' });
+    assert.equal(text, pageFile(exact), source);
+    assert.equal(out(exact.replace('../media/hello-world-612e706e67.webp', '/media/a.png'), everyElement, { 'media/a.png': 'an original' }).text, pageFile(exact), 'and what it writes stands');
+  }
+});
+
+test('a type that takes no formula reads a $ as text, as before formulas, and writes it so that the site does too', () => {
+  const none = takingFormulas();
+  assert.equal(out('$x^2$ and $$y$$', none).text, pageFile('\\$x^2$ and \\$\\$y\\$\\$'));
+  assert.equal(out('\\$x^2$ and \\$\\$y\\$\\$', none).text, pageFile('\\$x^2$ and \\$\\$y\\$\\$'));
+  assert.deepEqual(refusalsOf('$$\nx\n$$', none).map(({ name }) => name), ['refusal.soft-break']);
+});
+
+test('a type that takes block formulas alone reads $…$ as text', () => {
+  const blocks = takingFormulas('block-math');
+  assert.equal(out('Write $x$ here', blocks).text, pageFile('Write \\$x$ here'));
+  assert.equal(out('$$\nx^2\n$$', blocks).text, pageFile('$$\nx^2\n$$'));
+  assert.deepEqual(refusalsOf('$$\nx\n$$', takingFormulas('inline-math')), [{ name: 'refusal.element-not-taken', block: 'block-math', values: { element: { name: 'body.element.block-math', values: {} } } }]);
+});
+
+test('a block formula stands at the top of a body', () => {
+  assert.deepEqual(refusalsOf('> $$\n> x\n> $$').map(({ name, block }) => [name, block]), [['refusal.quote-block', 'quote']]);
+  assert.deepEqual(refusalsOf('- $$x$$').map(({ name, block }) => [name, block]), [['refusal.math-block-place', 'list']]);
+});
+
+test('a formula Temml cannot read is named with what Temml says of it', () => {
+  assert.deepEqual(refusalsOf('Here $\\foo + 1$ stops'), [{ name: 'refusal.math-unreadable', block: 'paragraph', values: { formula: '\\foo + 1', problem: 'Unsupported function name: \\foo' } }]);
+  assert.deepEqual(refusalsOf('$$\n\\frac{1}{\n$$'), [{ name: 'refusal.math-unreadable', block: 'block-math', values: { formula: '\\frac{1}{', problem: 'Unexpected end of input in a macro argument, expected \'}\'' } }]);
+  assert.deepEqual(refusalsOf('Here $x^$ stops')[0].values.problem, { name: 'about.math-error', values: {} });
 });

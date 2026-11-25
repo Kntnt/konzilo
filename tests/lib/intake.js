@@ -48,7 +48,7 @@ export const everyElement = Object.freeze({
       plural: 'Pages',
       collection: 'pages',
       address: '/{slug}/',
-      elements: ['paragraph', 'heading', 'list', 'quote', 'code', 'table', 'footnotes', 'embed', 'image', 'gallery', 'post-list', 'form'],
+      elements: ['paragraph', 'heading', 'list', 'quote', 'code', 'table', 'footnotes', 'embed', 'image', 'gallery', 'post-list', 'form', 'inline-math', 'block-math'],
     },
   },
   presentations: {
