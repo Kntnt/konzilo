@@ -13,6 +13,7 @@ A site's design comes from its own stylesheets and components, which the templat
 | `presentations` | A component for each presentation the description declares, each a path from the site's root, or a package's by its name |
 | `directives` | A component for a directive, in the same way |
 | `searchPage`, `termPage` | A page of the design, in the same way |
+| `images` | The widths and sizes in which the design draws an image, by context, `body`, `gallery`, `lightbox`, `hero` and `card`, each `{ widths, sizes }`: its widths whole numbers of pixels up to 2520, and its sizes the text of a `sizes` attribute; a context, or a part of one, left out keeps the core's |
 
 A site's own templates write the wrapper around a body, with whatever class its styles are scoped to, and render the body through `Body.astro`. A layout places `ConsentBanner.astro`, or an embed shows only as its address, which the build warns of.
 
@@ -96,6 +97,10 @@ In a tab of its own, the live preview puts its toolbar last in each page's body,
 
 An image is a `figure` with no class of its own, holding its `figcaption` if it has one.
 
+Its `img` has a `srcset` of its versions, each no wider than its master, by their widths in `w`, and the `sizes` of its context, a gallery's for an image in a gallery and else a body's, from `images` or the core's; its `src` is its widest version, whose size its `width` and `height` give. A design that draws a context at another width gives its `sizes` the same breakpoints its CSS uses, so that the two never disagree, and its widths from its own measures, at about each width its sizes can come to at densities 1 and 2. The `srcset` holds the lightbox's widths too, which a browser loads only for the lightbox ([ADR 0022](adr/0022-make-each-images-master-from-its-original-and-write-images-and-galleries-in-markdown.md)).
+
+A template draws a hero's or a card's image, or any other from a master, in the widths and sizes of its context through `imageVersions()`: `<Image src={…} alt={…} {...imageVersions('card')} />`, with `imageVersions` from `@kntnt/konzilo/astro/images`.
+
 ### Tables in a body
 
 | Class | On | State |
@@ -117,7 +122,7 @@ The rest of a body is plain elements with no class of Konzilo's, as `content-for
 
 ### The lightbox
 
-The core's stylesheet makes it work, and it stands inside a body's wrapper, so a design's rules on `ul`, `li`, `figure`, `figcaption`, `img` or `button` must not reach into it. On a page an image stands in a button: `figure > button.konzilo-lightbox-open > img`. A closed dialog stands right after each single image's figure, and after a gallery as a whole, and counts as a sibling.
+The core's stylesheet makes it work, and it stands inside a body's wrapper, so a design's rules on `ul`, `li`, `figure`, `figcaption`, `img` or `button` must not reach into it. On a page an image stands in a button: `figure > button.konzilo-lightbox-open > img`. A closed dialog stands right after each single image's figure, and after a gallery as a whole, and counts as a sibling. Each image in it has the `srcset` it has on the page and the lightbox's `sizes` from `images`, `100vw` by default.
 
 | Class | On | State |
 |---|---|---|

@@ -6,7 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- `konzilo({ images })` takes the widths and sizes in which a site's design draws an image, for a body's image, a gallery's, the lightbox's, a hero's and a card's, and `imageVersions()` from `@kntnt/konzilo/astro/images` gives a template those of a context for Astro's `<Image>`. A context a site leaves out keeps the core's, which fit the site template.
+
 ### Changed
+
+- Each image in a post's body, and the site template's main image and cards, are served in a few fixed widths by `srcset` and `sizes`, so a phone loads a version near the width it shows the image at, not the whole master: in a window 400 px wide, the 480 px version of a photograph, about a sixteenth of the bytes it loaded before. No version is wider than its master or 2520 px. Versions are WebP at quality 75, and every version of a lossless master is lossless. A release holds more image files, about 1.6 times the bytes, and a first build takes some 60 ms more an image.
 
 - The window the editor opens for a sign-in opens empty and goes straight to Forgejo's sign-in page. It used to load the whole editor first, only to be sent on from there, so a sign-in now starts sooner.
 

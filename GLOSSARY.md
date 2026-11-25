@@ -204,6 +204,10 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Master**: The public version of an original that the intake writes at the site's set size and format, without metadata; of an SVG, the SVG itself, checked and optimised. _Avoid_: derivative, rendition.
 
+**Image version**: One of the fixed widths a build makes of a master, as WebP, never wider than the master, which a page lists in an image's `srcset` for the browser to choose from by the image's `sizes`. _Avoid_: rendition, derivative, thumbnail.
+
+**Image context**: Where a site draws an image, a body, a gallery, the lightbox, a hero or a card, each with the widths of its versions and its `sizes`, from the site's design or the core's. _Avoid_: slot, placement.
+
 **Featured image**: The image a post is shown with, beside its body, with alt text that belongs to the post. _Avoid_: hero image, cover.
 
 **Image in body text**: An image placed between the blocks of a body and shown as its master, with alt text and an optional caption that belong to that use. _Avoid_: inline image, figure.

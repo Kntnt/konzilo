@@ -62,17 +62,17 @@ function figuresIn(html) {
   }
 }
 
-function slide(html, { image, caption }, at, all, texts) {
+function slide(html, { image, caption }, at, all, texts, sizes) {
   const attributes = ['src', 'srcset', 'width', 'height', 'alt'].flatMap((name) => (image.attributes[name] === undefined ? [] : [`${name}="${quoted(image.attributes[name])}"`]));
   const words = caption ? `<figcaption>${html.slice(caption.tag.end, caption.close.start)}</figcaption>` : '';
   const place = all > 1 ? `<p class="konzilo-lightbox-place">${word(texts.place, { at, all })}</p>` : '';
-  return `<li><figure><img ${attributes.join(' ')} sizes="100vw" loading="lazy" decoding="async">${words}${place}</figure></li>`;
+  return `<li><figure><img ${attributes.join(' ')} sizes="${quoted(sizes)}" loading="lazy" decoding="async">${words}${place}</figure></li>`;
 }
 
-function dialogFor(html, { pictures }, id, texts) {
+function dialogFor(html, { pictures }, id, texts, sizes) {
   const several = pictures.length > 1;
   const steps = (button) => (several ? button : '');
-  const slides = pictures.map((picture, index) => slide(html, picture, index + 1, pictures.length, texts)).join('');
+  const slides = pictures.map((picture, index) => slide(html, picture, index + 1, pictures.length, texts, sizes)).join('');
   // The strip first, for a dialog gives the focus to the first thing that takes it, and that is
   // what puts the arrow keys to work. `autofocus` would say the same, and a browser complains of
   // it in a frame from elsewhere, as a preview is.
@@ -86,7 +86,9 @@ function dialogFor(html, { pictures }, id, texts) {
 
 // A part of a body's HTML with its lightboxes. `next()` gives the number for the next dialog's id,
 // which is unique on a page however many bodies it renders. `locale` is the page's language.
-export function withLightboxes(html, { next, locale }) {
+// `sizes`: how wide the lightbox draws an image, the lightbox's sizes (image-versions.js), by which
+// a browser picks one of the image's versions from the srcset it has on the page.
+export function withLightboxes(html, { next, locale, sizes = '100vw' }) {
   if (!html.includes('<img')) return html;
   const found = figuresIn(html);
   if (found.length === 0) return html;
@@ -99,7 +101,7 @@ export function withLightboxes(html, { next, locale }) {
       inserts.push([image.start, `<button class="konzilo-lightbox-open" type="button" commandfor="${id}" command="show-modal" data-konzilo-at="${index}" aria-label="${name}">`]);
       inserts.push([image.end, '</button>']);
     });
-    inserts.push([figureFound.end, dialogFor(html, figureFound, id, texts)]);
+    inserts.push([figureFound.end, dialogFor(html, figureFound, id, texts, sizes)]);
   }
   inserts.sort(([one], [other]) => one - other);
   let out = '';

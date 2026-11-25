@@ -563,6 +563,30 @@ describe('the site template, built by Astro', () => {
     assert.doesNotMatch(page('apart/index.html'), /Recommended reading/);
   });
 
+  // The main image in the article's column, as a body's image is, and a card's, each in the core's
+  // widths for its context, no wider than its master, with the context's sizes (ADR 0022).
+  test('serves an article\'s main image in the widths of a body and a card\'s in a card\'s, each with its sizes', async () => {
+    const disk = join(repository, 'originals');
+    mkdirSync(disk, { recursive: true });
+    writeFileSync(join(disk, 'lantern.webp'), await plainImage(sharp, { width: 2000, height: 1250, format: 'webp' }));
+    writeFileSync(join(disk, 'pier.webp'), await plainImage(sharp, { width: 1000, height: 700, format: 'webp' }));
+    const modified = '2026-10-02 09:00:00';
+    const lanterns = [term('lanterns', 'Lanterns', { taxonomy: 'topics' })];
+    const pictured = (ID, slug, file) => post({ ID, slug, title: slug, date: '2026-09-20 08:00:00', modified, body: paragraphs('A story.'), terms: { topics: lanterns }, meta: { thumbnail: [String(ID)], image_alt: [`The ${slug}`] }, attachments: { [ID]: { original: join(disk, file) } } });
+    const page = build(repository, { title: 'Lantern', logo: null, icon: null }, { given: [...posts, pictured(70, 'lantern', 'lantern.webp'), pictured(71, 'pier', 'pier.webp')] });
+    const attributes = (tag) => Object.fromEntries([...tag.matchAll(/([a-z-]+)="([^"]*)"/g)].map(([, name, value]) => [name, value]));
+    const widths = (image) => image.srcset.split(', ').map((candidate) => Number(candidate.split(' ')[1].replace('w', '')));
+
+    const featured = attributes(/<img[^>]*class="featured-image"[^>]*>/.exec(main(page('lantern/index.html')))[0]);
+    assert.deepEqual(widths(featured), [480, 800, 1200, 1600]);
+    assert.equal(featured.sizes, '(min-width: 46rem) 46rem, 100vw');
+    assert.equal(featured.alt, 'The lantern');
+    const card = attributes(/<img[^>]*class="post-card-image"[^>]*>/.exec(page('lantern/index.html'))[0]);
+    assert.deepEqual(widths(card), [480, 800, 1000]);
+    assert.equal(card.sizes, '(min-width: 40rem) 23rem, 100vw');
+    assert.equal(card.alt, 'The pier');
+  });
+
   // Term pages: with the categories at /category/{slug}/, News
   // has its page, with its description, Harbour lights from its child Local
   // news, and eleven stories of its own, newest first, ten a page; the topics
