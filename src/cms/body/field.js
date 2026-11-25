@@ -44,6 +44,7 @@ const ELEMENTS = {
   form: 'body.element.form',
   'inline-math': 'body.element.inline-math',
   'block-math': 'body.element.block-math',
+  'consent-objection': 'body.element.consent-objection',
 };
 
 // An element of the rule data by name, as it stands in a sentence: "a paragraph".

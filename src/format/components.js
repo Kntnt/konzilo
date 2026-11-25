@@ -1,8 +1,9 @@
 // A site's own components: the directives its site description declares under
-// `components`, beside the core's own, the post list and the form. Each is read
-// against the shape the rule data gives a directive, and the rule data with them
-// added is what a site's bodies are read against, by the intake, the site's reader
-// and the editor alike. It imports nothing, so that the editor runs it in the browser.
+// `components`, beside the core's own, the post list, the form and the right to
+// object. Each is read against the shape the rule data gives a directive, and the
+// rule data with them added is what a site's bodies are read against, by the
+// intake, the site's reader and the editor alike. It imports nothing, so that the
+// editor runs it in the browser.
 //
 // A component as declared:
 //
