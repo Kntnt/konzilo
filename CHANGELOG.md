@@ -10,6 +10,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - The window the editor opens for a sign-in opens empty and goes straight to Forgejo's sign-in page. It used to load the whole editor first, only to be sent on from there, so a sign-in now starts sooner.
 
+### Security
+
+- A site run locally with Compose answers on its public site, editor, Forgejo and live preview only for `localhost`, `127.0.0.1`, `[::1]` and a name one label under `.localhost`, such as `site.localhost`, and refuses any other name with `421 Misdirected Request` and nothing else. A page on another site could make a name of its own lead to this machine and read what the copy answered as its own. A server names its own hosts in `KONZILO_WEB_HOSTS`.
+
 ## [0.9.0] – 2026-11-25
 
 ### Removed

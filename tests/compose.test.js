@@ -194,6 +194,36 @@ test('publishes ports on the web server alone, and on this machine alone', () =>
   for (const port of ports) assert.match(port, /- 127\.0\.0\.1:/);
 });
 
+// What the web server answers for (ADR 0002): its own names alone, a local copy's the loopback's,
+// which a page elsewhere cannot make its own, as it can a name of its own that it makes lead to the
+// loopback. Every other host is refused on each of the four, before anything else of the host's
+// runs: a release's redirects and headers come before a `handle` in Caddy's order, and a `handle`
+// with a path before one without, so each host's own is in the one `handle` that follows. The same
+// goes for an error before any route, such as Caddy's own for an empty host, on the public site,
+// whose errors would otherwise get its page not found.
+test('answers for its own names alone, on each of its four hosts, and refuses every other first', () => {
+  const caddyfile = read('compose/web/Caddyfile');
+  const code = (text) => text.split('\n').filter((line) => !/^\s*#/.test(line)).join('\n');
+  assert.match(code(caddyfile), /^\(own_hosts\) \{\n\t@foreign not host \{\$KONZILO_WEB_HOSTS\}\n\thandle @foreign \{\n\t\trespond 421\n\t\}\n\}$/m);
+  // At its own level, as Caddy sorts it: the refusal, and one handle that holds the rest.
+  const level = (block, depth) => code(block).split('\n').filter((line) => new RegExp(`^\\t{${depth}}[^\\t}]`).test(line)).map((line) => line.trim());
+  const hosts = [...caddyfile.matchAll(/^:\{\$KONZILO_PORT_([A-Z]+)\} \{\n([\s\S]*?)\n\}$/gm)];
+  assert.deepEqual(hosts.map(([, name]) => name).sort(), ['ADMIN', 'GIT', 'PREVIEW', 'SITE']);
+  for (const [, name, block] of hosts) {
+    const directives = level(block, 1);
+    assert.equal(directives[0], 'import own_hosts', name);
+    // `root` only sets where the files are, which the public site's errors read too.
+    assert.deepEqual(directives.slice(1).filter((line) => !line.startsWith('root ')), ['handle {', ...(name === 'SITE' ? ['handle_errors {'] : [])], name);
+  }
+  const errors = hosts.find(([, name]) => name === 'SITE')[2].split('\n\thandle_errors {\n')[1];
+  assert.deepEqual(level(errors, 2), ['handle @foreign {', 'handle {']);
+  assert.match(errors, /^\t\thandle @foreign \{\n\t\t\trespond 421\n\t\t\}$/m);
+  // The names, a local copy's by default, which a server sets to its own; the web server alone reads them.
+  const blocks = servicesOf(compose);
+  assert.match(blocks.web, /^ {6}KONZILO_WEB_HOSTS: \$\{KONZILO_WEB_HOSTS:-localhost 127\.0\.0\.1 ::1 \*\.localhost\}$/m);
+  for (const [name, block] of Object.entries(blocks)) if (name !== 'web') assert.doesNotMatch(block, /KONZILO_WEB_HOSTS/, name);
+});
+
 test('mounts Docker\'s socket nowhere', () => {
   assert.doesNotMatch(compose, /docker\.sock/);
 });
@@ -254,7 +284,7 @@ test('reads the route to search from where the build writes it, and says when Ty
   const host = caddyfile.slice(caddyfile.indexOf(':{$KONZILO_PORT_SITE}'), caddyfile.indexOf(':{$KONZILO_PORT_ADMIN}'));
   // A glob, since there is none before the first build.
   assert.match(host, /import \/srv\/search\/search-route\*\.caddy/);
-  assert.match(host, /handle_errors \{[\s\S]*@search_down \{\n\t\t\tpath \/_konzilo\/search\n\t\t\texpression `\{err\.status_code\} >= 500`\n\t\t\}/);
+  assert.match(host, /handle_errors \{[\s\S]*@search_down \{\n\t\t\t\tpath \/_konzilo\/search\n\t\t\t\texpression `\{err\.status_code\} >= 500`\n\t\t\t\}/);
   assert.match(host, /respond `\{"message":"Search does not answer\."\}` 502/);
   assert.match(compose, /- search-route:\/srv\/search:ro/);
   assert.match(compose, /- search-route:\/search-route\n/);
@@ -310,7 +340,7 @@ test('lets the service for editors read the forms\' submissions, on the admin ho
   const matcher = /@service path (.*)$/m.exec(admin)?.[1].split(' ');
   assert.ok(matcher, 'a matcher of its own');
   for (const path of ['/_konzilo/submissions', '/_konzilo/submissions/*', '/_konzilo/mail', '/_konzilo/personal-data', '/_konzilo/personal-data.csv']) assert.ok(matcher.includes(path), path);
-  assert.match(/handle @service \{\n([\s\S]*?)\n\t\}/.exec(admin)?.[1] ?? '', /reverse_proxy \{\$KONZILO_PEER_EDITORS:http:\/\/editors:4100\} \{/);
+  assert.match(/handle @service \{\n([\s\S]*?)\n\t\t\}/.exec(admin)?.[1] ?? '', /reverse_proxy \{\$KONZILO_PEER_EDITORS:http:\/\/editors:4100\} \{/);
 });
 
 // The locks of the editor's forms (ADR 0073) are the service's, in its role for editors, on the
@@ -320,7 +350,7 @@ test('passes the locks of the editor\'s forms to the service for editors, on the
   const admin = caddyfile.slice(caddyfile.indexOf(':{$KONZILO_PORT_ADMIN}'), caddyfile.indexOf(':{$KONZILO_PORT_PREVIEW}'));
   const matcher = /@service path (.*)$/m.exec(admin)?.[1].split(' ') ?? [];
   for (const path of ['/_konzilo/locks', '/_konzilo/locks/*']) assert.ok(matcher.includes(path), path);
-  assert.doesNotMatch(/handle @service \{\n([\s\S]*?)\n\t\}/.exec(admin)?.[1] ?? '', /response_header_timeout/, 'a call held open is no fault');
+  assert.doesNotMatch(/handle @service \{\n([\s\S]*?)\n\t\t\}/.exec(admin)?.[1] ?? '', /response_header_timeout/, 'a call held open is no fault');
 });
 
 // A form's revisions (ADR 0074) are read by the service for editors, which knows who pushed what.
@@ -368,16 +398,16 @@ test('mails from the service for editors alone, writes a local copy\'s mail to i
 // it came to, and nothing else.
 test('passes every path below /_konzilo/ to the service but search and the consent scripts\' files, with what ADR 0044 lists alone', () => {
   const host = siteHost();
-  const matcher = /@konzilo_visitors \{\n([\s\S]*?)\n\t\}/.exec(host)?.[1];
+  const matcher = /@konzilo_visitors \{\n([\s\S]*?)\n\t\t\}/.exec(host)?.[1];
   assert.ok(matcher, 'a matcher of its own');
-  assert.match(matcher, /^\t\tpath \/_konzilo\/\*$/m);
-  assert.match(matcher, /^\t\tnot path \/_konzilo\/search \/_konzilo\/search\/\*$/m);
-  assert.match(matcher, /^\t\tnot \{\n\t\t\tpath \/_konzilo\/consent\/\*\n\t\t\tmethod GET HEAD\n\t\t\}$/m);
-  const handled = /handle @konzilo_visitors \{\n([\s\S]*?)\n\t\}\n/.exec(host)?.[1];
+  assert.match(matcher, /^\t\t\tpath \/_konzilo\/\*$/m);
+  assert.match(matcher, /^\t\t\tnot path \/_konzilo\/search \/_konzilo\/search\/\*$/m);
+  assert.match(matcher, /^\t\t\tnot \{\n\t\t\t\tpath \/_konzilo\/consent\/\*\n\t\t\t\tmethod GET HEAD\n\t\t\t\}$/m);
+  const handled = /handle @konzilo_visitors \{\n([\s\S]*?)\n\t\t\}\n/.exec(host)?.[1];
   assert.ok(handled);
-  assert.match(handled, /request_body \{\n\t\t\tmax_size 1MB\n\t\t\}/);
+  assert.match(handled, /request_body \{\n\t\t\t\tmax_size 1MB\n\t\t\t\}/);
   assert.match(handled, /reverse_proxy \{\$KONZILO_PEER_VISITORS:http:\/\/visitors:4200\} \{/);
-  const passed = [...handled.matchAll(/^\t\t\theader_up (\S+)(?: (.*))?$/gm)].map(([, name, value]) => [name, value ?? null]);
+  const passed = [...handled.matchAll(/^\t\t\t\theader_up (\S+)(?: (.*))?$/gm)].map(([, name, value]) => [name, value ?? null]);
   assert.deepEqual(passed, [
     ['-*', null],
     ['Content-Type', '{http.request.header.Content-Type}'],
@@ -396,8 +426,8 @@ test('passes every path below /_konzilo/ to the service but search and the conse
 // sent (ADR 0045), as the dev server gives it.
 test('gives a form the service does not answer the release\'s page that says it was not sent', () => {
   const errors = siteHost().slice(siteHost().indexOf('handle_errors'));
-  assert.match(errors, /@form_down \{\n\t\t\tpath \/_konzilo\/forms\/\*\n\t\t\texpression `\{err\.status_code\} >= 500`\n\t\t\}/);
-  const handled = /handle @form_down \{\n([\s\S]*?)\n\t\t\}/.exec(errors)?.[1];
+  assert.match(errors, /@form_down \{\n\t\t\t\tpath \/_konzilo\/forms\/\*\n\t\t\t\texpression `\{err\.status_code\} >= 500`\n\t\t\t\}/);
+  const handled = /handle @form_down \{\n([\s\S]*?)\n\t\t\t\}/.exec(errors)?.[1];
   assert.ok(handled);
   assert.match(handled, /method GET/);
   assert.match(handled, /rewrite \* \/_konzilo\/form-not-sent\.html/);
