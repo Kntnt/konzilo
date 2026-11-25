@@ -42,6 +42,7 @@ const CORE_LABELS = Object.freeze({
   status: 'form.status',
   parent: 'form.parent',
   date: 'form.date',
+  triggers: 'form.triggers',
   excerpt: 'form.excerpt',
   image: 'form.image',
   breadcrumb: 'form.breadcrumb',

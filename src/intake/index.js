@@ -11,6 +11,7 @@ import { isObject, MARKUP } from '../checks.js';
 import { DRAFT, POST_STATUSES, PUBLISHED, SCHEDULED } from '../format/post-status.js';
 import { REDIRECTS_FILE } from '../format/redirects.js';
 import { START_PAGE, startFile } from '../format/start-page.js';
+import { TRIGGERS, triggersGiven } from '../format/triggers.js';
 import { POST_IDS_FILE } from '../format/write.js';
 import { siteDescription } from '../site-description.js';
 import { addressWanted, allOthers, earlier, holdAddresses, oldAddressesOf } from './addresses.js';
@@ -24,6 +25,7 @@ import { chosenIn } from './settings.js';
 import { consentFile, menuFiles, notFoundFiles, redirectsFile, settingsFiles } from './site-files.js';
 import { readSource, sha256 } from './source.js';
 import { readTerms, termFiles } from './terms.js';
+import { reckonTriggers, scheduleOf, shownTriggers, termIdsOf } from './triggers.js';
 import { fieldValued, named, say } from './words.js';
 
 // A post's own statuses, of which it is a draft where it names none of them.
@@ -40,6 +42,9 @@ const STATUSES = new Set(POST_STATUSES);
 // from now where it has none, while it waits for it as a scheduled post does, and every other
 // draft stays nobody's business; one on its way for the preview alone gives way to a post on its
 // own, as it would once published. A run at a moment of the timeline is a run with that `now`.
+// `assume`: in a live preview, the moment it stands at now: a trigger that waits for a post the
+// timeline knows nothing of is taken to happen by the latest of its post's own moments, where that
+// is after it (ADR 0076).
 //
 // Returns { files, refusals, warnings, keep, ledger, posts, termPages, next }: `keep`, the
 // paths of the content files that stay though no file here writes them, a refused post's own
@@ -49,10 +54,26 @@ const STATUSES = new Set(POST_STATUSES);
 // none of them, its `address`, whether the site `shown` shows a version of it, and, while it
 // is refused, the address its page would be at, `wanted`, where it can have one nothing else
 // holds, or null; `termPages`, each term's page, by the term's source `file`, its name as
-// `title` and its `address`; `next`, the next scheduled moment, or null.
-export function intake({ files, site: described, now, ledger = null, changes = {}, images = () => null, adminHost = null, reader = siteReader, preview = [], components = null }) {
-  const site = siteDescription(described);
-  const clock = typeof now === 'function' ? now() : now;
+// `title` and its `address`; `next`, the next scheduled moment, or null. A scheduled post with
+// triggers has them too, `triggers`, in their rows, each ticked where it has happened, its
+// `terms`, and `assumed` where its moment `at` takes what the timeline knows nothing of as
+// happening on time.
+//
+// A post a trigger counted as published that is refused in the end published nothing: the run is
+// made again without it, until every post that went out by its triggers went out by posts that did.
+export function intake(options) {
+  const site = siteDescription(options.site);
+  const clock = typeof options.now === 'function' ? options.now() : options.now;
+  const excluded = new Set();
+  for (;;) {
+    const run = intakeOnce({ ...options, site, now: clock }, excluded);
+    const unpublished = [...run.counted].filter((key) => run.refused.has(key) && !excluded.has(key));
+    if (unpublished.length === 0) return assemble(run);
+    for (const key of unpublished) excluded.add(key);
+  }
+}
+
+function intakeOnce({ files, site, now: clock, ledger = null, changes = {}, images = () => null, adminHost = null, reader = siteReader, preview = [], components = null, assume = null }, excluded) {
   const run = {
     site,
     now: clock,
@@ -65,6 +86,8 @@ export function intake({ files, site: described, now, ledger = null, changes = {
     reader,
     components,
     preview: new Set(preview),
+    assume,
+    excluded,
     refused: new Map(),
     warnings: [],
     refusals: [],
@@ -76,11 +99,15 @@ export function intake({ files, site: described, now, ledger = null, changes = {
   holdPostsTaken(run);
   run.posts = new Map(run.source.posts.map((post) => [post.key, post]));
   run.postsById = groupBy(run.source.posts, (post) => post.id);
-  for (const post of run.source.posts) stateOf(post, run);
+  for (const post of run.source.posts) ownStateOf(post, run);
+  releaseByTriggers(run);
+  for (const post of run.source.posts) previewStateOf(post, run);
   chooseStartPage(run);
   for (const post of run.source.posts) if (post.on) checkPost(post, run);
   settle(run);
-  return assemble(run);
+  // The posts whose publishing released another, which must be published themselves.
+  run.counted = new Set(run.source.posts.filter((post) => post.triggers && post.on && !post.out).flatMap((post) => post.happened.flat().filter(({ by, at }) => by && at <= post.dated).map(({ by }) => by.key)));
+  return run;
 }
 
 const PROTECTED = (path) => path === 'settings.json' || path === 'redirects.json' || path === 'services.json' || (path.startsWith('menus/') && path.endsWith('.json'));
@@ -174,9 +201,8 @@ function holdPostsTaken(run) {
 // shows, from its own moment on, or from now where it has none, as the site stands at the
 // moment `now` (ADR 0032). A post ahead of its moment waits for it in a preview as on the site.
 // A draft is otherwise nobody's business but its editor's, and is not checked.
-function stateOf(post, run) {
-  ownStateOf(post, run);
-  if (post.on || post.waiting || !run.preview.has(post.path)) return;
+function previewStateOf(post, run) {
+  if (post.on || post.waiting || post.awaits || !run.preview.has(post.path)) return;
   const date = momentOf(post.fields.date ?? '');
   if (date && new Date(date) > run.now) {
     post.waiting = date;
@@ -227,7 +253,24 @@ function ownStateOf(post, run) {
     refuse(run, post, { field: 'status', reason: say('refusal.status', { status: String(status) }) });
     return;
   }
-  const date = post.fields.date === undefined || post.fields.date === null || post.fields.date === '' ? undefined : momentOf(post.fields.date);
+  let date = post.fields.date === undefined || post.fields.date === null || post.fields.date === '' ? undefined : momentOf(post.fields.date);
+  // A scheduled post's triggers, where it gives others than a moment alone, are reckoned with
+  // every other post's publishing, once each post's own state is known (ADR 0076).
+  if (status === SCHEDULED && triggersGiven(post.fields[TRIGGERS])) {
+    const schedule = scheduleOf(post, run);
+    if (schedule.refused) {
+      post.on = true;
+      return;
+    }
+    if (schedule.rows) {
+      post.triggers = schedule.rows;
+      post.triggersKey = schedule.key;
+      return;
+    }
+    date = schedule.moment;
+    post.dated = date;
+    post.momentField = TRIGGERS;
+  }
   if (status === SCHEDULED && !date) {
     post.on = true;
     refuse(run, post, { field: date === null ? 'date' : 'status', reason: date === null ? say('refusal.field-moment', { field: fieldValued(post.type, 'date'), value: String(post.fields.date) }) : say('refusal.scheduled-date') });
@@ -241,8 +284,13 @@ function ownStateOf(post, run) {
     post.waiting = date;
     return;
   }
-  post.on = true;
   if (status === SCHEDULED && !post.awaited) post.passed = date;
+  goesOn(post, run);
+}
+
+// A post on the site's way, by its own status and moment or by its triggers.
+function goesOn(post, run) {
+  post.on = true;
   if (run.several && post.language === null) {
     refuse(run, post, { reason: say('refusal.language-folder', { folder: post.tag ?? say('about.collection-folder') }) });
     post.keepsNothing = true;
@@ -251,6 +299,29 @@ function ownStateOf(post, run) {
   post.notFound = run.chosen.notFound === post.id;
   const change = legalChangedBy(post, run);
   if (change) refuse(run, post, { reason: say('refusal.admin-legal', { by: change.by ?? say('about.someone') }) });
+}
+
+// The scheduled posts whose triggers have come to hold go out, dated by the moment they did, and
+// the others wait, for the moment they will come to hold where it is known (ADR 0076). One the
+// ledger saw waiting for the same triggers goes out with nothing to say, as one does that comes
+// to hold in the build that first reads it; one whose triggers had held before the site first
+// read it says so, as a passed moment does (ADR 0069).
+function releaseByTriggers(run) {
+  reckonTriggers(run);
+  for (const post of run.source.posts) {
+    if (!post.triggers) continue;
+    const at = post.holdsAt;
+    if (at === null || at > run.nowText) {
+      post.waiting = at;
+      post.awaits = true;
+      post.awaited = post.triggersKey;
+      continue;
+    }
+    post.dated = at;
+    if (run.ledger.awaited[post.key] === post.triggersKey || at === run.nowText) post.awaited = post.triggersKey;
+    else post.passedTriggers = at;
+    goesOn(post, run);
+  }
 }
 
 // The start page an Admin chose, which is the site's start page where it is on the site's
@@ -305,7 +376,7 @@ function writePost(post, run) {
   const { body, problems, warnings, embeds } = writtenBody(post, hands);
   for (const problem of problems) refuse(run, post, inBody(problem, post));
   if (problems.length > 0) return;
-  const own = momentOf(post.fields.date ?? '');
+  const own = post.dated ?? momentOf(post.fields.date ?? '');
   const date = own ?? taken;
   const fields = fieldsOf(post, context, { date, modified: 'PENDING' });
   for (const problem of fields.problems) refuse(run, post, problem);
@@ -333,7 +404,8 @@ function writePost(post, run) {
     taken,
     embeds,
     warnings: [
-      ...(post.passed ? [{ field: 'date', reason: say('warning.scheduled-passed', { moment: { moment: post.passed } }) }] : []),
+      ...(post.passed ? [{ field: post.momentField ?? 'date', reason: say('warning.scheduled-passed', { moment: { moment: post.passed } }) }] : []),
+      ...(post.passedTriggers ? [{ field: TRIGGERS, reason: say('warning.triggers-passed', { moment: { moment: post.passedTriggers } }) }] : []),
       ...warnings.map((warning) => inBody(warning, post)),
       ...fields.warnings,
     ],
@@ -438,9 +510,12 @@ function assemble(run) {
       id: post.id,
       type: post.type.name,
       title: post.title ?? post.id,
-      state: run.refused.has(post.key) ? 'refused' : post.written ? 'live' : post.waiting ? 'waiting' : 'off',
+      state: run.refused.has(post.key) ? 'refused' : post.written ? 'live' : post.waiting || post.awaits ? 'waiting' : 'off',
       status: STATUSES.has(post.fields.status) ? post.fields.status : DRAFT,
       at: post.waiting ?? null,
+      // A scheduled post's triggers, in their rows, each ticked where it has happened, and its
+      // terms, which another post's trigger may wait for (ADR 0076).
+      ...(post.triggers ? { triggers: shownTriggers(post, run), terms: termIdsOf(post, run), ...(post.assumed ? { assumed: true } : {}) } : {}),
       address: updated.posts[post.key]?.address ?? null,
       shown: Boolean(updated.posts[post.key]?.path),
       ...(run.refused.has(post.key) ? { wanted: addressWanted(post, run) } : {}),

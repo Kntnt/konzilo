@@ -4,8 +4,9 @@
 // while it is off the site, and those it had while live; its title as published; the
 // source file's hash and the published version's; when the intake first took it and when
 // its published version last changed; and what its file names, since a refused post's
-// kept file holds on to them. Beside the posts: the moment each scheduled post was seen
-// waiting for, while it is still scheduled for it; the old addresses of terms' pages, the
+// kept file holds on to them. Beside the posts: what each scheduled post was seen waiting for,
+// its moment or its triggers by their hash, while it is still scheduled for it; the moment each
+// post with triggers went out at, while it keeps the same triggers (ADR 0076); the old addresses of terms' pages, the
 // source hash of each file of an Admin's that was accepted, what the settings last
 // chose and the masters they last named, since a refused settings file's kept file holds
 // on to them, and the consent revision with the day it last changed.
@@ -23,6 +24,7 @@ export function normalLedger(given) {
   return {
     posts: given.posts,
     awaited: isObject(given.awaited) ? given.awaited : empty.awaited,
+    ...(isObject(given.released) ? { released: given.released } : {}),
     terms: isObject(given.terms) ? given.terms : empty.terms,
     files: isObject(given.files) ? given.files : empty.files,
     chosen: isObject(given.chosen) ? { legalPages: given.chosen.legalPages ?? [], notFound: given.chosen.notFound ?? null, startPage: given.chosen.startPage ?? null } : empty.chosen,
@@ -103,9 +105,16 @@ export function nextLedger(run, settings) {
     if (!held) files[path] = hash;
   }
   const awaited = Object.fromEntries(source.posts.filter((post) => post.awaited).map((post) => [post.key, post.awaited]));
+  // A post that went out by its triggers stays out, at the moment they came to hold, for as long
+  // as it keeps them, whatever becomes of what released it: one that went out before, and one
+  // that goes out now.
+  const released = Object.fromEntries(source.posts
+    .filter((post) => post.triggers && (post.out || (post.on && !run.refused.has(post.key))))
+    .map((post) => [post.key, { triggers: post.triggersKey, at: post.out ?? post.dated }]));
   return {
     posts: sortedKeys(posts),
     awaited: sortedKeys(awaited),
+    ...(Object.keys(released).length > 0 ? { released: sortedKeys(released) } : {}),
     terms: sortedKeys(terms),
     files: sortedKeys(files),
     chosen: settings.refused ? ledger.chosen : run.chosen,
