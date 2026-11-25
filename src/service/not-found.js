@@ -14,7 +14,7 @@
 // what a rule holds, the release's or one in the source's `redirects.json`, which the Admin's
 // save of a rule writes, so that the address leaves the page at once.
 
-import { closeSync, openSync, readdirSync, readFileSync, readSync, statSync } from 'node:fs';
+import { closeSync, fstatSync, openSync, readdirSync, readFileSync, readSync, statSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 
 import { compilePattern, isPattern } from '../format/patterns.js';
@@ -49,7 +49,7 @@ function linesOf(path, from) {
     return { text: '', next: from };
   }
   try {
-    const size = Math.min(statSync(path).size - from, READ_AT_MOST);
+    const size = Math.min(fstatSync(descriptor).size - from, READ_AT_MOST);
     if (size <= 0) return { text: '', next: from };
     const bytes = Buffer.alloc(size);
     const read = readSync(descriptor, bytes, 0, size, from);
