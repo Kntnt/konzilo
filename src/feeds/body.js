@@ -21,8 +21,6 @@ const NEVER = new Set(['img', 'picture', 'video', 'audio', 'source', 'track', 'i
 const INLINE = new Set(['#text', 'a', 'abbr', 'acronym', 'b', 'bdi', 'bdo', 'big', 'br', 'cite', 'code', 'data', 'del', 'dfn', 'em', 'font', 'i', 'ins', 'kbd', 'mark', 'q', 's', 'samp', 'small', 'span', 'strike', 'strong', 'sub', 'sup', 'time', 'tt', 'u', 'var', 'wbr', 'img', 'picture', 'svg', 'math', 'input', 'button', 'select', 'textarea', 'label']);
 const HEADINGS = { h1: 2, h2: 2, h3: 3, h4: 4, h5: 5, h6: 6 };
 const LISTS = new Set(['ul', 'ol']);
-// Elements a paragraph of their own is made of, their text the paragraph's.
-const PARAGRAPHS = new Set(['p', 'dt', 'dd', 'figcaption', 'caption', 'summary', 'address', 'li']);
 
 const isText = (node) => node.nodeName === '#text';
 const childrenOf = (node) => (node.nodeName === 'template' ? [] : node.childNodes ?? []);
@@ -230,7 +228,7 @@ function block(node, context, previous) {
     }
     return [{ text: table }];
   }
-  if (PARAGRAPHS.has(name)) return paragraphsOf(node, context);
+  // A paragraph, and anything else that holds blocks or text, gives its own.
   return paragraphsOf(node, context);
 }
 

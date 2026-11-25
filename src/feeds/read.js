@@ -14,7 +14,6 @@ import { MARKUP } from '../checks.js';
 const ATOM = 'http://www.w3.org/2005/Atom';
 const CONTENT = 'http://purl.org/rss/1.0/modules/content/';
 const DUBLIN_CORE = 'http://purl.org/dc/elements/1.1/';
-const XHTML = 'http://www.w3.org/1999/xhtml';
 const XML = 'http://www.w3.org/XML/1998/namespace';
 
 // The longest title made from the start of an item's text, where it has no title of its own.
@@ -140,7 +139,7 @@ export function readFeed(text, address) {
     const node = stack.pop();
     const depth = stack.length;
     if (part?.xhtml && depth > part.depth + 1) {
-      if (node.uri === XHTML || node.uri === '') part.value += `</${node.local}>`;
+      part.value += `</${node.local}>`;
       return;
     }
     if (part && depth === part.depth) {
