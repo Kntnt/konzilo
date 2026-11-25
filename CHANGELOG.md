@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- *Purge for good…* on the *Deleted* page, for an Admin alone, on each row and on an entry read. It takes a deleted post, term or image from the history for good: every revision of it, the files the site was built from it, the redirects that led to it or from or to an address it had, and an image's original with the images made of it, unless another entry or a current file names the same original. It is confirmed in steps, each saying that there is no way back and that backups keep it until they expire, the last of them by writing the entry's name. Where others have forms open, the Admin sees who has which, and chooses to run anyway, their tabs warned that they reload and lose what they have not saved, or to wait until they are done, while nobody may open a form; an Admin may stop waiting. Every tab in the editor reloads once it is done. Every form's history reads as before, with the same revisions, moments and accounts, the next build makes the site anew, and the page says how many purges were made, and the last by whom and when.
+
+### Changed
+
+- A local copy in Compose has a service more, `purge`, which alone holds a credential that can rewrite the source repository's history, and two volumes more, `purge-secret` and `purge-work`. Forgejo is set to let go at once of what no ref reaches, when a purge asks it to, and the source repository has a branch, `konzilo-purges`, that only the instance's account may write, which holds the record of purges. Start with `--build` after raising the core.
+
 ## [0.10.0] – 2026-11-25
 
 ### Added

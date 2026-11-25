@@ -166,7 +166,7 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Preview toolbar**: The small bar on every page of the live preview in a tab of its own, which says what the page is built from, a post with its status or a term, and, for someone who may write, leads to its form on the admin host, and lists the timeline, with the moment the page shows; it is dragged anywhere, and tucks into a tab on the left or right edge. _Avoid_: admin bar, edit bar.
 
-**Purge**: Removing a post and its media for good, from every repository's history at once, and from backups as they expire. _Avoid_: erasure (a person's submissions'), delete, unpublish.
+**Purge**: Removing a deleted post, term or image library entry for good, with every revision of it, the content files built from it, the rules that led to it and, for an image library entry, its original where nothing else names it, from both repositories' histories at once, and from backups as they expire; an Admin purges one from the *Deleted* page. Erasing a passage from every old revision is a purge too. Every save after the oldest one rewritten gets a new identity, and the record of purges names who pushed it. _Avoid_: erasure (a person's submissions'), delete, unpublish.
 
 **Archive**: The one file that moves a site: Forgejo's data, the source repository with its LFS objects, the code, the content repository, the service's data and the accounts. _Avoid_: dump, backup (one use of it).
 
