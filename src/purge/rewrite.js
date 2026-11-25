@@ -10,16 +10,17 @@
 // a passage from every old revision (ADR 0078) rewrite alike:
 //
 // - `drop(path, at)`: whether a file a commit writes is to go from it, `at` being what the commit
-//   was, { commit, read(path) }, `commit` its old identity and `read(path)` a file as it left it,
-//   or null. A file dropped where the commit before it holds it is removed there, as the commit
+//   was, { commit, message, read(path) }, `commit` its old identity, `message` its message, and
+//   `read(path)` a file as it left it, or null. A file dropped where the commit before it holds it is removed there, as the commit
 //   it was written over is no longer the file's.
 // - `change(path, bytes)`: a file's new bytes, or null to keep it as it is. It is given the file
 //   alone, so that each version of a file is changed once, however many commits hold it.
 // - `message(text)`: a commit's new message, or null to keep it.
 //
-// It gives { head, renamed }, `head` the branch's new commit, and `renamed` a map from each old
+// It gives { head, renamed, gone }, `head` the branch's new commit, `renamed` a map from each old
 // commit to the one that now stands in its place: itself, its new identity, or, for a commit that
-// went, the one its parent became, or null for a first commit that went.
+// went, the one its parent became, or null for a first commit that went; and `gone`, the old
+// commits that went.
 
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -147,8 +148,9 @@ export async function rewriteHistory({ git, branch = 'main', drop = () => false,
     }
     return changed.get(key);
   };
-  const atCommit = (commit) => ({
+  const atCommit = (commit, said) => ({
     commit,
+    message: said,
     read: (path) => {
       const key = `${commit}:${path}`;
       if (!read.has(key)) read.set(key, git(['cat-file', 'blob', key]).catch(() => null));
@@ -186,7 +188,7 @@ export async function rewriteHistory({ git, branch = 'main', drop = () => false,
     const commit = head.find((one) => one.startsWith('original-oid '))?.slice(13) ?? null;
     const parents = rest.filter((one) => one.startsWith('from ') || one.startsWith('merge ')).map((one) => one.slice(one.indexOf(' ') + 1));
     const first = rest.find((one) => one.startsWith('from '))?.slice(5) ?? null;
-    const at = atCommit(commit);
+    const at = atCommit(commit, command.message.toString('utf8'));
     // What this commit holds otherwise than its old self, which starts as its first parent's.
     const state = new Map(first === null ? [] : differs.get(first) ?? []);
     const kept = [];
@@ -272,7 +274,7 @@ export async function rewriteHistory({ git, branch = 'main', drop = () => false,
       renamed.set(commit, stands === null ? null : stands.startsWith(':') ? made.get(stands) ?? null : stands);
     }
     const headNow = (await git(['rev-parse', `refs/heads/${branch}`])).toString('utf8').trim();
-    return { head: headNow, renamed };
+    return { head: headNow, renamed, gone: new Set([...instead.keys()].map((mark) => marks.get(mark).commit)) };
   } finally {
     rmSync(folder, { recursive: true, force: true });
   }
