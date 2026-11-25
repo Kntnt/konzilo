@@ -71,15 +71,26 @@ const articlePage = [
   '',
 ].join('\n');
 
-// An article with a table whose columns are aligned, and a YouTube video.
+// An article with a simple and a structured table whose columns are aligned, and a YouTube video.
 const table = [
   '| Item | Note | Size | Price |',
   '| --- | :--- | :---: | ---: |',
   '| Tent | Two people | Large | 120 |',
 ].join('\n');
+const structured = [
+  '<table>',
+  '<caption>Packed</caption>',
+  '<thead>',
+  '<tr><th style="text-align: left">Item</th><th style="text-align: center">Size</th><th style="text-align: right">Price</th></tr>',
+  '</thead>',
+  '<tbody>',
+  '<tr><td style="text-align: left">Tent</td><td style="text-align: center">Large</td><td style="text-align: right">120</td></tr>',
+  '</tbody>',
+  '</table>',
+].join('\n');
 const youtube = 'https://www.youtube.com/watch?v=Kz3pQ8vXw1A';
 const embed = youtube;
-const article = post({ ID: 1, slug: 'gear', title: 'Gear', body: `${table}\n\n${embed}` });
+const article = post({ ID: 1, slug: 'gear', title: 'Gear', body: `${table}\n\n${structured}\n\n${embed}` });
 
 // A service an Admin declares, whose tag loads a script from one host.
 const pixel = {
@@ -136,7 +147,7 @@ function policyOf(headers) {
 
 const sorted = (list) => [...list].sort();
 
-describe('a built site with an inline script, an inline style, an aligned table, a YouTube embed and a declared service', () => {
+describe('a built site with an inline script, an inline style, aligned tables, a YouTube embed and a declared service', () => {
   let site;
   let policy;
 
@@ -149,9 +160,9 @@ describe('a built site with an inline script, an inline style, an aligned table,
   after(() => rmSync(site.repository, { recursive: true, force: true }));
 
   test('gets a policy of exactly their hashes, YouTube\'s player origin, the service\'s script host and data: images', () => {
-    // The player's own size, as the panel's <template> holds it, and each
-    // column's alignment, as the reader writes it.
-    const attributes = ['text-align: left', 'text-align: center', 'text-align: right', 'display: block; width: 100%; aspect-ratio: 16 / 9; border: 0'];
+    // The player's own size, as the panel's <template> holds it, and nothing of
+    // a table: an aligned cell says its alignment in data-align, which is no style.
+    const attributes = ['display: block; width: 100%; aspect-ratio: 16 / 9; border: 0'];
     assert.deepEqual(policy, [
       ['default-src', ["'self'"]],
       ['script-src', ["'self'", hash(SCRIPT), 'https://pixel.example.net']],
@@ -200,13 +211,14 @@ describe('a page with code no hash can allow fails the build, naming the page an
 });
 
 test('a policy longer than the server takes of a header fails the build, saying how much inline code the pages hold', () => {
-  // A page whose every paragraph has a style of its own, a hash each.
+  // A page whose every paragraph has a style of its own, a hash each, beside the
+  // article's one, its player's size.
   const paragraphs = Array.from({ length: 1300 }, (_, index) => `<p style="--n: ${index}">${index}</p>`).join('');
   const site = build({ pages: { 'src/pages/many.astro': `<html lang="en"><head><title>A page</title></head><body>${paragraphs}</body></html>\n` } });
   try {
     assert.notEqual(site.built.status, 0, 'the build fails');
     assert.match(site.output, /Content-Security-Policy .* more than the 65536 characters the server takes/);
-    assert.match(site.output, /1304 distinct style attribute values/);
+    assert.match(site.output, /1301 distinct style attribute values/);
   } finally {
     rmSync(site.repository, { recursive: true, force: true });
   }
