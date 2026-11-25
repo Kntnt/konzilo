@@ -101,6 +101,88 @@ describe('a demo content file dated ahead, which is a scheduled post', () => {
   });
 });
 
+// A post of the demo content whose frontmatter says `status: draft`, a key only demo content
+// carries, which a content folder never holds.
+const draftFile = (title, date) => `---\ntitle: ${JSON.stringify(title)}\nstatus: "draft"\n${date ? `date: ${date}\n` : ''}---\n\nThe lamps are not lit yet.\n`;
+const draftDemo = (site) => {
+  scheduledDemo(site);
+  writeFileSync(join(site, 'demo-content/articles/the-unlit-lamps.md'), draftFile('The unlit lamps'));
+};
+
+describe('a demo content file that says it is a draft', () => {
+  let site;
+  before(() => {
+    site = mkdtempSync(join(tmpdir(), 'konzilo-demo-draft-'));
+    draftDemo(site);
+  });
+  after(() => rmSync(site, { recursive: true, force: true }));
+
+  const seeded = (now = BEFORE) => demoSource(description, join(site, 'demo-content'), { now });
+  const fileOf = (source, title) => source.find(({ content }) => content.includes(`title: "${title}"`)).content;
+
+  test('is seeded as a draft source file, as an editor\'s save of a draft leaves it, beside the published and the scheduled ones', () => {
+    const source = seeded();
+    assert.equal(fileOf(source, 'The unlit lamps'), '---\ntitle: "The unlit lamps"\nslug: "the-unlit-lamps"\nstatus: "draft"\n---\n\nThe lamps are not lit yet.\n');
+    assert.match(fileOf(source, 'Lamps along the quay'), /^status: "published"$/m);
+    assert.match(fileOf(source, 'The winter lamps'), /^status: "scheduled"$/m);
+  });
+
+  test('stays off the public site, and the live preview shows it now', () => {
+    const source = seeded().map(({ path, content }) => ({ path, contents: content }));
+    const draft = source.find(({ contents }) => contents.includes('title: "The unlit lamps"')).path;
+    const run = (preview) => intake({ files: source, site: description, now: BEFORE, images: namedImages(), ...(preview ? { preview } : {}) });
+    const published = run();
+    assert.deepEqual(published.refusals, []);
+    assert.deepEqual(published.files.map(({ path }) => path).filter((path) => path.startsWith('articles/')), ['articles/lamps-along-the-quay.md']);
+    assert.deepEqual(published.posts.find(({ file }) => file === draft).state, 'off');
+    const previewed = run([draft]);
+    assert.deepEqual(previewed.refusals, []);
+    assert.match(previewed.files.find(({ path }) => path === 'articles/the-unlit-lamps.md').contents, /^title: "The unlit lamps"$/m);
+  });
+
+  // A copy without Compose has no live preview: what it copies is what the public site shows.
+  test('is left out of a content folder, before and after any moment, apart from the posts dated ahead', () => {
+    for (const [now, scheduled, kept] of [[BEFORE, ['articles/the-winter-lamps.md'], ['lamps-along-the-quay.md']], [AFTER, [], ['lamps-along-the-quay.md', 'the-winter-lamps.md']]]) {
+      const content = join(site, `content-${now.getTime()}`);
+      const copied = copyDemoContent(site, content, { now });
+      assert.deepEqual(copied.drafts, ['articles/the-unlit-lamps.md']);
+      assert.deepEqual(copied.scheduled, scheduled);
+      assert.deepEqual(readdirSync(join(content, 'articles')).sort(), kept);
+    }
+  });
+
+  // Its date, where it has one, is its moment, as an editor's draft keeps the date it was given,
+  // from which the live preview shows it; it stays a draft.
+  test('is a draft dated ahead too, in the seed with its date and in a copy, which leaves it out as a draft', () => {
+    const demo = mkdtempSync(join(tmpdir(), 'konzilo-demo-draft-ahead-'));
+    try {
+      mkdirSync(join(demo, 'demo-content/articles'), { recursive: true });
+      writeFileSync(join(demo, 'demo-content/articles/the-spring-lamps.md'), draftFile('The spring lamps', MOMENT));
+      const [file] = demoSource(description, join(demo, 'demo-content'), { now: BEFORE });
+      assert.equal(file.content, `---\ntitle: "The spring lamps"\nslug: "the-spring-lamps"\nstatus: "draft"\ndate: ${MOMENT}\n---\n\nThe lamps are not lit yet.\n`);
+      const copied = copyDemoContent(demo, join(demo, 'content'), { now: BEFORE });
+      assert.deepEqual([copied.drafts, copied.scheduled], [['articles/the-spring-lamps.md'], []]);
+    } finally {
+      rmSync(demo, { recursive: true, force: true });
+    }
+  });
+
+  // `draft` is the one status demo content says; the seed and a copy read any other as none, and
+  // so agree on what a post is.
+  test('is the one status demo content says, the seed reading another as none, as a copy does', () => {
+    const demo = mkdtempSync(join(tmpdir(), 'konzilo-demo-status-'));
+    try {
+      mkdirSync(join(demo, 'demo-content/articles'), { recursive: true });
+      writeFileSync(join(demo, 'demo-content/articles/the-winter-lamps.md'), `---\ntitle: "The winter lamps"\nstatus: "published"\ndate: ${MOMENT}\n---\n\nThe lamps are lit.\n`);
+      const [file] = demoSource(description, join(demo, 'demo-content'), { now: BEFORE });
+      assert.match(file.content, /^status: "scheduled"$/m);
+      assert.deepEqual(copyDemoContent(demo, join(demo, 'content'), { now: BEFORE }).scheduled, ['articles/the-winter-lamps.md']);
+    } finally {
+      rmSync(demo, { recursive: true, force: true });
+    }
+  });
+});
+
 // A date as YAML may write it, in single quotes, with a comment after it, or with Windows line
 // endings: the seed and a copy without Compose read each as the content format does, and agree
 // that the post is scheduled.
@@ -247,6 +329,20 @@ describe('konzilo-demo-content', () => {
     assert.equal(status, 0, stderr);
     assert.deepEqual(readdirSync(join(content, 'articles')), ['lamps-along-the-quay.md']);
     assert.match(stdout, /left out articles\/the-last-lamp\.md, a post dated ahead, which only Compose schedules/);
+  });
+
+  test('leaves out a draft of the site\'s own demo content, and says so, and of each link and menu entry that leads to it', () => {
+    const { status, content, stdout, stderr } = run(undefined, (cwd) => {
+      ownDemoContent(cwd);
+      writeFileSync(join(cwd, 'site-description.json'), JSON.stringify({ language: 'en_GB', types: { story: { label: 'Article', plural: 'Articles', collection: 'articles', address: '/{slug}/', elements: ['paragraph'], fields: { date: {} } } } }));
+      writeFileSync(join(cwd, 'demo-content/articles/the-unlit-lamps.md'), draftFile('The unlit lamps'));
+      mkdirSync(join(cwd, 'demo-content/menus'));
+      writeFileSync(join(cwd, 'demo-content/menus/main.json'), JSON.stringify({ items: [{ title: 'Unlit', url: '/the-unlit-lamps/' }] }));
+    });
+    assert.equal(status, 0, stderr);
+    assert.deepEqual(readdirSync(join(content, 'articles')), ['lamps-along-the-quay.md']);
+    assert.match(stdout, /^konzilo: left out articles\/the-unlit-lamps\.md, a draft, which only the live preview in Compose shows$/m);
+    assert.match(stdout, /^konzilo: menus\/main\.json: the entry "Unlit" leads to \/the-unlit-lamps\/, The unlit lamps, a draft that is left out, so it leads to no page$/m);
   });
 
   test('says of each link and menu entry it copies that leads to a post it leaves out, and copies them all the same', () => {
