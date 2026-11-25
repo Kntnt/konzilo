@@ -1,7 +1,7 @@
 // The chooser `/image` opens (ADR 0055): the library's entries as small pictures, and a way to
 // upload a new one, which joins the library and becomes the choice. It is a dialog of plain
-// elements over the whole page, and gives what was chosen, { src, alt, caption, displayWidth },
-// its display width only where it has one, or null. With
+// elements over the whole page, and gives what was chosen, { src, alt, caption, displayWidth,
+// focalPoint }, its display width and its focal point only where it has them, or null. With
 // `several`, as for a gallery, each click picks or lets go, an upload is picked too, and it gives
 // what was picked, in that order, or null.
 
@@ -12,7 +12,8 @@ import { isConverted, kindOfFile, losslessBox, losslessByDefault, preparedUpload
 import { wordsShown } from '../refusals.js';
 import { say } from '../interface-language.js';
 
-const same = (one, other) => one.src === other.src && one.alt === other.alt && (one.caption ?? '') === (other.caption ?? '') && (one.displayWidth ?? null) === (other.displayWidth ?? null);
+const samePoint = (one, other) => (one ?? null) === (other ?? null) || (one?.x === other?.x && one?.y === other?.y);
+const same = (one, other) => one.src === other.src && one.alt === other.alt && (one.caption ?? '') === (other.caption ?? '') && (one.displayWidth ?? null) === (other.displayWidth ?? null) && samePoint(one.focalPoint, other.focalPoint);
 
 export function chooseImage({ library, smallestWidth = null, several = false, root = document.body }) {
   return new Promise((resolve) => {
