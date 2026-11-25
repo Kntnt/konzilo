@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- A post list can be shown on the first page of its post's list with pages alone, `firstPage="true"`, so that a page that leads with a few featured posts above a list with pages does not show them again on page 2 and on. They are still left out of the list with pages on every page, so each of its pages holds the same posts as where they are shown on every page. The list with pages itself does not take it, and on a post without one it changes nothing.
 - A *Policy violations* page in the editor, in Swedish *Policyöverträdelser*, for Admins alone, as the *Mail* page is. It lists what the site's Content Security Policy has blocked on its pages, as visitors' browsers report it, the most recent first: each page, the policy's directive, what was blocked, by its origin, its scheme alone, or in words for code written into the page and code made from text, how often, and when last. An embed, a tag or a style listed there does not work for visitors. The service counts the reports with nothing of the visitor, not even the page's query, keeps each count 30 days after it was last seen, counts no more than 100 reports from one visitor in ten minutes, and past 1,000 counts any new page, directive and source together on one line for the rest. A report a browser extension caused is not counted.
 
 ## [0.10.0] – 2026-11-25

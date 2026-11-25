@@ -622,9 +622,11 @@ A farm in summer
 
 ### Post lists
 
-A post list, a list of posts the site picks at every build, is the leaf directive `::post-list{…}` alone on its line. Its attributes come in this order, each only when it is not at its default: `type`, the post type it lists, required; `include` and `exclude`, terms as `<taxonomy>:<slug>,<slug>`, taxonomies apart by a space; `where`, conditions on fields, `<field><op><value>` apart by `;`; `order`, `direction`, `offset` (0 by default) and `number` (10 by default, at most 100); `leaveOutThis` and `leaveOutShown` (`true` by default); `pages` (`false` by default), `true` for the one list in a post that has pages of its own, at the post's address and `<address>page/<n>/`; `presentation`, one the site description declares, required; `empty`, the text shown when no post matches; then the options of the presentations, in the order the site description declares them. [ADR 0039](docs/adr/0039-write-a-post-list-as-a-directive-evaluated-at-every-build.md) gives each attribute's values.
+A post list, a list of posts the site picks at every build, is the leaf directive `::post-list{…}` alone on its line. Its attributes come in this order, each only when it is not at its default: `type`, the post type it lists, required; `include` and `exclude`, terms as `<taxonomy>:<slug>,<slug>`, taxonomies apart by a space; `where`, conditions on fields, `<field><op><value>` apart by `;`; `order`, `direction`, `offset` (0 by default) and `number` (10 by default, at most 100); `leaveOutThis` and `leaveOutShown` (`true` by default); `pages` (`false` by default), `true` for the one list in a post that has pages of its own, at the post's address and `<address>page/<n>/`; `firstPage` (`false` by default), `true` for a list shown on the first page of that list with pages alone, which the list with pages itself does not take; `presentation`, one the site description declares, required; `empty`, the text shown when no post matches; then the options of the presentations, in the order the site description declares them. [ADR 0039](docs/adr/0039-write-a-post-list-as-a-directive-evaluated-at-every-build.md) gives each attribute's values.
 
 A body's lists are evaluated in the order they are written, those in a site's components at any depth among them, so a list that leaves out the posts shown leaves out the posts of its type that the lists written above it showed, wherever each stands. A list in a component counts in its place whether the component shows its body or not.
+
+On each later page of a post's list with pages, every other list shows its first slice again, but for a list with `firstPage`, which is not shown there. It still leaves out its posts from the lists below it, as on the first page, so each page of the list with pages holds the same posts whether or not the lists above it are shown. On a post without a list with pages, `firstPage` changes nothing.
 
 A list whose `order` is `related` takes no `direction`, and lists the posts that share a term with the post it sits in, as the recommended reading under a post ranks them ([ADR 0070](docs/adr/0070-rank-related-posts-by-shared-topics-and-category-times-a-freshness-that-halves.md)): in a list of articles, a point for each topic a post shares and half a point for the same category, its authors none; in a list of another type, a point for each term it shares, of any taxonomy. Each score is multiplied by the post's freshness, 2^(-age / half-life), its age from its date to the build and the half-life in days `related.halfLife` in the site settings ([The site settings](#the-site-settings)), unless `related.freshness` is `false`; a post without a date is not decayed. The highest comes first, then the newest, then by title, and a post that scores nothing is not listed. Since every post ages alike, the order is the same whenever the site is built.
 
@@ -632,6 +634,14 @@ A list whose `order` is `related` takes no `direction`, and lists the posts that
 ::post-list{type="article" include="category:news" number="3" presentation="list" date="true"}
 
 ::post-list{type="article" order="title" presentation="cards" columns="3"}
+```
+
+The three newest articles in News, shown on the first page alone, above a list with pages of every article, which leaves the three out of each of its pages:
+
+```markdown body
+::post-list{type="article" include="category:news" number="3" firstPage="true" presentation="cards" columns="3"}
+
+::post-list{type="article" pages="true" presentation="list"}
 ```
 
 The site's design shows a list by the presentation it names, a component that is given the posts of the page it shows, the presentation's options as the list sets them, the text for a list that matches nothing, the pager of a list with pages, and what the whole list holds, in the page's language: its type, how many posts it matches on all its pages, after its offset and what it leaves out, and the terms those posts hold in each of the type's taxonomies, each with how many of them hold it ([`docs/site-design.md`](docs/site-design.md#what-a-site-gives-the-integration)). Which rows of terms a list that filters shows is an option the site declares for its presentation. A taxonomy's key in a query, in such a row and on the search page, is the taxonomy's name, `category`, `topics` or `authors`.
