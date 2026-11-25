@@ -66,6 +66,31 @@ describe('what a status says', () => {
     }
   });
 
+  test('a post that waits for its triggers: each in its rows, ticked where it has happened, in the interface language', () => {
+    const triggers = [
+      [{ moment: '2026-12-01T09:00:00Z', happened: false }, { published: [[{ type: 'story', label: 'Article' }, { words: 'launch' }], [{ term: 'harbours', name: 'Harbours' }]], since: '2026-11-20T10:00:00Z', happened: true, by: 'The launch' }],
+      [{ published: [[{ from: '2026-11-21T00:00:00Z', to: '2026-12-31T00:00:00Z' }]], since: '2026-11-20T10:00:00Z', happened: false }],
+    ];
+    const moment = (at) => `<${at.slice(0, 10)}>`;
+    try {
+      const said = statusWords({ status: 'scheduled', at: null, triggers }, moment);
+      assert.equal(said.tone, 'quiet');
+      assert.equal(said.words, 'Scheduled: goes live once a trigger on each row has happened.');
+      assert.deepEqual(said.rows, [
+        [{ words: 'on <2026-12-01>', happened: false }, { words: 'once a post is published that is of the type article or has “launch” in its title, and has the term Harbours', happened: true }],
+        [{ words: 'once a post is published that is published between <2026-11-21> and <2026-12-31>', happened: false }],
+      ]);
+      assert.equal(statusWords({ status: 'scheduled', at: '2026-12-01T09:00:00Z', triggers }, moment).words, 'Scheduled: goes live <2026-12-01>, once a trigger on each row has happened.');
+      useInterfaceLanguage('sv');
+      const swedish = statusWords({ status: 'scheduled', at: null, triggers }, moment);
+      assert.equal(swedish.words, 'Schemalagd: publiceras när en utlösare på varje rad har inträffat.');
+      assert.deepEqual(swedish.rows[0].map(({ words }) => words), ['den <2026-12-01>', 'när ett inlägg publiceras som är av typen article eller har ”launch” i sin titel och har termen Harbours']);
+    } finally {
+      useInterfaceLanguage('en');
+    }
+    assert.equal(statusWords({ status: 'scheduled', at: '2026-12-01T09:00:00Z' }, moment).rows, undefined, 'a moment alone is said as it always was');
+  });
+
   test('a refusal by a name these catalogues lack, from a build of another version, in the words it carries', () => {
     const refusals = [{ field: 'title', name: 'refusal.gone-since', values: {}, reason: 'the words it was given' }];
     assert.deepEqual(statusWords({ status: 'failed', refusals, stillShown: true }).details, ['the field title: the words it was given']);

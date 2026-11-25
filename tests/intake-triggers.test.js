@@ -233,7 +233,7 @@ describe('what the intake tells of a post with triggers', () => {
     const told = stateOf(result, WAITER);
     assert.deepEqual(told.triggers, [
       [{ moment: '2026-11-20T12:00:00Z', happened: true }, { published: [[{ words: 'launch' }], [{ term: 'harbours0000', name: 'Harbours' }]], since: SAVED, happened: true, by: 'The launch of the season' }],
-      [{ published: [[{ type: 'note' }]], since: SAVED, happened: false }],
+      [{ published: [[{ type: 'note', label: 'Note' }]], since: SAVED, happened: false }],
     ]);
     assert.deepEqual(told.terms, ['harbours0000', 'quays0000000']);
   });

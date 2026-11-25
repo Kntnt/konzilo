@@ -90,6 +90,15 @@ test('every text the preview\'s own pages name is in the source, and every text 
   assert.deepEqual(Object.keys(source).filter((key) => key.startsWith('previewTab.') && !named.has(key)), [], 'texts no code names');
 });
 
+// A scheduled post's triggers in words, which the publish status and the preview's toolbar share,
+// name their texts whole in their own module (ADR 0076).
+test('every text of a trigger in words is named in its module, and every name it asks for is in the source', () => {
+  const named = new Set([...readFileSync(fileURLToPath(new URL('../src/trigger-words.js', import.meta.url)), 'utf8').matchAll(/['"`](trigger\.[a-zA-Z0-9.-]+)['"`]/g)].map(([, found]) => found));
+  assert.ok(named.size > 0);
+  assert.deepEqual([...named].filter((key) => !Object.hasOwn(source, key)), [], 'names the source does not have');
+  assert.deepEqual(Object.keys(source).filter((key) => key.startsWith('trigger.') && !named.has(key)), [], 'texts no code names');
+});
+
 // The mail a form's submission is sent in, which the service writes in the page's language, names
 // its texts whole in the service's code, as the editor's code does.
 test('every text of a submission\'s mail is named in the service\'s code, and every name it asks for is in the source', () => {

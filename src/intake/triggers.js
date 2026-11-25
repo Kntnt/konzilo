@@ -129,7 +129,7 @@ export function reckonTriggers(run) {
 /**
  * A post's triggers as its publish status shows them, in their rows: a moment, { moment,
  * happened }, or another post's publishing, { published, since, happened, by }, its conditions in
- * their rows, a term's with its `name`, and `by` the title of the post whose publishing made it
+ * their rows, a type's with its `label` and a term's with its `name`, and `by` the title of the post whose publishing made it
  * happen; `happened` whether it has, as the site stands at `run.now`.
  */
 export function shownTriggers(post, run) {
@@ -138,7 +138,11 @@ export function shownTriggers(post, run) {
     const { at, by = null } = post.happened?.[r]?.[t] ?? { at: null };
     const happened = at !== null && at <= now && !post.happened[r][t].assumed;
     if (typeof trigger.moment === 'string') return { moment: trigger.moment, happened };
-    const published = trigger.published.map((conditions) => conditions.map((condition) => (Object.hasOwn(condition, 'term') ? { ...condition, name: run.termsById.get(condition.term)?.label ?? condition.term } : condition)));
+    const published = trigger.published.map((conditions) => conditions.map((condition) => {
+      if (Object.hasOwn(condition, 'term')) return { ...condition, name: run.termsById.get(condition.term)?.label ?? condition.term };
+      if (Object.hasOwn(condition, 'type')) return { ...condition, label: run.site.types[condition.type]?.label ?? condition.type };
+      return condition;
+    }));
     return { published, since: trigger.since, happened, ...(happened && by ? { by: by.title ?? by.id } : {}) };
   }));
 }
