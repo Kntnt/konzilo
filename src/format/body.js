@@ -25,9 +25,9 @@
 //   link       (id, fragment) gives { href }, { text: true, warning } or { reason }
 //              for a link `konzilo:<id>#<fragment>`, whose warning's `text` the
 //              check fills with the link's text
-//   image      (address, { sized }) gives { src, warning }, or { reason }; `sized` where
-//              the image stands alone with a display width of its own, which is not
-//              warned of for being narrow
+//   image      (address, { displayWidth }) gives { src, warning }, or { reason };
+//              `displayWidth` where the image stands alone with a display width of its
+//              own, which is not warned of for being narrow where its master is as wide
 //   adminHost  the host no link may lead to, or null
 //   formula    (latex, display) gives the reason the site cannot show a formula, or null
 //              (mathml.js); optional
@@ -1232,10 +1232,10 @@ function resolved(nodes, scope) {
 const plainText = (nodes) => nodes.map((node) => node.value ?? node.alt ?? plainText(node.children ?? [])).join('');
 
 // An image's master, a figure's or one in a list's item, with the site's reason or warning
-// at the block it stands in. `sized`: the image stands alone with a display width of its
-// own, which the site draws it at.
-function resolveImage(node, scope, path, { sized = false } = {}) {
-  const given = scope.image(node.src, { sized });
+// at the block it stands in. `displayWidth`: the image stands alone with a display width of
+// its own, which the site draws it at, or null.
+function resolveImage(node, scope, path, { displayWidth = null } = {}) {
+  const given = scope.image(node.src, { displayWidth });
   const where = node.at ?? {};
   const entry = { path: where.path ?? path, name: where.element ?? 'image', line: where.line };
   if (given.reason) scope.problems.push({ ...entry, reason: given.reason });
@@ -1273,7 +1273,7 @@ function resolveBlock(node, scope, path) {
       break;
     case 'image':
       if (node.caption) node.caption = resolved(node.caption, scope);
-      resolveImage(node, scope, path, { sized: node.width !== undefined });
+      resolveImage(node, scope, path, { displayWidth: node.width ?? null });
       break;
     case 'gallery':
       for (const image of node.images) {

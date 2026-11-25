@@ -14,10 +14,12 @@ const fileFolders = (path) => path.split('/').length - 1;
 // content folder's root.
 export const climb = (path) => '../'.repeat(fileFolders(path));
 
-// A master for an image a post names: { src, warning }, or { reason }. `sized`: an image
-// with a display width of its own, standing alone in a body, whose size is chosen, so it is not
-// warned of for being narrower than the width the site usually shows images at.
-export function masterFor(run, address, stem, from, { icon = false, sized = false } = {}) {
+// A master for an image a post names: { src, warning }, or { reason }. `displayWidth`: an
+// image's display width of its own, standing alone in a body, or null. Its size is chosen where
+// its master is at least as wide, so it is not then warned of for being narrower than the width
+// the site usually shows images at; one wider than its master is drawn at the master's width,
+// and warned of as one with none.
+export function masterFor(run, address, stem, from, { icon = false, displayWidth = null } = {}) {
   const name = mediaName(address);
   if (name === null) return { reason: say('refusal.image-outside', { address: String(address) }) };
   const facts = run.images(`media/${name}`);
@@ -30,6 +32,7 @@ export function masterFor(run, address, stem, from, { icon = false, sized = fals
   } else if (!facts.svg && widths) {
     if (widths.smallestWidth !== null && facts.width < widths.smallestWidth) return { reason: say('refusal.image-small', { width: facts.width, smallest: widths.smallestWidth }) };
   }
+  const sized = displayWidth !== null && displayWidth <= facts.width;
   const warning = !icon && !sized && !facts.svg && widths?.displayWidth && facts.width < widths.displayWidth ? say('warning.image-narrow', { name, width: facts.width, display: widths.displayWidth }) : undefined;
   const master = `${stem}-${hashDigits(facts.hash)}.${facts.extension}`;
   return { src: `${from}media/${master}`, warning, master, contents: facts.contents };
@@ -118,8 +121,8 @@ export function handsFor(post, run, from) {
     components: run.components,
     listTerms: listTermsOf(run),
     link: (id, fragment) => linkTarget(run, post, id, fragment),
-    image: (address, { sized = false } = {}) => {
-      const master = masterFor(run, address, slug, from, { sized });
+    image: (address, { displayWidth = null } = {}) => {
+      const master = masterFor(run, address, slug, from, { displayWidth });
       if (master.master) post.masters.set(`media/${master.master}`, master.contents);
       return master;
     },

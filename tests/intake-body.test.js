@@ -133,6 +133,17 @@ test('warns of no image with a display width of its own for being narrow, standi
   assert.deepEqual(small.refusals.map(({ name, values }) => [name, values]), [['refusal.image-small', { width: 300, smallest: 400 }]]);
 });
 
+// Its size is chosen only where it is drawn at it: one wider than its master is drawn at the
+// master's width, which is narrow as before.
+test('warns of an image standing alone whose display width is wider than its master, as of one with none', () => {
+  const site = { ...everyElement, images: { smallestWidth: 400, displayWidth: 1280 } };
+  const wide = run({ [pagePath]: pageSource('![Stretched](/media/stretched.png "width=2000")') }, site, { images: namedImages({ width: 800, height: 500 }) });
+  assert.deepEqual(wide.refusals, []);
+  assert.deepEqual(wide.warnings.filter(({ post }) => post).map(({ name, values }) => [name, values.name, values.width]), [['warning.image-narrow', 'stretched.png', 800]]);
+  const just = run({ [pagePath]: pageSource('![Just](/media/just.png "width=800")') }, site, { images: namedImages({ width: 800, height: 500 }) });
+  assert.deepEqual(just.warnings.filter(({ post }) => post), [], 'not of one drawn at its master\'s own width');
+});
+
 test('writes a post list\'s attributes in the registry\'s order, off their defaults, its terms as slugs', () => {
   const site = {
     ...everyElement,
