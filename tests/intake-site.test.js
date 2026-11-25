@@ -242,6 +242,20 @@ describe('the meta line\'s format', () => {
   });
 });
 
+// Whether a page's breadcrumbs end with the page itself, `current` in the group `breadcrumbs`.
+describe('the breadcrumbs\' ending by type', () => {
+  const ending = (settings) => {
+    const result = run({ 'settings.json': settings }, site);
+    assert.deepEqual(result.refusals, []);
+    return settingsOf(result).breadcrumbs.types;
+  };
+
+  test('end with the page itself by default for a hierarchical type and for no other, each type with an address, and as an Admin sets it', () => {
+    assert.deepEqual(ending({}), { story: { current: false }, page: { current: true } });
+    assert.deepEqual(ending({ breadcrumbs: { types: { story: { current: true }, page: { current: false } } } }), { story: { current: true }, page: { current: false } });
+  });
+});
+
 describe('a menu', () => {
   const files = {
     'pages/contactpage0.md': page('contact'),

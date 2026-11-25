@@ -188,7 +188,10 @@
         "current": {
           "type": "boolean",
           "control": "toggle",
-          "default": false
+          "default": false,
+          "defaultFor": {
+            "hierarchical": true
+          }
         }
       }
     }

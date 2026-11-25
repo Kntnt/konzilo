@@ -35,12 +35,13 @@ const limits = {
 };
 
 // The kinds of post type a setting of a part per post type may have a
-// default for: those a part may be limited to, the built-in page and the
-// built-in article.
+// default for: those a part may be limited to, the built-in page, the
+// built-in article and a hierarchical type.
 const kinds = {
   ...limits,
   page: (type) => type.builtIn === PAGE,
   article: isArticle,
+  hierarchical: (type) => type.hierarchical === true,
 };
 
 // The kinds of post type a setting of a part per post type may be left out
@@ -394,7 +395,7 @@ function requiredBy(read, before, path, problems) {
 // A group's setting: in the form of a site's own, with its default, which
 // must be a value of its type that the site publishes as it is declared; and in
 // a part per post type, the default for the types with an address or a
-// date, or for the built-in page or article, `defaultFor`, which such a type takes
+// date, for the built-in page or article, or for a hierarchical type, `defaultFor`, which such a type takes
 // in place of `default`, a setting without `default` having none for the others. A text
 // may be a metadata template (`template`,
 // metadata-templates.js), whose default names only the variables every site
