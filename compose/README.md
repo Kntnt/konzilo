@@ -96,7 +96,7 @@ Each volume's data is one of: *authoritative*, the one record of something; *der
 | `state` | Secret | The people's and the instance's second-factor keys, in `account-totp` the key of the account `KONZILO_ACCOUNT` named at the first start, which `account-name` names, and in `people/` everyone else's; the instance's token; the editor's OAuth client | Forgejo must be seeded again from empty |
 | `caddy-data` | Derived | Caddy's own data, on a server its certificates | Caddy obtains them again |
 | `site-work` | Derived | The site's code and dependencies for building, with the record of what the dependencies were installed from, checkouts of the source and content repositories, and what the build has learned of who pushed what | Made again at the next start, its dependencies installed from the network |
-| `site-public` | Derived | The site's releases, and `current`, the one visitors get | Built again at the next start |
+| `site-public` | Derived | The site's releases, each its pages with the web server's rules and the redirects its build wrote beside them, and `current`, the one visitors get, which `editors` reads too | Built again at the next start |
 | `build-control` | Derived | The build request, the record of the last build, and the build log | The next build records again; the log starts over |
 | `thumbnails` | Derived | Small pictures of the images an editor chooses among | Each is made again when it is next asked for |
 | `admin-config` | Derived | The editor's generated configuration, in each interface language | Written again at the next start |
