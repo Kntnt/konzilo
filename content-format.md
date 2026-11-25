@@ -120,7 +120,7 @@ The site description every example in this document is of:
       "collection": "pages",
       "hierarchical": true,
       "address": "/pages/{path}/",
-      "elements": ["paragraph", "heading", "list", "quote", "code", "table", "footnotes", "embed", "image", "gallery", "post-list", "form", "inline-math", "block-math"]
+      "elements": ["paragraph", "heading", "list", "quote", "code", "table", "footnotes", "embed", "image", "gallery", "post-list", "form", "inline-math", "block-math", "consent-objection"]
     },
     "canvas": {
       "collection": "canvases",
@@ -365,6 +365,7 @@ The body is Markdown, as GFM, GitHub's Markdown, writes it, with raw HTML where 
 | [Galleries](#galleries) | `gallery`, each image an `image` |
 | [Post lists](#post-lists) | `post-list` |
 | [Forms](#forms) | `form` |
+| [The right to object](#the-right-to-object) | `consent-objection` |
 | [A site's own components](#a-sites-own-components) | the component's name, or `<name>-directive` |
 
 ### Paragraphs
@@ -636,7 +637,7 @@ A list whose `order` is `related` takes no `direction`, and lists the posts that
 
 The site's design shows a list by the presentation it names, a component that is given the posts of the page it shows, the presentation's options as the list sets them, the text for a list that matches nothing, the pager of a list with pages, and what the whole list holds, in the page's language: its type, how many posts it matches on all its pages, after its offset and what it leaves out, and the terms those posts hold in each of the type's taxonomies, each with how many of them hold it ([`docs/site-design.md`](docs/site-design.md#what-a-site-gives-the-integration)). Which rows of terms a list that filters shows is an option the site declares for its presentation. A taxonomy's key in a query, in such a row and on the search page, is the taxonomy's name, `category`, `topics` or `authors`.
 
-A directive's name follows `::` for a leaf, a directive with no body, and `:::` for a container, which holds blocks, then a blank line, the blocks, a blank line and its closing fence, a colon more than any fence inside. Its attributes are `name="value"`, apart by a space, a value with `&`, `"` and `}` written as `&amp;`, `&quot;` and `&#125;`, and a line feed and a carriage return as `&#10;` and `&#13;`. The rule data registers each directive the core knows, the post list and the [form](#forms), and a site adds [its own](#a-sites-own-components); a directive neither registers reads as its text, and the intake escapes every colon that would begin one ([Escapes and fallbacks](#escapes-and-fallbacks)).
+A directive's name follows `::` for a leaf, a directive with no body, and `:::` for a container, which holds blocks, then a blank line, the blocks, a blank line and its closing fence, a colon more than any fence inside. Its attributes are `name="value"`, apart by a space, a value with `&`, `"` and `}` written as `&amp;`, `&quot;` and `&#125;`, and a line feed and a carriage return as `&#10;` and `&#13;`. The rule data registers each directive the core knows, the post list, the [form](#forms) and the [right to object](#the-right-to-object), and a site adds [its own](#a-sites-own-components); a directive neither registers reads as its text, and the intake escapes every colon that would begin one ([Escapes and fallbacks](#escapes-and-fallbacks)).
 
 ### Forms
 
@@ -656,9 +657,19 @@ Book a call, and we ring you within a day.
 ::form{name="contact" button="Book the call"}
 ```
 
+### The right to object
+
+The right to object to the counting of visits, which a site that counts them without storage before consent offers its visitors, is the leaf directive `::consent-objection` alone on its line, with no attributes and no label. A site counts so where its site description declares the departure `statisticsWithoutStorageBeforeConsent` under `consent`. There the site shows the consent's own control in its place, as the consent's dialog has it under statistics: a paragraph that explains the counting, whose link objects, and once the visitor objects, a paragraph whose link takes the objection back, all of it hidden while the visitor allows statistics. A privacy policy places it beside what it says of the counting. A site that counts no visits so shows nothing in its place, and the intake warns of it in the post. What the paragraphs say is in the site settings' consent texts, not in the file, and a page's Markdown alternate leaves the control out.
+
+```markdown body
+We count the visits to these pages, and store nothing in your browser to do so.
+
+::consent-objection
+```
+
 ### A site's own components
 
-A site declares components of its own in its site description, under `components`, each by the name of its directive: its `label`, the name an editor reads; its `form`, `leaf`, a directive on a line of its own, or `container`, around blocks; its `body`, a leaf's `none` or `text`, a label in brackets after its name, or a container's `blocks`; and its `attributes`, each by its name in camelCase, with its `type`, `string`, `integer` or `boolean`, the `values` it takes or a `pattern` of them, its `default` or `required`, the `label` an editor reads, and the `refusal`, the site's words for a value it does not take, with `{value}` for the value. No component is named as the core's own directives, `post-list` and `form`.
+A site declares components of its own in its site description, under `components`, each by the name of its directive: its `label`, the name an editor reads; its `form`, `leaf`, a directive on a line of its own, or `container`, around blocks; its `body`, a leaf's `none` or `text`, a label in brackets after its name, or a container's `blocks`; and its `attributes`, each by its name in camelCase, with its `type`, `string`, `integer` or `boolean`, the `values` it takes or a `pattern` of them, its `default` or `required`, the `label` an editor reads, and the `refusal`, the site's words for a value it does not take, with `{value}` for the value. No component is named as the core's own directives, `post-list`, `form` and `consent-objection`.
 
 A component is a body element by its name, or by `<name>-directive` where the core has an element of that name, as Markdown's list is `list`; a type's `elements` names it so, and the directive keeps the component's name. A leaf's label holds the inline elements of a heading. A container holds blocks, each an element the type takes, images and other components among them, a blank line after its opening fence and before its closing one, and its fence is one colon longer than the longest fence inside it. An attribute at its default is left out, the others are written in the order the site description declares them, and a value the component does not take is refused, in the site's words where it gives a `refusal`.
 
@@ -1688,7 +1699,7 @@ What the site's design makes of the content files is not the format: the HTML a 
 
 ## Every element in one file
 
-A page that holds every body element. It names images, so it is read; every block of it but its image and its gallery is in the exact form, and a site built from this document's examples shows each element.
+A page that holds every body element. It names images, so it is read; every block of it but its image and its gallery is in the exact form, and a site built from this document's examples shows each element but the right to object, since that site counts no visits without storage.
 
 ````markdown file=pages/a-tour.md tour
 ---
@@ -1758,6 +1769,8 @@ A farm in summer
 ::post-list{type="article" number="3" presentation="list" date="true"}
 
 ::form{name="contact"}
+
+::consent-objection
 
 [^1]: A footnote's text.
 ````
