@@ -59,7 +59,6 @@ function settingsReader(config) {
   };
 }
 
-
 export function registerParts(CMS, config) {
   const React = globalThis.__SVELTIA_CMS_REACT__;
   const h = React.createElement;
