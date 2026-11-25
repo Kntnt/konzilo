@@ -10,7 +10,7 @@
 // breadcrumb-levels.js says what the levels are.
 
 import { getCollection } from 'astro:content';
-import { breadcrumbLevels, breadcrumbTexts } from './breadcrumb-levels.js';
+import { breadcrumbLevels, breadcrumbTexts, endsWithItself } from './breadcrumb-levels.js';
 import { publicSite } from './public-site.js';
 import { describedSite } from './languages.js';
 import { siteSettings } from './site-settings.js';
@@ -19,8 +19,10 @@ import { siteSettings } from './site-settings.js';
 // Astro hands a template one, or of a page of the site's own, null, named
 // `title`: each { name, path, href, hidden }, its name, its address from the site's
 // root and its link below the site's base, which a preview's build moves,
-// and `hidden: true` on the page's own level where its type's setting in
-// the group `breadcrumbs` leaves the page itself out, as by default; none for the start page. `texts`: the site's own texts over
+// and `hidden: true` on the page's own level where the breadcrumbs end above
+// the page itself (endsWithItself() of breadcrumb-levels.js): by default a
+// post of a type that is not hierarchical, such as an article, whose name in
+// breadcrumbs is not filled in; none for the start page. `texts`: the site's own texts over
 // the core's (BREADCRUMB_TEXTS).
 export async function breadcrumbs(entry, url, { title, texts = {} } = {}) {
   const base = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -33,10 +35,9 @@ export async function breadcrumbs(entry, url, { title, texts = {} } = {}) {
   };
   const site = describedSite();
   const levels = await breadcrumbLevels({ entry, path, title }, { site, texts: breadcrumbTexts(publicSite(url).locale, texts), ...entries });
-  // Whether the page itself ends its breadcrumbs is its type's setting, off by default: the
-  // level stays, marked hidden, for the structured data and for a design that counts on it.
-  const type = entry === null ? null : Object.values(site.types).find((one) => one?.collection === entry.collection) ?? null;
-  const shows = type === null || (await siteSettings(url))?.breadcrumbs?.types?.[type.name]?.current === true;
+  // The page's own level stays where the breadcrumbs end above it, marked hidden, for the
+  // structured data and for a design that counts on it.
+  const shows = endsWithItself(entry, site, await siteSettings(url));
   return levels.map((level, index) => ({ ...level, href: `${base}${level.path}`, ...(index === levels.length - 1 && !shows ? { hidden: true } : {}) }));
 }
 
