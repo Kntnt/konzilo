@@ -1,9 +1,10 @@
 // The Content Security Policy's violation reports (ADR 0051), taken by the service in its role for
 // visitors at /_konzilo/violations, as the web server passes them on (ADR 0044), and kept as counts
 // of page, directive and what was blocked, with nothing of the visitor, read back as the Admin's
-// *Policy violations* page reads them. That the counts go 30 days after they were last seen is
-// proved below, by the duty; the page itself in service-editors' terms in its own describe, and the
-// whole in real browsers in the acceptance suite's violations.test.js.
+// *Policy violations* page reads them; the counts forgotten by the duty 30 days after each was last
+// seen; and the counts given to an Admin alone by the service in its role for editors. The page's
+// own asking is proved in violations-client.test.js, and the whole in real browsers in the
+// acceptance suite's violations.test.js.
 
 import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
@@ -137,6 +138,15 @@ describe('the policy\'s violation reports, for visitors', () => {
       assert.deepEqual(counted().violations, [
         { page: '/articles/one/', directive: 'img-src', blocked: 'https://tracker.example', count: 2, lastSeen: '2026-11-25T10:01:00.000Z' },
       ]);
+    });
+
+    // WebKit sends to `report-uri` one report in the Reporting API's shape, under the older type,
+    // with the default port in the address blocked.
+    test('is counted as WebKit sends it to the policy\'s `report-uri`, one report of the Reporting API\'s under the older type', async () => {
+      const { user_agent: agent, ...one } = apiReport({ blocked: 'https://tracker.example:443/pixel.gif' });
+      assert.ok(agent);
+      assert.equal((await report(CSP_REPORT, one, { ...fromThePage(), Origin: 'null' })).status, 204);
+      assert.deepEqual(counted().violations.map(({ page, directive, blocked, count }) => [page, directive, blocked, count]), [['/articles/one/', 'img-src', 'https://tracker.example', 1]]);
     });
 
     test('keeps of what was blocked the origin, the scheme alone, or inline or eval, and counts nothing a browser extension caused', async () => {

@@ -38,10 +38,11 @@ const CSP_REPORT = 'application/csp-report';
 const REPORTS_JSON = 'application/reports+json';
 
 // A report as either format gives it, { page, directive, blocked, source }, each as the browser
-// wrote it, `source` the file that asked for what was blocked, or null for anything else.
+// wrote it, `source` the file that asked for what was blocked, or null for anything else. Under
+// the older type, WebKit sends one report in the Reporting API's shape.
 const asGiven = (type, one) => {
   if (one === null || typeof one !== 'object') return null;
-  if (type === CSP_REPORT) {
+  if (type === CSP_REPORT && !Object.hasOwn(one, 'type')) {
     const report = one['csp-report'];
     if (report === null || typeof report !== 'object') return null;
     return { page: report['document-uri'], directive: report['effective-directive'], blocked: report['blocked-uri'], source: report['source-file'] };
