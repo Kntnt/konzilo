@@ -182,8 +182,8 @@ describe('the Deleted page', () => {
         const dialog = anna.page.getByRole('dialog', { name: 'Compare revisions' });
         await dialog.waitFor();
         const title = dialog.locator('.konzilo-history-field').filter({ has: workingName(anna.page) });
-        assert.match(await title.textContent(), new RegExp(`Earlier ${engine}`));
-        assert.match(await title.textContent(), new RegExp(`Deleted ${engine}`));
+        assert.match(await title.textContent(), /Removed: Earlier/, 'marked word by word');
+        assert.match(await title.textContent(), /Added: Deleted/);
         assert.equal(await dialog.getByRole('button', { name: /^Restore/ }).count(), 0, 'restored from its form, once it is back');
         await anna.page.keyboard.press('Escape');
         await dialog.waitFor({ state: 'hidden' });
