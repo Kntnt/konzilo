@@ -470,6 +470,7 @@ Every package that `package-lock.json` names, on every platform, with the versio
 | [`stringify-entities`](https://www.npmjs.com/package/stringify-entities) | 4.0.5 | MIT |
 | [`style-mod`](https://www.npmjs.com/package/style-mod) | 4.1.4 | MIT |
 | [`svgo`](https://www.npmjs.com/package/svgo) | 4.1.0 | MIT |
+| [`temml`](https://www.npmjs.com/package/temml) | 0.14.0 | MIT |
 | [`terra-draw`](https://www.npmjs.com/package/terra-draw) | 1.40.0 | MIT |
 | [`tiny-inflate`](https://www.npmjs.com/package/tiny-inflate) | 1.0.3 | MIT |
 | [`tinyclip`](https://www.npmjs.com/package/tinyclip) | 1.0.3 | MIT |

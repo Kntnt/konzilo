@@ -178,6 +178,8 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Embed**: Content from one of the services the site embeds from, put in a post by its address, which the visitor's browser loads only once the visitor consents. _Avoid_: oEmbed, iframe, widget.
 
+**Formula**: Mathematics in a body, written as LaTeX and shown as MathML: an *inline formula*, `$…$` in the text, or a *block formula*, on lines of its own between lines of `$$`, the body elements `inline-math` and `block-math`. _Avoid_: equation (for a formula that states no equality), math block, LaTeX block.
+
 **Directive**: A component written in a content file, a leaf (`::name{…}`) or a container (`:::name{…}` around blocks), registered with its attributes and body rule; data, never code. _Avoid_: shortcode, MDX component.
 
 **Component**: A body element that the site renders with its own Astro component, written as a directive.

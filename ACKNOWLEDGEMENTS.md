@@ -33,6 +33,8 @@ The images are built on those of Node.js, Caddy and Forgejo, and on Debian and A
 |---|---|---|
 | [sharp](https://sharp.pixelplumbing.com) (`sharp`), with [libvips](https://www.libvips.org) | Makes each image's master and the smaller pictures | Apache-2.0, and LGPL-3.0-or-later for libvips |
 | [SVGO](https://svgo.dev) (`svgo`) | Optimises a checked SVG | MIT |
+| [Temml](https://temml.org) (`temml`), by Ron Kok | Writes a formula's LaTeX as MathML, on the site and in the body field, and checks it in the intake | MIT |
+| [remark-math](https://github.com/remarkjs/remark-math) (`remark-math`) | Reads a formula's `$` in the body field, as Sätteri does | MIT |
 | [sax](https://github.com/isaacs/sax-js) (`sax`) | Reads an SVG strictly as XML | BlueOak-1.0.0 |
 | [yaml](https://eemeli.org/yaml/) (`yaml`) | Reads and writes YAML | ISC |
 | [parse5](https://parse5.js.org) (`parse5`) | Reads the built pages for the security policy | MIT |

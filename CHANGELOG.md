@@ -6,8 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Formulas in a body, written as LaTeX: `$…$` in the text and `$$` on lines of their own around a block formula, for a type that names `inline-math` or `block-math` among its elements. The site shows each as MathML that every browser draws and screen readers read, with no script, stylesheet or font, and a block formula in a box of the class `konzilo-math` that a design can size and scroll. The body field writes them, from the toolbar, the block menu or typed between two `$`, and draws them as the site does; the intake refuses a formula it cannot draw, saying what it could not read. A `$` opens a formula by Pandoc's rule, so "$5 and $10" stays text. The Markdown alternates, `llms.txt` and search hold a formula's LaTeX.
+
 ### Changed
 
+- A content file writes `\$` for a dollar sign that would otherwise open a formula, in every type, so a post whose text holds such a `$`, as in `$x$` meant as text, has its file changed at the first build, though it reads the same.
 - The window the editor opens for a sign-in opens empty and goes straight to Forgejo's sign-in page. It used to load the whole editor first, only to be sent on from there, so a sign-in now starts sooner.
 
 ## [0.9.0] – 2026-11-25

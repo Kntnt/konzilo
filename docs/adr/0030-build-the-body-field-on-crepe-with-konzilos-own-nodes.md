@@ -1,25 +1,26 @@
 # ADR 0030: Build the body field on Crepe, with Konzilo's own nodes
 
-**Date:** 2026-11-03 · **Status:** Accepted as a technical choice, within Thomas's choice of Crepe (ADR 0001); Thomas may veto.
+**Date:** 2026-11-03, amended 2026-11-25 · **Status:** Accepted as a technical choice, within Thomas's choice of Crepe (ADR 0001); Thomas may veto. Formulas joined on 2026-11-25 as nodes of the field's own, drawn by Temml, with Crepe's LaTeX left out for good (Thomas, issue #108; ADR 0075); that Crepe's interface for math is not reused is a technical choice Thomas may veto, since it cannot load without CodeMirror.
 
 ## Decision
 
-- **Built with `CrepeBuilder`,** with cursor, list item, link tooltip, placeholder, toolbar, table and block edit. Left out: Crepe's image block, LaTeX until math's stage, CodeMirror, top bar and AI. That gives about 740 KB of JavaScript, in the admin host alone. Registered through `CMS.registerFieldType` as `konzilo-body`, which stores the Markdown string, and loaded when an entry opens, so that Sveltia's first paint pays for neither it nor Sätteri.
+- **Built with `CrepeBuilder`,** with cursor, list item, link tooltip, placeholder, toolbar, table and block edit. Left out: Crepe's image block, its LaTeX, which draws with KaTeX and whose block is CodeMirror's, CodeMirror, top bar and AI. That gives about 740 KB of JavaScript, in the admin host alone. Registered through `CMS.registerFieldType` as `konzilo-body`, which stores the Markdown string, and loaded when an entry opens, so that Sveltia's first paint pays for neither it nor Sätteri.
 - **Konzilo's own nodes and marks** cover every element of ADR 0018:
   - images with alt text and caption, chosen from the image library (ADR 0055);
   - galleries, and embeds as a lone address;
+  - formulas, inline and as a block, each drawn by Temml as the site draws it, and edited in a dialog that draws it as it is typed (ADR 0075);
   - `<sup>`, `<sub>`, a non-breaking space and footnotes;
   - a heading's anchor as a badge, a quote's attribution, and a link with *Open in new tab* and `rel`;
   - internal links by search, from the service's list of titles, which holds drafts too;
   - a caption on a table, edited in place and written in the structured form, with a footer section and merged cells as a kept block at first;
   - one component node for every component a site offers, forms included, as a kept block with a small form made from the component's declaration;
   - post lists, with a dialog of their own for the query builder (ADR 0039).
-- **In stages.** Built are the text elements, paragraphs, headings with anchors, lists, quotes with citations, code blocks, simple tables, the inline formats and footnotes, images and galleries (ADR 0055), and embeds (ADR 0024). Until the rest are, each stays in the value as a **kept block**: its own bytes, shown as source, moved as a whole. A raw `<a>` with a target or `rel` stays as its tags around editable text, since the link tooltip's editing would drop them. The site's body styles are not in the field yet (*What practice has shown*).
+- **In stages.** Built are the text elements, paragraphs, headings with anchors, lists, quotes with citations, code blocks, simple tables, the inline formats and footnotes, images and galleries (ADR 0055), embeds (ADR 0024), and formulas (ADR 0075), the last loaded only for a type that takes them. Until the rest are, each stays in the value as a **kept block**: its own bytes, shown as source, moved as a whole. A raw `<a>` with a target or `rel` stays as its tags around editable text, since the link tooltip's editing would drop them. The site's body styles are not in the field yet (*What practice has shown*).
 - **Limits.** Each type's `elements` decide the schema, the toolbar and the block menu. A pasted element the schema does not admit is reduced or dropped; a pasted numbered list starts at 1, and what is pasted in a table's cell becomes one line of it. Level 1 headings, separators and raw HTML are not on offer. A value that holds one all the same, or an element its type does not take, keeps it as a kept block, and the check refuses it at Save.
 - **No rewrite on opening.** The field calls `onChange` only on a real edit, so nothing else changes the body. A real edit is a change after which the writer writes something other than it wrote on opening, which a trailing paragraph is not; when it writes that again, an undo say, the value's own bytes come back.
 - **A way out.** A toggle shows the Markdown. If parsing and writing a value would change its meaning, as read by Sätteri in the browser, the field opens as Markdown and says why, in the editor's language. Marks that wrap one text mean the same in any order, since the editor holds them in one. If Sätteri did not load, nothing can prove a rewrite safe: the field says the early check is off, and only a value the writer writes back to the byte opens in the editor.
 - **The look.** A site names its body styles in `konzilo({ bodyStyles, bodyClass })`: stylesheets that every page loads, and the class its templates wrap a body in. The site's `body.css` loads in the field too, from the same declaration, through Astro's own CSS pipeline, self-contained.
-- **The body's HTML holds plain elements.** Konzilo adds its own names only where an element needs one: `konzilo-gallery`, `konzilo-embed`. No class of any editor's is written. Adding a class is a minor change; removing or renaming one, or changing the elements written for a body element, is a major one.
+- **The body's HTML holds plain elements.** Konzilo adds its own names only where an element needs one: `konzilo-gallery`, `konzilo-embed`, `konzilo-math`, and Temml its own, `tml-*`, inside a formula. No class of any editor's is written. Adding a class is a minor change; removing or renaming one, or changing the elements written for a body element, is a major one.
 - **Text typed that reads as a directive** is escaped by the field's writer, and the intake's repairs stay.
 
 ## Why
