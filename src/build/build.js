@@ -4,13 +4,13 @@
 // so it needs no lock. Nothing is built again for the same content, code and origin.
 
 import { execFile } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { STOPPED } from '../intake/guard.js';
 import { failure } from '../intake/words.js';
-import { webRules } from './web-server.js';
+import { markdownMarks, webRules } from './web-server.js';
 
 const run = promisify(execFile);
 const BIG = 1024 * 1024 * 256;
@@ -162,7 +162,9 @@ export function siteBuild({ site, origin, code, source, content, roles, control,
     const name = `${stamp(started)}-${head.slice(0, 12)}`;
     try {
       const given = (file) => (existsSync(join(built, file)) ? readFileSync(join(built, file), 'utf8') : '');
-      live.publish(built, name, webRules({ headers: given('_headers'), redirects: given('_redirects') }));
+      const holds = (path) => statSync(join(built, path), { throwIfNoEntry: false })?.isFile() === true;
+      const marks = markdownMarks(given('_markdown'), holds);
+      live.publish(built, name, webRules({ headers: given('_headers'), redirects: given('_redirects'), origin }), marks);
     } catch (error) {
       warn(`The release could not be put in place: ${error.message}`);
       return finish({ source: head, reason: NOT_RELEASED, report, versions });
