@@ -958,8 +958,8 @@ describe('the site template in Swedish and English, built by Astro', () => {
     assert.match(head(page('en/harbour-lights/index.html')), /<link rel="alternate" type="text\/markdown" href="https:\/\/www\.example\.com\/en\/harbour-lights\.md">/);
   });
 
-  test('keeps a page\'s breadcrumbs within its language, from its language\'s start page, named in its language, and by default shows none right under it', () => {
-    assert.doesNotMatch(main(page('sv/pages/om-oss/index.html')), /<nav aria-label="Brödsmulor">/);
+  test('keeps a page\'s breadcrumbs within its language, from its language\'s start page, named in its language, and by default ends a page\'s with the page itself', () => {
+    assert.match(main(page('sv/pages/om-oss/index.html')), /<nav aria-label="Brödsmulor"><ol><li><a href="\/sv\/">Startsida<\/a><\/li><li aria-current="page">Om oss<\/li><\/ol><\/nav>/);
     assert.match(page('sv/pages/om-oss/index.html'), /"@type":"BreadcrumbList".*?"item":"https:\/\/www\.example\.com\/sv\/".*?"name":"Om oss"/s);
   });
 

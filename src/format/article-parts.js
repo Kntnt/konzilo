@@ -2,7 +2,7 @@
 // editor's placeholders and for the site, so that a placeholder never promises what the site
 // does not do. The parts are the eyebrow, the main headline and the subheadline, the
 // standfirst, the teaser with its image, headline and text, and the name in breadcrumbs, each
-// a field of the core's (site-description.js). A part falls back to what the post's type has:
+// a field of the core's (site-description.js), the last falling back to a menu's label too. A part falls back to what the post's type has:
 // a page's and a canvas's teaser, with no eyebrow, main headline, standfirst or main image, to
 // its title, and to no text or image of its own. It imports nothing, so that the editor and
 // the build both run it.
@@ -87,8 +87,9 @@ export function slugFrom(text = '') {
 
 const given = (text) => (typeof text === 'string' && text.trim() !== '' ? text.trim() : '');
 
-// The name in breadcrumbs: the post's own, else its working name, the title.
-export const breadcrumbOf = (data) => given(data.breadcrumb) || given(data.title);
+// The name in breadcrumbs: the post's own, else `menuLabel`, the label of the menu entry that
+// leads to the post (firstEntry() of menus.js), else its working name, the title.
+export const breadcrumbOf = (data, menuLabel = '') => given(data.breadcrumb) || given(menuLabel) || given(data.title);
 
 // The teaser's headline: its own, else the eyebrow, a colon and the main headline.
 export function teaserHeadlineOf(data) {
