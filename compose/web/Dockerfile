@@ -15,10 +15,10 @@ RUN npm ci --no-audit --no-fund --ignore-scripts
 COPY scripts/build-editor.js scripts/notices.js scripts/wasm-reader.js scripts/
 COPY src/cms src/cms
 COPY src/format src/format
-COPY src/catalogues.js src/refusals.js src/submission-values.js src/trigger-words.js src/
+COPY src/catalogues.js src/checks.js src/refusals.js src/submission-values.js src/trigger-words.js src/
 COPY src/catalogues src/catalogues
 COPY src/astro/reader-features.js src/astro/
-COPY src/intake/words.js src/intake/
+COPY src/intake/rules-file.js src/intake/words.js src/intake/
 RUN node scripts/build-editor.js /editor
 
 FROM caddy:${CADDY}-alpine@sha256:${CADDY_DIGEST}
