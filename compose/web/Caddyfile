@@ -1,6 +1,12 @@
 # One port per host, each its own origin, as ADR 0002 has it locally. Each peer is reached where
 # a setting of its own says, KONZILO_PEER_*, by default where Compose puts it, which Compose leaves
 # as it is (compose/README.md, What another arrangement sets).
+#
+# Each host answers for the web server's own names alone, KONZILO_WEB_HOSTS, a local copy's the
+# loopback's, which a page elsewhere cannot make its own, as it can a name of its own that it makes
+# lead to the loopback (ADR 0002). Every other host is refused before anything else of the host's
+# runs: Caddy runs a release's redirects and headers before any `handle`, and a `handle` with a path
+# before one without, so each host's own is in the one `handle` after the refusal.
 
 {
 	admin off
@@ -9,88 +15,106 @@
 	skip_install_trust
 }
 
+# Misdirected, with nothing of the host's, and nothing logged.
+(own_hosts) {
+	@foreign not host {$KONZILO_WEB_HOSTS}
+	handle @foreign {
+		respond 421
+	}
+}
+
 # The public site: static pages, and nothing that holds a draft. `current` moves to a new
 # release all at once (ADR 0031), and the release's headers and redirects are read from what
 # the build wrote beside its pages, which this server looks for by itself: it runs with
 # `--watch`, and reloads only when they have changed. There are none before the first build.
 :{$KONZILO_PORT_SITE} {
+	import own_hosts
+	# Where its files are, which its errors read too.
 	root * /srv/site/current/pages
-	import /srv/site/current/web-rules*.caddy
-	# Search (ADR 0053): the route to Typesense, with its key, which every build writes outside
-	# the releases, where no visitor reaches it; none before the first build.
-	import /srv/search/search-route*.caddy
-	# The service, in its role for visitors (ADR 0044): every other path below the reserved prefix,
-	# but the consent scripts' files, which are the release's to serve, GET alone (ADR 0049). It is
-	# passed the request's method, path, query and body with its type, where the browser says it
-	# came from, the visitor's address and the host it came to, and nothing else: no cookie,
-	# browser's name, not even the proxy's own, password or language. A body is cut off at a
-	# megabyte, and nothing is logged.
-	@konzilo_visitors {
-		path /_konzilo/*
-		not path /_konzilo/search /_konzilo/search/*
-		not {
-			path /_konzilo/consent/*
-			method GET HEAD
-		}
-	}
-	handle @konzilo_visitors {
-		request_body {
-			max_size 1MB
-		}
-		reverse_proxy {$KONZILO_PEER_VISITORS:http://visitors:4200} {
-			header_up -*
-			header_up Content-Type {http.request.header.Content-Type}
-			header_up Origin {http.request.header.Origin}
-			header_up Referer {http.request.header.Referer}
-			header_up Sec-Fetch-Site {http.request.header.Sec-Fetch-Site}
-			header_up X-Konzilo-Client {http.request.remote.host}
-			header_up X-Konzilo-Host {http.request.hostport}
-			# Without it the proxy would name itself, as Go does where a request names no browser.
-			header_up User-Agent ""
-			transport http {
-				dial_timeout 5s
-				response_header_timeout 10s
+	handle {
+		import /srv/site/current/web-rules*.caddy
+		# Search (ADR 0053): the route to Typesense, with its key, which every build writes outside
+		# the releases, where no visitor reaches it; none before the first build.
+		import /srv/search/search-route*.caddy
+		# The service, in its role for visitors (ADR 0044): every other path below the reserved prefix,
+		# but the consent scripts' files, which are the release's to serve, GET alone (ADR 0049). It is
+		# passed the request's method, path, query and body with its type, where the browser says it
+		# came from, the visitor's address and the host it came to, and nothing else: no cookie,
+		# browser's name, not even the proxy's own, password or language. A body is cut off at a
+		# megabyte, and nothing is logged.
+		@konzilo_visitors {
+			path /_konzilo/*
+			not path /_konzilo/search /_konzilo/search/*
+			not {
+				path /_konzilo/consent/*
+				method GET HEAD
 			}
 		}
+		handle @konzilo_visitors {
+			request_body {
+				max_size 1MB
+			}
+			reverse_proxy {$KONZILO_PEER_VISITORS:http://visitors:4200} {
+				header_up -*
+				header_up Content-Type {http.request.header.Content-Type}
+				header_up Origin {http.request.header.Origin}
+				header_up Referer {http.request.header.Referer}
+				header_up Sec-Fetch-Site {http.request.header.Sec-Fetch-Site}
+				header_up X-Konzilo-Client {http.request.remote.host}
+				header_up X-Konzilo-Host {http.request.hostport}
+				# Without it the proxy would name itself, as Go does where a request names no browser.
+				header_up User-Agent ""
+				transport http {
+					dial_timeout 5s
+					response_header_timeout 10s
+				}
+			}
+		}
+		# A feed is the RSS file in the folder of its address (ADR 0048), answered at the address with
+		# and without its last slash, as RSS.
+		@feed file {
+			try_files {path}/index.rss
+		}
+		header @feed {
+			Content-Type `application/rss+xml; charset=utf-8`
+			defer
+		}
+		rewrite @feed {file_match.relative}
+		file_server
 	}
-	# A feed is the RSS file in the folder of its address (ADR 0048), answered at the address with
-	# and without its last slash, as RSS.
-	@feed file {
-		try_files {path}/index.rss
-	}
-	header @feed {
-		Content-Type `application/rss+xml; charset=utf-8`
-		defer
-	}
-	rewrite @feed {file_match.relative}
-	file_server
 	handle_errors {
-		# Search that Typesense does not answer says so, as the dev server's does.
-		@search_down {
-			path /_konzilo/search
-			expression `{err.status_code} >= 500`
-		}
-		handle @search_down {
-			header Content-Type `application/json; charset=utf-8`
-			header Cache-Control no-store
-			respond `{"message":"Search does not answer."}` 502
-		}
-		# A form the service does not answer gets the release's page that says it was not sent,
-		# with the status the web server gives (ADR 0045): a page of its own, which a browser
-		# without JavaScript shows, and the page's script reads as no answer of the service's.
-		@form_down {
-			path /_konzilo/forms/*
-			expression `{err.status_code} >= 500`
-		}
-		handle @form_down {
-			method GET
-			rewrite * /_konzilo/form-not-sent.html
-			header Cache-Control no-store
-			file_server
+		# An error before any route, such as Caddy's own for an empty host.
+		handle @foreign {
+			respond 421
 		}
 		handle {
-			rewrite * /404.html
-			file_server
+			# Search that Typesense does not answer says so, as the dev server's does.
+			@search_down {
+				path /_konzilo/search
+				expression `{err.status_code} >= 500`
+			}
+			handle @search_down {
+				header Content-Type `application/json; charset=utf-8`
+				header Cache-Control no-store
+				respond `{"message":"Search does not answer."}` 502
+			}
+			# A form the service does not answer gets the release's page that says it was not sent,
+			# with the status the web server gives (ADR 0045): a page of its own, which a browser
+			# without JavaScript shows, and the page's script reads as no answer of the service's.
+			@form_down {
+				path /_konzilo/forms/*
+				expression `{err.status_code} >= 500`
+			}
+			handle @form_down {
+				method GET
+				rewrite * /_konzilo/form-not-sent.html
+				header Cache-Control no-store
+				file_server
+			}
+			handle {
+				rewrite * /404.html
+				file_server
+			}
 		}
 	}
 }
@@ -100,44 +124,50 @@
 # browser, so it never shows anything an editor wrote as HTML: the page in its preview
 # pane comes from the preview's origin (ADR 0032).
 :{$KONZILO_PORT_ADMIN} {
-	encode zstd gzip
-	header {
-		Content-Security-Policy "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: {$KONZILO_FORGEJO_ORIGIN}; media-src 'self' blob: {$KONZILO_FORGEJO_ORIGIN}; font-src 'self' data:; connect-src 'self' blob: data: {$KONZILO_FORGEJO_ORIGIN} {$KONZILO_PREVIEW_ORIGIN}; frame-src {$KONZILO_PREVIEW_ORIGIN}; worker-src 'self' blob:; manifest-src 'self' blob:; base-uri 'self'; form-action 'none'; frame-ancestors 'none'"
-		Referrer-Policy "no-referrer"
-		X-Content-Type-Options "nosniff"
-	}
-	# The generated configuration, in the site's interface language and in each other
-	# (ADR 0066).
-	@config path /config.json /config.*.json
-	handle @config {
-		root * /srv/admin-config
-		header Cache-Control "no-store"
-		file_server
-	}
-	# How publishing stands (ADR 0031), small pictures of images (ADR 0055), the forms'
-	# submissions and a person's (ADR 0045), how the site mails them and keeps them
-	# (ADR 0003), the locks of the editor's forms (ADR 0073), whose call a tab makes is held
-	# open until they change, and a form's revisions, at /_konzilo/revisions (ADR 0074), from the
-	# service, which asks Forgejo who is asking.
-	@service path /_konzilo/status /_konzilo/thumbnail /_konzilo/submissions /_konzilo/submissions/* /_konzilo/mail /_konzilo/personal-data /_konzilo/personal-data.csv /_konzilo/locks /_konzilo/locks/* /_konzilo/revisions
-	handle @service {
-		reverse_proxy {$KONZILO_PEER_EDITORS:http://editors:4100} {
-			header_up -X-Real-IP
-		}
-	}
+	import own_hosts
 	handle {
-		root * /srv/admin
-		try_files {path} /index.html
-		file_server
+		encode zstd gzip
+		header {
+			Content-Security-Policy "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: {$KONZILO_FORGEJO_ORIGIN}; media-src 'self' blob: {$KONZILO_FORGEJO_ORIGIN}; font-src 'self' data:; connect-src 'self' blob: data: {$KONZILO_FORGEJO_ORIGIN} {$KONZILO_PREVIEW_ORIGIN}; frame-src {$KONZILO_PREVIEW_ORIGIN}; worker-src 'self' blob:; manifest-src 'self' blob:; base-uri 'self'; form-action 'none'; frame-ancestors 'none'"
+			Referrer-Policy "no-referrer"
+			X-Content-Type-Options "nosniff"
+		}
+		# The generated configuration, in the site's interface language and in each other
+		# (ADR 0066).
+		@config path /config.json /config.*.json
+		handle @config {
+			root * /srv/admin-config
+			header Cache-Control "no-store"
+			file_server
+		}
+		# How publishing stands (ADR 0031), small pictures of images (ADR 0055), the forms'
+		# submissions and a person's (ADR 0045), how the site mails them and keeps them
+		# (ADR 0003), the locks of the editor's forms (ADR 0073), whose call a tab makes is held
+		# open until they change, and a form's revisions, at /_konzilo/revisions (ADR 0074), from the
+		# service, which asks Forgejo who is asking.
+		@service path /_konzilo/status /_konzilo/thumbnail /_konzilo/submissions /_konzilo/submissions/* /_konzilo/mail /_konzilo/personal-data /_konzilo/personal-data.csv /_konzilo/locks /_konzilo/locks/* /_konzilo/revisions
+		handle @service {
+			reverse_proxy {$KONZILO_PEER_EDITORS:http://editors:4100} {
+				header_up -X-Real-IP
+			}
+		}
+		handle {
+			root * /srv/admin
+			try_files {path} /index.html
+			file_server
+		}
 	}
 }
 
 # The live preview (ADR 0032), on an origin of its own, since a page there is written by
 # an editor and this host holds a token. Its gate decides all of what it answers.
 :{$KONZILO_PORT_PREVIEW} {
-	reverse_proxy {$KONZILO_PEER_PREVIEW:http://127.0.0.1:4000} {
-		flush_interval -1
-		header_up -X-Real-IP
+	import own_hosts
+	handle {
+		reverse_proxy {$KONZILO_PEER_PREVIEW:http://127.0.0.1:4000} {
+			flush_interval -1
+			header_up -X-Real-IP
+		}
 	}
 }
 
@@ -145,32 +175,35 @@
 # (ADR 0007). No Forgejo setting turns tokens off, so this is the one place to do it,
 # and it stands from the first start, since a token made before it goes on working.
 :{$KONZILO_PORT_GIT} {
-	# First, and inside a handle: Caddy runs `handle` before a bare `respond`.
-	@refused path_regexp (?i)^/api/v1/(users/[^/]+/tokens|user/applications|user/keys|user/gpg_keys)
-	handle @refused {
-		respond 404
-	}
-
-	@open {
-		path /user/login /user/login/* /user/two_factor /user/two_factor/* /user/webauthn /user/webauthn/* /user/logout
-		path /user/forgot_password /user/recover_account
-		path /user/settings/security /user/settings/security/*
-		path /login/oauth/* /assets/* /avatars/* /api/v1/* /api/forgejo/* /api/healthz
-	}
-	handle @open {
-		reverse_proxy {$KONZILO_PEER_FORGEJO:http://forgejo:3000} {
-			header_up -X-Real-IP
-		}
-	}
-
-	@repository path_regexp ^/{$KONZILO_REPOSITORY}(\.git/info/lfs|/media|/raw)/
-	handle @repository {
-		reverse_proxy {$KONZILO_PEER_FORGEJO:http://forgejo:3000} {
-			header_up -X-Real-IP
-		}
-	}
-
+	import own_hosts
 	handle {
-		respond 404
+		# First, and inside a handle: Caddy runs `handle` before a bare `respond`.
+		@refused path_regexp (?i)^/api/v1/(users/[^/]+/tokens|user/applications|user/keys|user/gpg_keys)
+		handle @refused {
+			respond 404
+		}
+
+		@open {
+			path /user/login /user/login/* /user/two_factor /user/two_factor/* /user/webauthn /user/webauthn/* /user/logout
+			path /user/forgot_password /user/recover_account
+			path /user/settings/security /user/settings/security/*
+			path /login/oauth/* /assets/* /avatars/* /api/v1/* /api/forgejo/* /api/healthz
+		}
+		handle @open {
+			reverse_proxy {$KONZILO_PEER_FORGEJO:http://forgejo:3000} {
+				header_up -X-Real-IP
+			}
+		}
+
+		@repository path_regexp ^/{$KONZILO_REPOSITORY}(\.git/info/lfs|/media|/raw)/
+		handle @repository {
+			reverse_proxy {$KONZILO_PEER_FORGEJO:http://forgejo:3000} {
+				header_up -X-Real-IP
+			}
+		}
+
+		handle {
+			respond 404
+		}
 	}
 }

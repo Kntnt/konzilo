@@ -563,7 +563,7 @@ describe('the interface language in Sveltia', () => {
     await page.getByRole('textbox', { name: 'Working name', exact: true }).waitFor();
     await page.getByRole('button', { name: 'Save', exact: true }).waitFor();
     assert.equal(await page.getByRole('textbox', { name: 'Arbetsnamn', exact: true }).count(), 0);
-    await breadcrumbs({ heading: 'Breadcrumbs', description: 'Whether a page\'s breadcrumbs end with the page itself', perType: 'By type of post', articles: 'Articles', label: 'The page itself last', help: 'Off, the breadcrumbs end at the level above the page.' });
+    await breadcrumbs({ heading: 'Breadcrumbs', description: 'Whether a page\'s breadcrumbs end with the page itself', perType: 'By type of post', articles: 'Articles', label: 'The page itself last', help: 'Off, the breadcrumbs end at the level above the page, unless the page\'s field Breadcrumb is filled in.' });
     assert.equal(await bar('Brödsmulor').count(), 0);
   });
 
@@ -1310,6 +1310,22 @@ for (const [engineName, engine] of Object.entries(ENGINES).filter(([name]) => na
       const made = Object.keys(saved).filter((path) => path.startsWith('pages/') && !before.includes(path));
       assert.equal(made.length, 1, 'one new page');
       assert.deepEqual(bars(frontMatterOf(saved[made[0]])), { search: { title: 'A title tag' }, structured: { schema: 'AboutPage' } });
+    });
+
+    // The name in breadcrumbs shows what the site names the post by while it is empty: here its
+    // title, which no menu of the test repository names otherwise (Forgejo has the menus).
+    test('shows a new post\'s title in its empty name in breadcrumbs, and saves no name it was not given', async () => {
+      await openNew(page, 'pages');
+      await field('group-name').getByRole('textbox', { name: 'Title', exact: true }).fill('Ferry times');
+      await page.waitForFunction(() => document.querySelector('input[aria-label="Breadcrumb"]')?.placeholder === 'Ferry times');
+      assert.equal(await field('group-name').getByRole('textbox', { name: 'Breadcrumb', exact: true }).inputValue(), '');
+      const before = Object.keys(await files());
+      const saved = await save();
+      const made = Object.keys(saved).filter((path) => path.startsWith('pages/') && !before.includes(path));
+      assert.equal(made.length, 1, 'one new page');
+      const data = frontMatterOf(saved[made[0]]);
+      assert.equal(data.title, 'Ferry times');
+      assert.equal(Object.hasOwn(data, 'breadcrumb'), false);
     });
 
     test('keeps a value written in a closed bar of a post whose file lacks its object, and nothing of the bars opened and left', async () => {

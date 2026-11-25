@@ -35,12 +35,13 @@ const limits = {
 };
 
 // The kinds of post type a setting of a part per post type may have a
-// default for: those a part may be limited to, the built-in page and the
-// built-in article.
+// default for: those a part may be limited to, the built-in page, the
+// built-in article and a hierarchical type.
 const kinds = {
   ...limits,
   page: (type) => type.builtIn === PAGE,
   article: isArticle,
+  hierarchical: (type) => type.hierarchical === true,
 };
 
 // The kinds of post type a setting of a part per post type may be left out
@@ -394,7 +395,7 @@ function requiredBy(read, before, path, problems) {
 // A group's setting: in the form of a site's own, with its default, which
 // must be a value of its type that the site publishes as it is declared; and in
 // a part per post type, the default for the types with an address or a
-// date, or for the built-in page or article, `defaultFor`, which such a type takes
+// date, for the built-in page or article, or for a hierarchical type, `defaultFor`, which such a type takes
 // in place of `default`, a setting without `default` having none for the others. A text
 // may be a metadata template (`template`,
 // metadata-templates.js), whose default names only the variables every site
@@ -408,8 +409,11 @@ function requiredBy(read, before, path, problems) {
 // of a part per post type of every structured data type the core knows may be
 // its type's (`structuredDataTypes`), which offers each type those it offers,
 // its default the first of them, and declares no default of its own.
-// A number may have a least value (`min`) and a greatest (`max`), which its default and
-// every value kept must keep within. A yes-or-no setting may require another
+// A text whose default has changed may list the defaults it once had
+// (`formerDefaults`), which a value kept that is one of them is taken as no
+// value, so that the default it has now reaches a site that saved one it
+// had then. A number may have a least value (`min`) and a greatest (`max`),
+// which its default and every value kept must keep within. A yes-or-no setting may require another
 // (`requires`, checked by settingsOf()), any setting may have a help text
 // the page shows with its control (`help`, from the catalogues, as its label
 // and its options' labels are, below `named`). A text a visitor reads
@@ -425,7 +429,7 @@ function settingOf(name, setting, path, problems, where, named) {
     problems.push(`${path}: must be an object`);
     return null;
   }
-  const { default: given, defaultFor, except, template, metaLine, requires, patterns, format, translated, min, max, structuredDataTypes, ...declared } = setting;
+  const { default: given, formerDefaults, defaultFor, except, template, metaLine, requires, patterns, format, translated, min, max, structuredDataTypes, ...declared } = setting;
   // A label the catalogues lack is a problem already, so the field is read with its name.
   const label = textsOf(`${named}.label`, path, problems);
   const read = ownField(name, { ...withoutTexts(declared, ['label', 'help'], path, named, problems), label: label ?? name }, path, problems, WHOLE);
@@ -475,6 +479,11 @@ function settingOf(name, setting, path, problems, where, named) {
     else read.structuredDataTypes = true;
   }
   defaultsOf(read, given, path, problems);
+  if (formerDefaults !== undefined) {
+    if (read.type !== 'string') problems.push(`${path}.formerDefaults: only a text has former defaults`);
+    else if (!Array.isArray(formerDefaults) || !formerDefaults.every((text) => typeof text === 'string' && text.trim() !== '')) problems.push(`${path}.formerDefaults: must be a list of the texts the setting once had as its default`);
+    else read.formerDefaults = formerDefaults.map((text) => text.trim());
+  }
   if (defaultFor !== undefined) read.defaultFor = defaultsFor(read, defaultFor, where, path, problems);
   if (read.template && read.default !== undefined) {
     const variables = variablesOf(where === 'types' ? ANY_TYPE : null);

@@ -242,6 +242,20 @@ describe('the meta line\'s format', () => {
   });
 });
 
+// Whether a page's breadcrumbs end with the page itself, `current` in the group `breadcrumbs`.
+describe('the breadcrumbs\' ending by type', () => {
+  const ending = (settings) => {
+    const result = run({ 'settings.json': settings }, site);
+    assert.deepEqual(result.refusals, []);
+    return settingsOf(result).breadcrumbs.types;
+  };
+
+  test('end with the page itself by default for a hierarchical type and for no other, each type with an address, and as an Admin sets it', () => {
+    assert.deepEqual(ending({}), { story: { current: false }, page: { current: true } });
+    assert.deepEqual(ending({ breadcrumbs: { types: { story: { current: true }, page: { current: false } } } }), { story: { current: true }, page: { current: false } });
+  });
+});
+
 describe('a menu', () => {
   const files = {
     'pages/contactpage0.md': page('contact'),
@@ -606,6 +620,31 @@ describe('the service registry', () => {
     const english = JSON.parse(written(run({ 'articles/aaaaaaaaaaaa.md': article({}, 'https://vimeo.com/76979871') }, { ...site, interfaceLanguage: 'sv' }))['consent.json']);
     assert.equal(english.services.find((one) => one.id === 'vimeo').purpose, 'Plays videos from Vimeo in the page.');
     assert.equal(english.texts.banner.title, 'Your privacy');
+  });
+
+  test('holds the banner\'s text only where an Admin has written one, which stays as it is written, so that the banner is otherwise written from the services\' facts', () => {
+    const embedded = { 'articles/aaaaaaaaaaaa.md': article({}, 'https://vimeo.com/76979871') };
+    const unwritten = run(embedded, site);
+    assert.equal(settingsOf(unwritten).consent.bannerText, undefined);
+    assert.equal(JSON.parse(written(unwritten)['consent.json']).texts.banner.text, undefined);
+    const own = run({ ...embedded, 'settings.json': { consent: { bannerText: 'We ask first.' } } }, site);
+    assert.equal(settingsOf(own).consent.bannerText, 'We ask first.');
+    assert.equal(JSON.parse(written(own)['consent.json']).texts.banner.text, 'We ask first.');
+  });
+
+  test('takes a banner text an Admin saved that is a default the core once had, in either language, as no text of the Admin\'s own', () => {
+    const former = [
+      'This site uses only what it needs to work, unless you allow more. With your consent it also loads content from other services, such as videos, which may store data in your browser and use what they learn for their own purposes. You can change or withdraw your consent at any time, from the bottom of every page.',
+      'Webbplatsen använder bara det den behöver för att fungera, om du inte tillåter mer. Med ditt samtycke laddar den också innehåll från andra tjänster, till exempel videor, som kan lagra uppgifter i din webbläsare och använda det de får veta för egna syften. Du kan ändra eller återkalla ditt samtycke när som helst, längst ned på varje sida.',
+    ];
+    for (const text of former) {
+      const result = run({ 'settings.json': { consent: { bannerText: `${text}\n` } } }, site);
+      assert.deepEqual(result.refusals, []);
+      assert.equal(settingsOf(result).consent.bannerText, undefined, text.slice(0, 20));
+      assert.equal(JSON.parse(written(result)['consent.json']).texts.banner.text, undefined);
+    }
+    const changed = run({ 'settings.json': { consent: { bannerText: `${former[0]} Thank you.` } } }, site);
+    assert.equal(settingsOf(changed).consent.bannerText, `${former[0]} Thank you.`);
   });
 
   test('on a site that keeps the choice on a domain, declares the consent\'s cookie on it, and the local storage item the records wait in', () => {

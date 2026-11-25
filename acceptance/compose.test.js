@@ -212,6 +212,41 @@ describe('a site in Compose', () => {
     assert.equal((await fetch(`${site.origin.git}/api/healthz`)).status, 200);
   });
 
+  // What the web server answers for (ADR 0002): a local copy's the loopback's names alone, which
+  // never leave this machine. A page elsewhere that makes a name of its own lead here, to read
+  // what answers as its own, gets nothing of any of the four hosts, with the port and without.
+  test('answers for the loopback\'s names alone, on each of its hosts, and refuses every other with nothing of its own', async () => {
+    // As a browser asks once a name leads here: at this machine, with the name as the host.
+    const ask = (port, host, path) => new Promise((resolve, reject) => {
+      const asked = httpRequest({ host: '127.0.0.1', port, path, headers: { host }, agent: false }, (answer) => {
+        const chunks = [];
+        answer.on('data', (chunk) => chunks.push(chunk));
+        answer.on('end', () => resolve({ status: answer.statusCode, body: Buffer.concat(chunks).toString() }));
+      });
+      asked.on('error', reject);
+      asked.end();
+    });
+    const own = {
+      site: ['/', /The Gentle Garden/],
+      admin: ['/', /<title>Konzilo<\/title>/],
+      git: ['/api/healthz', /"status":\s*"pass"/],
+      preview: ['/_konzilo/preview/health', /The gate stands/],
+    };
+    for (const [name, [path, holds]] of Object.entries(own)) {
+      const { port } = new URL(site.origin[name]);
+      for (const host of [`localhost:${port}`, `127.0.0.1:${port}`, `[::1]:${port}`, `site.localhost:${port}`]) {
+        const answer = await ask(port, host, path);
+        assert.equal(answer.status, 200, `${name} for ${host}`);
+        assert.match(answer.body, holds, `${name} for ${host}`);
+      }
+      for (const host of ['attacker.example', `attacker.example:${port}`]) {
+        for (const asked of [path, '/', '/no-such-page/']) {
+          assert.deepEqual(await ask(port, host, asked), { status: 421, body: '' }, `${name} for ${host} at ${asked}`);
+        }
+      }
+    }
+  });
+
   test('has ports on the web server alone, on this machine alone', () => {
     const services = site.compose('ps', '--format', 'json').trim().split('\n').map((line) => JSON.parse(line));
     const published = services.flatMap((service) => service.Publishers.filter((one) => one.PublishedPort > 0).map((one) => ({ ...one, service: service.Service })));
