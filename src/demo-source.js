@@ -117,9 +117,10 @@ export function sourceFrom(description, published, { now = new Date() } = {}) {
   }
 
   // A content file holds these in one flat map, and a source file in the three groups an
-  // editor sees, each a key of its own, the sharing image with its alt text.
+  // editor sees, each a key of its own, the sharing image with its alt text and its focal point.
+  const sharingImage = (flat) => ({ src: mediaPath(flat.socialImage), alt: flat.socialImageAlt, ...(flat.socialImageFocalPoint ? { focalPoint: flat.socialImageFocalPoint } : {}) });
   const seoInParts = (flat) => Object.fromEntries(Object.entries(SEO_PARTS).flatMap(([part, keys]) => {
-    const inPart = Object.fromEntries(Object.entries(keys).filter(([, as]) => Object.hasOwn(flat, as)).map(([key, as]) => [key, as === 'socialImage' ? { src: mediaPath(flat.socialImage), alt: flat.socialImageAlt } : flat[as]]));
+    const inPart = Object.fromEntries(Object.entries(keys).filter(([, as]) => Object.hasOwn(flat, as)).map(([key, as]) => [key, as === 'socialImage' ? sharingImage(flat) : flat[as]]));
     return Object.keys(inPart).length === 0 ? [] : [[part, inPart]];
   }));
 

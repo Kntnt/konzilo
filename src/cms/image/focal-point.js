@@ -38,10 +38,10 @@ const CONTEXTS = {
 };
 
 // What a frame is called beside it: its contexts, then its ratio, "card, gallery 1:1".
-export const frameLabel = ({ text, contexts }) => say('image.frame', { contexts: contexts.filter((context) => Object.hasOwn(CONTEXTS, context)).map((context) => say(CONTEXTS[context])).join(', '), ratio: text });
+const frameLabel = ({ text, contexts }) => say('image.frame', { contexts: contexts.filter((context) => Object.hasOwn(CONTEXTS, context)).map((context) => say(CONTEXTS[context])).join(', '), ratio: text });
 
 // Where a point stands, in words, as its slider says it.
-export const pointWords = (point) => (point === null ? say('image.focalPointNone') : say('image.focalPointAt', { x: whole(point.x), y: whole(point.y) }));
+const pointWords = (point) => (point === null ? say('image.focalPointNone') : say('image.focalPointAt', { x: whole(point.x), y: whole(point.y) }));
 
 // The picker in `parent`, for the picture at `address`, which may come later (setAddress()).
 export function focalPointPicker(parent, { address = null, focus = null, frames = [], changed = () => {} } = {}) {

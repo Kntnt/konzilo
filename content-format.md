@@ -1346,8 +1346,8 @@ An ID is text, the name of the post's source file, such as `96ba709ec918`, which
         "/harbour-lights/"
       ],
       "title": "Harbour lights & lanterns",
-      "source": "6da1fa92b8343c291be5406cc109eaef9e6309b42dcf3ed6c5ac627f6d18c838",
-      "published": "eacf443e94a6eb54e4be0336e07d002205ee5eade306ed26a6d591efbf90522c",
+      "source": "dcfef8f58f5bac4dd2687eabe06b3338da9fbdef690a64e59a11b825207fe196",
+      "published": "4e7e65383a899722caa4b444992ca1a6125f53585316804721cd665bf7219c06",
       "taken": "2026-10-20T08:00:00Z",
       "modified": "2026-10-21T09:30:00Z",
       "names": {

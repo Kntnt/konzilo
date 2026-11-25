@@ -3,13 +3,15 @@
 // the context it is drawn in draws it; a browser then loads the narrowest at least as wide as it
 // draws the image, for the screen's density too (ADR 0022). The widths and sizes are the site's
 // design's, by context, through konzilo({ images }), as `bodyStyles` and `tokens` are (ADR 0054),
-// and a context the design leaves out has the core's.
+// and so is the aspect ratio a context draws its images in, to which an image of another ratio is
+// cropped around its focal point; a context the design leaves out has the core's.
 //
 // The contexts: a body's image, a gallery's, the lightbox's (which shows a body's images and a
-// gallery's from the same `srcset`, so theirs hold its widths too), and a hero's and a card's,
-// which a site's templates draw (imageVersions() in images.js). The core's widths are steps of one
-// ladder, so that an image drawn in two contexts shares its versions, and the core's sizes are
-// the site template's, for a site without a design package.
+// gallery's from the same `srcset`, so theirs hold its widths too, unless the context crops them),
+// and a hero's and a card's, which a site's templates draw (imageVersions() in images.js). The
+// core's widths are steps of one ladder, so that an image drawn in two contexts shares its
+// versions, the core's sizes are the site template's, for a site without a design package, and
+// the core crops nothing.
 
 import { focusIn, focusText } from '../format/body.js';
 import { MIDDLE, ratioOf } from '../format/focal-point.js';
@@ -134,7 +136,7 @@ export function versionsInBody(contexts = IMAGE_CONTEXTS) {
 // none (image-service.js): none where the context has no ratio of its own. Each a number or a
 // text, since Sätteri keeps no other kind of property on an image of a body.
 export function cropOptions(ratio, focus = null) {
-  const read = ratio === null || ratio === undefined ? null : ratioOf(ratio);
+  const read = ratioOf(ratio);
   if (read === null) return {};
   return { [RATIO_OPTION]: read.value, [FOCUS_OPTION]: focusText(focus ?? MIDDLE) };
 }
