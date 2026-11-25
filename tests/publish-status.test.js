@@ -287,10 +287,26 @@ describe('the build request', () => {
     assert.equal(await buildsFor(buildControl(join(folder, 'none'))), 0);
   });
 
+  test('nothing is built while a purge holds the builds back, and a build says it runs while it does (ADR 0078)', async () => {
+    const control = buildControl(join(folder, 'held'));
+    control.request();
+    control.holdBuilds();
+    assert.equal(await buildsFor(control), 0);
+    assert.equal(control.requested(), true, 'the request waits for the purge');
+    control.releaseBuilds();
+    let seen = null;
+    assert.equal(await buildsFor(control, () => {
+      seen = control.isBuilding();
+    }), 1);
+    assert.equal(seen, true);
+    assert.equal(control.isBuilding(), false);
+  });
+
   test('a build that throws is not the end of the builder\'s world, if the caller says so', async () => {
     const control = buildControl(join(folder, 'throws'));
     control.request();
     await assert.rejects(buildOnRequest({ control, build: async () => { throw new Error('no'); }, sleep: async () => {} }), /no/);
     assert.equal(control.requested(), false, 'it has taken its request');
+    assert.equal(control.isBuilding(), false, 'and says it builds no more');
   });
 });

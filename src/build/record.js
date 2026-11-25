@@ -1,7 +1,10 @@
 // What a site's builds leave behind, in one folder that the builder and the service share:
 // the build request, the record of the last build, the code of a deletion an operator has
-// confirmed, and the build log (ADR 0031). Written whole and then moved into place, so that
-// a reader never meets half a file.
+// confirmed, and the build log (ADR 0031); and what a purge needs of them, which the purge's own
+// program shares too (ADR 0078): the purge the service asks for, how it stands, and two marks,
+// one while a purge holds the builds back and one while a build runs, so that neither runs while
+// the other does. Written whole and then moved into place, so that a reader never meets half a
+// file.
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -10,6 +13,10 @@ const REQUEST = 'build-request';
 const RECORD = 'published.json';
 const CONFIRMED = 'confirmed-deletion';
 const LOG = 'build-log.jsonl';
+const PURGE_REQUEST = 'purge-request.json';
+const PURGE_STATE = 'purge-state.json';
+const PURGING = 'purging';
+const BUILDING = 'building';
 
 export function buildControl(folder) {
   const place = (name) => join(folder, name);
@@ -17,6 +24,14 @@ export function buildControl(folder) {
     mkdirSync(dirname(place(name)), { recursive: true });
     writeFileSync(`${place(name)}.new`, text);
     renameSync(`${place(name)}.new`, place(name));
+  };
+  const readJson = (name) => {
+    try {
+      return JSON.parse(readFileSync(place(name), 'utf8'));
+    } catch (error) {
+      if (error.code === 'ENOENT' || error instanceof SyntaxError) return null;
+      throw error;
+    }
   };
   return {
     // A request written during a build stays for one more; many are one.
@@ -47,5 +62,26 @@ export function buildControl(folder) {
       mkdirSync(folder, { recursive: true });
       appendFileSync(place(LOG), `${JSON.stringify(line)}\n`);
     },
+    // The build log without each line `names(line)` says names what a purge took, its text.
+    scrubLog: (names) => {
+      if (!existsSync(place(LOG))) return;
+      const lines = readFileSync(place(LOG), 'utf8').split('\n').filter((line) => line !== '' && !names(line));
+      whole(LOG, lines.map((line) => `${line}\n`).join(''));
+    },
+
+    // The purge the service asks for (ADR 0078), and how the purge's program says it stands.
+    askPurge: (request) => whole(PURGE_REQUEST, `${JSON.stringify(request)}\n`),
+    purgeRequest: () => readJson(PURGE_REQUEST),
+    takePurgeRequest: () => rmSync(place(PURGE_REQUEST), { force: true }),
+    purgeState: () => readJson(PURGE_STATE),
+    writePurgeState: (state) => whole(PURGE_STATE, `${JSON.stringify(state)}\n`),
+
+    // A purge holds the builds back while it runs, and waits for one that runs to end: each says
+    // so first and then looks at the other, so that one of them always sees the other.
+    holdBuilds: () => whole(PURGING, ''),
+    releaseBuilds: () => rmSync(place(PURGING), { force: true }),
+    buildsHeld: () => existsSync(place(PURGING)),
+    building: (now) => (now ? whole(BUILDING, '') : rmSync(place(BUILDING), { force: true })),
+    isBuilding: () => existsSync(place(BUILDING)),
   };
 }

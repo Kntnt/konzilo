@@ -32,3 +32,19 @@ export function purgeRecord(text) {
 
 // The file of a record.
 export const recordFile = ({ purges, pushes }) => `${JSON.stringify({ purges, pushes: Object.fromEntries(Object.entries(pushes).sort(([a], [b]) => (a < b ? -1 : 1))) }, null, 2)}\n`;
+
+// Keeps the branch of the record to the instance's account alone, by a rule of Forgejo's that
+// holds for the name whether or not the branch is there yet, so that nobody else can make it
+// first. `call(method, path, body)` asks Forgejo's API as the instance's account, giving
+// { status, body }. Changes nothing that is so already.
+export async function keepPurgesProtected(call, repository, instance = 'konzilo') {
+  const listed = await call('GET', `/repos/${repository}/branch_protections`);
+  if (listed.status !== 200) throw new Error(`listing the branch protections: ${listed.status}`);
+  const rule = { enable_push: true, enable_push_whitelist: true, push_whitelist_usernames: [instance], push_whitelist_teams: [], push_whitelist_deploy_keys: false };
+  const found = listed.body.find((one) => one.rule_name === PURGES_BRANCH || one.branch_name === PURGES_BRANCH);
+  if (found && found.enable_push && found.enable_push_whitelist && JSON.stringify(found.push_whitelist_usernames) === JSON.stringify([instance]) && (found.push_whitelist_teams ?? []).length === 0 && !found.push_whitelist_deploy_keys) return;
+  const made = found
+    ? await call('PATCH', `/repos/${repository}/branch_protections/${encodeURIComponent(found.rule_name ?? found.branch_name)}`, rule)
+    : await call('POST', `/repos/${repository}/branch_protections`, { rule_name: PURGES_BRANCH, ...rule });
+  if (![200, 201].includes(made.status)) throw new Error(`keeping ${PURGES_BRANCH} to ${instance}: ${made.status} ${JSON.stringify(made.body)}`);
+}

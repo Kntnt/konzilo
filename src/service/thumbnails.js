@@ -2,7 +2,7 @@
 // 30 MB, and a library shows many at once. An original is private, so a picture goes only to
 // whoever the service has asked Forgejo about, and is kept by the version of the file it is of.
 
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { MEDIA_FOLDER } from '../format/masters.js';
@@ -84,6 +84,13 @@ export function thumbnails({ forgejo, repository, token, folder, get = fetch, sm
       const made = turn.then(() => make(name, sha));
       turn = made.catch(() => {});
       return made;
+    },
+
+    // Forgets every picture, as after a purge (ADR 0078), which may have taken an original one is
+    // of; each is made again as it is next asked for.
+    forget() {
+      rmSync(folder, { recursive: true, force: true });
+      mkdirSync(folder, { recursive: true });
     },
   };
 }

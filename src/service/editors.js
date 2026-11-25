@@ -14,6 +14,7 @@ import { FAILURE_SETTING, MAIL_SETTING } from './mail.js';
 import { checkMailSettings, mailSettingsShown } from './mail-settings.js';
 import { isAdminsForm, isForm, isTab, lockTable } from './locks.js';
 import { findSubmissions, idsOf, soughtOf } from './personal-data.js';
+import { purgeKeeper } from './purge.js';
 import { isSourcePath, sourceHistory } from './revisions.js';
 import { bodyOf } from './request-body.js';
 import { retentionDuty } from './retention.js';
@@ -30,6 +31,9 @@ const PERSONAL_DATA = '/_konzilo/personal-data';
 const LOCKS = '/_konzilo/locks';
 const REVISIONS = '/_konzilo/revisions';
 const DELETED = '/_konzilo/deleted';
+const PURGE = '/_konzilo/purge';
+// The most an Admin's purge takes, as JSON.
+const PURGE_BODY_LIMIT = 4096;
 // The most the *Mail* page's settings take, as JSON.
 const MAIL_BODY_LIMIT = 64 * 1024;
 // A form's submissions are shown this many at a time, newest first.
@@ -67,8 +71,8 @@ const PICTURE_HOLDS = 3600;
 // them is held open until they change, and { alive }, as locks.js has it. `revisions`: how a form's
 // revisions are given, { perPage }, as revisions.js has it. `deletable()`: whether a file in the
 // source is a post, a term or an image library entry, by the site description in use, as
-// deleted.js's deletableIn() tells it.
-export function editorsService({ forgejo, repository, token, rolesToken = null, pushesToken = null, control, pictures = null, store = null, forms = () => ({}), local = false, isPost = () => true, deletable = () => () => null, now = () => new Date(), warn = console.error, get = fetch, locks: { waitAtMost = 25_000, alive } = {}, revisions = {} }) {
+// deleted.js's deletableIn() tells it. `purge`: how an Admin's purge waits, as purge.js has it.
+export function editorsService({ forgejo, repository, token, rolesToken = null, pushesToken = null, control, pictures = null, store = null, forms = () => ({}), local = false, isPost = () => true, deletable = () => () => null, now = () => new Date(), warn = console.error, get = fetch, locks: { waitAtMost = 25_000, alive } = {}, revisions = {}, purge: purgeOptions = {} }) {
   const answers = new Map();
   const mayWriteLately = async (credential) => {
     const held = answers.get(credential);
@@ -135,9 +139,13 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
   // and each call says the tab answers. A form is held, or taken over, by PUT, and let go by
   // DELETE, each with the tab's name; a DELETE of them all ends the tab, as its page is closed.
   const table = lockTable({ now, ...(alive ? { alive } : {}) });
+  // An Admin's purge (ADR 0078), which shuts the forms while it waits and runs, and is told to
+  // every tab with the locks.
+  const purge = purgeKeeper({ table, control, now, ...purgeOptions, onDone: () => pictures?.forget?.() });
   const locksShown = (person, tab) => ({
     version: table.version,
     locks: table.list().map((lock) => ({ form: lock.form, name: lock.name, since: lock.since.toISOString(), mine: lock.tab === tab, yours: lock.login === person.login })),
+    purge: purge.forTab(tab),
   });
   const answerLocks = async (incoming, outgoing, below, searchParams) => {
     incoming.resume();
@@ -189,6 +197,7 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
     if (isAdminsForm(form) && !await person.admin()) return answerJson(outgoing, 403, { adminOnly: true });
     const result = table.hold(form, person, tab, searchParams.get('takeOver') === 'true');
     if (result.ended) return answerJson(outgoing, 410, {});
+    if (result.shut) return answerJson(outgoing, 423, { purge: purge.forTab(tab) });
     if (result.held) return answerJson(outgoing, 200, { held: true, since: result.held.since.toISOString() });
     const { name, login, since } = result.holder;
     return answerJson(outgoing, 409, { holder: { name, since: since.toISOString(), yours: login === person.login } });
@@ -233,6 +242,65 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
       warn(`The deleted entries could not be read: ${error.message}`);
       return answerJson(outgoing, 502, {});
     }
+  };
+
+  // An Admin's purge of a deleted entry (ADR 0078), to an Admin alone: how it stands, with who
+  // has which form open, and the purges made before, who and when; asked for by an entry's path
+  // and the course to take with the forms open, `anyway` or `wait`; and one that waits stopped.
+  const answerPurge = async (incoming, outgoing) => {
+    if (!['GET', 'POST', 'DELETE'].includes(incoming.method)) {
+      incoming.resume();
+      outgoing.writeHead(405, { allow: 'GET, POST, DELETE', 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+      return outgoing.end('{}');
+    }
+    const role = await roleOf(incoming.headers.authorization);
+    if (!usesAdminPages(role)) {
+      incoming.resume();
+      return answerJson(outgoing, role === null ? 401 : 403, {});
+    }
+    if (incoming.method === 'GET') {
+      incoming.resume();
+      let purges = [];
+      try {
+        ({ purges } = await history.purges());
+      } catch (error) {
+        warn(`The record of purges could not be read: ${error.message}`);
+      }
+      return answerJson(outgoing, 200, { purge: purge.forAdmin(), purges });
+    }
+    if (incoming.method === 'DELETE') {
+      incoming.resume();
+      return purge.cancel() ? answerJson(outgoing, 200, { purge: purge.forAdmin() }) : answerJson(outgoing, 409, { purge: purge.forAdmin() });
+    }
+    if ((incoming.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase() !== 'application/json') {
+      incoming.resume();
+      return answerJson(outgoing, 415, {});
+    }
+    const body = await bodyOf(incoming, PURGE_BODY_LIMIT);
+    if (body === null) {
+      outgoing.shouldKeepAlive = false;
+      return answerJson(outgoing, 413, {});
+    }
+    let given;
+    try {
+      given = JSON.parse(body.toString('utf8'));
+    } catch {
+      return answerJson(outgoing, 400, {});
+    }
+    if (!isSourcePath(given?.path) || !['anyway', 'wait'].includes(given?.course)) return answerJson(outgoing, 400, {});
+    const person = await personOf(incoming.headers.authorization);
+    if (person === null) return answerJson(outgoing, 401, {});
+    let entry;
+    try {
+      entry = await history.deletedOne(given.path, deletable());
+    } catch (error) {
+      warn(`The deleted entries could not be read: ${error.message}`);
+      return answerJson(outgoing, 502, {});
+    }
+    if (entry === null) return answerJson(outgoing, 404, {});
+    const started = purge.start({ entry, by: { login: person.login, name: person.name }, course: given.course });
+    if (started.busy) return answerJson(outgoing, 409, { purge: purge.forAdmin() });
+    return answerJson(outgoing, 202, started);
   };
 
   // How the site mails the forms' submissions, and how long it keeps them, to an Admin alone: an
@@ -459,11 +527,15 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
       if (pathname === LOCKS || pathname.startsWith(`${LOCKS}/`)) return answerLocks(incoming, outgoing, pathname.slice(LOCKS.length), searchParams);
       if (pathname === REVISIONS) return answerRevisions(incoming, outgoing, searchParams);
       if (pathname === DELETED) return answerDeleted(incoming, outgoing, searchParams);
+      if (pathname === PURGE) return answerPurge(incoming, outgoing);
       return answerJson(outgoing, 404, {});
     },
 
     // Lets go every lock whose tab has stopped answering, which the program asks for often.
     sweepLocks: () => table.sweep(),
+
+    // Takes an Admin's purge on where it can go, which the program asks for each second.
+    purgeStep: () => purge.step(),
 
     // What the clock asks for, at the start of each minute: a build when a scheduled moment has
     // passed, and when the source stands at a commit no build has read, as after a webhook that

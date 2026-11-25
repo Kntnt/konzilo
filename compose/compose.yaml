@@ -55,6 +55,15 @@ x-forgejo: &forgejo
     # The one address a webhook may reach: the service, which starts a build. Another arrangement
     # names its host (README.md, What another arrangement sets).
     FORGEJO__webhook__ALLOWED_HOST_LIST: ${KONZILO_WEBHOOK_HOST:-editors}
+    # What a purge has Forgejo let go of (ADR 0078), when the purge asks for it, as no schedule does:
+    # every object no ref reaches, at once, the log of a branch's moves that a rewrite left behind
+    # among them, and an LFS object no commit names, a minute after it came, so that an upload
+    # whose commit is on its way is never taken.
+    FORGEJO__git__GC_ARGS: --prune=now
+    FORGEJO__git_0X2E_config__gc_0X2E_reflogExpireUnreachable: now
+    FORGEJO__cron_0X2E_gc_lfs__OLDER_THAN: 1m
+    FORGEJO__cron_0X2E_gc_lfs__LAST_UPDATED_MORE_THAN_AGO: 1m
+    FORGEJO__cron_0X2E_gc_lfs__PROPORTION_TO_CHECK_PER_REPO: "1"
 
 services:
   # Makes the database and the instance's administrator before Forgejo first starts.
@@ -165,6 +174,7 @@ services:
       - builder-secret:/builder-secret
       - editors-secret:/editors-secret
       - typesense-secret:/typesense-secret
+      - purge-secret:/purge-secret
       - ${KONZILO_SITE_DIR:-.}:/site:ro
 
   # Search (ADR 0053): Typesense, the vendor's, in a network of its own that only the web server
@@ -340,6 +350,28 @@ services:
       - ${KONZILO_SITE_DIR:-.}:/site:ro
       - ${KONZILO_CORE}:${KONZILO_CORE}:ro
 
+  # The purge (ADR 0078): it sleeps until the service asks for an Admin's purge, in the folder the
+  # builder shares, holds the builds back, rewrites both repositories' histories by the instance's
+  # account, which alone may (ADR 0007), has Forgejo let go of what no ref reaches any more, and
+  # asks for a build. It holds the one credential that can, and runs nothing of the site's code.
+  purge:
+    <<: *hardened
+    build: *builder
+    image: konzilo-builder:${KONZILO_SITE}
+    init: true
+    depends_on:
+      seed: { condition: service_completed_successfully }
+    restart: unless-stopped
+    stop_grace_period: 1s
+    mem_limit: 1g
+    command: ["node", "/konzilo/bin/konzilo-purge.js"]
+    environment:
+      KONZILO_REPOSITORY: ${KONZILO_SITE}/source
+    volumes:
+      - purge-secret:/secret:ro
+      - purge-work:/work
+      - build-control:/control
+
   # `docker compose run --rm code` prints the current code of the account KONZILO_ACCOUNT
   # names, and `docker compose run --rm code <name>` that of the person named. The program is
   # its entrypoint, so that a name given to `run` is its argument.
@@ -391,3 +423,5 @@ volumes:
   typesense-secret:
   search-route:
   service-data:
+  purge-secret:
+  purge-work:

@@ -7,9 +7,10 @@
 //   mails each to its form's recipients through the adapter an Admin chooses (ADR 0003), or, in a
 //   local copy, writes it to its log, forgets each once its form's retention has passed, and lets
 //   an Admin find, export and erase a person's, and lists a form's revisions and the deleted
-//   posts, terms and image library entries from the source history. It has a credential that can
-//   only read the source repository, one that can only read who is an Admin, and a read-only token
-//   of the instance's account, by which it reads who pushed what.
+//   posts, terms and image library entries from the source history, and keeps an Admin's purge of
+//   one until the purge's own program has made it. It has a credential that can only read the
+//   source repository, one that can only read who is an Admin, and a read-only token of the
+//   instance's account, by which it reads who pushed what.
 // - `visitors`: it takes what visitors' browsers send below /_konzilo/, which the web server
 //   passes on, such as a site's forms (ADR 0045), and keeps it in the service's data. It reaches
 //   nothing.
@@ -99,6 +100,8 @@ function editors(store) {
   // The locks of tabs that have stopped answering let go, well within the two minutes ADR 0073
   // gives them.
   setInterval(() => service.sweepLocks(), 10_000).unref();
+  // An Admin's purge taken on as soon as it can go, and told as soon as it has ended (ADR 0078).
+  setInterval(() => service.purgeStep(), 1000).unref();
 
   // Each submission whose mail is due, a moment after it is kept, one look after another.
   const mail = mailDuty({ store, forms: () => described().forms, deliver: mailDelivery({ toLog: local }) });

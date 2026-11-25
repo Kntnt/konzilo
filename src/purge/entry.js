@@ -340,15 +340,16 @@ async function attempt({ source, content, entry, by, at, pushedBy }) {
     });
     contentHead = done.head;
   }
-  return { before, source: rewritten, contentHead, noteCommit, originals: plan.originals, record: noted };
+  return { before, source: rewritten, contentHead, noteCommit, paths: [...plan.drop, ...ledger.paths], originals: plan.originals, record: noted };
 }
 
 // Purges `entry`, { path, kind, collection }, `kind` one of `post`, `term` and `image`, as `by`,
 // { login, name }, at `at`. `source` and `content`: { git }, each a bare clone whose `origin` is
 // the repository. `pushedBy(commits)`: who pushed each commit as Forgejo's feed has it, { [sha]:
 // { login, name, at } }, a commit it has none of left out. Gives { source: { before, after,
-// renamed, gone }, content: { before, after }, originals, record }, `gone` the source commits that
-// are no more, and `originals` the LFS objects, by their SHA-256, that no commit names now.
+// renamed, gone, dropped }, content: { before, after }, paths, originals, record }, `gone` the
+// source commits that are no more, `dropped` those of them that held nothing else, `paths` the files that went, of both repositories, and `originals` the
+// LFS objects, by their SHA-256, that no commit names now.
 // Throws a PurgeRefusal where the entry is not to be purged.
 export async function purgeEntry({ source, content, entry, by, at, pushedBy, tries = TRIES }) {
   for (let tried = 1; ; tried += 1) {
@@ -378,8 +379,9 @@ export async function purgeEntry({ source, content, entry, by, at, pushedBy, tri
       }
     }
     return {
-      source: { before: before.source, after: made.source.head, renamed: made.source.renamed, gone: [...made.source.renamed.keys()].filter((commit) => made.source.renamed.get(commit) !== commit) },
+      source: { before: before.source, after: made.source.head, renamed: made.source.renamed, gone: [...made.source.renamed.keys()].filter((commit) => made.source.renamed.get(commit) !== commit), dropped: [...made.source.gone] },
       content: { before: before.content, after: made.contentHead },
+      paths: made.paths,
       originals: made.originals,
       record: made.record,
     };
