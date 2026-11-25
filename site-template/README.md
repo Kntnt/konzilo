@@ -42,6 +42,7 @@ A site may take its look from a design package, which holds a design's component
 - **Its components** are the site's by `componentsFrom` in `site-description.json`, the package's JSON file of them, with the site's labels under `componentLabels`, and what they hold is checked by `componentChecks`, the package's module ([`content-format.md`](../content-format.md#a-sites-own-components)). A type's `elements` names those its posts may hold.
 - **Its Astro components draw them,** registered in `astro.config.mjs`: each component's by its directive's name under `konzilo({ directives })`, and each presentation a post list names under `presentations`, as the template registers its own form, list and cards.
 - **Its styles stand in place of the template's own:** its body styles and tokens go to `bodyStyles` and `tokens`, and its stylesheets to the layout, in place of those in `src/styles/`.
+- **The widths it draws images at go to `images`:** for each context, a body's image, a gallery's, the lightbox's, a hero's and a card's, the widths of its versions and its `sizes`, so that a browser loads a version no wider than the design draws the image. A context it leaves out keeps the core's, which fit the template's own measures. The template's templates take a card's and the main image's from `imageVersions()` ([ADR 0022](../docs/adr/0022-make-each-images-master-from-its-original-and-write-images-and-galleries-in-markdown.md)).
 
 ## A site that pins a release
 

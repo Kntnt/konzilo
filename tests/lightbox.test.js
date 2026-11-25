@@ -52,6 +52,12 @@ describe('the lightbox, as a body\'s figures are written', () => {
     assert.match(dialog, /<button class="konzilo-modal-close" type="button" commandfor="konzilo-modal-1" command="close" aria-label="Close">/);
   });
 
+  test('draws each image at the sizes it is handed for the lightbox, and across the window by default', () => {
+    const dialog = withLightboxes(FIGURE, { next: counter(), locale: 'en_GB', sizes: '(min-width: 80rem) 80rem, 100vw' }).split('<dialog')[1];
+    assert.match(dialog, /<img src="\/_astro\/barn.webp" [^>]*alt="A red &quot;barn&quot; &amp; more" sizes="\(min-width: 80rem\) 80rem, 100vw" loading="lazy"/);
+    assert.match(written(FIGURE).split('<dialog')[1], / sizes="100vw" /);
+  });
+
   test('makes a gallery one dialog, with arrows and each image\'s place', () => {
     const out = written(GALLERY);
     assert.equal(out.match(/<dialog /g).length, 1);

@@ -128,6 +128,8 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Revision**: A form's content as one save left it, kept in the source repository's history; an Editor sees, compares and restores them. _Avoid_: version, history entry.
 
+**Deleted post**: A post whose source file a save removed, which the source history keeps until it is purged; an Editor finds it on the *Deleted* page, in Swedish *Raderat*, reads it with its revisions, and restores it as a draft under its own ID, its revisions following it back. A term or an image library entry is deleted and restored alike. _Avoid_: trashed, archived; trash, bin.
+
 **Refusal**: The intake's or `preSave`'s no to something it cannot publish, or to a save made from a form older than the latest save, naming the post, the block or the field, or the file and line, and the reason, by its name in the catalogues, which the editor shows in the interface language. _Avoid_: error, validation failure.
 
 **Warning**: The intake's word about a post it publishes otherwise than it holds, such as a link shown as text while its target has no page. _Avoid_: refusal, error.
@@ -205,6 +207,10 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 **Original**: The file an editor uploads, kept private in Git LFS. _Avoid_: upload, source image.
 
 **Master**: The public version of an original that the intake writes at the site's set size and format, without metadata; of an SVG, the SVG itself, checked and optimised. _Avoid_: derivative, rendition.
+
+**Image version**: One of the fixed widths a build makes of a master, as WebP, never wider than the master, which a page lists in an image's `srcset` for the browser to choose from by the image's `sizes`. _Avoid_: rendition, derivative, thumbnail.
+
+**Image context**: Where a site draws an image, a body, a gallery, the lightbox, a hero or a card, each with the widths of its versions and its `sizes`, from the site's design or the core's. _Avoid_: slot, placement.
 
 **Featured image**: The image a post is shown with, beside its body, with alt text that belongs to the post. _Avoid_: hero image, cover.
 

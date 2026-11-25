@@ -164,6 +164,24 @@ describe('the keeper of a tab\'s lock', () => {
     assert.equal(service.held['articles/dddddddddddd'], 'mine', 'the form keeps its own lock until it is left');
   });
 
+  test('restores a deleted entry only where no other tab holds its form, holding it meanwhile, and keeps it as its form opens', async () => {
+    const { keeper, service } = keeping({ held: { 'articles/aaaaaaaaaaaa': EBBA, 'articles/bbbbbbbbbbbb': { ...EBBA, yours: true } } });
+    assert.deepEqual(await keeper.beforeRestoring('articles/aaaaaaaaaaaa'), { refusal: { name: 'lock.refusedRestore', values: { name: 'Ebba Editor' } } });
+    assert.deepEqual(await keeper.beforeRestoring('articles/bbbbbbbbbbbb'), { refusal: { name: 'lock.refusedRestoreYours' } });
+
+    const restoring = await keeper.beforeRestoring('articles/cccccccccccc');
+    assert.equal(restoring.refusal, undefined);
+    await keeper.seen({ locks: [{ form: 'articles/cccccccccccc', name: 'Anna Admin', mine: true, yours: true }] });
+    assert.equal(service.held['articles/cccccccccccc'], 'mine', 'held while it is restored');
+    await keeper.open('articles/cccccccccccc');
+    await restoring.done();
+    assert.equal(service.held['articles/cccccccccccc'], 'mine', 'the form opened keeps it');
+
+    const left = await keeper.beforeRestoring('articles/dddddddddddd');
+    await left.done();
+    assert.equal(service.held['articles/dddddddddddd'], undefined, 'let go where its form was not opened');
+  });
+
   test('shows a draft backup the entry was saved after read-only, until the latest is opened', async () => {
     const { keeper, last } = keeping();
     await keeper.open('articles/aaaaaaaaaaaa');

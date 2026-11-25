@@ -1,16 +1,20 @@
 // Breadcrumbs: the levels a page sits at, from its address
 // alone: the start page, named in the site's language, each shorter address
 // the page's address starts with at which a post answers, of any type, and
-// the page itself, each post named by its name in breadcrumbs, else its
-// title. Every page but the start page carries them in its structured data
-// as a BreadcrumbList, which its WebPage names, and the integration's
-// Breadcrumbs component shows the same levels where a design places it.
+// the page itself, each post named by its name in breadcrumbs, else by the
+// label of the menu entry that leads to it, else by its title. Every page but
+// the start page carries them in its structured data as a BreadcrumbList,
+// which its WebPage names, and the integration's Breadcrumbs component shows
+// the same levels where a design places it, ending with the page itself by
+// default for a post of a hierarchical type and for one whose name in
+// breadcrumbs is filled in.
 //
 // A small site built with `astro build` for https://www.example.com, from
 // content files the intake's command writes: articles below /news/, where
 // a page of the site answers, notes below /notes/, where nothing does, a
 // tree of pages three levels deep, and a page of the design's own below one
-// of them. Built again below a preview's base, and again in Swedish.
+// of them. Built again below a preview's base, with menus, in Swedish, and
+// in English and Swedish.
 
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -29,25 +33,27 @@ const astro = join(core, 'node_modules/astro/bin/astro.mjs');
 const integration = join(core, 'src/astro/index.js');
 const { JSDOM } = createRequire(join(core, 'package.json'))('jsdom');
 
-// Articles below /news/, pages at their paths from the root, and notes
-// below /notes/, in `language`.
-const site = (language) => ({
-  language,
+// Articles below /news/, with a name in breadcrumbs, the built-in page at
+// its path from the root, and notes below /notes/, in `language`, or in each of `languages`, with the menus
+// named, in that order.
+const site = (language, languages, menus) => ({
+  ...(languages ? { languages } : { language }),
   images: { smallestWidth: 400, displayWidth: 1280 },
   types: {
-    post: { label: 'Article', plural: 'Articles', collection: 'articles', address: '/news/{slug}/', elements: ['paragraph'] },
+    post: { label: 'Article', plural: 'Articles', collection: 'articles', address: '/news/{slug}/', elements: ['paragraph'], fields: { breadcrumb: {} } },
     page: { label: 'Page', plural: 'Pages', collection: 'pages', hierarchical: true, address: '/{path}/', elements: ['paragraph'] },
     note: { label: 'Note', plural: 'Notes', collection: 'notes', address: '/notes/{slug}/', elements: ['paragraph'] },
   },
+  ...(menus.length > 0 ? { menus: Object.fromEntries(menus.map((menu) => [menu, { label: menu }])) } : {}),
 });
 
-// A route of the design for a collection's entries, at `parameter`.
-const route = (collection, layout, parameter = 'slug') => [
+// The design's route for every post, at its address in its language.
+const route = [
   '---',
-  "import { getCollection } from 'astro:content';",
-  `import Page from '${layout}';`,
+  "import { entryPages } from '@kntnt/konzilo/astro/languages';",
+  "import Page from '../layouts/Page.astro';",
   'export async function getStaticPaths() {',
-  `  return (await getCollection('${collection}')).map((entry) => ({ params: { ${parameter}: entry.id }, props: { entry } }));`,
+  "  return (await Promise.all(['articles', 'pages', 'notes'].map((collection) => entryPages(collection)))).flat();",
   '}',
   'const { entry } = Astro.props;',
   '---',
@@ -75,9 +81,7 @@ const design = {
     '',
   ].join('\n'),
   'src/pages/index.astro': "---\nimport Page from '../layouts/Page.astro';\n---\n<Page />\n",
-  'src/pages/news/[slug].astro': route('articles', '../../layouts/Page.astro'),
-  'src/pages/notes/[slug].astro': route('notes', '../../layouts/Page.astro'),
-  'src/pages/[...path].astro': route('pages', '../layouts/Page.astro', 'path'),
+  'src/pages/[...path].astro': route,
   'src/pages/about/map.astro': "---\nimport Page from '../../layouts/Page.astro';\n---\n<Page title=\"Map of the pier\" />\n",
 };
 
@@ -101,6 +105,15 @@ function posts() {
   ];
 }
 
+// An article whose name in breadcrumbs is filled in, and a page at the
+// root, such as a cookie policy.
+function more() {
+  return [
+    post({ ID: 7, slug: 'night-watch', title: 'The night watch at the lantern', body: paragraphs('The lantern burns all night.'), meta: { breadcrumb: ['Night watch'] } }),
+    page(8, 'cookies', 'Cookie policy'),
+  ];
+}
+
 let repository;
 
 function write(path, contents) {
@@ -108,18 +121,32 @@ function write(path, contents) {
   writeFileSync(join(repository, path), contents);
 }
 
-// Export the posts for a site in `language` and build it, below `base` if
-// given, and give each page's document by its path.
-// Each type's breadcrumbs end with the page itself unless `current` is false.
-function build(language, base, current = true) {
-  write('site-description.json', JSON.stringify(site(language)));
-  const ending = { types: Object.fromEntries(['post', 'page', 'note'].map((type) => [type, { current }])) };
-  write('site-settings.json', JSON.stringify({ menus: {}, settings: { breadcrumbs: ending }, redirects: [], identity: { title: 'The Quiet Lantern', logo: null, icon: null } }));
-  const exported = writeContent(repository, posts());
+// Every type's breadcrumbs ending with the page itself, or none.
+const always = (current) => ({ types: Object.fromEntries(['post', 'page', 'note'].map((type) => [type, { current }])) });
+
+// Export `given` for a site in `language`, or in each of `languages`, and
+// build it, below `base` if given, and give each page's document by its
+// path. `ending`: the settings group `breadcrumbs`, its defaults where none
+// is given. `menus`: each menu's entries, by its name, in the order the site
+// description declares them, and `translated` each other language's, by its
+// locale.
+function build(language, { base, ending, menus = {}, languages, translated = {}, given = posts() } = {}) {
+  write('site-description.json', JSON.stringify(site(language, languages, Object.keys(menus))));
+  const settings = ending === undefined ? {} : { breadcrumbs: ending };
+  const others = Object.fromEntries(Object.entries(translated).map(([locale, own]) => [locale, { menus: own }]));
+  write('site-settings.json', JSON.stringify({ menus, settings, redirects: [], identity: { title: 'The Quiet Lantern', logo: null, icon: null }, languages: others }));
+  const exported = writeContent(repository, given);
   assert.equal(exported.status, 0, exported.stderr);
   const built = nodeSync([astro, 'build', ...(base ? ['--base', base] : [])], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
   assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
   return (path) => new JSDOM(readFileSync(join(repository, 'dist', path, 'index.html'), 'utf8')).window.document;
+}
+
+// The levels a page's breadcrumbs show on screen, each [name, link], the
+// link null for the page itself, marked as the current page; none where it
+// shows none.
+function shownOf(document) {
+  return [...document.querySelectorAll('nav li')].map((item) => (item.getAttribute('aria-current') === 'page' ? [item.textContent, null] : [item.textContent, item.querySelector('a').getAttribute('href')]));
 }
 
 // The page's graph, read from its one JSON-LD script.
@@ -163,7 +190,7 @@ describe('a site built with astro build for https://www.example.com', () => {
   });
 
   test('gives each page the levels of its address where a post answers, named by its name in breadcrumbs or its title, in its graph and on screen', () => {
-    const pageAt = build('en_GB');
+    const pageAt = build('en_GB', { ending: always(true) });
 
     // An article below the page at /news/, of another type, named by its
     // name in breadcrumbs.
@@ -202,36 +229,100 @@ describe('a site built with astro build for https://www.example.com', () => {
     assert.equal(start.querySelector('nav'), null);
   });
 
+  test('names a level without a name in breadcrumbs by the label of the menu entry that leads to it, the first menu\'s, and its first, in its graph and on screen', () => {
+    const pageAt = build('en_GB', {
+      ending: always(true),
+      menus: {
+        // Declared first, though its name comes after the footer's.
+        main: [
+          { title: 'Newsroom', url: '/news/' },
+          { title: 'The lantern', url: '/about/' },
+          { title: 'Our keepers', url: '/about/keepers/' },
+          { title: 'Anna', url: '/about/keepers/anna/' },
+          { title: 'Ms Berg', url: '/about/keepers/anna/' },
+        ],
+        footer: [{ title: 'About us', url: '/about/' }, { title: 'Tides', url: '/notes/tide/' }],
+      },
+    });
+
+    // A name in breadcrumbs before a menu's label, the first menu's label
+    // before another's, and the first entry's before a later one's.
+    const anna = pageAt('about/keepers/anna');
+    assert.deepEqual(breadcrumbsOf(anna).list, breadcrumbList('/about/keepers/anna/', [
+      ['Home', '/'], ['The lantern', '/about/'], ['Keepers', '/about/keepers/'], ['Anna', '/about/keepers/anna/'],
+    ]));
+    assert.deepEqual(shownOf(anna), [['Home', '/'], ['The lantern', '/about/'], ['Keepers', '/about/keepers/'], ['Anna', null]]);
+    // A later menu's label where no earlier menu leads to the post.
+    assert.deepEqual(breadcrumbsOf(pageAt('notes/tide')).list, breadcrumbList('/notes/tide/', [['Home', '/'], ['Tides', '/notes/tide/']]));
+    // A post that has neither, by its title.
+    assert.deepEqual(breadcrumbsOf(pageAt('news/harbour-lights')).list, breadcrumbList('/news/harbour-lights/', [['Home', '/'], ['News', '/news/'], ['Harbour lights', '/news/harbour-lights/']]));
+  });
+
   test('in a preview, below its base, the links keep the base and the graph the public host', () => {
-    const anna = build('en_GB', '/preview/')('about/keepers/anna');
+    const anna = build('en_GB', { base: '/preview/', ending: always(true) })('about/keepers/anna');
 
     assert.deepEqual([...anna.querySelectorAll('nav a')].map((link) => link.getAttribute('href')), ['/preview/', '/preview/about/', '/preview/about/keepers/']);
     assert.deepEqual(breadcrumbsOf(anna).list.itemListElement.map(({ item }) => item), [`${ORIGIN}/`, `${ORIGIN}/about/`, `${ORIGIN}/about/keepers/`, `${ORIGIN}/about/keepers/anna/`]);
   });
 
-  test("by default ends a page's breadcrumbs above the page itself, which its graph still holds, and shows none right under the start page", () => {
-    const pageAt = build('en_GB', undefined, false);
+  test('by default ends the breadcrumbs of a hierarchical type\'s post with the post itself, and of another type\'s only where its name in breadcrumbs is filled in, its graph holding every level', () => {
+    const pageAt = build('en_GB', { given: [...posts(), ...more()] });
+
+    // A page, of a hierarchical type, at the root and below others.
+    assert.deepEqual(shownOf(pageAt('cookies')), [['Home', '/'], ['Cookie policy', null]]);
+    assert.deepEqual(shownOf(pageAt('about/keepers/anna')), [['Home', '/'], ['About the lantern', '/about/'], ['Keepers', '/about/keepers/'], ['Anna Berg', null]]);
+    // An article ends above itself, and its graph still holds it.
+    const article = pageAt('news/harbour-lights');
+    assert.deepEqual(shownOf(article), [['Home', '/'], ['News', '/news/']]);
+    assert.deepEqual(breadcrumbsOf(article).list, breadcrumbList('/news/harbour-lights/', [['Home', '/'], ['News', '/news/'], ['Harbour lights', '/news/harbour-lights/']]));
+    // One whose name in breadcrumbs is filled in ends with that name.
+    assert.deepEqual(shownOf(pageAt('news/night-watch')), [['Home', '/'], ['News', '/news/'], ['Night watch', null]]);
+    // A note right under the start page shows none, but in its graph.
+    const tide = pageAt('notes/tide');
+    assert.equal(tide.querySelector('nav'), null);
+    assert.deepEqual(breadcrumbsOf(tide).list, breadcrumbList('/notes/tide/', [['Home', '/'], ['Tide', '/notes/tide/']]));
+  });
+
+  test('ends a type\'s breadcrumbs with the post itself as its setting says, but for a post whose name in breadcrumbs is filled in, which always does', () => {
+    const pageAt = build('en_GB', { ending: { types: { post: { current: true }, page: { current: false }, note: { current: false } } }, given: [...posts(), ...more()] });
+
+    assert.deepEqual(shownOf(pageAt('news/harbour-lights')), [['Home', '/'], ['News', '/news/'], ['Harbour lights', null]]);
     const anna = pageAt('about/keepers/anna');
+    assert.deepEqual(shownOf(anna), [['Home', '/'], ['About the lantern', '/about/'], ['Keepers', '/about/keepers/']]);
     assert.deepEqual(breadcrumbsOf(anna).list, breadcrumbList('/about/keepers/anna/', [
       ['Home', '/'], ['About the lantern', '/about/'], ['Keepers', '/about/keepers/'], ['Anna Berg', '/about/keepers/anna/'],
     ]));
-    assert.equal(anna.querySelector('main').firstElementChild.outerHTML, [
-      '<nav aria-label="Breadcrumbs"><ol>',
-      '<li><a href="/">Home</a></li>',
-      '<li><a href="/about/">About the lantern</a></li>',
-      '<li><a href="/about/keepers/">Keepers</a></li>',
-      '</ol></nav>',
-    ].join(''));
-    const about = pageAt('about');
-    assert.deepEqual(breadcrumbsOf(about).list, breadcrumbList('/about/', [['Home', '/'], ['About the lantern', '/about/']]));
-    assert.equal(about.querySelector('nav'), null);
+    assert.deepEqual(shownOf(pageAt('about/keepers')), [['Home', '/'], ['About the lantern', '/about/'], ['Keepers', null]]);
+    // A page right under the start page that ends above itself shows none.
+    assert.equal(pageAt('about').querySelector('nav'), null);
+    assert.equal(pageAt('cookies').querySelector('nav'), null);
   });
 
   test('a site in Swedish names the start page Startsida and the navigation Brödsmulor', () => {
-    const tide = build('sv_SE')('notes/tide');
+    const tide = build('sv_SE', { ending: always(true) })('notes/tide');
 
     assert.deepEqual(breadcrumbsOf(tide).list, breadcrumbList('/notes/tide/', [['Startsida', '/'], ['Tide', '/notes/tide/']]));
     assert.equal(tide.querySelector('nav').getAttribute('aria-label'), 'Brödsmulor');
     assert.equal(tide.querySelector('nav li').textContent, 'Startsida');
+  });
+  test('in a site in two languages, names a level by the label of the menu entry in the page\'s own language that leads to it', () => {
+    // Pages about the lantern, English and Swedish, each with one below it.
+    const translation = (one, locale, set) => ({ ...one, meta: { ...one.meta, _locale: [locale], ...(set ? { _original_post: [set] } : {}) } });
+    const about = translation(page(3, 'about', 'About the lantern'), 'en_GB', 'lantern');
+    const om = translation(page(13, 'om', 'Om lyktan'), 'sv_SE', 'lantern');
+    const pageAt = build(undefined, {
+      languages: ['en_GB', 'sv_SE'],
+      // The English menu leads to the Swedish page too, which the Swedish one names otherwise.
+      menus: { main: [{ title: 'The Swedish pages', url: '/sv/om/' }, { title: 'About us', url: '/en/about/' }] },
+      translated: { sv_SE: { main: [{ title: 'Om oss', url: '/sv/om/' }] } },
+      given: [about, translation(page(4, 'team', 'The team', about), 'en_GB'), om, translation(page(14, 'laget', 'Laget', om), 'sv_SE')],
+    });
+
+    const team = pageAt('en/about/team');
+    assert.deepEqual(breadcrumbsOf(team).list, breadcrumbList('/en/about/team/', [['Home', '/en/'], ['About us', '/en/about/'], ['The team', '/en/about/team/']]));
+    assert.deepEqual(shownOf(team), [['Home', '/en/'], ['About us', '/en/about/'], ['The team', null]]);
+    const laget = pageAt('sv/om/laget');
+    assert.deepEqual(breadcrumbsOf(laget).list, breadcrumbList('/sv/om/laget/', [['Startsida', '/sv/'], ['Om oss', '/sv/om/'], ['Laget', '/sv/om/laget/']]));
+    assert.deepEqual(shownOf(laget), [['Startsida', '/sv/'], ['Om oss', '/sv/om/'], ['Laget', null]]);
   });
 });

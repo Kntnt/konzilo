@@ -12,8 +12,17 @@
 // Drawing an SVG with sharp is safe on a Konzilo site only because every SVG
 // master has passed the intake's check (node/src/format/svg.js); a site's
 // own SVGs are its developers'.
+//
+// A picture asked for in widths (image-versions.js) is made in each of them up
+// to its master's width and the widest the core makes, with its master's own
+// width, or that widest, in place of those wider (versionWidths()), and, unless
+// a size is asked for, written at the widest of them, so that its `src` is one
+// of its versions and no version is wider than it needs to be. A WebP is made
+// at the core's quality unless another is asked for, and a lossless master's
+// WebP is lossless, at any width (ADR 0022).
 
 import sharpService from 'astro/assets/services/sharp';
+import { QUALITY, versionWidths } from './image-versions.js';
 
 // An SVG, as Astro's own detector knows one: an <svg> tag in its first
 // kilobyte.
@@ -62,11 +71,46 @@ async function smallerThanAskedToFill(sharp, input, { width, height, fit }) {
   return across < width || down < height;
 }
 
+// Whether `bytes` are a WebP whose picture is lossless: its first picture's
+// chunk is VP8L, where a lossy one's is `VP8 `.
+export function isLosslessWebp(bytes) {
+  if (bytes.length < 12 || bytes.toString('latin1', 0, 4) !== 'RIFF' || bytes.toString('latin1', 8, 12) !== 'WEBP') return false;
+  for (let at = 12; at + 8 <= bytes.length;) {
+    const kind = bytes.toString('latin1', at, at + 4);
+    if (kind === 'VP8L') return true;
+    if (kind === 'VP8 ') return false;
+    const size = bytes.readUInt32LE(at + 4);
+    at += 8 + size + (size % 2);
+  }
+  return false;
+}
+
+// A picture of Astro's own, imported, as its pipeline hands one over.
+const isImported = (src) => typeof src === 'object' && src !== null && typeof src.width === 'number' && typeof src.height === 'number';
+
 const service = {
   ...sharpService,
+  async validateOptions(options, imageConfig, logger) {
+    const validated = await sharpService.validateOptions(options, imageConfig, logger);
+    if (validated.format === 'webp' && validated.quality === undefined) validated.quality = QUALITY;
+    const { src } = validated;
+    // Asked for in widths, at no size of its own: Astro hands it over at its master's size.
+    const asked = Array.isArray(validated.widths) && validated.widths.length > 0 && !validated.densities && isImported(src) && src.format !== 'svg';
+    if (asked && validated.width === src.width && validated.height === src.height) {
+      validated.widths = versionWidths(validated.widths, src.width);
+      validated.width = validated.widths.at(-1);
+      validated.height = Math.round((validated.width * src.height) / src.width);
+    }
+    return validated;
+  },
   async transform(input, options, config, logger) {
     const { default: sharp } = await import('sharp');
     if (!isSvg(input)) {
+      // A lossless master's versions are lossless, whatever the quality.
+      if ((options.format ?? 'webp') === 'webp' && isLosslessWebp(Buffer.from(input.buffer, input.byteOffset, input.byteLength))) {
+        const own = config.service?.config ?? {};
+        config = { ...config, service: { ...config.service, config: { ...own, webp: { ...own.webp, lossless: true } } } };
+      }
       if (!(await smallerThanAskedToFill(sharp, input, options))) return sharpService.transform(input, options, config, logger);
       // Enlarged to fill the size asked for, then made as asked.
       const { width, height, position } = options;

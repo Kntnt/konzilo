@@ -263,11 +263,22 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     ],
   });
 
+  // The site's menus, and the source file of each in a language, or, `language` null, on a site
+  // in one.
+  const menus = Object.values(description.menus);
+  const menuFile = (menu, language) => (language ? `menus/${language.tag}/${menu.name}.json` : `menus/${menu.name}.json`);
+  // The menus' files in the order the site description declares the menus, from which the name in
+  // breadcrumbs shows the label of the first entry that leads to the post while it is empty, as
+  // the site names the post by it (parts/menu-label.js): one list, or one by language's tag.
+  const menuFiles = several
+    ? Object.fromEntries(description.languages.map((language) => [language.tag, menus.map((menu) => menuFile(menu, language))]))
+    : menus.map((menu) => menuFile(menu, null));
+
   // A part of an article that is a text: its field, which shows what it falls back to, or is
   // a button until it is wanted. An optional part of the headline stands above or below it, with
   // no label of its own: its button, and then its placeholder, say what it is.
   const PARTS = {
-    breadcrumb: { widget: TEXT_WIDGET, fallback: 'breadcrumb', hint: say('breadcrumbHint') },
+    breadcrumb: { widget: TEXT_WIDGET, fallback: 'breadcrumb', ...(menus.length === 0 ? {} : { menus: menuFiles }), hint: say('breadcrumbHint') },
     eyebrow: { widget: TEXT_WIDGET, add: say('addEyebrow'), placeholder: say('eyebrow'), labelled: false },
     headline: { widget: TEXT_WIDGET, placeholder: say('headline') },
     subheadline: { widget: TEXT_WIDGET, add: say('addSubheadline'), placeholder: say('subheadline'), labelled: false },
@@ -585,8 +596,6 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     fields: entryFields(depth),
   });
 
-  const menus = Object.values(description.menus);
-
   // The site's components, their labels and their attributes' in the interface language.
   const components = Object.fromEntries(Object.entries(description.components).map(([name, component]) => [name, {
     ...component,
@@ -669,7 +678,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
               files: menus.flatMap((menu) => (several ? description.languages : [null]).map((language) => ({
                 name: language ? `${menu.name}-${language.tag}` : menu.name,
                 label: language ? say('menuInLanguage', { menu: own(menu.label), language: language.tag }) : own(menu.label),
-                file: language ? `menus/${language.tag}/${menu.name}.json` : `menus/${menu.name}.json`,
+                file: menuFile(menu, language),
                 format: 'json',
                 fields: [entriesField(MENU_DEPTH)],
               }))),

@@ -1,5 +1,5 @@
-// The breadcrumbs of a page: the levels it sits at, from its
-// address alone, which its structured data holds as a BreadcrumbList
+// The breadcrumbs of a page: the levels it sits at, from its address
+// alone, which its structured data holds as a BreadcrumbList
 // (structured-data.js) and Breadcrumbs.astro shows on screen:
 //
 // 1. the start page, named in the page's language (breadcrumbTexts()), or,
@@ -7,11 +7,15 @@
 //    breadcrumbs where it has one;
 // 2. each shorter address the page's address starts with, `/a/` and
 //    `/a/b/` for `/a/b/c/`, at which a post of the build answers, of any
-//    type, named by its name in breadcrumbs (`breadcrumb`), else its
-//    title;
-// 3. the page itself, named the same way, or, a term's page, by
-//    the term's name, or, a page of the site's own, by the title it is
-//    given.
+//    type;
+// 3. the page itself, a post, or, a term's page, named by the term's name,
+//    or, a page of the site's own, by the title it is given.
+//
+// A post is named by its name in breadcrumbs (`breadcrumb`), else by the
+// label of the menu entry that leads to it, in the page's language: of the
+// menus in the order the site description declares them, the first that has
+// one, and in it the first; else by its title (breadcrumbOf() of
+// article-parts.js, which the editor's field shows too).
 //
 // An address at which no post answers is left out: a type's prefix, a term
 // or a list has no level of its own. On a site in several languages, the levels stay within the page's language: the first is the
@@ -21,13 +25,19 @@
 // page has no breadcrumbs, and nor has a page of the site's own that gives
 // no title.
 //
+// The levels always hold the page itself; whether the breadcrumbs on screen
+// end with it is endsWithItself()'s, which breadcrumbs.js marks.
+//
 // Free of Astro's own modules, so that Head's search-and-sharing.js and the
-// tests read it too: it finds a post by its entry through the `getEntry` it
-// is given, and the start page an Admin chose through the `getCollection`,
-// each as Astro's from astro:content answers in a build (breadcrumbs.js).
+// tests read it too: it finds a post and a menu by its entry through the
+// `getEntry` it is given, and the start page an Admin chose through the
+// `getCollection`, each as Astro's from astro:content answers in a build
+// (breadcrumbs.js).
 
 import { SOURCE_LANGUAGE, textsOf } from '../catalogues.js';
-import { chosenStartPage, entryAddress as addressIn, pageLanguage, startAddress, typeAddress } from './languages.js';
+import { breadcrumbOf } from '../format/article-parts.js';
+import { firstEntry, labelOf } from '../format/menus.js';
+import { chosenStartPage, entryAddress as addressIn, menuEntry, pageLanguage, startAddress, typeAddress } from './languages.js';
 import { taxonomyWithPages } from './term-pages.js';
 
 // What a visitor reads of breadcrumbs, in the catalogues (ADR 0066) under
@@ -56,11 +66,15 @@ export function breadcrumbTexts(locale, given = {}) {
 // breadcrumbTexts() of the site; `getEntry` and `getCollection`: Astro's, from
 // astro:content.
 export async function breadcrumbLevels({ entry = null, path, title }, { site, texts, getEntry, getCollection }) {
-  const own = entry === null ? { name: title, path } : { name: nameOf(entry), path: (await entryAddress(entry, site, getEntry)) ?? path };
+  const type = entry === null ? null : typeOf(entry, site);
+  const at = entry === null ? path : (await entryAddress(entry, type, site, getEntry)) ?? path;
   const languages = site.languages ?? [];
-  const language = pageLanguage(own.path, languages);
+  const language = pageLanguage(at, languages);
   const home = startAddress(language, languages);
-  if (own.path === '/' || own.path === home || !own.name) return [];
+  if (at === '/' || at === home) return [];
+  const labelAt = await menuLabels(site, language, getEntry);
+  const own = { name: entry === null ? title : type === null ? entry.data.name : breadcrumbOf(entry.data, labelAt(at)), path: at };
+  if (!own.name) return [];
   const segments = own.path.split('/').filter(Boolean);
   const above = [];
   // Below a language's prefix, which is no level of its own.
@@ -68,25 +82,51 @@ export async function breadcrumbLevels({ entry = null, path, title }, { site, te
   for (let count = first; count < segments.length; count += 1) {
     const address = `/${segments.slice(0, count).join('/')}/`;
     const found = await postAt(address, site, getEntry, language);
-    if (found) above.push({ name: nameOf(found), path: address });
+    if (found) above.push({ name: breadcrumbOf(found.data, labelAt(address)), path: address });
   }
   const chosen = await chosenStartPage(site, getCollection);
   return [{ name: chosen?.entry.data.breadcrumb || texts.home, path: home }, ...above, own];
 }
 
-// A post's name in breadcrumbs: its own, else its title; a term's, its
-// name.
-function nameOf(entry) {
-  return entry.data.breadcrumb || entry.data.title || entry.data.name;
+// Whether the breadcrumbs of a page that shows `entry`, as breadcrumbLevels()
+// takes it, end with the page itself on screen: those of a term's page and of
+// a page of the site's own do; a post's do where an editor has filled in its
+// name in breadcrumbs, and otherwise as its type's setting `current` in the
+// settings group `breadcrumbs` says, on by default for a hierarchical type,
+// such as a page, and off for any other, whose long headline the page shows
+// below. `settings`: the site settings in the page's language, as the
+// collection `settings` types them, undefined before a first build has
+// written them.
+export function endsWithItself(entry, site, settings) {
+  const type = entry === null ? null : typeOf(entry, site);
+  if (type === null) return true;
+  if (typeof entry.data.breadcrumb === 'string' && entry.data.breadcrumb.trim() !== '') return true;
+  return settings?.breadcrumbs?.types?.[type.name]?.current ?? type.hierarchical === true;
 }
 
-// The public address of the post an entry holds, in its language, or of
-// the page of the term it holds, in a taxonomy with an address, its
+// The post type whose collection holds an entry, or null for a term's.
+function typeOf(entry, site) {
+  return Object.values(site.types).find((declared) => declared?.collection === entry.collection) ?? null;
+}
+
+// The label of the menu entry that leads to an address, by the address, in
+// `language`: of the site's menus in the order its site description declares
+// them, the first that has an entry whose `url` is the address, and in it the
+// first such entry; '' where none does. A menu's file gives each entry for a
+// post the post's current address, labelled by its title where the entry has
+// no label of its own.
+async function menuLabels(site, language, getEntry) {
+  const languages = site.languages ?? [];
+  const menus = await Promise.all(Object.keys(site.menus ?? {}).map(async (menu) => (await getEntry('menus', menuEntry(menu, language, languages)))?.data.items ?? []));
+  return (address) => labelOf(firstEntry(menus, (entry) => entry.url === address));
+}
+
+// The public address of the post an entry holds, of `type`, in its language, or of
+// the page of the term it holds, `type` null, in a taxonomy with an address, its
 // parents' slugs from `getEntry` for `{path}`; null for a type or a
 // taxonomy without one.
-async function entryAddress(entry, site, getEntry) {
-  const type = Object.values(site.types).find((declared) => declared?.collection === entry.collection);
-  if (type) return addressIn(type, entry.id, site.languages ?? []);
+async function entryAddress(entry, type, site, getEntry) {
+  if (type !== null) return addressIn(type, entry.id, site.languages ?? []);
   const taxonomy = taxonomyWithPages(site, entry);
   if (taxonomy === null) return null;
   const slugs = [entry.id];

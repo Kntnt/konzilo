@@ -13,9 +13,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { consentScriptFiles } from '../src/astro/consent.js';
+import { consentInput, consentScriptFiles } from '../src/astro/consent.js';
 import { CATALOGUES } from '../src/catalogues.js';
 import { CONSENT_SCRIPTS, consentScriptPath, registryRevision } from '../src/consent/registry.js';
+import { consentMarkup } from '../src/consent/markup.js';
 import { consentScript } from '../src/consent/script.js';
 
 const core = fileURLToPath(new URL('../', import.meta.url));
@@ -52,11 +53,17 @@ const registry = {
 };
 
 // A content folder as a build leaves it: the registry, and the settings of
-// one language, or of each.
-function contentFolder(languages) {
+// one language, or of each; with `bannerText: false`, as a build leaves it
+// where no Admin has written the banner's text.
+function contentFolder(languages, { bannerText = true } = {}) {
   const folder = mkdtempSync(join(tmpdir(), 'konzilo-consent-script-'));
-  writeFileSync(join(folder, 'consent.json'), JSON.stringify(registry));
-  const settings = (language, prefix = '') => ({ consent: texts(language), legalPages: { privacyPolicy: { title: language === 'sv' ? 'Integritet' : 'Privacy', url: `${prefix}/privacy/` }, cookiePolicy: { title: language === 'sv' ? 'Kakor' : 'Cookies', url: `${prefix}/cookies/` } } });
+  const { text: _, ...banner } = registry.texts.banner;
+  writeFileSync(join(folder, 'consent.json'), JSON.stringify(bannerText ? registry : { ...registry, texts: { ...registry.texts, banner } }));
+  const consent = (language) => {
+    const { bannerText: __, ...rest } = texts(language);
+    return bannerText ? texts(language) : rest;
+  };
+  const settings = (language, prefix = '') => ({ consent: consent(language), legalPages: { privacyPolicy: { title: language === 'sv' ? 'Integritet' : 'Privacy', url: `${prefix}/privacy/` }, cookiePolicy: { title: language === 'sv' ? 'Kakor' : 'Cookies', url: `${prefix}/cookies/` } } });
   if (languages.length > 1) {
     mkdirSync(join(folder, 'settings'));
     for (const language of languages) writeFileSync(join(folder, 'settings', `${language.tag}.json`), JSON.stringify(settings(language.prefix, `/${language.prefix}`)));
@@ -213,6 +220,28 @@ test('a site in several languages has a script for each, by its prefix, in its t
     assert.deepEqual([...swedish.querySelectorAll('.konzilo-consent-banner a')].map((link) => link.href), ['https://www.example.com/sv/privacy/', 'https://www.example.com/sv/cookies/']);
     assert.equal(JSON.parse(swedish.querySelector('[data-konzilo-consent]').dataset.konziloConsent).language, 'sv-SE');
     assert.equal(text((await otherPage(files.get('/_konzilo/consent/en.js'))).document.querySelector('.konzilo-consent-banner h2')), 'Your privacy');
+  } finally {
+    rmSync(folder, { recursive: true, force: true });
+  }
+});
+
+test('where no Admin has written the banner\'s text, the banner of a page the site builds and the one the script adds to another page say the same, written from the facts, in each language', async () => {
+  const languages = [{ locale: 'sv_SE', tag: 'sv-SE', prefix: 'sv', main: true }, { locale: 'en_GB', tag: 'en-GB', prefix: 'en', main: false }];
+  const folder = contentFolder(languages, { bannerText: false });
+  try {
+    const files = consentScriptFiles({ folder, languages, origin: 'https://www.example.com' });
+    const read = (path) => JSON.parse(readFileSync(join(folder, path), 'utf8'));
+    const said = (html) => text(new JSDOM(html).window.document.querySelector('.konzilo-consent-banner .konzilo-consent-text'));
+    const expected = {
+      sv: 'Webbplatsen använder bara det den behöver för att fungera, om du inte tillåter mer. Med ditt samtycke använder den också andra tjänster, som kan använda det de får veta för egna syften. Du kan ändra eller återkalla ditt samtycke när som helst, längst ned på varje sida.',
+      en: 'This site uses only what it needs to work, unless you allow more. With your consent it also uses other services, which may use what they learn for their own purposes. You can change or withdraw your consent at any time, from the bottom of every page.',
+    };
+    for (const language of languages) {
+      const built = said(consentMarkup(consentInput(read('consent.json'), read(`settings/${language.tag}.json`), { languageTag: language.tag })));
+      const added = text((await otherPage(files.get(`/_konzilo/consent/${language.prefix}.js`))).document.querySelector('.konzilo-consent-banner .konzilo-consent-text'));
+      assert.equal(built, expected[language.prefix], language.tag);
+      assert.equal(added, built, language.tag);
+    }
   } finally {
     rmSync(folder, { recursive: true, force: true });
   }

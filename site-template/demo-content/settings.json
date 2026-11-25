@@ -63,7 +63,7 @@
         "current": false
       },
       "page": {
-        "current": false
+        "current": true
       },
       "canvas": {
         "current": false
@@ -101,7 +101,6 @@
   },
   "consent": {
     "bannerTitle": "Your privacy on this demo site",
-    "bannerText": "This site uses only what it needs to work, unless you allow more. With your consent it also loads content from other services, such as videos, which may store data in your browser and use what they learn for their own purposes. You can change or withdraw your consent at any time, from the bottom of every page.",
     "bannerAccept": "Accept all",
     "bannerReject": "Reject optional",
     "bannerCustomise": "Customise",

@@ -317,6 +317,16 @@ describe('the interface language', () => {
     assert.equal(field(english, 'bannerTitle').field.default, 'Your privacy');
   });
 
+  test('shows the banner\'s text with no default, since the banner writes it from the services\' facts where it is empty, and says so in the interface language', () => {
+    const consentOf = (made) => field(made.collections.find((one) => one.name === 'settings').files[0].fields, 'consent').fields;
+    for (const [language, hint] of [['sv', /^Lämnas den tom skrivs bannerns text utifrån fakta om de tjänster som ber om samtycke/], ['en', /^Left empty, the banner's text is written from the facts of the services that ask for consent/]]) {
+      const text = field(consentOf(cmsConfig(siteDescription({ ...declared(), language: 'sv_SE', interfaceLanguage: 'en' }), { ...place, language })), 'bannerText');
+      assert.equal(text.widget, 'text', language);
+      assert.equal('default' in text, false, language);
+      assert.match(text.hint, hint, language);
+    }
+  });
+
   test('shows the core\'s settings groups in the interface language, Breadcrumbs among them, with their headings, labels and help', () => {
     const breadcrumbs = (language) => {
       const made = cmsConfig(swedish, { ...place, language });
@@ -329,13 +339,13 @@ describe('the interface language', () => {
       heading: 'Brödsmulor',
       description: 'Om en sidas brödsmulor slutar med sidan själv, per typ. Den strukturerade datan har alltid med sidan själv; en sida direkt under startsidan har inga brödsmulor utan den.',
       label: 'Sidan själv sist',
-      help: 'När den är av slutar brödsmulorna på nivån ovanför sidan.',
+      help: 'När den är av slutar brödsmulorna på nivån ovanför sidan, utom när sidans fält Brödsmula är ifyllt.',
     });
     assert.deepEqual(breadcrumbs('en'), {
       heading: 'Breadcrumbs',
       description: 'Whether a page\'s breadcrumbs end with the page itself, by type. The structured data always holds the page itself; a page right under the start page has no breadcrumbs without it.',
       label: 'The page itself last',
-      help: 'Off, the breadcrumbs end at the level above the page.',
+      help: 'Off, the breadcrumbs end at the level above the page, unless the page\'s field Breadcrumb is filled in.',
     });
   });
 
@@ -539,7 +549,7 @@ test('holds search and sharing in closed parts, each key once, with nothing requ
     // What the field holds is a name: the levels themselves follow from where the post sits.
     const breadcrumb = field(field(seo.fields, 'search').fields, 'breadcrumb');
     assert.equal(breadcrumb.label, 'Name in breadcrumbs');
-    assert.match(breadcrumb.hint, /instead of the title/i);
+    assert.match(breadcrumb.hint, /instead of the label a menu gives the post, or its title/i);
     assert.match(breadcrumb.hint, /follow/i);
   }
 });
@@ -765,6 +775,20 @@ describe('the form\'s field groups', () => {
     }
     assert.equal(field(fields, 'status').default, 'draft');
     assert.deepEqual(field(fields, 'group-status').default, { status: 'draft' }, 'a new post is a draft');
+  });
+
+  // The site names a post without a name in breadcrumbs by the menu entry that leads to it, which
+  // the field shows while it is empty (parts/menu-label.js).
+  test('give the name in breadcrumbs the menus\' source files, in the order the site declares them, by language on a site in several, and none where it has no menu', () => {
+    for (const name of ['articles', 'pages', 'canvases']) assert.deepEqual(field(collection(name).fields, 'breadcrumb').menus, ['menus/main.json'], name);
+    const declared = JSON.parse(readFileSync(file('site-template/files/site-description.json'), 'utf8'));
+    const withFooter = cmsConfig(siteDescription({ ...declared, menus: { footer: { label: 'Footer' }, main: { label: 'Main' } } }), place);
+    assert.deepEqual(field(withFooter.collections.find((one) => one.name === 'pages').fields, 'breadcrumb').menus, ['menus/footer.json', 'menus/main.json']);
+    const { language: _one, ...inSeveral } = declared;
+    const several = cmsConfig(siteDescription({ ...inSeveral, languages: ['sv_SE', 'en_GB'] }), place);
+    assert.deepEqual(field(several.collections.find((one) => one.name === 'pages').fields, 'breadcrumb').menus, { 'sv-SE': ['menus/sv-SE/main.json'], 'en-GB': ['menus/en-GB/main.json'] });
+    const { menus: _menus, ...without } = declared;
+    assert.equal(field(cmsConfig(siteDescription(without), place).collections.find((one) => one.name === 'pages').fields, 'breadcrumb').menus, undefined);
   });
 
   // Sveltia tells a format nothing of a file's collection, so the built-in types' files are read
