@@ -76,8 +76,10 @@ export function notFoundPage({ config, credential = signedInCredential } = {}) {
         }
         setRedirecting(null);
         setTold({ words: to === undefined ? say('notFound.answered', { address }) : say('notFound.redirected', { address, to }), alert: false });
+        // Off the page at once, and the list read again, which a rule now holding it leaves out.
+        setShown((held) => (held?.addresses ? { addresses: held.addresses.filter((one) => one.address !== address) } : held));
         const given = await readNotFound({ credential });
-        if (given) setShown(given);
+        if (given?.addresses) setShown(given);
       } catch (error) {
         console.warn(`The rule for ${address} could not be saved: ${error.message}`);
         setTold({ words: say('notFound.failed'), alert: true });

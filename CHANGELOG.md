@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- An *Addresses not found* page in the editor, in Swedish *Adresser som inte hittades*, for Admins. It lists the addresses on the site that visitors asked for in the last 30 days and found nothing at, most asked first, with how often and when each was last asked for. *Redirect…* asks where the address should lead, a path on the site or an `https://` address, and saves a permanent redirect there; *Answer 410* saves a rule that says the address is gone for good; each is saved as the Admin's own change to the site's redirect rules, which the next publish serves, and is refused with the reason where the site would refuse the rule. *Hide* takes an address off the page, while it goes on being counted. An address leaves the page at once when a rule holds it. In Compose the web server counts the public site's `404` answers to `GET` and `HEAD`, by the address alone, its query cut off, and never writes a visitor's address, browser or referrer; an address goes 30 days after it was last asked for, or once the site answers it, and at most 5,000 are kept, the least recently asked going first. The counts are in volumes of their own, `not-found-log` and `not-found`, which no backup or archive holds.
+
 ## [0.10.0] – 2026-11-25
 
 ### Added
