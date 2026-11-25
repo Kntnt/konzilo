@@ -5,7 +5,7 @@
 
 import { catalogueFor, text } from '../catalogues.js';
 import { momentIn } from '../submission-values.js';
-import { safe, SEPARATORS } from './submissions-csv.js';
+import { row, SEPARATORS } from './submissions-csv.js';
 
 export const CONSENT_RECORDS_PAGE_PATH = '/_konzilo/consent-records';
 
@@ -16,8 +16,7 @@ const DAY = 24 * 60 * 60_000;
 // The categories, in the order the CSV's columns take them.
 const CATEGORIES = ['necessary', 'functional', 'statistics', 'marketing'];
 
-const BYTE_ORDER_MARK = '﻿';
-const ROW_END = '\r\n';
+const BYTE_ORDER_MARK = '\uFEFF';
 
 // A day as `YYYY-MM-DD`, where it is one, or null.
 const dayOf = (given) => {
@@ -39,12 +38,6 @@ const consentIdOf = (given) => {
   const id = typeof given === 'string' ? given.toLowerCase() : '';
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id) ? id : null;
 };
-
-const cell = (value, separator) => {
-  const written = safe(value);
-  return written.includes(separator) || /["\r\n]/.test(written) ? `"${written.replaceAll('"', '""')}"` : written;
-};
-const row = (values, separator) => `${values.map((value) => cell(value, separator)).join(separator)}${ROW_END}`;
 
 // Records as CSV, a piece at a time: the header row, after the byte-order mark, and then a row for
 // each record, as `each()` gives them, oldest first. `separator`: a name of SEPARATORS.

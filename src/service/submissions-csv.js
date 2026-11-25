@@ -30,7 +30,8 @@ const cell = (value, separator) => {
   return written.includes(separator) || /["\r\n]/.test(written) ? `"${written.replaceAll('"', '""')}"` : written;
 };
 
-const row = (values, separator) => `${values.map((value) => cell(value, separator)).join(separator)}${ROW_END}`;
+// A row of cells, as CSV writes it by `separator`, ended by CRLF.
+export const row = (values, separator) => `${values.map((value) => cell(value, separator)).join(separator)}${ROW_END}`;
 
 // The time zone a reader names, where it is one the service knows, else UTC.
 export function timeZoneOf(named) {

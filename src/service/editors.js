@@ -99,8 +99,8 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
     if (typeof login === 'string' && await inAdmins(login)) return 'admin';
     return await mayWrite({ forgejo, repository, credential, get }) ? 'writer' : null;
   };
-  // Whether a role may use the Admin's pages, *Mail* and *Personal data*: an Admin's, and the
-  // instance administrator's.
+  // Whether a role may use the Admin's pages, *Mail*, *Personal data* and *Consent records*: an
+  // Admin's, and the instance administrator's.
   const usesAdminPages = (role) => role === 'admin' || role === 'instanceAdministrator';
   // The consent records, an Admin's (ADR 0049).
   const consentRecords = consentRecordsPage({

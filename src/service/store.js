@@ -2,9 +2,10 @@
 // archive, backups and restores carry. It holds the service's key, made once, from which its
 // timing tokens and its digests of clients are derived; each form's submissions (ADR 0045), with
 // how each one's mail stands; what an Admin keeps of each form, its recipients and its retention;
-// and the service's settings, such as the mail adapter an Admin chooses (ADR 0003), none of which
-// is in Git. Nothing in it holds a visitor's address, browser or referrer, and nothing it forgets
-// stays in it: a submission forgotten is overwritten where it stood, and the log of writes emptied.
+// the service's settings, such as the mail adapter an Admin chooses (ADR 0003), none of which is in
+// Git; and the consent records, with what each consent revision showed (ADR 0049). Nothing in it
+// holds a visitor's address, browser or referrer, and nothing it forgets stays in it: a submission
+// or a record forgotten is overwritten where it stood, and the log of writes emptied.
 //
 // Each change to what it holds is one step in STEPS, taken once, in order, and counted in the
 // database's own `user_version`, so that a later duty adds a step of its own, such as a column of

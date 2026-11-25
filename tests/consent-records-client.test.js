@@ -49,7 +49,7 @@ describe('asking the service', () => {
 
 describe('the download', () => {
   test('asks for a span\'s records as CSV by the separator chosen, in the interface language, and saves it named by the day in UTC', async () => {
-    const stand = service(200, '﻿Samtyckes-ID;Gjort (UTC)\r\n');
+    const stand = service(200, '\uFEFFSamtyckes-ID;Gjort (UTC)\r\n');
     const saved = [];
     try {
       useInterfaceLanguage('sv');
