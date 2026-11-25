@@ -36,6 +36,11 @@
 // (lightbox.js), which is the page's and no part of the body's own HTML, and
 // which draws an image at the lightbox's sizes (image-versions.js).
 //
+// The right to object to counting without storage, `::consent-objection`, the
+// core draws itself, as ConsentControls.astro draws it with `objection` alone:
+// the objection's control where the site counts visits so, and nothing where
+// it does not (ADR 0049).
+//
 // `page`: the page of the post shown, from 1, as the site's route has it
 // from postPages() (post-lists.js): the one list with pages of its own shows
 // that page's slice, and its presentation is given the pager; every other
@@ -46,6 +51,7 @@ import components from 'virtual:konzilo/directives';
 import contexts from 'virtual:konzilo/images';
 import './modal.css';
 import BlockMark from './BlockMark.astro';
+import ConsentControls from './ConsentControls.astro';
 import { BLOCK_ATTRIBUTE } from './block-marks.js';
 import { bodyParts } from './directives.js';
 import { withLightboxes } from './lightbox.js';
@@ -53,6 +59,7 @@ import { bodyPostLists } from './post-lists.js';
 import { publicSite } from './public-site.js';
 
 const LIST = 'post-list';
+const OBJECTION = 'consent-objection';
 // `parts`: a component's body, as the Body around it read it, its lists evaluated there.
 const { parts: within, post, page = 1 } = Astro.props;
 // A container whose body raw HTML makes read otherwise than its tree is given no block's slot,
@@ -60,7 +67,7 @@ const { parts: within, post, page = 1 } = Astro.props;
 const where = post ? `the post ${post.collection}/${post.id}, at ${Astro.url.pathname}` : `the page at ${Astro.url.pathname}`;
 const withheld = (name) => console.warn(`Konzilo: ${where}: the component ${name} is given no slot for each block of its body, since raw HTML in it reads otherwise than the body's tree; it is given its body through its default slot and its tree alone`);
 // A body without a slot, or whose slot renders nothing, is empty.
-const parts = within ?? (await bodyPostLists(bodyParts((await Astro.slots.render('default')) ?? '', [...Object.keys(components), LIST], undefined, { withheld }), { post, page }));
+const parts = within ?? (await bodyPostLists(bodyParts((await Astro.slots.render('default')) ?? '', [...Object.keys(components), LIST, OBJECTION], undefined, { withheld }), { post, page }));
 // A number for each dialog on the page, however many bodies it renders.
 const lightboxes = {
   locale: publicSite(Astro.url).locale,
@@ -77,6 +84,7 @@ const lightboxes = {
   // keeps it there whether it does or not (BlockMark.astro, block-marks.js).
   const mark = part.block === null ? {} : { [BLOCK_ATTRIBUTE]: part.block };
   const marked = (rendered) => (part.block === null ? rendered : <BlockMark block={part.block}>{rendered}</BlockMark>);
+  if (part.name === OBJECTION) return marked(<ConsentControls links={false} buttons={false} objection />);
   if (part.list) {
     const { component: Presentation, posts, options, empty, pager, list } = part.list;
     return marked(<Presentation posts={posts} options={options} empty={empty} pager={pager} list={list} {...mark} />);

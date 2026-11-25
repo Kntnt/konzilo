@@ -261,9 +261,11 @@ function directiveComponents(root, directives) {
   };
 }
 
-// The directive the integration renders itself: the post list,
-// through the presentation the site registers for each.
+// The directives the integration renders itself: the post list, through the
+// presentation the site registers for each, and the right to object to counting
+// without storage, as ConsentControls.astro draws it with `objection` alone.
 const LIST = rules.elements['post-list'].directive;
+const OBJECTION = rules.elements['consent-objection'].directive;
 
 // The module Body.astro's post lists take the site from (post-lists.js):
 // `presentations`, each presentation's component by its name, and `site`,
@@ -430,6 +432,7 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
   if (emptyList !== undefined && (typeof emptyList !== 'string' || emptyList.trim() === '')) throw new Error('Konzilo: emptyList must be a text');
   for (const name of Object.keys(directives)) {
     if (name === LIST.name) throw new Error(`Konzilo: the integration renders the directive ${name} itself, through the presentations the site registers in konzilo({ presentations })`);
+    if (name === OBJECTION.name) throw new Error(`Konzilo: the integration renders the directive ${name} itself, as the consent's right to object, where the site counts visits without storage before consent`);
   }
   const named = tokensOf(tokens);
   let root;
