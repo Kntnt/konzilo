@@ -177,6 +177,23 @@ test('on a site in several languages, holds a term by its slug alone, which ever
   }
 });
 
+test('holds each post at the address its date and its term\'s whole path give, in its language', () => {
+  const several = { ...withArticles, language: undefined, languages: ['sv_SE', 'en_GB'], types: { article: { ...withArticles.types.article, address: { sv_SE: '/{category}/{year}/{slug}/', en_GB: '/news/{year}/{month}/{slug}/' } } } };
+  const { content, documents } = articleSite(several, {
+    'articles/sv-SE/hamnen.md': '---\ntitle: "Hamnen"\ndate: 2026-03-07T23:30:00Z\nheadline: "Hamnen"\nauthors: []\ncategory: ["sv-SE/hamnar"]\ntopics: []\n---\n\nHamnen.\n',
+    'articles/en-GB/harbour.md': '---\ntitle: "Harbour"\ndate: 2026-03-07T23:30:00Z\nheadline: "Harbour"\nauthors: []\ncategory: ["en-GB/hamnar"]\ntopics: []\n---\n\nThe harbour.\n',
+    'categories/sv-SE/nyheter.json': '{ "name": "Nyheter" }',
+    'categories/sv-SE/hamnar.json': '{ "name": "Hamnar", "parent": "sv-SE/nyheter" }',
+    'categories/en-GB/nyheter.json': '{ "name": "News" }',
+    'categories/en-GB/hamnar.json': '{ "name": "Harbours", "parent": "en-GB/nyheter" }',
+  });
+  try {
+    assert.deepEqual(documents.map(({ address }) => address).sort(), ['/en/news/2026/03/harbour/', '/sv/nyheter/hamnar/2026/hamnen/']);
+  } finally {
+    rmSync(content, { recursive: true, force: true });
+  }
+});
+
 // The page an Admin chose as the start page is in the index as any post of its type, at /,
 // by its file (ADR 0053).
 test('holds the article an Admin chose as the start page at /, by its file at the content folder\'s root', () => {

@@ -163,6 +163,22 @@ describe('a post\'s address', () => {
     assert.equal(at(scheduled, '2027-01-03T00:00:00Z').address, '/2027/01/02/lanterns/');
   });
 
+  test('on a site in several languages is its language\'s prefix and its type\'s address in that language, the term\'s path the main language\'s', () => {
+    const several = { ...site({ sv_SE: '/{category}/{slug}/', en_GB: '/news/{year}/{slug}/' }), language: undefined, languages: ['sv_SE', 'en_GB'] };
+    const result = run({
+      'stories/sv-SE/aaaaaaaaaaaa.md': story({ slug: 'lyktorna' }),
+      'stories/en-GB/aaaaaaaaaaaa.md': story({ slug: 'the-lanterns' }),
+      'categories/sv-SE/healthhealth.json': { name: 'Hälsa', slug: 'halsa' },
+      'categories/sv-SE/ptsdptsdptsd.json': { name: 'PTSD', slug: 'ptsd', parent: 'healthhealth' },
+      'categories/en-GB/healthhealth.json': { name: 'Health', slug: 'halsa' },
+      'categories/en-GB/ptsdptsdptsd.json': { name: 'PTSD', slug: 'ptsd', parent: 'healthhealth' },
+    }, several);
+    assert.deepEqual(result.refusals, []);
+    assert.equal(result.ledger.posts['sv-SE/aaaaaaaaaaaa'].address, '/sv/halsa/ptsd/lyktorna/');
+    assert.equal(result.ledger.posts['en-GB/aaaaaaaaaaaa'].address, '/en/news/2026/the-lanterns/');
+    assert.match(written(result)['stories/sv-SE/lyktorna.md'], /\noldAddresses: \["\/halsa\/ptsd\/lyktorna\/"\]\n/);
+  });
+
   test('of a post without the term its address holds is refused, as a required field is', () => {
     const [result] = history('/{category}/{slug}/', { [STORY]: story({ category: undefined }), ...categories() });
     assert.equal(result.refusals.length, 1);
