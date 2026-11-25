@@ -50,3 +50,10 @@ test('says a form waits for its lock, and that changes set aside as it was taken
   assert.equal(lineWords({ mode: 'checking' }), 'Kontrollerar att ingen annan flik har formuläret öppet.');
   assert.equal(lineWords({ mode: 'staleBackup', at: '2026-11-23T10:05:00.000Z', takenOver: true }), 'Det här är dina osparade ändringar från innan formuläret togs över 23 november 2026 kl. 11:05 CET. De kan läsas och kopieras, men inte sparas.');
 });
+
+test('says why a post made from a feed is read-only (ADR 0079)', () => {
+  useInterfaceLanguage('en');
+  assert.equal(lineWords({ mode: 'fromFeed' }), 'This post is made from a feed, and only the feed changes it. You can read it here, but not change, unpublish or delete it.');
+  useInterfaceLanguage('sv');
+  assert.equal(lineWords({ mode: 'fromFeed' }), 'Inlägget är gjort från ett flöde, och bara flödet ändrar det. Du kan läsa det här, men inte ändra, avpublicera eller radera det.');
+});

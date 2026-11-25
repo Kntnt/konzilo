@@ -6,6 +6,8 @@
 import { say, sayParts } from '../interface-language.js';
 import { signedInCredential } from '../credential.js';
 import { fileRefusalShown, wordsShown } from '../refusals.js';
+import { failureShown } from '../feeds/client.js';
+import { momentShown } from '../submissions/client.js';
 import { filesOf, languageOf, readStatus, statusWords, watchedStatus } from './status.js';
 
 const TONES = { good: '#1a7f37', busy: '#9a6700', bad: '#cf222e', quiet: '#6e7781' };
@@ -81,8 +83,13 @@ export function publishingPage({ site, collectionOf, credential = signedInCreden
     if (status === null) return h('p', { style: { ...LINE, padding: 16 } }, say('publishing.unknown'));
     const posts = [...status.posts].sort((a, b) => ORDER[a.status] - ORDER[b.status] || String(a.title ?? a.file).localeCompare(String(b.title ?? b.file)));
     const others = [...status.others.refusals, ...status.others.warnings];
+    // Each incoming feed that could not be read, until a read succeeds (ADR 0079).
+    const failing = status.feeds ?? [];
     return h('div', { style: { padding: 16, overflow: 'auto', height: '100%', boxSizing: 'border-box' } },
       status.reason ? h('p', { role: 'alert', style: { ...LINE, color: TONES.bad } }, wordsShown(status.reason)) : null,
+      failing.length > 0 ? h('section', { 'data-feeds': '' },
+        h('h3', { style: { margin: '12px 0 4px', font: '600 15px/1.3 system-ui, sans-serif' } }, say('publishing.feeds')),
+        h('ul', { style: LIST }, failing.map(({ address, failure }) => h('li', { key: address, style: { color: TONES.bad } }, say('publishing.feedFailed', { address, at: momentShown(failure.at), reason: failureShown(failure) }))))) : null,
       others.length > 0 ? h('section', null,
         h('h3', { style: { margin: '12px 0 4px', font: '600 15px/1.3 system-ui, sans-serif' } }, say('publishing.others')),
         h('ul', { style: LIST }, others.map((refusal) => h('li', { key: refusal.message ?? `${refusal.file}:${refusal.reason}` }, fileRefusalShown(refusal))))) : null,

@@ -12,6 +12,8 @@
 //   reading     the Editor reads it read-only, while `holder` holds it, or no one, null
 //   takenOver   `holder` took it over from this tab, which keeps its changes to read and copy
 //   adminOnly   the form is an Admin's, and this Editor may only read it
+//   fromFeed    the form is a post made from a feed, which only the feed changes, and everyone may
+//               only read it (ADR 0079)
 //   staleBackup the form shows a draft backup from `at`, which a later save makes unsaveable, or,
 //               `takenOver`, the changes it held when it was taken over at `at`, set aside as the
 //               tab took it back, which are never saved
@@ -23,7 +25,7 @@
 // The modes in which the tab holds the form's lock.
 const HOLDING = new Set(['editing', 'staleBackup']);
 
-const READ_ONLY = new Set(['checking', 'asking', 'reading', 'takenOver', 'adminOnly', 'staleBackup']);
+const READ_ONLY = new Set(['checking', 'asking', 'reading', 'takenOver', 'adminOnly', 'fromFeed', 'staleBackup']);
 
 // The form an address of the editor opens, `<collection>/<entry>`, or null for a new entry, a
 // list and anything else.
@@ -74,6 +76,7 @@ export function lockKeeper({ service, show = () => {}, mark = () => {} }) {
     if ((answer === null || answer.held) && at !== null) return become({ form, mode: 'staleBackup', at });
     if (answer === null || answer.held) return become({ form, mode: 'editing' });
     if (answer.adminOnly) return become({ form, mode: 'adminOnly' });
+    if (answer.fromFeed) return become({ form, mode: 'fromFeed' });
     return become({ form, mode: 'asking', holder: holderOf(answer.holder) });
   };
 
@@ -166,8 +169,8 @@ export function lockKeeper({ service, show = () => {}, mark = () => {} }) {
       if (mode !== 'editing') return { name: 'lock.refusedReadOnly' };
       const answer = await asking(form);
       if (answer === null || answer.held) return null;
-      if (answer.adminOnly) {
-        become({ form, mode: 'adminOnly' });
+      if (answer.adminOnly || answer.fromFeed) {
+        become({ form, mode: answer.fromFeed ? 'fromFeed' : 'adminOnly' });
         return { name: 'lock.refusedReadOnly' };
       }
       become({ form, mode: 'takenOver', holder: holderOf(answer.holder) });
@@ -211,8 +214,9 @@ export function lockKeeper({ service, show = () => {}, mark = () => {} }) {
         const answer = await asking(form);
         if (answer?.held) held.push(form);
         else changing.delete(form);
-        if (answer?.holder || answer?.adminOnly) {
+        if (answer?.holder || answer?.adminOnly || answer?.fromFeed) {
           await done();
+          if (answer.fromFeed) return { refusal: { name: 'lock.refusedFeed' } };
           if (answer.adminOnly) return { refusal: { name: 'lock.refusedReadOnly' } };
           return { refusal: answer.holder.yours ? { name: refused.yours } : { name: refused.holder, values: { name: answer.holder.name } } };
         }

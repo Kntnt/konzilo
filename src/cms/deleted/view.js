@@ -13,6 +13,8 @@ import { accountWords, choiceWords, savedWords, withMoment } from '../history/wo
 import { deletedPages, entryTitle } from './client.js';
 import { idOf, restoreDeleted } from './restore.js';
 import { sourceOf } from '../source.js';
+import { frontMatterOf } from '../groups/source.js';
+import { isFeedPost } from '../../format/feed-post.js';
 import './deleted.css';
 
 const react = () => globalThis.__SVELTIA_CMS_REACT__;
@@ -147,7 +149,18 @@ function Revisions({ row, fields, history }) {
     state.more && !state.loading ? h('button', { type: 'button', className: 'konzilo-deleted-button', onClick: () => load(state) }, say('history.more')) : null);
 }
 
-// A deleted entry, read-only, as its last revision left it, with the way to restore it.
+// Whether a deleted entry was a post made from a feed, which only its feed brings back (ADR 0079).
+const fromFeed = (row) => {
+  if (!row.path.endsWith('.md') || typeof row.last?.text !== 'string') return false;
+  try {
+    return isFeedPost(frontMatterOf(row.last.text));
+  } catch {
+    return false;
+  }
+};
+
+// A deleted entry, read-only, as its last revision left it, with the way to restore it, but for a
+// post made from a feed.
 function DeletedEntry({ row, collection, history, lock, api, repository, branch, onBack }) {
   const { createElement: h, useEffect, useRef, useState } = react();
   const heading = useRef(null);
@@ -194,8 +207,10 @@ function DeletedEntry({ row, collection, history, lock, api, repository, branch,
       h('button', { type: 'button', className: 'konzilo-deleted-button', onClick: onBack }, say('deleted.back'))),
     h('h2', { id: 'konzilo-deleted-title', ref: heading, tabIndex: -1 }, row.title),
     h('p', { className: 'konzilo-deleted-line' }, line),
-    h('p', { className: 'konzilo-deleted-note' }, say('deleted.restoreWords')),
-    h('div', { className: 'konzilo-deleted-ways' },
+    fromFeed(row)
+      ? h('p', { className: 'konzilo-deleted-note' }, say('deleted.fromFeed'))
+      : h('p', { className: 'konzilo-deleted-note' }, say('deleted.restoreWords')),
+    fromFeed(row) ? null : h('div', { className: 'konzilo-deleted-ways' },
       h('button', { type: 'button', className: 'konzilo-deleted-button konzilo-deleted-restore', disabled: state.restoring, onClick: restore }, say('deleted.restore'))),
     h('p', { className: 'konzilo-deleted-told', role: state.alert ? 'alert' : 'status' }, state.said ?? ''),
     h('div', { className: 'konzilo-deleted-columns' },

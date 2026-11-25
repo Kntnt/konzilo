@@ -2,7 +2,8 @@
 // gives itself as it loads, `tab`, with what Sveltia signed in with.
 //
 // Gives { hold(form, { takeOver }), release(form), end(), locks(after, signal), watch(seen) }:
-// `hold` gives { held: true, since }, { holder: { name, since, yours } }, { adminOnly: true }, or
+// `hold` gives { held: true, since }, { holder: { name, since, yours } }, { adminOnly: true },
+// { fromFeed: true } for a post made from a feed, which no form saves (ADR 0079), or
 // null where the service cannot be asked, does not answer within `answersWithin` milliseconds, or
 // answers otherwise; `release` lets the form go, by a call that outlives the page, so that a form
 // left just before the page is, or as it is, goes too; `end` ends the tab as its page is closed,
@@ -50,7 +51,7 @@ export function lockClient({ tab, credential, ask = (...args) => globalThis.fetc
         const holder = (await json(answer))?.holder;
         return holder ? { holder: { name: holder.name, since: holder.since, yours: holder.yours === true } } : null;
       }
-      if (answer.status === 403) return { adminOnly: true };
+      if (answer.status === 403) return (await json(answer))?.fromFeed === true ? { fromFeed: true } : { adminOnly: true };
       return null;
     },
     async release(form) {

@@ -32,11 +32,13 @@ test('says who holds a form, that it is an Admin\'s, or nothing where the servic
   const { client } = asking([
     answer(409, { holder: { name: 'Ebba Editor', since: '2026-11-23T10:00:00.000Z', yours: false } }),
     answer(403, { adminOnly: true }),
+    answer(403, { fromFeed: true }),
     answer(502, {}),
     new Error('offline'),
   ]);
   assert.deepEqual(await client.hold('a/b'), { holder: { name: 'Ebba Editor', since: '2026-11-23T10:00:00.000Z', yours: false } });
   assert.deepEqual(await client.hold('settings/settings'), { adminOnly: true });
+  assert.deepEqual(await client.hold('articles/f00d00000001'), { fromFeed: true }, 'a post made from a feed (ADR 0079)');
   assert.equal(await client.hold('a/b'), null);
   assert.equal(await client.hold('a/b'), null);
 });
