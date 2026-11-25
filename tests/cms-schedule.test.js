@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import { addCondition, addTrigger, changeCondition, changeTrigger, cycleThrough, problemAtSave, removeCondition, removeTrigger, rowsIn, writtenFrom } from '../src/cms/schedule/model.js';
+import { addCondition, addTrigger, changeCondition, changeTrigger, cycleThrough, problemAtSave, removeCondition, removeTrigger, rowsIn, stampedAtSave, writtenFrom } from '../src/cms/schedule/model.js';
 
 const NOW = '2026-11-25T10:00:00Z';
 const LATER = '2026-12-01T09:00:00Z';
@@ -35,14 +35,25 @@ describe('the triggers the form holds', () => {
     assert.deepEqual(writtenFrom(removeTrigger(removeTrigger(rows, 1, 0), 0, 1)), { date: LATER, triggers: '' }, 'and a moment left alone is the date again');
   });
 
-  test('a changed trigger is replaced, and changed conditions count from now', () => {
+  test('a changed trigger is replaced, and changed conditions count from the save, not from before it', () => {
     assert.deepEqual(changeTrigger([[launch]], 0, 0, { moment: LATER }), [[{ moment: LATER }]]);
     const conditions = launch.published;
-    assert.deepEqual(addCondition(launch, 0, { type: 'story' }, NOW), { published: [[{ words: 'launch' }, { type: 'story' }]], since: NOW });
-    assert.deepEqual(addCondition(launch, null, { type: 'story' }, NOW), { published: [[{ words: 'launch' }], [{ type: 'story' }]], since: NOW });
-    assert.deepEqual(changeCondition(launch, 0, 0, { words: 'opening' }, NOW), { published: [[{ words: 'opening' }]], since: NOW });
-    assert.deepEqual(removeCondition({ published: [...conditions, [{ type: 'story' }]], since: launch.since }, 1, 0, NOW), { published: conditions, since: NOW });
-    assert.deepEqual(removeCondition(launch, 0, 0, NOW), { published: [], since: NOW }, 'a trigger with no condition is one to fill in');
+    assert.deepEqual(addCondition(launch, 0, { type: 'story' }), { published: [[{ words: 'launch' }, { type: 'story' }]] });
+    assert.deepEqual(addCondition(launch, null, { type: 'story' }), { published: [[{ words: 'launch' }], [{ type: 'story' }]] });
+    assert.deepEqual(changeCondition(launch, 0, 0, { words: 'opening' }), { published: [[{ words: 'opening' }]] });
+    assert.deepEqual(removeCondition({ published: [...conditions, [{ type: 'story' }]], since: launch.since }, 1, 0), { published: conditions });
+    assert.deepEqual(removeCondition(launch, 0, 0), { published: [] }, 'a trigger with no condition is one to fill in');
+  });
+
+  // Only a post published after the trigger was saved counts.
+  test('each trigger new or changed since the last save counts from the save, and the rest from when they were saved', () => {
+    // Changed at 09:00, a post that meets it published at 10:00, saved at 11:00.
+    const changed = changeCondition(launch, 0, 0, { words: 'opening' });
+    const kept = { published: [[{ type: 'story' }]], since: '2026-11-20T08:00:00Z' };
+    const saved = stampedAtSave([[changed, { moment: LATER }], [kept]], '2026-11-25T11:00:00Z');
+    assert.deepEqual(saved, [[{ published: [[{ words: 'opening' }]], since: '2026-11-25T11:00:00Z' }, { moment: LATER }], [kept]]);
+    assert.ok(saved[0][0].since > '2026-11-25T10:00:00Z', 'the post published at 10:00 does not count');
+    assert.equal(stampedAtSave([[kept]], NOW)[0][0], kept, 'nothing new is left as it was');
   });
 });
 

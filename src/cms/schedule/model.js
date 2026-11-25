@@ -35,13 +35,26 @@ export const removeTrigger = (rows, row, at) => replaced(rows, row, without(rows
 
 export const changeTrigger = (rows, row, at, trigger) => replaced(rows, row, replaced(rows[row], at, trigger));
 
-// A post-published trigger with its conditions changed, which counts from now: only a post
-// published after it was last changed releases anything.
-const withConditions = (trigger, published, now) => ({ published, since: now });
+// A post-published trigger with its conditions changed, a new one, which counts from the save that
+// writes it (stampedAtSave()): only a post published after it was saved releases anything.
+const withConditions = (published) => ({ published });
 
-export const addCondition = (trigger, row, condition, now) => withConditions(trigger, addTrigger(trigger.published, row, condition), now);
-export const changeCondition = (trigger, row, at, condition, now) => withConditions(trigger, changeTrigger(trigger.published, row, at, condition), now);
-export const removeCondition = (trigger, row, at, now) => withConditions(trigger, removeTrigger(trigger.published, row, at), now);
+export const addCondition = (trigger, row, condition) => withConditions(addTrigger(trigger.published, row, condition));
+export const changeCondition = (trigger, row, at, condition) => withConditions(changeTrigger(trigger.published, row, at, condition));
+export const removeCondition = (trigger, row, at) => withConditions(removeTrigger(trigger.published, row, at));
+
+/**
+ * The triggers as a save writes them: each post-published trigger new or changed since the last
+ * save, which has no `since` yet, counting from `now`, the moment of the save, and the rest from
+ * the save that wrote them. The rows themselves where nothing is new.
+ * @param {object[][]} rows
+ * @param {string} now
+ */
+export function stampedAtSave(rows, now) {
+  const unsaved = (trigger) => Object.hasOwn(trigger, 'published') && !trigger.since;
+  if (!rows.flat().some(unsaved)) return rows;
+  return rows.map((row) => row.map((trigger) => (unsaved(trigger) ? { ...trigger, since: now } : trigger)));
+}
 
 // Whether a condition is filled in: a type, words, a term, or a window with an end.
 const filled = (condition) => !isEmpty(condition?.type) || (typeof condition?.words === 'string' && condition.words.trim() !== '') || !isEmpty(condition?.term) || Boolean(momentOf(condition?.from ?? '') || momentOf(condition?.to ?? ''));

@@ -113,6 +113,9 @@ for (const [engineName, engine] of Object.entries(ENGINES)) {
       await press(second.getByRole('group', { name: 'Conditions, row 2' }), 'Remove the condition');
       assert.equal(await second.getByRole('group', { name: 'Conditions, row 2' }).count(), 0);
 
+      // A post published before the save does not count, so the trigger counts from the save.
+      await page.waitForTimeout(1100);
+      const pressed = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
       const held = await saved();
       // What the form shows once saved, in every engine, and what the file holds, where it is read.
       assert.equal(await conditions.getByRole('textbox', { name: 'Words', exact: true }).inputValue(), 'launch');
@@ -120,7 +123,8 @@ for (const [engineName, engine] of Object.entries(ENGINES)) {
         assert.equal(held.status, 'scheduled');
         assert.equal(held.date, undefined, 'the moment is among the triggers');
         assert.deepEqual(held.triggers.map((one) => one.map(({ since, ...trigger }) => trigger)), [[{ moment: '2999-01-01T09:00:00Z' }, { published: [[{ type: 'article' }, { words: 'launch' }]] }]]);
-        assert.match(held.triggers[0][1].since, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/, 'it counts from when it was last changed');
+        assert.match(held.triggers[0][1].since, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
+        assert.ok(held.triggers[0][1].since >= pressed, `it counts from the save, not from its last change: ${held.triggers[0][1].since} before ${pressed}`);
       }
 
       // The post trigger taken away leaves the moment alone, which the date holds again.

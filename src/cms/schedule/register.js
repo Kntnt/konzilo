@@ -24,12 +24,15 @@ import { plain } from '../plain.js';
 import { readStatus } from '../publishing/status.js';
 import { refuseAtSave } from '../refusals.js';
 import { authorsIn } from '../authors/terms.js';
-import { addCondition, addTrigger, changeCondition, changeTrigger, cycleThrough, problemAtSave, removeCondition, removeTrigger, rowsIn, writtenFrom } from './model.js';
+import { addCondition, addTrigger, changeCondition, changeTrigger, cycleThrough, problemAtSave, removeCondition, removeTrigger, rowsIn, stampedAtSave, writtenFrom } from './model.js';
 import { TRIGGERS_WIDGET } from './widget.js';
 import './triggers.css';
 
 // The moment now, to the second, as a trigger holds one.
 const nowMoment = () => new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+
+// Sveltia's Save, the one button with a key of its own, Mod-S, which presses it.
+const SAVE = 'button[aria-keyshortcuts$="+S"]';
 
 // A moment as the browser's own field of a date and time shows it, in UTC, and back.
 const shownMoment = (moment) => (typeof moment === 'string' && moment.length >= 16 ? moment.slice(0, 16) : '');
@@ -121,7 +124,6 @@ export function registerSchedule(CMS, config) {
 
   // A post-published trigger's conditions, in their rows.
   function Conditions({ id, trigger, change, types, terms, disabled }) {
-    const now = nowMoment;
     const fresh = () => ({ type: types[0]?.name ?? '' });
     return h('div', { className: 'konzilo-schedule-conditions' },
       h('p', { className: 'konzilo-schedule-note', id: `${id}-about` }, say('schedule.conditions')),
@@ -136,11 +138,11 @@ export function registerSchedule(CMS, config) {
               types,
               terms,
               disabled,
-              change: (next) => change(changeCondition(trigger, r, c, next, now())),
-              remove: () => change(removeCondition(trigger, r, c, now())),
+              change: (next) => change(changeCondition(trigger, r, c, next)),
+              remove: () => change(removeCondition(trigger, r, c)),
             }))),
-          disabled ? null : h('button', { type: 'button', className: 'konzilo-part-add', onClick: () => change(addCondition(trigger, r, fresh(), now())) }, `+ ${say('schedule.addCondition')}`)))),
-      disabled ? null : h('button', { type: 'button', className: 'konzilo-part-add', onClick: () => change(addCondition(trigger, null, fresh(), now())) }, `+ ${say('schedule.addConditionRow')}`));
+          disabled ? null : h('button', { type: 'button', className: 'konzilo-part-add', onClick: () => change(addCondition(trigger, r, fresh())) }, `+ ${say('schedule.addCondition')}`)))),
+      disabled ? null : h('button', { type: 'button', className: 'konzilo-part-add', onClick: () => change(addCondition(trigger, null, fresh())) }, `+ ${say('schedule.addConditionRow')}`));
   }
 
   CMS.registerFieldType(TRIGGERS_WIDGET, function KonziloTriggers({ value, onChange, field, forID, group }) {
@@ -166,7 +168,21 @@ export function registerSchedule(CMS, config) {
       if (group) group.change(made);
       else onChange(made.triggers);
     };
-    const fresh = () => ({ published: [[{ type: types[0]?.name ?? '' }]], since: nowMoment() });
+    // A trigger new or changed counts from the save that writes it: Save, pressed or by its key,
+    // is heard first, before Sveltia reads the form, and gives each its moment (stampedAtSave()).
+    const latest = React.useRef(null);
+    latest.current = { rows, write };
+    React.useEffect(() => {
+      const saving = (event) => {
+        if (!event.target?.closest?.(SAVE)) return;
+        const { rows: held, write: writing } = latest.current;
+        const stamped = stampedAtSave(held, nowMoment());
+        if (stamped !== held) writing(stamped);
+      };
+      globalThis.addEventListener('click', saving, { capture: true });
+      return () => globalThis.removeEventListener('click', saving, { capture: true });
+    }, []);
+    const fresh = () => ({ published: [[{ type: types[0]?.name ?? '' }]] });
     const adding = (row) => h('button', { type: 'button', className: 'konzilo-part-add', onClick: () => write(addTrigger(rows, row, fresh())) }, `+ ${say(row === null ? 'schedule.addRow' : 'schedule.addAlternative')}`);
     const heldInDate = !(Array.isArray(plain(values.triggers)) && plain(values.triggers).length > 0);
     // A moment alone, or none yet: the date holds it, and two buttons add others.
