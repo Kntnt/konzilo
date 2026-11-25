@@ -1,6 +1,7 @@
-// What the web server takes of a release (ADR 0036, ADR 0051): its `_headers` and `_redirects`,
-// which a build writes and which are therefore untrusted, read line by line and written again as
-// rules for Caddy, or refused whole. What is written holds nothing a Caddyfile would read as its
+// What the web server takes of a release (ADR 0036, ADR 0051, ADR 0047): its `_headers` and
+// `_redirects`, which a build writes and which are therefore untrusted, read line by line and
+// written again as rules for Caddy, or refused whole, and its `_markdown`, read the same way and
+// made marks among its pages. What is written holds nothing a Caddyfile would read as its
 // own: every value lies in backticks, and neither a backtick nor a placeholder gets through.
 
 import { ACCEPT_LENGTH, ACCEPT_RANGES, markdownAddress } from '../astro/markdown-alternates.js';
@@ -178,10 +179,10 @@ export function webRules({ headers = '', redirects = '', origin = null }) {
 // Where a release holds the marks of its Markdown alternates (ADR 0047): below its pages, in the
 // core's reserved prefix, which the public host hands to the service, a folder for each kind,
 // with an empty file at each alternate's address, as the web server reads an address, decoded.
-// `markdown` marks a page's alternate, and `llms` and `llms-full` that llms.txt and llms-full.txt
-// hold it.
+// `markdown` marks a page's alternate, and `llms` and `llms-full` that its Link names llms.txt and
+// llms-full.txt, which RELATED gives by their addresses.
 export const ALTERNATE_MARKS = '_konzilo/alternates';
-const HOLDERS = new Map([['/llms.txt', 'llms'], ['/llms-full.txt', 'llms-full']]);
+const RELATED = new Map([['/llms.txt', 'llms'], ['/llms-full.txt', 'llms-full']]);
 // What a decoded path may not hold, which no page's address does.
 const NOT_IN_A_PAGE = /[\x00-\x1f\x7f\\]/;
 
@@ -203,8 +204,8 @@ function pagePath(page, number) {
 
 // What the web server takes of a release's `_markdown`, `text`, the list of its pages with a
 // Markdown alternate, which its build wrote and is therefore untrusted: `<page> <alternate>`, then
-// the files that hold the page, /llms.txt and /llms-full.txt, each line read and checked before
-// the release is current. `holds(path)` says whether the release holds a file at the path from its
+// /llms.txt and /llms-full.txt where the page's row has them on, each line read and checked
+// before the release is current. `holds(path)` says whether the release holds a file at the path from its
 // root, decoded. Gives the marks to write, each a path from the release's root, or a RefusedRules
 // that names the first line it cannot take: one that names no file of the release, an alternate
 // that is not the page's, a page twice, or what is not as markdownList() writes it.
@@ -216,19 +217,19 @@ export function markdownMarks(text, holds) {
     const number = at + 1;
     if (!PLAIN.test(line)) refuse('_markdown', number, 'it holds what is not printable ASCII');
     const [page, alternate, ...files] = line.split(' ');
-    if (alternate === undefined || [page, alternate, ...files].includes('')) refuse('_markdown', number, 'a line is a page, its alternate and the files that hold it, one space between each');
+    if (alternate === undefined || [page, alternate, ...files].includes('')) refuse('_markdown', number, 'a line is a page, its alternate, and perhaps /llms.txt and /llms-full.txt, one space between each');
     const plain = pagePath(page, number);
     if (seen.has(plain)) refuse('_markdown', number, `${page} comes twice`);
     seen.add(plain);
     const address = markdownAddress(plain);
     if (alternate !== encodeURI(address)) refuse('_markdown', number, `${alternate} is not the alternate of ${page}`);
-    const holders = [...HOLDERS.keys()];
+    const order = [...RELATED.keys()];
     files.forEach((file, index) => {
-      if (!HOLDERS.has(file) || holders.indexOf(file) <= holders.indexOf(files[index - 1])) refuse('_markdown', number, `${file} is not /llms.txt or /llms-full.txt, each once and in that order`);
+      if (!RELATED.has(file) || order.indexOf(file) <= order.indexOf(files[index - 1])) refuse('_markdown', number, `${file} is not /llms.txt or /llms-full.txt, each once and in that order`);
     });
     if (!holds(`${plain.slice(1)}index.html`)) refuse('_markdown', number, `${page} is no page of the release`);
     for (const [file, path] of [[alternate, address], ...files.map((file) => [file, file])]) if (!holds(path.slice(1))) refuse('_markdown', number, `${file} is no file of the release`);
-    marks.push(`${ALTERNATE_MARKS}/markdown${address}`, ...files.map((file) => `${ALTERNATE_MARKS}/${HOLDERS.get(file)}${address}`));
+    marks.push(`${ALTERNATE_MARKS}/markdown${address}`, ...files.map((file) => `${ALTERNATE_MARKS}/${RELATED.get(file)}${address}`));
   });
   return marks;
 }
@@ -281,7 +282,7 @@ const marked = (name, asked, kind, also = null) => [
 // alternate's, `/x.md`, `/` `/index.md` and `/x/index/` `/x/index/index.md`, as markdownAddress()
 // has it, and the marks say which have one. A GET or a HEAD of a page with an alternate varies by
 // Accept, and answers with the alternate where the request prefers Markdown; its HTML links the
-// alternate, then llms.txt and llms-full.txt where they hold it, and the alternate, at its own
+// alternate, then llms.txt and llms-full.txt where its marks say so, and the alternate, at its own
 // address too, links the page, each Link on an answer with 2xx alone. Each Link names its address
 // as the browser sent it, on `origin`; the marks are read by the decoded path, as the files are.
 function alternateRules(origin) {

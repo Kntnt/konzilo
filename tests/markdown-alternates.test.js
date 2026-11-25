@@ -381,7 +381,7 @@ She keeps the light.
     for (const [path, links] of Object.entries(heads)) assert.deepEqual(linked(html(path)), links, path);
   });
 
-  test('lists each page that has an alternate, its alternate and the files that hold it, in _markdown for the web server, as browsers send the addresses', () => {
+  test('lists each page that has an alternate, its alternate, and llms.txt and llms-full.txt where its row has them on, in _markdown for the web server, as browsers send the addresses', () => {
     assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
     // By default llms.txt is on for every row, and llms-full.txt for the start page and pages.
     assert.equal(html('_markdown'), '/ /index.md /llms.txt /llms-full.txt\n/harbour-lights/ /harbour-lights.md /llms.txt\n/index/ /index/index.md /llms.txt\n/pages/about/ /pages/about.md /llms.txt /llms-full.txt\n');

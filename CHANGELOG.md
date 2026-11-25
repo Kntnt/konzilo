@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- The public host links each page's Markdown alternate in a `Link` header, `rel="alternate"; type="text/markdown"`, then `llms.txt` and `llms-full.txt` where the page's row in the AI visibility settings has them on, and each alternate links its page, `rel="canonical"`. A request whose `Accept` prefers Markdown, as an AI agent's may, gets the alternate at the page's own address, and a page with an alternate varies by `Accept`. A publish that adds or removes an alternate needs no reload of the web server, and a build whose list of alternates names a file its release does not hold keeps the last release live.
+
+### Changed
+
+- The dev server links `llms.txt` and `llms-full.txt` only from a page with a Markdown alternate, and each only where the page's row has it on, as the public host does.
+
 ## [0.10.0] – 2026-11-25
 
 ### Added

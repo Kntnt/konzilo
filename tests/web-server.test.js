@@ -193,7 +193,7 @@ describe('a release\'s list of Markdown alternates', () => {
   const RELEASE = holding('index.html', 'index.md', 'about/index.html', 'about.md', 'index/index.html', 'index/index.md', 'öppet/index.html', 'öppet.md', 'llms.txt', 'llms-full.txt');
   const refusedList = (line, words) => assert.throws(() => markdownMarks(`/about/ /about.md /llms.txt\n${line}\n`, RELEASE), (error) => error instanceof RefusedRules && words.test(error.message) && /_markdown, line 2/.test(error.message), `${line}: ${words}`);
 
-  test('marks each page\'s alternate, and the files that hold it, at the alternate\'s address as the web server reads it', () => {
+  test('marks each page\'s alternate, and llms.txt and llms-full.txt where its line names them, at the alternate\'s address as the web server reads it', () => {
     const list = '/ /index.md /llms.txt /llms-full.txt\n/about/ /about.md /llms.txt\n/index/ /index/index.md\n/%C3%B6ppet/ /%C3%B6ppet.md /llms-full.txt\n';
     assert.deepEqual(markdownMarks(list, RELEASE), [
       '_konzilo/alternates/markdown/index.md',
@@ -225,8 +225,8 @@ describe('a release\'s list of Markdown alternates', () => {
 
   test('is refused for a line it cannot tell is safe', () => {
     for (const [line, words] of [
-      ['/about/', /a page, its alternate and the files that hold it/],
-      ['/about/  /about.md', /a page, its alternate and the files that hold it/],
+      ['/about/', /a page, its alternate, and perhaps \/llms\.txt and \/llms-full\.txt/],
+      ['/about/  /about.md', /a page, its alternate, and perhaps \/llms\.txt and \/llms-full\.txt/],
       ['/öppet/ /öppet.md', /printable ASCII/],
       ['/about /about.md', /no page's address/],
       ['about/ /about.md', /no page's address/],
