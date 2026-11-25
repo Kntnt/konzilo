@@ -33,7 +33,8 @@
 // components side by side in no order of the body's. Each dialog is numbered
 // as it is rendered, so a block rendered twice has two. A body without such a
 // directive comes out as Content renders it, but for each image's lightbox
-// (lightbox.js), which is the page's and no part of the body's own HTML.
+// (lightbox.js), which is the page's and no part of the body's own HTML, and
+// which draws an image at the lightbox's sizes (image-versions.js).
 //
 // `page`: the page of the post shown, from 1, as the site's route has it
 // from postPages() (post-lists.js): the one list with pages of its own shows
@@ -42,6 +43,7 @@
 //
 //   <Body post={entry} page={page}><Content /></Body>
 import components from 'virtual:konzilo/directives';
+import contexts from 'virtual:konzilo/images';
 import './modal.css';
 import BlockMark from './BlockMark.astro';
 import { BLOCK_ATTRIBUTE } from './block-marks.js';
@@ -58,6 +60,7 @@ const parts = within ?? (await bodyPostLists(bodyParts((await Astro.slots.render
 // A number for each dialog on the page, however many bodies it renders.
 const lightboxes = {
   locale: publicSite(Astro.url).locale,
+  sizes: contexts.lightbox.sizes,
   next: () => {
     Astro.locals.konziloDialogs = (Astro.locals.konziloDialogs ?? 0) + 1;
     return Astro.locals.konziloDialogs;
