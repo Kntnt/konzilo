@@ -6,7 +6,7 @@
 import { DISPLAY_WIDTH_MOST, isDisplayWidth } from '../../format/body.js';
 import { measured } from '../body/chooser-check.js';
 import { made } from '../body/dialog.js';
-import { say } from '../interface-language.js';
+import { say, sayParts } from '../interface-language.js';
 
 // The display width a file's name gives an image `width` pixels wide: half of it for a name that
 // ends in `@2x` before its extension, a third for `@3x`, and null for any other, which fills the
@@ -36,24 +36,28 @@ export function displayWidthBox(parent, { changed = () => {}, label = true, clas
   const row = made('fieldset', `${className} konzilo-display-width`, parent);
   const legend = made('legend', label ? '' : 'konzilo-hidden', row);
   legend.textContent = say('body.displayWidth');
-  const choice = (words) => {
+  // A choice, its radio button and its words, as the catalogue's text gives them, with any
+  // control it places among them where the language places it (ADR 0066).
+  const choice = (parts) => {
     const line = made('label', 'konzilo-display-width-choice', row);
     const input = made('input', '', line);
     input.type = 'radio';
     input.name = `konzilo-display-width-${n}`;
-    made('span', '', line).textContent = words;
+    for (const part of parts) {
+      if (typeof part !== 'string') line.append(part);
+      else if (part.trim() !== '') made('span', '', line).textContent = part.trim();
+    }
     return { line, input };
   };
-  const filling = choice(say('body.displayWidthFill'));
-  const most = choice(say('body.displayWidthMost'));
-  const pixels = made('input', 'konzilo-display-width-pixels', most.line);
+  const pixels = made('input', 'konzilo-display-width-pixels');
   pixels.type = 'number';
   pixels.inputMode = 'numeric';
   pixels.min = '1';
   pixels.max = String(DISPLAY_WIDTH_MOST);
   pixels.step = '1';
   pixels.setAttribute('aria-label', say('body.displayWidthPixels'));
-  made('span', '', most.line).textContent = say('body.displayWidthUnit');
+  const filling = choice([say('body.displayWidthFill')]);
+  const most = choice(sayParts('body.displayWidthMost', { pixels }));
   const hint = made('p', 'konzilo-dialog-hint', row);
   hint.id = `konzilo-display-width-hint-${n}`;
   hint.textContent = say('body.displayWidthHint');
