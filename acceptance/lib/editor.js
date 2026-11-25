@@ -21,10 +21,14 @@ export async function openEditor(engine, site, { locale = 'en-GB' } = {}) {
     return route.abort();
   });
 
-  const watch = (page) => {
+  // `closing`: a page that closes itself, the sign-in's popup, which loads the editor as
+  // Forgejo sends it back and closes at once; Firefox then reports each font the editor was still
+  // loading there as stopped (NS_BINDING_ABORTED), which is the page going, not a fault.
+  const watch = (page, { closing = false } = {}) => {
     page.on('console', (message) => {
       if (message.type() !== 'error') return;
       const text = message.text();
+      if (closing && /downloadable font: download failed .*status=2152398850 /.test(text)) return;
       if (/content.security.policy|refused to/i.test(text)) seen.refused.push(text);
       else if (!/^Failed to load resource/.test(text)) seen.errors.push(text);
     });
@@ -133,6 +137,6 @@ export async function signIn({ context, page, watch }, site, person = seeded(sit
   // Safari opened no popup for a click right after a load (ADR 0007).
   await page.waitForTimeout(1000);
   const [popup] = await Promise.all([context.waitForEvent('page'), button.click()]);
-  watch(popup);
+  watch(popup, { closing: true });
   await throughForgejo(popup, site, popup.waitForEvent('close', { timeout: 120_000 }), person);
 }
