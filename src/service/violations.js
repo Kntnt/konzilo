@@ -122,10 +122,9 @@ const keptOf = (given, ownPage) => {
 
 // The counts in the service's data, `store` as store.js opens it.
 //
-// Gives { count(reports, at), shown(), expire(before) }: `count` counts each report,
-// { page, directive, blocked },
-// as seen at `at`, a Date, into its own entry, or, past 1,000 entries, a new one into the entry
-// for the rest; `shown` gives the counts as the Admin's page shows them, { days, most, violations,
+// Gives { count(reports, at), shown(), expire(before) }: `count` counts each report, { page,
+// directive, blocked }, as seen at `at`, a Date, into its own entry, or, past 1,000 entries, a new
+// one into the entry for the rest; `shown` gives the counts as the Admin's page shows them, { days, most, violations,
 // rest }, `days` those an entry is kept after it was last seen, `most` the entries kept at most,
 // `violations` each { page, directive, blocked, count, lastSeen }, the most recently seen first,
 // and `rest` { count, lastSeen }, or null while there is none; `expire` forgets each entry last
@@ -146,6 +145,7 @@ export function violationCounts(store) {
         const key = JSON.stringify([report.page, report.directive, report.blocked]);
         by.set(key, (by.get(key) ?? 0) + 1);
       }
+      if (by.size === 0) return;
       store.inOne(() => {
         let held = Number(entries.get().entries);
         for (const [key, times] of by) {
