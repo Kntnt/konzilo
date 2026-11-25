@@ -705,9 +705,9 @@ describe('the body field, alone', () => {
     });
 
     test('later elements stay as they are, as kept blocks, around an edit', async () => {
-      const body = 'First\n\n![One](/media/a.webp)\n![Two](/media/b.webp)\n\nhttps://vimeo.com/76979871\n\n::form{name="contact"}\n\n<table>\n<caption>A caption</caption>\n<thead>\n<tr><th>A</th></tr>\n</thead>\n</table>\n\n:::unknown\nInside\n\nmore\n:::\n\nLast';
+      const body = 'First\n\n![One](/media/a.webp)\n![Two](/media/b.webp)\n\nhttps://vimeo.com/76979871\n\n::form{name="contact"}\n\n::consent-objection\n\n<table>\n<caption>A caption</caption>\n<thead>\n<tr><th>A</th></tr>\n</thead>\n</table>\n\n:::unknown\nInside\n\nmore\n:::\n\nLast';
       assert.equal(await call('open', body), 'editor');
-      assert.equal(await page.locator('.konzilo-kept').count(), 3);
+      assert.equal(await page.locator('.konzilo-kept').count(), 4);
       await typeAtTheEnd(' zq');
       assert.equal(await call('value'), `${body} zq`);
     });

@@ -10,96 +10,16 @@
 // control in the three browser engines.
 
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import konzilo from '../src/astro/index.js';
-import { astroConfig, astroEnvironment, nodeSync, ORIGIN } from './lib/astro.js';
-import { identity, paragraphs, post, siteSettingsArgs, writeContent } from './lib/content.js';
+import { ORIGIN } from './lib/astro.js';
+import { AFTER, BEFORE, COUNTING, objectionSite, POST } from './lib/objection-site.js';
 
 const core = fileURLToPath(new URL('../', import.meta.url));
-const astro = join(core, 'node_modules/astro/bin/astro.mjs');
-const integration = join(core, 'src/astro/index.js');
 const { JSDOM, VirtualConsole } = createRequire(join(core, 'package.json'))('jsdom');
-
-// Matomo's own tracker, as an Admin sets it.
-const TRACKER = { manager: 'Matomo', address: 'https://matomo.example.com/', site: 3 };
-const COUNTING = { departures: [{ departure: 'statisticsWithoutStorageBeforeConsent', reason: 'We count every visit, and store nothing before consent.', privacySignals: 'ignore' }] };
-
-const layout = [
-  '---',
-  "import ConsentBanner from '@kntnt/konzilo/astro/ConsentBanner.astro';",
-  '---',
-  '<html lang="en">',
-  '  <head><title>A page</title></head>',
-  '  <body><ConsentBanner /><main><slot /></main></body>',
-  '</html>',
-  '',
-].join('\n');
-
-const sources = {
-  'src/content.config.mjs': `import { collections as konziloCollections } from ${JSON.stringify(integration)};\n\nexport const collections = konziloCollections();\n`,
-  'src/layouts/Site.astro': layout,
-  'src/pages/[slug].astro': [
-    '---',
-    "import { getCollection, render } from 'astro:content';",
-    "import Body from '@kntnt/konzilo/astro/Body.astro';",
-    "import Site from '../layouts/Site.astro';",
-    'export async function getStaticPaths() {',
-    "  return (await getCollection('articles')).map((entry) => ({ params: { slug: entry.id }, props: { entry } }));",
-    '}',
-    'const { entry } = Astro.props;',
-    'const { Content } = await render(entry);',
-    '---',
-    '<Site><Body post={entry}><Content /></Body></Site>',
-    '',
-  ].join('\n'),
-  // A template that places the right to object itself, as a privacy policy's may.
-  'src/pages/placed.astro': [
-    '---',
-    "import ConsentControls from '@kntnt/konzilo/astro/ConsentControls.astro';",
-    "import Site from '../layouts/Site.astro';",
-    '---',
-    '<Site><ConsentControls links={false} buttons={false} objection /></Site>',
-    '',
-  ].join('\n'),
-};
-
-const types = { post: { label: 'Article', plural: 'Articles', collection: 'articles', address: '/{slug}/', elements: ['paragraph', 'consent-objection'] } };
-
-// A site repository with the design above, Matomo's own tracker chosen and `consent` its site
-// description's, whose one post holds the right to object between two paragraphs, built.
-function build(consent) {
-  const repository = mkdtempSync(join(tmpdir(), 'konzilo-consent-objection-'));
-  try {
-    mkdirSync(join(repository, 'node_modules/@kntnt'), { recursive: true });
-    for (const entry of readdirSync(join(core, 'node_modules'))) {
-      if (!entry.startsWith('.')) symlinkSync(join(core, 'node_modules', entry), join(repository, 'node_modules', entry));
-    }
-    symlinkSync(core, join(repository, 'node_modules/@kntnt/konzilo'));
-    const files = {
-      ...sources,
-      'astro.config.mjs': astroConfig(integration),
-      'site-description.json': JSON.stringify({ language: 'en_GB', types, ...(consent ? { consent } : {}) }),
-    };
-    for (const [path, contents] of Object.entries(files)) {
-      mkdirSync(dirname(join(repository, path)), { recursive: true });
-      writeFileSync(join(repository, path), contents);
-    }
-    siteSettingsArgs(repository, { menus: {}, settings: { tagManager: TRACKER }, identity });
-    const exported = writeContent(repository, [post({ ID: 1, slug: 'privacy', title: 'Privacy', body: paragraphs('We count the visits.', '::consent-objection', 'Ask us anything.') })]);
-    assert.equal(exported.status, 0, exported.stderr);
-    const built = nodeSync([astro, 'build'], { cwd: repository, encoding: 'utf8', env: astroEnvironment });
-    assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
-  } catch (error) {
-    rmSync(repository, { recursive: true, force: true });
-    throw error;
-  }
-  return { repository, output: (path) => readFileSync(join(repository, 'dist', path), 'utf8') };
-}
 
 const main = (html) => /<main>(.*)<\/main>/s.exec(html)[1];
 
@@ -123,7 +43,7 @@ function visit(site, { stored } = {}) {
   virtualConsole.on('jsdomError', (error) => {
     if (!/navigation/.test(error.message)) throw error;
   });
-  const { window } = new JSDOM(site.output('privacy/index.html'), { url: `${ORIGIN}/privacy/`, runScripts: 'outside-only', virtualConsole });
+  const { window } = new JSDOM(site.output(`${POST.slice(1)}index.html`), { url: `${ORIGIN}${POST}`, runScripts: 'outside-only', virtualConsole });
   if (stored !== undefined) window.localStorage.setItem('konzilo-consent', JSON.stringify(stored));
   window.setTimeout = () => 0;
   for (const dialog of window.document.querySelectorAll('dialog')) {
@@ -146,14 +66,14 @@ describe('the right to object in a body, on a site that counts visits without st
   let site;
 
   before(() => {
-    site = build(COUNTING);
+    site = objectionSite(COUNTING);
   });
 
-  after(() => rmSync(site.repository, { recursive: true, force: true }));
+  after(() => site?.remove());
 
   test('draws the objection\'s control where the body places it, as a template\'s ConsentControls draws it with `objection` alone', () => {
-    const body = main(site.output('privacy/index.html'));
-    assert.equal(body.replaceAll('\n', ''), `<p>We count the visits.</p>${OBJECTION}<p>Ask us anything.</p>`);
+    const body = main(site.output(`${POST.slice(1)}index.html`));
+    assert.equal(body.replaceAll('\n', ''), `<p>${BEFORE}</p>${OBJECTION}<p>${AFTER}</p>`);
     assert.equal(main(site.output('placed/index.html')), OBJECTION);
   });
 
@@ -184,13 +104,13 @@ describe('the right to object in a body, on a site that counts no visits without
   let site;
 
   before(() => {
-    site = build(undefined);
+    site = objectionSite(undefined);
   });
 
-  after(() => rmSync(site.repository, { recursive: true, force: true }));
+  after(() => site?.remove());
 
   test('draws nothing where the body places it', () => {
-    assert.equal(main(site.output('privacy/index.html')).replaceAll('\n', ''), '<p>We count the visits.</p><p>Ask us anything.</p>');
+    assert.equal(main(site.output(`${POST.slice(1)}index.html`)).replaceAll('\n', ''), `<p>${BEFORE}</p><p>${AFTER}</p>`);
   });
 });
 
