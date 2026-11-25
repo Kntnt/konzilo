@@ -452,5 +452,5 @@ test('runs where Astro is not installed, as the builder has it', () => {
     }
   };
   visit(command);
-  assert.deepEqual([...bare].filter((name) => !name.startsWith('node:')).sort(), ['satteri', 'sax', 'sharp', 'svgo', 'yaml']);
+  assert.deepEqual([...bare].filter((name) => !name.startsWith('node:')).sort(), ['satteri', 'sax', 'sharp', 'svgo', 'temml', 'yaml']);
 });
