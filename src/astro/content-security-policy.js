@@ -8,9 +8,9 @@
 //   page as built (releaseCode()): every inline script (data blocks such as
 //   JSON-LD aside, which no browser runs) in `script-src`, every inline
 //   style element in `style-src`, and every distinct `style` attribute value
-//   in `style-src-attr` under 'unsafe-hashes', such as a table column's
-//   alignment and an embed player's size, so that the content files keep
-//   them as they are.
+//   in `style-src-attr` under 'unsafe-hashes', such as an embed player's size
+//   and those Temml writes in a formula. A table cell's alignment is no style on
+//   the page but the core's `data-align` (tables.js), so a table adds no hash.
 // - The players' origins of the embed services the pages use, in
 //   `frame-src`.
 // - The hosts of the service registry's services, each kind of

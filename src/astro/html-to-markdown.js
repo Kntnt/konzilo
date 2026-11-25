@@ -154,11 +154,17 @@ function pipeTable(node, base) {
   const width = Math.max(...table.map((cells) => cells.length));
   const sizes = Array.from({ length: width }, (_, i) => Math.max(3, ...table.map((cells) => [...(cells[i] ?? '')].length)));
   const padded = (cells) => `| ${sizes.map((size, i) => (cells[i] ?? '').padEnd(size + (cells[i] ?? '').length - [...(cells[i] ?? '')].length)).join(' | ')} |`;
-  const alignment = (cell) => /text-align:\s*(left|center|right)/.exec(String(propertiesOf(cell).style ?? ''))?.[1];
+  // A cell of a body says its alignment in the core's data-align (tables.js); one of a
+  // page of the site's own may say it in its style.
+  const alignment = (cell) => {
+    const { dataAlign, style } = propertiesOf(cell);
+    if (['start', 'center', 'end'].includes(dataAlign)) return dataAlign;
+    return { left: 'start', center: 'center', right: 'end' }[/text-align:\s*(left|center|right)/.exec(String(style ?? ''))?.[1]];
+  };
   const rule = sizes.map((size, i) => {
     const align = alignment(cellsOf(rows[0])[i] ?? {});
     const dashes = '-'.repeat(size + 2);
-    return align === 'left' ? `:${dashes.slice(1)}` : align === 'right' ? `${dashes.slice(1)}:` : align === 'center' ? `:${dashes.slice(2)}:` : dashes;
+    return align === 'start' ? `:${dashes.slice(1)}` : align === 'end' ? `${dashes.slice(1)}:` : align === 'center' ? `:${dashes.slice(2)}:` : dashes;
   });
   const lines = [padded(table[0]), `|${rule.join('|')}|`, ...table.slice(1).map(padded)];
   return [...(caption ? [caption] : []), lines.join('\n')].join('\n\n');

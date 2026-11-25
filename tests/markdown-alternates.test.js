@@ -565,10 +565,10 @@ test("keeps a task's box, ticked or not, and a plain item as it is", () => {
   assert.match(pageMarkdown({ html, url: 'https://example.com/a/', title: 'Tasks' }).markdown, /^- \[ \] Ask\n- \[x\] Asked \*twice\*\n- Plain$/m);
 });
 
-test("writes a table of a body, simple or structured, as the table alone, nothing of the box it stands in", async () => {
+test("writes a table of a body, simple or structured, as the table alone, nothing of the box it stands in, each column aligned as its cells' data-align says", async () => {
   const { readContentFile } = await import('../src/astro/reader.js');
   const body = [
-    '| Item | Price |\n| --- | ---: |\n| Oil | 12 |',
+    '| Item | Note | Size | Price |\n| --- | :--- | :---: | ---: |\n| Oil | Cold | S | 12 |',
     '<table>\n<caption>What we <strong>packed</strong></caption>\n<thead>\n<tr><th>Item</th><th style="text-align: right">Price</th></tr>\n</thead>\n<tbody>\n<tr><td>Tent</td><td style="text-align: right">120</td></tr>\n</tbody>\n<tfoot>\n<tr><td>Total</td><td style="text-align: right">120</td></tr>\n</tfoot>\n</table>',
   ].join('\n\n');
   const { html } = readContentFile(`---\ntitle: "Tables"\n---\n\n${body}\n`);
@@ -576,9 +576,9 @@ test("writes a table of a body, simple or structured, as the table alone, nothin
   assert.equal(pageMarkdown({ html: `<main>${html}</main>`, url: 'https://example.com/a/', title: 'Tables' }).markdown, `
 # Tables
 
-| Item | Price |
-|------|------:|
-| Oil  | 12    |
+| Item | Note | Size | Price |
+|------|:-----|:----:|------:|
+| Oil  | Cold | S    | 12    |
 
 What we **packed**
 
@@ -587,6 +587,11 @@ What we **packed**
 | Tent  | 120   |
 | Total | 120   |
 `);
+});
+
+test("writes a table of a page of the site's own, aligned by its cells' style, aligned as the style says", () => {
+  const html = '<main><table><tr><th style="text-align: left">Item</th><th style="text-align:center">Size</th><th style="text-align: right">Price</th></tr><tr><td>Oil</td><td>S</td><td>12</td></tr></table></main>';
+  assert.match(pageMarkdown({ html, url: 'https://example.com/a/', title: 'Prices' }).markdown, /^\| Item \| Size \| Price \|\n\|:-----\|:----:\|------:\|\n\| Oil  \| S    \| 12    \|$/m);
 });
 
 test('writes a formula back as its LaTeX, between $ in the text and on lines of $$ for a block', async () => {

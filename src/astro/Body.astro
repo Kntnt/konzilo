@@ -44,7 +44,7 @@
 // `page`: the page of the post shown, from 1, as the site's route has it
 // from postPages() (post-lists.js): the one list with pages of its own shows
 // that page's slice, and its presentation is given the pager; every other
-// list shows its first slice.
+// list shows its first slice, and one with `firstPage` nothing from page 2.
 //
 //   <Body post={entry} page={page}><Content /></Body>
 import components from 'virtual:konzilo/directives';
@@ -85,7 +85,8 @@ const lightboxes = {
   const mark = part.block === null ? {} : { [BLOCK_ATTRIBUTE]: part.block };
   const marked = (rendered) => (part.block === null ? rendered : <BlockMark block={part.block}>{rendered}</BlockMark>);
   if (part.name === OBJECTION) return marked(<ConsentControls links={false} buttons={false} objection />);
-  if (part.list) {
+  if (part.name === LIST) {
+    if (part.list === null) return null;
     const { component: Presentation, posts, options, empty, pager, list } = part.list;
     return marked(<Presentation posts={posts} options={options} empty={empty} pager={pager} list={list} {...mark} />);
   }

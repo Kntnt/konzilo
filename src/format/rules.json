@@ -179,6 +179,10 @@
             "type": "boolean",
             "default": false
           },
+          "firstPage": {
+            "type": "boolean",
+            "default": false
+          },
           "presentation": {
             "type": "string",
             "required": true
