@@ -499,7 +499,7 @@ Write \$x$ for a formula, and $x$ for $x$.
 
 ### Simple tables
 
-A table with one header row, no caption, no footer and no merged cells is a GFM pipe table: a pipe at both ends of each row and one space either side of each cell's text, not padded to its column's width, an empty cell `|  |`. The delimiter row gives each column's alignment, `---`, `:---`, `:---:` or `---:`. A cell takes the inline elements a heading takes, and `\|` for a pipe in its text, a link's text or a link's address.
+A table with one header row, no caption, no footer and no merged cells is a GFM pipe table: a pipe at both ends of each row and one space either side of each cell's text, not padded to its column's width, an empty cell `|  |`. The delimiter row gives each column's alignment, `---`, `:---`, `:---:` or `---:`: none, the start of the line, its centre or its end, so that on a site read from right to left a column aligned to the right stands on the left. A cell takes the inline elements a heading takes, and `\|` for a pipe in its text, a link's text or a link's address.
 
 ```markdown body
 | Item | Note | Price |
@@ -508,9 +508,36 @@ A table with one header row, no caption, no footer and no merged cells is a GFM 
 |  | Spare | 5 |
 ```
 
+The site writes an aligned cell with `data-align`, `start`, `center` or `end`, and no `style`, a simple table's and a structured table's alike, each table in a `div` of the class `konzilo-table`:
+
+```markdown body read
+| Item | Note | Price |
+| --- | :---: | ---: |
+| Tent | Two people | 120 |
+```
+
+```html rendered
+<div class="konzilo-table"><table>
+<thead>
+<tr>
+<th>Item</th>
+<th data-align="center">Note</th>
+<th data-align="end">Price</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tent</td>
+<td data-align="center">Two people</td>
+<td data-align="end">120</td>
+</tr>
+</tbody>
+</table></div>
+```
+
 ### Structured tables
 
-A table with a caption, a footer section or merged cells is an HTML table of one fixed shape: a line for each tag that opens or closes the table and its sections, a line for the caption and one for each row, and no blank line. The caption comes first, then `thead` with its one row of `th` cells, `tbody` and `tfoot`, each only when it has rows, every cell outside the header row a `td`. A cell's attributes are `colspan` and `rowspan`, each only when 2 or more, then `style="text-align: left"`, `center` or `right` when its column is aligned. A cell and the caption take the inline elements a heading takes, as HTML: `<strong>`, `<em>`, `<a href>`, `<sup>`, `<sub>`, `<code>` and `<del>`; a link's tag is a raw link's ([Inline elements](#inline-elements)), with `target` and `rel` where it has them. Their characters are written as typed, but `&` as `&amp;` and `<` as `&lt;`, and in an address `"` as `&quot;` too. Nothing in it is read as Markdown, so it takes no Markdown escapes.
+A table with a caption, a footer section or merged cells is an HTML table of one fixed shape: a line for each tag that opens or closes the table and its sections, a line for the caption and one for each row, and no blank line. The caption comes first, then `thead` with its one row of `th` cells, `tbody` and `tfoot`, each only when it has rows, every cell outside the header row a `td`. A cell's attributes are `colspan` and `rowspan`, each only when 2 or more, then `style="text-align: left"`, `center` or `right` when its column is aligned, which say the start of the line, its centre and its end, as a simple table's alignments do. A cell and the caption take the inline elements a heading takes, as HTML: `<strong>`, `<em>`, `<a href>`, `<sup>`, `<sub>`, `<code>` and `<del>`; a link's tag is a raw link's ([Inline elements](#inline-elements)), with `target` and `rel` where it has them. Their characters are written as typed, but `&` as `&amp;` and `<` as `&lt;`, and in an address `"` as `&quot;` too. Nothing in it is read as Markdown, so it takes no Markdown escapes.
 
 ```markdown body
 <table>

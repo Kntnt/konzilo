@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- A table cell in an aligned column carries `data-align`, `start`, `center` or `end`, in place of the inline style `text-align: left`, `center` or `right`, on the site, in the live preview and in a component's tree, for a simple and a structured table alike. Left is the start of the line and right its end, so on a site read from right to left a column aligned to the right stands on the left. A design aligns a cell by the attribute and can give such a column a look of its own, which the inline style used to outrank; the site template does so, and a site made from an earlier template, or a design of its own, needs the same rule, `text-align: start`, `center` or `end` by `data-align`, or its aligned columns stand where its other cells do. The content files stay as they are, and the site's security policy no longer allows a table's style by a hash.
+
 ## [0.10.0] – 2026-11-25
 
 ### Added
