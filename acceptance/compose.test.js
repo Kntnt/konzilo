@@ -794,8 +794,17 @@ describe('a site in Compose', () => {
         const bytes = await sharp({ create: { width: 1300, height: 800, channels: 3, background: '#208060' } }).jpeg().toBuffer();
         await page.getByRole('textbox', { name: 'Alt text' }).fill('Made in the form');
         const place = page.locator('.field[data-key-path="src"]');
+        // What the field says went wrong, with what the page warned of, where the file is not shown.
+        const warned = [];
+        page.on('console', (message) => {
+          if (message.type() === 'warning' && !/configuration schema/.test(message.text())) warned.push(message.text());
+        });
         await place.locator('input[type=file]').first().setInputFiles({ name: 'from-the-form.jpg', mimeType: 'image/jpeg', buffer: bytes });
-        await place.locator('img').waitFor();
+        await page.waitForFunction(() => {
+          const field = document.querySelector('.field[data-key-path="src"]');
+          return field.querySelector('.konzilo-pick-picture img:not([hidden])') || field.querySelector('.konzilo-pick-note').textContent !== '';
+        }, null, { timeout: 60_000 });
+        assert.equal(await place.locator('.konzilo-pick-note').textContent(), '', warned.join('\n'));
         // Converted as it is chosen, a JPEG lossy unless the editor says otherwise, which converts
         // it again (#114).
         const lossless = place.getByRole('checkbox', { name: 'Lossless compression' });

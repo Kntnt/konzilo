@@ -8,6 +8,7 @@ import { Selection, TextSelection } from '@milkdown/kit/prose/state';
 import { mountAuthorsField } from '../../../src/cms/authors/field.js';
 import { base64 } from '../../../src/cms/base64.js';
 import { convertForUpload } from '../../../src/cms/image/convert.js';
+import { mountImageField } from '../../../src/cms/image/field.js';
 import { handsFor, loadReader } from '../../../src/cms/body/check.js';
 import { blockAt } from '../../../src/cms/body/place.js';
 import { mountBodyField } from '../../../src/cms/body/field.js';
@@ -365,6 +366,40 @@ globalThis.authorsPage = {
   stopThrowing() {
     Object.assign(failing, { list: false, add: false });
   },
+};
+
+// The image library entry's own file field (ADR 0063), on a library and a draft with nothing
+// behind them: what it added, as Sveltia's `addFile` would take it, with its bytes as base64, what
+// it wrote, and each choice of Lossless compression it told.
+let imageField = null;
+globalThis.imagePage = {
+  open({ value = '', lossless = false, settings = { longestSide: 3840, quality: 90 }, smallestWidth = null } = {}) {
+    imageField?.field.destroy();
+    imageField?.host.remove();
+    useInterfaceLanguage('en');
+    const host = document.createElement('div');
+    host.className = 'the-image-field';
+    document.body.append(host);
+    const record = { added: [], values: [], told: [] };
+    const field = mountImageField(host, {
+      value,
+      changed: (next) => record.values.push(next),
+      addFile: async (file) => {
+        record.added.push({ name: file.name, type: file.type, bytes: base64(new Uint8Array(await file.arrayBuffer())) });
+        return URL.createObjectURL(file);
+      },
+      library: { uploadSettings: async () => settings, picture: async () => null },
+      exists: async () => false,
+      text: true,
+      upload: true,
+      smallestWidth,
+      lossless,
+      chosenLossless: (chosen) => record.told.push(chosen),
+    });
+    imageField = { field, host, record };
+  },
+  record: () => imageField.record,
+  note: () => imageField.host.querySelector('.konzilo-pick-note').textContent,
 };
 
 // The conversion before an upload alone (ADR 0022): a file's bytes in, as base64, and what would be

@@ -104,6 +104,56 @@ for (const [name, engine] of Object.entries(ENGINES)) {
       assert.ok(converted.bytes.equals(drawing));
     });
 
+    describe('in the image library entry\'s own form', () => {
+      const call = (method, ...args) => page.evaluate(([one, values]) => globalThis.imagePage[one](...values), [method, args]);
+      const field = () => page.locator('.the-image-field');
+      const lossless = () => field().getByRole('checkbox', { name: 'Lossless compression' });
+
+      const choose = async (file) => {
+        await field().locator('input[type=file]').setInputFiles(file);
+        await field().locator('.konzilo-pick-picture img').waitFor({ timeout: 60_000 });
+      };
+
+      test('converts the file as it is chosen, a JPEG lossy, and again losslessly once the box is ticked by the keyboard', async () => {
+        await call('open');
+        assert.equal(await lossless().isVisible(), false, 'nothing to say before a file is chosen');
+        await choose({ name: 'From the form.jpg', mimeType: 'image/jpeg', buffer: await sharp({ create: { width: 1300, height: 800, channels: 3, background: '#208060' } }).jpeg().toBuffer() });
+        assert.equal(await lossless().isChecked(), false);
+        assert.equal(await lossless().isEnabled(), true);
+        let record = await call('record');
+        assert.deepEqual(record.added.map(({ type }) => type), ['image/webp']);
+        assert.match(record.added[0].name, /^from-the-form-[0-9a-f]{10}\.webp$/);
+        assert.deepEqual(chunksOf(Buffer.from(record.added[0].bytes, 'base64')), ['VP8 ']);
+        assert.deepEqual(record.told, [false]);
+
+        await lossless().focus();
+        await page.keyboard.press('Space');
+        await page.waitForFunction(() => globalThis.imagePage.record().added.length === 2, null, { timeout: 60_000 });
+        await page.waitForFunction(() => globalThis.imagePage.record().told.length === 2);
+        record = await call('record');
+        assert.deepEqual(chunksOf(Buffer.from(record.added[1].bytes, 'base64')), ['VP8L']);
+        assert.notEqual(record.added[1].name, record.added[0].name, 'another file, by its hash');
+        assert.deepEqual(record.told, [false, true]);
+        assert.match(record.values.at(-1), /^blob:/);
+        assert.equal(await lossless().isChecked(), true);
+      });
+
+      test('ticks it for a PNG, offers it for no SVG, and shows a saved entry\'s, greyed', async () => {
+        await call('open');
+        await choose({ name: 'chart.png', mimeType: 'image/png', buffer: await sharp({ create: { width: 900, height: 600, channels: 3, background: '#fafafa' } }).png().toBuffer() });
+        assert.equal(await lossless().isChecked(), true);
+        assert.deepEqual((await call('record')).told, [true]);
+
+        await call('open');
+        await choose({ name: 'logo.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>') });
+        assert.equal(await lossless().isVisible(), false);
+
+        await call('open', { value: '/media/chart-0123456789.webp', lossless: true });
+        assert.equal(await lossless().isChecked(), true);
+        assert.equal(await lossless().isEnabled(), false);
+      });
+    });
+
     describe('in the chooser\'s upload', () => {
       const call = (method, ...args) => page.evaluate(([one, values]) => globalThis.fieldPage[one](...values), [method, args]);
       const chooser = () => page.getByRole('dialog', { name: 'Choose an image' });
