@@ -343,7 +343,27 @@ describe('a list with pages', () => {
     '::post-list{type="post" include="section:paged" order="title" number="1" presentation="list" date="true"}',
     '',
   ].join('\n');
-  const built = build({ 'content/sections/paged.json': term('Paged'), 'content/pages/news.md': news, ...articles }, { presentations });
+  // Featured shows the first three on its first page alone, above a list with pages; Drawn,
+  // its twin, shows them on every page; and Lone shows them where it has no list with pages.
+  const featured = (title, first) => [
+    '---',
+    `title: ${JSON.stringify(title)}`,
+    'date: 2026-01-01T08:00:00Z',
+    'modified: 2026-01-01T08:00:00Z',
+    '---',
+    '',
+    `::post-list{type="post" include="section:paged" order="title" number="3"${first ? ' firstPage="true"' : ''} presentation="cards"}`,
+    '',
+    ...(title === 'Lone' ? [] : ['::post-list{type="post" include="section:paged" order="title" pages="true" presentation="list"}', '']),
+  ].join('\n');
+  const built = build({
+    'content/sections/paged.json': term('Paged'),
+    'content/pages/news.md': news,
+    'content/pages/featured.md': featured('Featured', true),
+    'content/pages/drawn.md': featured('Drawn', false),
+    'content/pages/lone.md': featured('Lone', true),
+    ...articles,
+  }, { presentations });
   const numbers = (from, to) => Array.from({ length: to - from + 1 }, (_, i) => String(from + i).padStart(2, '0'));
   const listed = (from, to) => `<ul class="list" data-date="false">${numbers(from, to).map((n) => `<li><a href="/a${n}/">Article ${n}</a></li>`).join('')}</ul>`;
   const above = '<div class="cards"><a class="card" href="/a01/">Article 01</a><a class="card" href="/a02/">Article 02</a></div>';
@@ -378,6 +398,20 @@ describe('a list with pages', () => {
     assert.equal(built.main('pages/news/page/2'), `${above}${listed(14, 23)}${pagers[2]}${below}`);
     assert.equal(built.main('pages/news/page/3'), `${above}${listed(24, 25)}${pagers[3]}${below}`);
     assert.equal(built.has('pages/news/page/4/index.html'), false);
+  });
+
+  test('draws a list shown on the first page alone on page 1 and on no later page, the slices of the list with pages the same as where it is drawn on every page', () => {
+    assert.equal(built.status, 0, built.output);
+    const three = '<div class="cards"><a class="card" href="/a01/">Article 01</a><a class="card" href="/a02/">Article 02</a><a class="card" href="/a03/">Article 03</a></div>';
+    const pager = (n, post) => pagers[n].replaceAll('/pages/news/', `/pages/${post}/`);
+    for (const [post, later] of [['featured', ''], ['drawn', three]]) {
+      assert.equal(built.main(`pages/${post}`), `${three}${listed(4, 13)}${pager(1, post)}`, post);
+      assert.equal(built.main(`pages/${post}/page/2`), `${later}${listed(14, 23)}${pager(2, post)}`, post);
+      assert.equal(built.main(`pages/${post}/page/3`), `${later}${listed(24, 25)}${pager(3, post)}`, post);
+      assert.equal(built.has(`pages/${post}/page/4/index.html`), false, post);
+    }
+    assert.equal(built.main('pages/lone'), three);
+    assert.equal(built.has('pages/lone/page/2/index.html'), false);
   });
 
   test('leads page/1/ to the post with 301', () => {
