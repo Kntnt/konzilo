@@ -253,6 +253,28 @@ describe('a page of a site whose registry asks for consent', () => {
     const data = JSON.parse(page.querySelector('[data-konzilo-consent]').dataset.konziloConsent);
     assert.deepEqual(data, { revision: registry.revision, categories: { necessary: ['consent'], marketing: ['vimeo', 'youtube'] }, storage: {}, language: 'en-GB' });
   });
+
+  test('the release holds, for the service, its revision with each category\'s services, and what its pages showed of the consent in their language, which each record is kept with', () => {
+    const registry = JSON.parse(readFileSync(join(site.repository, 'content/consent.json'), 'utf8'));
+    const held = JSON.parse(site.output('_consent.json'));
+    assert.equal(held.revision, registry.revision);
+    assert.deepEqual(held.categories, { necessary: ['consent'], marketing: ['vimeo', 'youtube'] });
+    assert.deepEqual(Object.keys(held.languages), ['en-GB']);
+    const shown = held.languages['en-GB'];
+    const banner = page.querySelector('.konzilo-consent-banner');
+    assert.equal(shown.banner.title, banner.querySelector('h2').textContent);
+    assert.equal(shown.banner.text, banner.querySelector('.konzilo-consent-text').textContent);
+    assert.deepEqual([shown.banner.accept, shown.banner.reject, shown.banner.customise], texts(banner.querySelectorAll('button')));
+    assert.equal(shown.dialog.introduction, page.querySelector('.konzilo-consent-introduction').textContent);
+    assert.deepEqual(shown.categories.map(({ name }) => name), texts(page.querySelectorAll('.konzilo-consent-category-name')));
+    assert.deepEqual(shown.categories.map(({ description }) => description), texts(page.querySelectorAll('.konzilo-consent-description')));
+    assert.deepEqual(shown.categories.flatMap(({ services }) => services.map(({ name }) => name)), texts(page.querySelectorAll('.konzilo-consent-service-name')));
+    const youtube = shown.categories[1].services[1];
+    assert.equal(youtube.provider, 'Google Ireland Limited, Ireland');
+    assert.match(youtube.purpose, /\S/);
+    assert.deepEqual(shown.policies, [{ title: 'Privacy policy', href: '/privacy/' }, { title: 'Cookie policy', href: '/cookies/' }]);
+    assert.deepEqual(shown.placeholders.map(({ service }) => service), ['vimeo', 'youtube']);
+  });
 });
 
 test('a public release holds the consent script for pages the site does not build, and its stylesheet, served with a short cache lifetime; a preview\'s holds neither', () => {
@@ -265,6 +287,7 @@ test('a public release holds the consent script for pages the site does not buil
     assert.match(site.output('_konzilo/consent/consent.css'), /\.konzilo-consent-banner/);
     assert.match(site.output('_headers'), /\n\/_konzilo\/consent\/\*\n {2}Cache-Control: public, max-age=300\n$/);
     assert.throws(() => preview.output('_konzilo/consent/en.js'), /ENOENT/);
+    assert.throws(() => preview.output('_consent.json'), /ENOENT/, 'and a preview sends no records');
     assert.doesNotMatch(preview.output('_headers'), /_konzilo\/consent/);
   } finally {
     rmSync(site.repository, { recursive: true, force: true });
@@ -328,6 +351,13 @@ describe('a page of a site in sv_SE, whose Admin wrote the banner\'s title', () 
     assert.equal(panel.querySelector('.konzilo-embed-question').textContent, 'Vill du låta YouTube spela upp det här innehållet?');
     assert.equal(panel.querySelector('.konzilo-embed-storage').textContent.replace(/\s+/g, ' ').trim(), 'Google Ireland Limited (Irland) tar emot uppgifter om ditt besök, som kan behandlas utanför EU och EES. Cookie policy');
     assert.equal(panel.querySelector('.konzilo-embed-allow').textContent, 'Tillåt och spela upp');
+  });
+
+  test('the release keeps what its pages showed in Swedish, the Admin\'s title among it', () => {
+    const { languages } = JSON.parse(site.output('_consent.json'));
+    assert.deepEqual(Object.keys(languages), ['sv-SE']);
+    assert.equal(languages['sv-SE'].banner.title, 'Vi frågar först');
+    assert.equal(languages['sv-SE'].dialog.save, 'Spara mina val');
   });
 
   test('a choice\'s record notes that the banner shown was in Swedish', () => {

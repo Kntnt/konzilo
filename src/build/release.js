@@ -1,7 +1,8 @@
 // The releases a web server serves from one folder: each a complete set of pages with the web
-// server's rules beside them, and `current`, a link that moves to a new one all at once, so that
-// a visitor gets one release or the other and never a mix. Only the one before stays with it,
-// since a request may still be reading it.
+// server's rules beside them, and the consent revision the service reads where the build wrote
+// one, and `current`, a link that moves to a new one all at once, so that a visitor gets one
+// release or the other and never a mix. Only the one before stays with it, since a request may
+// still be reading it.
 
 import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readlinkSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
@@ -13,6 +14,10 @@ const PAGES = 'pages';
 const RULES = 'web-rules.caddy';
 // What a build writes for the web server, and no address of a visitor's.
 export const FOR_THE_WEB_SERVER = ['_headers', '_redirects', '_markdown'];
+// What a public build writes for the service: its consent revision with what its pages showed
+// (ADR 0049), which the release holds beside its pages, where the service reads it.
+const FOR_THE_SERVICE = '_consent.json';
+const CONSENT = 'consent.json';
 
 export function releases(folder) {
   const below = join(folder, RELEASES);
@@ -34,6 +39,7 @@ export function releases(folder) {
       rmSync(making, { recursive: true, force: true });
       cpSync(built, join(making, PAGES), { recursive: true });
       for (const file of FOR_THE_WEB_SERVER) rmSync(join(making, PAGES, file), { force: true });
+      if (existsSync(join(making, PAGES, FOR_THE_SERVICE))) renameSync(join(making, PAGES, FOR_THE_SERVICE), join(making, CONSENT));
       writeFileSync(join(making, RULES), rules);
       renameSync(making, join(below, name));
       const link = join(folder, `.${CURRENT}`);
