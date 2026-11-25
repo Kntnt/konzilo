@@ -3,7 +3,7 @@
 // a visitor gets one release or the other and never a mix. Only the one before stays with it,
 // since a request may still be reading it.
 
-import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readlinkSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 
 const RELEASES = 'releases';
@@ -11,6 +11,9 @@ const CURRENT = 'current';
 const KEPT = 2;
 const PAGES = 'pages';
 const RULES = 'web-rules.caddy';
+// The release's redirects as the build wrote them, beside its pages, which the log of addresses
+// not found reads (ADR 0040).
+const REDIRECTS = '_redirects';
 // What a build writes for the web server, and no address of a visitor's.
 export const FOR_THE_WEB_SERVER = ['_headers', '_redirects', '_markdown'];
 
@@ -33,6 +36,7 @@ export function releases(folder) {
       const making = join(below, `.${name}`);
       rmSync(making, { recursive: true, force: true });
       cpSync(built, join(making, PAGES), { recursive: true });
+      writeFileSync(join(making, REDIRECTS), existsSync(join(built, REDIRECTS)) ? readFileSync(join(built, REDIRECTS)) : '');
       for (const file of FOR_THE_WEB_SERVER) rmSync(join(making, PAGES, file), { force: true });
       writeFileSync(join(making, RULES), rules);
       renameSync(making, join(below, name));

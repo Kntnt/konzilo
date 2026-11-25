@@ -466,6 +466,20 @@ describe('releases', () => {
     assert.deepEqual(readdirSync(join(root, 'current/pages')), ['index.html']);
   });
 
+  // The log of addresses not found lets an address go that a rule of the release answers (ADR 0040).
+  test('keeps its redirects as the build wrote them beside its pages, where no visitor reaches them', () => {
+    const root = join(folder, 'redirects');
+    const built = join(folder, 'dist-redirects');
+    mkdirSync(built);
+    writeFileSync(join(built, 'index.html'), 'x');
+    writeFileSync(join(built, '_redirects'), '/old/ /new/ 301\n');
+    releases(root).publish(built, '1', '');
+    assert.equal(readFileSync(join(root, 'current/_redirects'), 'utf8'), '/old/ /new/ 301\n');
+    rmSync(join(built, '_redirects'));
+    releases(root).publish(built, '2', '');
+    assert.equal(readFileSync(join(root, 'current/_redirects'), 'utf8'), '');
+  });
+
   test('clears a release a stop left half made', () => {
     const root = join(folder, 'stopped');
     mkdirSync(join(root, 'releases/.half'), { recursive: true });
