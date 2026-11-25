@@ -90,6 +90,19 @@ export async function mayWrite(asked) {
 // Forgejo lists a page at a time, and this many at most on each.
 const LISTED = 50;
 
+// The commits of a repository's history from `head` back, newest first, as Forgejo's API lists
+// them: to `before`, and none of it or before it, or to the first where `before` is null. `ask(path)`
+// asks Forgejo below the repository, and gives its answer. `files`: whether each commit names the
+// files it changed.
+export async function commitsFrom(ask, head, before = null, { files = false } = {}) {
+  const found = [];
+  for (let page = 1; ; page += 1) {
+    const shown = await (await ask(`/commits?sha=${encodeURIComponent(head)}${before ? `&not=${encodeURIComponent(before)}` : ''}&limit=${LISTED}&page=${page}&stat=false&verification=false&files=${files}`)).json();
+    found.push(...shown);
+    if (shown.length < LISTED) return found;
+  }
+}
+
 // The teams of `organisation`, as Forgejo shows them to `token`, a credential that may read them
 // (ADR 0008): members(name), the logins of the members of the team `name`, none where it has no
 // such team. Who is in a team Forgejo tells only those in it and the instance administrator, so

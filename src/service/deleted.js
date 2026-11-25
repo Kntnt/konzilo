@@ -9,10 +9,10 @@
 // last one learned are asked for; a branch whose history was written anew, as by a purge, is
 // learned again from its start.
 
+import { commitsFrom } from '../forgejo.js';
 import { IMAGE_LIBRARY_FOLDER, MEDIA_FOLDER } from '../format/masters.js';
 
-// A branch's commits are asked for this many at a time.
-const PAGE = 50;
+// The branch the editor saves to.
 const BRANCH = 'main';
 
 // Whether a source file is a post, a term or an image library entry of the site `site` describes:
@@ -61,15 +61,7 @@ export function deletions({ ask, textAt, saved }) {
   // The files on the branch at the head learned.
   let standing = { head: null, files: null };
 
-  const LIST = 'stat=false&verification=false&files=true';
-  const walk = async (head, before) => {
-    const found = [];
-    for (let page = 1; ; page += 1) {
-      const shown = await (await ask(`/commits?sha=${encodeURIComponent(head)}${before ? `&not=${encodeURIComponent(before)}` : ''}&limit=${PAGE}&page=${page}&${LIST}`)).json();
-      found.push(...shown);
-      if (shown.length < PAGE) return found;
-    }
-  };
+  const walk = (head, before) => commitsFrom(ask, head, before, { files: true });
 
   // One look at the branch at a time, each from where the last left off.
   let learning = Promise.resolve();

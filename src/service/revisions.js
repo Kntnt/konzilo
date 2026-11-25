@@ -8,10 +8,10 @@
 // image library entries (deleted.js, ADR 0077).
 
 import { addPushers, eventsAfter } from '../build/pushers.js';
-import { accountName } from '../forgejo.js';
+import { accountName, commitsFrom } from '../forgejo.js';
 import { deletions } from './deleted.js';
 
-// The feed's and a push's commits are asked for this many at a time.
+// The feed is asked for this many events at a time.
 const PAGE = 50;
 // A form's revisions are shown this many at a time, newest first.
 export const REVISIONS_AT_ONCE = 20;
@@ -45,14 +45,7 @@ export function sourceHistory({ forgejo, repository, token, pushesToken = token,
 
   // Each commit's push: { login, name, at }.
   const known = { last: 0, commits: {} };
-  const commitsOf = async (after, before) => {
-    const found = [];
-    for (let page = 1; ; page += 1) {
-      const shown = await (await ask(`/commits?sha=${encodeURIComponent(after)}${before ? `&not=${encodeURIComponent(before)}` : ''}&limit=${PAGE}&page=${page}&${LIST}`, pushesToken)).json();
-      found.push(...shown.map(({ sha }) => sha));
-      if (shown.length < PAGE) return found;
-    }
-  };
+  const commitsOf = async (after, before) => (await commitsFrom((path) => ask(path, pushesToken), after, before)).map(({ sha }) => sha);
   const whom = ({ act_user: user, created }) => ({ login: user.login, name: accountName(user), at: created });
   // One look at the feed at a time, each from where the last left off.
   let learning = Promise.resolve();
