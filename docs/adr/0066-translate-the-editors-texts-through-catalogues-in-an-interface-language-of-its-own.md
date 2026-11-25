@@ -53,7 +53,7 @@
 Sveltia 0.256.1:
 
 - Sveltia reads its preferences as it loads, from `sveltia-cms.prefs` in the browser's storage, `locale` among them, `auto` until a person chooses.
-- Imported later than the editor, as a part of its own once the configuration had been fetched, Sveltia threw "Cannot load blob:… due to access control checks" in WebKit, twice after each sign-in, from its own image code. Imported with the editor, it does not; hence the preference as the last load found it, and the one load more.
+- Imported later than the editor, as a part of its own once the configuration had been fetched, Sveltia threw "Cannot load blob:… due to access control checks" in WebKit, twice after each sign-in, from its own image code. Imported with the editor, it does not; hence the preference as the last load found it, and the one load more. The two lines are WebKit's refusal of what a page asks for once it has started for another: the sign-in window opened with the editor in it, which read the two icons it makes of its logo as the window left for Forgejo (ADR 0029). That a later start of Sveltia put those reads after the leaving every time is likely, and was not measured. The window now opens empty; importing Sveltia later has not been tried since.
 - Sveltia takes a preference of `en` as `auto`, so British English is set as `en-GB`.
 - Sveltia sets `lang` on the page's root element when its language changes, which is what the editor watches for a choice.
 - Where the language Sveltia shows is not the browser's, Sveltia offers the browser's in a bar at the top, in that language: "Sveltia CMS is now available in English (US)! Change Language Later". It comes once per browser and repository, until a person answers it; *Change Language* is a choice like any other.
