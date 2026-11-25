@@ -70,7 +70,7 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Article parts**: The fields of the core's that name the parts of an article: the eyebrow, the main headline and the subheadline, the standfirst, the teaser with its image, headline and text, and the name in breadcrumbs, beside the main image, which is the featured image. A part left empty falls back to another by one set of rules, which the editor and the site share. _Avoid_: deck, kicker, lead (for the standfirst).
 
-**Working name**: A post's title where the post has a main headline of its own: the name lists, menus and breadcrumbs show, and the one a new slug is made from. _Avoid_: internal title.
+**Working name**: A post's title where the post has a main headline of its own: the name lists and menus show, and breadcrumbs too where the post has no name in breadcrumbs and no menu entry leads to it, and the one a new slug is made from. _Avoid_: internal title.
 
 **Teaser**: What shows a post elsewhere, in a list, a search result or a shared link: its image, headline and text, each the post's own or what it falls back to. _Avoid_: card, excerpt (for the teaser as a whole).
 
@@ -218,7 +218,7 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Featured image**: The image a post is shown with, beside its body, with alt text that belongs to the post. _Avoid_: hero image, cover.
 
-**Image in body text**: An image placed between the blocks of a body and shown as its master, with alt text and an optional caption that belong to that use. _Avoid_: inline image, figure.
+**Image in body text**: An image placed between the blocks of a body and shown as its image versions, the browser choosing among them by the widths the design draws it at, with alt text and an optional caption that belong to that use. _Avoid_: inline image, figure.
 
 **Image library**: The collection of images an editor chooses from in a body, each with alt text, an optional caption and a display width that are copied into the post at the choice. _Avoid_: media library, image bank.
 
