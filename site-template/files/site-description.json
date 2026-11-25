@@ -12,7 +12,7 @@
       "collection": "pages",
       "hierarchical": true,
       "address": "/pages/{path}/",
-      "elements": ["paragraph", "heading", "list", "code", "table", "embed", "image", "gallery", "post-list", "form"]
+      "elements": ["paragraph", "heading", "list", "code", "table", "embed", "image", "gallery", "post-list", "form", "consent-objection"]
     },
     "canvas": {
       "collection": "canvases",
