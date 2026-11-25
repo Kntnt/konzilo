@@ -109,6 +109,12 @@
   },
   {
     "module": "@sveltia/cms/npm/index.js",
+    "why": "Sveltia's Asset Library moves, renames and deletes a file under no lock, a file posts still name among them, so its address, whether it names the library, a folder or a file, leads to the list of entries, as Sveltia's own start does, by Sveltia's own way of moving from page to page, which leaves the document as it is (ADR 0063).",
+    "find": "a=()=>{if(fl())return;let{path:e}=Kc(),",
+    "replace": "a=()=>{if(fl())return;if(/^\\/assets(?=\\/|$)/.test(Kc().path))return void hs(`/collections`,{replaceState:!0});let{path:e}=Kc(),"
+  },
+  {
+    "module": "@sveltia/cms/npm/index.js",
     "why": "The menu to create ends without a divider once Media is gone from it.",
     "find": "}),nh(I(n,2),{}),U(e,t)};K(a,e=>{B(r).length&&e(o)});",
     "replace": "}),U(e,t)};K(a,e=>{B(r).length&&e(o)});"

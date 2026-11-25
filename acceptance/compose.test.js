@@ -354,6 +354,23 @@ describe('a site in Compose', () => {
         await session.page.getByText('Quiet harbours and the lantern').waitFor();
       });
 
+      // Sveltia's Asset Library moves, renames and deletes a file under no lock, a file posts
+      // still name among them, so its address leads to the list of entries (ADR 0063): its
+      // folders, all its files, and a file's own view.
+      test('takes the Asset Library\'s address to the list of entries', async () => {
+        const { page } = session;
+        const [{ src }] = await libraryEntries();
+        for (const address of ['/assets', '/assets/media', '/assets/-/all', `/assets${src}`]) {
+          // As a link within the editor leads there, without loading the page.
+          await page.evaluate((to) => {
+            window.location.hash = to;
+          }, `#${address}`);
+          await page.waitForFunction(() => window.location.hash.startsWith('#/collections'), null, { timeout: 10_000 });
+          await page.getByRole('button', { name: 'Create New Entry' }).first().waitFor();
+          assert.equal(await page.locator('#assets-container').count(), 0, `no Asset Library at ${address}`);
+        }
+      });
+
       test('saves a change to a post, as the person signed in', async () => {
         const title = `A title saved in ${engine}`;
         const { page } = session;
@@ -1885,6 +1902,12 @@ describe('a site in Compose', () => {
         await signIn(session, site, seeded(site, 'ebba'));
         await session.page.getByText('Articles').first().waitFor({ timeout: 60_000 });
         assert.equal(await session.page.getByText(/reads the site's live preview only/).count(), 0);
+        // And finds the Asset Library's address leading to the list of entries, as an Admin does.
+        await session.page.evaluate(() => {
+          window.location.hash = '#/assets';
+        });
+        await session.page.waitForFunction(() => window.location.hash.startsWith('#/collections'), null, { timeout: 10_000 });
+        await session.page.getByRole('button', { name: 'Create New Entry' }).first().waitFor();
       } finally {
         await session.browser.close();
       }
