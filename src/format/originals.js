@@ -28,15 +28,18 @@ export function kindOf(bytes) {
 // Whether a WebP is lossless, the mark of an image an editor uploaded with *Lossless compression*
 // (ADR 0022): its picture is in a `VP8L` chunk, first or after its extended header, where a lossy
 // one's is in `VP8 `. Read from its chunks, so that the original says it and its master, made
-// lossless from it, says it again to whatever reads the master.
+// lossless from it, says it again to whatever reads the master. A chunk whose size runs past the end ends the
+// reading, so that no file, however it is made, keeps it from ending.
 export function isLosslessWebp(bytes) {
   if (kindOf(bytes) !== 'webp') return false;
   for (let at = 12; at + 8 <= bytes.length;) {
     const chunk = ascii(bytes, at, at + 4);
     if (chunk === 'VP8L') return true;
     if (chunk === 'VP8 ') return false;
-    const size = bytes[at + 4] | (bytes[at + 5] << 8) | (bytes[at + 6] << 16) | (bytes[at + 7] << 24);
-    at += 8 + size + (size % 2);
+    const size = (bytes[at + 4] | (bytes[at + 5] << 8) | (bytes[at + 6] << 16) | (bytes[at + 7] << 24)) >>> 0;
+    const next = at + 8 + size + (size % 2);
+    if (next <= at || next > bytes.length) return false;
+    at = next;
   }
   return false;
 }

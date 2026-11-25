@@ -79,6 +79,12 @@ describe('a raster original', () => {
     assert.equal(isLosslessWebp(lossless.subarray(0, 20)), false, 'nor a WebP cut short');
   });
 
+  test('stops at a chunk whose size would not move the reading forward or runs past the end', () => {
+    const riff = (...chunks) => Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WEBP'), ...chunks]);
+    assert.equal(isLosslessWebp(riff(Buffer.from('ABCD'), Buffer.from([0xf8, 0xff, 0xff, 0xff]))), false, 'a size with its top bit set');
+    assert.equal(isLosslessWebp(riff(Buffer.from('ABCD'), Buffer.from([0xff, 0xff, 0xff, 0x7f]), Buffer.from('VP8L'))), false, 'a size past the end');
+  });
+
   test('a master already made of it is left alone, by the hash in its name', async () => {
     const bytes = await picture().toBuffer();
     const digits = createHash('sha256').update(bytes).digest('hex').slice(0, 10);
