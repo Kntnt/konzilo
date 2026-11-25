@@ -37,6 +37,7 @@
 
 import { SOURCE_LANGUAGE, textsOf } from '../catalogues.js';
 import { breadcrumbOf } from '../format/article-parts.js';
+import { nameIn } from '../format/addresses.js';
 import { firstEntry, labelOf } from '../format/menus.js';
 import { chosenStartPage, entryAddress as addressIn, menuEntry, pageLanguage, startAddress, typeAddress } from './languages.js';
 import { taxonomyWithPages } from './term-pages.js';
@@ -129,7 +130,7 @@ async function menuLabels(site, language, getEntry) {
 // parents' slugs from `getEntry` for `{path}`; null for a type or a
 // taxonomy without one.
 async function entryAddress(entry, type, site, getEntry) {
-  if (type !== null) return addressIn(type, entry.id, site.languages ?? []);
+  if (type !== null) return addressIn(type, entry, site.languages ?? []);
   const taxonomy = taxonomyWithPages(site, entry);
   if (taxonomy === null) return null;
   const slugs = [entry.id];
@@ -142,26 +143,17 @@ async function entryAddress(entry, type, site, getEntry) {
 
 // The entry of the post that answers at `address`, of the first type, in the
 // site description's order, whose address it fits, or null; on a site in
-// several languages, a post in `language`, at its prefix.
+// several languages, a post in `language`, at its prefix. A post found by the
+// slug or path the address gives answers there only where its date and its
+// term give it that address too.
 async function postAt(address, site, getEntry, language) {
   const several = (site.languages ?? []).length > 1;
   for (const type of Object.values(site.types)) {
     const inLanguage = type ? typeAddress(type, several ? language.locale : site.language) : null;
     const declared = inLanguage === null ? null : several ? `/${language.prefix}${inLanguage}` : inLanguage;
-    const name = declared === null ? null : nameAt(address, declared);
+    const name = declared === null ? null : nameIn(address, declared, (token) => token === 'path' || Boolean(type.fields.find((field) => field.name === token)?.taxonomy?.hierarchical));
     const found = name === null ? undefined : await getEntry(type.collection, several ? `${language.tag}/${name}` : name);
-    if (found) return found;
+    if (found && addressIn(type, found, site.languages ?? []) === address) return found;
   }
   return null;
-}
-
-// The slug or path, the entry's ID, of the post a type's address `declared`
-// gives `address`, or null where it gives none: a slug is one segment, a
-// path one or more.
-function nameAt(address, declared) {
-  const [, prefix, kind, suffix] = declared.match(/^(.*)\{(slug|path)\}(.*)$/) ?? [];
-  if (kind === undefined || address.length <= prefix.length + suffix.length || !address.startsWith(prefix) || !address.endsWith(suffix)) return null;
-  const name = address.slice(prefix.length, address.length - suffix.length);
-  const segments = name.split('/');
-  return segments.includes('') || (kind === 'slug' && segments.length > 1) ? null : name;
 }

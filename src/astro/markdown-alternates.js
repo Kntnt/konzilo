@@ -84,7 +84,7 @@ export function aiSettings(settings, site) {
 // The page of a post at its public address, in its language on a site in
 // several, or null for a type without one.
 function postPath(type, entry, site) {
-  return entryAddress(type, entry.id, site.languages);
+  return entryAddress(type, entry, site.languages);
 }
 
 // The start pages' addresses: the root, or on a site in several languages

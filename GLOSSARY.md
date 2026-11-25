@@ -262,6 +262,8 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Public address**: Where visitors reach a post or a term's page: a path from the site's root. _Avoid_: permalink, URL.
 
+**Token**: A step of a type's address in braces that each post's values fill: `{slug}` or `{path}`, `{year}`, `{month}` and `{day}` from its date, and a field's name, such as `{category}`, for the one term the field takes. A *step* is the text between two slashes of an address. _Avoid_: placeholder, variable.
+
 **Term page**: A page the site builds for each term of a taxonomy that declares an address. _Avoid_: archive.
 
 **Live address**: The public address at which the current release shows a post, which the ledger records. It becomes an old address when the post goes live at another. _Avoid_: last URL.
