@@ -57,6 +57,19 @@
       "page": {}
     }
   },
+  "breadcrumbs": {
+    "types": {
+      "article": {
+        "current": false
+      },
+      "page": {
+        "current": true
+      },
+      "canvas": {
+        "current": false
+      }
+    }
+  },
   "ai": {
     "home": {
       "markdown": true,
@@ -148,5 +161,9 @@
   "related": {
     "freshness": true,
     "halfLife": 90
+  },
+  "imageUpload": {
+    "longestSide": 3840,
+    "quality": 90
   }
 }
