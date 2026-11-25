@@ -16,15 +16,18 @@ const LOOK = 2000;
 // What this tab purged, said once after it loads again.
 const PURGED_KEY = 'konzilo-purged';
 
-// What this tab purged before it loaded again, said once, or null.
+// What this tab purged before it loaded again, or null: taken once from the tab's storage, and
+// said for as long as the page is open.
+let purgedLast;
 export function purgedBefore() {
+  if (purgedLast !== undefined) return purgedLast;
   try {
-    const title = globalThis.sessionStorage?.getItem(PURGED_KEY) ?? null;
+    purgedLast = globalThis.sessionStorage?.getItem(PURGED_KEY) ?? null;
     globalThis.sessionStorage?.removeItem(PURGED_KEY);
-    return title;
   } catch {
-    return null;
+    purgedLast = null;
   }
+  return purgedLast;
 }
 
 // A form another tab has open, as an Admin reads it: its type and the name of its entry.
