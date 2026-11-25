@@ -49,6 +49,7 @@ export function mountStructureField(host, { value: given, changed, key, forms = 
     if (node.kind === 'container' || node.kind === 'leaf') {
       if (node.name === 'post-list') return say('structure.postList');
       if (node.name === 'form') return say('structure.form');
+      if (node.name === 'consent-objection') return say('structure.consentObjection');
       return own[node.name]?.label ?? node.name;
     }
     return say(KINDS[node.kind] ?? 'structure.other');
