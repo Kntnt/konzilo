@@ -35,7 +35,7 @@ import { STATUS_CODES } from 'node:http';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseFrontmatter } from 'astro/markdown';
-import { listPageOwners, publicAddress } from '../format/addresses.js';
+import { contentValues, listPageOwners, publicAddress } from '../format/addresses.js';
 import { PATTERNS, patternMatcher } from '../format/patterns.js';
 import {
   feedHolding, feedReason, fileRuleProblem, inOrder, isSource, keyOf, location, matcher, OTHER_ANSWERS, REDIRECT_STATUSES, REDIRECTS_FILE, reservedBy, SHOW,
@@ -44,7 +44,7 @@ import { startPageFiles } from '../format/start-page.js';
 import { textsOf } from '../catalogues.js';
 import { languageTag, OLD_ADDRESSES, OTHER_ADDRESSES, readSiteDescription, SITE_DESCRIPTION_FILE } from '../site-description.js';
 import { contentFolder } from './collections.js';
-import { pageLanguage, startAddress } from './languages.js';
+import { pageLanguage, startAddress, termFilesIn } from './languages.js';
 import { postListsIn } from './reader.js';
 import { termsWithPages } from './term-pages.js';
 
@@ -64,14 +64,16 @@ export function siteRules(root, { pages = new Set() } = {}) {
   const several = languages.length > 1;
   const folders = several ? languages.map((language) => ({ language, inner: language.tag })) : [{ language: languages[0] ?? null, inner: '' }];
   const posts = [];
+  const terms = termFilesIn(content);
   for (const type of Object.values(types)) {
     if (type.address === null) continue;
     for (const { language, inner } of folders) {
       const folder = join(content, type.collection, inner);
       if (!existsSync(folder)) continue;
       for (const name of postFiles(folder, type.hierarchical)) {
-        const address = publicAddress(type, name.slice(0, -'.md'.length), language);
-        posts.push({ address, ...addressesIn(join(folder, name)) });
+        const { data, ...held } = addressesIn(join(folder, name));
+        const address = publicAddress(type, contentValues(type, name.slice(0, -'.md'.length), data, terms), language);
+        if (address !== null) posts.push({ address, ...held });
       }
     }
   }
@@ -187,8 +189,9 @@ function named({ from, status }) {
 }
 
 // The old and other addresses a content file lists, those the site reads,
-// a post shown at a path alone, and whether its body holds a post list with
-// pages of its own. A file the site cannot read has none here; Astro's own
+// a post shown at a path alone, whether its body holds a post list with
+// pages of its own, and its frontmatter, `data`, which its address may take
+// its date and its term from. A file the site cannot read has none here; Astro's own
 // reading of it says what is wrong.
 function addressesIn(file) {
   let data;
@@ -198,11 +201,12 @@ function addressesIn(file) {
     data = frontmatter;
     pages = postListsIn(content).some((list) => list.pages === true);
   } catch {
-    return { old: [], other: [], pages: false };
+    return { data: {}, old: [], other: [], pages: false };
   }
   const old = data[OLD_ADDRESSES];
   const other = data[OTHER_ADDRESSES];
   return {
+    data,
     pages,
     old: Array.isArray(old) ? old.filter(isSource) : [],
     other: Array.isArray(other)

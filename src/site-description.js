@@ -10,6 +10,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { catalogueFor, INTERFACE_LANGUAGES, labelIn, SOURCE_LANGUAGE } from './catalogues.js';
 import { freeze, interfaceLanguagesNamed, isLinkAddress, isObject, label, onlyKeys as checkedKeys, text } from './checks.js';
+import { addressSteps, DATE_TOKENS, stepsGive } from './format/addresses.js';
 import { ARTICLE, BUILT_IN_TAXONOMIES, BUILT_IN_TYPES, catalogueLabel, EVERY_STRUCTURED_DATA_TYPE, fieldsWith } from './format/built-in-types.js';
 import { IMAGE_LIBRARY_FOLDER, MEDIA_FOLDER } from './format/masters.js';
 import { suffixTakenIn } from './format/public-suffixes.js';
@@ -201,7 +202,8 @@ const results = new WeakSet();
 // visitors read them. A type's address is
 // where visitors reach each of its posts, a path from the site's root with
 // `{slug}` as its last segment, or `{path}` in a hierarchical type, whose
-// posts have parents (format/addresses.js); null for a type whose posts have
+// posts have parents, and before it tokens of the post's date and of the term
+// of a field that takes one (format/addresses.js); null for a type whose posts have
 // no page of their own. On a site with several languages it may be an object
 // of an address by locale, one for each language, as declared. A type's
 // `search` says whether its posts are in the site's search: every
@@ -1117,7 +1119,6 @@ function typeOf(name, type, path, site, problems) {
     problems.push(`${path}.hierarchical: an ${name} has no parent; only a page and a canvas may be hierarchical`);
   }
   const hierarchical = builtIn && !builtIn.hierarchical ? false : flag(type.hierarchical, `${path}.hierarchical`, problems);
-  const address = addressOf(name, type.address, hierarchical, `${path}.address`, site.addresses, problems);
   const labelOf = (key) => (builtIn && type[key] === undefined ? catalogueLabel(builtIn[key]) : label(type[key], `${path}.${key}`, problems));
   const result = {
     name,
@@ -1125,10 +1126,10 @@ function typeOf(name, type, path, site, problems) {
     label: labelOf('label'),
     plural: labelOf('plural'),
     collection: collectionOf(type.collection, `${path}.collection`, site.collections, problems),
-    address,
+    address: null,
     feed: feedAddressOf(type.feed, `${path}.feed`, false, problems),
     hierarchical,
-    search: takesPart(type.search, address, site.addresses.searched, `${path}.search`, problems),
+    search: false,
     elements: elementsOf(type.elements, `${path}.elements`, site.rules, problems),
     editor: EDITORS.includes(type.editor) ? type.editor : 'text',
     structuredDataTypes: structuredDataTypesOf(name, type.structuredDataTypes, builtIn, `${path}.structuredDataTypes`, problems),
@@ -1146,6 +1147,14 @@ function typeOf(name, type, path, site, problems) {
     }
     result.fields.push(read);
   }
+  // The address holds the post's values, so it is read once its fields are. A built-in type's
+  // term that takes one at most, the article's category, is required where its address holds it,
+  // since a site cannot declare it so.
+  for (const field of builtIn ? result.fields : []) {
+    if (field.kind === 'terms' && field.most === 1 && holdsToken(type.address, field.name)) field.required = true;
+  }
+  result.address = addressOf(type.address, { name, hierarchical, builtIn: Boolean(builtIn), fields: result.fields }, `${path}.address`, site.addresses, problems);
+  result.search = takesPart(type.search, result.address, site.addresses.searched, `${path}.search`, problems);
   if (result.feed !== null) {
     if (result.address === null) problems.push(`${path}.feed: a feed links each post to its page, and ${name} has no address`);
     if (!hasDate(result)) problems.push(`${path}.feed: a feed lists posts by their date, and ${name} has none${builtIn ? '' : '; declare "date": {} among its fields'}`);
@@ -1260,9 +1269,10 @@ function builtInTaxonomyOf(name, taxonomy, path, { collections, addresses }, pro
 // pages one address, in its main language.
 function termAddressOf(name, address, hierarchical, path, addresses, problems) {
   if (address === undefined) return null;
-  if (!onePath(address, { name, hierarchical, kind: 'taxonomy' }, path, problems)) return null;
+  if (!termPath(address, { name, hierarchical }, path, problems)) return null;
   const { languages } = addresses;
-  for (const { locale } of languages.length > 0 ? languages : [{ locale: null }]) claim(address, locale, path.replace(/\.address$/, ''), path, addresses, problems);
+  const shape = shapeOf(address, (token) => token === 'path');
+  for (const { locale } of languages.length > 0 ? languages : [{ locale: null }]) claim(address, shape, locale, path.replace(/\.address$/, ''), path, addresses, problems, `"/${name}${address}"`);
   return address;
 }
 
@@ -1503,9 +1513,8 @@ function searchOf(search, { types, taxonomies, languages }, problems) {
       : Object.entries(type.address).map(([locale, one]) => [one, `types.${type.name}.address.${locale}`]);
     for (const [pattern, path] of given) {
       const folder = pattern.slice(0, pattern.indexOf('{'));
-      if (folder === '/' || address === folder || !address.startsWith(folder)) continue;
-      const rest = address.slice(folder.length, -1);
-      if (type.hierarchical || !rest.includes('/')) {
+      if (folder === '/') continue;
+      if (stepsGive(addressSteps(pattern), address.slice(1, -1).split('/'), (token) => takesSteps(token, type.fields))) {
         problems.push(`${path}: ${pattern} can give a post the search page's address, ${address}; give the search page an address outside ${folder}`);
       }
     }
@@ -1514,8 +1523,8 @@ function searchOf(search, { types, taxonomies, languages }, problems) {
   for (const taxonomy of Object.values(taxonomies)) {
     if (!taxonomy || taxonomy.address === null) continue;
     const folder = taxonomy.address.slice(0, taxonomy.address.indexOf('{'));
-    if (folder === '/' || address === folder || !address.startsWith(folder)) continue;
-    if (taxonomy.address.endsWith('/{path}/') || !address.slice(folder.length, -1).includes('/')) {
+    if (folder === '/') continue;
+    if (stepsGive(addressSteps(taxonomy.address), address.slice(1, -1).split('/'), (token) => token === 'path')) {
       problems.push(`taxonomies.${taxonomy.name}.address: ${taxonomy.address} can give a term the search page's address, ${address}; give the search page an address outside ${folder}`);
     }
   }
@@ -1527,17 +1536,21 @@ function searchOf(search, { types, taxonomies, languages }, problems) {
 // site with several languages one may be given for each language, as an
 // object of the address by locale. A hierarchical type's ends in `{path}`,
 // the post's ancestors' slugs and its own, any other's in `{slug}`
-// (format/addresses.js). No two types share one in a language; two types
-// whose addresses can give one address, as `/{path}/` and `/{slug}/` can,
-// leave it to the posts.
-function addressOf(name, address, hierarchical, path, addresses, problems) {
+// (format/addresses.js), and before it each step is a text or a token: the
+// date's, and the term of one of its fields (typePath()). `form` is the type
+// as read so far, { name, hierarchical, builtIn, fields }. No two types, nor a
+// type and a taxonomy, have addresses of one shape in a language, which would
+// give every address one gives the other too; two whose addresses can give one
+// address, as `/{path}/` and `/{slug}/` can, leave it to the posts (claim()).
+function addressOf(address, form, path, addresses, problems) {
   if (address === undefined) return null;
   const { languages } = addresses;
   const type = path.replace(/\.address$/, '');
-  const form = { name, hierarchical };
+  const shape = (one) => shapeOf(one, (token) => takesSteps(token, form.fields));
+  const example = `"/${form.name}${typeof address === 'string' ? address : ''}"`;
   if (!isObject(address)) {
-    if (!onePath(address, form, path, problems)) return null;
-    for (const { locale } of languages.length > 0 ? languages : [{ locale: null }]) claim(address, locale, type, path, addresses, problems);
+    if (!typePath(address, form, path, problems)) return null;
+    for (const { locale } of languages.length > 0 ? languages : [{ locale: null }]) claim(address, shape(address), locale, type, path, addresses, problems, example);
     return address;
   }
   if (languages.length < 2) {
@@ -1551,50 +1564,126 @@ function addressOf(name, address, hierarchical, path, addresses, problems) {
   for (const { locale } of languages) {
     if (!Object.hasOwn(address, locale)) {
       problems.push(`${path}: must give an address in each of the site's languages, and gives none in ${locale}`);
-    } else if (onePath(address[locale], form, `${path}.${locale}`, problems)) {
+    } else if (typePath(address[locale], form, `${path}.${locale}`, problems)) {
       read[locale] = address[locale];
-      claim(address[locale], locale, type, `${path}.${locale}`, addresses, problems);
+      claim(address[locale], shape(address[locale]), locale, type, `${path}.${locale}`, addresses, problems, `"/${form.name}${address[locale]}"`);
     }
   }
   return read;
 }
 
-// Whether an address is one path from the site's root, ending in `{path}/`
-// in a hierarchical type and in `{slug}/` in any other; a hierarchical
-// taxonomy's (`kind`) may end in either. Each problem names the type or the
-// taxonomy.
-function onePath(address, { name, hierarchical, kind = 'type' }, path, problems) {
+// Whether an address as declared, one or one by locale, holds a token, by its name, in any
+// language; false for one that is no address.
+function holdsToken(address, token) {
+  const all = typeof address === 'string' ? [address] : isObject(address) ? Object.values(address).filter((one) => typeof one === 'string') : [];
+  return all.some((one) => /^\/.*\/$/.test(one) && addressSteps(one).some((step) => step.token === token));
+}
+
+// Whether a token of a type's address (`fields`, the type's as read) fills any number of steps:
+// `{path}`, and the term of a hierarchical taxonomy, its path; every other token fills one.
+const takesSteps = (token, fields) => token === 'path' || Boolean(fields.find((field) => field.name === token && field.kind === 'terms')?.taxonomy?.hierarchical);
+
+// An address's shape: its texts as they are, each token that fills one step `*` and each that
+// may fill several `**`. Two addresses of one shape give the same addresses.
+const shapeOf = (address, multiple) => `/${addressSteps(address).map((step) => (step.token === undefined ? step.text : multiple(step.token) ? '**' : '*')).join('/')}/`;
+
+// A step of an address that is a text: lowercase letters, digits, hyphens and underscores.
+const TEXT_STEP = /^[a-z0-9_][a-z0-9_-]*$/;
+
+// Whether a type's address is one path from the site's root that ends in `{path}/` in a
+// hierarchical type and in `{slug}/` in any other, each step before it a text or a token
+// that fills it whole, each token once: the post's date, `{year}`, `{year}/{month}` or
+// `{year}/{month}/{day}`, together and in that order, in a type with a date; and the term of
+// one of its fields of terms that takes exactly one, `"most": 1` and `"required": true`, by the
+// field's name, in a type that is not hierarchical, whose posts stand under their parents.
+// Each problem names the type, with an example that works.
+function typePath(address, { name, hierarchical, builtIn, fields }, path, problems) {
   const [own, other] = hierarchical ? ['{path}', '{slug}'] : ['{slug}', '{path}'];
+  // A built-in type's term that takes one at most is required where its address holds it.
+  const term = fields.find((field) => field.kind === 'terms' && field.most === 1 && (field.required || builtIn));
+  const dated = fields.some((field) => field.kind === 'date');
+  const example = hierarchical ? '"/pages/{path}/"' : term ? `"/news/{${term.name}}/{slug}/"` : dated ? '"/news/{year}/{month}/{slug}/"' : '"/news/{slug}/"';
+  const steps = typeof address === 'string' && /^(\/[^/]+)+\/$/.test(address) ? addressSteps(address) : null;
+  const shapeless = () => {
+    problems.push(`${path}: must be a path from the site's root that ends in /${own}/, such as ${hierarchical ? '"/{path}/" or "/pages/{path}/"' : '"/{slug}/" or "/pages/{slug}/"'}, in lowercase letters, digits, hyphens and underscores, with a token for each step a post's values fill`);
+    return false;
+  };
+  if (steps === null) return shapeless();
+  const shared = steps.find((step) => step.token === undefined && /[{}]/.test(step.text));
+  if (shared) {
+    problems.push(`${path}: ${address} lets text share a step with a token, in /${shared.text}/; a token fills a step of its own, such as ${example}`);
+    return false;
+  }
+  if (steps.some((step) => step.token === undefined && !TEXT_STEP.test(step.text))) return shapeless();
+  const last = steps.at(-1).token;
+  if (last !== 'slug' && last !== 'path') return shapeless();
+  if (`{${last}}` !== own) {
+    problems.push(`${path}: ${name} is ${hierarchical ? '' : 'not '}hierarchical, so its address ends in /${own}/, not /${other}/, such as ${example}`);
+    return false;
+  }
+  const tokens = steps.slice(0, -1).map((step) => step.token).filter(Boolean);
+  let fine = true;
+  const refuse = (problem) => {
+    problems.push(`${path}: ${problem}`);
+    fine = false;
+  };
+  for (const token of new Set(tokens)) {
+    if (tokens.filter((one) => one === token).length > 1) refuse(`${address} holds {${token}} twice; each token fills one place, such as ${example}`);
+    if (token === 'slug' || token === 'path') {
+      refuse(`${address} holds {${token}} before its last step, which alone it fills, such as ${example}`);
+    } else if (!DATE_TOKENS.includes(token)) {
+      const field = fields.find((one) => one.name === token);
+      if (!field) refuse(`{${token}} is no field of ${name}'s; an address holds {year}, {month} and {day}, from the post's date, and the term of a field that takes exactly one, by the field's name, such as ${example}`);
+      else if (field.kind !== 'terms') refuse(`{${token}} is a field of ${name}'s that holds no term; an address holds the term of a field of terms alone, such as ${example}`);
+      else if (hierarchical) refuse(`${name} is hierarchical, so its posts stand under their parents and its address holds no term, such as "/pages/{path}/"`);
+      else if (field.most !== 1 || !field.required) refuse(`{${token}} names a field that does not take exactly one term; an address holds the term of a field with "most": 1 and "required": true, ${builtIn ? `such as ${example}` : `as "${token}": { "taxonomy": "${field.taxonomy?.name ?? token}", "most": 1, "required": true }`}`);
+    }
+  }
+  const dates = steps.map((step, index) => [step.token, index]).filter(([token]) => DATE_TOKENS.includes(token));
+  if (dates.length > 0) {
+    const together = dates.every(([token, index], at) => token === DATE_TOKENS[at] && index === dates[0][1] + at);
+    if (!together && new Set(dates.map(([token]) => token)).size === dates.length) refuse(`${address} holds the date's tokens out of order or apart; they stand together, as {year}, {year}/{month} or {year}/{month}/{day}, such as "/news/{year}/{month}/{slug}/"`);
+    if (!dated) refuse(`${name} has no date to fill {year}, {month} and {day}${builtIn ? '' : '; declare "date": {} among its fields'}`);
+  }
+  if (!fine) return false;
+  if (!address.startsWith(RESERVED_PREFIX)) return true;
+  problems.push(`${path}: ${address} lies below ${RESERVED_PREFIX}, where the site's services answer; give the type another address`);
+  return false;
+}
+
+// Whether a taxonomy's address is one path from the site's root, ending in `{slug}/`, or in a
+// hierarchical taxonomy in `{slug}/` or `{path}/`. Each problem names the taxonomy.
+function termPath(address, { name, hierarchical }, path, problems) {
   const shaped = typeof address === 'string' && /^(\/[a-z0-9_][a-z0-9_-]*)*\/\{(slug|path)\}\/$/.test(address);
   // A term's slug is its own in its taxonomy, so a hierarchical taxonomy's
   // terms may have their pages at their slugs alone too.
-  const term = kind === 'taxonomy';
-  if (shaped && (address.endsWith(`/${own}/`) || (term && hierarchical))) {
+  if (shaped && (address.endsWith('/{slug}/') || hierarchical)) {
     if (!address.startsWith(RESERVED_PREFIX)) return true;
-    problems.push(`${path}: ${address} lies below ${RESERVED_PREFIX}, where the site's services answer; give the ${kind} another address`);
+    problems.push(`${path}: ${address} lies below ${RESERVED_PREFIX}, where the site's services answer; give the taxonomy another address`);
     return false;
   }
   if (shaped) {
-    const example = term ? '/category/{slug}/' : hierarchical ? '/pages/{path}/' : '/{slug}/';
-    problems.push(`${path}: ${name} is ${hierarchical ? '' : 'not '}hierarchical, so its address ends in /${own}/, not /${other}/, such as "${example}"`);
+    problems.push(`${path}: ${name} is not hierarchical, so its address ends in /{slug}/, not /{path}/, such as "/category/{slug}/"`);
   } else {
-    const ends = term && hierarchical ? '/{slug}/ or /{path}/' : `/${own}/`;
-    const examples = term ? '"/category/{slug}/"' : hierarchical ? '"/{path}/" or "/pages/{path}/"' : '"/{slug}/" or "/pages/{slug}/"';
-    problems.push(`${path}: must be a path from the site's root that ends in ${ends}, such as ${examples}, in lowercase letters, digits, hyphens and underscores`);
+    problems.push(`${path}: must be a path from the site's root that ends in ${hierarchical ? '/{slug}/ or /{path}/' : '/{slug}/'}, such as "/category/{slug}/", in lowercase letters, digits, hyphens and underscores`);
   }
   return false;
 }
 
-// An address taken by a type in a language (null for a site with one), told
-// once for each pair of types that share one.
-function claim(address, locale, type, path, { languages, taken, told }, problems) {
-  const key = `${locale}\n${address}`;
+// An address of a shape taken by a type or a taxonomy (`owner`) in a language (null for a
+// site with one), told once for each pair that share one: as the other's address where the two
+// are one, and else as one that gives every address the other's gives.
+function claim(address, shape, locale, owner, path, { languages, taken, told }, problems, example) {
+  const key = `${locale}\n${shape}`;
   const other = taken.get(key);
+  const where = languages.length > 1 ? ` in ${locale}` : '';
   if (other === undefined) {
-    taken.set(key, type);
-  } else if (!told.has(`${type}\n${other}`)) {
-    told.add(`${type}\n${other}`);
-    problems.push(`${path}: ${address} is also the address of ${other}${languages.length > 1 ? ` in ${locale}` : ''}`);
+    taken.set(key, { owner, address });
+  } else if (!told.has(`${owner}\n${other.owner}`)) {
+    told.add(`${owner}\n${other.owner}`);
+    problems.push(other.address === address
+      ? `${path}: ${address} is also the address of ${other.owner}${where}`
+      : `${path}: ${address} gives every address that ${other.address}, the address of ${other.owner}, gives${where}; give one of them a step of its own, such as ${example}`);
   }
 }
 

@@ -59,7 +59,7 @@ export function entryLanguage(entry) {
 // entry of a type without an address, or of no type of the site's.
 export function entryAddress(entry) {
   const type = typeOf(entry.collection);
-  return type === null ? null : addressOf(type, entry.id, siteLanguages());
+  return type === null ? null : addressOf(type, entry, siteLanguages());
 }
 
 // An entry's address below the site's base, as a link takes it, or null.

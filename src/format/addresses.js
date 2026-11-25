@@ -3,16 +3,21 @@
 //
 // A post type's address, in the site description, is a path from the site's
 // root that ends in `{slug}/`, such as `/{slug}/`, or, in a hierarchical
-// type, in `{path}/`, such as `/pages/{path}/`. A post's public
-// address is its type's address with the post's slug in it, or its path: the
-// slugs of its ancestors, from the top, and its own, joined by `/`, as
-// `about-us/team/anna`. A type without an address has no page for its posts.
+// type, in `{path}/`, such as `/pages/{path}/`. Before it, a step may be a
+// *token* a post's values fill: `{year}`, `{year}/{month}` or
+// `{year}/{month}/{day}`, from the post's date in UTC, the month and the day in
+// two digits, and the term of a field that takes exactly one, by the field's
+// name, `{category}`, its path in a hierarchical taxonomy, its parents' slugs
+// from the top and its own. A post's public address is its type's address
+// filled with its values: its slug, or its path, the slugs of its ancestors,
+// from the top, and its own, joined by `/`, as `about-us/team/anna`, its date
+// and its term. A type without an address has no page for its posts.
 // On a site in several languages, a type may have an address in
 // each language, and a post's public address is its language's prefix
 // followed by its type's address in that language: `/sv/nyheter/{slug}/`.
 //
 // Internal links, redirect rules to a post and menu items take their addresses
-// from here.
+// from here, and filledAddress() is the one place a token is filled.
 //
 // A taxonomy may declare an address too, with `{slug}`, the term's slug, or
 // in a hierarchical taxonomy `{path}`, the slugs of its parents and its own
@@ -23,24 +28,148 @@
 
 import { british } from '../refusals.js';
 
-// A post's public address, a path from the site's root, or null when its
-// type (the site description's, as checked) has no address. `name` is the
-// post's slug, or its path in a hierarchical type. `language` is the post's,
-// as the site description gives it (languages.js): on a site in several
-// languages its prefix comes first, and a type with an address in each
-// language gives the one in the post's.
-export function publicAddress(type, name, language = null) {
-  const address = unprefixedAddress(type, name, language);
+// The tokens of the post's date, in the order an address holds them.
+export const DATE_TOKENS = Object.freeze(['year', 'month', 'day']);
+
+// The steps of an address, a path from the site's root that ends in `/`, each { text } or
+// { token }, the name between braces of a step that is one token alone.
+export function addressSteps(address) {
+  return address.slice(1, -1).split('/').map((step) => {
+    const token = /^\{([A-Za-z0-9_]+)\}$/.exec(step);
+    return token ? { token: token[1] } : { text: step };
+  });
+}
+
+// The fields of terms whose term a type's address holds, in any of its languages, as the site
+// description declares them (as checked): none for a type whose address holds none.
+export function addressTermFields(type) {
+  if (type?.address == null) return [];
+  const all = typeof type.address === 'string' ? [type.address] : Object.values(type.address);
+  const named = new Set(all.flatMap((address) => addressSteps(address).map((step) => step.token).filter(Boolean)));
+  return type.fields.filter((field) => field.kind === 'terms' && named.has(field.name));
+}
+
+// Whether a type's address holds its post's date, in any of its languages.
+export function addressHoldsDate(type) {
+  if (type?.address == null) return false;
+  const all = typeof type.address === 'string' ? [type.address] : Object.values(type.address);
+  return all.some((address) => addressSteps(address).some((step) => DATE_TOKENS.includes(step.token)));
+}
+
+// An address with its tokens filled by a post's values, or null where it lacks one the
+// address holds. `values`: { name, date, terms }, `name` the post's slug, or its path in a
+// hierarchical type, which fills `{slug}` and `{path}`; `date`, its date, a moment as text or a
+// Date, whose day in UTC fills the date's tokens; `terms`, by the name of each field whose term
+// the address holds, the term's slug, or in a hierarchical taxonomy its path.
+export function filledAddress(address, { name = null, date = null, terms = {} } = {}) {
+  const moment = date === null || date === undefined || date === '' ? null : new Date(date);
+  const day = moment === null || Number.isNaN(moment.getTime()) ? null : moment.toISOString().slice(0, 10).split('-');
+  let lacking = false;
+  const filled = address.replace(/\{([A-Za-z0-9_]+)\}/g, (token, inside) => {
+    const value = inside === 'slug' || inside === 'path' ? name : DATE_TOKENS.includes(inside) ? day?.[DATE_TOKENS.indexOf(inside)] : terms?.[inside];
+    if (typeof value === 'string' && value !== '') return value;
+    lacking = true;
+    return token;
+  });
+  return lacking ? null : filled;
+}
+
+// The values a post fills its type's address with, as its content file holds them
+// (content-format.md): `name`, its slug, or its path; `data`, its frontmatter as read, a
+// date as text or a Date, and a term as its file's name in its collection, its slug, or
+// `<tag>/<slug>` on a site in several languages, or as Astro's reference to it, { id };
+// `read(collection, id)`, a term's file by its name, its data with its `parent` named the same
+// way, or null, which only a hierarchical taxonomy's term needs, for its path.
+export function contentValues(type, name, data, read) {
+  const terms = {};
+  for (const field of addressTermFields(type)) {
+    const [first] = Array.isArray(data?.[field.name]) ? data[field.name] : [];
+    const id = typeof first === 'string' ? first : first?.id;
+    if (typeof id !== 'string' || id === '') continue;
+    const path = field.taxonomy?.hierarchical ? publishedTermPath(field.taxonomy.collection, id, read) : id.split('/').at(-1);
+    if (path) terms[field.name] = path;
+  }
+  return { name, date: data?.date ?? null, terms };
+}
+
+// A term's path by its published files, the slugs of its parents from the top and its own,
+// each file named by its slug, or `<tag>/<slug>`, its `parent` named the same way (or as Astro's
+// reference to it), `read(collection, id)` giving a file's data or null; null where a file is
+// missing or the parents go round.
+export function publishedTermPath(collection, id, read) {
+  const slugs = [];
+  const seen = new Set();
+  for (let next = id; typeof next === 'string' && next !== '';) {
+    if (seen.has(next)) return null;
+    seen.add(next);
+    const term = read(collection, next);
+    if (!term) return null;
+    slugs.unshift(next.split('/').at(-1));
+    next = typeof term.parent === 'string' ? term.parent : term.parent?.id;
+  }
+  return slugs.length === 0 ? null : slugs.join('/');
+}
+
+// The slug, or path, that an address gives where a type's address in a language, `template`
+// (addressTemplate()), holds `{slug}` or `{path}`, or null where the template cannot give the
+// address: a slug is its last step, and a path the steps the others leave, one or more. Whether
+// a post with that slug or path answers there is its values' to say. `multiple(token)`: whether
+// a token may fill several steps, as a hierarchical taxonomy's term does.
+export function nameIn(address, template, multiple = () => false) {
+  const path = address.split('?')[0];
+  if (!/^\/.+\/$/.test(path)) return null;
+  const given = path.slice(1, -1).split('/');
+  const steps = addressSteps(template);
+  const head = steps.slice(0, -1);
+  const taken = steps.at(-1).token === 'path' ? given.length - head.length : 1;
+  if (given.includes('') || taken < 1) return null;
+  return stepsGive(head, given.slice(0, given.length - taken), multiple) ? given.slice(given.length - taken).join('/') : null;
+}
+
+// Whether the steps of an address, as addressSteps() gives them, can give the steps `given`: a
+// text the same text, a token any one step, or one or more where `multiple(token)` says so.
+export function stepsGive(steps, given, multiple = () => false) {
+  const from = (i, j) => {
+    if (i === steps.length) return j === given.length;
+    if (j === given.length) return false;
+    const step = steps[i];
+    if (step.token === undefined) return step.text === given[j] && from(i + 1, j + 1);
+    if (!multiple(step.token)) return from(i + 1, j + 1);
+    for (let k = j + 1; k <= given.length; k += 1) if (from(i + 1, k)) return true;
+    return false;
+  };
+  return from(0, 0);
+}
+
+// A type's address in a language, its tokens unfilled, after the language's prefix on a site in
+// several, or null for a type without one.
+export function addressTemplate(type, language = null) {
+  const address = unprefixedTemplate(type, language);
   return address === null || !language?.prefix ? address : `/${language.prefix}${address}`;
 }
 
-// The address a post would have without its language's prefix: its type's
-// address in its language with its slug or path, or null for a type without
-// one.
-export function unprefixedAddress(type, name, language = null) {
+function unprefixedTemplate(type, language) {
   if (type.address === null) return null;
-  const address = typeof type.address === 'string' ? type.address : type.address[language.locale];
-  return address.replace(/\{(slug|path)\}/, name);
+  return typeof type.address === 'string' ? type.address : type.address[language.locale];
+}
+
+// A post's public address, a path from the site's root, or null when its
+// type (the site description's, as checked) has no address, or the post lacks a value it
+// holds. `values` are the post's, as filledAddress() takes them. `language` is the post's,
+// as the site description gives it (languages.js): on a site in several
+// languages its prefix comes first, and a type with an address in each
+// language gives the one in the post's.
+export function publicAddress(type, values, language = null) {
+  const template = addressTemplate(type, language);
+  return template === null ? null : filledAddress(template, values);
+}
+
+// The address a post would have without its language's prefix: its type's
+// address in its language filled with its values, or null for a type without
+// one.
+export function unprefixedAddress(type, values, language = null) {
+  const template = unprefixedTemplate(type, language);
+  return template === null ? null : filledAddress(template, values);
 }
 
 // The feed whose address an address on the site is, among the

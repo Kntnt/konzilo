@@ -71,7 +71,7 @@ Each kind of file has its path. The placeholders are a collection's folder, `<co
 The site description, `site-description.json` in the site repository, declares the site's content model. As far as it decides the content files:
 
 - **`language`**, a locale such as `en_GB`, or **`languages`**, several, the main one first, which put each post into a language's folder ([Several languages](#several-languages)).
-- **`types`**, the post types: the core's built-in `canvas`, `page` and `article`, each by its name ([The built-in types](#the-built-in-types)), and any of the site's own, each by a name of the site's own. Each has its `collection`, the folder of its files; its `address`, where visitors reach a post, a path from the site's root ending in `{slug}/`, or in `{path}/` for a hierarchical type, and none for a type whose posts have no page of their own; `hierarchical`, whether its posts have parents; `elements`, the body elements its posts may hold, by their names in the rule data ([The body](#the-body)); and `fields`, what its frontmatter holds after the title, in that order ([A post's file](#a-posts-file)). A type of the site's own may list `structuredDataTypes`, the structured data types its posts may have, each once, its default first, such as `["BlogPosting", "Article"]`; one that lists none offers what a page offers. A type's `feed`, and a taxonomy's, the address of an RSS feed the site builds, holds no file, but a post at a feed's address is refused.
+- **`types`**, the post types: the core's built-in `canvas`, `page` and `article`, each by its name ([The built-in types](#the-built-in-types)), and any of the site's own, each by a name of the site's own. Each has its `collection`, the folder of its files; its `address`, where visitors reach a post, a path from the site's root ending in `{slug}/`, or in `{path}/` for a hierarchical type, before which a step may hold the post's date or its term ([A post's address](#a-posts-address)), and none for a type whose posts have no page of their own; `hierarchical`, whether its posts have parents; `elements`, the body elements its posts may hold, by their names in the rule data ([The body](#the-body)); and `fields`, what its frontmatter holds after the title, in that order ([A post's file](#a-posts-file)). A type of the site's own may list `structuredDataTypes`, the structured data types its posts may have, each once, its default first, such as `["BlogPosting", "Article"]`; one that lists none offers what a page offers. A type's `feed`, and a taxonomy's, the address of an RSS feed the site builds, holds no file, but a post at a feed's address is refused.
 - **`taxonomies`**, each with its `collection`, the folder of its terms' files, and `hierarchical`, whether its terms have parents. A taxonomy's `address`, such as `/category/{slug}/`, or with `{path}/`, its parents' slugs and its own, in a hierarchical one, gives each term that has a file a page there, the site design's; it holds no file of its own, but a post at a term's page's address is refused, and links, menu entries and rules may lead to the page. A taxonomy without one has no pages.
 - **`presentations`**, the ways the site's design shows a post list, each with its options, which a post list in a body takes as attributes ([Post lists](#post-lists)).
 - **`menus`**, each a file of its own, and **`settings`**, the site's own settings, in the order `settings.json` holds them; on a site in several languages a text setting that declares `"translated": true` has a value in each language.
@@ -219,9 +219,92 @@ Every lantern on the quay is lit at dusk.
 }
 ```
 
+### A post's address
+
+A type's `address` is filled with each post's values to give the post's address. It ends in `{slug}/`, the post's slug, or in a hierarchical type in `{path}/`, its path. Each step before it, the text between two slashes, is a text of lowercase letters, digits, hyphens and underscores, or one *token* alone, which the post's values fill:
+
+- **`{year}`, `{month}` and `{day}`**, from the post's `date`, its day in UTC, as every date the site shows is: `{year}`, `{year}/{month}` or `{year}/{month}/{day}`, together and in that order, the month and the day in two digits, so that a post dated `2026-03-07T23:30:00Z` is under `/2026/03/07/`. Only a type with a date takes them.
+- **The term of a field of terms** that takes exactly one, `"most": 1` and `"required": true`, named by the field's name, such as `{category}`: the term's slug, or in a hierarchical taxonomy its path, its parents' slugs from the top and its own, so that a post in PTSD below Health is under `/health/ptsd/`. The built-in article's category, which takes one at most, is required where its address holds it. A hierarchical type's posts stand under their parents, so its address holds no term.
+
+Each token stands once, never shares a step with text, as `/archive-{year}/` would, and never stands after the slug. A post's file is at its slug, or its path, whatever else its address holds, so two posts of a type never share a slug. A post moves when a value its address holds changes, its date, its term, or its term's slug or parent, and the address it was live at becomes one of its old addresses ([Old and other addresses](#old-and-other-addresses)). No two types, nor a type and a taxonomy, have addresses of one shape, such as `/{year}/{slug}/` and `/{category}/{slug}/` where the category is not hierarchical, since either would give every address the other gives: each token fills one step, but a hierarchical taxonomy's term and `{path}`, which fill one or more. Two whose addresses can only meet, as `/{year}/{slug}/` and `/{path}/` can, are left to their posts: a post that would take an address another holds is refused.
+
+A site whose news is by its date, each news item's page at its day, `/news/2026/03/07/new-lanterns/`:
+
+```json site-description=dated
+{
+  "language": "en_GB",
+  "types": {
+    "news": {
+      "label": "News item",
+      "plural": "News",
+      "collection": "news",
+      "address": "/news/{year}/{month}/{day}/{slug}/",
+      "elements": ["paragraph"],
+      "fields": {
+        "date": {}
+      }
+    }
+  }
+}
+```
+
+```markdown file=news/new-lanterns.md site=dated
+---
+title: "New lanterns on the quay"
+date: 2026-03-07T23:30:00Z
+---
+
+Twelve lanterns were lit for the first time.
+```
+
+A site whose guides are by their subject, a hierarchical taxonomy, each guide's page below its subject's path, `/guides/health/ptsd/sleep/`, and whose subject is required, one to a guide:
+
+```json site-description=sorted
+{
+  "language": "en_GB",
+  "types": {
+    "guide": {
+      "label": "Guide",
+      "plural": "Guides",
+      "collection": "guides",
+      "address": "/guides/{subject}/{slug}/",
+      "elements": ["paragraph"],
+      "fields": {
+        "subject": { "taxonomy": "subject", "most": 1, "required": true }
+      }
+    }
+  },
+  "taxonomies": {
+    "subject": { "label": "Subject", "plural": "Subjects", "collection": "subjects", "hierarchical": true }
+  }
+}
+```
+
+```markdown file=guides/sleep.md site=sorted
+---
+title: "Sleep"
+subject: ["ptsd"]
+---
+
+What helps a night's sleep.
+```
+
+```json file=subjects/health.json site=sorted
+{
+  "name": "Health"
+}
+```
+
+```json file=subjects/ptsd.json site=sorted
+{
+  "name": "PTSD",
+  "parent": "health"
+}
+```
+
 ## A post's file
 
-A post is one Markdown file with YAML frontmatter. Its path names it: its type's collection, then its slug, or its path in a hierarchical type, then `.md`; the start page an Admin chose is at the content folder's root, named by its type ([The start page](#the-start-page)).
+A post is one Markdown file with YAML frontmatter. Its path names it: its type's collection, then its slug, or its path in a hierarchical type, then `.md`, whatever else its address holds; the start page an Admin chose is at the content folder's root, named by its type ([The start page](#the-start-page)).
 
 ### The bytes
 
@@ -1455,7 +1538,7 @@ There is nothing here. Try [the start page](/).
 
 A post of a type with an address answers at its own address, and at two more kinds, each a redirect to it or the post itself shown there:
 
-- **`oldAddresses`**, the addresses it had before, where the site showed it, which redirect permanently, with 301. A build adds the address a post was live at when it is published at another, as when its slug or its parent changes.
+- **`oldAddresses`**, the addresses it had before, where the site showed it, which redirect permanently, with 301. A build adds the address a post was live at when it is published at another, as when its slug or its parent changes, or a value its address holds: its date, its term, or its term's slug or parent ([A post's address](#a-posts-address)).
 - **`otherAddresses`**, addresses an editor gave it, each `{"address":…,"answer":…}`, its answer 301, 302, 307 or 308, or `"show"`: the post's own page at that address too, its canonical address the post's, at a path without a query. A build writes the post's page again there; no sitemap or list holds such an address.
 
 Each is an address on the site as a browser sends it, a path, with a query or not. The site answers an address from one holder, in this order: the site's own files, a post's own address, a post's other addresses, the site's exact rules in `redirects.json`, old addresses, and last the patterns.
