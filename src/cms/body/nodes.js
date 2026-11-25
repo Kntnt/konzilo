@@ -14,7 +14,7 @@ import { $command, $inputRule, $markSchema, $node, $nodeSchema, $prose, $view } 
 
 import rules from '../../format/rules.json' with { type: 'json' };
 import { made } from './dialog.js';
-import { displayWidthTitle, isDisplayWidth } from '../../format/body.js';
+import { focusIn, focusText, imageTitle, isDisplayWidth } from '../../format/body.js';
 import { embedOf } from '../../format/embeds.js';
 import { editEmbed } from './embed-edit.js';
 import { CAPTION_NODE, LINE_NODE } from './format.js';
@@ -94,15 +94,17 @@ const writeCaption = (state, node) => {
 };
 
 const writeImage = (state, node) => {
-  state.addNode('image', undefined, undefined, { url: node.attrs.src, alt: node.attrs.alt, title: node.attrs.width ? displayWidthTitle(node.attrs.width) : null });
+  const title = imageTitle({ width: node.attrs.width ?? null, focus: node.attrs.focus ?? null });
+  state.addNode('image', undefined, undefined, { url: node.attrs.src, alt: node.attrs.alt, title: title === '' ? null : title });
   if (hasCaption(node)) {
     state.addNode('break');
     writeCaption(state, node);
   }
 };
 
-// An image in a body: its address, its alt text and its display width, copied from the library
-// with it and null where it fills the column, as attributes, and its caption as what it holds,
+// An image in a body: its address, its alt text, its display width, copied from the library with it
+// and null where it fills the column, and its focal point, { x, y }, copied with it and moved in
+// its dialog, null where it has none, as attributes, and its caption as what it holds,
 // so that the schema itself keeps a caption to what the format lets it take: no link, line break
 // or footnote. It is written as the format has it, and the writer's `image` takes its alt text.
 export const imageNode = $nodeSchema(IMAGE, () => ({
@@ -113,19 +115,19 @@ export const imageNode = $nodeSchema(IMAGE, () => ({
   defining: true,
   draggable: true,
   selectable: true,
-  attrs: { src: { validate: 'string' }, alt: { default: '', validate: 'string' }, width: { default: null, validate: 'number|null' } },
+  attrs: { src: { validate: 'string' }, alt: { default: '', validate: 'string' }, width: { default: null, validate: 'number|null' }, focus: { default: null, validate: 'object|null' } },
   parseDOM: [
     {
       tag: 'figure[data-konzilo-image]',
       contentElement: 'figcaption',
-      getAttrs: (dom) => ({ src: dom.dataset.src ?? '', alt: dom.dataset.alt ?? '', width: isDisplayWidth(Number(dom.dataset.width)) ? Number(dom.dataset.width) : null }),
+      getAttrs: (dom) => ({ src: dom.dataset.src ?? '', alt: dom.dataset.alt ?? '', width: isDisplayWidth(Number(dom.dataset.width)) ? Number(dom.dataset.width) : null, focus: focusIn(dom.dataset.focus) }),
     },
   ],
-  toDOM: ({ attrs: { src, alt, width } }) => ['figure', { 'data-konzilo-image': '', 'data-src': src, 'data-alt': alt, ...(width ? { 'data-width': String(width) } : {}) }, ['figcaption', 0]],
+  toDOM: ({ attrs: { src, alt, width, focus } }) => ['figure', { 'data-konzilo-image': '', 'data-src': src, 'data-alt': alt, ...(width ? { 'data-width': String(width) } : {}), ...(focus ? { 'data-focus': focusText(focus) } : {}) }, ['figcaption', 0]],
   parseMarkdown: {
     match: ({ type }) => type === 'konziloImage',
     runner: (state, node, type) => {
-      state.openNode(type, { src: node.src, alt: node.alt, width: node.width ?? null });
+      state.openNode(type, { src: node.src, alt: node.alt, width: node.width ?? null, focus: node.focus ?? null });
       state.next(node.children);
       state.closeNode();
     },
@@ -238,7 +240,10 @@ export const atEmptyTopBlock = ({ selection: { empty, $from }, schema }) => empt
 // Whether the selection is in the caption of an image or a gallery.
 export const inImageCaption = ({ selection: { $from } }) => CAPTIONS.has($from.parent.type.name);
 
-const imageOf = ({ schema }, chosen) => schema.nodes[IMAGE].create({ src: chosen.src, alt: chosen.alt, width: chosen.displayWidth ?? null }, chosen.caption ? schema.text(chosen.caption) : null);
+// Whether two focal points, each { x, y } or null, are the same.
+const samePoint = (one, other) => (one ?? null) === (other ?? null) || (one?.x === other?.x && one?.y === other?.y);
+
+const imageOf = ({ schema }, chosen) => schema.nodes[IMAGE].create({ src: chosen.src, alt: chosen.alt, width: chosen.displayWidth ?? null, focus: chosen.focalPoint ?? null }, chosen.caption ? schema.text(chosen.caption) : null);
 
 // A block in place of an empty block, or after the block at the cursor, with the cursor after it,
 // so that writing can go on.
@@ -326,7 +331,7 @@ export const penOn = (parent, words, run) => {
 // place below it, and on the picture one button, to what else there is to do with it, which in a
 // gallery is the gallery's. What it says for those who cannot see it shows only when the picture
 // does not, or when it says nothing.
-function imageControls(initial, view, getPos, picture) {
+function imageControls(initial, view, getPos, picture, frames) {
   let node = initial;
   const dom = made('figure', 'konzilo-image');
   dom.dataset.src = node.attrs.src;
@@ -367,12 +372,12 @@ function imageControls(initial, view, getPos, picture) {
 
   if (view.state.doc.resolve(getPos()).parent.type.name !== GALLERY) {
     penOn(shown, say('body.imageEdit'), async () => {
-      const answer = await editImage({ alt: node.attrs.alt, address: shown.dataset.state === 'shown' ? img.src : null });
+      const answer = await editImage({ alt: node.attrs.alt, address: shown.dataset.state === 'shown' ? img.src : null, focus: node.attrs.focus, frames });
       if (view.isDestroyed) return;
       const pos = getPos();
       if (answer !== null && pos !== undefined) {
         if (answer.remove) view.dispatch(view.state.tr.delete(pos, pos + node.nodeSize));
-        else if (answer.alt !== node.attrs.alt) view.dispatch(view.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, alt: answer.alt }));
+        else if (answer.alt !== node.attrs.alt || !samePoint(answer.focus, node.attrs.focus)) view.dispatch(view.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, alt: answer.alt, focus: answer.focus }));
       }
       view.focus();
     });
@@ -395,28 +400,28 @@ function imageControls(initial, view, getPos, picture) {
   };
 }
 
-export const imageView = (picture) => $view(imageNode.node, () => (node, view, getPos) => imageControls(node, view, getPos, picture));
+export const imageView = (picture, frames = []) => $view(imageNode.node, () => (node, view, getPos) => imageControls(node, view, getPos, picture, frames));
 
 // How a gallery shows in the field: its images side by side, each caption in place, its own caption
 // below them, and one pen, to all else there is to do with it.
-function galleryControls(initial, view, getPos, images) {
+function galleryControls(initial, view, getPos, images, frames) {
   let node = initial;
   const dom = made('figure', 'konzilo-gallery-field');
   const contentDOM = made('div', 'konzilo-gallery-images', dom);
   const pen = penOn(dom, say('body.galleryEdit'), async () => {
     const held = [];
     node.forEach((child) => {
-      if (child.type.name === IMAGE) held.push({ kept: child, src: child.attrs.src, alt: child.attrs.alt });
+      if (child.type.name === IMAGE) held.push({ kept: child, src: child.attrs.src, alt: child.attrs.alt, focalPoint: child.attrs.focus });
     });
-    const answer = await editGallery({ images: held, choose: images?.chooseSeveral ?? null, picture: images?.picture ?? null });
+    const answer = await editGallery({ images: held, choose: images?.chooseSeveral ?? null, picture: images?.picture ?? null, frames });
     if (view.isDestroyed) return;
     const pos = getPos();
     if (answer !== null && pos !== undefined) {
       const start = pos + 1;
       const end = pos + node.nodeSize - 1 - node.lastChild.nodeSize;
       if (answer.remove) view.dispatch(view.state.tr.delete(pos, pos + node.nodeSize));
-      else if (answer.images.length !== held.length || answer.images.some(({ kept, alt }, index) => kept !== held[index].kept || alt !== held[index].alt)) {
-        const rebuilt = answer.images.map((one) => (one.kept ? one.kept.type.create({ ...one.kept.attrs, alt: one.alt }, one.kept.content) : imageOf(view.state, one)));
+      else if (answer.images.length !== held.length || answer.images.some(({ kept, alt, focalPoint }, index) => kept !== held[index].kept || alt !== held[index].alt || !samePoint(focalPoint, held[index].focalPoint))) {
+        const rebuilt = answer.images.map((one) => (one.kept ? one.kept.type.create({ ...one.kept.attrs, alt: one.alt, focus: one.focalPoint ?? null }, one.kept.content) : imageOf(view.state, one)));
         view.dispatch(rebuilt.length > 0 ? view.state.tr.replaceWith(start, end, rebuilt) : view.state.tr.delete(start, end));
       }
     }
@@ -476,7 +481,7 @@ function embedControls(initial, view, getPos) {
 
 export const embedView = $view(embedNode.node, () => (node, view, getPos) => embedControls(node, view, getPos));
 
-export const galleryView = (images) => $view(galleryNode.node, () => (node, view, getPos) => galleryControls(node, view, getPos, images));
+export const galleryView = (images, frames = []) => $view(galleryNode.node, () => (node, view, getPos) => galleryControls(node, view, getPos, images, frames));
 
 export const galleryCaptionView = $view(galleryCaption.node, () => (initial) => {
   let node = initial;

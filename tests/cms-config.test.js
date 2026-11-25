@@ -694,14 +694,14 @@ describe('the image library', () => {
     assert.deepEqual(page.fields.find(({ name }) => name === 'body').frames, frames);
   });
 
-  test('lets a post move the focal point of its featured image, its teaser\'s and its sharing image, the last by the sharing image\'s frame alone, and the settings\' images not', () => {
+  test('lets a post move the focal point of its featured image, its teaser\'s and its sharing image, by the same frames, and the settings\' images not', () => {
     const designed = cmsConfig(description, { ...place, ratios: { card: '1:1' } });
     const { fields } = designed.collections.find(({ name }) => name === 'articles');
     const card = { ratio: 1, text: '1:1', contexts: ['card'] };
     const sharing = { ratio: 1200 / 630, text: '1.91:1', contexts: ['sharing'] };
     assert.deepEqual(field(fields, 'image').frames, [card, sharing]);
     assert.deepEqual(field(field(fields, 'teaser').fields, 'image').frames, [card, sharing]);
-    assert.deepEqual(field(field(fields, 'sharing').fields, 'image').frames, [sharing]);
+    assert.deepEqual(field(field(fields, 'sharing').fields, 'image').frames, [card, sharing]);
     const settings = designed.collections.find(({ name }) => name === 'settings').files[0].fields;
     assert.deepEqual(settings.filter(({ name }) => ['logo', 'icon'].includes(name)).map(({ frames }) => frames), [undefined, undefined]);
   });

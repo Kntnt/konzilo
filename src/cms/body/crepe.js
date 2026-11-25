@@ -292,8 +292,8 @@ const toolbarOptions = (takes, formulas) => ({
 // An editor on `root` holding `value`: { write(), view, destroy() }. `changed` is told of each
 // change to the document, which may be no real edit: a trailing paragraph is one too. `images`:
 // { choose(), chooseSeveral(), picture(address) } as the field gives them, or null where there
-// is no library.
-export async function makeEditor({ root, value, elements, changed, images = null }) {
+// is no library. `frames`: those an image's focal point is moved by in its dialog.
+export async function makeEditor({ root, value, elements, changed, images = null, frames = [] }) {
   const taken = new Set(elements);
   const takes = (element) => taken.has(element);
   const policy = { takes, pasting: false };
@@ -363,8 +363,8 @@ export async function makeEditor({ root, value, elements, changed, images = null
 
   editor.use(bodyDocument(takes('image') || takes('embed') || takes('block-math'))).use(markOrder.flat()).use(keptBlock).use(superscript).use(subscript).use(toggleSuperscript).use(toggleSubscript);
   if (takes('embed')) editor.use(embedNode).use(insertEmbed).use(embedView);
-  if (takes('image')) editor.use(imageNode).use(insertImage).use(imageStaysAnImage).use(imageView(images?.picture ?? null));
-  if (takes('image') && takes('gallery')) editor.use(galleryCaption).use(galleryNode).use(insertGallery).use(galleriesHoldTwo).use(galleryView(images)).use(galleryCaptionView);
+  if (takes('image')) editor.use(imageNode).use(insertImage).use(imageStaysAnImage).use(imageView(images?.picture ?? null, frames));
+  if (takes('image') && takes('gallery')) editor.use(galleryCaption).use(galleryNode).use(insertGallery).use(galleriesHoldTwo).use(galleryView(images, frames)).use(galleryCaptionView);
   if (takes('heading')) editor.use(headingWithAnchor).use(headingInputRule);
   if (takes('quote')) editor.use(citation).use(quoteWithCitation).use(toggleCitation);
   if (takes('footnotes')) editor.use(insertFootnote).use(footnotesInStep);

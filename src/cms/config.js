@@ -15,7 +15,7 @@ import { DRAFT, POST_STATUSES } from '../format/post-status.js';
 import { declaredNames } from '../site-description.js';
 import { SHARING_SAFE, SHARING_SIZE } from '../format/article-parts.js';
 import { DISPLAY_WIDTH_WIDGET, FOCAL_POINT_WIDGET, IMAGE_WIDGET, LOSSLESS_WIDGET } from './image/widget.js';
-import { framesOf, sharingFrame } from './image/frames.js';
+import { framesOf } from './image/frames.js';
 import { STRUCTURE_WIDGET } from './structure/widget.js';
 import { AUTHORS_WIDGET } from './authors/widget.js';
 import { SCHEMA_WIDGET, SLUG_WIDGET, TEXT_WIDGET } from './parts/widgets.js';
@@ -65,10 +65,9 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
   const required = (field) => ({ required: field === true });
 
   // The frames an editor places an image's focal point by (image/focal-point.js), each an aspect
-  // ratio and the contexts that crop an image to it: the design's, and the sharing image's; and
-  // the sharing image's alone, for the image a post shares and nothing else draws.
+  // ratio and the contexts that crop an image to it: the design's, and the sharing image's, the
+  // same wherever the point is moved.
   const frames = framesOf(ratios);
-  const sharingFrames = [sharingFrame()];
 
   // An image from the image library, the one place an editor finds images, with its alt text
   // copied in where the field has one (image/register.js). Its value is { src, alt }, as the
@@ -247,7 +246,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
         { name: 'nofollow', label: say('seoNofollow'), widget: 'boolean' },
       ]),
       group('sharing', [
-        imageField('image', say('seoSocialImage'), { required: false, crop: [SHARING_SIZE.width, SHARING_SIZE.height], safe: [SHARING_SAFE.width, SHARING_SAFE.height], frames: sharingFrames, ...(type.fields.some((field) => field.kind === 'image') ? { fallback: true } : {}) }),
+        imageField('image', say('seoSocialImage'), { required: false, crop: [SHARING_SIZE.width, SHARING_SIZE.height], safe: [SHARING_SAFE.width, SHARING_SAFE.height], frames, ...(type.fields.some((field) => field.kind === 'image') ? { fallback: true } : {}) }),
         { name: 'title', label: say('seoSocialTitle'), widget: 'string', ...shown('socialTitle') },
         { name: 'description', label: say('seoSocialDescription'), widget: 'text', ...(teaser ? { widget: TEXT_WIDGET, multiline: true, fallback: 'socialDescription' } : {}) },
       ]),

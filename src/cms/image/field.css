@@ -31,3 +31,21 @@
 .konzilo-pick-check .konzilo-dialog-hint { margin: 4px 0 0; font-size: 13px; color: var(--sui-tertiary-foreground-color, var(--sui-secondary-foreground-color)); }
 .konzilo-pick-status { margin: 0; color: var(--sui-secondary-foreground-color); }
 .konzilo-pick-status:empty { display: none; }
+/* An image's focal point: the picture, with the point on it and a frame for each aspect ratio
+   (focal-point.js), the hint under it and the button that clears the point. */
+.konzilo-focal { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; font: 14px/1.4 var(--sui-font-family-default, system-ui, sans-serif); color: var(--sui-primary-foreground-color, inherit); }
+.konzilo-focal [hidden] { display: none !important; }
+.konzilo-focal-picture { position: relative; display: inline-block; max-width: 100%; line-height: 0; cursor: crosshair; touch-action: none; user-select: none; }
+.konzilo-focal-picture img { display: block; max-width: 100%; max-height: 320px; border-radius: 4px; }
+.konzilo-focal-frame { position: absolute; box-sizing: border-box; border: 2px dashed #fff; outline: 1px solid rgb(0 0 0 / 0.6); pointer-events: none; }
+.konzilo-focal-frame:nth-of-type(2n) { border-color: #ffd54f; }
+.konzilo-focal-frame:nth-of-type(3n) { border-color: #80deea; }
+.konzilo-focal-frame-label { position: absolute; top: 2px; left: 2px; padding: 1px 4px; border-radius: 3px; background: rgb(0 0 0 / 0.7); color: #fff; font-size: 11px; line-height: 1.3; white-space: nowrap; }
+.konzilo-focal-point { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; box-sizing: border-box; border: 3px solid #fff; border-radius: 50%; background: rgb(220 38 38 / 0.85); box-shadow: 0 0 0 1px rgb(0 0 0 / 0.7), 0 1px 4px rgb(0 0 0 / 0.5); cursor: grab; }
+.konzilo-focal-point:focus-visible { outline: 3px solid #1565c0; outline-offset: 2px; }
+.konzilo-focal-point.konzilo-focal-none { background: rgb(255 255 255 / 0.4); border-style: dashed; }
+.konzilo-focal-hint, .konzilo-focal-empty { margin: 0; font-size: 13px; line-height: 1.4; color: var(--sui-secondary-foreground-color, #555); }
+.konzilo-focal-clear { height: 32px; padding: 0 12px; border: 1px solid var(--sui-control-border-color, #ccc); border-radius: 6px; background: var(--sui-control-background-color, #fff); color: var(--sui-control-foreground-color, inherit); font: inherit; cursor: pointer; }
+.konzilo-focal-clear:disabled { opacity: 0.5; cursor: default; }
+/* Said to a screen reader alone. */
+.konzilo-focal-told { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

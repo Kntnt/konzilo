@@ -50,6 +50,7 @@ export function bodyControl({ adminHost, library = null, load = loadField }) {
             adminHost,
             library,
             smallestWidth: plain(field.get('smallestWidth')) ?? null,
+            frames: plain(field.get('frames')) ?? [],
           });
           made.setChanged = (to) => {
             changedTo = to;
