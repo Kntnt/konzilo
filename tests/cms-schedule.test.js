@@ -70,6 +70,17 @@ describe('the check at Save', () => {
     assert.equal(cycleThrough(own, [{ ...programme, triggers: [[{ moment: LATER }, programme.triggers[0][0]]] }, tickets]), null, 'a row with a moment on it comes to hold in time, whatever else it waits for');
     assert.equal(cycleThrough({ ...own, rows: [[{ moment: LATER }], own.rows[0]] }, [programme, tickets]), 'The programme', 'a row of posts alone waits for them');
   });
+
+  test('counts the terms above the post\'s own, as the intake does, so that a cycle through a parent term is stopped too', () => {
+    // Topics: science > physics. The post in the form has physics, and waits for the programme,
+    // which waits for a post with science.
+    const parents = new Map([['physics', 'science']]);
+    const own = { file: 'articles/aaaa.md', type: 'story', title: 'Opening night', terms: ['physics'], rows: [[{ published: [[{ words: 'programme' }]], since: NOW }]] };
+    const programme = { file: 'articles/bbbb.md', type: 'story', title: 'The programme', terms: [], triggers: [[{ published: [[{ term: 'science' }]], since: NOW }]] };
+    assert.equal(cycleThrough(own, [programme], parents), 'The programme');
+    assert.equal(cycleThrough(own, [programme]), null, 'with no term above physics known');
+    assert.equal(cycleThrough(own, [programme], new Map([['physics', 'science'], ['science', 'physics']])), 'The programme', 'and ends where terms loop');
+  });
 });
 
 test('the date is out of sight while the triggers hold its moments, and the triggers while the post is not scheduled', async () => {

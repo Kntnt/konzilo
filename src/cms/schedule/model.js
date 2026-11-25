@@ -74,16 +74,29 @@ export function problemAtSave(rows, now) {
 const waitsFor = (rows, others, self) => others.filter((other) => other.file !== self && rows.some((row) => !row.some((trigger) => Object.hasOwn(trigger, 'moment'))
   && row.some((trigger) => trigger.published && meets(trigger.published, { type: other.type, title: other.title ?? '', terms: other.terms ?? [], at: null }))));
 
+// A post's terms and every term above them, by `parents`, each term's parent by its ID, as the
+// intake counts a post's terms (intake/triggers.js).
+function withTermsAbove(terms, parents) {
+  const found = new Set(terms);
+  for (const term of terms) {
+    for (let above = parents.get(term); above !== undefined && !found.has(above); above = parents.get(above)) found.add(above);
+  }
+  return [...found];
+}
+
 /**
  * The title of the post a cycle of waiting runs through, from the post in the form back to it, or
  * null where there is none.
  * @param {{ file: string | null, type: string, title: string, terms: string[], rows: object[][] }} own
- *   the post in the form, as the form holds it
+ *   the post in the form, as the form holds it, with its own terms, to which those above them are
+ *   added
  * @param {{ file: string, type: string, title: string, terms: string[], triggers: object[][] }[]} others
- *   the scheduled posts that wait for triggers, as the last build read them
+ *   the scheduled posts that wait for triggers, as the last build read them, the terms above their
+ *   own among their terms
+ * @param {Map<string, string>} parents each term's parent, by the term's ID
  */
-export function cycleThrough(own, others) {
-  const posts = [{ ...own, triggers: own.rows }, ...others.filter((other) => other.file !== own.file)];
+export function cycleThrough(own, others, parents = new Map()) {
+  const posts = [{ ...own, terms: withTermsAbove(own.terms ?? [], parents), triggers: own.rows }, ...others.filter((other) => other.file !== own.file)];
   const seen = new Set();
   // A walk from each post the form's waits for, back to the form's.
   const leadsBack = (post) => {

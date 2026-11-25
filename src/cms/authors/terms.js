@@ -12,11 +12,13 @@ const BLOBS_AT_ONCE = 30;
 
 const decoded = (content) => new TextDecoder().decode(Uint8Array.from(atob(content), (character) => character.charCodeAt(0)));
 
-// What a term's file says of its author, or null for one with no name to show.
-function nameIn(text) {
+// What a term's file says of its author, its name and, in a hierarchical taxonomy, its parent's
+// ID, or null for one with no name to show.
+function termIn(text) {
   try {
-    const { name } = JSON.parse(text);
-    return typeof name === 'string' && name.trim() !== '' ? name.trim() : null;
+    const { name, parent } = JSON.parse(text);
+    if (typeof name !== 'string' || name.trim() === '') return null;
+    return { name: name.trim(), ...(typeof parent === 'string' && parent !== '' ? { parent } : {}) };
   } catch {
     return null;
   }
@@ -38,7 +40,7 @@ export function authorsIn({ api, repository, branch = 'main', folder, credential
   const known = new Map();
 
   return {
-    // Each author, as { id, name }.
+    // Each author, as { id, name }, a term with a parent with `parent` too.
     async list() {
       const listed = await ask(where).catch((error) => {
         if (error.status === 404) return [];
@@ -48,9 +50,9 @@ export function authorsIn({ api, repository, branch = 'main', folder, credential
       const unknown = files.map(({ sha }) => sha).filter((sha) => !known.has(sha));
       for (let at = 0; at < unknown.length; at += BLOBS_AT_ONCE) {
         const blobs = await ask(`/git/blobs?shas=${unknown.slice(at, at + BLOBS_AT_ONCE).join(',')}`);
-        for (const blob of blobs ?? []) if (blob) known.set(blob.sha, nameIn(decoded(blob.content)));
+        for (const blob of blobs ?? []) if (blob) known.set(blob.sha, termIn(decoded(blob.content)));
       }
-      return files.map(({ name, sha }) => ({ id: name.slice(0, -'.json'.length), name: known.get(sha) })).filter(({ name }) => name);
+      return files.filter(({ sha }) => known.get(sha)).map(({ name, sha }) => ({ id: name.slice(0, -'.json'.length), ...known.get(sha) }));
     },
 
     // A new author, as `list` gives one, with its biography where one is written.

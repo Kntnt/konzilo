@@ -67,6 +67,14 @@ describe('the authors', () => {
     assert.deepEqual(await authorsOf(forgejo()).list(), []);
   });
 
+  // Any folder of terms reads the same way, the form's check of a scheduled post's triggers
+  // reading the topics' to count the terms above a post's own.
+  test('are given with the parent of a term in a hierarchical taxonomy', async () => {
+    const stand = forgejo({ files: { 'topics/science.json': term({ name: 'Science' }, 's1'), 'topics/physics.json': term({ name: 'Physics', parent: 'science' }, 'p1') } });
+    const byId = (terms) => terms.sort((one, other) => one.id.localeCompare(other.id));
+    assert.deepEqual(byId(await authorsOf(stand, { folder: 'topics' }).list()), [{ id: 'physics', name: 'Physics', parent: 'science' }, { id: 'science', name: 'Science' }]);
+  });
+
   test('ask for each file once while a page is open', async () => {
     const stand = forgejo({ files: { 'authors/ines-holm.json': term({ name: 'Ines Holm' }, 'i1') } });
     const authors = authorsOf(stand);

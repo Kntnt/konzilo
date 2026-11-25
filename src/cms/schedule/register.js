@@ -196,7 +196,8 @@ export function registerSchedule(CMS, config) {
 
   // At Save, a scheduled post waits for something still to come: each moment among its triggers
   // ahead, a window not wholly passed, nothing left empty, and no cycle of posts that wait for each
-  // other, as the last build read the others. A moment alone keeps the words it always had.
+  // other, as the last build read the others, the terms above the post's own counted among its
+  // terms. A moment alone keeps the words it always had.
   const collections = Object.fromEntries((config.collections ?? []).filter((one) => one.fields).map((one) => [one.name, one]));
   const triggersField = (made) => made?.fields?.flatMap((one) => one.fields ?? [one]).find((one) => one.widget === TRIGGERS_WIDGET) ?? null;
   CMS.registerEventListener({
@@ -218,7 +219,10 @@ export function registerSchedule(CMS, config) {
       const isOwn = (file) => Boolean(id) && file.startsWith(`${collection.folder}/`) && file.endsWith(`/${id}.md`);
       const terms = (own.termFields ?? []).flatMap((name) => (Array.isArray(data[name]) ? data[name] : data[name] ? [data[name]] : [])).map(String);
       const others = status.posts.filter((one) => one.status === 'scheduled' && one.triggers && !isOwn(one.file));
-      const through = cycleThrough({ file: null, type: own.type, title: data.title ?? '', terms, rows }, others);
+      // Each term's parent, so that the terms above the post's own count, as the intake counts them.
+      const listed = await Promise.all((own.taxonomies ?? []).map(({ folder }) => termsOf(folder)));
+      const parents = new Map(listed.flat().filter((one) => one.parent).map((one) => [one.id, one.parent]));
+      const through = cycleThrough({ file: null, type: own.type, title: data.title ?? '', terms, rows }, others, parents);
       if (through) refuseAtSave(say('schedule.cycle', { post: through }));
     },
   });
