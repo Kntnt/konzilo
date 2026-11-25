@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Removed
+
+- Sveltia's Asset Library, which no menu offered but which still opened at its address, there to move, rename or delete a file under no lock, a file posts still show among them. Its address now leads to the list of entries. An image is still added and deleted through its entry in the image library, and chosen and uploaded from every image field as before.
+
 ## [0.8.0] – 2026-11-24
 
 ### Changed
