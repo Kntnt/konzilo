@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- A *Focal point* for an image in the image library: the part every crop of the image must keep, placed with a click or a drag on the image, or with the arrow keys, and cleared with a button or Delete. A frame for each aspect ratio the site's design crops images to, and for the sharing image's, shows what its crop keeps, and follows the point as it moves; a screen reader is told where the point stands. It is copied into a post with the image, as its alt text is, into a body's image and gallery and into the featured image, the teaser's and the sharing image, and the post can move its own copy: in the image's dialog in a body, and with *Focal point…* in a gallery's dialog and in an image field. Moving it in one leaves the other as it was. A body writes it in the image's title, `![…](… "focus=0.3,0.6")`.
+- `konzilo({ images })` takes the aspect ratio a design draws a body's, a gallery's, a hero's or a card's image in, `ratio: '16:9'`. An image of another ratio is then served there cropped to it, around its focal point, or its middle without one, each version holding the crop alone, so no pixel outside it is sent. The lightbox still shows the whole image, and `imageVersions('card', entry.data.image)` gives a template the crop of a post's image. A site whose design names no ratios is built as before.
+
+### Changed
+
+- The image a page shares, 1200 × 630, is cropped around the focal point of the image it is made of, where it has one, rather than always around its middle.
+
 ## [0.10.0] – 2026-11-25
 
 ### Added

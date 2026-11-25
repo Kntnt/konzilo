@@ -13,7 +13,7 @@ A site's design comes from its own stylesheets and components, which the templat
 | `presentations` | A component for each presentation the description declares, each a path from the site's root, or a package's by its name |
 | `directives` | A component for a directive, in the same way |
 | `searchPage`, `termPage` | A page of the design, in the same way |
-| `images` | The widths and sizes in which the design draws an image, by context, `body`, `gallery`, `lightbox`, `hero` and `card`, each `{ widths, sizes }`: its widths whole numbers of pixels up to 2520, and its sizes the text of a `sizes` attribute; a context, or a part of one, left out keeps the core's |
+| `images` | The widths, sizes and aspect ratio in which the design draws an image, by context, `body`, `gallery`, `lightbox`, `hero` and `card`, each `{ widths, sizes, ratio }`: its widths whole numbers of pixels up to 2520, its sizes the text of a `sizes` attribute, and its ratio a width and a height with a colon between, `'16:9'`, which the lightbox takes none of; a context, or a part of one, left out keeps the core's, whose ratio is none, each image's own |
 
 A site's own templates write the wrapper around a body, with whatever class its styles are scoped to, and render the body through `Body.astro`. A layout places `ConsentBanner.astro`, or an embed shows only as its address, which the build warns of.
 
@@ -115,11 +115,13 @@ In a tab of its own, the live preview puts its toolbar last in each page's body,
 
 An image is a `figure` with no class of its own, holding its `figcaption` if it has one.
 
-Its `img` has a `srcset` of its versions, each no wider than its master, by their widths in `w`, and the `sizes` of its context, a gallery's for an image in a gallery and else a body's, from `images` or the core's; its `src` is its widest version, whose size its `width` and `height` give. A design that draws a context at another width gives its `sizes` the same breakpoints its CSS uses, so that the two never disagree, and its widths from its own measures, at about each width its sizes can come to at densities 1 and 2. The `srcset` holds the lightbox's widths too, which a browser loads only for the lightbox ([ADR 0022](adr/0022-make-each-images-master-from-its-original-and-write-images-and-galleries-in-markdown.md)).
+Its `img` has a `srcset` of its versions, each no wider than its master, by their widths in `w`, and the `sizes` of its context, a gallery's for an image in a gallery and else a body's, from `images` or the core's; its `src` is its widest version, whose size its `width` and `height` give. A design that draws a context at another width gives its `sizes` the same breakpoints its CSS uses, so that the two never disagree, and its widths from its own measures, at about each width its sizes can come to at densities 1 and 2. The `srcset` holds the lightbox's widths too, which a browser loads only for the lightbox, but where the context crops the image ([ADR 0022](adr/0022-make-each-images-master-from-its-original-and-write-images-and-galleries-in-markdown.md)).
 
 An image standing alone with a display width of its own, the widest it is meant to be drawn, such as a diagram saved at twice that size, has `width` and `height` at that width, by its master's proportions, where it is narrower than its widest version, and each of its `sizes` no wider, by `min()`: `(min-width: 46rem) min(46rem, 632px), min(100vw, 632px)`; its `srcset` and `src` are as any other's, so a dense screen draws it by its full pixels. A design draws a body's image at most its `width`, `max-width: 100%` and `height: auto`, and never `width: 100%`, which would stretch it; how a figure narrower than its column stands in it, and its caption with it, is the design's. An image in a gallery has no display width.
 
-A template draws a hero's or a card's image, or any other from a master, in the widths and sizes of its context through `imageVersions()`: `<Image src={…} alt={…} {...imageVersions('card')} />`, with `imageVersions` from `@kntnt/konzilo/astro/images`.
+A context with an aspect ratio of its own has each image of another ratio cropped to it around the image's focal point, or its middle where it has none, every version holding the crop alone, with `width` and `height` in the crop's ratio, so a design draws such an image as it draws any other and gets the ratio it named; an image in that ratio already is not cropped ([`content-format.md`](../content-format.md#focal-point)). The editor shows a frame for each ratio the design names over each image whose focal point is placed, beside the sharing image's, 1.91:1, which it reads from the site's `astro.config.mjs`. Such an image on a page has the versions of its crop alone in its `srcset`, and its lightbox those of the whole image.
+
+A template draws a hero's or a card's image, or any other from a master, in the widths and sizes of its context through `imageVersions()`, which takes the image as its field holds it, so that one cropped to the context's ratio is cropped around its focal point: `<Image src={entry.data.image.src} alt={entry.data.image.alt} {...imageVersions('card', entry.data.image)} />`, with `imageVersions` from `@kntnt/konzilo/astro/images`.
 
 ### Tables in a body
 
@@ -150,7 +152,7 @@ The rest of a body is plain elements with no class of Konzilo's, as `content-for
 
 ### The lightbox
 
-The core's stylesheet makes it work, and it stands inside a body's wrapper, so a design's rules on `ul`, `li`, `figure`, `figcaption`, `img` or `button` must not reach into it. On a page an image stands in a button: `figure > button.konzilo-lightbox-open > img`. A closed dialog stands right after each single image's figure, and after a gallery as a whole, and counts as a sibling. Each image in it has the `srcset` it has on the page and the lightbox's `sizes` from `images`, `100vw` by default.
+The core's stylesheet makes it work, and it stands inside a body's wrapper, so a design's rules on `ul`, `li`, `figure`, `figcaption`, `img` or `button` must not reach into it. On a page an image stands in a button: `figure > button.konzilo-lightbox-open > img`. A closed dialog stands right after each single image's figure, and after a gallery as a whole, and counts as a sibling. Each image in it has the `srcset` it has on the page, or the whole image's where the page's is cropped to its context's ratio, and the lightbox's `sizes` from `images`, `100vw` by default.
 
 | Class | On | State |
 |---|---|---|

@@ -214,13 +214,15 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Image version**: One of the fixed widths a build makes of a master, as WebP, never wider than the master, which a page lists in an image's `srcset` for the browser to choose from by the image's `sizes`. _Avoid_: rendition, derivative, thumbnail.
 
-**Image context**: Where a site draws an image, a body, a gallery, the lightbox, a hero or a card, each with the widths of its versions and its `sizes`, from the site's design or the core's. _Avoid_: slot, placement.
+**Image context**: Where a site draws an image, a body, a gallery, the lightbox, a hero or a card, each with the widths of its versions, its `sizes` and its aspect ratio, from the site's design or the core's, whose ratio is each image's own. _Avoid_: slot, placement.
+
+**Focal point**: What every crop of an image keeps, as two fractions of its width and its height, set in the image library and copied into a post with the image, where the post may move its own copy; an image drawn in a context of another aspect ratio is cropped around it, and around its middle without one. _Avoid_: focus area, hotspot, crop point.
 
 **Featured image**: The image a post is shown with, beside its body, with alt text that belongs to the post. _Avoid_: hero image, cover.
 
 **Image in body text**: An image placed between the blocks of a body and shown as its image versions, the browser choosing among them by the widths the design draws it at, with alt text and an optional caption that belong to that use. _Avoid_: inline image, figure.
 
-**Image library**: The collection of images an editor chooses from in a body, each with alt text, an optional caption and a display width that are copied into the post at the choice. _Avoid_: media library, image bank.
+**Image library**: The collection of images an editor chooses from in a body, each with alt text, an optional caption, a display width and a focal point that are copied into the post at the choice. _Avoid_: media library, image bank.
 
 **Display width**: The widest an image standing alone in a body is drawn, in pixels, set in the image library and copied into the post with the image, for a figure saved at twice or three times the size it is meant to be read at, which a file named `@2x` or `@3x` fills in at upload; without one, the image fills the column. It is no density: the image keeps its full pixels for a dense screen. Not the site description's `images.displayWidth`, the width the site usually shows images at. _Avoid_: pixel density, retina, intrinsic size.
 

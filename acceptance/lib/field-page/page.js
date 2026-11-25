@@ -10,6 +10,7 @@ import { base64 } from '../../../src/cms/base64.js';
 import { convertForUpload } from '../../../src/cms/image/convert.js';
 import { displayWidthBox } from '../../../src/cms/image/display-width.js';
 import { mountImageField } from '../../../src/cms/image/field.js';
+import { focalPointPicker } from '../../../src/cms/image/focal-point.js';
 import { handsFor, loadFormulas, loadReader } from '../../../src/cms/body/check.js';
 import { blockAt } from '../../../src/cms/body/place.js';
 import { mountBodyField } from '../../../src/cms/body/field.js';
@@ -26,6 +27,9 @@ let fields = [];
 // fails at; `added` is what it was asked to add, and `addedBytes` each file's bytes, as base64.
 // `settings` is how an upload is converted, as the site's settings would say.
 const PICTURE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEBgIApD5fRAAAAABJRU5ErkJggg==';
+// A picture three wide to two high, 300 × 200, for an image whose address says `wide`.
+const WIDE = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect width="300" height="200" fill="#468"/></svg>')}`;
+const pictureOf = async (address) => (address.includes('no-picture') ? null : address.includes('wide') ? WIDE : PICTURE);
 const libraryWith = ({ entries = [], throwing = {}, settings = { longestSide: 3840, quality: 90 } }) => {
   const added = [];
   const addedBytes = [];
@@ -49,7 +53,7 @@ const libraryWith = ({ entries = [], throwing = {}, settings = { longestSide: 38
       const entry = { src: `/media/${file.name}`, alt: alt.trim(), caption: caption.trim(), ...width };
       return entry;
     },
-    picture: async (address) => (address.includes('no-picture') ? null : PICTURE),
+    picture: pictureOf,
   };
 };
 
@@ -64,7 +68,7 @@ const settled = () => new Promise((resolve) => {
 // `answering` keeps what the field writes, as an owner would hold it on its way back, until
 // the test lets the answers come. `language` is the interface language, which the editor
 // names from its configuration.
-const mount = (value, { elements = EVERY_ELEMENT, forms = ['contact', 'newsletter'], answering = false, library = null, smallestWidth = null, language = 'en' } = {}) => {
+const mount = (value, { elements = EVERY_ELEMENT, forms = ['contact', 'newsletter'], answering = false, library = null, smallestWidth = null, language = 'en', frames = [] } = {}) => {
   useInterfaceLanguage(language);
   const changes = [];
   const answers = [];
@@ -75,7 +79,7 @@ const mount = (value, { elements = EVERY_ELEMENT, forms = ['contact', 'newslette
     if (answering) answers.push(next);
   };
   const held = library && libraryWith(library);
-  const field = mountBodyField(host, { value, changed, elements, forms, adminHost: null, library: held, smallestWidth });
+  const field = mountBodyField(host, { value, changed, elements, forms, adminHost: null, library: held, smallestWidth, frames });
   return { field, changes, host, answers, library: held };
 };
 
@@ -119,7 +123,7 @@ const toEnd = (index = 0) => {
   view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
 };
 
-const imageHeld = (node) => ({ src: node.attrs.src, alt: node.attrs.alt, caption: node.textContent, ...(node.attrs.width ? { width: node.attrs.width } : {}) });
+const imageHeld = (node) => ({ src: node.attrs.src, alt: node.attrs.alt, caption: node.textContent, ...(node.attrs.width ? { width: node.attrs.width } : {}), ...(node.attrs.focus ? { focus: node.attrs.focus } : {}) });
 
 globalThis.fieldPage = {
   async open(value, options) {
@@ -230,6 +234,8 @@ globalThis.fieldPage = {
   stopThrowing() {
     current().library.throwing = {};
   },
+  // The library's entries as they stand.
+  libraryEntries: () => current().library.entries,
   // Each image as the document holds it, its display width only where it has one.
   images() {
     const found = [];
@@ -419,6 +425,51 @@ globalThis.imagePage = {
   },
   displayWidthTold: () => displayWidth.told,
   note: () => imageField.host.querySelector('.konzilo-pick-note').textContent,
+  // A post's image field, which chooses from `entries` and moves the focal point of its copy by
+  // `frames`, with each value it wrote and the library's entries as they stand after.
+  openChosen({ value = null, entries = [], frames = [] } = {}) {
+    imageField?.field.destroy();
+    imageField?.host.remove();
+    useInterfaceLanguage('en');
+    const host = document.createElement('div');
+    host.className = 'the-image-field';
+    document.body.append(host);
+    const record = { values: [], entries };
+    const field = mountImageField(host, {
+      value,
+      changed: (next) => record.values.push(next),
+      library: { list: async () => entries, picture: pictureOf, uploadSettings: async () => ({ longestSide: 3840, quality: 90 }) },
+      exists: async () => false,
+      frames,
+    });
+    imageField = { field, host, record };
+  },
+};
+
+// An image's focal point alone, as the image library entry's own field draws it (ADR 0055), on a
+// picture three wide to two high, with each point it told.
+let focal = null;
+globalThis.focalPage = {
+  open({ focus = null, frames = [], address = 'wide' } = {}) {
+    focal?.picker.destroy();
+    useInterfaceLanguage('en');
+    const told = [];
+    const picker = focalPointPicker(document.body, { address: null, focus, frames, changed: (point) => told.push(point) });
+    picker.root.classList.add('the-focal-point');
+    void pictureOf(address).then((shown) => picker.setAddress(shown));
+    focal = { picker, told };
+  },
+  told: () => focal.told,
+  read: () => focal.picker.read(),
+  // Each frame, where it stands on the picture, in fractions of its width and height.
+  frames: () => [...focal.picker.root.querySelectorAll('.konzilo-focal-frame')].map((box) => ({
+    ratio: box.dataset.ratio,
+    label: box.textContent,
+    left: Number.parseFloat(box.style.left) / 100,
+    top: Number.parseFloat(box.style.top) / 100,
+    width: Number.parseFloat(box.style.width) / 100,
+    height: Number.parseFloat(box.style.height) / 100,
+  })),
 };
 
 // The conversion before an upload alone (ADR 0022): a file's bytes in, as base64, and what would be
