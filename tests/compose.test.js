@@ -374,6 +374,19 @@ test('passes the deleted entries to the service for editors, on the admin host',
   assert.ok(matcher.includes('/_konzilo/deleted'));
 });
 
+// The policy's violations (ADR 0051): browsers report them on the public host, where the web
+// server passes them to the service for visitors with every other reserved path, and an Admin reads
+// their counts on the admin host, from the service for editors.
+test('passes the policy\'s violation reports to the service for visitors, and their counts to the service for editors, on the admin host', () => {
+  const caddyfile = read('compose/web/Caddyfile');
+  const admin = caddyfile.slice(caddyfile.indexOf(':{$KONZILO_PORT_ADMIN}'), caddyfile.indexOf(':{$KONZILO_PORT_PREVIEW}'));
+  const matcher = /@service path (.*)$/m.exec(admin)?.[1].split(' ') ?? [];
+  assert.ok(matcher.includes('/_konzilo/violations'));
+  const visitors = /@konzilo_visitors \{\n([\s\S]*?)\n\t\t\}/.exec(siteHost())?.[1] ?? '';
+  assert.match(visitors, /^\t\t\tpath \/_konzilo\/\*$/m);
+  assert.doesNotMatch(visitors, /violations/, 'not held back');
+});
+
 // Who pushed what a private account pushed, Forgejo's feed tells only those who run it, so the
 // service reads the feed by a token of the instance's account that can do nothing but read.
 test('lets the service for editors read who pushed each commit', () => {
