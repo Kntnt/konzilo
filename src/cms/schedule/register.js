@@ -62,6 +62,20 @@ export function registerSchedule(CMS, config) {
         options.map(([one, words]) => h('option', { key: one, value: one }, words))));
   }
 
+  // Words typed: the field keeps what is typed, and the value reaches it only while it is not being
+  // typed in, since a controlled field would be set back to the last value at each key, before the
+  // group's value comes round, and lose what is typed meanwhile.
+  function Typed({ id, label, value, onChange, disabled }) {
+    const input = React.useRef(null);
+    React.useEffect(() => {
+      const shown = input.current;
+      if (shown && shown !== document.activeElement && shown.value !== (value ?? '')) shown.value = value ?? '';
+    }, [value]);
+    return h('span', { className: 'konzilo-schedule-choice' },
+      h('label', { htmlFor: id }, label),
+      h('input', { ref: input, id, type: 'text', className: 'konzilo-part-input', defaultValue: value ?? '', disabled, onChange: (event) => onChange(event.target.value) }));
+  }
+
   function Moment({ id, label, value, onChange, disabled }) {
     return h('span', { className: 'konzilo-schedule-choice' },
       h('label', { htmlFor: id }, label),
@@ -79,11 +93,8 @@ export function registerSchedule(CMS, config) {
     };
     let asked;
     if (kind === 'type') asked = h(Choice, { id: `${id}-type`, label: say('schedule.type'), value: condition.type, options: types.map(({ name, label }) => [name, label]), onChange: (type) => change({ type }), disabled });
-    else if (kind === 'words') {
-      asked = h('span', { className: 'konzilo-schedule-choice' },
-        h('label', { htmlFor: `${id}-words` }, say('schedule.words')),
-        h('input', { id: `${id}-words`, type: 'text', className: 'konzilo-part-input', value: condition.words, disabled, onChange: (event) => change({ words: event.target.value }) }));
-    } else if (kind === 'term') {
+    else if (kind === 'words') asked = h(Typed, { id: `${id}-words`, label: say('schedule.words'), value: condition.words, onChange: (words) => change({ words }), disabled });
+    else if (kind === 'term') {
       const known = terms.some((one) => one.id === condition.term);
       asked = h('span', { className: 'konzilo-schedule-choice' },
         h('label', { htmlFor: `${id}-term` }, say('schedule.term')),

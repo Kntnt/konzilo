@@ -91,8 +91,10 @@ export function toolbarOf({ about, writes, language, adminOrigin, timeline = [{ 
 }
 
 // The script that draws the toolbar `given`, as toolbarOf() gives it, which holds all it needs,
-// and nothing in it can end the element it stands in.
-export const toolbarScript = (given) => `(${previewToolbar})(${JSON.stringify(given).replaceAll('<', '\\u003c')});`;
+// and nothing in it can end the element it stands in. Its texts are ASCII, every other character
+// escaped, so that they read alike in a page whatever the encoding it is read in.
+const escaped = (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`;
+export const toolbarScript = (given) => `(${previewToolbar})(${JSON.stringify(given).replace(/[<\u0080-\uffff]/g, escaped)});`;
 
 // A page of the site with the toolbar `given` in it, last in its body.
 export function withToolbar(html, given) {

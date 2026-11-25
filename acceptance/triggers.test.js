@@ -45,12 +45,17 @@ for (const [engineName, engine] of Object.entries(ENGINES)) {
       await within.getByRole('button', { name, exact: true }).focus();
       await page.keyboard.press('Enter');
     };
-    // What the last save wrote of the post, as its notice says, which stays a few seconds.
+    // What the last save wrote of the post, as its notice says, which stays a few seconds. The test
+    // repository keeps its files in the browser's own file system, which Playwright's WebKit has
+    // not, its test repository keeping them in memory alone, so there the file is not read, and
+    // null stands for it (form.test.js).
+    const readable = engineName !== 'webkit';
     const saved = async () => {
       const notice = page.getByText('Entry saved.');
       await notice.first().waitFor({ state: 'detached' });
       await page.getByRole('button', { name: 'Save', exact: true }).click();
       await notice.first().waitFor();
+      if (!readable) return null;
       const id = /\/entries\/([^/?#]+)/.exec(await page.evaluate(() => window.location.hash))[1];
       return frontMatterOf(await fileAt(`articles/${id}.md`));
     };
@@ -109,18 +114,24 @@ for (const [engineName, engine] of Object.entries(ENGINES)) {
       assert.equal(await second.getByRole('group', { name: 'Conditions, row 2' }).count(), 0);
 
       const held = await saved();
-      assert.equal(held.status, 'scheduled');
-      assert.equal(held.date, undefined, 'the moment is among the triggers');
-      assert.deepEqual(held.triggers.map((one) => one.map(({ since, ...trigger }) => trigger)), [[{ moment: '2999-01-01T09:00:00Z' }, { published: [[{ type: 'article' }, { words: 'launch' }]] }]]);
-      assert.match(held.triggers[0][1].since, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/, 'it counts from when it was last changed');
+      // What the form shows once saved, in every engine, and what the file holds, where it is read.
+      assert.equal(await conditions.getByRole('textbox', { name: 'Words', exact: true }).inputValue(), 'launch');
+      if (held) {
+        assert.equal(held.status, 'scheduled');
+        assert.equal(held.date, undefined, 'the moment is among the triggers');
+        assert.deepEqual(held.triggers.map((one) => one.map(({ since, ...trigger }) => trigger)), [[{ moment: '2999-01-01T09:00:00Z' }, { published: [[{ type: 'article' }, { words: 'launch' }]] }]]);
+        assert.match(held.triggers[0][1].since, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/, 'it counts from when it was last changed');
+      }
 
       // The post trigger taken away leaves the moment alone, which the date holds again.
       await press(second, 'Remove the trigger');
       await date().waitFor();
       assert.equal(await date().locator('input[type="datetime-local"]').inputValue(), '2999-01-01T09:00');
       const alone = await saved();
-      assert.equal(alone.triggers, undefined);
-      assert.match(String(alone.date), /^2999-01-01T09:00:00(?:\.000)?Z$/);
+      if (alone) {
+        assert.equal(alone.triggers, undefined);
+        assert.match(String(alone.date), /^2999-01-01T09:00:00(?:\.000)?Z$/);
+      }
     });
 
     test('stops a save whose window has wholly passed, and one whose posts wait for each other in a cycle, naming the post', async () => {
