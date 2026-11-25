@@ -26,3 +26,12 @@ test('refuses `when` and `unless` on a group repeated for each form, each by its
   assert.deepEqual(unless.filter((problem) => problem.startsWith('forms.')), ['forms.unless: a group repeated for each form applies to every site that declares one']);
   assert.deepEqual(problemsOf(declared), []);
 });
+
+test('lets a text list the defaults it once had, `formerDefaults`, each a text, and no other setting', () => {
+  const consent = (setting) => problemsOf({ ...declared, consent: { ...declared.consent, settings: { ...declared.consent.settings, ...setting } } }).filter((problem) => problem.startsWith('consent.'));
+  assert.deepEqual(consent({}), []);
+  assert.deepEqual(consent({ bannerText: { ...declared.consent.settings.bannerText, formerDefaults: ['An old text.', ''] } }), ['consent.settings.bannerText.formerDefaults: must be a list of the texts the setting once had as its default']);
+  assert.deepEqual(consent({ bannerText: { ...declared.consent.settings.bannerText, formerDefaults: 'An old text.' } }), ['consent.settings.bannerText.formerDefaults: must be a list of the texts the setting once had as its default']);
+  const related = problemsOf({ ...declared, related: { ...declared.related, settings: { ...declared.related.settings, freshness: { ...declared.related.settings.freshness, formerDefaults: ['false'] } } } });
+  assert.deepEqual(related.filter((problem) => problem.startsWith('related.')), ['related.settings.freshness.formerDefaults: only a text has former defaults']);
+});

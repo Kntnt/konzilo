@@ -8,13 +8,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- A site's container component is given each block at the top of its body as a slot of its own, `block-<index>` by the block's index in its tree, `content.children`, beside its default slot. A component that lays its items out by what it holds, cards, tabs or questions split at their headings, draws each item's blocks through their slots, and the core draws them as it draws a body: a component within by the site's own component, an image that opens in the lightbox, a form, a post list by its presentation, and in the live preview each block's mark. A component that asks for no block's slot renders as before.
 - `konzilo({ images })` takes the widths and sizes in which a site's design draws an image, for a body's image, a gallery's, the lightbox's, a hero's and a card's, and `imageVersions()` from `@kntnt/konzilo/astro/images` gives a template those of a context for Astro's `<Image>`. A context a site leaves out keeps the core's, which fit the site template.
 
 ### Changed
 
 - Each image in a post's body, and the site template's main image and cards, are served in a few fixed widths by `srcset` and `sizes`, so a phone loads a version near the width it shows the image at, not the whole master: in a window 400 px wide, the 480 px version of a photograph, about a sixteenth of the bytes it loaded before. No version is wider than its master or 2520 px. Versions are WebP at quality 75, and every version of a lossless master is lossless. A release holds more image files, about 1.6 times the bytes, and a first build takes some 60 ms more an image.
-
 - The window the editor opens for a sign-in opens empty and goes straight to Forgejo's sign-in page. It used to load the whole editor first, only to be sent on from there, so a sign-in now starts sooner.
+- The consent banner's default text is written from the facts of the services that ask for consent, as an embed's placeholder already is: it says that they may store data in the browser, use what they learn for their own purposes, or send data to countries outside the EU and EEA only where one of them does. A banner text an Admin has written is shown as before, and one saved that is word for word the old default now gives the new one. The settings show the banner's text empty where no Admin has written one, with a hint of what the banner then says.
+
+### Fixed
+
+- A site that embeds Datawrapper declares a transfer to the USA with no safeguard its provider documents, in its cookie declaration, and its placeholder says that data about the visit may be processed outside the EU and EEA. Datawrapper's privacy policy keeps published charts in the USA; the core's facts listed no transfer.
 
 ## [0.9.0] – 2026-11-25
 
