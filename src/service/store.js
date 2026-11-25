@@ -2,8 +2,8 @@
 // archive, backups and restores carry. It holds the service's key, made once, from which its
 // timing tokens and its digests of clients are derived; each form's submissions (ADR 0045), with
 // how each one's mail stands; what an Admin keeps of each form, its recipients and its retention;
-// and the service's settings, such as the mail adapter an Admin chooses (ADR 0003), none of which
-// is in Git. Nothing in it holds a visitor's address, browser or referrer, and nothing it forgets
+// the service's settings, such as the mail adapter an Admin chooses (ADR 0003); and the incoming
+// feeds an Admin adds, with what is known of each one's items (ADR 0079); none of which is in Git. Nothing in it holds a visitor's address, browser or referrer, and nothing it forgets
 // stays in it: a submission forgotten is overwritten where it stood, and the log of writes emptied.
 //
 // Each change to what it holds is one step in STEPS, taken once, in order, and counted in the
@@ -39,6 +39,34 @@ const STEPS = [
   // Retention (ADR 0045): the days each form's submissions are kept, where an Admin has set them,
   // beside its recipients.
   'ALTER TABLE form ADD COLUMN retention INTEGER;',
+  // Incoming feeds (ADR 0079): each feed an Admin adds, the type its items become, the language
+  // of its posts on a site in several, how many minutes apart it is read, when it was last read,
+  // whether its first read has been taken, and its last failure; and each item it has given, by
+  // its ID in the feed, with when it was first read, the moment of its post, whether it is `held`,
+  // given at the feed's first read and so no post, `live` or `withdrawn`, and its post's source
+  // file, version and slug.
+  `CREATE TABLE feed (
+     id INTEGER PRIMARY KEY,
+     address TEXT NOT NULL,
+     type TEXT NOT NULL,
+     language TEXT,
+     every INTEGER NOT NULL,
+     added_at TEXT NOT NULL,
+     read_at TEXT,
+     first_read INTEGER NOT NULL DEFAULT 0,
+     failure TEXT
+   ) STRICT;
+   CREATE TABLE feed_item (
+     feed INTEGER NOT NULL,
+     item TEXT NOT NULL,
+     seen TEXT NOT NULL,
+     moment TEXT NOT NULL,
+     state TEXT NOT NULL,
+     path TEXT,
+     version TEXT,
+     slug TEXT,
+     PRIMARY KEY (feed, item)
+   ) STRICT;`,
 ];
 
 // The store in `file`, made where there is none, and brought up to the last step. Two programs may
@@ -47,7 +75,8 @@ const STEPS = [
 // Gives { key, keep(submission), submissions(form), snapshot(form), counts(), mailDue(now),
 // mailDone(id, outcome), mailLater(id, at), mailSoon(now), formSettings(), setFormSettings(form,
 // settings), formsHeld(), expire(form, moments), everything(), chosen(ids), erase(ids), settle(),
-// setting(name), setSetting(name, value), close() }:
+// setting(name), setSetting(name, value), feeds(), addFeed(feed), changeFeed(id, change),
+// removeFeed(id), feedItems(id), feedRead(id, read), feedPosts(), close() }:
 // `key`, 32 bytes, the same from the first opening on; `keep` takes { form, sentAt, language,
 // spam, fields }, `sentAt` a Date, `spam` null or why it was held as spam, and `fields` each
 // { name, label, value }, and gives its number, its mail pending unless it is spam;
@@ -69,6 +98,16 @@ const STEPS = [
 // has any, { recipients, retention }, by the form's name, `retention` in days or null for none
 // set, and `setFormSettings` keeps a form's. `setting` gives a setting by its name, as it was kept,
 // or null, and `setSetting` keeps one, or forgets it for null.
+//
+// `feeds` gives the incoming feeds, in the order added, each { id, address, type, language, every,
+// addedAt, readAt, firstRead, failure }, `failure` { at, kind, status } or null; `addFeed` keeps a
+// new one, { address, type, language, every, at }, and gives its number; `changeFeed` keeps what an
+// Admin changes of one, { type, language, every }; `removeFeed` forgets it and its items;
+// `feedItems` gives what is known of a feed's items, a Map by the item's ID, each { seen, moment,
+// state, path, version, slug }; `feedRead` keeps a read of a feed, { at, failure, items }, its
+// first read taken where it succeeded, and `items` each item's as `feedItems` gives it, with its
+// `item`, kept anew; and `feedPosts` gives the source file of each post made from a feed's item
+// that is published, `live`, each { feed, path }.
 //
 // `formsHeld` gives the name of each form that holds a submission, spam among them; `expire`
 // forgets a form's submissions sent before `before`, and its spam sent before `spamBefore`, both
@@ -123,6 +162,16 @@ export function openStore(file) {
   const settingOf = database.prepare('SELECT value FROM setting WHERE name = ?');
   const keepSetting = database.prepare('INSERT INTO setting (name, value) VALUES (?, ?) ON CONFLICT (name) DO UPDATE SET value = excluded.value');
   const forgetSetting = database.prepare('DELETE FROM setting WHERE name = ?');
+  const feedsKept = database.prepare('SELECT id, address, type, language, every, added_at, read_at, first_read, failure FROM feed ORDER BY id');
+  const keepFeed = database.prepare('INSERT INTO feed (address, type, language, every, added_at) VALUES (?, ?, ?, ?, ?)');
+  const changedFeed = database.prepare('UPDATE feed SET type = ?, language = ?, every = ? WHERE id = ?');
+  const forgetFeed = database.prepare('DELETE FROM feed WHERE id = ?');
+  const forgetItems = database.prepare('DELETE FROM feed_item WHERE feed = ?');
+  const itemsOf = database.prepare('SELECT item, seen, moment, state, path, version, slug FROM feed_item WHERE feed = ? ORDER BY item');
+  const keepItem = database.prepare(`INSERT INTO feed_item (feed, item, seen, moment, state, path, version, slug) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (feed, item) DO UPDATE SET seen = excluded.seen, moment = excluded.moment, state = excluded.state, path = excluded.path, version = excluded.version, slug = excluded.slug`);
+  const readFeed = database.prepare('UPDATE feed SET read_at = ?, failure = ?, first_read = first_read OR ? WHERE id = ?');
+  const livePosts = database.prepare("SELECT feed, path FROM feed_item WHERE state = 'live' AND path IS NOT NULL AND feed IN (SELECT id FROM feed) ORDER BY path");
 
   // Whether something forgotten may still stand in the log of writes, until a checkpoint has
   // written the log into the database and emptied it. A checkpoint waits for no one: one that a
@@ -233,6 +282,53 @@ export function openStore(file) {
     setSetting(name, value) {
       if (value === null) forgetSetting.run(name);
       else keepSetting.run(name, JSON.stringify(value));
+    },
+    feeds() {
+      return feedsKept.all().map((row) => ({
+        id: Number(row.id),
+        address: row.address,
+        type: row.type,
+        language: row.language,
+        every: Number(row.every),
+        addedAt: row.added_at,
+        readAt: row.read_at,
+        firstRead: Number(row.first_read) === 1,
+        failure: row.failure === null ? null : JSON.parse(row.failure),
+      }));
+    },
+    addFeed({ address, type, language = null, every, at }) {
+      return Number(keepFeed.run(address, type, language, every, at.toISOString()).lastInsertRowid);
+    },
+    changeFeed(id, { type, language = null, every }) {
+      changedFeed.run(type, language, every, id);
+    },
+    removeFeed(id) {
+      database.exec('BEGIN IMMEDIATE');
+      try {
+        forgetItems.run(id);
+        forgetFeed.run(id);
+        database.exec('COMMIT');
+      } catch (error) {
+        database.exec('ROLLBACK');
+        throw error;
+      }
+    },
+    feedItems(id) {
+      return new Map(itemsOf.all(id).map(({ item, ...held }) => [item, held]));
+    },
+    feedRead(id, { at, failure = null, items = [] }) {
+      database.exec('BEGIN IMMEDIATE');
+      try {
+        for (const { item, seen, moment, state, path = null, version = null, slug = null } of items) keepItem.run(id, item, seen, moment, state, path, version, slug);
+        readFeed.run(at.toISOString(), failure === null ? null : JSON.stringify(failure), failure === null ? 1 : 0, id);
+        database.exec('COMMIT');
+      } catch (error) {
+        database.exec('ROLLBACK');
+        throw error;
+      }
+    },
+    feedPosts() {
+      return livePosts.all().map(({ feed, path }) => ({ feed: Number(feed), path }));
     },
     close() {
       database.close();
