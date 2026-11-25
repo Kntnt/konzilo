@@ -11,6 +11,7 @@ import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { devServer } from '../src/preview/dev-server.js';
+import { WATCH } from './lib/astro.js';
 
 function made({ answers = () => true, idle = 10_000, before, hears = () => () => {}, wait = async () => {}, settlesWithin } = {}) {
   const children = [];
@@ -210,7 +211,8 @@ test('runs the site\'s predev before the dev server starts, so that it serves wh
     mkdirSync(join(site, 'src/pages'), { recursive: true });
     writeFileSync(join(site, 'package.json'), JSON.stringify({ name: 'a-site', private: true, type: 'module', scripts: { predev: 'node make.js', dev: 'astro dev' } }));
     writeFileSync(join(site, 'make.js'), "import { mkdirSync, writeFileSync } from 'node:fs';\nmkdirSync('public', { recursive: true });\nwriteFileSync('public/made-before.txt', 'made by predev');\n");
-    writeFileSync(join(site, 'astro.config.mjs'), 'export default {};\n');
+    // With the suite's watcher, which hears of a change in time whatever else the machine writes.
+    writeFileSync(join(site, 'astro.config.mjs'), `export default { vite: { server: { watch: ${JSON.stringify(WATCH)} } } };\n`);
     writeFileSync(join(site, 'src/pages/index.astro'), '<p>A page</p>\n');
     const port = await freePort();
     const server = devServer({ root: site, port, environment: { PATH: process.env.PATH, HOME: site, ASTRO_TELEMETRY_DISABLED: '1', ASTRO_DISABLE_UPDATE_CHECK: 'true' } });

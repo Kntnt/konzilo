@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { WATCH } from './lib/astro.js';
 import { OWN_DEMO, writeOwnDemoContent } from './lib/demo-content.js';
 
 const core = fileURLToPath(new URL('../', import.meta.url));
@@ -43,13 +44,23 @@ async function until(check, timeout = 90_000) {
   }
 }
 
+// What gives a site's dev server the suite's watcher (lib/astro.js) where that is not Vite's
+// own: a configuration beside the site, so no file of the site's, which is the site's own
+// with the watcher set. Astro takes its path from the site's folder.
+function watching(site) {
+  if (!WATCH.usePolling) return [];
+  const config = '../watching.config.mjs';
+  writeFileSync(join(site, config), `import config from ${JSON.stringify(pathToFileURL(join(site, 'astro.config.mjs')).href)};\n\nexport default { ...config, vite: { ...config.vite, server: { ...config.vite?.server, watch: ${JSON.stringify(WATCH)} } } };\n`);
+  return ['--config', config];
+}
+
 // `npm run dev` in a site, once its start page holds `words`: its origin, and how to stop it.
 async function startDev(site, words) {
   const port = await freePort();
   // An address, not `localhost`: in a Linux container the server binds that name
   // to ::1 alone, while Node's fetch reaches for 127.0.0.1 and is refused.
   const origin = `http://127.0.0.1:${port}`;
-  const server = spawn('npm', ['run', 'dev', '--', '--host', '127.0.0.1', '--port', String(port), '--ignore-lock'], { cwd: site, env: environment, stdio: 'ignore', detached: true });
+  const server = spawn('npm', ['run', 'dev', '--', '--host', '127.0.0.1', '--port', String(port), '--ignore-lock', ...watching(site)], { cwd: site, env: environment, stdio: 'ignore', detached: true });
   const stop = () => {
     // The dev server and what it started, as one process group.
     try {
