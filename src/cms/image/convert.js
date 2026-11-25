@@ -6,15 +6,12 @@
 // The work is done in a worker of its own (convert-worker.js), which this module starts, and this
 // module is imported when an upload starts, so that the editor loads none of it before.
 
-import { kindOf } from '../../format/originals.js';
-
-const HEAD = 4096;
+import { kindOfFile } from './upload.js';
 
 // The file to upload in place of `file`, a WebP named as the file was but for its extension, and
 // its size: { file, size: { width, height } }, or the SVG itself with no size.
 export async function convertForUpload(file, { longestSide, quality, lossless = false }) {
-  const kind = kindOf(new Uint8Array(await file.slice(0, HEAD).arrayBuffer()));
-  if (kind === 'svg') return { file, size: null };
+  if ((await kindOfFile(file)) === 'svg') return { file, size: null };
   const worker = new Worker(new URL('./convert-worker.js', import.meta.url), { type: 'module' });
   try {
     const answer = await new Promise((resolve, reject) => {
