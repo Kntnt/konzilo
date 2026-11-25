@@ -228,7 +228,7 @@ export function mountBodyField(host, { value: given, changed, elements, forms, e
     if (editor && value === (lastWritten === baseline ? openedValue : lastWritten)) showEditor();
     else {
       mode = 'loading';
-      void openEditor();
+      field.ready = openEditor();
     }
   };
 
@@ -257,7 +257,7 @@ export function mountBodyField(host, { value: given, changed, elements, forms, e
       unanswered.length = 0;
       value = newer;
       if (mode === 'markdown') source.value = value;
-      else void openEditor();
+      else field.ready = openEditor();
     },
     get value() {
       return value;
@@ -305,6 +305,7 @@ export function mountBodyField(host, { value: given, changed, elements, forms, e
     visual.addEventListener('keyup', told);
   }
   fieldOpened(field);
+  // The latest opening, which a value from outside and the toggle start anew.
   field.ready = openEditor();
   return field;
 }
