@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Demo content can hold a draft: a post written as any other, with `status: draft` after its title and no date. `docker compose up --wait` seeds it as a draft, which the editor lists as one and the live preview shows, a Reviewer's too, while the public site does not; `npm run dev` and `npm run build` leave it out of `content/` and say so, naming each link and menu entry that leads to it. The site template's demo content holds one, the article *Distant workshops and the river*, so that a local copy's Reviewer finds something in the live preview that the public site does not show. A site's own `demo-content/` without a draft is seeded as before.
+
 ## [0.10.0] – 2026-11-25
 
 ### Added
