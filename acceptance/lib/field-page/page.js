@@ -18,7 +18,7 @@ import { PLACE_EVENT } from '../../../src/cms/preview/paths.js';
 import { wordsShown } from '../../../src/cms/refusals.js';
 import { checkBody } from '../../../src/format/body.js';
 
-const EVERY_ELEMENT = ['paragraph', 'heading', 'list', 'quote', 'code', 'table', 'footnotes', 'embed', 'image', 'gallery', 'post-list', 'form', 'inline-math', 'block-math'];
+const EVERY_ELEMENT = ['paragraph', 'heading', 'list', 'quote', 'code', 'table', 'footnotes', 'embed', 'image', 'gallery', 'post-list', 'form', 'inline-math', 'block-math', 'consent-objection'];
 
 let fields = [];
 
