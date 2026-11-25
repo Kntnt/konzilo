@@ -603,3 +603,16 @@ $$
 $$
 `);
 });
+
+// The right to object, which a body places by `::consent-objection` and a template by
+// ConsentControls.astro, is the visitor's control over the counting, no content of the page.
+test('leaves out the right to object, wherever the page holds it', () => {
+  const objection = [
+    '<div class="konzilo-consent-controls"><div class="konzilo-consent-objection" data-konzilo-consent-objection hidden>',
+    '<p class="konzilo-consent-objection-text">We count the visits. If you disagree, you have the right to <a href="#konzilo-consent-objection" class="konzilo-consent-objection-link" data-konzilo-consent-action="objection">object</a>.</p>',
+    '<p class="konzilo-consent-objection-objected" data-konzilo-consent-objected hidden>You have objected. <a href="#konzilo-consent-objection" class="konzilo-consent-objection-link" data-konzilo-consent-action="resume">Undo your objection</a></p>',
+    '</div></div>',
+  ].join('');
+  const html = `<main><p>We count the visits.</p>${objection}<p>Ask us anything.</p></main>`;
+  assert.equal(pageMarkdown({ html, url: 'https://example.com/privacy/', title: 'Privacy' }).markdown, '\n# Privacy\n\nWe count the visits.\n\nAsk us anything.\n');
+});
