@@ -275,13 +275,13 @@ describe('a menu', () => {
   };
   const result = run(files, site);
 
-  test('leads each entry to its post\'s current address, labelled with its title unless it has its own', () => {
+  test('leads each entry to its post\'s current address, by its ID, labelled with its title unless it has its own', () => {
     assert.deepEqual(result.refusals, []);
     assert.deepEqual(JSON.parse(written(result)['menus/main.json']).items, [
       { title: 'Home', url: '/' },
-      { title: 'The contact', url: '/pages/contact/', items: [{ title: 'Our team', url: '/pages/contact/team/' }] },
+      { title: 'The contact', post: 'contactpage0', url: '/pages/contact/', items: [{ title: 'Our team', post: 'childchild00', url: '/pages/contact/team/' }] },
       { title: 'Elsewhere', items: [{ title: 'Shop', url: 'https://shop.example.com/' }] },
-      { title: 'News', url: '/category/news/' },
+      { title: 'News', post: 'newsnewsnews', url: '/category/news/' },
     ]);
   });
 
@@ -308,7 +308,7 @@ describe('a menu', () => {
     assert.equal(written(described)['menus/main.json'], `${JSON.stringify({
       items: [
         { title: 'Home', url: '/', description: 'Where the site begins.' },
-        { title: 'The contact', url: '/pages/contact/', items: [{ title: 'Our team', url: '/pages/contact/team/', description: 'Who answers the phone.' }] },
+        { title: 'The contact', post: 'contactpage0', url: '/pages/contact/', items: [{ title: 'Our team', post: 'childchild00', url: '/pages/contact/team/', description: 'Who answers the phone.' }] },
         { title: 'Elsewhere', description: 'Sites of our own.', items: [{ title: 'Shop', url: 'https://shop.example.com/' }] },
       ],
     }, null, 2)}\n`);
@@ -463,7 +463,7 @@ describe('the start page an Admin chooses', () => {
 
   test('is at / alone, where a link, a menu entry and the ledger lead', () => {
     assert.match(written(result)['articles/an-article.md'], /A \[link\]\(\/\)\./);
-    assert.deepEqual(JSON.parse(written(result)['menus/main.json']).items, [{ title: 'Welcome', url: '/' }]);
+    assert.deepEqual(JSON.parse(written(result)['menus/main.json']).items, [{ title: 'Welcome', post: 'welcomewelco', url: '/' }]);
     assert.equal(result.ledger.posts.welcomewelco.path, 'start.page.md');
     assert.equal(result.ledger.posts.welcomewelco.address, '/');
     assert.equal(result.ledger.chosen.startPage, 'welcomewelco');
@@ -994,7 +994,7 @@ describe('a site in several languages', () => {
     assert.match(written(result)['articles/sv-SE/om-lyktorna.md'], /\[sidan\]\(\/sv\/sidor\/om-oss\/\)/);
     assert.match(written(result)['articles/en-GB/about-the-lanterns.md'], /\[the page\]\(\/en\/pages\/about-us\/\)/);
     assert.match(written(result)['articles/sv-SE/om-lyktorna.md'], /\ncategories: \["sv-SE\/nyheter"\]\n/);
-    assert.deepEqual(JSON.parse(written(result)['menus/en-GB/main.json']).items, [{ title: 'About us', url: '/en/pages/about-us/' }]);
+    assert.deepEqual(JSON.parse(written(result)['menus/en-GB/main.json']).items, [{ title: 'About us', post: 'aboutabout00', url: '/en/pages/about-us/' }]);
     assert.equal(written(result)['categories/en-GB/nyheter.json'], '{\n  "name": "News"\n}\n');
     assert.equal(written(result)['categories/sv-SE/nyheter.json'], '{\n  "name": "Nyheter"\n}\n');
   });
@@ -1006,8 +1006,8 @@ describe('a site in several languages', () => {
       'menus/en-GB/main.json': { items: [{ post: 'aboutabout00', description: 'Who we are.' }] },
     }, several);
     assert.deepEqual(described.refusals, []);
-    assert.deepEqual(JSON.parse(written(described)['menus/sv-SE/main.json']).items, [{ title: 'Om oss', url: '/sv/sidor/om-oss/', description: 'Vilka vi är.' }]);
-    assert.deepEqual(JSON.parse(written(described)['menus/en-GB/main.json']).items, [{ title: 'About us', url: '/en/pages/about-us/', description: 'Who we are.' }]);
+    assert.deepEqual(JSON.parse(written(described)['menus/sv-SE/main.json']).items, [{ title: 'Om oss', post: 'aboutabout00', url: '/sv/sidor/om-oss/', description: 'Vilka vi är.' }]);
+    assert.deepEqual(JSON.parse(written(described)['menus/en-GB/main.json']).items, [{ title: 'About us', post: 'aboutabout00', url: '/en/pages/about-us/', description: 'Who we are.' }]);
   });
 
   test('each language\'s settings hold its texts, its own defaults and its translation of a chosen page', () => {

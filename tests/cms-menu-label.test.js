@@ -31,6 +31,7 @@ describe('the label of the menu entry that leads to a post', () => {
       { title: 'Harbour', post: 'f00d', items: [{ title: 'Quay', post: 'abc' }, { post: 'bare' }] },
       { title: 'Later', post: 'abc' },
       { title: 'Elsewhere', url: 'https://example.org/' },
+      { title: 'Who we are', url: '/about/' },
     ]),
     'menus/footer.json': menu([{ title: '  The quay  ', post: 'abc' }, { title: 'Tides', post: 'tide' }]),
   };
@@ -50,6 +51,12 @@ describe('the label of the menu entry that leads to a post', () => {
     assert.equal(await labelOf('bare', ['menus/main.json']), '', 'its title, which the name falls back to');
     assert.equal(await labelOf('', ['menus/main.json']), '');
     assert.equal(await labelOf('tide', ['menus/gone.json', 'menus/footer.json']), 'Tides');
+  });
+
+  // As the site reads the menus' files (breadcrumb-levels.js): a link leads to an address, not
+  // to the post that answers there, so the post at /about/ is named by its title, "About us".
+  test('is none for a post a link entry leads to by its address alone', async () => {
+    assert.equal(await reader(forgejo(files))('about', ['menus/main.json']), '');
   });
 
   test('asks nothing while nobody is signed in', async () => {

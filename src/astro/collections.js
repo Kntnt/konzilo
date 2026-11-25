@@ -284,6 +284,7 @@ function alternatives(names) {
 // every entry.
 const menuEntry = z.strictObject({
   title: z.string(),
+  post: z.string().optional(),
   url: z.string().optional(),
   description: z.string().optional(),
   get items() {

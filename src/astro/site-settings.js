@@ -34,7 +34,8 @@ export async function siteSettings(url = null) {
 }
 
 // The entries of the menu `menu`, by its name, in the language of the page
-// at `url`, each with its `title`, its `url` unless it only holds others, its
+// at `url`, each with its `title`, the ID of the post or the term it leads
+// to, `post`, where it leads to one, its `url` unless it only holds others, its
 // `description` where it has one, and the entries under it, `items`;
 // undefined while the site has no file of it.
 export async function siteMenu(menu, url = null) {

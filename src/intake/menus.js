@@ -1,5 +1,6 @@
 // A menu's published file: each entry leads to a post's or a term's current address, by
-// ID, labelled with its title unless it has its own, or to an address of its own, with a
+// ID, which it keeps, so that the site tells it from a link to the same address, labelled
+// with its title unless it has its own, or to an address of its own, with a
 // line of description where it has one, one line of plain text. An entry whose target has
 // no page now is left out, with the entries under it, and comes back by itself. A menu the
 // site cannot publish is refused whole, naming each entry by its place, and keeps its last
@@ -29,6 +30,7 @@ export function menuItems(given, leadsTo) {
       }
       const label = typeof entry.title === 'string' ? entry.title.trim() : '';
       let url;
+      let post;
       let title = label;
       if (entry.post) {
         const target = leadsTo(String(entry.post));
@@ -40,6 +42,7 @@ export function menuItems(given, leadsTo) {
           warnings.push({ entry: place, reason: say('warning.menu-no-page', { title: label || target.none || String(entry.post) }) });
           return;
         }
+        post = String(entry.post);
         url = target.address;
         title = label || target.title;
       } else if (entry.url) {
@@ -63,7 +66,7 @@ export function menuItems(given, leadsTo) {
         problems.push({ entry: place, reason: say('refusal.menu-nowhere', { title }) });
         return;
       }
-      out.push({ title, ...(url === undefined ? {} : { url }), ...(description === '' ? {} : { description }), ...(items.length > 0 ? { items } : {}) });
+      out.push({ title, ...(post === undefined ? {} : { post }), ...(url === undefined ? {} : { url }), ...(description === '' ? {} : { description }), ...(items.length > 0 ? { items } : {}) });
     });
     return out;
   };

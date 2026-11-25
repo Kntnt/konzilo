@@ -879,7 +879,7 @@ An author is a term of the built-in taxonomy `authors`, its description its biog
 
 ### A menu
 
-A menu the site description declares is `menus/<menu>.json`: `items`, its entries in order, each with `title`, its label; `url`, where it leads, a post's current address, a term's page's where its taxonomy has an address, or another address, and none for an entry that only holds others; `description`, a line under the entry, as a large menu shows it, only when it has one: one line of plain text, trimmed, of at most 160 characters, and never HTML; and `items`, the entries under it, only when it has any. An entry for a post or a term that has no page now is left out, with the entries under it.
+A menu the site description declares is `menus/<menu>.json`: `items`, its entries in order, each with `title`, its label; `post`, the ID of the post or the term it leads to, only for an entry that leads to one, so that an entry for a post is told from a link to the same address, as the site's breadcrumbs name a post by the entry that leads to it and not by a link; `url`, where it leads, a post's current address, a term's page's where its taxonomy has an address, or another address, and none for an entry that only holds others; `description`, a line under the entry, as a large menu shows it, only when it has one: one line of plain text, trimmed, of at most 160 characters, and never HTML; and `items`, the entries under it, only when it has any. An entry for a post or a term that has no page now is left out, with the entries under it.
 
 ```json file=menus/main.json
 {
@@ -890,11 +890,13 @@ A menu the site description declares is `menus/<menu>.json`: `items`, its entrie
     },
     {
       "title": "About us",
+      "post": "8d7010ec68d2",
       "url": "/pages/about-us/",
       "description": "Who we are, and how to reach us.",
       "items": [
         {
           "title": "Our team",
+          "post": "84bccaa20747",
           "url": "/pages/about-us/team/"
         }
       ]
@@ -1534,6 +1536,7 @@ Who we are.
   "items": [
     {
       "title": "Om oss",
+      "post": "5e0c2f9a7b13",
       "url": "/sv/sidor/om-oss/",
       "description": "Vilka vi är."
     }
@@ -1546,6 +1549,7 @@ Who we are.
   "items": [
     {
       "title": "About us",
+      "post": "5e0c2f9a7b13",
       "url": "/en/pages/about-us/",
       "description": "Who we are."
     }

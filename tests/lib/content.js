@@ -131,7 +131,7 @@ export function writeSite(folder, declared, posts, { menus = {}, settings = {}, 
     files[path] = postFile({ ...front, body: one.body });
     ids[path] = one.ID;
   }
-  const menuFile = (entries) => `${JSON.stringify({ items: entries.map(({ title, url, description }) => ({ title, url, ...(description ? { description } : {}) })) }, null, 2)}\n`;
+  const menuFile = (entries) => `${JSON.stringify({ items: entries.map(({ title, post, url, description }) => ({ title, ...(post ? { post } : {}), url, ...(description ? { description } : {}) })) }, null, 2)}\n`;
   if (site.languages.length > 1) {
     site.languages.forEach(({ locale, tag }, index) => {
       for (const [name, entries] of Object.entries(index === 0 ? menus : languages[locale]?.menus ?? {})) files[`menus/${tag}/${name}.json`] = menuFile(entries);

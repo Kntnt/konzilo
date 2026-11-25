@@ -235,18 +235,22 @@ describe('a site built with astro build for https://www.example.com', () => {
       menus: {
         // Declared first, though its name comes after the footer's.
         main: [
-          { title: 'Newsroom', url: '/news/' },
-          { title: 'The lantern', url: '/about/' },
-          { title: 'Our keepers', url: '/about/keepers/' },
-          { title: 'Anna', url: '/about/keepers/anna/' },
-          { title: 'Ms Berg', url: '/about/keepers/anna/' },
+          { title: 'Newsroom', post: 'newsnewsnews', url: '/news/' },
+          // A link to a post's address leads to no post, so it names none.
+          { title: 'Who we are', url: '/about/' },
+          { title: 'The lantern', post: 'aboutaboutab', url: '/about/' },
+          { title: 'Our keepers', post: 'keeperskeepe', url: '/about/keepers/' },
+          { title: 'Anna', post: 'annaannaanna', url: '/about/keepers/anna/' },
+          { title: 'Ms Berg', post: 'annaannaanna', url: '/about/keepers/anna/' },
+          { title: 'Lights', url: '/news/harbour-lights/' },
         ],
-        footer: [{ title: 'About us', url: '/about/' }, { title: 'Tides', url: '/notes/tide/' }],
+        footer: [{ title: 'About us', post: 'aboutaboutab', url: '/about/' }, { title: 'Tides', post: 'tidetidetide', url: '/notes/tide/' }],
       },
     });
 
     // A name in breadcrumbs before a menu's label, the first menu's label
-    // before another's, and the first entry's before a later one's.
+    // before another's, the first entry's before a later one's, and an entry
+    // that leads to the post before a link to its address.
     const anna = pageAt('about/keepers/anna');
     assert.deepEqual(breadcrumbsOf(anna).list, breadcrumbList('/about/keepers/anna/', [
       ['Home', '/'], ['The lantern', '/about/'], ['Keepers', '/about/keepers/'], ['Anna', '/about/keepers/anna/'],
@@ -254,7 +258,7 @@ describe('a site built with astro build for https://www.example.com', () => {
     assert.deepEqual(shownOf(anna), [['Home', '/'], ['The lantern', '/about/'], ['Keepers', '/about/keepers/'], ['Anna', null]]);
     // A later menu's label where no earlier menu leads to the post.
     assert.deepEqual(breadcrumbsOf(pageAt('notes/tide')).list, breadcrumbList('/notes/tide/', [['Home', '/'], ['Tides', '/notes/tide/']]));
-    // A post that has neither, by its title.
+    // A post that has neither, by its title, though a link leads to its address.
     assert.deepEqual(breadcrumbsOf(pageAt('news/harbour-lights')).list, breadcrumbList('/news/harbour-lights/', [['Home', '/'], ['News', '/news/'], ['Harbour lights', '/news/harbour-lights/']]));
   });
 
@@ -313,8 +317,8 @@ describe('a site built with astro build for https://www.example.com', () => {
     const pageAt = build(undefined, {
       languages: ['en_GB', 'sv_SE'],
       // The English menu leads to the Swedish page too, which the Swedish one names otherwise.
-      menus: { main: [{ title: 'The Swedish pages', url: '/sv/om/' }, { title: 'About us', url: '/en/about/' }] },
-      translated: { sv_SE: { main: [{ title: 'Om oss', url: '/sv/om/' }] } },
+      menus: { main: [{ title: 'The Swedish pages', post: 'lanternlante', url: '/sv/om/' }, { title: 'About us', post: 'lanternlante', url: '/en/about/' }] },
+      translated: { sv_SE: { main: [{ title: 'Om oss', post: 'lanternlante', url: '/sv/om/' }] } },
       given: [about, translation(page(4, 'team', 'The team', about), 'en_GB'), om, translation(page(14, 'laget', 'Laget', om), 'sv_SE')],
     });
 

@@ -12,7 +12,8 @@
 //    or, a page of the site's own, by the title it is given.
 //
 // A post is named by its name in breadcrumbs (`breadcrumb`), else by the
-// label of the menu entry that leads to it, in the page's language: of the
+// label of the menu entry that leads to it by its ID, not a link to its
+// address, in the page's language: of the
 // menus in the order the site description declares them, the first that has
 // one, and in it the first; else by its title (breadcrumbOf() of
 // article-parts.js, which the editor's field shows too).
@@ -109,16 +110,18 @@ function typeOf(entry, site) {
   return Object.values(site.types).find((declared) => declared?.collection === entry.collection) ?? null;
 }
 
-// The label of the menu entry that leads to an address, by the address, in
+// The label of the menu entry that leads to the post at an address, in
 // `language`: of the site's menus in the order its site description declares
-// them, the first that has an entry whose `url` is the address, and in it the
-// first such entry; '' where none does. A menu's file gives each entry for a
-// post the post's current address, labelled by its title where the entry has
-// no label of its own.
+// them, the first that has an entry that leads to it, and in it the first such
+// entry; '' where none does. A menu's file gives an entry that leads to a post
+// the post's ID, `post`, and its current address, `url`, labelled by its title
+// where the entry has no label of its own; an entry that only links to an
+// address leads to no post, though a post answers there, as the editor's
+// field reads the menus too (menu-label.js).
 async function menuLabels(site, language, getEntry) {
   const languages = site.languages ?? [];
   const menus = await Promise.all(Object.keys(site.menus ?? {}).map(async (menu) => (await getEntry('menus', menuEntry(menu, language, languages)))?.data.items ?? []));
-  return (address) => labelOf(firstEntry(menus, (entry) => entry.url === address));
+  return (address) => labelOf(firstEntry(menus, (entry) => entry.post !== undefined && entry.url === address));
 }
 
 // The public address of the post an entry holds, of `type`, in its language, or of
