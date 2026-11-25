@@ -21,9 +21,10 @@
 //   <ConsentControls links={false} buttons={false} objection />
 //
 // It too shows only with JavaScript, and only while the visitor does not
-// allow statistics. The elements carry classes of their
-// own, `konzilo-consent-*`, which the site styles, as ConsentBanner.astro
-// says.
+// allow statistics. A post's body places the same by `::consent-objection`,
+// which Body.astro draws through this component. The elements carry classes
+// of their own, `konzilo-consent-*`, which the site styles, as
+// ConsentBanner.astro says.
 import { getEntry } from 'astro:content';
 import { consentControlsMarkup } from '../consent/markup.js';
 import { consentInput } from './consent.js';

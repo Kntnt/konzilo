@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- `::consent-objection` in a body, alone on its line, places the right to object to the counting of visits there, such as beside what a privacy policy says of the counting, for a type that names `consent-objection` among its elements, as the site template's page does and its article and canvas do not. On a site that counts visits without storage before consent, it shows what the consent's dialog shows under statistics: the explanation whose link objects, and once the visitor objects, the paragraph whose link takes it back, hidden while the visitor allows statistics. On a site that counts no visits so it shows nothing, and the intake warns of it in the post. The body field keeps it as Markdown, and a page's Markdown alternate leaves it out.
+
 ## [0.10.0] – 2026-11-25
 
 ### Added

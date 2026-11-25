@@ -193,7 +193,7 @@ A field's label is in its `label`, or a group's of choices in its `legend`, befo
 
 ### Consent
 
-`ConsentBanner.astro` goes once on a page, and `ConsentControls.astro` in its footer. `links={false}` leaves the policy links out of the controls and `buttons={false}` the buttons, so that each can stand in its own place, and `objection` adds the right to object to counting without storage, as the dialog has it, where the site counts so, for a template such as the privacy policy's to place. The banner stays hidden on the privacy policy and the cookie policy, and the footer controls work there. Where an item stored on the page's own host is named, the element marked `data-konzilo-consent-host` holds the host, which the script writes from the page's address. Each component, `CookieDeclaration.astro` too, is a thin wrapper around a pure function of `src/consent/markup.js`, `consentMarkup()`, `consentControlsMarkup()` and `cookieDeclarationMarkup()`, which give the same markup outside Astro.
+`ConsentBanner.astro` goes once on a page, and `ConsentControls.astro` in its footer. `links={false}` leaves the policy links out of the controls and `buttons={false}` the buttons, so that each can stand in its own place, and `objection` adds the right to object to counting without storage, as the dialog has it, where the site counts so, for a template such as the privacy policy's to place. An editor places the same in a post's body by `::consent-objection` (`content-format.md`, *The right to object*), which the core draws as `<ConsentControls links={false} buttons={false} objection />` draws it, so a design styles both alike, and which draws nothing where the site does not count so; a site gives no component of its own for it. The banner stays hidden on the privacy policy and the cookie policy, and the footer controls work there. Where an item stored on the page's own host is named, the element marked `data-konzilo-consent-host` holds the host, which the script writes from the page's address. Each component, `CookieDeclaration.astro` too, is a thin wrapper around a pure function of `src/consent/markup.js`, `consentMarkup()`, `consentControlsMarkup()` and `cookieDeclarationMarkup()`, which give the same markup outside Astro.
 
 | Class | On | State |
 |---|---|---|
@@ -220,13 +220,13 @@ A field's label is in its `label`, or a group's of choices in its `legend`, befo
 | `.konzilo-consent-service` | A service | |
 | `.konzilo-consent-service-name` | Its name | |
 | `.konzilo-consent-facts` | The facts about it | |
-| `.konzilo-consent-objection` | The right to object, `[data-konzilo-consent-objection]`, where the site counts visits without storage before consent: below the statistics category's services, in the cookie declaration and in the controls | `[hidden]` while the visitor allows statistics, and until the script shows it |
+| `.konzilo-consent-objection` | The right to object, `[data-konzilo-consent-objection]`, where the site counts visits without storage before consent: below the statistics category's services, in the cookie declaration, and in the controls, a template's or where a body places it | `[hidden]` while the visitor allows statistics, and until the script shows it |
 | `.konzilo-consent-objection-text` | Its explanation, a paragraph whose link is the words of its text in square brackets | |
 | `.konzilo-consent-objection-objected` | The paragraph shown once the visitor objects, `[data-konzilo-consent-objected]`, with the link that takes the objection back | `[hidden]` until then |
 | `.konzilo-consent-objection-link` | Either link, inline in its sentence: `a[data-konzilo-consent-action=objection]`, which opens the confirmation, and `a[data-konzilo-consent-action=resume]` | `:not([href])`, plain text, on the first once the visitor objects |
 | `.konzilo-consent-confirmation` | The `dialog`, `#konzilo-consent-objection`, that asks the visitor to confirm the objection, with confirm and cancel alike, `.konzilo-consent-choice` | `[open]` |
 | `.konzilo-consent-policies` | The links to the policies | |
-| `.konzilo-consent-controls` | What `ConsentControls.astro` writes | |
+| `.konzilo-consent-controls` | What `ConsentControls.astro` writes, and what a body's `::consent-objection` writes | |
 
 A link to the privacy policy or the cookie policy is marked `data-konzilo-consent-policy`, `privacy-policy` or `cookie-policy`.
 
