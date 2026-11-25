@@ -14,6 +14,7 @@ import { createHmac } from 'node:crypto';
 
 import { formsKind } from './forms.js';
 import { bodyOf } from './request-body.js';
+import { violationsKind } from './violations.js';
 
 // The headers the web server passes on beside the browser's own (compose/web/Caddyfile, and
 // src/astro/reserved.js locally): the visitor's address, and the host the request came to.
@@ -37,6 +38,14 @@ const hostOf = (address) => {
   }
 };
 
+// Whether an address is on the host a request came to or on one of the site's public `hosts`, by
+// the request's `headers`, as a page of the site's own is: on the web.
+export function onSite(address, headers, hosts) {
+  const host = /^https?:/i.test(address) ? hostOf(address) : null;
+  const own = [header(headers, HOST), ...hosts].filter(Boolean).map((one) => one.toLowerCase());
+  return host !== null && own.includes(host);
+}
+
 // Whether a request came from a page of the site's own: `Sec-Fetch-Site: same-origin`, or, from a
 // browser that sends no such header, an `Origin`, or else a `Referer`, on the host the request
 // came to or on one of the site's public `hosts`.
@@ -44,18 +53,19 @@ export function fromSite(headers, hosts) {
   const site = header(headers, 'sec-fetch-site');
   if (site !== null) return site === 'same-origin';
   const from = header(headers, 'origin') ?? header(headers, 'referer');
-  if (from === null) return false;
-  const host = hostOf(from);
-  const own = [header(headers, HOST), ...hosts].filter(Boolean).map((one) => one.toLowerCase());
-  return host !== null && own.includes(host);
+  return from !== null && onSite(from, headers, hosts);
 }
 
-// The answer to a request, as a kind gives it: { status, json } or { status: 303, location }, with
-// `retryAfter`, in seconds, for a 429.
+// The answer to a request, as a kind gives it: { status, json }, { status: 303, location } or
+// { status: 204 }, with `retryAfter`, in seconds, for a 429.
 function write(outgoing, { status, json = {}, location = null, retryAfter = null, allow = null }) {
   const headers = { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' };
   if (retryAfter !== null) headers['retry-after'] = String(retryAfter);
   if (allow !== null) headers.allow = allow;
+  if (status === 204) {
+    outgoing.writeHead(status, headers);
+    return outgoing.end();
+  }
   if (location !== null) {
     outgoing.writeHead(status, { ...headers, location, 'content-length': 0 });
     return outgoing.end();
@@ -71,7 +81,7 @@ function write(outgoing, { status, json = {}, location = null, retryAfter = null
 //
 // Gives { request(incoming, outgoing) }, which answers one request.
 export function visitorsService({ site, store, hosts = [], now = () => new Date() }) {
-  const kinds = [formsKind({ site, store, now })];
+  const kinds = [formsKind({ site, store, now }), violationsKind({ store, now })];
   const clientKey = createHmac('sha256', store.key).update('clients').digest();
 
   // The client a request came from, in the window it came in: its digest and the window's end.
@@ -122,6 +132,7 @@ export function visitorsService({ site, store, hosts = [], now = () => new Date(
         type,
         body,
         fromSite: fromSite(incoming.headers, hosts),
+        ownPage: (address) => onSite(address, incoming.headers, hosts),
         client: clientOf(incoming.headers),
       });
       return write(outgoing, answer);
