@@ -1,5 +1,6 @@
 // Fill a new Forgejo: the instance's second factor and credential, an organisation with its
-// three teams, a source repository holding the demo content, the site repository's own where it
+// three teams, the machine accounts, the feed reader's among them, a source repository holding the
+// demo content, the site repository's own where it
 // has any, else the core's (ADR 0025), the editor's OAuth client and the live preview's,
 // Typesense's keys, and the local copy's people, each with a known password and a second factor,
 // in the team of their role (ADR 0002, ADR 0007, ADR 0008, ADR 0053). It talks to Forgejo
@@ -22,6 +23,7 @@ import { SIGN_IN_PATH } from '../../src/cms/preview/paths.js';
 import { demoContentOf } from '../../src/demo-content.js';
 import { demoSource, GIT_ATTRIBUTES } from '../../src/demo-source.js';
 import { enrolSecondFactor, must } from '../../src/forgejo.js';
+import { FEED_READER } from '../../src/format/feed-post.js';
 import { ACCOUNT_NAME, passwordFilesOf, peopleOf, seedPeople } from '../../src/people.js';
 import { keepClient, keepHook } from '../../src/seed-addresses.js';
 import { readSiteDescriptionWithoutTakenComponents } from '../../src/site-description.js';
@@ -54,6 +56,7 @@ const SERVICE_READER = 'service-reader';
 const SERVICE_TOKEN = '/editors-secret/read-token';
 const SERVICE_ROLES_TOKEN = '/editors-secret/roles-token';
 const SERVICE_PUSHES_TOKEN = '/editors-secret/pushes-token';
+const FEED_TOKEN = '/editors-secret/feed-token';
 const BUILDER = 'builder';
 const BUILDER_TOKEN = '/builder-secret/token';
 const BUILDER_CLIENT = '/builder-secret/oauth-client';
@@ -254,6 +257,15 @@ async function publishing(call, instancePassword, instanceKey) {
     scopes: ['read:repository'],
     grant: async () => must('letting the service read', await call('PUT', `/repos/${site}/${REPOSITORY}/collaborators/${SERVICE_READER}`, { permission: 'read' }), 204),
   });
+  // The feed reader's account, which writes the posts made from an incoming feed's items, and alone
+  // may change them (ADR 0079): a collaborator who may write the source, and no person in a team.
+  await machineAccount(call, {
+    name: FEED_READER,
+    tokenFile: FEED_TOKEN,
+    keyFile: 'feed-reader-totp',
+    scopes: ['write:repository'],
+    grant: async () => must('letting the feed reader write the source', await call('PUT', `/repos/${site}/${REPOSITORY}/collaborators/${FEED_READER}`, { permission: 'write' }), 204),
+  });
   // At the service for editors as it is at this start, so that a changed address leaves no hook
   // whose every delivery fails.
   await keepHook(call, `${site}/${REPOSITORY}`, SERVICE_HOOK);
@@ -301,7 +313,7 @@ function passwordOf(name) {
 
 async function main() {
   // The machine accounts, the instance's and the site's organisation are no one's to take.
-  const listed = peopleOf(process.env, { taken: ['konzilo', BUILDER, READER, SERVICE_READER, site] });
+  const listed = peopleOf(process.env, { taken: ['konzilo', BUILDER, READER, SERVICE_READER, FEED_READER, site] });
   searchKeys();
   const instancePassword = secret('instance-password');
   const instanceKey = await enrol('konzilo', instancePassword, 'instance-totp');

@@ -6,10 +6,12 @@
 //   pictures of images, shows Admins and Editors the forms' submissions from the service's data,
 //   mails each to its form's recipients through the adapter an Admin chooses (ADR 0003), or, in a
 //   local copy, writes it to its log, forgets each once its form's retention has passed, and lets
-//   an Admin find, export and erase a person's, and lists a form's revisions and the deleted
-//   posts, terms and image library entries from the source history. It has a credential that can
-//   only read the source repository, one that can only read who is an Admin, and a read-only token
-//   of the instance's account, by which it reads who pushed what.
+//   an Admin find, export and erase a person's, lists a form's revisions and the deleted posts,
+//   terms and image library entries from the source history, and reads the incoming feeds an
+//   Admin adds, making a post of each new item (ADR 0079). It has a credential that can only read
+//   the source repository, one that can only read who is an Admin, a read-only token of the
+//   instance's account, by which it reads who pushed what, and the feed reader's, which writes the
+//   posts made from a feed.
 // - `visitors`: it takes what visitors' browsers send below /_konzilo/, which the web server
 //   passes on, such as a site's forms (ADR 0045), and keeps it in the service's data. It reaches
 //   nothing.
@@ -25,6 +27,7 @@ import { arrangement } from '../src/arrangement.js';
 import { buildControl } from '../src/build/record.js';
 import { deletableIn } from '../src/service/deleted.js';
 import { editorsService, nextMinute } from '../src/service/editors.js';
+import { feedReader } from '../src/service/feeds.js';
 import { liveDescription } from '../src/service/live-description.js';
 import { mailDuty } from '../src/service/mail.js';
 import { mailDelivery } from '../src/service/mail-delivery.js';
@@ -94,6 +97,8 @@ function editors(store) {
     local,
     isPost: (file) => file.endsWith('.md') && collections.includes(file.split('/')[0]),
     deletable: () => deletableIn(described()),
+    site: described,
+    feeds,
   });
   serve(service, PORT);
   // The locks of tabs that have stopped answering let go, well within the two minutes ADR 0073
@@ -125,6 +130,7 @@ function editors(store) {
   const atEachMinute = () => {
     setTimeout(async () => {
       forgetWhatIsOld();
+      void feeds.run().catch((error) => console.error(`The feed reader broke: ${error.stack ?? error.message}`));
       await service.tick().catch((error) => console.error(`The service's clock broke: ${error.stack ?? error.message}`));
       atEachMinute();
     }, nextMinute(Date.now()));
