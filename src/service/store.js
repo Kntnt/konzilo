@@ -13,6 +13,8 @@
 import { randomBytes } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 
+import { CONSENT_RECORDS_STEP, consentRecordStore } from './consent-records.js';
+
 // The file in the service's data folder.
 export const STORE_FILE = 'service.sqlite';
 
@@ -39,6 +41,9 @@ const STEPS = [
   // Retention (ADR 0045): the days each form's submissions are kept, where an Admin has set them,
   // beside its recipients.
   'ALTER TABLE form ADD COLUMN retention INTEGER;',
+  // The consent records (ADR 0049), with each revision's words, and the days' counts of those not
+  // stored (consent-records.js).
+  CONSENT_RECORDS_STEP,
 ];
 
 // The store in `file`, made where there is none, and brought up to the last step. Two programs may
@@ -47,7 +52,7 @@ const STEPS = [
 // Gives { key, keep(submission), submissions(form), snapshot(form), counts(), mailDue(now),
 // mailDone(id, outcome), mailLater(id, at), mailSoon(now), formSettings(), setFormSettings(form,
 // settings), formsHeld(), expire(form, moments), everything(), chosen(ids), erase(ids), settle(),
-// setting(name), setSetting(name, value), close() }:
+// setting(name), setSetting(name, value), consentRecords, close() }:
 // `key`, 32 bytes, the same from the first opening on; `keep` takes { form, sentAt, language,
 // spam, fields }, `sentAt` a Date, `spam` null or why it was held as spam, and `fields` each
 // { name, label, value }, and gives its number, its mail pending unless it is spam;
@@ -76,7 +81,7 @@ const STEPS = [
 // `submissions` does with spam among them; `chosen` gives those numbered `ids`, newest first; and
 // `erase` forgets them, and gives how many. What `expire` and `erase` forget is overwritten where
 // it stood, and the log of writes emptied, unless a reading in progress holds that back: `settle`
-// tries it again.
+// tries it again. `consentRecords` holds the consent records, as consent-records.js gives them.
 export function openStore(file) {
   const database = new DatabaseSync(file);
   database.exec('PRAGMA busy_timeout = 5000');
@@ -234,6 +239,7 @@ export function openStore(file) {
       if (value === null) forgetSetting.run(name);
       else keepSetting.run(name, JSON.stringify(value));
     },
+    consentRecords: consentRecordStore(database, { file, forgot }),
     close() {
       database.close();
     },

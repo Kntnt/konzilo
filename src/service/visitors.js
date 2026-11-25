@@ -12,6 +12,7 @@
 
 import { createHmac } from 'node:crypto';
 
+import { consentRecordsKind, publishedRevisions } from './consent-records.js';
 import { formsKind } from './forms.js';
 import { bodyOf } from './request-body.js';
 
@@ -50,14 +51,18 @@ export function fromSite(headers, hosts) {
   return host !== null && own.includes(host);
 }
 
-// The answer to a request, as a kind gives it: { status, json } or { status: 303, location }, with
-// `retryAfter`, in seconds, for a 429.
+// The answer to a request, as a kind gives it: { status, json }, { status: 204 } with no body, or
+// { status: 303, location }, with `retryAfter`, in seconds, for a 429.
 function write(outgoing, { status, json = {}, location = null, retryAfter = null, allow = null }) {
   const headers = { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' };
   if (retryAfter !== null) headers['retry-after'] = String(retryAfter);
   if (allow !== null) headers.allow = allow;
   if (location !== null) {
     outgoing.writeHead(status, { ...headers, location, 'content-length': 0 });
+    return outgoing.end();
+  }
+  if (status === 204) {
+    outgoing.writeHead(status, headers);
     return outgoing.end();
   }
   const body = JSON.stringify(json);
@@ -67,11 +72,15 @@ function write(outgoing, { status, json = {}, location = null, retryAfter = null
 
 // The service for visitors. `site()`: the site description of the code in use, as checked.
 // `store`: as store.js opens it. `hosts`: the site's public hosts, each a host with its port where
-// it has one. `now()`: the moment.
+// it has one. `releases`: the folder the web server serves the releases from, read-only, whose
+// release in use holds its consent revision, or null. `now()`: the moment.
 //
-// Gives { request(incoming, outgoing) }, which answers one request.
-export function visitorsService({ site, store, hosts = [], now = () => new Date() }) {
-  const kinds = [formsKind({ site, store, now })];
+// Gives { request(incoming, outgoing) }, which answers one request, and { look() }, which keeps
+// the consent revision of the release in use where it has moved.
+export function visitorsService({ site, store, hosts = [], releases = null, now = () => new Date() }) {
+  const revisions = publishedRevisions({ folder: releases, store });
+  revisions.look();
+  const kinds = [formsKind({ site, store, now }), consentRecordsKind({ store, revisions, now })];
   const clientKey = createHmac('sha256', store.key).update('clients').digest();
 
   // The client a request came from, in the window it came in: its digest and the window's end.
@@ -82,6 +91,7 @@ export function visitorsService({ site, store, hosts = [], now = () => new Date(
   };
 
   return {
+    look: () => revisions.look(),
     async request(incoming, outgoing) {
       const url = new URL(incoming.url, 'http://service');
       if (url.pathname === '/health') return write(outgoing, { status: 200, json: { ok: true } });
