@@ -55,8 +55,12 @@ import { publicSite } from './public-site.js';
 const LIST = 'post-list';
 // `parts`: a component's body, as the Body around it read it, its lists evaluated there.
 const { parts: within, post, page = 1 } = Astro.props;
+// A container whose body raw HTML makes read otherwise than its tree is given no block's slot,
+// which the build log says, in British English as its other warnings, naming the post.
+const where = post ? `the post ${post.collection}/${post.id}, at ${Astro.url.pathname}` : `the page at ${Astro.url.pathname}`;
+const withheld = (name) => console.warn(`Konzilo: ${where}: the component ${name} is given no slot for each block of its body, since raw HTML in it reads otherwise than the body's tree; it is given its body through its default slot and its tree alone`);
 // A body without a slot, or whose slot renders nothing, is empty.
-const parts = within ?? (await bodyPostLists(bodyParts((await Astro.slots.render('default')) ?? '', [...Object.keys(components), LIST]), { post, page }));
+const parts = within ?? (await bodyPostLists(bodyParts((await Astro.slots.render('default')) ?? '', [...Object.keys(components), LIST], undefined, { withheld }), { post, page }));
 // A number for each dialog on the page, however many bodies it renders.
 const lightboxes = {
   locale: publicSite(Astro.url).locale,

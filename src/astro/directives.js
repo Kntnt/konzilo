@@ -316,13 +316,15 @@ export function directiveReader(problem, { checks, leaveOut = {}, warn = () => {
 // The HTML is Astro's own rendering of Sätteri's, so a scan of its tags is
 // enough: comments and the text of raw text elements are skipped, a void
 // element has no end, and an element ends where the end tag of its name
-// that matches it is.
-export function bodyParts(html, names, known = siteRegistry()) {
-  return placedParts(html, names, known).map(({ part }) => part);
+// that matches it is. Where raw HTML makes the scan read the top of a
+// container's body otherwise than its tree, the container is given no
+// block's slot, and `withheld(name)` is told, by the directive's name.
+export function bodyParts(html, names, known = siteRegistry(), { withheld = () => {} } = {}) {
+  return placedParts(html, names, known, withheld).map(({ part }) => part);
 }
 
 // bodyParts(), each part with where it stands in `html`: { part, start, end }.
-function placedParts(html, names, known) {
+function placedParts(html, names, known, withheld) {
   if (names.length === 0 || !html.includes('data-directive=')) return [{ part: html, start: 0, end: html.length }];
   const parts = [];
   let from = 0;
@@ -337,8 +339,10 @@ function placedParts(html, names, known) {
     const entry = known.get(name);
     if (tag.start > from) parts.push({ part: html.slice(from, tag.start), start: from, end: tag.start });
     const body = entry.body === 'none' ? null : html.slice(tag.end, close.start);
-    const within = body === null ? null : placedParts(body, names, known);
+    const within = body === null ? null : placedParts(body, names, known, withheld);
     const content = body === null ? null : bodyTree(body);
+    const blocks = body === null ? null : entry.body === 'blocks' ? blocksOf(body, within, content) : [];
+    if (blocks === undefined) withheld(name);
     parts.push({
       part: {
         name,
@@ -346,7 +350,7 @@ function placedParts(html, names, known) {
         body,
         content,
         parts: within?.map(({ part }) => part) ?? null,
-        blocks: body === null ? null : entry.body === 'blocks' ? blocksOf(body, within, content) : [],
+        blocks: blocks ?? [],
         block: tag.attributes['data-konzilo-block'] ?? null,
       },
       start: tag.start,
@@ -369,12 +373,12 @@ const WHITESPACE = /^[ \t\n\f\r]*$/;
 // The blocks at the top of a container's body, `html`, its tree `tree` and its parts `within`,
 // each part with where it stands (placedParts()): each { slot, parts }, the name of its slot
 // (blockSlot()) and the parts it holds, the same parts as the body's, a part of HTML cut to the
-// block, so that a list is evaluated once whichever of its body's slots a component renders. None
-// where the scan does not find at the top of the body the nodes the tree has there.
+// block, so that a list is evaluated once whichever of its body's slots a component renders.
+// Undefined where the scan does not find at the top of the body the nodes the tree has there.
 function blocksOf(html, within, tree) {
   const nodes = topNodes(html);
-  const read = (node, index) => node.type === tree.children[index].type && (node.type !== 'element' || node.name === tree.children[index].tagName);
-  if (nodes === null || nodes.length !== tree.children.length || !nodes.every(read)) return [];
+  const matches = (node, index) => node.type === tree.children[index].type && (node.type !== 'element' || node.name === tree.children[index].tagName);
+  if (nodes === null || nodes.length !== tree.children.length || !nodes.every(matches)) return undefined;
   return nodes.flatMap((node, index) => {
     if (node.type === 'comment' || (node.type === 'text' && WHITESPACE.test(tree.children[index].value))) return [];
     const parts = within

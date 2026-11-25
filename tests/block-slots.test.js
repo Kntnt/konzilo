@@ -120,6 +120,19 @@ const content = {
   'content/sheets/turned.md': post('Turned', [':::turned', '![A barn](../media/barn.webp)', list(1), ':::', list(1)].join('\n\n')),
 };
 
+// A page of the site's own that gives Body HTML of its own for a post, with an end tag no element
+// opened, which a parser's tree reads otherwise than the HTML. A content file's body never holds
+// such HTML, since the reader writes the HTML of the tree it reads.
+const own = [
+  '---',
+  "import { getEntry } from 'astro:content';",
+  `import Body from ${JSON.stringify(join(core, 'src/astro/Body.astro'))};`,
+  "const entry = await getEntry('articles', 'alpha');",
+  '---',
+  '<html><head><title>Own</title></head><body><main><Body post={entry}><Fragment set:html={\'<div data-directive="items"><h2>One</h2><p>Loose</p></p></div>\'} /></Body></main></body></html>',
+  '',
+].join('\n');
+
 const repositories = [];
 after(() => {
   for (const repository of repositories) rmSync(repository, { recursive: true, force: true });
@@ -140,6 +153,7 @@ async function build(files, env = {}) {
   write('site-description.json', JSON.stringify(site));
   write('src/pages/sheets/[slug].astro', template('sheets'));
   write('src/pages/[slug].astro', template('articles'));
+  write('src/pages/own/index.astro', own);
   write('content/media/barn.webp', await plainImage(sharp, { width: 900, height: 600, format: 'webp' }));
   write('content/media/lake.webp', await plainImage(sharp, { width: 800, height: 600, format: 'webp' }));
   for (const [path, contents] of Object.entries({ ...components, ...content, ...files })) write(path, contents);
@@ -219,6 +233,16 @@ describe('a component that draws the blocks of its body through their slots', ()
 // what it shows.
 const pinned = (html) => html.replace(/<img [^>]*?alt="([^"]*)"[^>]*>/g, '<img alt="$1">').replace(/(<dialog [^>]*>).*?<\/dialog>/g, '$1…</dialog>');
 
+describe('a component whose body\'s HTML reads otherwise at the top than its tree', () => {
+  test('is given no block slots, and the build log says so, naming the post and the component', () => {
+    assert.equal(published.status, 0, published.output);
+    const warnings = published.output.split('\n').filter((line) => line.includes('no slot for each block'));
+    assert.equal(warnings.length, 1, published.output);
+    assert.match(warnings[0], /the post articles\/alpha, at \/own\/: the component items is given no slot for each block/);
+    assert.equal(item(published.main('own'), 'One'), '', 'its item holds none of its blocks');
+  });
+});
+
 describe('a component that renders no slot of a block', () => {
   const barn = (number, mark = '') => `<figure${mark}><button class="konzilo-lightbox-open" type="button" commandfor="konzilo-modal-${number}" command="show-modal" data-konzilo-at="0" aria-label="Show larger: A barn"><img alt="A barn"></button></figure><dialog class="konzilo-modal konzilo-lightbox" id="konzilo-modal-${number}" aria-label="Image">…</dialog>`;
   const lake = (number, mark = '') => barn(number, mark).replaceAll('A barn', 'A lake');
@@ -272,5 +296,11 @@ describe('the slot of each block', () => {
     const [kicker] = bodyParts('<div data-directive="kicker">A <em>kicker</em></div>', ['kicker'], registryOf(siteDescription(leaf)));
     assert.deepEqual(kicker.blocks, []);
     assert.deepEqual(read('<p>One</p></p>').blocks, []);
+  });
+
+  test('is withheld where the tree reads the body otherwise, said by the name of each component it is withheld from', () => {
+    const withheld = [];
+    bodyParts('<div data-directive="note"><p>Fine</p><div data-directive="items"><p>One</p></p></div></div>', ['note', 'items'], known, { withheld: (name) => withheld.push(name) });
+    assert.deepEqual(withheld, ['items']);
   });
 });
