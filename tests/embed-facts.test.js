@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { CATALOGUES } from '../src/catalogues.js';
-import { consentView } from '../src/consent/markup.js';
+import { consentView, declarationView } from '../src/consent/markup.js';
 import { registryFile } from '../src/format/consent.js';
 import facts from '../src/format/services.json' with { type: 'json' };
 
@@ -61,4 +61,20 @@ test('each fact of an embed service names its source, an address of its provider
     }
     if (fact.storage.length === 0) assert.ok(typeof fact.sources.storage.note === 'string' && fact.sources.storage.note.length > 0, `${id}: what its provider's documents say of what it stores`);
   }
+});
+
+test('Datawrapper, whose privacy policy keeps published charts in the USA and names no safeguard for it, is declared with that transfer, and its placeholder says its data may leave the EU and EEA, in both catalogues', () => {
+  const given = { registry: registry(), texts: { ...registry().texts, placeholder: { question: 'Play {service}?', button: 'Play {service}' } }, catalogues: CATALOGUES };
+  const transfers = (language) => declarationView({ ...given, language }).categories.flatMap((category) => category.services).find((service) => service.id === 'datawrapper').transfers;
+  assert.deepEqual(transfers('en-GB'), ['United States, with no safeguard its provider documents']);
+  assert.deepEqual(transfers('sv-SE'), ['USA, utan någon skyddsåtgärd som leverantören redovisar']);
+  assert.equal(sentences('en-GB').datawrapper, 'Datawrapper GmbH (Germany) receives data about your visit, which may be processed outside the EU and EEA.');
+  assert.equal(sentences('sv-SE').datawrapper, 'Datawrapper GmbH (Tyskland) tar emot uppgifter om ditt besök, som kan behandlas utanför EU och EES.');
+});
+
+test('Datawrapper\'s transfer has its privacy policy as its source, with a note that its page on embed privacy says otherwise, and that the policy is followed', () => {
+  const source = facts.datawrapper.sources.transfers;
+  assert.equal(source.url, 'https://www.datawrapper.de/privacy');
+  assert.match(source.note, /https:\/\/www\.datawrapper\.de\/embed-privacy/);
+  assert.match(source.note, /says too much is safer than one that says too little/);
 });

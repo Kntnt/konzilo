@@ -21,6 +21,7 @@ import { SCHEMA_WIDGET, SLUG_WIDGET, TEXT_WIDGET } from './parts/widgets.js';
 import { inCatalogue, labelIn, labelInPhrase, text } from '../catalogues.js';
 import { BODY_WIDGET } from './body/widget.js';
 import { PUBLISHING_WIDGET } from './publishing/widget.js';
+import { TRIGGERS_WIDGET } from './schedule/widget.js';
 import { BUILT_IN_FORMAT, GROUP_PREFIX, GROUP_WIDGET, OWN_FORMAT } from './groups/widget.js';
 import { SETTING_WIDGET } from './settings/widget.js';
 
@@ -262,11 +263,22 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     ],
   });
 
+  // The site's menus, and the source file of each in a language, or, `language` null, on a site
+  // in one.
+  const menus = Object.values(description.menus);
+  const menuFile = (menu, language) => (language ? `menus/${language.tag}/${menu.name}.json` : `menus/${menu.name}.json`);
+  // The menus' files in the order the site description declares the menus, from which the name in
+  // breadcrumbs shows the label of the first entry that leads to the post while it is empty, as
+  // the site names the post by it (parts/menu-label.js): one list, or one by language's tag.
+  const menuFiles = several
+    ? Object.fromEntries(description.languages.map((language) => [language.tag, menus.map((menu) => menuFile(menu, language))]))
+    : menus.map((menu) => menuFile(menu, null));
+
   // A part of an article that is a text: its field, which shows what it falls back to, or is
   // a button until it is wanted. An optional part of the headline stands above or below it, with
   // no label of its own: its button, and then its placeholder, say what it is.
   const PARTS = {
-    breadcrumb: { widget: TEXT_WIDGET, fallback: 'breadcrumb', hint: say('breadcrumbHint') },
+    breadcrumb: { widget: TEXT_WIDGET, fallback: 'breadcrumb', ...(menus.length === 0 ? {} : { menus: menuFiles }), hint: say('breadcrumbHint') },
     eyebrow: { widget: TEXT_WIDGET, add: say('addEyebrow'), placeholder: say('eyebrow'), labelled: false },
     headline: { widget: TEXT_WIDGET, placeholder: say('headline') },
     subheadline: { widget: TEXT_WIDGET, add: say('addSubheadline'), placeholder: say('subheadline'), labelled: false },
@@ -388,7 +400,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
   // The fields that only a group holds, by the names the core gives them: wherever a post has
   // one, it is in the same group, so that a source file is read alike whatever its type.
   const NAME_FIELDS = ['title', 'breadcrumb', 'slug'];
-  const STATUS_FIELDS = ['status', 'date'];
+  const STATUS_FIELDS = ['status', 'date', 'triggers'];
   const HEADLINE_FIELDS = ['eyebrow', 'headline', 'subheadline'];
   const TERMS_FIELDS = [AUTHORS, CATEGORY, TOPICS];
 
@@ -427,6 +439,23 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
       ...within(SAME_IN_EACH),
     };
     const date = fieldOf('date');
+    // What a scheduled post waits for besides a moment alone, which the date holds, and in place of
+    // it (ADR 0076): shown while the post is scheduled. It is offered the site's types and its
+    // taxonomies' terms, and knows which of the post's fields name its terms, which another post's
+    // trigger may wait for.
+    const triggers = {
+      name: 'triggers',
+      label: say('triggers'),
+      widget: TRIGGERS_WIDGET,
+      required: false,
+      labelled: false,
+      hiddenWhen: 'notScheduled',
+      types: Object.values(description.types).map((one) => ({ name: one.name, label: own(one.label) })),
+      taxonomies: Object.values(description.taxonomies).map((one) => ({ label: own(one.plural), folder: several ? `${one.collection}/${description.languages.find((language) => language.main).tag}` : one.collection })),
+      termFields: type.fields.filter((one) => one.kind === 'terms').map((one) => one.name),
+      type: type.name,
+      ...within(SAME_IN_EACH),
+    };
     const headline = HEADLINE_FIELDS.map(fieldOf).filter(Boolean);
     const terms = type.fields.filter((one) => TERMS_FIELDS.includes(one.name)).map((one) => postField(one, type));
     // A site's own fields on a built-in type, which the core's group draws: a value of the site's
@@ -456,7 +485,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
         : coreGroup('name', say('groupName'), [title, fieldOf('breadcrumb'), slug].filter(Boolean))),
       // The date and time under the status's choices, with no label of its own, and the time zone,
       // which Sveltia names, under them.
-      status: () => coreGroup('status', date ? say('groupStatus') : say('status'), [status, date && { ...date, labelled: false }].filter(Boolean)),
+      status: () => coreGroup('status', date ? say('groupStatus') : say('status'), [status, date && { ...date, labelled: false, hiddenWhen: 'scheduledByTriggers' }, triggers].filter(Boolean)),
       // How it stands on the site, which is nothing the file holds (ADR 0031). A built-in type's
       // status says whether it is published, and its page opens from beside the slug, so only a
       // type of the site's own has it.
@@ -567,8 +596,6 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     fields: entryFields(depth),
   });
 
-  const menus = Object.values(description.menus);
-
   // The site's components, their labels and their attributes' in the interface language.
   const components = Object.fromEntries(Object.entries(description.components).map(([name, component]) => [name, {
     ...component,
@@ -651,7 +678,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
               files: menus.flatMap((menu) => (several ? description.languages : [null]).map((language) => ({
                 name: language ? `${menu.name}-${language.tag}` : menu.name,
                 label: language ? say('menuInLanguage', { menu: own(menu.label), language: language.tag }) : own(menu.label),
-                file: language ? `menus/${language.tag}/${menu.name}.json` : `menus/${menu.name}.json`,
+                file: menuFile(menu, language),
                 format: 'json',
                 fields: [entriesField(MENU_DEPTH)],
               }))),

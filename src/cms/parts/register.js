@@ -1,12 +1,15 @@
 // The fields of an article's parts in Sveltia: a text that shows what it falls back to while
-// it is empty, and offers an optional part with a button; the slug, changed on purpose; the
-// structured data type, showing the type's own while the post has none; and the check that a
-// scheduled post is scheduled for later.
+// it is empty, and offers an optional part with a button; the slug, changed on purpose; and the
+// structured data type, showing the type's own while the post has none. The check that a scheduled
+// post waits for something still to come is its triggers' (schedule/register.js).
 //
 // A text field's settings in the configuration (config.js):
 //   fallback: <rule>      the placeholder shows what the part falls back to, by a rule of
 //                         article-parts.js: breadcrumb, teaserHeadline, teaserText,
 //                         searchTitle, searchDescription, socialTitle or socialDescription;
+//                         breadcrumb with the label of the menu entry that leads to the post,
+//                         read from `menus`, the menus' files in order, or by the language tag
+//                         of each pane (menu-label.js);
 //                         searchTitle with the site's name and separator from the site's
 //                         settings, and `separator`, the separator's default, where they
 //                         give none;
@@ -27,10 +30,10 @@ import { say } from '../interface-language.js';
 import { computedDefault } from '../groups/menu.js';
 import { postValues } from '../groups/values.js';
 import { signedInCredential } from '../credential.js';
+import { menuLabelReader } from './menu-label.js';
 import { SCHEMA_WIDGET, SLUG_WIDGET, TEXT_WIDGET } from './widgets.js';
 import './form.css';
 import { plain } from '../plain.js';
-import { refuseAtSave } from '../refusals.js';
 
 // A post's values, flat, with its field groups' as they are now (ADR 0071).
 const dataOf = (entry) => postValues(entry?.get?.('data'));
@@ -62,11 +65,13 @@ export function registerParts(CMS, config) {
   const h = React.createElement;
   const site = config.site_url;
   const readSettings = settingsReader(config);
+  const { api_root: api, repo: repository, branch = 'main' } = config.backend;
+  const menuLabelFor = menuLabelReader({ api, repository, branch, credential: signedInCredential });
 
   // What each part left empty falls back to. A field's own value is left out, so that the
   // placeholder shows the part's default and not what is written.
   const RULES = {
-    breadcrumb: (data) => breadcrumbOf({ ...data, breadcrumb: '' }),
+    breadcrumb: (data, { menuLabel }) => breadcrumbOf({ ...data, breadcrumb: '' }, menuLabel),
     teaserHeadline: (data) => teaserHeadlineOf({ ...data, teaser: { ...data.teaser, headline: '' } }),
     teaserText: (data) => teaserTextOf({ ...data, teaser: { ...data.teaser, text: '' } }),
     searchTitle: (data, { name, separator }) => searchTitleOf(data, name, separator),
@@ -88,6 +93,7 @@ export function registerParts(CMS, config) {
     const [name, setName] = React.useState('');
     const [separator, setSeparator] = React.useState(plain(field.get('separator')) ?? '');
     const [locale, setLocale] = React.useState(null);
+    const [menuLabel, setMenuLabel] = React.useState('');
     const input = React.useRef(null);
     const composing = React.useRef(false);
     // The language of the pane the field is in, on a site in several languages.
@@ -108,6 +114,21 @@ export function registerParts(CMS, config) {
         gone = true;
       };
     }, [fallback]);
+    // The label of the menu entry that leads to the post, in the pane's language, as the form
+    // first shows the field; none for a new post, which no menu names yet.
+    const menus = plain(field.get('menus'));
+    const id = entry?.get?.('slug') ?? '';
+    React.useEffect(() => {
+      if (fallback !== 'breadcrumb' || !menus || !id) return undefined;
+      const files = Array.isArray(menus) ? menus : menus[locale] ?? [];
+      let gone = false;
+      void menuLabelFor(id, files).then((label) => {
+        if (!gone) setMenuLabel(label);
+      });
+      return () => {
+        gone = true;
+      };
+    }, [fallback, id, locale]);
     React.useEffect(() => {
       if (open && add && !value) input.current?.focus();
     }, [open]);
@@ -126,7 +147,7 @@ export function registerParts(CMS, config) {
     if (add && !value && !open) {
       return h('button', { type: 'button', id: forID, className: 'konzilo-part-add', onClick: () => setOpen(true) }, `+ ${add}`);
     }
-    const placeholder = (fallback && RULES[fallback] ? RULES[fallback](dataOf(entry), { name, separator, address: plain(field.get('address')), locale }) : '') || (plain(field.get('placeholder')) ?? '');
+    const placeholder = (fallback && RULES[fallback] ? RULES[fallback](dataOf(entry), { name, separator, menuLabel, address: plain(field.get('address')), locale }) : '') || (plain(field.get('placeholder')) ?? '');
     return h(multiline ? 'textarea' : 'input', {
       ref: input,
       id: forID,
@@ -227,17 +248,5 @@ export function registerParts(CMS, config) {
       options.map((one) => (one === preset
         ? h('option', { key: one, value: '' }, say('parts.schemaPreset', { type: one, plural: typeLabel }))
         : h('option', { key: one, value: one }, one))));
-  });
-
-  // A scheduled post is published at its moment, which must lie ahead.
-  CMS.registerEventListener({
-    name: 'preSave',
-    handler: ({ entry }) => {
-      const data = postValues(entry.get('data'));
-      if (data.status !== 'scheduled') return;
-      const moment = Date.parse(data.date ?? '');
-      if (Number.isFinite(moment) && moment > Date.now()) return;
-      refuseAtSave(say('parts.scheduledAhead'));
-    },
   });
 }

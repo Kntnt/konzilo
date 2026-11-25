@@ -13,6 +13,7 @@ A site's design comes from its own stylesheets and components, which the templat
 | `presentations` | A component for each presentation the description declares, each a path from the site's root, or a package's by its name |
 | `directives` | A component for a directive, in the same way |
 | `searchPage`, `termPage` | A page of the design, in the same way |
+| `images` | The widths and sizes in which the design draws an image, by context, `body`, `gallery`, `lightbox`, `hero` and `card`, each `{ widths, sizes }`: its widths whole numbers of pixels up to 2520, and its sizes the text of a `sizes` attribute; a context, or a part of one, left out keeps the core's |
 
 A site's own templates write the wrapper around a body, with whatever class its styles are scoped to, and render the body through `Body.astro`. A layout places `ConsentBanner.astro`, or an embed shows only as its address, which the build warns of.
 
@@ -20,9 +21,9 @@ A site's start route, `src/pages/[...start].astro`, takes its pages from `startP
 
 A type's `elements` in `site-description.json` decides what its body may hold, and so what its block menu offers: a row that is missing is an element the type does not take.
 
-A component a site declares, or takes from a package such as the design system's (`content-format.md`, *A site's own components*), is drawn by the component the site gives for its directive through `directives`, with its attributes as props, typed, those not given at their defaults, and its body, if it has one, rendered as its default slot and as a tree in the prop `content`. Without one, it is the core's plain rendering: a `div` with `data-directive="<name>"` and `data-<attribute>` for each attribute with a value, its name in kebab case, holding its body. The design system draws the hero, the section, the aside, the list and the five components that show a list in another form, each a directive of its own, and the text roles so (ADR 0068).
+A component a site declares, or takes from a package such as the design system's (`content-format.md`, *A site's own components*), is drawn by the component the site gives for its directive through `directives`, with its attributes as props, typed, those not given at their defaults, and its body, if it has one, rendered as its default slot and as a tree in the prop `content`, and a container each block of its body as a slot of its own. Without one, it is the core's plain rendering: a `div` with `data-directive="<name>"` and `data-<attribute>` for each attribute with a value, its name in kebab case, holding its body. The design system draws the hero, the section, the aside, the list and the five components that show a list in another form, each a directive of its own, and the text roles so (ADR 0068).
 
-The tree is a hast `root` of the body as the core renders it, a container's blocks or a leaf's label, with a component within as its plain rendering, holding its own body. No attribute is called `content`, and each component is given a tree of its own, which it may change. A component that lays itself out by what it holds, such as a list whose items begin at its headings, reads the tree, and a simple one places its slot. What a component draws from the tree it draws itself, a component within as its plain rendering and an image without the lightbox the core adds to the slot, so a design that wants them places the slot. A component that passes the props it does not take on to its root leaves the tree out of them, since Astro writes an object it is given there as an attribute, `content="[object Object]"`, on the public site too, and the core cannot stop it:
+The tree is a hast `root` of the body as the core renders it, a container's blocks or a leaf's label, with a component within as its plain rendering, holding its own body. No attribute is called `content`, and each component is given a tree of its own, which it may change. A component that lays itself out by what it holds, such as a list whose items begin at its headings, reads the tree, and a simple one places its slot. What a component draws from the tree it draws itself, a component within as its plain rendering and an image without the lightbox the core adds to the slots, so a design that wants them places the slot, or each block's own slot. A component that passes the props it does not take on to its root leaves the tree out of them, since Astro writes an object it is given there as an attribute, `content="[object Object]"`, on the public site too, and the core cannot stop it:
 
 ```astro
 ---
@@ -33,7 +34,25 @@ const { content, ...rest } = Astro.props;
 
 The rest it passes on holds the live preview's mark, so its root holds that as well.
 
-A post list in a component's body is evaluated in its place among the body's lists, in the order they are written, whether the component renders its body, part of it or none of it: the lists written below it leave out its posts even where the component shows none of them. In the tree it stands as its plain rendering, so a design that wants its posts shown places the slot.
+A container is given each block of its body through a slot of its own as well, beside its default slot: the node at index `i` of `content.children` through the slot named `block-<i>`, drawn as the default slot draws it, a component within by the site's component, a post list by its presentation, a form, an image with its lightbox, and in the live preview the block's mark. A node there that is no block, text of whitespace alone or a comment, takes its index and has no slot, and a leaf, whose label holds no blocks, has none; `Astro.slots.has(name)` says whether a node has one. A component asks for a block by its slot, ``<slot name={`block-${index}`} />`` or `Astro.slots.render()`, in any order and as often as it likes, and a slot it never asks for is not rendered. A block drawn twice is two blocks on the page, each image's dialog with a number of its own. So a component that splits its body into items at its headings finds the headings in the tree and has the core draw each item's blocks:
+
+```astro
+---
+const { content, ...rest } = Astro.props;
+const words = (node) => (node.type === 'text' ? node.value : (node.children ?? []).map(words).join(''));
+const items = [];
+content.children.forEach((node, index) => {
+  if (node.type !== 'element') return;
+  if (node.tagName === 'h2') items.push({ title: words(node), slots: [] });
+  else items.at(-1)?.slots.push(`block-${index}`);
+});
+---
+<div class="…" {...rest}>
+  {items.map(({ title, slots }) => <details name="…"><summary>{title}</summary>{slots.map((name) => <slot name={name} />)}</details>)}
+</div>
+```
+
+A post list in a component's body is evaluated in its place among the body's lists, in the order they are written, whether the component renders its body, part of it or none of it: the lists written below it leave out its posts even where the component shows none of them. In the tree it stands as its plain rendering, so a design that wants its posts shown places the slot, or the list's own block's slot, which draws the posts the list was given in its place, however many times it is drawn.
 
 A post list is drawn by the component the site gives for its presentation through `presentations`. It is given `posts`, the posts of the page it shows, each `{ entry, url }`, the post's entry and its address below the site's base, or null for a type without one; `options`, the presentation's options as the list sets them; `empty`, the text for a list that matches nothing; `pager`, the pager's data for a list with pages of its own, else null; and `list`, what the whole list holds over all its pages, after its offset and the posts it leaves out, in the page's language:
 
@@ -96,6 +115,10 @@ In a tab of its own, the live preview puts its toolbar last in each page's body,
 
 An image is a `figure` with no class of its own, holding its `figcaption` if it has one.
 
+Its `img` has a `srcset` of its versions, each no wider than its master, by their widths in `w`, and the `sizes` of its context, a gallery's for an image in a gallery and else a body's, from `images` or the core's; its `src` is its widest version, whose size its `width` and `height` give. A design that draws a context at another width gives its `sizes` the same breakpoints its CSS uses, so that the two never disagree, and its widths from its own measures, at about each width its sizes can come to at densities 1 and 2. The `srcset` holds the lightbox's widths too, which a browser loads only for the lightbox ([ADR 0022](adr/0022-make-each-images-master-from-its-original-and-write-images-and-galleries-in-markdown.md)).
+
+A template draws a hero's or a card's image, or any other from a master, in the widths and sizes of its context through `imageVersions()`: `<Image src={…} alt={…} {...imageVersions('card')} />`, with `imageVersions` from `@kntnt/konzilo/astro/images`.
+
 ### Tables in a body
 
 | Class | On | State |
@@ -125,7 +148,7 @@ The rest of a body is plain elements with no class of Konzilo's, as `content-for
 
 ### The lightbox
 
-The core's stylesheet makes it work, and it stands inside a body's wrapper, so a design's rules on `ul`, `li`, `figure`, `figcaption`, `img` or `button` must not reach into it. On a page an image stands in a button: `figure > button.konzilo-lightbox-open > img`. A closed dialog stands right after each single image's figure, and after a gallery as a whole, and counts as a sibling.
+The core's stylesheet makes it work, and it stands inside a body's wrapper, so a design's rules on `ul`, `li`, `figure`, `figcaption`, `img` or `button` must not reach into it. On a page an image stands in a button: `figure > button.konzilo-lightbox-open > img`. A closed dialog stands right after each single image's figure, and after a gallery as a whole, and counts as a sibling. Each image in it has the `srcset` it has on the page and the lightbox's `sizes` from `images`, `100vw` by default.
 
 | Class | On | State |
 |---|---|---|
@@ -229,7 +252,7 @@ A site's consent can stand on pages of another system below the same domain, so 
 - With it, too, the visitor may object. Where `konziloConsent.objected()` is true it loads nothing; at a `konzilo:consent` that makes it true it queues `requireConsent`, which holds back every later request and sets no cookie, unlike `forgetConsentGiven` and `optUserOut`, which do. After one that allows its service again, it queues `setConsentGiven`; one that takes the objection back alone counts from the next page view.
 - Where the consent script did not run, `window.konziloConsent` is not there, and the snippet counts without storage, or loads nothing without the departure.
 
-**A site that renders the consent itself**, built by other means, copies `src/consent/` from a commit of the core, and the catalogues of `src/catalogues/` beside it, or imports both from the package, `@kntnt/konzilo/consent/…` and `@kntnt/konzilo/catalogues/<language>.json`; the folder imports nothing outside itself. Each markup function takes `{ registry, texts, legalPages, language, catalogues, host, locales }`: the registry in the format of `content-format.md` ("The service registry"), each stored item with its `domain`; the consent texts in the registry's shape, `{ banner, dialog, footer, notice, placeholder, objection }`, with `categories` where the page's names differ, and the core's defaults for `objection` where they leave it out, whose `text` and `objected` mark their link by its words in square brackets, `… you have the right to [object].`, the first such words being the link, a text without them taking the link after it in the core's own words; `{ privacyPolicy, cookiePolicy }`, each `{ title, href }` or null; the page's language tag; the core's catalogues by language, `{ en, sv }`, as `src/catalogues/<language>.json` holds them, whose `site.consent.…` texts are the core's own words in the page's language, British English's for a language without a catalogue; its host, or null where the client names it from the page's address; and, optionally, the locale dates, times, numbers and countries are formatted in by the language of the core's words, `{ en, sv }`, `en-GB` and `sv-SE` by default and the language itself for another catalogue, which the build and the browser then both use.
+**A site that renders the consent itself**, built by other means, copies `src/consent/` from a commit of the core, and the catalogues of `src/catalogues/` beside it, or imports both from the package, `@kntnt/konzilo/consent/…` and `@kntnt/konzilo/catalogues/<language>.json`; the folder imports nothing outside itself. Each markup function takes `{ registry, texts, legalPages, language, catalogues, host, locales }`: the registry in the format of `content-format.md` ("The service registry"), each stored item with its `domain`; the consent texts in the registry's shape, `{ banner, dialog, footer, notice, placeholder, objection }`, with `categories` where the page's names differ, the banner's `text` written from the facts of the services that ask for consent, in the core's words, where they leave it out, and the core's defaults for `objection` where they leave it out, whose `text` and `objected` mark their link by its words in square brackets, `… you have the right to [object].`, the first such words being the link, a text without them taking the link after it in the core's own words; `{ privacyPolicy, cookiePolicy }`, each `{ title, href }` or null; the page's language tag; the core's catalogues by language, `{ en, sv }`, as `src/catalogues/<language>.json` holds them, whose `site.consent.…` texts are the core's own words in the page's language, British English's for a language without a catalogue; its host, or null where the client names it from the page's address; and, optionally, the locale dates, times, numbers and countries are formatted in by the language of the core's words, `{ en, sv }`, `en-GB` and `sv-SE` by default and the language itself for another catalogue, which the build and the browser then both use.
 
 | Module | Exports |
 |---|---|
@@ -290,6 +313,6 @@ The current page is a link with `[aria-current=page]`, in an `li` with no class.
 
 ### Breadcrumbs
 
-They have no class of their own: `nav[aria-label] > ol > li`, the last with `[aria-current=page]`. A design can style them through its own wrapper, or use its own component with `breadcrumbs()`. The first level is the start page, named by the name in breadcrumbs of the page an Admin chose for it where it has one, and the start page has none.
+They have no class of their own: `nav[aria-label] > ol > li`, the last with `[aria-current=page]`. A design can style them through its own wrapper, or use its own component with `breadcrumbs()`. The first level is the start page, named by the name in breadcrumbs of the page an Admin chose for it where it has one, and the start page has none. Every other level is named by its post's name in breadcrumbs, else by the label of the menu entry that leads to it, else by its title, so a level's text may be a menu's word rather than the heading its page shows.
 
-Whether they end with the page itself is the type's setting, in the group `breadcrumbs`, off by default. Off, `Breadcrumbs` ends at the level above the page, each level a link, and shows nothing for a page right under the start page. `breadcrumbs()` still gives the page's own level, last, with `hidden: true`, so that a design whose narrow form counts on that level can keep it in its markup and hide it, and the structured data always holds it.
+Whether they end with the page itself is the type's setting, in the group `breadcrumbs`, on by default for a hierarchical type, such as a page, and off for any other, such as an article; a post whose name in breadcrumbs is filled in ends them whatever its type. Ending above the page, `Breadcrumbs` ends at the level above it, each level a link, and shows nothing for a page right under the start page. `breadcrumbs()` still gives the page's own level, last, with `hidden: true`, so that a design whose narrow form counts on that level can keep it in its markup and hide it, and the structured data always holds it. So by default a page at the root, such as a cookie policy, shows the start page and itself, and an article ends above itself.

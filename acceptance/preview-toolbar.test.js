@@ -28,7 +28,12 @@ const pageOf = (title) => `<!doctype html><html lang="en"><head><title>${title}<
 const BUILT = {
   '/one/': { kind: 'post', file: 'pages/aaaaaaaaaaaa.md', title: 'One', status: 'draft', at: null, refusals: [] },
   '/two/': { kind: 'post', file: 'pages/bbbbbbbbbbbb.md', title: 'Two', status: 'published', at: null, refusals: [] },
+  // A post that waits for triggers, placed at a moment of its own, the rest taken as in time
+  // (ADR 0076).
+  '/three/': { kind: 'post', file: 'pages/cccccccccccc.md', title: 'Three', status: 'scheduled', at: '2099-06-01T09:00:00Z', assumed: true, refusals: [] },
 };
+// The posts that wait off the timeline, which a test lists for as long as it runs.
+const WAITING = [];
 
 describe('the toolbar in the preview\'s tab', () => {
   let forgejo;
@@ -66,7 +71,7 @@ describe('the toolbar in the preview\'s tab', () => {
       language: 'en',
       repository: 'a/source',
       cookieName: 'a_preview',
-      runner: runnerStandIn({ built: BUILT, timeline: [{ at: '2099-01-01T00:00:00Z', posts: [{ title: 'Two', file: 'pages/bbbbbbbbbbbb.md' }] }] }),
+      runner: runnerStandIn({ built: BUILT, waiting: WAITING, timeline: [{ at: '2099-01-01T00:00:00Z', posts: [{ title: 'Two', file: 'pages/bbbbbbbbbbbb.md' }] }, { at: '2099-06-01T09:00:00Z', posts: [{ title: 'Three', file: 'pages/cccccccccccc.md', assumed: true }] }] }),
       dev: { port: sitePort, ensure: async () => {}, ready: () => true, changing: async (work) => work() },
     });
   });
@@ -309,6 +314,25 @@ describe('the toolbar in the preview\'s tab', () => {
           await page.reload();
           await namesMoment(page, '2099-01-01T00:00:00Z');
         } finally {
+          await context.close();
+        }
+      });
+
+      // A post that waits for triggers (ADR 0076): placed at a moment of its own where the rest
+      // is taken as in time, which the timeline and its page say, and one the timeline knows no
+      // moment of listed apart, with what it waits for, to a screen reader too.
+      test('marks a post placed on the rest of its triggers happening in time, and lists one that waits off the timeline with what it waits for', async () => {
+        WAITING.push({ title: 'Four', file: 'pages/dddddddddddd.md', triggers: [[{ moment: '2026-11-01T09:00:00Z', happened: true }], [{ published: [[{ words: 'launch' }]], since: '2026-11-01T00:00:00Z', happened: false }]] });
+        const { context, page } = await opened();
+        try {
+          await at(page, '/three/');
+          await toolbar(page).getByText(/^Scheduled: goes live 1 June 2099 at \d\d:00 \S+, if the rest of its triggers happen in time$/).waitFor();
+          const snapshot = await toolbar(page).ariaSnapshot();
+          assert.match(snapshot, /option "1 June 2099 at \d\d:00 [^"]+: Three \(if the rest happens in time\)"/);
+          assert.match(snapshot, /list "Waiting, not on the timeline:"/);
+          assert.match(snapshot, /listitem: “Four” goes live once a post is published that has “launch” in its title/);
+        } finally {
+          WAITING.length = 0;
           await context.close();
         }
       });

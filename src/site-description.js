@@ -15,6 +15,7 @@ import { IMAGE_LIBRARY_FOLDER, MEDIA_FOLDER } from './format/masters.js';
 import { suffixTakenIn } from './format/public-suffixes.js';
 import { readComponents, withComponents } from './format/components.js';
 import rules from './format/rules.json' with { type: 'json' };
+import { TRIGGERS } from './format/triggers.js';
 import { coreSettingsGroups, groupsFor, settingsGroups } from './settings-groups.js';
 import { isSiteFile, siteJson } from './site-repository.js';
 
@@ -1357,6 +1358,10 @@ function fieldOf(name, field, path, taxonomies, problems) {
   }
   if (name === TRANSLATION_KEY) {
     problems.push(`${path}: a post's translation set is kept under this name; it is not declared`);
+    return null;
+  }
+  if (name === TRIGGERS) {
+    problems.push(`${path}: a scheduled post's triggers are kept under this name; it is not declared`);
     return null;
   }
   if (Object.hasOwn(SEO_PARTS, name)) {

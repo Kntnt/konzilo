@@ -19,6 +19,7 @@ import { loadReader } from '../body/check.js';
 import { imageLibrary } from '../body/library.js';
 import { languageTag, say } from '../interface-language.js';
 import { onReadOnly, readOnlyNow } from '../lock/read-only.js';
+import { PUBLISHING_WIDGET } from '../publishing/widget.js';
 import { latestSaveOf, revisionsOf } from './client.js';
 import { compareForms, restoredValues } from './compare.js';
 import { bodiesBetween, wordsBetween } from './differences.js';
@@ -190,6 +191,25 @@ export function registerHistory(CMS, config) {
         beforeAndAfter(section, (side, one) => made('p', 'konzilo-history-value', one, describe(row.field, row[side])));
     }
     return section;
+  };
+
+  // A revision's fields, each under its labels and those of what holds it, in the form's order, as
+  // the comparison shows a field alike on both sides, but a body as its Markdown: a form read-only,
+  // as a deleted entry's last revision is shown (ADR 0077). What holds nothing of the file, a post's
+  // publish status, is left out.
+  const drawValues = ({ fields, values }, parent) => {
+    for (const row of compareForms({ fields, before: values, after: values })) {
+      if (row.field?.widget === PUBLISHING_WIDGET) continue;
+      const section = made('section', 'konzilo-history-field', parent);
+      section.dataset.kind = row.kind;
+      made('h3', '', section, row.labels.join(' › '));
+      if (row.kind === 'body') made(isEmpty(row.after) ? 'p' : 'pre', isEmpty(row.after) ? 'konzilo-history-value' : 'konzilo-history-source', section, isEmpty(row.after) ? say('history.empty') : row.after);
+      else if (row.kind === 'image') picture(row.after, section);
+      else if (row.kind === 'vanished') {
+        made('p', 'konzilo-history-note', section, say('history.vanished'));
+        made('p', 'konzilo-history-value', section, describe(null, row.after));
+      } else made('p', 'konzilo-history-value', section, describe(row.field?.field ?? row.field, row.after));
+    }
   };
 
   // The dialog over the page that compares two choices: [{ id, label, values, restore }], each a
@@ -502,4 +522,8 @@ export function registerHistory(CMS, config) {
       }
     },
   });
+
+  // What the *Deleted* page shows a deleted entry's revisions by (ADR 0077): the comparison, which
+  // takes { form: { fields }, choices, from, to }, and a revision's fields read-only.
+  return { openComparison, drawValues };
 }

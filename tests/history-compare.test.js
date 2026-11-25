@@ -179,6 +179,20 @@ test('names a post\'s status by its option\'s label, and a form with no status b
   assert.equal(statusOf({ fields: [{ name: 'title', widget: 'string' }], values: { title: 'x' } }), null);
 });
 
+test('keeps a scheduled post\'s triggers as they are, as its date', () => {
+  const fields = [
+    { name: 'group-status', widget: 'konzilo-group', label: 'Status and date', fields: [
+      { name: 'status', widget: 'select', label: 'Status' },
+      { name: 'date', widget: 'datetime', label: 'Date' },
+      { name: 'triggers', widget: 'konzilo-triggers', label: 'Triggers' },
+    ] },
+    { name: 'body', widget: 'konzilo-body', label: 'Body' },
+  ];
+  const current = { 'group-status.status': 'scheduled', 'group-status.triggers.0.0.moment': '2026-12-01T08:00:00Z', 'group-status.triggers.0.1.published.0.0.words': 'launch', 'group-status.triggers.0.1.since': '2026-11-20T08:00:00Z', body: 'Now.' };
+  const revision = { 'group-status.status': 'draft', 'group-status.date': '2026-11-01T08:00:00Z', body: 'Then.' };
+  assert.deepEqual(restoredValues({ fields, current, revision }), { ...current, body: 'Then.' });
+});
+
 test('keeps only the post\'s own status and date as they are, and restores a field so named within another', () => {
   const fields = [
     { name: 'group-status', widget: 'konzilo-group', label: 'Status and date', fields: [

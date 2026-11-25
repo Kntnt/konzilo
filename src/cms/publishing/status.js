@@ -1,7 +1,8 @@
 // How publishing stands, as the service says (ADR 0031): reading it, keeping it up to date while
 // someone looks, and what a status means in words. It holds no React.
 
-import { languageTag, say } from '../interface-language.js';
+import { momentInZone, triggerWords } from '../../trigger-words.js';
+import { interfaceLanguage, languageTag, say } from '../interface-language.js';
 import { refusalShown, wordsShown } from '../refusals.js';
 
 const STATUS_PATH = '/_konzilo/status';
@@ -76,8 +77,10 @@ const where = ({ stillShown }) => say(stillShown ? 'publishing.stillShown' : 'pu
 // Each refusal or warning in the interface language, with what it names in the post.
 const reasonsOf = (list = []) => list.map(refusalShown);
 
-// What a status says: its `tone`, `good`, `busy`, `bad` or `quiet`, its `words`, and any `details`.
-export function statusWords(status, moment = (at) => new Date(at).toLocaleString(languageTag())) {
+// What a status says: its `tone`, `good`, `busy`, `bad` or `quiet`, its `words`, and any `details`;
+// for a post that waits for its triggers, `rows`, each trigger on each row in `words`, and whether
+// it has `happened` (ADR 0076), each moment among them by `inWords`, as a refusal names one.
+export function statusWords(status, moment = (at) => new Date(at).toLocaleString(languageTag()), inWords = momentInZone(languageTag())) {
   switch (status.status) {
     case 'live': {
       const warnings = reasonsOf(status.warnings);
@@ -86,6 +89,14 @@ export function statusWords(status, moment = (at) => new Date(at).toLocaleString
     case 'failed':
       return { tone: 'bad', words: `${say('publishing.failed')} ${where(status)}`, details: status.refusals ? reasonsOf(status.refusals) : [wordsShown(status.reason)] };
     case 'scheduled':
+      if (status.triggers) {
+        return {
+          tone: 'quiet',
+          words: status.at ? say('publishing.triggersAt', { at: moment(status.at) }) : say('publishing.triggers'),
+          details: [],
+          rows: status.triggers.map((row) => row.map((trigger) => ({ words: triggerWords(trigger, interfaceLanguage(), inWords), happened: trigger.happened === true }))),
+        };
+      }
       return { tone: 'quiet', words: say('publishing.scheduled', { at: moment(status.at) }), details: [] };
     case 'draft':
       return { tone: 'quiet', words: say(status.stillShown ? 'publishing.draftShown' : 'publishing.draft'), details: [] };

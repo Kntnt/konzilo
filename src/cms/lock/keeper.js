@@ -1,8 +1,8 @@
 // The keeper of a tab's lock (ADR 0073): it holds the form the tab has open, and only that one, so
 // that no other tab can save it; asks what to do where another tab holds it; turns the form
-// read-only when it is taken over; and checks the lock before each save and each deletion. What it
-// knows it hands to `show(state)`, which draws it, and the forms other tabs hold to `mark(marks)`,
-// which the list of entries marks them by.
+// read-only when it is taken over; and checks the lock before each save, each deletion and each
+// restore of a deleted entry. What it knows it hands to `show(state)`, which draws it, and the forms
+// other tabs hold to `mark(marks)`, which the list of entries marks them by.
 //
 // A state is { form, mode, ... }, `mode` one of:
 //   none        no form is open, or a new entry, which has no lock to keep
@@ -41,8 +41,9 @@ export function lockKeeper({ service, show = () => {}, mark = () => {} }) {
   let state = { form: null, mode: 'none' };
   // Each opening, so that what an earlier one learns late changes nothing.
   let opening = 0;
-  // Forms held for a deletion from the list, which the locks seen meanwhile leave alone.
-  const deleting = new Set();
+  // Forms held for a deletion from the list or a restore, which the locks seen meanwhile leave
+  // alone.
+  const changing = new Set();
   // Settled once the service has answered the latest opening.
   let settled = Promise.resolve();
   // Forms whose hold is asked for and not yet answered, which the service may hold for the tab.
@@ -84,7 +85,7 @@ export function lockKeeper({ service, show = () => {}, mark = () => {} }) {
     // The forms whose locks the page lets go as it is closed: the one the tab holds, each one held
     // for a deletion, and each one whose hold is not yet answered, which the service may hold for it
     // by now.
-    toLetGo: () => [...new Set([...(HOLDING.has(state.mode) ? [state.form] : []), ...deleting, ...asked.keys()])],
+    toLetGo: () => [...new Set([...(HOLDING.has(state.mode) ? [state.form] : []), ...changing, ...asked.keys()])],
 
     // The tab now has `form` open, or none: the lock of the one it leaves goes, and the new one's is
     // asked for.
@@ -141,7 +142,7 @@ export function lockKeeper({ service, show = () => {}, mark = () => {} }) {
       for (const lock of locks) if (!lock.mine) others[lock.form] = { name: lock.name, yours: lock.yours };
       mark(others);
       for (const lock of locks) {
-        if (lock.mine && lock.form !== state.form && !deleting.has(lock.form)) await service.release(lock.form);
+        if (lock.mine && lock.form !== state.form && !changing.has(lock.form)) await service.release(lock.form);
       }
       const { form, mode } = state;
       if (form === null) return;
@@ -175,11 +176,25 @@ export function lockKeeper({ service, show = () => {}, mark = () => {} }) {
 
     // Whether `forms` may be deleted: { refusal } where another tab holds one, else { done() },
     // called once the deletion is over, which lets go what was held for it alone.
-    async beforeDeleting(forms) {
+    beforeDeleting(forms) {
+      return this.holdFor(forms, { holder: 'lock.refusedDelete', yours: 'lock.refusedDeleteYours' });
+    },
+
+    // Whether a deleted entry's form may be restored (ADR 0077), as beforeDeleting() for a
+    // deletion: what is held for it stays held where its form is open once it is done.
+    beforeRestoring(form) {
+      return this.holdFor([form], { holder: 'lock.refusedRestore', yours: 'lock.refusedRestoreYours' });
+    },
+
+    // Holds `forms` for a change made outside their form, a deletion's or a restore's, as the form
+    // the tab has open holds its own: { refusal } where another tab holds one, by the names in
+    // `refused`, else { done() }, called once the change is over, which lets go what was held for
+    // it alone.
+    async holdFor(forms, refused) {
       const held = [];
       const done = async () => {
         for (const form of held) {
-          deleting.delete(form);
+          changing.delete(form);
           if (form !== state.form) await service.release(form);
         }
       };
@@ -192,14 +207,14 @@ export function lockKeeper({ service, show = () => {}, mark = () => {} }) {
           }
           continue;
         }
-        deleting.add(form);
+        changing.add(form);
         const answer = await asking(form);
         if (answer?.held) held.push(form);
-        else deleting.delete(form);
+        else changing.delete(form);
         if (answer?.holder || answer?.adminOnly) {
           await done();
           if (answer.adminOnly) return { refusal: { name: 'lock.refusedReadOnly' } };
-          return { refusal: answer.holder.yours ? { name: 'lock.refusedDeleteYours' } : { name: 'lock.refusedDelete', values: { name: answer.holder.name } } };
+          return { refusal: answer.holder.yours ? { name: refused.yours } : { name: refused.holder, values: { name: answer.holder.name } } };
         }
       }
       return { done };

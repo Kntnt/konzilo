@@ -112,6 +112,9 @@ services:
       KONZILO_REPOSITORY: ${KONZILO_SITE}/source
       KONZILO_FORGEJO_ORIGIN: http://localhost:${KONZILO_PORT_GIT}
       KONZILO_PREVIEW_ORIGIN: http://localhost:${KONZILO_PORT_PREVIEW}
+      # The names each host answers for, every other refused: a local copy's the loopback's alone,
+      # which a page elsewhere cannot make its own (ADR 0002). A server names its own.
+      KONZILO_WEB_HOSTS: ${KONZILO_WEB_HOSTS:-localhost 127.0.0.1 ::1 *.localhost}
     volumes:
       - site-public:/srv/site:ro
       - admin-config:/srv/admin-config:ro
