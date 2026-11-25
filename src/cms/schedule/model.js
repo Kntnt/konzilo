@@ -4,7 +4,7 @@
 // source file's (format/triggers.js), each moment to the second in UTC.
 
 import { momentOf } from '../../format/moment.js';
-import { meets, momentAlone } from '../../format/triggers.js';
+import { kindOf, meets, momentAlone } from '../../format/triggers.js';
 
 const isEmpty = (value) => value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0);
 
@@ -51,7 +51,7 @@ export const removeCondition = (trigger, row, at) => withConditions(removeTrigge
  * @param {string} now
  */
 export function stampedAtSave(rows, now) {
-  const unsaved = (trigger) => Object.hasOwn(trigger, 'published') && !trigger.since;
+  const unsaved = (trigger) => kindOf(trigger) === 'published' && !trigger.since;
   if (!rows.flat().some(unsaved)) return rows;
   return rows.map((row) => row.map((trigger) => (unsaved(trigger) ? { ...trigger, since: now } : trigger)));
 }
@@ -69,7 +69,7 @@ const filled = (condition) => !isEmpty(condition?.type) || (typeof condition?.wo
 export function problemAtSave(rows, now) {
   if (rows.length === 0) return 'momentAhead';
   for (const trigger of rows.flat()) {
-    if (Object.hasOwn(trigger, 'moment')) {
+    if (kindOf(trigger) === 'moment') {
       const moment = momentOf(trigger.moment ?? '');
       if (!moment) return 'incomplete';
       if (moment <= now) return 'momentAhead';
@@ -84,7 +84,7 @@ export function problemAtSave(rows, now) {
 
 // The posts a post waits for, of `others`: on a row of its triggers with no moment on it, which
 // time alone cannot make hold, each post that meets one of the row's post-published triggers.
-const waitsFor = (rows, others, self) => others.filter((other) => other.file !== self && rows.some((row) => !row.some((trigger) => Object.hasOwn(trigger, 'moment'))
+const waitsFor = (rows, others, self) => others.filter((other) => other.file !== self && rows.some((row) => !row.some((trigger) => kindOf(trigger) === 'moment')
   && row.some((trigger) => trigger.published && meets(trigger.published, { type: other.type, title: other.title ?? '', terms: other.terms ?? [], at: null }))));
 
 // A post's terms and every term above them, by `parents`, each term's parent by its ID, as the

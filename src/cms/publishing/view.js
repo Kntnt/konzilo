@@ -3,7 +3,7 @@
 // elements, and both write nothing: the field never calls its owner's `onChange`, so it leaves
 // nothing in a post's file.
 
-import { say } from '../interface-language.js';
+import { say, sayParts } from '../interface-language.js';
 import { signedInCredential } from '../credential.js';
 import { fileRefusalShown, wordsShown } from '../refusals.js';
 import { filesOf, languageOf, readStatus, statusWords, watchedStatus } from './status.js';
@@ -31,17 +31,18 @@ function useStatus(credential) {
 }
 
 // A post's triggers, a row to an item, each trigger ticked where it has happened, the alternatives
-// on a row joined by or and each row after the first begun by and (ADR 0076).
+// on a row joined by or and each row after the first begun by and, each as the catalogues place
+// them (ADR 0076). Whether it has happened is said to a screen reader alone, the tick shown.
 function TriggerRows({ rows }) {
   const { createElement: h, Fragment } = react();
-  return h('ul', { style: LIST, 'data-triggers': '' }, rows.map((row, at) => h('li', { key: at, style: { margin: '2px 0' } },
-    at > 0 ? `${say('publishing.and')} ` : null,
-    row.map(({ words, happened }, one) => h(Fragment, { key: one },
-      one > 0 ? ` ${say('publishing.or')} ` : null,
-      h('span', { 'data-happened': happened },
-        h('span', { 'aria-hidden': true, style: TICK(happened) }, happened ? '✓' : '○'),
-        h('span', { style: UNSEEN }, `${say(happened ? 'publishing.happened' : 'publishing.notYet')}: `),
-        words))))));
+  const placed = (name, values) => h(Fragment, null, ...sayParts(name, values));
+  const trigger = ({ words, happened }) => h('span', { 'data-happened': happened },
+    h('span', { 'aria-hidden': true, style: TICK(happened) }, happened ? '✓' : '○'),
+    ...sayParts(happened ? 'publishing.happened' : 'publishing.notYet', { trigger: words }).map((part) => (typeof part === 'string' ? h('span', { style: UNSEEN }, part) : part)));
+  return h('ul', { style: LIST, 'data-triggers': '' }, rows.map((row, at) => {
+    const alternatives = row.map(trigger).reduce((one, other) => placed('trigger.either', { one, other }));
+    return h('li', { key: at, style: { margin: '2px 0' } }, at > 0 ? placed('publishing.andRow', { row: alternatives }) : alternatives);
+  }));
 }
 
 function PostStatus({ post, site, withLanguage }) {

@@ -9,7 +9,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { CATALOGUES, catalogueFor, INTERFACE_LANGUAGES, labelIn, SOURCE_LANGUAGE, text, textsOf } from '../src/catalogues.js';
+import { CATALOGUES, catalogueFor, INTERFACE_LANGUAGES, labelIn, SOURCE_LANGUAGE, text, textParts, textsOf } from '../src/catalogues.js';
 
 const folder = fileURLToPath(new URL('../src/catalogues/', import.meta.url));
 const files = readdirSync(folder).filter((name) => name.endsWith('.json')).sort();
@@ -157,6 +157,16 @@ test('gives a text in a language, with its placeholders filled, and British Engl
   const values = Object.fromEntries(placeholders(source[filled]).map((one) => [one, `<${one}>`]));
   assert.equal(text('en', filled, values), source[filled].replace(/\{(\w+)\}/g, (_, one) => `<${one}>`));
   assert.throws(() => text('en', 'no.such.text'), /no\.such\.text/);
+});
+
+// A value that is no text, such as a control a form draws, stands where each language places it.
+test('gives a text as its parts, its words and each value where the language places it, whatever the value is', () => {
+  const box = { control: 'the box' };
+  assert.deepEqual(textParts('en', 'trigger.either', { one: box, other: 'later' }), [box, ' or ', 'later']);
+  assert.deepEqual(textParts('sv', 'trigger.either', { one: 'nu', other: box }), ['nu', ' eller ', box]);
+  const plain = Object.keys(source).find((key) => placeholders(source[key]).length === 0);
+  assert.deepEqual(textParts('en', plain), [source[plain]]);
+  assert.throws(() => textParts('en', 'no.such.text'), /no\.such\.text/);
 });
 
 test('gives the texts of an area in a language or a locale, by their names after it, their placeholders left for the caller', () => {

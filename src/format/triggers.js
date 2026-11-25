@@ -27,6 +27,11 @@ export const TRIGGERS = 'triggers';
 export const MOMENT = 'moment';
 export const PUBLISHED = 'published';
 
+// What a trigger or a condition is, by its key: a trigger `moment` or `published`; a condition
+// `type`, `words`, `term`, or `window`, a window with either end or neither yet.
+const KINDS = [MOMENT, PUBLISHED, 'type', 'words', 'term'];
+export const kindOf = (one) => KINDS.find((key) => Object.hasOwn(one, key)) ?? 'window';
+
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 const keysAre = (object, allowed) => Object.keys(object).length > 0 && Object.keys(object).every((key) => allowed.includes(key));
 const rowsOf = (value) => Array.isArray(value) && value.length > 0 && value.every((row) => Array.isArray(row) && row.length > 0);
@@ -136,9 +141,10 @@ export function titleHolds(title, words) {
 export function meets(conditions, post, since = null) {
   const terms = new Set(post.terms ?? []);
   const holds = (condition) => {
-    if (Object.hasOwn(condition, 'type')) return post.type === condition.type;
-    if (Object.hasOwn(condition, 'words')) return titleHolds(post.title, condition.words);
-    if (Object.hasOwn(condition, 'term')) return terms.has(condition.term);
+    const kind = kindOf(condition);
+    if (kind === 'type') return post.type === condition.type;
+    if (kind === 'words') return titleHolds(post.title, condition.words);
+    if (kind === 'term') return terms.has(condition.term);
     if (post.at === null) return true;
     const start = [condition.from, since].filter(Boolean).sort().at(-1);
     return (!start || post.at >= start) && (!condition.to || post.at <= condition.to);

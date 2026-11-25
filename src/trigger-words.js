@@ -3,6 +3,7 @@
 // each can be ticked where it has happened, and the alternatives on a row joined by or.
 
 import { labelInPhrase, text } from './catalogues.js';
+import { kindOf } from './format/triggers.js';
 
 const MOMENT = { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' };
 
@@ -22,11 +23,12 @@ export const momentInUtc = (language) => (at) => new Date(at).toLocaleString(lan
  */
 export function triggerWords(trigger, language, moment) {
   const say = (name, values) => text(language, name, values);
-  if (typeof trigger.moment === 'string') return say('trigger.moment', { moment: moment(trigger.moment) });
+  if (kindOf(trigger) === 'moment') return say('trigger.moment', { moment: moment(trigger.moment) });
   const condition = (one) => {
-    if (Object.hasOwn(one, 'type')) return say('trigger.type', { type: labelInPhrase(one.label ?? one.type, language) });
-    if (Object.hasOwn(one, 'words')) return say('trigger.words', { words: one.words });
-    if (Object.hasOwn(one, 'term')) return say('trigger.term', { term: one.name ?? one.term });
+    const kind = kindOf(one);
+    if (kind === 'type') return say('trigger.type', { type: labelInPhrase(one.label ?? one.type, language) });
+    if (kind === 'words') return say('trigger.words', { words: one.words });
+    if (kind === 'term') return say('trigger.term', { term: one.name ?? one.term });
     if (one.from && one.to) return say('trigger.window', { from: moment(one.from), to: moment(one.to) });
     return one.from ? say('trigger.windowFrom', { from: moment(one.from) }) : say('trigger.windowTo', { to: moment(one.to) });
   };

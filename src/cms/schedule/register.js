@@ -25,6 +25,7 @@ import { readStatus } from '../publishing/status.js';
 import { refuseAtSave } from '../refusals.js';
 import { authorsIn } from '../authors/terms.js';
 import { addCondition, addTrigger, changeCondition, changeTrigger, cycleThrough, problemAtSave, removeCondition, removeTrigger, rowsIn, stampedAtSave, writtenFrom } from './model.js';
+import { kindOf } from '../../format/triggers.js';
 import { TRIGGERS_WIDGET } from './widget.js';
 import './triggers.css';
 
@@ -43,7 +44,6 @@ const PROBLEMS = Object.freeze({ momentAhead: 'schedule.momentAhead', windowPass
 
 const KINDS = [['moment', 'schedule.kindMoment'], ['published', 'schedule.kindPublished']];
 const CONDITIONS = [['type', 'schedule.kindType'], ['words', 'schedule.kindWords'], ['term', 'schedule.kindTerm'], ['window', 'schedule.kindWindow']];
-const kindOf = (condition) => (Object.hasOwn(condition, 'type') ? 'type' : Object.hasOwn(condition, 'words') ? 'words' : Object.hasOwn(condition, 'term') ? 'term' : 'window');
 
 export function registerSchedule(CMS, config) {
   const React = globalThis.__SVELTIA_CMS_REACT__;
@@ -141,8 +141,8 @@ export function registerSchedule(CMS, config) {
               change: (next) => change(changeCondition(trigger, r, c, next)),
               remove: () => change(removeCondition(trigger, r, c)),
             }))),
-          disabled ? null : h('button', { type: 'button', className: 'konzilo-part-add', onClick: () => change(addCondition(trigger, r, fresh())) }, `+ ${say('schedule.addCondition')}`)))),
-      disabled ? null : h('button', { type: 'button', className: 'konzilo-part-add', onClick: () => change(addCondition(trigger, null, fresh())) }, `+ ${say('schedule.addConditionRow')}`));
+          disabled ? null : h('button', { type: 'button', className: 'konzilo-part-add', onClick: () => change(addCondition(trigger, r, fresh())) }, say('schedule.addCondition'))))),
+      disabled ? null : h('button', { type: 'button', className: 'konzilo-part-add', onClick: () => change(addCondition(trigger, null, fresh())) }, say('schedule.addConditionRow')));
   }
 
   CMS.registerFieldType(TRIGGERS_WIDGET, function KonziloTriggers({ value, onChange, field, forID, group }) {
@@ -152,11 +152,11 @@ export function registerSchedule(CMS, config) {
     const [terms, setTerms] = React.useState([]);
     const values = group?.values ?? { status: 'scheduled', date: '', triggers: plain(value) };
     const rows = rowsIn({ date: values.date, triggers: plain(values.triggers) });
-    const wantsTerms = rows.flat().some((trigger) => trigger.published?.flat().some((condition) => Object.hasOwn(condition, 'term')));
+    const wantsTerms = rows.flat().some((trigger) => trigger.published?.flat().some((condition) => kindOf(condition) === 'term'));
     React.useEffect(() => {
       if (!wantsTerms || terms.length > 0) return undefined;
       let gone = false;
-      void Promise.all(taxonomies.map(({ label, folder }) => termsOf(folder).then((list) => list.map(({ id, name }) => ({ id, label: `${name} (${label})` }))))).then((lists) => {
+      void Promise.all(taxonomies.map(({ label, folder }) => termsOf(folder).then((list) => list.map(({ id, name }) => ({ id, label: say('schedule.termOption', { term: name, taxonomy: label }) }))))).then((lists) => {
         if (!gone) setTerms(lists.flat());
       });
       return () => {
@@ -183,7 +183,7 @@ export function registerSchedule(CMS, config) {
       return () => globalThis.removeEventListener('click', saving, { capture: true });
     }, []);
     const fresh = () => ({ published: [[{ type: types[0]?.name ?? '' }]] });
-    const adding = (row) => h('button', { type: 'button', className: 'konzilo-part-add', onClick: () => write(addTrigger(rows, row, fresh())) }, `+ ${say(row === null ? 'schedule.addRow' : 'schedule.addAlternative')}`);
+    const adding = (row) => h('button', { type: 'button', className: 'konzilo-part-add', onClick: () => write(addTrigger(rows, row, fresh())) }, say(row === null ? 'schedule.addRow' : 'schedule.addAlternative'));
     const heldInDate = !(Array.isArray(plain(values.triggers)) && plain(values.triggers).length > 0);
     // A moment alone, or none yet: the date holds it, and two buttons add others.
     if (heldInDate) return readOnly ? null : h('div', { className: 'konzilo-schedule konzilo-schedule-adding' }, adding(0), adding(null));
@@ -195,7 +195,7 @@ export function registerSchedule(CMS, config) {
           h('legend', null, say('schedule.row', { n: r + 1 })),
           row.map((trigger, t) => {
             const id = `${forID}-${r}-${t}`;
-            const kind = Object.hasOwn(trigger, 'moment') ? 'moment' : 'published';
+            const kind = kindOf(trigger);
             const change = (next) => write(changeTrigger(rows, r, t, next));
             return h(React.Fragment, { key: t },
               t > 0 ? h('p', { className: 'konzilo-schedule-joint' }, say('schedule.or')) : null,
@@ -222,7 +222,7 @@ export function registerSchedule(CMS, config) {
       const data = postValues(entry.get('data'));
       if (data.status !== 'scheduled') return;
       const rows = rowsIn({ date: data.date, triggers: data.triggers });
-      const alone = rows.length === 0 || (rows.length === 1 && rows[0].length === 1 && Object.hasOwn(rows[0][0], 'moment'));
+      const alone = rows.length === 0 || (rows.length === 1 && rows[0].length === 1 && kindOf(rows[0][0]) === 'moment');
       const problem = problemAtSave(rows, nowMoment());
       if (problem) refuseAtSave(say(alone && problem === 'momentAhead' ? 'parts.scheduledAhead' : PROBLEMS[problem]));
       if (!rows.flat().some((trigger) => trigger.published)) return;

@@ -57,6 +57,13 @@ export function text(language, name, values = {}) {
   return written(language, name).replace(/\{(\w+)\}/g, (_, placeholder) => String(values[placeholder] ?? ''));
 }
 
+// A text in a language as its parts in order: each run of its words, and each value from `values`
+// where the text places it, which need not be text, a control a form draws among them, so that each
+// language places it where its own word order has it. A placeholder without a value is left out.
+export function textParts(language, name, values = {}) {
+  return written(language, name).split(/\{(\w+)\}/).map((part, at) => (at % 2 === 1 ? values[part] ?? '' : part)).filter((part) => part !== '');
+}
+
 // The texts of an area, such as `site.search.`, in a language, a locale or a language tag,
 // each by its name after the area, as the catalogue writes it: the caller fills its
 // placeholders. Its language's catalogue's (catalogueFor()), else British English's.

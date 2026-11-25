@@ -183,14 +183,15 @@ function DeletedEntry({ row, collection, history, lock, api, repository, onBack 
       if (!gone.current) setState({ restoring: false, said: say('deleted.restoreFailed'), alert: true });
     }
   };
+  const kind = collection?.label ?? row.collection;
   const line = row.account
-    ? wordsShown({ name: 'deleted.line', values: { moment: momentValue(row.moment), account: row.account.name } })
-    : wordsShown({ name: 'deleted.lineUnknown', values: { moment: momentValue(row.moment) } });
+    ? wordsShown({ name: 'deleted.line', values: { collection: kind, moment: momentValue(row.moment), account: row.account.name } })
+    : wordsShown({ name: 'deleted.lineUnknown', values: { collection: kind, moment: momentValue(row.moment) } });
   return h('article', { className: 'konzilo-deleted-entry', 'aria-labelledby': 'konzilo-deleted-title' },
     h('div', { className: 'konzilo-deleted-ways' },
       h('button', { type: 'button', className: 'konzilo-deleted-button', onClick: onBack }, say('deleted.back'))),
     h('h2', { id: 'konzilo-deleted-title', ref: heading, tabIndex: -1 }, row.title),
-    h('p', { className: 'konzilo-deleted-line' }, `${collection?.label ?? row.collection}. ${line}`),
+    h('p', { className: 'konzilo-deleted-line' }, line),
     h('p', { className: 'konzilo-deleted-note' }, say('deleted.restoreWords')),
     h('div', { className: 'konzilo-deleted-ways' },
       h('button', { type: 'button', className: 'konzilo-deleted-button konzilo-deleted-restore', disabled: state.restoring, onClick: restore }, say('deleted.restore'))),

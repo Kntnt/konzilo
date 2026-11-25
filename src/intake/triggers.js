@@ -7,7 +7,7 @@
 // matching post published, and not something a build must have been running to see. A post that
 // went out stays out, by the ledger's `released`, whatever becomes of what released it later.
 
-import { holdsAt, latestMoment, meets, momentAlone, readTriggers, TRIGGERS } from '../format/triggers.js';
+import { holdsAt, kindOf, latestMoment, meets, momentAlone, readTriggers, TRIGGERS } from '../format/triggers.js';
 import { momentOf } from '../format/moment.js';
 import { refuse } from './run.js';
 import { sha256 } from './source.js';
@@ -137,10 +137,11 @@ export function shownTriggers(post, run) {
   return post.triggers.map((row, r) => row.map((trigger, t) => {
     const { at, by = null } = post.happened?.[r]?.[t] ?? { at: null };
     const happened = at !== null && at <= now && !post.happened[r][t].assumed;
-    if (typeof trigger.moment === 'string') return { moment: trigger.moment, happened };
+    if (kindOf(trigger) === 'moment') return { moment: trigger.moment, happened };
     const published = trigger.published.map((conditions) => conditions.map((condition) => {
-      if (Object.hasOwn(condition, 'term')) return { ...condition, name: run.termsById.get(condition.term)?.label ?? condition.term };
-      if (Object.hasOwn(condition, 'type')) return { ...condition, label: run.site.types[condition.type]?.label ?? condition.type };
+      const kind = kindOf(condition);
+      if (kind === 'term') return { ...condition, name: run.termsById.get(condition.term)?.label ?? condition.term };
+      if (kind === 'type') return { ...condition, label: run.site.types[condition.type]?.label ?? condition.type };
       return condition;
     }));
     return { published, since: trigger.since, happened, ...(happened && by ? { by: by.title ?? by.id } : {}) };

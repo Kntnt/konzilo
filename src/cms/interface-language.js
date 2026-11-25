@@ -19,7 +19,7 @@
 // and in a test, it is British English. A refusal or a warning is shown by its own name and
 // values, in the same language (cms/refusals.js).
 
-import { catalogueFor, interfaceLanguageTag, languageSubtag, SOURCE_LANGUAGE, text } from '../catalogues.js';
+import { catalogueFor, interfaceLanguageTag, languageSubtag, SOURCE_LANGUAGE, text, textParts } from '../catalogues.js';
 
 let language = SOURCE_LANGUAGE;
 
@@ -29,6 +29,10 @@ export function useInterfaceLanguage(next) {
 }
 
 export const say = (name, values = {}) => text(language, name, values);
+
+// A text in the interface language as its parts, a value that is no text, such as a control or an
+// element, where the language places it (textParts()), for a form to draw in order.
+export const sayParts = (name, values = {}) => textParts(language, name, values);
 
 // The interface language the editor was loaded in, by its catalogue's name.
 export const interfaceLanguage = () => language;
