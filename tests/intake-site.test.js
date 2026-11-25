@@ -1075,13 +1075,16 @@ describe('source files as the editing tool writes them', () => {
     assert.match(page.content, /\n!\[A flow\]\(\/media\/a-figure-0123456789\.webp "width=632"\)\\\nThe flow\n$/);
   });
 
-  test('come back from what the intake writes, as the same source', () => {
+  // A draft publishes nothing, so what the intake writes gives back all but the draft.
+  test('come back from what the intake writes, as the same source, but for a draft', () => {
     const files = source.map(({ path, content }) => ({ path, contents: content }));
     const result = intake({ files, site: description, now: NOW, images: namedImages() });
     const published = result.files.filter(({ path }) => path !== '.post-ids.json' && path !== 'consent.json').map(({ path, contents }) => ({ path, content: contents }));
     const again = sourceFrom(description, published);
     const texts = (list) => list.filter(({ path }) => !path.startsWith('media/')).map(({ path, content }) => [path, content]);
-    assert.deepEqual(texts(again), texts(source));
+    const drafts = source.filter(({ content }) => /^status: "draft"$/m.test(content));
+    assert.equal(drafts.length, 1, 'the demo content\'s draft');
+    assert.deepEqual(texts(again), texts(source.filter((file) => !drafts.includes(file))));
   });
 
   test('the form an editor saves in keeps a group\'s part per type under `types`, as the settings file does', () => {

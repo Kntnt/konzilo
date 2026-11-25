@@ -154,6 +154,10 @@ describe('new-site', () => {
       assert.match(read('landing/spring-in-the-valley/index.html'), /<h2[^>]*>Spring in the valley<\/h2>/);
       assert.doesNotMatch(read('landing/spring-in-the-valley/index.html'), /<header>|<footer>/, 'a canvas has neither header nor footer');
       assert.ok(existsSync(join(site, 'content/authors/ines-holm.json')));
+      // The demo content's draft, which only the live preview in Compose shows.
+      assert.equal(existsSync(join(site, 'content/articles/distant-workshops-and-the-river.md')), false);
+      assert.equal(existsSync(join(dist, 'distant-workshops-and-the-river')), false);
+      assert.doesNotMatch(read('index.html'), /Distant workshops and the river/);
     });
 
     test('writes the files a web server and a search engine read', () => {

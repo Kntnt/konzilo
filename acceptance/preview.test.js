@@ -32,6 +32,9 @@ const fetchAgain = async (url, init) => {
 // An article of the demo content, as a tab of its own is opened at it.
 const ARTICLE = '/golden-harbours-and-the-harbour/';
 const ARTICLE_TITLE = 'Golden harbours and the harbour';
+// The demo content's draft, which the live preview shows and the public site does not (ADR 0025).
+const DEMO_DRAFT = '/distant-workshops-and-the-river/';
+const DEMO_DRAFT_TITLE = 'Distant workshops and the river';
 
 describe('the live preview', () => {
   let site;
@@ -399,6 +402,17 @@ describe('the live preview', () => {
     });
   });
 
+  // The demo content's draft on its page in a tab of the preview, as a draft, and on the public
+  // site nowhere.
+  const seesTheDemoDraft = async (page) => {
+    await shownIn(page, DEMO_DRAFT, () => page.getByRole('heading', { level: 1, name: DEMO_DRAFT_TITLE, exact: true }));
+    const toolbar = await toolbarOn(page);
+    assert.match(toolbar.says, /^Draft/);
+    assert.deepEqual(toolbar.links, [], 'nothing to edit');
+    assert.equal((await fetchAgain(`${site.origin.site}${DEMO_DRAFT}`)).status, 404);
+    assert.doesNotMatch(await (await fetchAgain(`${site.origin.site}/`)).text(), new RegExp(DEMO_DRAFT_TITLE));
+  };
+
   // A Reviewer, who reads what is coming and changes nothing (ADR 0008): one of the site's people,
   // with an account of their own, in the site's team that reads the source, who signs in with a
   // code from `konzilo-code rut`.
@@ -446,6 +460,8 @@ describe('the live preview', () => {
       assert.deepEqual(toolbar.links, []);
     });
 
+    test('sees the demo content\'s draft, which the public site does not show', () => seesTheDemoDraft(page));
+
     test('is told on the admin host that the account reads the preview only and can save nothing there, and is signed out', async () => {
       const editor = await context.newPage();
       await editor.goto(`${site.origin.admin}/`);
@@ -468,6 +484,25 @@ describe('the live preview', () => {
       assert.equal(held, null, 'the browser keeps no token of theirs');
     });
   });
+
+  // A Reviewer signs in to a tab of its own in every engine, and finds the demo content's draft.
+  for (const engine of Object.keys(ENGINES).filter((name) => name !== 'chromium')) {
+    describe(`to a Reviewer, in ${engine}`, () => {
+      test('signs in through Forgejo and sees the demo content\'s draft, which the public site does not show', async () => {
+        const browser = await ENGINES[engine].launch();
+        try {
+          const page = await (await browser.newContext({ locale: 'en-GB' })).newPage();
+          await page.goto(`${site.origin.preview}${DEMO_DRAFT}`);
+          assert.ok(page.url().startsWith(`${site.origin.git}/user/login`), page.url());
+          await throughForgejo(page, site, page.waitForURL((url) => url.origin === site.origin.preview, { timeout: 120_000 }), seeded(site, 'rut'));
+          assert.equal(page.url(), `${site.origin.preview}${DEMO_DRAFT}`);
+          await seesTheDemoDraft(page);
+        } finally {
+          await browser.close();
+        }
+      });
+    });
+  }
 
   describe('to an editor', () => {
     let session;

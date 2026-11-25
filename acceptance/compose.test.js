@@ -336,7 +336,7 @@ describe('a site in Compose', () => {
 
   test('holds the demo content as source files, media in LFS', async () => {
     const articles = await api(`${repository()}/contents/articles`);
-    assert.equal(articles.length, 6);
+    assert.equal(articles.length, 7);
     for (const file of articles) assert.match(file.name, /^[0-9a-f]{12}\.md$/);
     const media = await api(`${repository()}/contents/media`);
     assert.ok(media.length > 0);
@@ -349,6 +349,17 @@ describe('a site in Compose', () => {
     assert.ok((await image.arrayBuffer()).byteLength > 1000, 'and LFS the file');
     const lfs = await api(`${repository()}/contents/.gitattributes`);
     assert.match(Buffer.from(lfs.content, 'base64').toString(), /media\/\*\* filter=lfs/);
+  });
+
+  // Something for a local copy's Reviewer to find in the live preview (ADR 0025).
+  test('holds the demo content\'s draft as a draft, listed so, which the public site does not show', async () => {
+    const draft = await fileNamed('articles', 'Distant workshops and the river');
+    assert.ok(draft, 'the draft\'s source file');
+    assert.match(draft.text, /^status: "?draft"?$/m);
+    const { posts } = await (await get(`${site.origin.admin}/_konzilo/status`, { headers: { authorization: `token ${token}` } })).json();
+    assert.equal(posts.find(({ file }) => file === draft.path)?.status, 'draft');
+    assert.equal((await get(`${site.origin.site}/distant-workshops-and-the-river/`)).status, 404);
+    assert.doesNotMatch(await (await get(`${site.origin.site}/`)).text(), /Distant workshops and the river/);
   });
 
   test('gives the account write access through its team, and no ownership, and Reviewers a team that reads', async () => {
