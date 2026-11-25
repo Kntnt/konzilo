@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- A post list can be shown on the first page of its post's list with pages alone, `firstPage="true"`, so that a page that leads with a few featured posts above a list with pages does not show them again on page 2 and on. They are still left out of the list with pages on every page, so each of its pages holds the same posts as where they are shown on every page. The list with pages itself does not take it, and on a post without one it changes nothing.
+
 ### Changed
 
 - A table cell in an aligned column carries `data-align`, `start`, `center` or `end`, in place of the inline style `text-align: left`, `center` or `right`, on the site, in the live preview and in a component's tree, for a simple and a structured table alike. Left is the start of the line and right its end, so on a site read from right to left a column aligned to the right stands on the left. A design aligns a cell by the attribute and can give such a column a look of its own, which the inline style used to outrank; the site template does so, and a site made from an earlier template, or a design of its own, needs the same rule, `text-align: start`, `center` or `end` by `data-align`, or its aligned columns stand where its other cells do. The content files stay as they are, and the site's security policy no longer allows a table's style by a hash.
