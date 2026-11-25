@@ -6,6 +6,12 @@
     "replace": "`read:user`].join(` `)"
   },
   {
+    "module": "@sveltia/cms/npm/chunks/init-BNH7Gwj6.js",
+    "why": "Sveltia opens its sign-in window on the editor's own address, so the whole editor starts in it only to send the window on to Forgejo, and is still at work as the window leaves. WebKit refuses whatever a page asks for once it has started for another, a read of a Blob among it, such as the editor's reads of the two icons it makes of its logo, and says in the console of each that it cannot be loaded due to access control checks; Firefox says that the fonts the page was loading were stopped. The window opens empty, and the editor that opened it sends it to Forgejo, with the mark Sveltia's own start leaves in the window's session storage (ADR 0029).",
+    "find": "s=dj({authURL:o});if(!s)throw uj();let c;try{c=typeof n==`function`?await n():n}catch(e){throw s.close(),e}let{csrfToken:l,codeVerifier:u,codeChallenge:d}=await mj(),f=new URLSearchParams({client_id:t,redirect_uri:o,response_type:`code`,state:l,scope:r,code_challenge:d,code_challenge_method:`S256`});if(await im.set(tj,{csrfToken:l,codeVerifier:u,realAuthURL:`${c}${c.includes(`?`)?`&`:`?`}${f}`}),await im.set(VD,{backendName:e}),s.closed)throw uj();",
+    "replace": "s=dj({authURL:`about:blank`});if(!s)throw uj();let c;try{c=typeof n==`function`?await n():n}catch(e){throw s.close(),e}let{csrfToken:l,codeVerifier:u,codeChallenge:d}=await mj(),f=new URLSearchParams({client_id:t,redirect_uri:o,response_type:`code`,state:l,scope:r,code_challenge:d,code_challenge_method:`S256`}),konziloTo=`${c}${c.includes(`?`)?`&`:`?`}${f}`;if(await im.set(tj,{csrfToken:l,codeVerifier:u,realAuthURL:konziloTo}),await im.set(VD,{backendName:e}),s.closed)throw uj();try{s.sessionStorage.setItem(nj,l)}catch{}s.location.href=konziloTo;"
+  },
+  {
     "module": "@sveltia/cms/npm/index.js",
     "why": "An editor has no use for an advertisement for Sveltia's mobile sign-in, which the admin host does not offer (ADR 0029).",
     "find": "let n=A5(`mobileCta`);A(()=>{n.showIfNeeded()});",
