@@ -9,16 +9,54 @@
 // for each menu (collections.js); on a site in one language, or none, an
 // entry's id is its slug or path, the settings' one entry is `site` and a
 // menu's entry its name, as before. It also gives the address of a type's
-// posts in a language.
+// posts in a language, and of each post, from its entry's slug or path and
+// what else its type's address holds of it, its date and its term, whose
+// path in a hierarchical taxonomy it reads from the term's files.
 //
 // Free of Astro's own modules, so that the integration and the tests read it
 // too; site-settings.js and site-languages.js read the entries with Astro's
 // own functions.
 
-import { resolve } from 'node:path';
-import { publicAddress } from '../format/addresses.js';
+import { readFileSync, statSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { contentValues, publicAddress } from '../format/addresses.js';
 import { START_ENTRY } from '../format/start-page.js';
 import { readSiteDescription, SITE_DESCRIPTION_FILE, TRANSLATION_KEY } from '../site-description.js';
+
+// The content folder the collections read: content/ in the site repository,
+// or, in a preview build, the preview's own, which KONZILO_CONTENT names.
+export function contentFolder() {
+  return process.env.KONZILO_CONTENT || './content';
+}
+
+const termFiles = new Map();
+
+// The term files of the content folder `folder`, as contentValues() of
+// format/addresses.js reads them: a term's file by its collection and its
+// name in it, its data, or null where there is none; each read again once it
+// has changed, so that the dev server follows a term moved or renamed.
+export function termFilesIn(folder = resolve(contentFolder())) {
+  return (collection, name) => {
+    const file = join(folder, collection, `${name}.json`);
+    let stamp;
+    try {
+      const { mtimeMs, size } = statSync(file);
+      stamp = `${mtimeMs}:${size}`;
+    } catch {
+      return null;
+    }
+    if (termFiles.get(file)?.stamp !== stamp) {
+      let data = null;
+      try {
+        data = JSON.parse(readFileSync(file, 'utf8'));
+      } catch {
+        data = null;
+      }
+      termFiles.set(file, { stamp, data });
+    }
+    return termFiles.get(file).data;
+  };
+}
 
 // The settings' one entry on a site in one language, or none.
 export const SETTINGS_ENTRY = 'site';
@@ -94,16 +132,19 @@ export function entryName(id, languages) {
 }
 
 // An entry's public address, a path from the site's root, from its type
-// (the site description's, as checked) and its id: its language's prefix
-// and its type's address in that language, with its slug or path; null for a type without an address, or an entry in a folder of no
-// language of the site's. The start page an Admin chose, the entry
-// START_ENTRY (collections.js), is at the start page's address.
-export function entryAddress(type, id, languages) {
+// (the site description's, as checked) and the entry, as Astro's
+// getCollection() gives it: its language's prefix and its type's address in
+// that language, filled with its slug or path, its id within its language's
+// folder, its date and its term, whose path `read` gives from the term files
+// (termFilesIn()); null for a type without an address, or an entry in a
+// folder of no language of the site's. The start page an Admin chose, the
+// entry START_ENTRY (collections.js), is at the start page's address.
+export function entryAddress(type, entry, languages, read = termFilesIn()) {
   if (type.address === null) return null;
-  if (isStartEntry(id)) return startAddress(languages[0] ?? null, languages);
-  const language = entryLanguage(id, languages);
+  if (isStartEntry(entry.id)) return startAddress(languages[0] ?? null, languages);
+  const language = entryLanguage(entry.id, languages);
   if (languages.length > 1 && language === null) return null;
-  return publicAddress(type, entryName(id, languages), language);
+  return publicAddress(type, contentValues(type, entryName(entry.id, languages), entry.data, read), language);
 }
 
 // Whether an entry, by its id, is the start page an Admin chose, which its type's
@@ -154,7 +195,7 @@ export function indexed(entry, type, languages, origin) {
   const own = seo ? entry.data?.[seo.name] : undefined;
   if (own?.noindex === true) return false;
   if (!own?.canonical) return true;
-  const address = entryAddress(type, entry.id, languages);
+  const address = entryAddress(type, entry, languages);
   return Boolean(origin) && address !== null && own.canonical === new URL(address, origin).href;
 }
 
@@ -171,7 +212,7 @@ export function alternatesAmong(entry, entries, type, languages, origin) {
   if (languages.length <= 1 || !indexed(entry, type, languages, origin)) return [];
   return translationsAmong(entry, entries, languages)
     .filter((member) => indexed(member, type, languages, origin))
-    .map((member) => ({ language: entryLanguage(member.id, languages), entry: member, address: entryAddress(type, member.id, languages) }))
+    .map((member) => ({ language: entryLanguage(member.id, languages), entry: member, address: entryAddress(type, member, languages) }))
     .filter(({ address }) => address !== null);
 }
 

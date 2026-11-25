@@ -42,7 +42,7 @@ import { isSource, OTHER_ANSWERS } from '../format/redirects.js';
 import { START_ENTRY, START_PAGE, startFile } from '../format/start-page.js';
 import { isSiteTitle, TYPES } from '../settings-groups.js';
 import { declaredNames, DEPARTURES, IMAGE, PRIVACY_SIGNALS, OLD_ADDRESSES, OTHER_ADDRESSES, POST, readSiteDescription, SCHEMA_TYPES, SITE_DESCRIPTION_FILE, siteDescription, TRANSLATION_KEY } from '../site-description.js';
-import { SETTINGS_ENTRY } from './languages.js';
+import { contentFolder, SETTINGS_ENTRY } from './languages.js';
 
 // The same function as `reference` from astro:content, which only Astro's own
 // modules can import.
@@ -168,11 +168,8 @@ function files(declared, pattern) {
   return { pattern, base: `${contentFolder()}/${declared.collection}`, generateId: ({ entry }) => entry.replace(/\.(md|json)$/, '') };
 }
 
-// The content folder the collections read: content/ in the site repository,
-// or, in a preview build, the preview's own, which KONZILO_CONTENT names.
-export function contentFolder() {
-  return process.env.KONZILO_CONTENT || './content';
-}
+// The content folder the collections read (languages.js).
+export { contentFolder };
 
 // The frontmatter of a post: its title, then each declared field, the key of
 // its translation set on a site in several languages when it has a

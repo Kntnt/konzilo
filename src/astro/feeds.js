@@ -203,7 +203,7 @@ export async function siteFeed({ site, pattern, slug = null, origin, languageTag
   const items = [];
   for (const { entry, type, date } of posts.slice(0, count)) {
     // At its address in its language on a site in several.
-    const link = new URL(entryAddress(type, entry.id, site.languages), origin).href;
+    const link = new URL(entryAddress(type, entry, site.languages), origin).href;
     const image = await featuredImage(entry, type, origin, getImage);
     // The ledger knows a post by its file, the start page an Admin chose by its own.
     const id = ids[isStartEntry(entry.id) ? startFile(type) : `${type.collection}/${entry.id}.md`];

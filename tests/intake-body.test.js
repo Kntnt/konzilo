@@ -162,6 +162,11 @@ test('writes a post list\'s attributes in the registry\'s order, off their defau
   assert.equal(text.split('---\n\n')[1], '::post-list{type="page" include="category:local,news" pages="true" presentation="list"}\n');
 });
 
+test('writes a list shown on the first page alone with firstPage after pages, and leaves out firstPage at its default', () => {
+  const { text } = out('::post-list{firstPage="true" presentation="list" type="page" number="3"}\n\n::post-list{type="page" firstPage="false" pages="true" presentation="list"}');
+  assert.equal(text.split('---\n\n')[1], '::post-list{type="page" number="3" firstPage="true" presentation="list"}\n\n::post-list{type="page" pages="true" presentation="list"}\n');
+});
+
 // A page has a date and a last change, so a list of pages may be ordered by either.
 test('takes a list of pages ordered by their date or their last change', () => {
   for (const order of ['date', 'modified']) {

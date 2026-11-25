@@ -8,7 +8,7 @@
 // empty string.
 
 import { ARTICLE, AUTHORS, BUILT_IN_TYPES, CATEGORY, descriptionLabel, followsParts, keepsOrder, pageTypeOf, TOPICS } from '../format/built-in-types.js';
-import { CANONICAL_PATTERN, publicAddress } from '../format/addresses.js';
+import { addressTemplate, addressTermFields, CANONICAL_PATTERN } from '../format/addresses.js';
 import { IMAGE_LIBRARY_FOLDER } from '../format/masters.js';
 import { MENU_DESCRIPTION_LENGTH } from '../format/menus.js';
 import { DRAFT, POST_STATUSES } from '../format/post-status.js';
@@ -205,10 +205,20 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
   // A post's own address, from which the canonical address field shows it while the post names
   // none: its type's address with `{slug}`, and on a site in several languages one for the
   // language of each pane, by its tag, after its prefix (parts/register.js).
+  // The fields whose term a type's address holds, each by its name and its taxonomy's
+  // collection, and the language folder of the term files that give a term's slug, the main
+  // language's, which the form reads to show the post's address as its values stand
+  // (parts/address.js).
+  const addressTerms = (type) => {
+    const fields = addressTermFields(type);
+    if (fields.length === 0) return {};
+    return { addressTerms: fields.map((field) => ({ name: field.name, collection: field.taxonomy.collection })), termFolder: several ? description.languages[0].tag : null };
+  };
+
   const ownAddress = (type) => {
     if (type.address === null) return null;
-    if (!several) return publicAddress(type, '{slug}');
-    return Object.fromEntries(description.languages.map((language) => [language.tag, publicAddress(type, '{slug}', language)]));
+    if (!several) return addressTemplate(type);
+    return Object.fromEntries(description.languages.map((language) => [language.tag, addressTemplate(type, language)]));
   };
 
   // The separator a title tag takes until the site's settings give another: the Search and
@@ -238,6 +248,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
           widget: TEXT_WIDGET,
           fallback: 'ownAddress',
           address: ownAddress(type),
+          ...addressTerms(type),
           placeholder: say('seoCanonicalOwn'),
           hint: say('seoCanonicalHint'),
           pattern: [CANONICAL_PATTERN, say('seoCanonicalPattern')],
@@ -440,7 +451,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
       : { name: 'title', label: say('title'), widget: 'string', required: true, ...within(TRANSLATED) };
     // Shown, and changed on purpose; a new post's follows its name in breadcrumbs, which is its
     // default too.
-    const slug = { name: 'slug', label: say('slug'), widget: SLUG_WIDGET, address: typeof type.address === 'string' ? type.address : null, computed: 'slug', required: false, ...within(SAME_IN_EACH) };
+    const slug = { name: 'slug', label: say('slug'), widget: SLUG_WIDGET, address: typeof type.address === 'string' ? type.address : null, ...addressTerms(type), computed: 'slug', required: false, ...within(SAME_IN_EACH) };
     const status = {
       name: 'status',
       label: say('status'),

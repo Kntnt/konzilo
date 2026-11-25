@@ -71,7 +71,7 @@ Each kind of file has its path. The placeholders are a collection's folder, `<co
 The site description, `site-description.json` in the site repository, declares the site's content model. As far as it decides the content files:
 
 - **`language`**, a locale such as `en_GB`, or **`languages`**, several, the main one first, which put each post into a language's folder ([Several languages](#several-languages)).
-- **`types`**, the post types: the core's built-in `canvas`, `page` and `article`, each by its name ([The built-in types](#the-built-in-types)), and any of the site's own, each by a name of the site's own. Each has its `collection`, the folder of its files; its `address`, where visitors reach a post, a path from the site's root ending in `{slug}/`, or in `{path}/` for a hierarchical type, and none for a type whose posts have no page of their own; `hierarchical`, whether its posts have parents; `elements`, the body elements its posts may hold, by their names in the rule data ([The body](#the-body)); and `fields`, what its frontmatter holds after the title, in that order ([A post's file](#a-posts-file)). A type of the site's own may list `structuredDataTypes`, the structured data types its posts may have, each once, its default first, such as `["BlogPosting", "Article"]`; one that lists none offers what a page offers. A type's `feed`, and a taxonomy's, the address of an RSS feed the site builds, holds no file, but a post at a feed's address is refused.
+- **`types`**, the post types: the core's built-in `canvas`, `page` and `article`, each by its name ([The built-in types](#the-built-in-types)), and any of the site's own, each by a name of the site's own. Each has its `collection`, the folder of its files; its `address`, where visitors reach a post, a path from the site's root ending in `{slug}/`, or in `{path}/` for a hierarchical type, before which a step may hold the post's date or its term ([A post's address](#a-posts-address)), and none for a type whose posts have no page of their own; `hierarchical`, whether its posts have parents; `elements`, the body elements its posts may hold, by their names in the rule data ([The body](#the-body)); and `fields`, what its frontmatter holds after the title, in that order ([A post's file](#a-posts-file)). A type of the site's own may list `structuredDataTypes`, the structured data types its posts may have, each once, its default first, such as `["BlogPosting", "Article"]`; one that lists none offers what a page offers. A type's `feed`, and a taxonomy's, the address of an RSS feed the site builds, holds no file, but a post at a feed's address is refused.
 - **`taxonomies`**, each with its `collection`, the folder of its terms' files, and `hierarchical`, whether its terms have parents. A taxonomy's `address`, such as `/category/{slug}/`, or with `{path}/`, its parents' slugs and its own, in a hierarchical one, gives each term that has a file a page there, the site design's; it holds no file of its own, but a post at a term's page's address is refused, and links, menu entries and rules may lead to the page. A taxonomy without one has no pages.
 - **`presentations`**, the ways the site's design shows a post list, each with its options, which a post list in a body takes as attributes ([Post lists](#post-lists)).
 - **`menus`**, each a file of its own, and **`settings`**, the site's own settings, in the order `settings.json` holds them; on a site in several languages a text setting that declares `"translated": true` has a value in each language.
@@ -219,9 +219,92 @@ Every lantern on the quay is lit at dusk.
 }
 ```
 
+### A post's address
+
+A type's `address` is filled with each post's values to give the post's address. It ends in `{slug}/`, the post's slug, or in a hierarchical type in `{path}/`, its path. Each step before it, the text between two slashes, is a text of lowercase letters, digits, hyphens and underscores, or one *token* alone, which the post's values fill:
+
+- **`{year}`, `{month}` and `{day}`**, from the post's `date`, its day in UTC, as every date the site shows is: `{year}`, `{year}/{month}` or `{year}/{month}/{day}`, together and in that order, the month and the day in two digits, so that a post dated `2026-03-07T23:30:00Z` is under `/2026/03/07/`. Only a type with a date takes them.
+- **The term of a field of terms** that takes exactly one, `"most": 1` and `"required": true`, named by the field's name, such as `{category}`: the term's slug, or in a hierarchical taxonomy its path, its parents' slugs from the top and its own, so that a post in PTSD below Health is under `/health/ptsd/`. The built-in article's category, which takes one at most, is required where its address holds it. A hierarchical type's posts stand under their parents, so its address holds no term.
+
+Each token stands once, never shares a step with text, as `/archive-{year}/` would, and never stands after the slug. A post's file is at its slug, or its path, whatever else its address holds, so two posts of a type never share a slug. A post moves when a value its address holds changes, its date, its term, or its term's slug or parent, and the address it was live at becomes one of its old addresses ([Old and other addresses](#old-and-other-addresses)). No two types, nor a type and a taxonomy, have addresses of one shape, such as `/{year}/{slug}/` and `/{category}/{slug}/` where the category is not hierarchical, since either would give every address the other gives: each token fills one step, but a hierarchical taxonomy's term and `{path}`, which fill one or more. Two whose addresses can only meet, as `/{year}/{slug}/` and `/{path}/` can, are left to their posts: a post that would take an address another holds is refused.
+
+A site whose news is by its date, each news item's page at its day, `/news/2026/03/07/new-lanterns/`:
+
+```json site-description=dated
+{
+  "language": "en_GB",
+  "types": {
+    "news": {
+      "label": "News item",
+      "plural": "News",
+      "collection": "news",
+      "address": "/news/{year}/{month}/{day}/{slug}/",
+      "elements": ["paragraph"],
+      "fields": {
+        "date": {}
+      }
+    }
+  }
+}
+```
+
+```markdown file=news/new-lanterns.md site=dated
+---
+title: "New lanterns on the quay"
+date: 2026-03-07T23:30:00Z
+---
+
+Twelve lanterns were lit for the first time.
+```
+
+A site whose guides are by their subject, a hierarchical taxonomy, each guide's page below its subject's path, `/guides/health/ptsd/sleep/`, and whose subject is required, one to a guide:
+
+```json site-description=sorted
+{
+  "language": "en_GB",
+  "types": {
+    "guide": {
+      "label": "Guide",
+      "plural": "Guides",
+      "collection": "guides",
+      "address": "/guides/{subject}/{slug}/",
+      "elements": ["paragraph"],
+      "fields": {
+        "subject": { "taxonomy": "subject", "most": 1, "required": true }
+      }
+    }
+  },
+  "taxonomies": {
+    "subject": { "label": "Subject", "plural": "Subjects", "collection": "subjects", "hierarchical": true }
+  }
+}
+```
+
+```markdown file=guides/sleep.md site=sorted
+---
+title: "Sleep"
+subject: ["ptsd"]
+---
+
+What helps a night's sleep.
+```
+
+```json file=subjects/health.json site=sorted
+{
+  "name": "Health"
+}
+```
+
+```json file=subjects/ptsd.json site=sorted
+{
+  "name": "PTSD",
+  "parent": "health"
+}
+```
+
 ## A post's file
 
-A post is one Markdown file with YAML frontmatter. Its path names it: its type's collection, then its slug, or its path in a hierarchical type, then `.md`; the start page an Admin chose is at the content folder's root, named by its type ([The start page](#the-start-page)).
+A post is one Markdown file with YAML frontmatter. Its path names it: its type's collection, then its slug, or its path in a hierarchical type, then `.md`, whatever else its address holds; the start page an Admin chose is at the content folder's root, named by its type ([The start page](#the-start-page)).
 
 ### The bytes
 
@@ -499,7 +582,7 @@ Write \$x$ for a formula, and $x$ for $x$.
 
 ### Simple tables
 
-A table with one header row, no caption, no footer and no merged cells is a GFM pipe table: a pipe at both ends of each row and one space either side of each cell's text, not padded to its column's width, an empty cell `|  |`. The delimiter row gives each column's alignment, `---`, `:---`, `:---:` or `---:`. A cell takes the inline elements a heading takes, and `\|` for a pipe in its text, a link's text or a link's address.
+A table with one header row, no caption, no footer and no merged cells is a GFM pipe table: a pipe at both ends of each row and one space either side of each cell's text, not padded to its column's width, an empty cell `|  |`. The delimiter row gives each column's alignment, `---`, `:---`, `:---:` or `---:`: none, the start of the line, its centre or its end, so that on a site read from right to left a column aligned to the right stands on the left. A cell takes the inline elements a heading takes, and `\|` for a pipe in its text, a link's text or a link's address.
 
 ```markdown body
 | Item | Note | Price |
@@ -508,9 +591,36 @@ A table with one header row, no caption, no footer and no merged cells is a GFM 
 |  | Spare | 5 |
 ```
 
+The site writes an aligned cell with `data-align`, `start`, `center` or `end`, and no `style`, a simple table's and a structured table's alike, each table in a `div` of the class `konzilo-table`:
+
+```markdown body read
+| Item | Note | Price |
+| --- | :---: | ---: |
+| Tent | Two people | 120 |
+```
+
+```html rendered
+<div class="konzilo-table"><table>
+<thead>
+<tr>
+<th>Item</th>
+<th data-align="center">Note</th>
+<th data-align="end">Price</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tent</td>
+<td data-align="center">Two people</td>
+<td data-align="end">120</td>
+</tr>
+</tbody>
+</table></div>
+```
+
 ### Structured tables
 
-A table with a caption, a footer section or merged cells is an HTML table of one fixed shape: a line for each tag that opens or closes the table and its sections, a line for the caption and one for each row, and no blank line. The caption comes first, then `thead` with its one row of `th` cells, `tbody` and `tfoot`, each only when it has rows, every cell outside the header row a `td`. A cell's attributes are `colspan` and `rowspan`, each only when 2 or more, then `style="text-align: left"`, `center` or `right` when its column is aligned. A cell and the caption take the inline elements a heading takes, as HTML: `<strong>`, `<em>`, `<a href>`, `<sup>`, `<sub>`, `<code>` and `<del>`; a link's tag is a raw link's ([Inline elements](#inline-elements)), with `target` and `rel` where it has them. Their characters are written as typed, but `&` as `&amp;` and `<` as `&lt;`, and in an address `"` as `&quot;` too. Nothing in it is read as Markdown, so it takes no Markdown escapes.
+A table with a caption, a footer section or merged cells is an HTML table of one fixed shape: a line for each tag that opens or closes the table and its sections, a line for the caption and one for each row, and no blank line. The caption comes first, then `thead` with its one row of `th` cells, `tbody` and `tfoot`, each only when it has rows, every cell outside the header row a `td`. A cell's attributes are `colspan` and `rowspan`, each only when 2 or more, then `style="text-align: left"`, `center` or `right` when its column is aligned, which say the start of the line, its centre and its end, as a simple table's alignments do. A cell and the caption take the inline elements a heading takes, as HTML: `<strong>`, `<em>`, `<a href>`, `<sup>`, `<sub>`, `<code>` and `<del>`; a link's tag is a raw link's ([Inline elements](#inline-elements)), with `target` and `rel` where it has them. Their characters are written as typed, but `&` as `&amp;` and `<` as `&lt;`, and in an address `"` as `&quot;` too. Nothing in it is read as Markdown, so it takes no Markdown escapes.
 
 ```markdown body
 <table>
@@ -638,9 +748,11 @@ A farm in summer
 
 ### Post lists
 
-A post list, a list of posts the site picks at every build, is the leaf directive `::post-list{…}` alone on its line. Its attributes come in this order, each only when it is not at its default: `type`, the post type it lists, required; `include` and `exclude`, terms as `<taxonomy>:<slug>,<slug>`, taxonomies apart by a space; `where`, conditions on fields, `<field><op><value>` apart by `;`; `order`, `direction`, `offset` (0 by default) and `number` (10 by default, at most 100); `leaveOutThis` and `leaveOutShown` (`true` by default); `pages` (`false` by default), `true` for the one list in a post that has pages of its own, at the post's address and `<address>page/<n>/`; `presentation`, one the site description declares, required; `empty`, the text shown when no post matches; then the options of the presentations, in the order the site description declares them. [ADR 0039](docs/adr/0039-write-a-post-list-as-a-directive-evaluated-at-every-build.md) gives each attribute's values.
+A post list, a list of posts the site picks at every build, is the leaf directive `::post-list{…}` alone on its line. Its attributes come in this order, each only when it is not at its default: `type`, the post type it lists, required; `include` and `exclude`, terms as `<taxonomy>:<slug>,<slug>`, taxonomies apart by a space; `where`, conditions on fields, `<field><op><value>` apart by `;`; `order`, `direction`, `offset` (0 by default) and `number` (10 by default, at most 100); `leaveOutThis` and `leaveOutShown` (`true` by default); `pages` (`false` by default), `true` for the one list in a post that has pages of its own, at the post's address and `<address>page/<n>/`; `firstPage` (`false` by default), `true` for a list shown on the first page of that list with pages alone, which the list with pages itself does not take; `presentation`, one the site description declares, required; `empty`, the text shown when no post matches; then the options of the presentations, in the order the site description declares them. [ADR 0039](docs/adr/0039-write-a-post-list-as-a-directive-evaluated-at-every-build.md) gives each attribute's values.
 
 A body's lists are evaluated in the order they are written, those in a site's components at any depth among them, so a list that leaves out the posts shown leaves out the posts of its type that the lists written above it showed, wherever each stands. A list in a component counts in its place whether the component shows its body or not.
+
+On each later page of a post's list with pages, every other list shows its first slice again, but for a list with `firstPage`, which is not shown there. It still leaves out its posts from the lists below it, as on the first page, so each page of the list with pages holds the same posts whether or not the lists above it are shown. On a post without a list with pages, `firstPage` changes nothing.
 
 A list whose `order` is `related` takes no `direction`, and lists the posts that share a term with the post it sits in, as the recommended reading under a post ranks them ([ADR 0070](docs/adr/0070-rank-related-posts-by-shared-topics-and-category-times-a-freshness-that-halves.md)): in a list of articles, a point for each topic a post shares and half a point for the same category, its authors none; in a list of another type, a point for each term it shares, of any taxonomy. Each score is multiplied by the post's freshness, 2^(-age / half-life), its age from its date to the build and the half-life in days `related.halfLife` in the site settings ([The site settings](#the-site-settings)), unless `related.freshness` is `false`; a post without a date is not decayed. The highest comes first, then the newest, then by title, and a post that scores nothing is not listed. Since every post ages alike, the order is the same whenever the site is built.
 
@@ -648,6 +760,14 @@ A list whose `order` is `related` takes no `direction`, and lists the posts that
 ::post-list{type="article" include="category:news" number="3" presentation="list" date="true"}
 
 ::post-list{type="article" order="title" presentation="cards" columns="3"}
+```
+
+The three newest articles in News, shown on the first page alone, above a list with pages of every article, which leaves the three out of each of its pages:
+
+```markdown body
+::post-list{type="article" include="category:news" number="3" firstPage="true" presentation="cards" columns="3"}
+
+::post-list{type="article" pages="true" presentation="list"}
 ```
 
 The site's design shows a list by the presentation it names, a component that is given the posts of the page it shows, the presentation's options as the list sets them, the text for a list that matches nothing, the pager of a list with pages, and what the whole list holds, in the page's language: its type, how many posts it matches on all its pages, after its offset and what it leaves out, and the terms those posts hold in each of the type's taxonomies, each with how many of them hold it ([`docs/site-design.md`](docs/site-design.md#what-a-site-gives-the-integration)). Which rows of terms a list that filters shows is an option the site declares for its presentation. A taxonomy's key in a query, in such a row and on the search page, is the taxonomy's name, `category`, `topics` or `authors`.
@@ -1434,7 +1554,7 @@ There is nothing here. Try [the start page](/).
 
 A post of a type with an address answers at its own address, and at two more kinds, each a redirect to it or the post itself shown there:
 
-- **`oldAddresses`**, the addresses it had before, where the site showed it, which redirect permanently, with 301. A build adds the address a post was live at when it is published at another, as when its slug or its parent changes.
+- **`oldAddresses`**, the addresses it had before, where the site showed it, which redirect permanently, with 301. A build adds the address a post was live at when it is published at another, as when its slug or its parent changes, or a value its address holds: its date, its term, or its term's slug or parent ([A post's address](#a-posts-address)).
 - **`otherAddresses`**, addresses an editor gave it, each `{"address":…,"answer":…}`, its answer 301, 302, 307 or 308, or `"show"`: the post's own page at that address too, its canonical address the post's, at a path without a query. A build writes the post's page again there; no sitemap or list holds such an address.
 
 Each is an address on the site as a browser sends it, a path, with a query or not. The site answers an address from one holder, in this order: the site's own files, a post's own address, a post's other addresses, the site's exact rules in `redirects.json`, old addresses, and last the patterns.

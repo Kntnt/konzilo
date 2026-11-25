@@ -54,6 +54,21 @@ content.children.forEach((node, index) => {
 
 A post list in a component's body is evaluated in its place among the body's lists, in the order they are written, whether the component renders its body, part of it or none of it: the lists written below it leave out its posts even where the component shows none of them. In the tree it stands as its plain rendering, so a design that wants its posts shown places the slot, or the list's own block's slot, which draws the posts the list was given in its place, however many times it is drawn.
 
+A template is given its post's body as the same tree by `bodyTree(entry)` from `@kntnt/konzilo/astro`, a promise of the tree a component holding the whole body would be given as `content`: each heading with its ID, an image as the page draws it but for the lightbox, a component and a post list as their plain rendering, holding their bodies, and in the live preview each block's mark, so that a component's `content` is its part of it. Given HTML in place of the entry, `bodyTree(html)` gives that HTML's tree, read the same way, so a template's own component around `Body` reads the body as the page renders it, each component as the site's component drew it and each post list by its presentation: `const tree = await bodyTree(await Astro.slots.render('default'))`. Each call gives a new tree, which the template may change. A template that draws a block from the tree with its properties keeps the block's mark, so that a click on it in the live preview leads to the block, as on a component that draws its tree. A table of contents, which points at a block rather than draws it, leaves the mark off, since the page shows a block a field asks for at the first element that holds its mark:
+
+```astro
+---
+import { bodyTree } from '@kntnt/konzilo/astro';
+const { entry } = Astro.props;
+const tree = await bodyTree(entry);
+const words = (node) => (node.type === 'text' ? node.value : (node.children ?? []).map(words).join(''));
+const stops = tree.children.filter((node) => node.type === 'element' && node.tagName === 'h2');
+---
+<nav class="…"><ol>{stops.map((node) => <li><a href={`#${node.properties.id}`}>{words(node)}</a></li>)}</ol></nav>
+```
+
+A component with an anchor stands in the tree from the entry as its plain rendering, its anchor among its `data-` properties, `dataAnchor` for an attribute `anchor`, and in the tree of what `Body` rendered as the site's component drew it, such as an `aside` whose `id` is the anchor.
+
 A post list is drawn by the component the site gives for its presentation through `presentations`. It is given `posts`, the posts of the page it shows, each `{ entry, url }`, the post's entry and its address below the site's base, or null for a type without one; `options`, the presentation's options as the list sets them; `empty`, the text for a list that matches nothing; `pager`, the pager's data for a list with pages of its own, else null; and `list`, what the whole list holds over all its pages, after its offset and the posts it leaves out, in the page's language:
 
 ```js
@@ -66,6 +81,8 @@ A post list is drawn by the component the site gives for its presentation throug
 ```
 
 `terms` holds every taxonomy the type takes, by its name, and in each the terms those posts hold: a term's ID, its slug; its name; how many of the posts hold it, filed under the term itself, so that a post filed under a term below it counts for that term alone; and its page's address below the site's base, or null for a term without a page, as every term of a taxonomy without an address is. `search` is the search page's address below the site's base, or null on a site without search and for a type whose posts are not in it. So a presentation that filters draws a row of each taxonomy's terms and says *Showing 9 of 17 articles*, the same on every page of its list. Which rows it draws is the site's to say, as an option it declares for the presentation. A taxonomy's key in a query, in a filter's row and on the search page, is its name, `category`, `topics` or `authors`. A template's own list, from `listedPosts()` of `@kntnt/konzilo/astro/post-lists`, has the same as the property `list` of the posts it gives.
+
+A list with `firstPage` is drawn on the first page of its post's list with pages alone: on a later page its presentation is not rendered, and in the live preview it has no block's mark there. A component whose body holds such a list is drawn on every page all the same, without it.
 
 The term page, which `termPages()` of `@kntnt/konzilo/astro/post-lists` gives its paths and props, is given `term`, the term's entry; `page`, from 1; `posts`, `pager` and `empty`, as a presentation's; `taxonomy`, `{ name, label }`, the taxonomy's name, its key in a query, and its label in the site's language; `settled`, `{ taxonomy, term }`, the taxonomy's name and the term's slug, which the page's list settles; and `list`, what the term's whole list holds, the same on each of its pages, as a presentation's `list` but for `type`, which is null where several types take the taxonomy. Its `terms` hold each taxonomy any of those types takes, the settled one among them as any other, so a presentation that filters leaves out the row whose name is `settled.taxonomy`, sends `settled.taxonomy` with `settled.term` along with a search from the page, and says how many posts the term holds by `list.total`, which counts those filed under the terms below it too, as the page lists them and a search within the term finds them, while each of `list.terms`' counts is of the posts filed under that term itself. Its `search` is the search page's address where any of those types' posts are in the search.
 
@@ -130,6 +147,8 @@ A template draws a hero's or a card's image, or any other from a master, in the 
 | `.konzilo-table` | The `div` each table of a body stands in, simple and structured alike, holding the `table` and nothing else | |
 
 The box is the core's, written when a body is rendered, and no content file holds it ([ADR 0021](adr/0021-write-a-simple-table-as-a-pipe-table-and-a-structured-table-as-html.md)). A design sizes and scrolls the box, and leaves the table inside it its table layout: `.konzilo-table { overflow-x: auto }` lets a wide table scroll in its own box at a phone's width while the page does not, and a rule on `.konzilo-table > table` lets a narrow one fill its column. A table's caption stays the table's own, `.konzilo-table > table > caption`, inside the box with it. The box is the block: in the live preview its mark stands on the `div`, a component's tree holds the `div` as the page does, and the Markdown alternate writes the table alone. The core gives the box no `tabindex` and no role, since it cannot know whether a design makes it scroll, and a stop for the keyboard at every table that does not scroll would be one too many.
+
+An aligned cell, `th` or `td`, of a simple or a structured table, has `data-align`, `start`, `center` or `end`, for a column its content file aligns to the left, in the centre or to the right, and no `style`, on the public site, in the live preview and in a component's tree alike ([ADR 0021](adr/0021-write-a-simple-table-as-a-pipe-table-and-a-structured-table-as-html.md)). A cell of a column not aligned has no `data-align`. A design aligns a cell by the attribute, with the logical values, `.konzilo-table td[data-align="end"] { text-align: end }`, so that on a page read from right to left a column aligned to the right stands on the left, and may give such a column a look of its own, such as tabular figures where it is aligned to the end. A design may count on the attribute, and on no inline style on a table's cell, which its own rules would have to outrank.
 
 ### Formulas in a body
 

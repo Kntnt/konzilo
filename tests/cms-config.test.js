@@ -591,7 +591,7 @@ describe('the canonical address', () => {
     assert.equal(canonical.widget, 'konzilo-text');
     assert.equal(canonical.fallback, 'ownAddress');
     assert.equal(canonical.address, '/{slug}/');
-    assert.equal(canonicalOf(config, 'pages').address, '/pages/{slug}/');
+    assert.equal(canonicalOf(config, 'pages').address, '/pages/{path}/');
     assert.equal(canonical.placeholder, 'The post\'s own address');
     assert.match(canonical.hint, /published elsewhere first/);
   });
@@ -611,7 +611,25 @@ describe('the canonical address', () => {
     given.types.page.address = { sv_SE: '/sidor/{path}/', en_GB: '/pages/{path}/' };
     const made = cmsConfig(siteDescription(given), place);
     assert.deepEqual(canonicalOf(made, 'articles').address, { 'sv-SE': '/sv/{slug}/', 'en-GB': '/en/{slug}/' });
-    assert.deepEqual(canonicalOf(made, 'pages').address, { 'sv-SE': '/sv/sidor/{slug}/', 'en-GB': '/en/pages/{slug}/' });
+    assert.deepEqual(canonicalOf(made, 'pages').address, { 'sv-SE': '/sv/sidor/{path}/', 'en-GB': '/en/pages/{path}/' });
+  });
+
+  test('of a type whose address holds a term names the field and the term files the form reads it from, as the slug\'s link does', () => {
+    const given = declared();
+    given.types.article.address = '/{category}/{year}/{slug}/';
+    const made = cmsConfig(siteDescription(given), place);
+    const articles = made.collections.find((one) => one.name === 'articles').fields;
+    for (const one of [canonicalOf(made, 'articles'), field(articles, 'slug')]) {
+      assert.equal(one.address, '/{category}/{year}/{slug}/');
+      assert.deepEqual(one.addressTerms, [{ name: 'category', collection: 'categories' }]);
+      assert.equal(one.termFolder, null);
+    }
+    assert.equal(canonicalOf(config, 'articles').addressTerms, undefined);
+    const several = declared();
+    several.types.article.address = '/{category}/{slug}/';
+    delete several.language;
+    several.languages = ['sv_SE', 'en_GB'];
+    assert.equal(canonicalOf(cmsConfig(siteDescription(several), place), 'articles').termFolder, 'sv-SE');
   });
 
   test('is in the interface language', () => {

@@ -168,6 +168,7 @@ const cases = {
   'form-name': [() => inArticle('::form{name="order"}'), inBlock('form')],
   'form-button': [() => inArticle('::form{name="contact" button="Write to us"}'), inBlock('form')],
   'list-paged-twice': [() => inArticle('::post-list{type="story" pages="true" presentation="list"}\n\n::post-list{type="story" pages="true" presentation="list"}'), inBlock('post-list')],
+  'list-first-page': [() => inArticle('::post-list{type="story" pages="true" firstPage="true" presentation="list"}'), inBlock('post-list')],
   'list-type': [() => inArticle('::post-list{type="nothing" presentation="list"}'), inBlock('post-list')],
   'list-presentation': [() => inArticle('::post-list{type="story" presentation="slides"}'), inBlock('post-list')],
   'list-option': [() => inArticle('::post-list{type="story" presentation="list" colour="red"}'), inBlock('post-list')],
@@ -630,6 +631,13 @@ test('a link\'s target and rel are refused in their own words', () => {
 test('a form the site no longer offers, and a second list with pages', () => {
   assert.deepEqual(body('::form{name="order"}'), ['the site declares no form "order"; it declares contact and booking']);
   assert.deepEqual(body('::post-list{type="story" pages="true" presentation="list"}\n\n::post-list{type="story" pages="true" presentation="list"}'), ['the site cannot publish a second list with pages of its own; turn off Pages in one of them']);
+});
+
+test('a list with pages of its own shown on its first page alone is refused, naming the setting', () => {
+  assert.deepEqual(body('::post-list{type="story" pages="true" firstPage="true" presentation="list"}'), ['a list with pages of its own has later pages, so it cannot be shown on the first page alone; take out the setting "firstPage"']);
+  const [refused] = inArticle('::post-list{type="story" pages="true" firstPage="true" presentation="list"}').refusals;
+  assert.equal(reasonIn('sv', refused), 'en lista med egna sidor har senare sidor, så den kan inte visas enbart på första sidan; ta bort inställningen "firstPage"');
+  assert.deepEqual(body('::post-list{type="story" firstPage="true" presentation="list"}\n\n::post-list{type="story" pages="true" presentation="list"}'), []);
 });
 
 test('a form\'s button text is an editor\'s where the form allows it, and refused where it does not, or where it is empty', () => {
