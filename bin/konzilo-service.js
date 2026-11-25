@@ -7,12 +7,14 @@
 //   mails each to its form's recipients through the adapter an Admin chooses (ADR 0003), or, in a
 //   local copy, writes it to its log, forgets each once its form's retention has passed, and lets
 //   an Admin find, export and erase a person's, and lists a form's revisions and the deleted
-//   posts, terms and image library entries from the source history. It has a credential that can
-//   only read the source repository, one that can only read who is an Admin, and a read-only token
-//   of the instance's account, by which it reads who pushed what.
+//   posts, terms and image library entries from the source history. It shows an Admin the
+//   consent records, and forgets each 13 months after it was made (ADR 0049). It has a credential
+//   that can only read the source repository, one that can only read who is an Admin, and a
+//   read-only token of the instance's account, by which it reads who pushed what.
 // - `visitors`: it takes what visitors' browsers send below /_konzilo/, which the web server
-//   passes on, such as a site's forms (ADR 0045), and keeps it in the service's data. It reaches
-//   nothing.
+//   passes on, such as a site's forms (ADR 0045) and the records of their consent choices
+//   (ADR 0049), and keeps it in the service's data. It reads the consent revision of the release
+//   in use from the releases the web server serves, read-only. It reaches nothing.
 //
 // Each finds Forgejo and its credentials where the arrangement says, and listens on the address it
 // gives, every address where it gives none (src/arrangement.js).
@@ -23,6 +25,7 @@ import { join } from 'node:path';
 
 import { arrangement } from '../src/arrangement.js';
 import { buildControl } from '../src/build/record.js';
+import { consentRetention } from '../src/service/consent-records.js';
 import { deletableIn } from '../src/service/deleted.js';
 import { editorsService, nextMinute } from '../src/service/editors.js';
 import { liveDescription } from '../src/service/live-description.js';
@@ -37,11 +40,17 @@ import { readSiteDescriptionWithoutTakenComponents, SITE_DESCRIPTION_FILE } from
 // In the site's folder, which Compose mounts whole, so that a description replaced is seen.
 const DESCRIPTION = `/site/${SITE_DESCRIPTION_FILE}`;
 // The service's data, which both roles open: the role for visitors keeps the forms' submissions
-// there, and the role for editors shows them.
+// and the consent records there, and the role for editors shows them.
 const SERVICE_DATA = '/service-data';
+// The releases the web server serves, which the role for visitors reads the consent revision of
+// the release in use from, read-only.
+const RELEASES = '/public';
 
 // How often the duty looks for a submission to mail, in milliseconds.
 const MAIL_EVERY = 5000;
+// How often the role for visitors looks whether the release in use has moved, in milliseconds,
+// beside the look it takes before it decides on each consent record.
+const RELEASE_LOOK_EVERY = 10_000;
 
 const { forgejo: FORGEJO, secrets, listen } = arrangement();
 
@@ -110,14 +119,18 @@ function editors(store) {
   };
   mailInAMoment();
 
-  // Each submission older than its form's retention, and spam older than seven days, forgotten at
-  // the start, so that what grew too old while the service was stopped is gone, and each minute.
+  // Each submission older than its form's retention, spam older than seven days, and each consent
+  // record older than 13 months, forgotten at the start, so that what grew too old while the
+  // service was stopped is gone, and each minute.
   const retention = retentionDuty({ store });
+  const consent = consentRetention({ store });
   const forgetWhatIsOld = () => {
-    try {
-      retention.run();
-    } catch (error) {
-      console.error(`The service's retention broke: ${error.stack ?? error.message}`);
+    for (const duty of [retention, consent]) {
+      try {
+        duty.run();
+      } catch (error) {
+        console.error(`The service's retention broke: ${error.stack ?? error.message}`);
+      }
     }
   };
   forgetWhatIsOld();
@@ -136,9 +149,18 @@ function visitors(store) {
   const PORT = 4200;
   // The public site's origin, whose host a form's page is on.
   const hosts = process.env.KONZILO_SITE_ORIGIN ? [new URL(process.env.KONZILO_SITE_ORIGIN).host] : [];
-  const service = visitorsService({ site: liveDescription(DESCRIPTION), store, hosts });
+  const service = visitorsService({ site: liveDescription(DESCRIPTION), store, hosts, releases: RELEASES });
   // Each request within ten seconds (ADR 0044).
   serve(service, PORT, { requestTimeout: 10_000, headersTimeout: 10_000 });
+  // The consent revision of each release that goes live, with what its pages show, kept from the
+  // moment it went live, also where no record comes while it is in use (ADR 0049).
+  setInterval(() => {
+    try {
+      service.look();
+    } catch (error) {
+      console.error(`The service could not keep the consent revision of the release in use: ${error.stack ?? error.message}`);
+    }
+  }, RELEASE_LOOK_EVERY).unref();
 }
 
 const roles = { editors, visitors };

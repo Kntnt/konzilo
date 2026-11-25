@@ -37,7 +37,8 @@
 		# the releases, where no visitor reaches it; none before the first build.
 		import /srv/search/search-route*.caddy
 		# The service, in its role for visitors (ADR 0044): every other path below the reserved prefix,
-		# but the consent scripts' files, which are the release's to serve, GET alone (ADR 0049). It is
+		# the consent records at /_konzilo/consent among them, but the consent scripts' files, which
+		# are the release's to serve, GET alone (ADR 0049). It is
 		# passed the request's method, path, query and body with its type, where the browser says it
 		# came from, the visitor's address and the host it came to, and nothing else: no cookie,
 		# browser's name, not even the proxy's own, password or language. A body is cut off at a
@@ -144,9 +145,10 @@
 		# submissions and a person's (ADR 0045), how the site mails them and keeps them
 		# (ADR 0003), the locks of the editor's forms (ADR 0073), whose call a tab makes is held
 		# open until they change, a form's revisions, at /_konzilo/revisions (ADR 0074), and the
-		# deleted posts, terms and image library entries, at /_konzilo/deleted (ADR 0077), from the
-		# service, which asks Forgejo who is asking.
-		@service path /_konzilo/status /_konzilo/thumbnail /_konzilo/submissions /_konzilo/submissions/* /_konzilo/mail /_konzilo/personal-data /_konzilo/personal-data.csv /_konzilo/locks /_konzilo/locks/* /_konzilo/revisions /_konzilo/deleted
+		# deleted posts, terms and image library entries, at /_konzilo/deleted (ADR 0077), and the
+		# consent records, an Admin's, at /_konzilo/consent-records (ADR 0049), from the service,
+		# which asks Forgejo who is asking.
+		@service path /_konzilo/status /_konzilo/thumbnail /_konzilo/submissions /_konzilo/submissions/* /_konzilo/mail /_konzilo/personal-data /_konzilo/personal-data.csv /_konzilo/locks /_konzilo/locks/* /_konzilo/revisions /_konzilo/deleted /_konzilo/consent-records /_konzilo/consent-records.csv
 		handle @service {
 			reverse_proxy {$KONZILO_PEER_EDITORS:http://editors:4100} {
 				header_up -X-Real-IP

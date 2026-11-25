@@ -98,7 +98,7 @@ import { declaredNames, languageTag, postListModel, readSiteDescription, SITE_DE
 import { bodyStylesOf, pageImports } from './body-styles.js';
 import { contentFolder } from './collections.js';
 import { consentClient, cookieDeclaration, datawrapperHeights, embedPanels, matomoTracker } from '../consent/client.js';
-import { CONSENT_RECORDS, CONSENT_SCRIPT_HEADERS, consentDomain, devConsentScripts, writeConsentScripts } from './consent.js';
+import { CONSENT_RECORDS, CONSENT_SCRIPT_HEADERS, consentDomain, devConsentScripts, writeConsentRevision, writeConsentScripts } from './consent.js';
 import { pagesWithBareEmbeds } from './embeds.js';
 import { imageContexts, versionsInBody } from './image-versions.js';
 import { lightboxClient } from './lightbox.js';
@@ -661,6 +661,10 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
         // per language, with their stylesheet.
         const consentScripts = isPublicBuild(base) ? writeConsentScripts(dir, { folder: resolve(root, contentFolder()), languages, origin: origin(), domain: consentShared }) : [];
         if (consentScripts.length > 0) logger.info(`wrote the consent scripts ${consentScripts.join(', ')}`);
+        // The public site's consent revision, with what its pages showed,
+        // for the service, which takes a record of a choice only of a
+        // revision the site has published; a preview's pages send none.
+        if (isPublicBuild(base)) writeConsentRevision(dir, { folder: resolve(root, contentFolder()), languages, base, origin: origin() });
         // The headers last, once the release holds every page, the
         // redirects' among them.
         const { code, problems } = releaseCode(fileURLToPath(dir));

@@ -346,7 +346,7 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Placeholder**: An embed's panel while the visitor has not allowed its service. _Avoid_: content blocker.
 
-**Consent record**: The site's proof of one choice, kept 13 months without an IP address or user agent. _Avoid_: cookie log.
+**Consent record**: The site's proof of one choice, kept 13 months without an IP address or user agent, with what its consent revision showed the visitor; an Admin finds a visitor's by their consent ID on the *Consent records* page, in Swedish *Samtycken*. _Avoid_: cookie log.
 
 **Consent revision**: The version of what a visitor consents to; a new one asks every visitor again. _Avoid_: version.
 

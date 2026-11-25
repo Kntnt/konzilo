@@ -579,6 +579,20 @@ describe('releases', () => {
     assert.deepEqual(readdirSync(join(root, 'current/pages')), ['index.html']);
   });
 
+  test('holds its consent revision beside its pages, where the service reads it and no visitor reaches it, and a release without one holds none', () => {
+    const root = join(folder, 'consent');
+    const built = join(folder, 'dist-consent');
+    mkdirSync(built);
+    writeFileSync(join(built, 'index.html'), 'x');
+    writeFileSync(join(built, '_consent.json'), '{"revision":"0123456789abcdef"}');
+    releases(root).publish(built, '1');
+    assert.equal(readFileSync(join(root, 'current/consent.json'), 'utf8'), '{"revision":"0123456789abcdef"}');
+    assert.deepEqual(readdirSync(join(root, 'current/pages')), ['index.html']);
+    rmSync(join(built, '_consent.json'));
+    releases(root).publish(built, '2');
+    assert.deepEqual(readdirSync(join(root, 'current')).sort(), ['pages', 'web-rules.caddy']);
+  });
+
   test('clears a release a stop left half made', () => {
     const root = join(folder, 'stopped');
     mkdirSync(join(root, 'releases/.half'), { recursive: true });

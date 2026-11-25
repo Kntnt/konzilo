@@ -23,6 +23,7 @@ import { registerPublishing } from './publishing/register.js';
 import { registerSubmissions } from './submissions/register.js';
 import { registerMail } from './mail/register.js';
 import { registerPersonalData } from './personal-data/register.js';
+import { registerConsentRecords } from './consent-records/register.js';
 import { registerSettings } from './settings/register.js';
 import { registerLock } from './lock/register.js';
 import { registerHistory } from './history/register.js';
@@ -66,6 +67,8 @@ function start() {
     registerMail(CMS);
     registerPersonalData(CMS);
   }
+  // Every site keeps the records of its visitors' consent (ADR 0049).
+  registerConsentRecords(CMS);
   // Before the parts' check at Save, which reads what the groups hold.
   registerGroups(CMS, config, konzilo.groups);
   registerParts(CMS, config);

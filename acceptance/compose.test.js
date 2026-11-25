@@ -1552,6 +1552,90 @@ describe('a site in Compose', () => {
     });
   });
 
+  describe('a visitor\'s consent', () => {
+    // What the service keeps of a consent ID, read through its store in its own container.
+    const recordsOf = (id) => JSON.parse(site.compose('exec', '-T', 'visitors', 'node', '--no-warnings', '--input-type=module', '-e', [
+      "import { openStore } from '/konzilo/src/service/store.js';",
+      "const store = openStore('/service-data/service.sqlite');",
+      `console.log(JSON.stringify(store.consentRecords.of(${JSON.stringify(id)})));`,
+      'store.close();',
+    ].join('\n')));
+    const record = (id, more = {}) => JSON.stringify({ id, chosen: new Date().toISOString(), revision: '0123456789abcdef', categories: {}, services: {}, how: 'banner', control: 'reject', path: '/', language: 'en-GB', ...more });
+
+    test('keeps a choice made in the banner as a record of what the visitor allowed and saw, with nothing of the visitor, refuses one from elsewhere, and shows them to an Admin per day, by consent ID and as CSV', async () => {
+      const browser = await ENGINES.chromium.launch();
+      let id;
+      let title;
+      try {
+        const context = await browser.newContext({ locale: 'en-GB', viewport: { width: 1280, height: 900 } });
+        const page = await context.newPage();
+        const refused = [];
+        page.on('console', (line) => {
+          if (/content.security.policy|refused to/i.test(line.text())) refused.push(line.text());
+        });
+        await page.goto(`${site.origin.site}/`);
+        const banner = page.locator('.konzilo-consent-banner');
+        await banner.waitFor({ state: 'visible' });
+        title = (await banner.locator('h2').textContent()).trim();
+        await banner.getByRole('button', { name: 'Accept all' }).click();
+        // Stored once the service has said so, when nothing waits beside the choice.
+        await page.waitForFunction(() => {
+          const kept = JSON.parse(localStorage.getItem('konzilo-consent'));
+          return typeof kept?.id === 'string' && kept.unsent === undefined;
+        }, null, { timeout: 15_000 });
+        id = await page.evaluate(() => JSON.parse(localStorage.getItem('konzilo-consent')).id);
+        assert.deepEqual(refused, []);
+      } finally {
+        await browser.close();
+      }
+      const [kept, ...more] = recordsOf(id);
+      assert.deepEqual(more, []);
+      assert.deepEqual(Object.keys(kept).sort(), ['categories', 'chosen', 'control', 'how', 'id', 'language', 'path', 'revision', 'services', 'shown']);
+      assert.deepEqual([kept.id, kept.how, kept.control, kept.path, kept.language], [id, 'banner', 'accept', '/', 'en-GB']);
+      assert.ok(Object.values(kept.services).every((allowed) => allowed === true), JSON.stringify(kept.services));
+      assert.equal(kept.shown.banner.title, title, 'with what the banner said');
+      const held = site.compose('exec', '-T', 'visitors', 'sh', '-c', 'cat /service-data/*');
+      for (const words of ['Mozilla', 'HeadlessChrome']) assert.ok(!held.includes(words), words);
+
+      // Not from the site's own pages, or of a revision it never published.
+      const send = (body, origin) => get(`${site.origin.site}/_konzilo/consent`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: origin }, body });
+      const other = '00000000-0000-4000-8000-000000000001';
+      assert.equal((await send(record(other, { revision: kept.revision, categories: kept.categories, services: kept.services }), 'https://elsewhere.example')).status, 403);
+      assert.equal((await send(record(other), site.origin.site)).status, 400);
+      assert.deepEqual(recordsOf(other), []);
+
+      const session = await openEditor('chromium', site);
+      try {
+        await signIn(session, site);
+        const { page } = session;
+        await page.getByRole('radio', { name: 'Consent records', exact: true }).click();
+        const today = new Date().toISOString().slice(0, 10);
+        const row = page.getByRole('row', { name: new RegExp(`^${today}`) });
+        await row.waitFor();
+        assert.ok(Number(await row.getByRole('cell').first().textContent()) >= 1, 'Accept all, today');
+
+        await page.getByLabel('Consent ID', { exact: true }).fill(` ${id.toUpperCase()} `);
+        await page.getByRole('button', { name: 'Find', exact: true }).click();
+        await page.getByText('Records: 1.', { exact: true }).waitFor();
+        await page.getByText('What the visitor was shown').click();
+        await page.getByText(title, { exact: true }).first().waitFor();
+
+        const [file] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download as CSV' }).click()]);
+        assert.match(file.suggestedFilename(), /^consent-records-\d{4}-\d\d-\d\d\.csv$/);
+        const [header, ...rows] = readCsv(readFileSync(await file.path()).toString('utf8'), ',');
+        assert.deepEqual(header.slice(0, 3), ['Consent ID', 'Made at (UTC)', 'Consent revision']);
+        const mine = rows.find((one) => one[0] === id);
+        assert.ok(mine, 'the record is in the file');
+        assert.deepEqual(mine.slice(5, 7), ['Banner', 'Accept all']);
+        assert.deepEqual(session.seen.outside, []);
+        assert.deepEqual(session.seen.refused, []);
+        assert.deepEqual(session.seen.errors, []);
+      } finally {
+        await session.browser.close();
+      }
+    }, { timeout: 300_000 });
+  });
+
   describe('publishing', () => {
     let category;
     const file = (id) => `articles/${id}.md`;

@@ -1,8 +1,9 @@
 // The service's part for editors (ADR 0044): what starts a build, what a post's status is, a
 // small picture of an image in the library (ADR 0055), the forms' submissions (ADR 0045), how the
 // site mails them and how long it keeps them, which an Admin sets on the *Mail* page (ADR 0003),
-// and a person's submissions, which an Admin finds, downloads and erases on the *Personal data*
-// page. Forgejo's webhook only says that something may have happened: the build looks for itself,
+// a person's submissions, which an Admin finds, downloads and erases on the *Personal data*
+// page, and the consent records (ADR 0049), which an Admin reads on the *Consent records* page.
+// Forgejo's webhook only says that something may have happened: the build looks for itself,
 // so a request here decides nothing, and needs no secret. Everything an editor asks goes by what
 // Forgejo says of the one asking, each time.
 
@@ -10,6 +11,7 @@ import { ADMINS_TEAM } from '../build/roles.js';
 import { publishStatus } from '../build/status.js';
 import { accountName, CREDENTIAL, mayWrite, organisationTeams } from '../forgejo.js';
 import { FORM_NAME } from '../site-description.js';
+import { consentRecordsPage } from './consent-records-admin.js';
 import { FAILURE_SETTING, MAIL_SETTING } from './mail.js';
 import { checkMailSettings, mailSettingsShown } from './mail-settings.js';
 import { isAdminsForm, isForm, isTab, lockTable } from './locks.js';
@@ -97,9 +99,19 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
     if (typeof login === 'string' && await inAdmins(login)) return 'admin';
     return await mayWrite({ forgejo, repository, credential, get }) ? 'writer' : null;
   };
-  // Whether a role may use the Admin's pages, *Mail* and *Personal data*: an Admin's, and the
-  // instance administrator's.
+  // Whether a role may use the Admin's pages, *Mail*, *Personal data* and *Consent records*: an
+  // Admin's, and the instance administrator's.
   const usesAdminPages = (role) => role === 'admin' || role === 'instanceAdministrator';
+  // The consent records, an Admin's (ADR 0049).
+  const consentRecords = consentRecordsPage({
+    store,
+    adminOf: async (credential) => {
+      const role = await roleOf(credential);
+      return role === null ? null : usesAdminPages(role);
+    },
+    answerJson,
+    answerCsv: (...given) => answerCsv(...given),
+  });
 
   // Who is asking, for the locks, which a tab asks about again and again: { login, name, admin },
   // `name` the account's full name, else its login, and `admin` whether its role saves an
@@ -459,6 +471,7 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
       if (pathname === LOCKS || pathname.startsWith(`${LOCKS}/`)) return answerLocks(incoming, outgoing, pathname.slice(LOCKS.length), searchParams);
       if (pathname === REVISIONS) return answerRevisions(incoming, outgoing, searchParams);
       if (pathname === DELETED) return answerDeleted(incoming, outgoing, searchParams);
+      if (consentRecords.owns(pathname)) return consentRecords.answer(incoming, outgoing, pathname, searchParams);
       return answerJson(outgoing, 404, {});
     },
 
