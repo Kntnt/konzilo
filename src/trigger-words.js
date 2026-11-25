@@ -30,3 +30,14 @@ export function triggerWords(trigger, language, moment) {
 
 // Alternatives in words, each after the first joined by or.
 export const alternatives = (words, language) => words.reduce((one, other) => text(language, 'trigger.either', { one, other }));
+
+/**
+ * What a post still waits for, in words: on each row with nothing on it that has happened, its
+ * triggers as alternatives, and the rows joined, as the live preview's toolbar lists a post that is
+ * not on the timeline.
+ * @param {object[][]} rows the triggers in their rows, each with whether it has `happened`
+ */
+export function waitedFor(rows, language, moment) {
+  const open = rows.filter((row) => !row.some(({ happened }) => happened));
+  return open.map((row) => alternatives(row.map((trigger) => triggerWords(trigger, language, moment)), language)).reduce((one, other) => text(language, 'trigger.both', { one, other }));
+}

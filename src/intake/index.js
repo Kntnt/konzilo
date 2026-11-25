@@ -56,8 +56,9 @@ const STATUSES = new Set(POST_STATUSES);
 // holds, or null; `termPages`, each term's page, by the term's source `file`, its name as
 // `title` and its `address`; `next`, the next scheduled moment, or null. A scheduled post with
 // triggers has them too, `triggers`, in their rows, each ticked where it has happened, its
-// `terms`, and `assumed` where its moment `at` takes what the timeline knows nothing of as
-// happening on time.
+// `terms`, `assumed` where its moment `at` takes what the timeline knows nothing of as
+// happening on time, and `untimed` where nothing known tells when they will hold, which a live
+// preview shows as it shows a draft.
 //
 // A post a trigger counted as published that is refused in the end published nothing: the run is
 // made again without it, until every post that went out by its triggers went out by posts that did.
@@ -202,7 +203,7 @@ function holdPostsTaken(run) {
 // moment `now` (ADR 0032). A post ahead of its moment waits for it in a preview as on the site.
 // A draft is otherwise nobody's business but its editor's, and is not checked.
 function previewStateOf(post, run) {
-  if (post.on || post.waiting || post.awaits || !run.preview.has(post.path)) return;
+  if (post.on || post.waiting || !run.preview.has(post.path)) return;
   const date = momentOf(post.fields.date ?? '');
   if (date && new Date(date) > run.now) {
     post.waiting = date;
@@ -515,7 +516,7 @@ function assemble(run) {
       at: post.waiting ?? null,
       // A scheduled post's triggers, in their rows, each ticked where it has happened, and its
       // terms, which another post's trigger may wait for (ADR 0076).
-      ...(post.triggers ? { triggers: shownTriggers(post, run), terms: termIdsOf(post, run), ...(post.assumed ? { assumed: true } : {}) } : {}),
+      ...(post.triggers ? { triggers: shownTriggers(post, run), terms: termIdsOf(post, run), ...(post.assumed ? { assumed: true } : {}), ...(post.awaits && post.holdsAt === null ? { untimed: true } : {}) } : {}),
       address: updated.posts[post.key]?.address ?? null,
       shown: Boolean(updated.posts[post.key]?.path),
       ...(run.refused.has(post.key) ? { wanted: addressWanted(post, run) } : {}),

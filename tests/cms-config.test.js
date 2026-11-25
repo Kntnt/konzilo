@@ -662,7 +662,7 @@ describe('the form\'s field groups', () => {
   test('give the article its form in story 23\'s order, with no publishing row', () => {
     assert.deepEqual(shape('articles'), [
       ['group-name', ['title', 'breadcrumb', 'slug']],
-      ['group-status', ['status', 'date']],
+      ['group-status', ['status', 'date', 'triggers']],
       'image',
       ['group-terms', ['authors', 'category', 'topics']],
       ['group-headline', ['eyebrow', 'headline', 'subheadline']],
@@ -679,8 +679,8 @@ describe('the form\'s field groups', () => {
   // A page and a canvas take the article's sections that they have, in its order, beside their
   // parent and body; their status says whether they are published, as an article's does.
   test('give a page and a canvas the article\'s name, status and date, and teaser, in its order, with no publishing row', () => {
-    assert.deepEqual(shape('pages'), [['group-name', ['title', 'breadcrumb', 'slug']], ['group-status', ['status', 'date']], 'parent', 'body', 'teaser', 'search', 'sharing', 'structured', 'otherAddresses']);
-    assert.deepEqual(shape('canvases'), [['group-name', ['title', 'breadcrumb', 'slug']], ['group-status', ['status', 'date']], 'body', 'teaser', 'search', 'sharing', 'structured', 'otherAddresses']);
+    assert.deepEqual(shape('pages'), [['group-name', ['title', 'breadcrumb', 'slug']], ['group-status', ['status', 'date', 'triggers']], 'parent', 'body', 'teaser', 'search', 'sharing', 'structured', 'otherAddresses']);
+    assert.deepEqual(shape('canvases'), [['group-name', ['title', 'breadcrumb', 'slug']], ['group-status', ['status', 'date', 'triggers']], 'body', 'teaser', 'search', 'sharing', 'structured', 'otherAddresses']);
     for (const name of ['pages', 'canvases']) {
       const { fields } = collection(name);
       assert.equal(field(fields, 'group-status').label, 'Status and date', name);
@@ -733,6 +733,7 @@ describe('the form\'s field groups', () => {
       ['subheadline', 'Subheadline', false, 'Add a subheadline'],
       ['status', 'Status', true, null],
       ['date', 'Date', false, null],
+      ['triggers', 'Triggers', false, null],
     ]);
     assert.deepEqual(shown(cmsConfig(description, { ...place, language: 'sv' })), [
       ['eyebrow', 'Dårrad', false, 'Lägg till dårrad'],
@@ -740,7 +741,16 @@ describe('the form\'s field groups', () => {
       ['subheadline', 'Nedryckare', false, 'Lägg till nedryckare'],
       ['status', 'Status', true, null],
       ['date', 'Datum', false, null],
+      ['triggers', 'Utlösare', false, null],
     ]);
+    // A scheduled post's triggers show while it is scheduled, and its date not while they hold its
+    // moments (ADR 0076); they are offered the site's types and taxonomies.
+    const triggers = field(collection('articles').fields, 'triggers');
+    assert.equal(triggers.widget, 'konzilo-triggers');
+    assert.equal(triggers.hiddenWhen, 'notScheduled');
+    assert.equal(field(collection('articles').fields, 'date').hiddenWhen, 'scheduledByTriggers');
+    assert.deepEqual(triggers.types.map(({ name }) => name), Object.keys(description.types));
+    assert.ok(triggers.taxonomies.length > 0 && triggers.taxonomies.every(({ label, folder }) => typeof label === 'string' && typeof folder === 'string'));
     // Sveltia names the time zone under a date and time it takes in UTC.
     assert.equal(field(collection('articles').fields, 'date').picker_utc, true);
   });
@@ -763,7 +773,7 @@ describe('the form\'s field groups', () => {
     assert.deepEqual(config.konzilo.groups, {
       'yaml-frontmatter': {
         'group-name': ['title', 'breadcrumb', 'slug'],
-        'group-status': ['status', 'date'],
+        'group-status': ['status', 'date', 'triggers'],
         'group-terms': ['authors', 'category', 'topics'],
         'group-headline': ['eyebrow', 'headline', 'subheadline'],
       },
@@ -797,10 +807,10 @@ describe('the form\'s field groups', () => {
         story: { label: 'Story', plural: 'Stories', collection: 'stories', address: '/stories/{slug}/', elements: ['paragraph'], fields: { date: {}, mood: { label: 'Mood', type: 'string', control: 'text' }, headline: { required: true }, topics: { taxonomy: 'topics' } } },
       },
     }), place);
-    assert.deepEqual(shape('stories', made), [['group-name', ['title', 'slug']], ['group-status', ['status', 'date']], 'publishing', 'body', 'mood', ['group-headline', ['headline']], ['group-terms', ['topics']], 'otherAddresses']);
+    assert.deepEqual(shape('stories', made), [['group-name', ['title', 'slug']], ['group-status', ['status', 'date', 'triggers']], 'publishing', 'body', 'mood', ['group-headline', ['headline']], ['group-terms', ['topics']], 'otherAddresses']);
     assert.equal(made.collections.find((one) => one.name === 'stories').format, 'frontmatter');
-    assert.deepEqual(made.konzilo.groups.frontmatter['group-status'], ['status', 'date']);
-    assert.deepEqual(made.konzilo.groups['yaml-frontmatter']['group-status'], ['status', 'date']);
+    assert.deepEqual(made.konzilo.groups.frontmatter['group-status'], ['status', 'date', 'triggers']);
+    assert.deepEqual(made.konzilo.groups['yaml-frontmatter']['group-status'], ['status', 'date', 'triggers']);
   });
 });
 
@@ -907,7 +917,7 @@ describe('a site\'s own fields in a group of their own', () => {
   });
 
   test('put a page\'s after its body and before the teaser', () => {
-    assert.deepEqual(shape(cmsConfig(siteDescription(withOwn()), place), 'pages'), [['group-name', ['title', 'breadcrumb', 'slug']], ['group-status', ['status', 'date']], 'parent', 'body', ['group-own', ['sidebar']], 'teaser', 'search', 'sharing', 'structured', 'otherAddresses']);
+    assert.deepEqual(shape(cmsConfig(siteDescription(withOwn()), place), 'pages'), [['group-name', ['title', 'breadcrumb', 'slug']], ['group-status', ['status', 'date', 'triggers']], 'parent', 'body', ['group-own', ['sidebar']], 'teaser', 'search', 'sharing', 'structured', 'otherAddresses']);
   });
 
   test('tell the editor the group\'s fields in every form, so that a source file keeps them flat', () => {
@@ -948,7 +958,7 @@ describe('a site\'s own fields in a group of their own', () => {
     given.taxonomies.regions = { label: 'Region', plural: 'Regions', collection: 'regions' };
     given.types.review = { label: 'Review', plural: 'Reviews', collection: 'reviews', address: '/reviews/{slug}/', elements: ['paragraph'], fields: { verdict: { label: 'Verdict', type: 'string', control: 'text' }, eyebrow: {}, rating: { label: 'Stars', type: 'number', control: 'number' }, headline: { required: true }, price: { label: 'Price', type: 'number', control: 'number' }, mood: { taxonomy: 'regions' }, topics: { taxonomy: 'topics' } } };
     const made = cmsConfig(siteDescription(given), place);
-    assert.deepEqual(shape(made, 'reviews'), [['group-name', ['title', 'slug']], ['group-status', ['status']], 'publishing', 'body', 'verdict', ['group-headline', ['eyebrow', 'headline']], 'rating', 'price', 'mood', ['group-terms', ['topics']], 'otherAddresses']);
+    assert.deepEqual(shape(made, 'reviews'), [['group-name', ['title', 'slug']], ['group-status', ['status', 'triggers']], 'publishing', 'body', 'verdict', ['group-headline', ['eyebrow', 'headline']], 'rating', 'price', 'mood', ['group-terms', ['topics']], 'otherAddresses']);
     assert.equal(field(made.collections.find((one) => one.name === 'reviews').fields, 'rating').label, 'Stars', 'with its own label');
     assert.equal(made.konzilo.groups.frontmatter['group-own'], undefined);
     assert.deepEqual(made.konzilo.groups['yaml-frontmatter']['group-own'], ['rating', 'mood', 'sidebar']);

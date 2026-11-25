@@ -21,6 +21,7 @@ import { SCHEMA_WIDGET, SLUG_WIDGET, TEXT_WIDGET } from './parts/widgets.js';
 import { inCatalogue, labelIn, labelInPhrase, text } from '../catalogues.js';
 import { BODY_WIDGET } from './body/widget.js';
 import { PUBLISHING_WIDGET } from './publishing/widget.js';
+import { TRIGGERS_WIDGET } from './schedule/widget.js';
 import { BUILT_IN_FORMAT, GROUP_PREFIX, GROUP_WIDGET, OWN_FORMAT } from './groups/widget.js';
 import { SETTING_WIDGET } from './settings/widget.js';
 
@@ -388,7 +389,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
   // The fields that only a group holds, by the names the core gives them: wherever a post has
   // one, it is in the same group, so that a source file is read alike whatever its type.
   const NAME_FIELDS = ['title', 'breadcrumb', 'slug'];
-  const STATUS_FIELDS = ['status', 'date'];
+  const STATUS_FIELDS = ['status', 'date', 'triggers'];
   const HEADLINE_FIELDS = ['eyebrow', 'headline', 'subheadline'];
   const TERMS_FIELDS = [AUTHORS, CATEGORY, TOPICS];
 
@@ -427,6 +428,23 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
       ...within(SAME_IN_EACH),
     };
     const date = fieldOf('date');
+    // What a scheduled post waits for besides a moment alone, which the date holds, and in place of
+    // it (ADR 0076): shown while the post is scheduled. It is offered the site's types and its
+    // taxonomies' terms, and knows which of the post's fields name its terms, which another post's
+    // trigger may wait for.
+    const triggers = {
+      name: 'triggers',
+      label: say('triggers'),
+      widget: TRIGGERS_WIDGET,
+      required: false,
+      labelled: false,
+      hiddenWhen: 'notScheduled',
+      types: Object.values(description.types).map((one) => ({ name: one.name, label: own(one.label) })),
+      taxonomies: Object.values(description.taxonomies).map((one) => ({ label: own(one.plural), folder: several ? `${one.collection}/${description.languages.find((language) => language.main).tag}` : one.collection })),
+      termFields: type.fields.filter((one) => one.kind === 'terms').map((one) => one.name),
+      type: type.name,
+      ...within(SAME_IN_EACH),
+    };
     const headline = HEADLINE_FIELDS.map(fieldOf).filter(Boolean);
     const terms = type.fields.filter((one) => TERMS_FIELDS.includes(one.name)).map((one) => postField(one, type));
     // A site's own fields on a built-in type, which the core's group draws: a value of the site's
@@ -456,7 +474,7 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
         : coreGroup('name', say('groupName'), [title, fieldOf('breadcrumb'), slug].filter(Boolean))),
       // The date and time under the status's choices, with no label of its own, and the time zone,
       // which Sveltia names, under them.
-      status: () => coreGroup('status', date ? say('groupStatus') : say('status'), [status, date && { ...date, labelled: false }].filter(Boolean)),
+      status: () => coreGroup('status', date ? say('groupStatus') : say('status'), [status, date && { ...date, labelled: false, hiddenWhen: 'scheduledByTriggers' }, triggers].filter(Boolean)),
       // How it stands on the site, which is nothing the file holds (ADR 0031). A built-in type's
       // status says whether it is published, and its page opens from beside the slug, so only a
       // type of the site's own has it.

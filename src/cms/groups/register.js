@@ -11,8 +11,12 @@
 //                     screen reader and in a refusal
 //   field: {...}      in place of `fields`, the one field of a group of one, whose value is the
 //                     group's own, under the field's name
+//                     hiddenWhen: <rule>, out of sight while the rule holds of what the group's
+//                     fields hold now (menu.js)
 //   heading: true     the group's label shows above its fields; otherwise it names the section
 //                     for a screen reader alone
+// Each field's control is given `group` too, { values, change(patch) }, what the group's fields
+// hold now and a change of several of them at once, which a control of the core's may use.
 // Sveltia's own heading and menu of the field are left out (group.css), since the group's are
 // the core's: Revert Changes, Restore Default and Clear, over every field it covers (menu.js).
 
@@ -20,7 +24,7 @@ import { say } from '../interface-language.js';
 import { useReadOnly } from '../lock/read-only.js';
 import { plain } from '../plain.js';
 import { refuseAtSave } from '../refusals.js';
-import { actionsOf, holding, missing } from './menu.js';
+import { actionsOf, hiddenBy, holding, missing } from './menu.js';
 import { sourceFormat } from './source.js';
 import { postValues, useGroups } from './values.js';
 import { GROUP_WIDGET } from './widget.js';
@@ -189,6 +193,7 @@ export function registerGroups(CMS, config, groups = {}) {
       followed || readOnly ? null : h(GroupMenu, { id: forID, label, actionsNow, act: write }),
       plain(field.get('heading')) === true ? h('h3', { className: 'konzilo-group-heading' }, label) : null,
       fields.map((member, index) => {
+        if (member.hiddenWhen && hiddenBy(member.hiddenWhen, now)) return null;
         const id = `${forID}-${member.name}`;
         const control = CMS.getFieldType(member.widget ?? 'string')?.control;
         const shown = followed
@@ -207,6 +212,7 @@ export function registerGroups(CMS, config, groups = {}) {
             required: member.required === true,
             readonly: readOnly,
             invalid: false,
+            group: { values: now, change: (patch) => write({ ...latest.current, ...patch }) },
           }) : null;
         // A field with no label of its own keeps it, hidden, for the controls that name themselves
         // by it, which a screen reader still reads.

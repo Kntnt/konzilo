@@ -460,6 +460,7 @@ export function previewGate({ origin, adminOrigin, forgejo, forgejoOrigin = null
       language,
       adminOrigin,
       timeline: runner.timeline(),
+      waiting: runner.waiting(),
       moment,
       asked,
       cookie: { name: momentCookie, secure },

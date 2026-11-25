@@ -71,6 +71,8 @@ describe('the preview\'s gate', () => {
   // The timeline's later moments, the moment the content folder shows, each moment's version,
   // each moment the folder was made to show in turn, and the moment a draft is taken at.
   let timeline;
+  // The posts that wait off the timeline, as the runner gives them (ADR 0076).
+  let waiting;
   let held;
   let versions;
   let shownAt;
@@ -178,6 +180,7 @@ describe('the preview\'s gate', () => {
           return { address: '/a-page/', refusals: [], moment: draftAt };
         },
         timeline: () => [{ at: null, posts: [] }, ...timeline],
+        waiting: () => waiting,
         moment: (asked) => (Number.isNaN(Date.parse(asked)) ? null : timeline.filter(({ at }) => at <= asked).at(-1)?.at ?? null),
         prepare: async (moment) => versions[moment ?? 'now'] ?? base,
         version: (moment) => versions[moment ?? 'now'] ?? base,
@@ -241,6 +244,7 @@ describe('the preview\'s gate', () => {
     notFoundChosen = null;
     warned = [];
     timeline = [];
+    waiting = [];
     turn += 1;
     base = `v${turn}`;
     // The dev server starts with now shown.
@@ -817,6 +821,33 @@ describe('the preview\'s gate', () => {
           assert.match(then.toolbar.window.document.cookie, /a_preview_moment=2027-01-01T00:00:00Z/);
           assert.equal(then.toolbar.window.sessionStorage.getItem('konzilo-preview-moment'), '2027-01-01T00:00:00Z');
         }
+      } finally {
+        if (zone === undefined) delete process.env.TZ;
+        else process.env.TZ = zone;
+      }
+    });
+
+    // A post that waits for triggers (ADR 0076): on the timeline where it goes out by what the
+    // timeline knows, said so where the rest is taken as on time, and listed apart, with what it
+    // waits for, where nothing known tells when.
+    test('says of a post that waits for triggers where it stands, and lists those off the timeline with what they wait for', async () => {
+      const held = await as('code-writer');
+      timeline = [{ at: '2026-12-24T09:00:00Z', posts: [{ title: 'Jul', file: 'pages/jul.md' }, { title: 'Efter jul', file: 'pages/efter.md', assumed: true }] }];
+      waiting = [{ title: 'Okänd', file: 'pages/okand.md', triggers: [[{ moment: '2026-11-01T09:00:00Z', happened: true }], [{ published: [[{ words: 'invigning' }, { type: 'page', label: { en: 'Page', sv: 'Sida' } }]], since: '2026-11-01T00:00:00Z', happened: false }]] }];
+      built['/efter/'] = { kind: 'post', file: 'pages/efter.md', title: 'Efter jul', status: 'scheduled', at: '2026-12-24T09:00:00Z', assumed: true, refusals: [] };
+      built['/okand/'] = { kind: 'post', file: 'pages/okand.md', title: 'Okänd', status: 'scheduled', at: null, refusals: [] };
+      const zone = process.env.TZ;
+      process.env.TZ = 'Europe/Stockholm';
+      try {
+        const after = await toolbarIn(await visit('/efter/', held), '/efter/');
+        const region = after.window.document.querySelector('konzilo-preview-toolbar').shadowRoot;
+        assert.ok(after.says.includes('Schemalagd: publiceras 24 december 2026 kl. 10:00 CET, om resten av dess utlösare sker i tid'), after.says);
+        assert.deepEqual([...region.querySelector('select').options].map((option) => option.textContent), [text('sv', 'previewTab.toolbar.now'), '24 december 2026 kl. 10:00 CET: Jul, Efter jul (om resten sker i tid)']);
+        const list = region.querySelector('ul');
+        assert.equal(region.getElementById(list.getAttribute('aria-labelledby')).textContent, text('sv', 'previewTab.toolbar.waiting'));
+        assert.deepEqual([...list.querySelectorAll('li')].map((item) => item.textContent), ['”Okänd” publiceras när ett inlägg publiceras som har ”invigning” i sin titel eller är av typen sida']);
+        const unknown = await toolbarIn(await visit('/okand/', held), '/okand/');
+        assert.ok(unknown.says.startsWith(text('sv', 'previewTab.toolbar.waits')), unknown.says);
       } finally {
         if (zone === undefined) delete process.env.TZ;
         else process.env.TZ = zone;

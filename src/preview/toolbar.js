@@ -16,6 +16,7 @@
 import { interfaceLanguageTag, text } from '../catalogues.js';
 import { MOMENT_PARAMETER, momentKey, NOW } from '../cms/preview/paths.js';
 import { DRAFT, PUBLISHED, SCHEDULED } from '../format/post-status.js';
+import { momentInUtc, waitedFor } from '../trigger-words.js';
 
 // A post's status as the toolbar says it, by its text's name.
 const STATUSES = Object.freeze({
@@ -42,16 +43,20 @@ const entryOf = (adminOrigin, file) => {
 // form and time zone, named, since only the browser knows that zone and the site has none.
 // `timeline`: now and each later moment, as the preview's runner gives it; `moment`: the one the
 // page shows, null for now; `asked`: the one the gate was told, which it took to `moment`; and
-// `cookie`: { name, secure }, the cookie the tab's moment is told by.
-export function toolbarOf({ about, writes, language, adminOrigin, timeline = [{ at: null, posts: [] }], moment = null, asked = NOW, cookie = null }) {
+// `cookie`: { name, secure }, the cookie the tab's moment is told by. `waiting`: the posts that wait
+// for triggers nothing known tells the moment of, as the runner gives them, which the toolbar lists
+// apart from the timeline, each with what it waits for, its moments in UTC (ADR 0076).
+export function toolbarOf({ about, writes, language, adminOrigin, timeline = [{ at: null, posts: [] }], moment = null, asked = NOW, cookie = null, waiting = [] }) {
   let says;
   let waitsFor = null;
   let link;
   let tone = 'other';
   if (about?.kind === 'post') {
     tone = Object.hasOwn(STATUSES, about.status) ? about.status : DRAFT;
-    says = text(language, STATUSES[tone], { moment: MOMENT_PLACE });
-    waitsFor = tone === SCHEDULED ? about.at : null;
+    // A post that waits for triggers: at a moment the rest is taken to come by, or at none known.
+    const words = tone === SCHEDULED && !about.at ? 'previewTab.toolbar.waits' : tone === SCHEDULED && about.assumed ? 'previewTab.toolbar.scheduledAssumed' : STATUSES[tone];
+    says = text(language, words, { moment: MOMENT_PLACE });
+    waitsFor = tone === SCHEDULED ? about.at ?? null : null;
     link = { href: entryOf(adminOrigin, about.file), text: text(language, 'previewTab.toolbar.editPost') };
   } else if (about?.kind === 'term') {
     says = text(language, 'previewTab.toolbar.term', { name: about.title });
@@ -72,7 +77,9 @@ export function toolbarOf({ about, writes, language, adminOrigin, timeline = [{ 
     show: text(language, 'previewTab.toolbar.show'),
     moments: timeline.map(({ at, posts }) => (at === null
       ? { value: NOW, at: null, label: text(language, 'previewTab.toolbar.now') }
-      : { value: at, at, label: text(language, 'previewTab.toolbar.goesOut', { moment: MOMENT_PLACE, posts: posts.map(({ title }) => title).join(', ') }) })),
+      : { value: at, at, label: text(language, 'previewTab.toolbar.goesOut', { moment: MOMENT_PLACE, posts: posts.map(({ title, assumed }) => (assumed ? text(language, 'previewTab.toolbar.assumed', { post: title }) : title)).join(', ') }) })),
+    waitingLabel: text(language, 'previewTab.toolbar.waiting'),
+    waiting: waiting.map(({ title, triggers }) => text(language, 'previewTab.toolbar.waitsFor', { post: title, triggers: waitedFor(triggers, language, momentInUtc(interfaceLanguageTag(language))) })),
     chosen: momentKey(moment),
     asked,
     momentLabel: text(language, 'previewTab.toolbar.moment'),
@@ -179,6 +186,8 @@ a { color: #bfdbfe; text-decoration: underline; white-space: nowrap; cursor: poi
 .moment { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
 select { max-width: 12rem; margin: 0; padding: 2px 4px; border: 1px solid #64748b; border-radius: 4px; background: #0f172a; color: inherit; font: inherit; cursor: pointer; }
 .show { padding: 2px 8px; border-radius: 4px; background: #334155; cursor: pointer; }
+.waiting { flex-basis: 100%; max-width: 32rem; padding: 0 0 4px 36px; font-size: 13px; }
+.waiting ul { margin: 2px 0 0; padding-left: 18px; }
 .tab { display: grid; place-items: center; width: 24px; height: 48px; background: #1e293b; box-shadow: 0 4px 16px rgb(0 0 0 / 0.35); cursor: pointer; }
 .tab[data-edge="left"] { border-radius: 0 8px 8px 0; }
 .tab[data-edge="right"] { border-radius: 8px 0 0 8px; }
@@ -219,6 +228,12 @@ select { max-width: 12rem; margin: 0; padding: 2px 4px; border: 1px solid #64748
     location.reload();
   });
   bar.append(make('span', { class: 'moment' }, make('label', { for: 'moment' }, given.momentLabel), choice, showMoment));
+  // The posts that wait off the timeline, each with what it waits for.
+  if (given.waiting.length > 0) {
+    bar.append(make('div', { class: 'waiting' },
+      make('span', { id: 'waiting' }, given.waitingLabel),
+      make('ul', { 'aria-labelledby': 'waiting' }, ...given.waiting.map((words) => make('li', {}, words)))));
+  }
   const tab = make('button', { type: 'button', class: 'tab', 'aria-label': given.show, hidden: '' },
     icon('<svg width="8" height="14" viewBox="0 0 8 14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 1l6 6-6 6"/></svg>'));
   const frame = make('div', { class: 'frame', role: 'region', 'aria-label': given.label, lang: given.language }, bar, tab, hint);
