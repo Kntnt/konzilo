@@ -5,9 +5,9 @@
 // A post dated ahead is left out: it is scheduled, and only Compose has a clock
 // that publishes it (ADR 0025). So is a draft, which only Compose's live preview
 // shows. Each link and menu entry that leads to either is named, since it leads to
-// no page here. A site that has a content folder keeps
-// it as it is. Builds run this too, so a public host with no content is refused: no live
-// site may show fictional posts, the site's own as little as the core's.
+// no page here. A site that has a content folder keeps it as it is. Builds run this
+// too, so a public host with no content is refused: no live site may show fictional
+// posts, the site's own as little as the core's.
 
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
