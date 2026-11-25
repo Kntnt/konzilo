@@ -355,6 +355,20 @@ test('lets the service for editors read the forms\' submissions, on the admin ho
   assert.match(/handle @service \{\n([\s\S]*?)\n\t\t\}/.exec(admin)?.[1] ?? '', /reverse_proxy \{\$KONZILO_PEER_EDITORS:http:\/\/editors:4100\} \{/);
 });
 
+// The consent records (ADR 0049): the service in its role for visitors takes them on the public
+// host, as it takes every path below the prefix but search and the consent scripts' files, and in
+// its role for editors gives them to an Admin on the admin host alone.
+test('passes a visitor\'s consent record to the service for visitors, and an Admin\'s page of them to the service for editors on the admin host alone', () => {
+  const caddyfile = read('compose/web/Caddyfile');
+  const admin = caddyfile.slice(caddyfile.indexOf(':{$KONZILO_PORT_ADMIN}'), caddyfile.indexOf(':{$KONZILO_PORT_PREVIEW}'));
+  const matcher = /@service path (.*)$/m.exec(admin)?.[1].split(' ');
+  for (const path of ['/_konzilo/consent-records', '/_konzilo/consent-records.csv']) assert.ok(matcher.includes(path), path);
+  const visitors = /@konzilo_visitors \{\n([\s\S]*?)\n\t\t\}/.exec(siteHost())?.[1];
+  assert.match(visitors, /path \/_konzilo\/\*/);
+  assert.match(visitors, /not \{\n\t+path \/_konzilo\/consent\/\*\n\t+method GET HEAD\n\t+\}/, 'the consent scripts\' files alone are the release\'s');
+  assert.doesNotMatch(siteHost(), /consent-records/);
+});
+
 // The locks of the editor's forms (ADR 0073) are the service's, in its role for editors, on the
 // admin host, where a tab's call for them is held open until they change.
 test('passes the locks of the editor\'s forms to the service for editors, on the admin host', () => {
