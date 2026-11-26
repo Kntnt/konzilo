@@ -19,7 +19,7 @@ const standIn = ({ held = {}, adminOnly = [], fromFeed = [], down = false, shut 
     async hold(form, { takeOver = false } = {}) {
       asked.push(['hold', form, takeOver]);
       if (down) return null;
-      if (service.shut && held[form] !== 'mine') return { shut: true };
+      if (service.shut && held[form] !== 'mine') return { shut: true, purge: service.shut === true ? null : service.shut };
       if (adminOnly.includes(form.split('/')[0])) return { adminOnly: true };
       if (fromFeed.includes(form)) return { fromFeed: true };
       if (held[form] && held[form] !== 'mine' && !takeOver) return { holder: held[form] };
@@ -321,7 +321,7 @@ describe('the keeper of a tab\'s lock', () => {
     test('opens no form, read-only with the way back, and opens it once the purge has ended otherwise than done', async () => {
       const { keeper, service, last, told } = keeping({ shut: true });
       await keeper.open('articles/aaaaaaaaaaaa');
-      assert.deepEqual(last(), { form: 'articles/aaaaaaaaaaaa', mode: 'shut' });
+      assert.deepEqual(last(), { form: 'articles/aaaaaaaaaaaa', mode: 'shut', purge: null });
       assert.equal(keeper.readOnly(), true);
       await keeper.seen({ version: 2, locks: [], purge: { id: 'p1', state: 'waiting', reload: false } });
       assert.deepEqual(told.at(-1), 'shut');
@@ -337,7 +337,7 @@ describe('the keeper of a tab\'s lock', () => {
       service.shut = true;
       delete service.held['articles/aaaaaaaaaaaa'];
       assert.deepEqual(await keeper.beforeSave(), { name: 'lock.refusedPurge' });
-      assert.deepEqual(last(), { form: 'articles/aaaaaaaaaaaa', mode: 'shut' });
+      assert.deepEqual(last(), { form: 'articles/aaaaaaaaaaaa', mode: 'shut', purge: null });
       assert.deepEqual((await keeper.beforeDeleting(['articles/bbbbbbbbbbbb'])).refusal, { name: 'lock.refusedPurge' });
       assert.deepEqual((await keeper.beforeRestoring('articles/cccccccccccc')).refusal, { name: 'lock.refusedPurge' });
     });
@@ -359,13 +359,25 @@ describe('the keeper of a tab\'s lock', () => {
       await keeper.open(null);
       assert.equal(await keeper.beforeSave(), null, 'a new entry saves while none does');
       assert.equal(await keeper.purgeRefusal(), null);
-      for (const state of ['waiting', 'warning', 'running', 'unfinished']) {
+      for (const [state, name] of [['waiting', 'lock.refusedPurgeWaiting'], ['warning', 'lock.refusedPurge'], ['running', 'lock.refusedPurge'], ['unfinished', 'lock.refusedPurgeUnfinished']]) {
         service.purge = { id: 'p1', state, reload: false };
-        assert.deepEqual(await keeper.beforeSave(), { name: 'lock.refusedPurge' }, state);
-        assert.deepEqual(await keeper.purgeRefusal(), { name: 'lock.refusedPurge' }, state);
+        assert.deepEqual(await keeper.beforeSave(), { name }, state);
+        assert.deepEqual(await keeper.purgeRefusal(), { name }, state);
       }
       service.purge = { id: 'p1', state: 'done' };
       assert.equal(await keeper.beforeSave(), null);
+    });
+
+    test('says of a form it shuts that a purge waits, then that it is under way, or unfinished, and refuses its save in the same words', async () => {
+      const { keeper, last } = keeping({ shut: 'waiting' });
+      await keeper.open('articles/aaaaaaaaaaaa');
+      assert.deepEqual(last(), { form: 'articles/aaaaaaaaaaaa', mode: 'shut', purge: 'waiting' });
+      assert.deepEqual(await keeper.beforeSave(), { name: 'lock.refusedPurgeWaiting' });
+      await keeper.seen({ version: 2, locks: [], purge: { id: 'p1', state: 'running', reload: false } });
+      assert.deepEqual(last(), { form: 'articles/aaaaaaaaaaaa', mode: 'shut', purge: 'running' });
+      assert.deepEqual(await keeper.beforeSave(), { name: 'lock.refusedPurge' });
+      await keeper.seen({ version: 3, locks: [], purge: { id: 'p1', state: 'unfinished', reload: false } });
+      assert.deepEqual(await keeper.beforeSave(), { name: 'lock.refusedPurgeUnfinished' });
     });
 
     test('lets a new entry save where the service does not answer, as a form does', async () => {

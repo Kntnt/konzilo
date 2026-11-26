@@ -21,7 +21,7 @@ import { lockClient, newTab } from './client.js';
 import { guardReadOnly } from './guard.js';
 import { formOf, lockKeeper } from './keeper.js';
 import { onReadOnly, readOnlyNow, setReadOnly } from './read-only.js';
-import { conflictWords, heldWords, lineWords, markWords } from './words.js';
+import { conflictWords, heldWords, lineWords, markWords, shutTitle } from './words.js';
 import './lock.css';
 
 const button = (words, parent, act) => madeButton('konzilo-lock-button', words, parent, act);
@@ -133,7 +133,7 @@ export function registerLock(CMS) {
     } else if (state.mode === 'takenOver' && shownMode !== 'takenOver') {
       ask({ title: say('lock.takenOverTitle'), words: lineWords(state), choices: [[say('lock.ok'), () => {}]], cancel: () => {} });
     } else if (state.mode === 'shut' && shownMode !== 'shut' && !warned) {
-      ask({ title: say('lock.shutTitle'), words: lineWords(state), choices: [[say('lock.back'), backToList], [say('lock.read'), () => {}]], cancel: backToList });
+      ask({ title: shutTitle(state), words: lineWords(state), choices: [[say('lock.back'), backToList], [say('lock.read'), () => {}]], cancel: backToList });
     } else if (!['takenOver', 'shut'].includes(state.mode) && !warned) {
       close();
     }

@@ -17,8 +17,8 @@
 //   staleBackup the form shows a draft backup from `at`, which a later save makes unsaveable, or,
 //               `takenOver`, the changes it held when it was taken over at `at`, set aside as the
 //               tab took it back, which are never saved
-//   shut        an Admin's purge waits, runs or is unfinished, and no form opens until it has ended
-//               (ADR 0078)
+//   shut        an Admin's purge waits, runs or is unfinished, as `purge` says, and no form opens
+//               until it has ended (ADR 0078)
 // A holder is { name, since, yours }, `yours` where it is the Editor's own other tab.
 //
 // `service`: as client.js gives it. Where it does not answer the keeper lets the Editor work on,
@@ -33,6 +33,11 @@ const READ_ONLY = new Set(['checking', 'asking', 'reading', 'takenOver', 'adminO
 // The states of an Admin's purge in which the forms are shut (ADR 0078): until it has ended, and
 // while it is unfinished, its source pushed and the rest not done.
 const PURGING = new Set(['waiting', 'warning', 'running', 'unfinished']);
+
+// The refusal of a change while an Admin's purge waits, is under way, or is unfinished, by how it
+// stands, `purge`, which the service may not say.
+const PURGE_REFUSALS = { waiting: 'lock.refusedPurgeWaiting', unfinished: 'lock.refusedPurgeUnfinished' };
+const purgeRefused = (purge) => ({ name: PURGE_REFUSALS[purge] ?? 'lock.refusedPurge' });
 
 // What the locks say of an Admin's purge to a tab, which keeps the purges it saw before they
 // ended in `seen`: `warn`, the tab is to reload before it runs, as it has a form open; `shut`, it
@@ -98,7 +103,7 @@ export function lockKeeper({ service, show = () => {}, mark = () => {}, purged =
     if (answer === null || answer.held) return become({ form, mode: 'editing' });
     if (answer.adminOnly) return become({ form, mode: 'adminOnly' });
     if (answer.fromFeed) return become({ form, mode: 'fromFeed' });
-    if (answer.shut) return become({ form, mode: 'shut' });
+    if (answer.shut) return become({ form, mode: 'shut', purge: answer.purge ?? null });
     return become({ form, mode: 'asking', holder: holderOf(answer.holder) });
   };
 
@@ -171,6 +176,8 @@ export function lockKeeper({ service, show = () => {}, mark = () => {}, purged =
         const { form: shut } = state;
         state = { form: null, mode: 'none' };
         await this.open(shut);
+      } else if (state.mode === 'shut' && news === 'shut' && purge.state !== state.purge) {
+        become({ ...state, purge: purge.state });
       }
       const others = {};
       for (const lock of locks) if (!lock.mine) others[lock.form] = { name: lock.name, yours: lock.yours };
@@ -186,7 +193,7 @@ export function lockKeeper({ service, show = () => {}, mark = () => {}, purged =
         else if (!lock) {
           const answer = await asking(form);
           if (state.form === form && answer?.holder) become({ form, mode: 'takenOver', holder: holderOf(answer.holder) });
-          else if (state.form === form && answer?.shut) become({ form, mode: 'shut' });
+          else if (state.form === form && answer?.shut) become({ form, mode: 'shut', purge: answer.purge ?? null });
         }
       } else if (mode === 'reading') {
         const holder = lock && !lock.mine ? holderOf(lock) : null;
@@ -199,7 +206,7 @@ export function lockKeeper({ service, show = () => {}, mark = () => {}, purged =
     // unfinished, as the service says now, where it answers (ADR 0078).
     async purgeRefusal() {
       const answer = await service.locks?.(null);
-      return PURGING.has(answer?.purge?.state) ? { name: 'lock.refusedPurge' } : null;
+      return PURGING.has(answer?.purge?.state) ? purgeRefused(answer.purge.state) : null;
     },
 
     // Null where the form may be saved, else the refusal, by its name and values. A new entry,
@@ -207,7 +214,7 @@ export function lockKeeper({ service, show = () => {}, mark = () => {}, purged =
     async beforeSave() {
       const { form, mode } = state;
       if (form === null) return this.purgeRefusal();
-      if (mode === 'shut') return { name: 'lock.refusedPurge' };
+      if (mode === 'shut') return purgeRefused(state.purge);
       if (mode !== 'editing') return { name: 'lock.refusedReadOnly' };
       const answer = await asking(form);
       if (answer === null || answer.held) return null;
@@ -216,8 +223,8 @@ export function lockKeeper({ service, show = () => {}, mark = () => {}, purged =
         return { name: 'lock.refusedReadOnly' };
       }
       if (answer.shut) {
-        become({ form, mode: 'shut' });
-        return { name: 'lock.refusedPurge' };
+        become({ form, mode: 'shut', purge: answer.purge ?? null });
+        return purgeRefused(answer.purge);
       }
       become({ form, mode: 'takenOver', holder: holderOf(answer.holder) });
       return refusalOf(answer.holder);
@@ -264,7 +271,7 @@ export function lockKeeper({ service, show = () => {}, mark = () => {}, purged =
           await done();
           if (answer.fromFeed) return { refusal: { name: 'lock.refusedFeed' } };
           if (answer.adminOnly) return { refusal: { name: 'lock.refusedReadOnly' } };
-          if (answer.shut) return { refusal: { name: 'lock.refusedPurge' } };
+          if (answer.shut) return { refusal: purgeRefused(answer.purge) };
           return { refusal: answer.holder.yours ? { name: refused.yours } : { name: refused.holder, values: { name: answer.holder.name } } };
         }
       }

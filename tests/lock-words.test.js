@@ -57,3 +57,13 @@ test('says why a post made from a feed is read-only (ADR 0079)', () => {
   useInterfaceLanguage('sv');
   assert.equal(lineWords({ mode: 'fromFeed' }), 'Inlägget är gjort från ett flöde, och bara flödet ändrar det. Du kan läsa det här, men inte ändra, avpublicera eller radera det.');
 });
+
+test('says of a form a purge shuts that it waits, that it is under way, or that it is unfinished (ADR 0078)', () => {
+  useInterfaceLanguage('en');
+  assert.match(lineWords({ mode: 'shut', purge: 'waiting' }), /waiting/);
+  assert.match(lineWords({ mode: 'shut', purge: 'running' }), /purging/);
+  assert.equal(lineWords({ mode: 'shut', purge: null }), lineWords({ mode: 'shut', purge: 'running' }));
+  assert.match(lineWords({ mode: 'shut', purge: 'unfinished' }), /not finished/);
+  useInterfaceLanguage('sv');
+  assert.match(lineWords({ mode: 'shut', purge: 'waiting' }), /väntar/);
+});
