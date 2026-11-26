@@ -134,6 +134,12 @@ export function registerLock(CMS) {
       ask({ title: say('lock.takenOverTitle'), words: lineWords(state), choices: [[say('lock.ok'), () => {}]], cancel: () => {} });
     } else if (state.mode === 'shut' && shownMode !== 'shut' && !warned) {
       ask({ title: shutTitle(state), words: lineWords(state), choices: [[say('lock.back'), backToList], [say('lock.read'), () => {}]], cancel: backToList });
+    } else if (state.mode === 'shut' && !warned) {
+      // A purge that waited and now runs, or is unfinished, says so in the dialog still open.
+      if (dialog.open) {
+        heading.textContent = shutTitle(state);
+        told.textContent = lineWords(state);
+      }
     } else if (!['takenOver', 'shut'].includes(state.mode) && !warned) {
       close();
     }
