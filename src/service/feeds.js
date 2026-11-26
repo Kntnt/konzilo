@@ -62,7 +62,7 @@ async function mayRead(url, { lookup, privateHosts }) {
 }
 
 // Each piece of `stream`, until `stopped` throws.
-async function* race(stream, stopped) {
+async function* untilStopped(stream, stopped) {
   const pieces = stream[Symbol.asyncIterator]();
   for (;;) {
     const { done, value } = await Promise.race([pieces.next(), stopped]);
@@ -83,8 +83,8 @@ export async function fetchFeed(address, { get = fetch, lookup = resolved, priva
   const failed = (error) => ({ failure: { kind: error?.name === 'TimeoutError' || signal.aborted ? 'timeout' : 'unreachable' } });
   const unreachable = { failure: { kind: 'unreachable' } };
   // What does not answer within the wait is given up, whether or not it heeds the signal.
-  const given = new Promise((_, giveUp) => signal.addEventListener('abort', () => giveUp(signal.reason), { once: true }));
-  given.catch(() => {});
+  const givenUp = new Promise((_, giveUp) => signal.addEventListener('abort', () => giveUp(signal.reason), { once: true }));
+  givenUp.catch(() => {});
   let url;
   try {
     url = new URL(address);
@@ -95,8 +95,8 @@ export async function fetchFeed(address, { get = fetch, lookup = resolved, priva
   for (let followed = 0; ; followed += 1) {
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return unreachable;
     try {
-      if (!await Promise.race([mayRead(url, { lookup, privateHosts }), given])) return { failure: { kind: 'not-public' } };
-      answer = await Promise.race([get(url.href, { signal, redirect: 'manual', headers: { accept: ACCEPT, 'user-agent': 'Konzilo feed reader' } }), given]);
+      if (!await Promise.race([mayRead(url, { lookup, privateHosts }), givenUp])) return { failure: { kind: 'not-public' } };
+      answer = await Promise.race([get(url.href, { signal, redirect: 'manual', headers: { accept: ACCEPT, 'user-agent': 'Konzilo feed reader' } }), givenUp]);
     } catch (error) {
       return failed(error);
     }
@@ -121,7 +121,7 @@ export async function fetchFeed(address, { get = fetch, lookup = resolved, priva
   const pieces = [];
   let length = 0;
   try {
-    for await (const piece of race(answer.body ?? [], given)) {
+    for await (const piece of untilStopped(answer.body ?? [], givenUp)) {
       length += piece.length;
       if (length > bytes) {
         await answer.body.cancel().catch(() => {});

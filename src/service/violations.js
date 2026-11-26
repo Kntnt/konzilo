@@ -131,13 +131,13 @@ const keptOf = (given, ownPage) => {
 // and `rest` { count, lastSeen }, or null while there is none; `expire` forgets each entry last
 // seen before `before`, a Date, overwritten where it stood, and gives how many.
 export function violationCounts(store) {
-  const again = store.prepare('UPDATE violation SET count = count + ?, last_seen = ? WHERE page = ? AND directive = ? AND blocked = ?');
+  const countInEntry = store.prepare('UPDATE violation SET count = count + ?, last_seen = ? WHERE page = ? AND directive = ? AND blocked = ?');
   const entries = store.prepare("SELECT COUNT(*) AS entries FROM violation WHERE page <> ''");
   const insert = store.prepare(`INSERT INTO violation (page, directive, blocked, count, last_seen) VALUES (?, ?, ?, ?, ?)
     ON CONFLICT (page, directive, blocked) DO UPDATE SET count = count + excluded.count, last_seen = excluded.last_seen`);
-  const all = store.prepare("SELECT page, directive, blocked, count, last_seen FROM violation WHERE page <> '' ORDER BY last_seen DESC, count DESC, page, directive, blocked");
-  const rest = store.prepare("SELECT count, last_seen FROM violation WHERE page = ''");
-  const old = store.prepare('DELETE FROM violation WHERE last_seen < ?');
+  const entriesShown = store.prepare("SELECT page, directive, blocked, count, last_seen FROM violation WHERE page <> '' ORDER BY last_seen DESC, count DESC, page, directive, blocked");
+  const entryForTheRest = store.prepare("SELECT count, last_seen FROM violation WHERE page = ''");
+  const forgetSeenBefore = store.prepare('DELETE FROM violation WHERE last_seen < ?');
   return {
     count(reports, at) {
       const seen = at.toISOString();
@@ -151,7 +151,7 @@ export function violationCounts(store) {
         let held = Number(entries.get().entries);
         for (const [key, times] of by) {
           const [page, directive, blocked] = JSON.parse(key);
-          if (Number(again.run(times, seen, page, directive, blocked).changes) > 0) continue;
+          if (Number(countInEntry.run(times, seen, page, directive, blocked).changes) > 0) continue;
           if (held < ENTRIES_AT_MOST) {
             insert.run(page, directive, blocked, times, seen);
             held += 1;
@@ -162,16 +162,16 @@ export function violationCounts(store) {
       });
     },
     shown() {
-      const other = rest.get();
+      const other = entryForTheRest.get();
       return {
         days: VIOLATION_DAYS,
         most: ENTRIES_AT_MOST,
-        violations: all.all().map((row) => ({ page: row.page, directive: row.directive, blocked: row.blocked, count: Number(row.count), lastSeen: row.last_seen })),
+        violations: entriesShown.all().map((row) => ({ page: row.page, directive: row.directive, blocked: row.blocked, count: Number(row.count), lastSeen: row.last_seen })),
         rest: other ? { count: Number(other.count), lastSeen: other.last_seen } : null,
       };
     },
     expire(before) {
-      return store.forgot(Number(old.run(before.toISOString()).changes));
+      return store.forgot(Number(forgetSeenBefore.run(before.toISOString()).changes));
     },
   };
 }
