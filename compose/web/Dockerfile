@@ -15,9 +15,11 @@ RUN npm ci --no-audit --no-fund --ignore-scripts
 COPY scripts/build-editor.js scripts/notices.js scripts/wasm-reader.js scripts/
 COPY src/cms src/cms
 COPY src/format src/format
-COPY src/catalogues.js src/checks.js src/refusals.js src/submission-values.js src/trigger-words.js src/
+COPY src/catalogues.js src/checks.js src/forgejo-saves.js src/refusals.js src/submission-values.js src/trigger-words.js src/
 COPY src/catalogues src/catalogues
 COPY src/astro/reader-features.js src/astro/
+COPY src/consent/consent-id.js src/consent/
+COPY src/feeds/failures.js src/feeds/
 COPY src/intake/rules-file.js src/intake/words.js src/intake/
 RUN node scripts/build-editor.js /editor
 
