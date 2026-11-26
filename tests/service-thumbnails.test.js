@@ -2,7 +2,7 @@
 // one is, and how seldom an original is fetched.
 
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -135,6 +135,15 @@ describe('small pictures of originals', () => {
     } finally {
       await one.close();
     }
+  });
+
+  test('are forgotten after a purge, which may have taken an original one is of, the folder kept as it may be a volume\'s own (ADR 0078)', async () => {
+    const kept = join(folder, 'forgotten');
+    mkdirSync(kept);
+    writeFileSync(join(kept, 'abc123.webp'), 'a picture');
+    thumbnails({ forgejo: 'http://forgejo', repository: 'org/source', token: 'read-token', folder: kept, get: async () => assert.fail('asked') }).forget();
+    assert.deepEqual(readdirSync(kept), []);
+    thumbnails({ forgejo: 'http://forgejo', repository: 'org/source', token: 'read-token', folder: join(folder, 'never-made'), get: async () => assert.fail('asked') }).forget();
   });
 
   test('give an SVG as itself', withService({ originals: { 'a.svg': { sha: 'def456', bytes: Buffer.from(SVG) } } }, async ({ picture }) => {

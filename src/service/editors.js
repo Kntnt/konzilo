@@ -141,7 +141,7 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
   const table = lockTable({ now, ...(alive ? { alive } : {}) });
   // An Admin's purge (ADR 0078), which shuts the forms while it waits and runs, and is told to
   // every tab with the locks.
-  const purge = purgeKeeper({ table, control, now, ...purgeOptions, onDone: () => pictures?.forget?.() });
+  const purge = purgeKeeper({ table, control, now, warn, ...purgeOptions, onDone: () => pictures?.forget?.() });
   const locksShown = (person, tab) => ({
     version: table.version,
     locks: table.list().map((lock) => ({ form: lock.form, name: lock.name, since: lock.since.toISOString(), mine: lock.tab === tab, yours: lock.login === person.login })),

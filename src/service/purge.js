@@ -20,7 +20,7 @@ const ANSWERED_WITHIN = 30 * 60_000;
 
 // `table`: the locks, as locks.js gives them. `control`: as build/record.js gives it.
 // `onDone()`: what else is to forget once a purge is done.
-export function purgeKeeper({ table, control, now = () => new Date(), reloadWithin = RELOAD_WITHIN, answeredWithin = ANSWERED_WITHIN, onDone = () => {} }) {
+export function purgeKeeper({ table, control, now = () => new Date(), reloadWithin = RELOAD_WITHIN, answeredWithin = ANSWERED_WITHIN, onDone = () => {}, warn = console.error }) {
   let current = null;
   let last = null;
 
@@ -38,7 +38,11 @@ export function purgeKeeper({ table, control, now = () => new Date(), reloadWith
   const finish = (state) => {
     last = state.state === 'failed' ? { id: current.id, state: 'failed', reason: state.reason ?? 'broke' } : { id: current.id, state: 'done' };
     current = null;
-    if (last.state === 'done') onDone();
+    try {
+      if (last.state === 'done') onDone();
+    } catch (error) {
+      warn(`What a purge leaves to forget could not be forgotten: ${error.message}`);
+    }
     table.open();
   };
 
