@@ -7,13 +7,12 @@
 // is what Sveltia takes, with its styles on the elements.
 
 import { labelIn } from '../../catalogues.js';
+import { heldBack, LINE, pageOf, TEXT, useAnswer } from '../admin-page.js';
 import { signedInCredential } from '../credential.js';
 import { interfaceLanguage, say } from '../interface-language.js';
 import { momentShown } from '../submissions/client.js';
 import { addFeed, changeFeed, failureShown, feedProblemsShown, readFeeds, removeFeed } from './client.js';
 
-const TEXT = { font: '14px/1.4 system-ui, sans-serif', overflowWrap: 'anywhere' };
-const LINE = { ...TEXT, margin: '4px 0 12px', maxWidth: '60em' };
 const SET = { border: '1px solid rgba(128, 128, 128, 0.3)', borderRadius: 6, margin: '0 0 16px', padding: 12, display: 'grid', gap: 10, maxWidth: '40em' };
 const LEGEND = { ...TEXT, fontWeight: 600, padding: '0 4px' };
 const FIELD = { ...TEXT, display: 'grid', gap: 4 };
@@ -146,32 +145,22 @@ function NewFeed({ shown, onShown }) {
 
 export function feedsPage({ credential = signedInCredential } = {}) {
   return function KonziloFeedsPage() {
-    const { createElement: h, useEffect, useState } = react();
-    const [answer, setAnswer] = useState(undefined);
+    const { createElement: h, useState } = react();
+    const [answer, setAnswer] = useAnswer(() => readFeeds({ credential }));
     const [told, setTold] = useState(null);
-    useEffect(() => {
-      let gone = false;
-      readFeeds({ credential }).then((given) => {
-        if (!gone) setAnswer(given);
-      });
-      return () => {
-        gone = true;
-      };
-    }, []);
-    const page = (...children) => h('div', { style: { padding: 16, overflow: 'auto', height: '100%', boxSizing: 'border-box' } }, ...children);
-    if (answer === undefined) return null;
-    if (answer === null) return page(h('p', { style: LINE }, say('feeds.unknown')));
-    if (answer.adminOnly) return page(h('p', { style: LINE }, say('feeds.adminOnly')));
+    const held = heldBack(answer, { unknown: 'feeds.unknown', adminOnly: 'feeds.adminOnly' });
+    if (held !== undefined) return held;
     const shown = answer.feeds;
     const onShown = (result, words = null) => {
       setAnswer(result);
       setTold(words);
     };
-    return page(
+    return pageOf([
       h('p', { style: LINE }, say('feeds.intro')),
       told ? h('p', { role: 'status', style: LINE }, say(told)) : null,
       shown.feeds.length === 0 ? h('p', { style: LINE }, say('feeds.none')) : null,
       shown.feeds.map((feed) => h(Feed, { key: `${feed.id}:${feed.type}:${feed.language}:${feed.every}`, feed, shown, onShown })),
-      h(NewFeed, { shown, onShown }));
+      h(NewFeed, { shown, onShown }),
+    ]);
   };
 }

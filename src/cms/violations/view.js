@@ -4,16 +4,15 @@
 // An Admin alone sees it. It is React, since that is what Sveltia takes, with its styles on the
 // elements.
 
+import { CELL as PLAIN_CELL, heldBack, LINE, pageOf, TEXT, useAnswer } from '../admin-page.js';
 import { signedInCredential } from '../credential.js';
 import { languageTag, say } from '../interface-language.js';
 import { momentShown } from '../submissions/client.js';
 import { blockedShown, readViolations } from './client.js';
 
-const TEXT = { font: '14px/1.4 system-ui, sans-serif', overflowWrap: 'anywhere' };
-const LINE = { ...TEXT, margin: '4px 0 12px', maxWidth: '60em' };
 const TABLE = { ...TEXT, borderCollapse: 'collapse', width: '100%' };
 const CAPTION = { fontWeight: 600, textAlign: 'start', marginBottom: 8 };
-const CELL = { padding: '8px 12px 8px 0', borderBottom: '1px solid rgba(128, 128, 128, 0.3)', textAlign: 'start', verticalAlign: 'top' };
+const CELL = { ...PLAIN_CELL, padding: '8px 12px 8px 0', borderBottom: '1px solid rgba(128, 128, 128, 0.3)' };
 const HEAD = { ...CELL, fontWeight: 600 };
 const ROW_HEAD = { ...CELL, fontWeight: 'normal' };
 const NUMBER = { ...CELL, textAlign: 'end', fontVariantNumeric: 'tabular-nums' };
@@ -57,23 +56,13 @@ function Counts({ counts }) {
 
 export function violationsPage({ credential = signedInCredential } = {}) {
   return function KonziloViolationsPage() {
-    const { createElement: h, useEffect, useState } = react();
-    const [answer, setAnswer] = useState(undefined);
-    useEffect(() => {
-      let gone = false;
-      readViolations({ credential }).then((given) => {
-        if (!gone) setAnswer(given);
-      });
-      return () => {
-        gone = true;
-      };
-    }, []);
-    const page = (...children) => h('div', { className: 'konzilo-violations', style: { padding: 16, overflow: 'auto', height: '100%', boxSizing: 'border-box' } }, ...children);
-    if (answer === undefined) return null;
-    if (answer === null) return page(h('p', { role: 'alert', style: LINE }, say('violations.unknown')));
-    if (answer.adminOnly) return page(h('p', { style: LINE }, say('violations.adminOnly')));
-    return page(
+    const { createElement: h } = react();
+    const [answer] = useAnswer(() => readViolations({ credential }));
+    const held = heldBack(answer, { unknown: 'violations.unknown', adminOnly: 'violations.adminOnly', className: 'konzilo-violations' });
+    if (held !== undefined) return held;
+    return pageOf([
       h('p', { style: LINE }, say('violations.intro', { days: numberShown(answer.counts.days) })),
-      h(Counts, { counts: answer.counts }));
+      h(Counts, { counts: answer.counts }),
+    ], 'konzilo-violations');
   };
 }
