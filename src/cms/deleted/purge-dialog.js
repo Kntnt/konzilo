@@ -91,7 +91,8 @@ const unfinishedSubject = () => ({ heading: say('deleted.purgeFinishTitle'), dur
 // `subject`: what is purged, as the dialog says it, { heading, during, what, noWayBack, write,
 // doneWords }, its words, `matches(written)`, whether what is written confirms it, `start(course)`,
 // which asks for it as purge.js answers and keeps what the page says of it once it loads again,
-// and `failed(purge)`, why it was not made, in words; or `row`, the entry, as the *Deleted* page
+// `failed(purge)`, why it was not made, in words, and `failedFiles(purge)`, where it has one, the
+// files a refusal names, drawn; or `row`, the entry, as the *Deleted* page
 // lists it, which it is made from. `started`: a purge asked for already, as the service tells it,
 // whose progress alone it shows. `service`: as purge.js gives it. `onClose()`: closes it.
 export function PurgeDialog({ row = null, subject: given = null, started = null, service, collectionOf, onClose }) {
@@ -248,6 +249,7 @@ export function PurgeDialog({ row = null, subject: given = null, started = null,
     }[state];
     body = [
       h('p', { key: 'state', role: ['failed', 'unfinished'].includes(state) ? 'alert' : 'status', className: 'konzilo-purge-state' }, words),
+      state === 'failed' ? subject.failedFiles?.(purge) ?? null : null,
       state === 'waiting' && (purge.forms ?? []).length > 0 ? h('ul', { key: 'open', className: 'konzilo-purge-forms' }, purge.forms.map((one) => h('li', { key: one.form }, formShown(one, collectionOf)))) : null,
       h('div', { key: 'ways', className: 'konzilo-deleted-ways' },
         state === 'waiting' ? button(say('deleted.purgeStop'), stop) : null,

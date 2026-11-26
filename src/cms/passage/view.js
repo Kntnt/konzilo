@@ -49,8 +49,19 @@ const same = (one, other) => normal(one).toLocaleLowerCase() === normal(other).t
 // What the purge changed, in words, nothing of the passage among them.
 const changedWords = (name, changed) => wordsShown({ name, values: { revisions: changed?.revisions ?? 0, files: changed?.files ?? 0, messages: changed?.messages ?? 0 } });
 
-// A passage as the purge's steps purge it, from every old revision.
-function passageSubject(passage, service) {
+// The files a refusal names, each linked to its form, as the search names them: those whose
+// current version holds the passage, by `paths`.
+function RefusedFiles({ paths, collections }) {
+  const { createElement: h } = react();
+  return h('ul', { className: 'konzilo-purge-forms' }, paths.map((path) => {
+    const { form, name, linked } = fileShown({ path, current: true }, collections);
+    return h('li', { key: path }, linked ? h('a', { href: form.hash, className: 'konzilo-passage-link' }, name) : name);
+  }));
+}
+
+// A passage as the purge's steps purge it, from every old revision. `collections`: Sveltia's,
+// whose forms the files a refusal names are linked to.
+function passageSubject(passage, service, collections) {
   const failed = { current: 'passage.purgeFailed-current', 'not-found': 'passage.purgeFailed-not-found', unanswered: 'passage.purgeFailed-unanswered' };
   return {
     heading: say('passage.purgeTitle'),
@@ -68,7 +79,12 @@ function passageSubject(passage, service) {
       }
       return answer;
     },
-    failed: (purge) => wordsShown({ name: failed[purge?.reason] ?? 'passage.purgeFailed-broke', values: { count: purge?.paths?.length ?? 0 } }),
+    failed: (purge) => say(failed[purge?.reason] ?? 'passage.purgeFailed-broke'),
+    // Each file the refusal names, where it names any.
+    failedFiles: (purge) => {
+      const { createElement: h } = react();
+      return purge?.reason === 'current' && Array.isArray(purge.paths) && purge.paths.length > 0 ? h(RefusedFiles, { key: 'paths', paths: purge.paths, collections }) : null;
+    },
     doneWords: say('passage.purgeDone'),
   };
 }
@@ -207,7 +223,7 @@ export function passagePage({ config }) {
     return page(
       outcome ? h('p', { className: 'konzilo-passage-told', role: 'status' }, changedWords('passage.purgedNow', outcome.changed)) : null,
       standing.purge?.state === 'unfinished' ? h(UnfinishedPurge, { purge: standing.purge, service, collectionOf }) : null,
-      purging ? h(PurgeDialog, { subject: passageSubject(sought, service), service, collectionOf, onClose: closePurge }) : null,
+      purging ? h(PurgeDialog, { subject: passageSubject(sought, service, collections), service, collectionOf, onClose: closePurge }) : null,
       h('p', { className: 'konzilo-passage-note' }, say('passage.about')),
       h('form', { role: 'search', className: 'konzilo-passage-search', onSubmit: search },
         h('label', { htmlFor: 'konzilo-passage-text' }, say('passage.text')),

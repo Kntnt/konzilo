@@ -1609,7 +1609,7 @@
   "passage.purgeNoWayBack": "Det finns ingen väg tillbaka: ingen revision kan läsas eller återställas med det igen.",
   "passage.purgeWrite": "Skriv textavsnittet igen för att rensa det för gott:",
   "passage.purgeDone": "Rensat för gott. Sidan laddas om.",
-  "passage.purgeFailed-current": "Det rensades inte: en nuvarande version innehåller det igen, i filer: {count}. Sök igen för att se vilka.",
+  "passage.purgeFailed-current": "Det rensades inte: den nuvarande versionen av de här filerna innehåller det igen. Öppna var och en, ta bort det, spara och sök igen.",
   "passage.purgeFailed-not-found": "Det rensades inte: ingen revision innehåller det längre.",
   "passage.purgeFailed-unanswered": "Rensningen sa inte i tid att den var klar. Fråga den som driver webbplatsen om den blev det.",
   "passage.purgeFailed-broke": "Det kunde inte rensas. Försök igen om en stund, eller fråga den som driver webbplatsen.",

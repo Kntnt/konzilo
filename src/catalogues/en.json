@@ -1609,7 +1609,7 @@
   "passage.purgeNoWayBack": "There is no way back: no revision can be read or restored with it again.",
   "passage.purgeWrite": "To purge it for good, write the passage again:",
   "passage.purgeDone": "Purged for good. This page loads again.",
-  "passage.purgeFailed-current": "It was not purged: a current version holds it again, in files: {count}. Find it again to see which.",
+  "passage.purgeFailed-current": "It was not purged: the current version of these files holds it again. Open each, remove it, save, and find it again.",
   "passage.purgeFailed-not-found": "It was not purged: no revision holds it any longer.",
   "passage.purgeFailed-unanswered": "The purge did not say in time that it was done. Ask whoever runs the site whether it was.",
   "passage.purgeFailed-broke": "It could not be purged. Try again in a moment, or ask whoever runs the site.",
