@@ -67,7 +67,7 @@ function start() {
   registerPublishing(CMS, config);
   registerDeleted(CMS, config, { history, lock });
   registerPassage(CMS, config);
-  registerNotFound(CMS, config);
+  registerNotFound(CMS, config, { lock });
   registerFeeds(CMS);
   if (konzilo.forms) {
     registerSubmissions(CMS);

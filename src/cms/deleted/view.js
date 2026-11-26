@@ -1,10 +1,11 @@
-// The *Deleted* page (ADR 0077): the posts, terms and image library entries deleted from the source,
-// newest deletion first, each with what its last save called it, its type, when it was deleted and
-// the account that pushed the deletion, a type at a time where one is chosen. A deleted entry opens
-// read-only, at its last revision, beside its revisions, which compare as a form's do, and *Restore*
-// saves it again, as a draft, under its own ID, and opens its form. An Admin also purges one for
-// good, from its row or as it is read (ADR 0078). It is React, since that is what Sveltia takes;
-// what a revision holds is drawn by the form's History (history/register.js).
+// The *Deleted* page (ADR 0077): the posts, terms and image library entries deleted from the
+// source, newest deletion first, each with what its last save called it, its type, when it was
+// deleted and the account that pushed the deletion, a type at a time where one is chosen. A deleted
+// entry opens read-only, at its last revision, beside its revisions, which compare as a form's do,
+// and *Restore* saves it again, as a draft, under its own ID, and opens its form. An Admin also
+// purges one for good, from its row or as it is read, and finishes a purge that is unfinished
+// (ADR 0078). It is React, since that is what Sveltia takes; what a revision holds is drawn by the
+// form's History (history/register.js).
 
 import { signedInCredential } from '../credential.js';
 import { languageTag, say } from '../interface-language.js';
@@ -12,7 +13,7 @@ import { momentValue, wordsShown } from '../refusals.js';
 import { latestSaveOf, revisionsOf } from '../history/client.js';
 import { accountWords, choiceWords, savedWords, withMoment } from '../history/words.js';
 import { deletedPages, entryTitle } from './client.js';
-import { PurgeDialog, purgedBefore, purgesWords } from './purge-dialog.js';
+import { PurgeDialog, purgedBefore, purgesWords, UnfinishedPurge } from './purge-dialog.js';
 import { purgeService } from './purge.js';
 import { idOf, restoreDeleted } from './restore.js';
 import { sourceOf } from '../source.js';
@@ -273,6 +274,7 @@ export function deletedPage({ config, history, lock }) {
       purged ? h('p', { className: 'konzilo-deleted-told', role: 'status' }, wordsShown({ name: 'deleted.purgedNow', values: { title: purged } })) : null,
       purging ? h(PurgeDialog, { key: purging.path, row: purging, service: purges, collectionOf, onClose: purgeClosed }) : null,
       h('div', { hidden: opened !== null },
+        admin && standing.purge?.state === 'unfinished' ? h(UnfinishedPurge, { purge: standing.purge, service: purges, collectionOf }) : null,
         h('p', { className: 'konzilo-deleted-note' }, say('deleted.about')),
         admin && purgesWords(standing.purges) ? h('p', { className: 'konzilo-deleted-note' }, purgesWords(standing.purges)) : null,
         h('label', { className: 'konzilo-deleted-filter' },

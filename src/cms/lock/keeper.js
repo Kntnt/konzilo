@@ -17,7 +17,8 @@
 //   staleBackup the form shows a draft backup from `at`, which a later save makes unsaveable, or,
 //               `takenOver`, the changes it held when it was taken over at `at`, set aside as the
 //               tab took it back, which are never saved
-//   shut        an Admin's purge waits or runs, and no form opens until it has ended (ADR 0078)
+//   shut        an Admin's purge waits, runs or is unfinished, as `purge` says, and no form opens
+//               until it has ended (ADR 0078)
 // A holder is { name, since, yours }, `yours` where it is the Editor's own other tab.
 //
 // `service`: as client.js gives it. Where it does not answer the keeper lets the Editor work on,
@@ -29,13 +30,19 @@ const HOLDING = new Set(['editing', 'staleBackup']);
 
 const READ_ONLY = new Set(['checking', 'asking', 'reading', 'takenOver', 'adminOnly', 'fromFeed', 'staleBackup', 'shut']);
 
-// The states of an Admin's purge in which the forms are shut (ADR 0078).
-const PURGING = new Set(['waiting', 'warning', 'running']);
+// The states of an Admin's purge in which the forms are shut (ADR 0078): until it has ended, and
+// while it is unfinished, its source pushed and the rest not done.
+const PURGING = new Set(['waiting', 'warning', 'running', 'unfinished']);
 
-// What the locks say of an Admin's purge to a tab, which keeps the purges it saw before they
-// ended in `seen`: `warn`, the tab is to reload before it runs, as it has a form open; `shut`, it
-// waits or runs and no form opens; `reload`, one the tab saw coming is done, and what the tab read
-// of the source may be gone; and `open`, none waits or runs.
+// The refusal of a change while an Admin's purge waits, is under way, or is unfinished, by how it
+// stands, `purge`, which the service may not say.
+const PURGE_REFUSALS = { waiting: 'lock.refusedPurgeWaiting', unfinished: 'lock.refusedPurgeUnfinished' };
+const purgeRefused = (purge) => ({ name: PURGE_REFUSALS[purge] ?? 'lock.refusedPurge' });
+
+// What the locks say of an Admin's purge to a tab, which keeps the purges it saw before they ended
+// in `seen`: `warn`, the tab is to reload before it runs, as it has a form open; `shut`, it waits,
+// runs or is unfinished, and no form opens; `reload`, one the tab saw coming is done, and what the
+// tab read of the source may be gone; and `open`, none waits or runs.
 export function purgeNews(purge, seen) {
   if (purge && PURGING.has(purge.state)) {
     seen.add(purge.id);
@@ -88,16 +95,25 @@ export function lockKeeper({ service, show = () => {}, mark = () => {}, purged =
   const holderOf = ({ name, since, yours }) => ({ name, since, yours });
   const refusalOf = (holder) => ({ name: 'lock.refusedTakenOver', values: { name: holder.name, at: { moment: holder.since } } });
 
+  // Why the service refused the tab a form's lock, `answer` as it answered a hold, as the form then
+  // stands: { mode }, `adminOnly` or `fromFeed`; { mode: 'shut', purge }, while an Admin's purge
+  // waits, runs or is unfinished; or { mode: 'held', holder }, where another tab holds it. Null
+  // where the tab holds the lock, or the service did not answer.
+  const refusedHold = (answer) => {
+    if (answer === null || answer.held) return null;
+    if (answer.adminOnly) return { mode: 'adminOnly' };
+    if (answer.fromFeed) return { mode: 'fromFeed' };
+    if (answer.shut) return { mode: 'shut', purge: answer.purge ?? null };
+    return { mode: 'held', holder: holderOf(answer.holder) };
+  };
+
   // What the service answers for `form` made the tab's state.
   const answered = (form, answer) => {
     const at = staleAt;
     staleAt = null;
-    if ((answer === null || answer.held) && at !== null) return become({ form, mode: 'staleBackup', at });
-    if (answer === null || answer.held) return become({ form, mode: 'editing' });
-    if (answer.adminOnly) return become({ form, mode: 'adminOnly' });
-    if (answer.fromFeed) return become({ form, mode: 'fromFeed' });
-    if (answer.shut) return become({ form, mode: 'shut' });
-    return become({ form, mode: 'asking', holder: holderOf(answer.holder) });
+    const why = refusedHold(answer);
+    if (why === null) return become(at === null ? { form, mode: 'editing' } : { form, mode: 'staleBackup', at });
+    return become(why.mode === 'held' ? { form, mode: 'asking', holder: why.holder } : { form, ...why });
   };
 
   return {
@@ -169,6 +185,8 @@ export function lockKeeper({ service, show = () => {}, mark = () => {}, purged =
         const { form: shut } = state;
         state = { form: null, mode: 'none' };
         await this.open(shut);
+      } else if (state.mode === 'shut' && news === 'shut' && purge.state !== state.purge) {
+        become({ ...state, purge: purge.state });
       }
       const others = {};
       for (const lock of locks) if (!lock.mine) others[lock.form] = { name: lock.name, yours: lock.yours };
@@ -182,9 +200,9 @@ export function lockKeeper({ service, show = () => {}, mark = () => {}, purged =
       if (mode === 'editing' || mode === 'staleBackup') {
         if (lock && !lock.mine) become({ form, mode: 'takenOver', holder: holderOf(lock) });
         else if (!lock) {
-          const answer = await asking(form);
-          if (state.form === form && answer?.holder) become({ form, mode: 'takenOver', holder: holderOf(answer.holder) });
-          else if (state.form === form && answer?.shut) become({ form, mode: 'shut' });
+          const why = refusedHold(await asking(form));
+          if (state.form === form && why?.mode === 'held') become({ form, mode: 'takenOver', holder: why.holder });
+          else if (state.form === form && why?.mode === 'shut') become({ form, ...why });
         }
       } else if (mode === 'reading') {
         const holder = lock && !lock.mine ? holderOf(lock) : null;
@@ -192,24 +210,29 @@ export function lockKeeper({ service, show = () => {}, mark = () => {}, purged =
       }
     },
 
-    // Null where the form may be saved, else the refusal, by its name and values.
+    // Null where nothing stops a change made outside a form, as a rule saved on the *Addresses not
+    // found* page, else the refusal, by its name: while an Admin's purge waits, runs or is
+    // unfinished, as the service says now, where it answers (ADR 0078).
+    async purgeRefusal() {
+      const answer = await service.locks?.(null);
+      return PURGING.has(answer?.purge?.state) ? purgeRefused(answer.purge.state) : null;
+    },
+
+    // Null where the form may be saved, else the refusal, by its name and values. A new entry,
+    // which has no lock to keep, is held only while an Admin's purge waits, runs or is unfinished.
     async beforeSave() {
       const { form, mode } = state;
-      if (form === null) return null;
-      if (mode === 'shut') return { name: 'lock.refusedPurge' };
+      if (form === null) return this.purgeRefusal();
+      if (mode === 'shut') return purgeRefused(state.purge);
       if (mode !== 'editing') return { name: 'lock.refusedReadOnly' };
-      const answer = await asking(form);
-      if (answer === null || answer.held) return null;
-      if (answer.adminOnly || answer.fromFeed) {
-        become({ form, mode: answer.fromFeed ? 'fromFeed' : 'adminOnly' });
-        return { name: 'lock.refusedReadOnly' };
+      const why = refusedHold(await asking(form));
+      if (why === null) return null;
+      if (why.mode === 'held') {
+        become({ form, mode: 'takenOver', holder: why.holder });
+        return refusalOf(why.holder);
       }
-      if (answer.shut) {
-        become({ form, mode: 'shut' });
-        return { name: 'lock.refusedPurge' };
-      }
-      become({ form, mode: 'takenOver', holder: holderOf(answer.holder) });
-      return refusalOf(answer.holder);
+      become({ form, ...why });
+      return why.mode === 'shut' ? purgeRefused(why.purge) : { name: 'lock.refusedReadOnly' };
     },
 
     // Whether `forms` may be deleted: { refusal } where another tab holds one, else { done() },
@@ -249,12 +272,12 @@ export function lockKeeper({ service, show = () => {}, mark = () => {}, purged =
         const answer = await asking(form);
         if (answer?.held) held.push(form);
         else changing.delete(form);
-        if (answer?.holder || answer?.adminOnly || answer?.fromFeed || answer?.shut) {
+        const why = refusedHold(answer);
+        if (why !== null) {
           await done();
-          if (answer.fromFeed) return { refusal: { name: 'lock.refusedFeed' } };
-          if (answer.adminOnly) return { refusal: { name: 'lock.refusedReadOnly' } };
-          if (answer.shut) return { refusal: { name: 'lock.refusedPurge' } };
-          return { refusal: answer.holder.yours ? { name: refused.yours } : { name: refused.holder, values: { name: answer.holder.name } } };
+          if (why.mode === 'held') return { refusal: why.holder.yours ? { name: refused.yours } : { name: refused.holder, values: { name: why.holder.name } } };
+          if (why.mode === 'shut') return { refusal: purgeRefused(why.purge) };
+          return { refusal: { name: why.mode === 'fromFeed' ? 'lock.refusedFeed' : 'lock.refusedReadOnly' } };
         }
       }
       return { done };

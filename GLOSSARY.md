@@ -336,7 +336,7 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Retention**: The days a form's submissions are kept, which an Admin sets for each form beside its recipients on the *Mail* page, 30 until then, after which the service forgets them; spam is kept 7 days, or its form's retention where that is shorter. _Avoid_: expiry, TTL.
 
-**Erasure**: Removing a person's submissions at their request, which an Admin does on the *Personal data* page after finding them by what the person wrote, leaving nothing of them in the service's data; privacy law's word for it. _Avoid_: deletion (of a person's data), purge (a post's).
+**Erasure**: Removing a person's submissions at their request, which an Admin does on the *Personal data* page after finding them by what the person wrote, leaving nothing of them in the service's data; privacy law's word for it. _Avoid_: deletion (of a person's data), purge (an entry's or a passage's).
 
 **Timing token**: A signed token a form's page asks for once the form comes into use; a submission too soon after it is held as spam. _Avoid_: CSRF token.
 

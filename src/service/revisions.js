@@ -50,13 +50,26 @@ export function sourceHistory({ forgejo, repository, token, pushesToken = token,
 
   // Each commit's push: { login, name, at }.
   const known = { last: 0, commits: {} };
-  // A push whose commits Forgejo can no longer list, as one a purge took the head it started from
-  // of, brought none the history still has.
+  // Whether Forgejo holds a commit.
+  const holds = async (commit) => {
+    try {
+      await (await ask(`/git/commits/${encodeURIComponent(commit)}?${LIST}`, pushesToken)).text();
+      return true;
+    } catch (error) {
+      if ([404, 422].includes(error.status)) return false;
+      throw error;
+    }
+  };
+  // A push whose commits Forgejo can no longer list brought none the history still has: one it
+  // answers 404 or 422 for, or one whose head before it is gone, as the head a purge started from,
+  // which Forgejo answers with a failure of its own. Any other failure is thrown, so that the feed
+  // is looked at again from where it was, and the push's account is not lost.
   const commitsOf = async (after, before) => {
     try {
       return (await commitsFrom((path) => ask(path, pushesToken), after, before)).map(({ sha }) => sha);
-    } catch {
-      return [];
+    } catch (error) {
+      if ([404, 422].includes(error.status) || (before !== null && !await holds(before))) return [];
+      throw error;
     }
   };
   const whom = ({ act_user: user, created }) => ({ login: user.login, name: accountName(user), at: created });

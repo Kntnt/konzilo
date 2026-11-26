@@ -3,8 +3,9 @@
 //
 // Gives { hold(form, { takeOver }), release(form), end(), locks(after, signal), watch(seen) }:
 // `hold` gives { held: true, since }, { holder: { name, since, yours } }, { adminOnly: true },
-// { fromFeed: true } for a post made from a feed, which no form saves (ADR 0079), { shut: true }
-// while an Admin's purge waits or runs (ADR 0078), or null where the service cannot be asked, does
+// { fromFeed: true } for a post made from a feed, which no form saves (ADR 0079), { shut: true,
+// purge } while an Admin's purge waits, runs or is unfinished, `purge` how it stands (ADR 0078),
+// or null where the service cannot be asked, does
 // not answer within `answersWithin` milliseconds, or answers otherwise; `release` lets the form
 // go, by a call that outlives the page, so that a form left just before the page is, or as it is,
 // goes too; `end` ends the tab as its page is closed, by such a call, after which the service lets
@@ -53,7 +54,7 @@ export function lockClient({ tab, credential, ask = (...args) => globalThis.fetc
         return holder ? { holder: { name: holder.name, since: holder.since, yours: holder.yours === true } } : null;
       }
       if (answer.status === 403) return (await json(answer))?.fromFeed === true ? { fromFeed: true } : { adminOnly: true };
-      if (answer.status === 423) return { shut: true };
+      if (answer.status === 423) return { shut: true, purge: (await json(answer))?.purge?.state ?? null };
       return null;
     },
     async release(form) {

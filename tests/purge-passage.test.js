@@ -2,7 +2,8 @@
 // written, case-insensitively, through whitespace and the escapes that Markdown, YAML and JSON put
 // into it, and taken out with nothing in its place; every file and revision of the source that
 // holds it, as an Admin is shown them; and its purge, against two repositories that stand in for
-// Forgejo's, refused while a current version holds it, after which neither, cloned anew, holds it
+// Forgejo's, refused while a current version holds it, or the content repository's head does,
+// after which neither, cloned anew, holds it
 // in any file or message, every save stays at its moment, and who pushed each is carried over.
 
 import assert from 'node:assert/strict';
@@ -173,12 +174,23 @@ describe('a purge of a passage', () => {
     assert.equal(cloned(sites1.source.bare)('rev-parse', 'main'), sites1.commits.at(-1), 'nothing is pushed');
   });
 
-  test('once the current versions are saved without it, takes it from every revision of both repositories with nothing in its place, and carries over every save', async () => {
+  test('refuses while the content repository\'s head holds it, as a file the build has not yet made again from the Admin\'s save, and names each', async () => {
+    const site = sites();
+    const hand = site.source.save({ files: { 'articles/cccccccccccc.md': post('Kept', 'Ask the office.') } });
+    const published = cloned(site.content.bare)('rev-parse', 'main');
+    await assert.rejects(purging(site), (error) => error instanceof PurgeRefusal && error.reason === 'published' && JSON.stringify(error.paths) === '["articles/kept.md"]');
+    assert.equal(cloned(site.source.bare)('rev-parse', 'main'), hand, 'nothing is pushed');
+    assert.equal(cloned(site.content.bare)('rev-parse', 'main'), published);
+  });
+
+  test('once the current versions are saved without it, and published, takes it from every revision of both repositories with nothing in its place, and carries over every save', async () => {
     const site = sites();
     const { source, content, pushers, commits } = site;
     const hand = source.save({ files: { 'articles/cccccccccccc.md': post('Kept', 'Ask the office.') } });
     pushers[hand] = { login: 'anna', name: 'Anna Admin', at: at(9) };
     commits.push(hand);
+    content.save({ files: { 'articles/kept.md': 'Ask the office.\n' }, message: `Publish ${hand.slice(0, 12)}` });
+    const publishedTree = cloned(content.bare)('rev-parse', 'main^{tree}');
     const before = { moments: cloned(source.bare)('log', '--format=%cI %s', 'main'), files: cloned(source.bare)('log', '--format=%H', '--', 'articles/cccccccccccc.md').split('\n').length };
 
     const result = await purging(site);
@@ -199,7 +211,7 @@ describe('a purge of a passage', () => {
     assert.equal(fresh('log', '--format=%H', '--', 'articles/cccccccccccc.md').split('\n').length, before.files, 'and every revision of each form');
     assert.equal(fileAt(fresh, 'main', 'articles/cccccccccccc.md'), post('Kept', 'Ask the office.').trim(), 'the current versions are as the Admin saved them');
 
-    assert.equal(fileAt(freshContent, 'main', 'articles/kept.md'), 'Ask .', 'the content not yet built from the hand-made save loses it too');
+    assert.equal(freshContent('rev-parse', 'main^{tree}'), publishedTree, 'the published files are as the build left them');
     for (const line of freshContent('log', '--format=%s', 'main').split('\n')) {
       const [, prefix] = /^Publish ([0-9a-f]{12})$/.exec(line);
       assert.ok(now.some((commit) => commit.startsWith(prefix)), `${line} names a commit of the source`);
@@ -219,6 +231,7 @@ describe('a purge of a passage', () => {
     const { source, pushers, commits } = site;
     const hand = source.save({ files: { 'articles/cccccccccccc.md': post('Kept', 'Ask .') } });
     pushers[hand] = { login: 'anna', name: 'Anna Admin', at: at(9) };
+    site.content.save({ files: { 'articles/kept.md': 'Ask .\n' }, message: `Publish ${hand.slice(0, 12)}` });
     const before = cloned(source.bare)('log', '--format=%cI', 'main');
     await purging(site);
     const fresh = cloned(source.bare);

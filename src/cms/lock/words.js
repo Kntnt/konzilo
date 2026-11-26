@@ -9,6 +9,12 @@ export const heldWords = (holder) => (holder.yours
   ? wordsShown({ name: 'lock.heldByYou', values: { since: momentValue(holder.since) } })
   : wordsShown({ name: 'lock.heldBy', values: { name: holder.name, since: momentValue(holder.since) } }));
 
+// Why a form an Admin's purge shuts is read-only, and the title of the dialog that says so, by how
+// the purge stands: waiting, unfinished, or else under way (ADR 0078).
+const SHUT = { waiting: 'lock.shutWaiting', unfinished: 'lock.shutUnfinished' };
+const SHUT_TITLES = { waiting: 'lock.shutTitleWaiting', unfinished: 'lock.shutTitleUnfinished' };
+export const shutTitle = (state) => wordsShown({ name: SHUT_TITLES[state.purge] ?? 'lock.shutTitle' });
+
 // The line above a read-only form: why it is read-only.
 export function lineWords(state) {
   switch (state.mode) {
@@ -31,7 +37,7 @@ export function lineWords(state) {
     case 'staleBackup':
       return wordsShown({ name: state.takenOver ? 'lock.takenBack' : 'lock.staleBackup', values: { at: momentValue(state.at) } });
     case 'shut':
-      return wordsShown({ name: 'lock.shut' });
+      return wordsShown({ name: SHUT[state.purge] ?? 'lock.shut' });
     default:
       return '';
   }

@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, test } from 'node:test';
 
-import { gitIn, rewriteHistory } from '../src/purge/rewrite.js';
+import { gitRunner, rewriteHistory } from '../src/purge/rewrite.js';
 
 const folders = [];
 after(() => {
@@ -43,7 +43,7 @@ function repository(commits) {
     });
     shas.push(git('rev-parse', 'HEAD'));
   });
-  return { folder, git, shas, run: gitIn(folder, environment) };
+  return { folder, git, shas, run: gitRunner(folder, environment) };
 }
 
 // Every path any commit of the branch holds, and every file's text at its head.

@@ -21,7 +21,7 @@ import { lockClient, newTab } from './client.js';
 import { guardReadOnly } from './guard.js';
 import { formOf, lockKeeper } from './keeper.js';
 import { onReadOnly, readOnlyNow, setReadOnly } from './read-only.js';
-import { conflictWords, heldWords, lineWords, markWords } from './words.js';
+import { conflictWords, heldWords, lineWords, markWords, shutTitle } from './words.js';
 import './lock.css';
 
 const button = (words, parent, act) => madeButton('konzilo-lock-button', words, parent, act);
@@ -133,7 +133,13 @@ export function registerLock(CMS) {
     } else if (state.mode === 'takenOver' && shownMode !== 'takenOver') {
       ask({ title: say('lock.takenOverTitle'), words: lineWords(state), choices: [[say('lock.ok'), () => {}]], cancel: () => {} });
     } else if (state.mode === 'shut' && shownMode !== 'shut' && !warned) {
-      ask({ title: say('lock.shutTitle'), words: lineWords(state), choices: [[say('lock.back'), backToList], [say('lock.read'), () => {}]], cancel: backToList });
+      ask({ title: shutTitle(state), words: lineWords(state), choices: [[say('lock.back'), backToList], [say('lock.read'), () => {}]], cancel: backToList });
+    } else if (state.mode === 'shut' && !warned) {
+      // A purge that waited and now runs, or is unfinished, says so in the dialog still open.
+      if (dialog.open) {
+        heading.textContent = shutTitle(state);
+        told.textContent = lineWords(state);
+      }
     } else if (!['takenOver', 'shut'].includes(state.mode) && !warned) {
       close();
     }
@@ -215,6 +221,7 @@ export function registerLock(CMS) {
   globalThis.konziloStaleBackup = (timestamp) => keeper.staleBackup(new Date(timestamp).toISOString());
 
   // What the *Deleted* page restores a deleted entry under (ADR 0077): the lock of its form, held
-  // for the restore, as for a deletion from the list.
-  return { beforeRestoring: (form) => keeper.beforeRestoring(form) };
+  // for the restore, as for a deletion from the list; and what a page that saves outside a form
+  // asks first, the refusal while an Admin's purge waits, runs or is unfinished (ADR 0078).
+  return { beforeRestoring: (form) => keeper.beforeRestoring(form), purgeRefusal: () => keeper.purgeRefusal() };
 }

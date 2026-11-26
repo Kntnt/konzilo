@@ -49,8 +49,10 @@ describe('a form\'s revisions', () => {
 
   const answerOf = (body, status = 200) => ({ ok: status < 400, status, json: async () => body, text: async () => (typeof body === 'string' ? body : JSON.stringify(body)) });
 
-  const running = async ({ source = history(), perPage, now, onSleep } = {}) => {
+  const running = async ({ source = history(), perPage, now, onSleep, pushFails = 0 } = {}) => {
     const asked = [];
+    // A push's commits Forgejo cannot list just now, this many times.
+    let failing = pushFails;
     // What a commit's file holds: the last commit at or before it that wrote the file.
     const fileAt = (sha, path) => {
       const upTo = source.commits.slice(0, source.commits.findIndex((one) => one.sha === sha) + 1);
@@ -79,12 +81,19 @@ describe('a form\'s revisions', () => {
         const page = Number(searchParams.get('page'));
         const limit = Number(searchParams.get('limit'));
         const path = searchParams.get('path');
+        if (searchParams.has('sha') && failing > 0) {
+          failing -= 1;
+          return answerOf({}, 502);
+        }
         let list = [...source.commits].reverse();
         if (searchParams.has('sha')) list = list.slice(list.findIndex((one) => one.sha === searchParams.get('sha')));
         if (searchParams.has('not')) list = list.slice(0, list.findIndex((one) => one.sha === searchParams.get('not')));
         if (path) list = list.filter((one) => Object.hasOwn(one.files, path));
         const shown = list.slice((page - 1) * limit, page * limit).map((one) => ({ sha: one.sha, commit: { author: { name: one.says, date: one.date }, committer: { name: one.says, date: one.date } } }));
         return answerOf(shown);
+      }
+      if (pathname.startsWith('/api/v1/repos/org/source/git/commits/')) {
+        return source.commits.some(({ sha }) => sha === pathname.split('/').at(-1)) ? answerOf({}) : answerOf({}, 404);
       }
       if (pathname.startsWith('/api/v1/repos/org/source/raw/')) {
         const path = decodeURIComponent(pathname.slice('/api/v1/repos/org/source/raw/'.length));
@@ -154,6 +163,13 @@ describe('a form\'s revisions', () => {
     assert.deepEqual(answer.body.revisions[0], { commit: 'c4', moment: '2026-11-04T08:00:03Z', account: { login: 'anna', name: 'Anna Admin' }, text: 'title: Third\n' });
     const commitsAsked = asked.filter((one) => one.startsWith('/api/v1/repos/org/source/commits?') && one.includes('sha='));
     assert.deepEqual(commitsAsked.map((one) => new URL(one, 'http://x').searchParams.get('sha')), ['c4'], 'only the new push\'s commits are asked for');
+  }));
+
+  test('learns a push again whose commits Forgejo could not list just now, rather than forget who pushed them', withService({ pushFails: 1 }, async ({ revisions }) => {
+    assert.notEqual((await revisions('ebba', { path: FILE })).status, 200, 'not answered as though no one had pushed them');
+    const answer = await revisions('ebba', { path: FILE });
+    assert.equal(answer.status, 200);
+    assert.deepEqual(answer.body.revisions.find(({ commit }) => commit === 'c3').account, { login: 'ebba', name: 'Ebba Editor' });
   }));
 
   test('waits a moment for the push of a commit just made, which the feed records a moment after it', withService({

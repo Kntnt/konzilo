@@ -16,13 +16,12 @@ import { createHash } from 'node:crypto';
 import { parse as parseYaml } from 'yaml';
 
 import { termSlug } from '../format/addresses.js';
-import { IMAGE_LIBRARY_FOLDER, MEDIA_FOLDER } from '../format/masters.js';
+import { hashDigits, IMAGE_LIBRARY_FOLDER, MEDIA_FOLDER } from '../format/masters.js';
 import { keyOf, REDIRECTS_FILE } from '../format/redirects.js';
-import { blobsOf, BRANCH, purgeHistories, PurgeRefusal } from './histories.js';
+import { POST_IDS_FILE } from '../format/write.js';
+import { blobsOf, BRANCH, gitText, purgeHistories, PurgeRefusal } from './histories.js';
 
 export { PurgeRefusal };
-
-const LEDGER = '.post-ids.json';
 
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const json = (value) => `${JSON.stringify(value, null, 2)}\n`;
@@ -33,7 +32,12 @@ const readJson = (bytes) => {
     return null;
   }
 };
-const text = async (git, args, options) => (await git(args, options)).toString('utf8');
+
+// The slug a term's file gives it, as the intake and the form make it, or '' where it gives none.
+const slugOfTerm = (bytes) => {
+  const slug = termSlug(readJson(bytes));
+  return typeof slug === 'string' ? slug : '';
+};
 
 // The ID of the entry a source file is, and the language its folder names, or null.
 const idOf = (path) => path.split('/').at(-1).replace(/\.[^.]*$/, '');
@@ -41,13 +45,13 @@ const tagOf = (path) => (path.split('/').length === 3 ? path.split('/')[1] : nul
 
 // Each version a file has had on the branch, by its blob, oldest last.
 async function versionsOf(git, path) {
-  const raw = await text(git, ['log', '--format=', '--raw', '--no-abbrev', '--no-renames', BRANCH, '--', path]);
+  const raw = await gitText(git, ['log', '--format=', '--raw', '--no-abbrev', '--no-renames', BRANCH, '--', path]);
   return [...new Set(raw.split('\n').filter((line) => line.startsWith(':')).map((line) => line.split(/\s+/)[3]).filter((sha) => !/^0+$/.test(sha)))];
 }
 
 // Each version of every file below a folder on the branch, but `except`: [path, blob].
 async function versionsBelow(git, folder, except) {
-  const raw = await text(git, ['log', '--format=', '--raw', '--no-abbrev', '--no-renames', BRANCH, '--', `${folder}/`]);
+  const raw = await gitText(git, ['log', '--format=', '--raw', '--no-abbrev', '--no-renames', BRANCH, '--', `${folder}/`]);
   const found = new Map();
   for (const line of raw.split('\n').filter((one) => one.startsWith(':'))) {
     const [about, path] = line.split('\t');
@@ -114,7 +118,7 @@ async function namedElsewhere(git, original, entry) {
   const forms = [...new Set([`${MEDIA_FOLDER}/${name}`, `${MEDIA_FOLDER}/${encodeURI(name)}`])];
   let current = '';
   try {
-    current = await text(git, ['grep', '-F', '-l', ...forms.flatMap((form) => ['-e', form]), BRANCH, '--']);
+    current = await gitText(git, ['grep', '-F', '-l', ...forms.flatMap((form) => ['-e', form]), BRANCH, '--']);
   } catch {
     current = '';
   }
@@ -124,13 +128,23 @@ async function namedElsewhere(git, original, entry) {
   return [...read.values()].some((bytes) => originalOf(bytes) === original);
 }
 
-// The rules of a redirects file without those that lead to the entry, `post` or `term` by its ID,
-// or come from or lead to one of `addresses`: the file's new text, or null where none goes.
-function rulesWithout(bytes, { id, kind, addresses }) {
+// Whether another translation of an entry, of the same ID in another language's folder, stands
+// at the head.
+async function translatedAtHead(git, path) {
+  const parts = path.split('/');
+  if (parts.length !== 3) return false;
+  const listed = (await gitText(git, ['ls-tree', '-r', '--name-only', BRANCH, '--', `${parts[0]}/`])).split('\n');
+  return listed.some((one) => one !== path && one.split('/').length === 3 && one.split('/')[2] === parts[2]);
+}
+
+// The rules of a redirects file without those that lead to the entry, `post` or `term` by one of
+// `names`, or come from or lead to one of `addresses`: the file's new text, or null where none
+// goes.
+function rulesWithout(bytes, { names, kind, addresses }) {
   const read = readJson(bytes);
   if (!Array.isArray(read?.rules)) return null;
-  const leads = (rule) => (kind === 'post' && String(rule?.post ?? '') === id)
-    || (kind === 'term' && String(rule?.term ?? '') === id)
+  const leads = (rule) => (kind === 'post' && names.has(String(rule?.post ?? '')))
+    || (kind === 'term' && names.has(String(rule?.term ?? '')))
     || addresses.has(addressKey(rule?.from))
     || addresses.has(addressKey(rule?.to));
   const kept = read.rules.filter((rule) => !leads(rule));
@@ -152,9 +166,8 @@ async function sourcePlan(git, entry) {
   if (kind === 'post') for (const bytes of read) for (const address of otherAddressesOf(bytes)) addresses.add(addressKey(address));
   if (kind === 'term') {
     for (const bytes of read) {
-      const value = readJson(bytes);
-      const slug = termSlug(value);
-      if (typeof slug === 'string' && slug !== '') slugs.add(slug);
+      const slug = slugOfTerm(bytes);
+      if (slug !== '') slugs.add(slug);
     }
   }
   if (kind === 'image') {
@@ -177,7 +190,7 @@ async function ledgerPlan(git, entry) {
   const key = entry.kind === 'post' && tag !== null ? `${tag}/${id}` : id;
   const paths = new Set();
   const addresses = new Set();
-  const read = await blobsOf(git, await versionsOf(git, LEDGER));
+  const read = await blobsOf(git, await versionsOf(git, POST_IDS_FILE));
   for (const bytes of read.values()) {
     const ledger = readJson(bytes);
     const held = entry.kind === 'post' ? ledger?.posts?.[key] : entry.kind === 'term' ? ledger?.terms?.[id] : null;
@@ -220,6 +233,9 @@ async function entryPlan({ source, content, entry, before }) {
   const plan = await sourcePlan(source.git, entry);
   const ledger = before.content === null ? { key: id, paths: new Set(), addresses: new Set() } : await ledgerPlan(content.git, entry);
   const addresses = new Set([...plan.addresses, ...ledger.addresses]);
+  // A rule leads to the entry by its key, `<language>/<ID>` on a site in several languages, or by
+  // its bare ID, which leads to whichever translation there is, so only once none stands.
+  const names = new Set([tag === null ? id : `${tag}/${id}`, ...(tag !== null && await translatedAtHead(source.git, entry.path) ? [] : [id])]);
 
   // An Admin's file's new hash by its old, which the content's ledger names.
   const files = new Map();
@@ -227,7 +243,7 @@ async function entryPlan({ source, content, entry, before }) {
     drop: (path) => plan.drop.has(path),
     change: async (path, bytes) => {
       if (path !== REDIRECTS_FILE) return null;
-      const made = rulesWithout(bytes, { id, kind: entry.kind, addresses });
+      const made = rulesWithout(bytes, { names, kind: entry.kind, addresses });
       if (made !== null) files.set(sha256(bytes), sha256(Buffer.from(made)));
       return made;
     },
@@ -238,23 +254,19 @@ async function entryPlan({ source, content, entry, before }) {
   // of an original that goes; its ledgers and its rules without it.
   const ledgers = new Map();
   const ledgerAt = async (at) => {
-    if (!ledgers.has(at.commit)) ledgers.set(at.commit, at.read(LEDGER).then((bytes) => (bytes === null ? null : readJson(bytes))));
+    if (!ledgers.has(at.commit)) ledgers.set(at.commit, at.read(POST_IDS_FILE).then((bytes) => (bytes === null ? null : readJson(bytes))));
     return ledgers.get(at.commit);
   };
-  const masters = plan.originals.length === 0 ? null : new RegExp(`^${MEDIA_FOLDER}/.+-(?:${plan.originals.map(({ oid }) => oid.slice(0, 10)).join('|')})\\.(?:webp|svg)$`);
+  const masters = plan.originals.length === 0 ? null : new RegExp(`^${MEDIA_FOLDER}/.+-(?:${plan.originals.map(({ oid }) => hashDigits(oid)).join('|')})\\.(?:webp|svg)$`);
   const termFolder = `${entry.collection}/${tag === null ? '' : `${tag}/`}`;
   const termPaths = new Set([...plan.slugs].map((slug) => `${termFolder}${slug}.json`));
   const slugsAt = new Map();
   const otherTermsHave = async (commit, slug) => {
     if (!slugsAt.has(commit)) {
       slugsAt.set(commit, (async () => {
-        const listed = (await text(source.git, ['ls-tree', '--name-only', commit, '--', termFolder]).catch(() => '')).split('\n').filter((one) => one.endsWith('.json') && one !== entry.path);
+        const listed = (await gitText(source.git, ['ls-tree', '--name-only', commit, '--', termFolder]).catch(() => '')).split('\n').filter((one) => one.endsWith('.json') && one !== entry.path);
         const read = await blobsOf(source.git, listed.map((one) => `${commit}:${one}`));
-        return new Set([...read.values()].map((bytes) => {
-          const value = readJson(bytes);
-          const slug = termSlug(value);
-          return typeof slug === 'string' ? slug : '';
-        }));
+        return new Set([...read.values()].map(slugOfTerm));
       })());
     }
     return (await slugsAt.get(commit)).has(slug);
@@ -270,30 +282,32 @@ async function entryPlan({ source, content, entry, before }) {
       return false;
     },
     change: (path, bytes) => {
-      if (path === LEDGER) return ledgerWithout(bytes, { kind: entry.kind, key: ledger.key, id, files });
-      if (path === REDIRECTS_FILE) return rulesWithout(bytes, { id, kind: entry.kind, addresses });
+      if (path === POST_IDS_FILE) return ledgerWithout(bytes, { kind: entry.kind, key: ledger.key, id, files });
+      if (path === REDIRECTS_FILE) return rulesWithout(bytes, { names, kind: entry.kind, addresses });
       return null;
     },
   });
-  return { source: sourceRules, content: contentRules, paths: [...plan.drop, ...ledger.paths], originals: plan.originals, addresses: [...addresses] };
+  return { source: sourceRules, content: contentRules, outcome: { paths: [...plan.drop, ...ledger.paths], originals: plan.originals, addresses: [...addresses] } };
 }
 
 // Purges `entry`, { path, kind, collection }, `kind` one of `post`, `term` and `image`, as `by`,
-// { login, name }, at `at`, as purgeHistories() does. Gives { source, content, paths, originals,
-// record, addresses }, `source`, `content` and `record` as purgeHistories() gives them, `paths`
-// the files that went, of both repositories, `originals` the LFS objects, { oid, size }, that no
-// commit names now, and `addresses` those the entry had, as rules match them, which the counts of
-// addresses not found then forget (ADR 0040). Throws a PurgeRefusal where the entry is not to be
-// purged.
-export async function purgeEntry({ source, content, entry, by, at, pushedBy, tries }) {
-  const { planned, ...result } = await purgeHistories({
+// { login, name }, at `at`, as purgeHistories() does, which takes `tries`, `sleep` and `noted`.
+// Gives { source, content, record, outcome, paths, originals, addresses }, the first four as
+// purgeHistories() gives them, and in `outcome` and beside it `paths`, the files that went, of
+// both repositories, `originals`, the LFS objects, { oid, size }, that no commit names now, and
+// `addresses`, those the entry had, as rules match them, which the counts of addresses not found
+// then forget (ADR 0040). Throws a PurgeRefusal where the entry is not to be purged.
+export async function purgeEntry({ source, content, entry, by, at, pushedBy, tries, sleep, noted }) {
+  const result = await purgeHistories({
     source,
     content,
     by,
     at,
     pushedBy,
     tries,
+    sleep,
+    noted,
     plan: ({ before }) => entryPlan({ source, content, entry, before }),
   });
-  return { ...result, paths: planned.paths, originals: planned.originals, addresses: planned.addresses };
+  return { ...result, ...result.outcome };
 }

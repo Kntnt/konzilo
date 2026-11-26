@@ -29,16 +29,16 @@ export const isAdminsForm = (form) => ADMINS_FORMS.has(form.split('/')[0]);
 // sweep(), list(), onChange(listener), shut(), open(), clear(), changed() }: `version`, a number
 // that changes with each change to the locks; `hold` gives { held: { since } } where the form was
 // free or is the tab's own, or where it takes it over, { holder: { name, login, since } } where
-// another tab holds it, { ended: true } where the tab has ended, and { shut: true } where the
-// forms are shut, as while a purge waits or runs (ADR 0078), but for a form the tab holds already; `person` is { login, name }; `release` lets a form go where `tab` holds
-// it; `end` lets go every form `tab` holds, as its page is closed, and holds none for it after,
-// since a hold the page sent before may reach the service after its end, and would make a lock no
-// tab lets go; an ended tab is forgotten as one that has stopped answering is; `touch` says the
-// tab answers;
-// `sweep` lets go every lock whose tab has stopped answering; `list` gives each lock, { form, tab,
-// login, name, since }, `since` a Date; `onChange` calls `listener` at each change until the
-// function it gives is called; `shut` and `open` shut the forms and open them again; `clear` lets
-// go every lock; and `changed` tells every listener of a change outside the locks, as of a purge.
+// another tab holds it, { ended: true } where the tab has ended, and { shut: true } where the forms
+// are shut, as while a purge waits or runs (ADR 0078), but for a form the tab holds already;
+// `person` is { login, name }; `release` lets a form go where `tab` holds it; `end` lets go every
+// form `tab` holds, as its page is closed, and holds none for it after, since a hold the page sent
+// before may reach the service after its end, and would make a lock no tab lets go; an ended tab is
+// forgotten as one that has stopped answering is; `touch` says the tab answers; `sweep` lets go
+// every lock whose tab has stopped answering; `list` gives each lock, { form, tab, login, name,
+// since }, `since` a Date; `onChange` calls `listener` at each change until the function it gives
+// is called; `shut` and `open` shut the forms and open them again; `clear` lets go every lock; and
+// `changed` tells every listener of a change outside the locks, as of a purge.
 export function lockTable({ now = () => new Date(), alive = 90_000 } = {}) {
   const held = new Map();
   const seen = new Map();

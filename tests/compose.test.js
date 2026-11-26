@@ -450,7 +450,9 @@ test('passes the incoming feeds to the service for editors, on the admin host', 
 
 // An Admin's purge (ADR 0078): asked of the service for editors on the admin host, and made by a
 // program of its own, which alone mounts the credential that can rewrite the source's history,
-// with no port, nothing of the site's code and the folder it shares with the builder; Forgejo lets
+// with no port, nothing of the site's code, the folder it shares with the builder, where it holds
+// the builds back, and the folder it shares with the service alone, where a purge is asked for
+// and a passage searched, which the builder, running the site's code, cannot write; Forgejo lets
 // go at once of what no ref reaches when the purge asks it to.
 test('passes an Admin\'s purge to the service for editors, and keeps its credential to the purge alone', () => {
   const caddyfile = read('compose/web/Caddyfile');
@@ -461,6 +463,12 @@ test('passes an Admin\'s purge to the service for editors, and keeps its credent
   assert.match(blocks.purge, /^ {4}command: \["node", "\/konzilo\/bin\/konzilo-purge\.js"\]$/m);
   assert.match(blocks.purge, /^ {6}- purge-secret:\/secret:ro$/m);
   assert.match(blocks.purge, /^ {6}- build-control:\/control$/m);
+  for (const [name, block] of Object.entries(blocks)) {
+    if (['purge', 'editors'].includes(name)) assert.match(block, /^ {6}- purge-control:\/purge-control$/m, name);
+    else assert.doesNotMatch(block, /purge-control/, name);
+  }
+  assert.match(compose, /^volumes:[\s\S]*^ {2}purge-control:$/m);
+  assert.match(read('compose/builder/Dockerfile'), /mkdir -p [^\n]*\/purge-control\b[^\n]*&& chown node:node [^\n]*\/purge-control\b/);
   assert.doesNotMatch(blocks.purge, /^ {4}ports:/m);
   assert.doesNotMatch(blocks.purge, /\/site:ro|KONZILO_CORE/, 'nothing of the site\'s code');
   for (const [name, block] of Object.entries(blocks)) {

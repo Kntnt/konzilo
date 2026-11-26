@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 
 import { buildControl } from '../src/build/record.js';
+import { purgeControl } from '../src/purge/control.js';
 import { recordFile } from '../src/purge/record.js';
 import { deletableIn } from '../src/service/deleted.js';
 import { editorsService } from '../src/service/editors.js';
@@ -54,8 +55,8 @@ describe('an Admin\'s purge', () => {
   // The source: KEPT and ARTICLE made, ARTICLE changed by ebba, then deleted by ebba; or, with
   // `record`, as a purge left it, its record naming who pushed C3 before. With `notFound`, a log of
   // addresses not found, and its counts; with `ended`, how the purge's program said a purge stands
-  // before the service started; with `forget`, how the small pictures are forgotten.
-  const running = async ({ record = null, clock = { at: Date.parse('2026-11-26T10:00:00Z') }, notFound = false, ended = null, forget = null } = {}) => {
+  // before the service started, and with `progress`, how far it had come; with `forget`, how the small pictures are forgotten.
+  const running = async ({ record = null, clock = { at: Date.parse('2026-11-26T10:00:00Z') }, notFound = false, ended = null, progress = null, forget = null } = {}) => {
     const commits = [
       { sha: C1, date: '2026-11-01T08:00:00Z', files: { [ARTICLE]: '---\ntitle: The meadow\n---\n', [KEPT]: '---\ntitle: Kept\n---\n' } },
       { sha: C2, date: '2026-11-02T08:00:00Z', files: { [KEPT]: '---\ntitle: Kept, changed\n---\n' } },
@@ -101,6 +102,9 @@ describe('an Admin\'s purge', () => {
           files: Object.keys(one.files).map((filename) => ({ filename })),
         })));
       }
+      if (pathname.startsWith('/api/v1/repos/org/source/git/commits/')) {
+        return commits.some(({ sha }) => sha === pathname.split('/').at(-1)) ? answerOf({}) : answerOf({ message: 'object does not exist' }, 404);
+      }
       if (pathname.startsWith('/api/v1/repos/org/source/git/trees/')) {
         const files = {};
         for (const one of upTo(head)) Object.assign(files, one.files);
@@ -112,8 +116,10 @@ describe('an Admin\'s purge', () => {
       }
       throw new Error(`nothing to say of ${pathname}`);
     };
-    const control = buildControl(join(folder, `control-${(count += 1)}`));
+    // What the service shares with the purge's program, which the tests stand in for.
+    const control = purgeControl(join(folder, `purge-control-${(count += 1)}`));
     if (ended) control.writePurgeState(ended);
+    if (progress) control.writeProgress(progress);
     let notFoundShown = null;
     if (notFound) {
       const place = join(folder, `not-found-${count}`);
@@ -134,7 +140,8 @@ describe('an Admin\'s purge', () => {
       token: 'read-token',
       rolesToken: 'roles-token',
       pushesToken: 'pushes-token',
-      control,
+      control: buildControl(join(folder, `control-${count}`)),
+      purgeControl: control,
       get,
       now: () => new Date(clock.at),
       deletable: () => deletableIn(SITE),
@@ -203,9 +210,11 @@ describe('an Admin\'s purge', () => {
     assert.equal((await purge('anna', { path: ARTICLE, course: 'now' })).status, 400);
   }));
 
-  test('with no form open, asks the purge\'s program at once, keeps every form shut while it runs, and tells every tab once it is done', withService({}, async ({ purge, control, step, hold, locks, shown, forgotten }) => {
+  test('with no form open, asks the purge\'s program at once, keeps every form shut while it runs, and tells every tab once it is done', withService({}, async ({ service, purge, control, step, hold, locks, shown, forgotten }) => {
+    assert.equal(service.purging(), false);
     const asked = await purge('anna', { path: ARTICLE, course: 'anyway' });
     assert.equal(asked.status, 202);
+    assert.equal(service.purging(), true, 'which the feed reader saves nothing while');
     assert.equal(asked.body.purge.state, 'running');
     const request = control.purgeRequest();
     assert.deepEqual({ ...request, id: undefined }, { id: undefined, path: ARTICLE, collection: 'articles', kind: 'post', by: { login: 'anna', name: 'Anna Admin' }, at: '2026-11-26T10:00:00.000Z' });
@@ -221,6 +230,7 @@ describe('an Admin\'s purge', () => {
     const told = await locks('ebba', TAB_B);
     assert.deepEqual(told.body.purge, { id: request.id, state: 'done' }, 'every tab is told, and reloads');
     assert.equal((await hold('articles/bbbbbbbbbbbb', 'ebba', TAB_B)).status, 200, 'forms open again');
+    assert.equal(service.purging(), false);
     assert.equal(forgotten.length, 1, 'the small pictures of what may be gone are forgotten');
     assert.deepEqual((await shown('anna')).body.purge, { id: request.id, state: 'done' });
   }));
@@ -278,15 +288,75 @@ describe('an Admin\'s purge', () => {
     assert.deepEqual(Object.keys(notFound.counts()), ['/kept/']);
     notFound.log.fold();
     assert.deepEqual(Object.keys(notFound.counts()), ['/kept/'], 'nor is what was asked for before it ended counted at the next fold');
-    assert.deepEqual(control.purgeState(), { id, state: 'done', at: '2026-11-26T10:00:30Z' }, 'and what its program said names them no longer');
+    assert.deepEqual(control.purgeState(), { id, state: 'done', at: '2026-11-26T10:00:30Z', forgotten: true }, 'and what its program said names them no longer');
   }));
 
   test('takes them out at its first step where the purge ended while the service was stopped', withService({ notFound: true, ended: { id: 'p1', state: 'done', at: '2026-11-26T09:59:00Z', addresses: ['/the-meadow'] } }, async ({ control, step, notFound, shown }) => {
     for (const path of ['/the-meadow/', '/kept/']) notFound.asked(path);
     await step();
     assert.deepEqual(Object.keys(notFound.counts()), ['/kept/']);
-    assert.deepEqual(control.purgeState(), { id: 'p1', state: 'done', at: '2026-11-26T09:59:00Z' });
+    assert.deepEqual(control.purgeState(), { id: 'p1', state: 'done', at: '2026-11-26T09:59:00Z', forgotten: true });
     assert.equal((await shown('anna')).body.purge, null, 'a purge it did not see is no news to an Admin');
+  }));
+
+  test('keeps the forms shut while its program says the purge is unfinished, and asks the program to finish it when an Admin says so', withService({}, async ({ purge, control, step, hold, locks, shown, cancel, forgotten }) => {
+    await purge('anna', { path: ARTICLE, course: 'anyway' });
+    const { id } = control.purgeRequest();
+    control.takePurgeRequest(id);
+    control.writePurgeState({ id, state: 'unfinished', at: '2026-11-26T10:00:30Z' });
+    await step();
+    assert.deepEqual((await shown('anna')).body.purge, { id, state: 'unfinished', path: ARTICLE, forms: [] });
+    assert.equal((await hold('articles/bbbbbbbbbbbb', 'ebba', TAB_B)).status, 423, 'no form opens on a history half rewritten');
+    assert.equal((await locks('ebba', TAB_B)).body.purge.state, 'unfinished');
+    assert.equal((await cancel('anna')).status, 409, 'it cannot be stopped');
+    assert.equal((await purge('anna', { path: ARTICLE, course: 'anyway' })).status, 409, 'nor another made');
+    assert.equal(forgotten.length, 0);
+
+    assert.equal((await purge('ebba', { finish: true })).status, 403);
+    const finishing = await purge('anna', { finish: true });
+    assert.equal(finishing.status, 202);
+    assert.equal(finishing.body.purge.state, 'running');
+    assert.deepEqual(control.purgeRequest(), { id, finish: true }, 'by its name alone');
+    control.writePurgeState({ id, state: 'done', at: '2026-11-26T10:01:00Z' });
+    await step();
+    assert.deepEqual((await locks('ebba', TAB_B)).body.purge, { id, state: 'done' }, 'every tab that saw it reloads');
+    assert.equal((await hold('articles/bbbbbbbbbbbb', 'ebba', TAB_B)).status, 200);
+    assert.equal(forgotten.length, 1);
+    assert.equal((await purge('anna', { finish: true })).status, 409, 'nothing is left to finish');
+  }));
+
+  test('keeps the forms shut as it starts where a purge is unfinished', withService({ progress: { id: 'p1', request: { id: 'p1', path: ARTICLE, collection: 'articles', kind: 'post' }, steps: ['planned', 'source'] } }, async ({ hold, shown }) => {
+    assert.deepEqual((await shown('anna')).body.purge, { id: 'p1', state: 'unfinished', path: ARTICLE, forms: [] });
+    assert.equal((await hold('articles/bbbbbbbbbbbb', 'ebba', TAB_B)).status, 423);
+  }));
+
+  test('gives up on a purge its program says nothing of in half an hour, taking its request back, and forgets what it took once it is done after all', withService({ notFound: true }, async ({ purge, control, step, hold, shown, clock, notFound, forgotten }) => {
+    notFound.asked('/the-meadow/');
+    notFound.log.fold();
+    await purge('anna', { path: ARTICLE, course: 'anyway' });
+    const { id } = control.purgeRequest();
+    clock.at += 30 * 60_000;
+    await step();
+    assert.deepEqual((await shown('anna')).body.purge, { id, state: 'failed', reason: 'unanswered' });
+    assert.equal(control.purgeRequest(), null, 'its request goes, so that the program does not make it with the forms open');
+    assert.equal((await hold('articles/bbbbbbbbbbbb', 'ebba', TAB_B)).status, 200);
+
+    control.writePurgeState({ id, state: 'done', at: '2026-11-26T10:31:00Z', addresses: ['/the-meadow'] });
+    await step();
+    assert.deepEqual(Object.keys(notFound.counts()), [], 'its addresses go all the same');
+    assert.equal(forgotten.length, 1, 'and the small pictures');
+    assert.deepEqual((await shown('anna')).body.purge, { id, state: 'done' }, 'and an Admin is told');
+  }));
+
+  test('keeps the forms shut, unfinished, where its program says nothing in half an hour after it pushed the source', withService({}, async ({ purge, control, step, hold, shown, clock }) => {
+    await purge('anna', { path: ARTICLE, course: 'anyway' });
+    const request = control.purgeRequest();
+    control.writeProgress({ id: request.id, request, steps: ['planned', 'source'] });
+    clock.at += 30 * 60_000;
+    await step();
+    assert.equal((await shown('anna')).body.purge.state, 'unfinished');
+    assert.equal(control.purgeRequest(), null);
+    assert.equal((await hold('articles/bbbbbbbbbbbb', 'ebba', TAB_B)).status, 423);
   }));
 
   test('says a purge that failed, and opens the forms again', withService({}, async ({ purge, control, step, hold, shown }) => {
@@ -378,7 +448,7 @@ describe('an Admin\'s purge', () => {
     control.writePurgeState(said);
     await step();
     assert.deepEqual(Object.keys(notFound.counts()), ['/the-meadow/']);
-    assert.deepEqual(control.purgeState(), said, 'and what its program said is left as it was');
+    assert.deepEqual(control.purgeState(), { ...said, forgotten: true }, 'and what its program said is left as it was, but that what it leaves to forget is forgotten');
   }));
 
   test('says which current files hold a passage it was refused for', withService({}, async ({ purge, control, step, shown, hold }) => {

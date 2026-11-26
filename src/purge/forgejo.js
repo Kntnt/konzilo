@@ -3,18 +3,23 @@
 // reaches any more (ADR 0007): both repositories cloned anew, rewritten and pushed, without a
 // deleted entry (entry.js) or a passage (passage.js); then Forgejo's own collection of what is
 // unreachable, until no commit that is gone answers, and of the LFS objects no commit names, until
-// none that went answers; and the archives Forgejo keeps of a repository's files, which may hold
-// what went, removed. And the search for a passage an Admin is shown before its purge, in the
-// source cloned anew. Nothing of the clones stays.
+// none that went answers; the archives Forgejo keeps of a repository's files, which may hold what
+// went, removed; and the build log without what went. Each step is recorded once it is taken, from
+// before the first push on, and a purge stopped or broken after that push is finished, when it is
+// run again, from the first step it had not taken, its clones kept until then. And the search for
+// a passage an Admin is shown before its purge, in the source cloned anew. Nothing of the clones
+// stays once a purge is done, or refused, or broken before its first push.
 
-import { mkdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { addPushers, eventsAfter } from '../build/pushers.js';
-import { accountName, gitEnvironment } from '../forgejo.js';
+import { accountName, gitEnvironment, INSTANCE_ACCOUNT } from '../forgejo.js';
+import { isPurgeId } from './control.js';
 import { purgeEntry } from './entry.js';
-import { findPassage, passageMatcher, purgePassage } from './passage.js';
-import { gitIn } from './rewrite.js';
+import { pushContent, pushedAlready } from './histories.js';
+import { findPassage, headHolding, passageMatcher, purgePassage } from './passage.js';
+import { gitRunner } from './rewrite.js';
 
 const PAGE = 50;
 // How long Forgejo is given to let go of what a purge made unreachable, and how often it is asked
@@ -30,7 +35,7 @@ const MOST_LOOKED_AT = 20;
 // instance's account's, which may write every repository and run Forgejo's own tasks. `work`: a
 // folder of the program's own. `control`: as build/record.js gives it, whose build log loses each
 // line that names what went.
-export function forgejoPurge({ forgejo, repository, token, work, control = null, user = 'konzilo', get = fetch, sleep = (ms) => new Promise((go) => setTimeout(go, ms)), now = Date.now }) {
+export function forgejoPurge({ forgejo, repository, token, work, control = null, user = INSTANCE_ACCOUNT, get = fetch, sleep = (ms) => new Promise((go) => setTimeout(go, ms)), now = Date.now }) {
   const organisation = repository.split('/')[0];
   const contentRepository = `${organisation}/content`;
   const api = async (method, path, { allow = [] } = {}) => {
@@ -74,77 +79,116 @@ export function forgejoPurge({ forgejo, repository, token, work, control = null,
   };
   const filter = async (list, test) => (await Promise.all(list.map(async (one) => [one, await test(one)]))).filter(([, kept]) => kept).map(([one]) => one);
 
-  return async (request) => {
+  // `request`: the purge, as the service asked for it. `progress`: its progress, as control.js's
+  // progressOf() gives it. Gives what the purge gives once done beside the histories: of an entry,
+  // { paths, originals, addresses }, as entry.js does; of a passage, { changed }.
+  return async (request, progress) => {
+    if (!isPurgeId(request.id)) throw new Error('the purge has no name the program takes');
     const folder = join(work, request.id);
-    rmSync(folder, { recursive: true, force: true });
+    if (progress.planned === null) rmSync(folder, { recursive: true, force: true });
     const home = join(folder, 'home');
     mkdirSync(home, { recursive: true });
     const environment = gitEnvironment({ user, token, home });
     const cloneOf = async (name, of) => {
       const at = join(folder, `${name}.git`);
-      mkdirSync(at);
-      const git = gitIn(at, environment);
-      await git(['init', '--quiet', '--bare', '--initial-branch=main']);
-      await git(['remote', 'add', 'origin', `${forgejo}/${of}.git`]);
+      const git = gitRunner(at, environment);
+      if (!existsSync(at)) {
+        mkdirSync(at);
+        await git(['init', '--quiet', '--bare', '--initial-branch=main']);
+        await git(['remote', 'add', 'origin', `${forgejo}/${of}.git`]);
+      }
       return { git };
     };
+    const passage = typeof request.passage === 'string' ? request.passage : null;
+    let done = false;
     try {
       const source = await cloneOf('source', repository);
       const content = await cloneOf('content', contentRepository);
-      // Who pushed each commit, as the feed recorded it, read with the source as it was.
-      const pushedBy = async (commits) => {
-        const events = await eventsAfter(0, async (page) => (await api('GET', `/repos/${repository}/activities/feeds?limit=${PAGE}&page=${page}`)).json());
-        const known = {};
-        const commitsOf = async (after, before) => {
-          try {
-            return (await source.git(['rev-list', after, ...(before ? [`^${before}`] : [])])).toString('utf8').split('\n').filter(Boolean);
-          } catch {
-            return [];
-          }
+      if (!progress.has('source') && await pushedAlready(source, progress.planned)) await progress.did('source');
+      if (!progress.has('source')) {
+        // Who pushed each commit, as the feed recorded it, read with the source as it was.
+        const pushedBy = async (commits) => {
+          const events = await eventsAfter(0, async (page) => (await api('GET', `/repos/${repository}/activities/feeds?limit=${PAGE}&page=${page}`)).json());
+          const known = {};
+          const commitsOf = async (after, before) => {
+            try {
+              return (await source.git(['rev-list', after, ...(before ? [`^${before}`] : [])])).toString('utf8').split('\n').filter(Boolean);
+            } catch {
+              return [];
+            }
+          };
+          await addPushers(known, events, commitsOf, ({ act_user: account, created }) => ({ login: account.login, name: accountName(account), at: created }));
+          return Object.fromEntries(commits.filter((commit) => Object.hasOwn(known, commit)).map((commit) => [commit, known[commit]]));
         };
-        await addPushers(known, events, commitsOf, ({ act_user: account, created }) => ({ login: account.login, name: accountName(account), at: created }));
-        return Object.fromEntries(commits.filter((commit) => Object.hasOwn(known, commit)).map((commit) => [commit, known[commit]]));
-      };
-      const passage = typeof request.passage === 'string' ? request.passage : null;
-      const result = passage === null
-        ? await purgeEntry({ source, content, entry: request, by: request.by, at: request.at, pushedBy })
-        : await purgePassage({ source, content, passage, by: request.by, at: request.at, pushedBy });
+        const noted = (step, more) => progress.did(step, step === 'planned' ? { planned: more } : {});
+        const given = { source, content, by: request.by, at: request.at, pushedBy, sleep, noted };
+        if (passage === null) await purgeEntry({ ...given, entry: request });
+        else await purgePassage({ ...given, passage });
+      } else if (!progress.has('content')) {
+        const { before, after } = progress.planned;
+        await pushContent({ content, before: before.content, after: after.content, sleep });
+        await progress.did('content');
+      }
+      const { before, after, dropped, outcome } = progress.planned;
 
       // What went, let go by Forgejo: the commits that are no more, of both repositories, by the
       // heads that were and the saves that held nothing else, and the LFS objects no commit names
       // now.
-      const gone = [
-        ...[...new Set([...(result.source.after !== result.source.before ? [result.source.before] : []), ...result.source.dropped])].slice(0, MOST_LOOKED_AT).map((commit) => [repository, commit]),
-        ...(result.content.after !== null && result.content.after !== result.content.before ? [[contentRepository, result.content.before]] : []),
-      ];
-      await until('git_gc_repos', () => filter(gone, ([of, commit]) => holds(of, commit)));
-      if (result.originals?.length > 0) await until('gc_lfs', () => filter(result.originals, holdsObject));
-      await task('delete_repo_archives').catch(() => {});
-      if (passage === null) control?.scrubLog((line) => result.paths.some((path) => line.includes(path)));
-      else control?.scrubLog(passageMatcher(passage).holds);
-      return result;
+      if (!progress.has('collected')) {
+        const gone = [
+          ...[...new Set([...(after.source !== before.source ? [before.source] : []), ...dropped])].slice(0, MOST_LOOKED_AT).map((commit) => [repository, commit]),
+          ...(after.content !== null && after.content !== before.content ? [[contentRepository, before.content]] : []),
+        ];
+        await until('git_gc_repos', () => filter(gone, ([of, commit]) => holds(of, commit)));
+        if (outcome.originals?.length > 0) await until('gc_lfs', () => filter(outcome.originals, holdsObject));
+        await progress.did('collected');
+      }
+      if (!progress.has('archives')) {
+        await task('delete_repo_archives');
+        await progress.did('archives');
+      }
+      if (!progress.has('log')) {
+        if (passage === null) control?.scrubLog((line) => (outcome.paths ?? []).some((path) => line.includes(path)));
+        else control?.scrubLog(passageMatcher(passage).holds);
+        await progress.did('log');
+      }
+      done = true;
+      return outcome;
     } finally {
-      rmSync(folder, { recursive: true, force: true });
+      if (done || !progress.has('source')) rmSync(folder, { recursive: true, force: true });
     }
   };
 }
 
 // The search for a passage in the site's Forgejo (ADR 0078): the source cloned anew, by the
 // instance's account, and every file and revision that holds the passage found in it
-// (passage.js); nothing of the clone stays. `forgejo`, `repository`, `token` and `work` as
+// (passage.js), with the files of the content repository's head that hold it, `published`, which
+// it reads alone; nothing of the clones stays. `forgejo`, `repository`, `token` and `work` as
 // forgejoPurge() takes them.
-export function forgejoSearch({ forgejo, repository, token, work, user = 'konzilo' }) {
+export function forgejoSearch({ forgejo, repository, token, work, user = INSTANCE_ACCOUNT }) {
   return async (request) => {
-    if (!/^[0-9a-z-]{1,64}$/.test(request.id)) throw new Error('the search has no name the program takes');
+    if (!isPurgeId(request.id)) throw new Error('the search has no name the program takes');
     const folder = join(work, `search-${request.id}`);
     rmSync(folder, { recursive: true, force: true });
     const home = join(folder, 'home');
     mkdirSync(home, { recursive: true });
-    try {
-      const git = gitIn(folder, gitEnvironment({ user, token, home }));
+    const environment = gitEnvironment({ user, token, home });
+    const fetched = async (name, of, depth = []) => {
+      const git = gitRunner(join(folder, name), environment);
+      mkdirSync(join(folder, name));
       await git(['init', '--quiet', '--bare', '--initial-branch=main']);
-      await git(['fetch', '--quiet', `${forgejo}/${repository}.git`, '+refs/heads/main:refs/heads/main']);
-      return await findPassage({ git, passage: request.passage });
+      await git(['fetch', '--quiet', ...depth, `${forgejo}/${of}.git`, '+refs/heads/main:refs/heads/main']);
+      return git;
+    };
+    try {
+      const found = await findPassage({ git: await fetched('source.git', repository), passage: request.passage });
+      let content = null;
+      try {
+        content = await fetched('content.git', `${repository.split('/')[0]}/content`, ['--depth=1']);
+      } catch {
+        // A content repository no build has written yet publishes nothing.
+      }
+      return { ...found, published: content === null ? [] : await headHolding(content, request.passage) };
     } finally {
       rmSync(folder, { recursive: true, force: true });
     }

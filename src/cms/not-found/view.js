@@ -40,8 +40,9 @@ function RedirectForm({ address, busy, onSave, onCancel }) {
     h('button', { type: 'button', className: 'konzilo-not-found-button', onClick: onCancel }, say('notFound.cancel'))));
 }
 
-// `config`: Sveltia's configuration, which names the source the rules are saved to.
-export function notFoundPage({ config, credential = signedInCredential } = {}) {
+// `config`: Sveltia's configuration, which names the source the rules are saved to. `lock`: what
+// registerLock() gives, which refuses a rule while an Admin's purge waits or runs (ADR 0078).
+export function notFoundPage({ config, credential = signedInCredential, lock = null } = {}) {
   const { api, repository, branch } = sourceOf(config);
   return function KonziloNotFoundPage() {
     const { createElement: h, useState } = react();
@@ -60,7 +61,8 @@ export function notFoundPage({ config, credential = signedInCredential } = {}) {
       setBusy(true);
       setTold({ words: say('notFound.saving'), alert: false });
       try {
-        const answer = await saveRule({ api, repository, branch, credential, address, to });
+        const refusal = await lock?.purgeRefusal();
+        const answer = refusal ? { refusal } : await saveRule({ api, repository, branch, credential, address, to });
         if (answer.refusal) {
           setTold({ words: wordsShown(answer.refusal), alert: true });
           return;

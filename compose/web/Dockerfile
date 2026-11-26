@@ -21,6 +21,7 @@ COPY src/astro/reader-features.js src/astro/
 COPY src/consent/consent-id.js src/consent/
 COPY src/feeds/failures.js src/feeds/
 COPY src/intake/rules-file.js src/intake/words.js src/intake/
+COPY src/purge/passage-text.js src/purge/
 RUN node scripts/build-editor.js /editor
 
 FROM caddy:${CADDY}-alpine@sha256:${CADDY_DIGEST}

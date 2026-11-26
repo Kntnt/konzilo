@@ -32,6 +32,7 @@ import { join } from 'node:path';
 
 import { arrangement } from '../src/arrangement.js';
 import { buildControl } from '../src/build/record.js';
+import { purgeControl } from '../src/purge/control.js';
 import { consentRetention } from '../src/service/consent-records.js';
 import { deletableIn } from '../src/service/deleted.js';
 import { editorsService, nextMinute } from '../src/service/editors.js';
@@ -114,9 +115,11 @@ function editors(store) {
   if (feedToken === null) console.error(`The service has no ${FEED_TOKEN}, so the feed reader cannot save the posts it makes`);
   // The incoming feeds, each read at its interval; with none, nothing is read or reached. No feed
   // is read from a private address, the site's own network among them, but from a host the
-  // setting names, apart by spaces, such as a stand-in on the same network (ADR 0079).
+  // setting names, apart by spaces, such as a stand-in on the same network (ADR 0079). Nothing is
+  // read while an Admin's purge waits or runs, as a save would start it again, and what came
+  // meanwhile is read once it has ended (ADR 0078).
   const privateHosts = (process.env.KONZILO_FEED_PRIVATE_HOSTS ?? '').split(/[\s,]+/).filter(Boolean).map((host) => host.toLowerCase());
-  const feeds = feedReader({ store, site: described, forgejo: FORGEJO, repository, token: feedToken, privateHosts });
+  const feeds = feedReader({ store, site: described, forgejo: FORGEJO, repository, token: feedToken, privateHosts, paused: () => service.purging() });
 
   const notFound = notFoundLog({ log: NOT_FOUND_LOG, counts: NOT_FOUND_COUNTS, release: RELEASE });
   const fold = () => {
@@ -136,6 +139,7 @@ function editors(store) {
     rolesToken,
     pushesToken,
     control: buildControl('/control'),
+    purgeControl: purgeControl('/purge-control'),
     pictures: thumbnails({ forgejo: FORGEJO, repository, token, folder: '/thumbnails' }),
     store,
     forms: () => described().forms,

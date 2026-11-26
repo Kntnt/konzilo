@@ -6,13 +6,13 @@
 // keeps its identity, and each one after it gets a new one. A commit that held nothing but what
 // is purged is no longer a save of anything, and goes; a commit that was empty before stays.
 //
-// What to remove and what to change it is handed, so that a purge of an entry and the erasure of
-// a passage from every old revision (ADR 0078) rewrite alike:
+// What to remove and what to change it is handed, so that a purge of an entry and the purge of a
+// passage from every old revision (ADR 0078) rewrite alike:
 //
 // - `drop(path, at)`: whether a file a commit writes is to go from it, `at` being what the commit
 //   was, { commit, message, read(path) }, `commit` its old identity, `message` its message, and
-//   `read(path)` a file as it left it, or null. A file dropped where the commit before it holds it is removed there, as the commit
-//   it was written over is no longer the file's.
+//   `read(path)` a file as it left it, or null. A file dropped where the commit before it holds it
+//   is removed there, as the commit it was written over is no longer the file's.
 // - `change(path, bytes)`: a file's new bytes, or null to keep it as it is. It is given the file
 //   alone, so that each version of a file is changed once, however many commits hold it.
 // - `reads(path, blob)`: whether `change` is to be given this version of a file at all, so that
@@ -32,9 +32,10 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-// Git in `folder`, with `environment`: run(args, { input }) gives what it wrote, as bytes, or
-// throws with what it said.
-export function gitIn(folder, environment) {
+// Git in `folder`, with `environment`, as a purge runs it, its arguments in one array and what it
+// is fed as `input`: run(args, { input }) gives what it wrote, as bytes, or throws with what it
+// said.
+export function gitRunner(folder, environment) {
   return (args, { input = null } = {}) => new Promise((resolve, reject) => {
     const child = spawn('git', args, { cwd: folder, env: environment, stdio: ['pipe', 'pipe', 'pipe'] });
     const out = [];
@@ -121,7 +122,7 @@ function* commandsOf(stream) {
   }
 }
 
-// `git`: as gitIn() gives it, in the repository whose branch `branch` is rewritten in place.
+// `git`: as gitRunner() gives it, in the repository whose branch `branch` is rewritten in place.
 export async function rewriteHistory({ git, branch = 'main', drop = () => false, change = () => null, reads = () => true, message = () => null, keepEmpty = false }) {
   const stream = await git(['-c', 'core.quotePath=false', 'fast-export', '--no-data', '--show-original-ids', '--signed-tags=strip', '--reencode=no', '--use-done-feature', `refs/heads/${branch}`]);
 

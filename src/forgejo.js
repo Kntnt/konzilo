@@ -63,6 +63,10 @@ export async function enrolSecondFactor({ forgejo, get = fetch }, user, password
   return { key };
 }
 
+// The instance's account, whose credential the core pushes with, holds the purge's and reads who
+// pushed what (ADR 0007, ADR 0078).
+export const INSTANCE_ACCOUNT = 'konzilo';
+
 // What a Forgejo account is called where the core names it to a person: its full name, else its
 // login, given as Forgejo's API gives a user.
 export const accountName = ({ login, full_name: fullName }) => (typeof fullName === 'string' && fullName.trim() !== '' ? fullName.trim() : login);
