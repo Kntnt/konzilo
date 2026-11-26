@@ -11,7 +11,7 @@
 //                    field moves by these frames (frames.js), and which choosing copies
 
 import { signedInCredential } from '../credential.js';
-import { imageLibrary } from '../body/library.js';
+import { imageLibrary, pictureAddress } from '../body/library.js';
 
 import { DISPLAY_WIDTH_WIDGET, FOCAL_POINT_WIDGET, IMAGE_WIDGET, LOSSLESS_WIDGET } from './widget.js';
 import { displayWidthChoice, losslessChoice } from './entry-choices.js';
@@ -123,16 +123,13 @@ export function registerImageField(CMS, config) {
     const live = React.useRef(null);
     const latest = React.useRef({ onChange, value, src });
     latest.current = { onChange, value, src };
-    const shown = (address) => {
-      if (!address) return Promise.resolve(null);
-      return address.startsWith('blob:') ? Promise.resolve(address) : library?.picture(address) ?? Promise.resolve(null);
-    };
+    const shown = (address) => pictureAddress(library, address);
     React.useEffect(() => {
       let gone = false;
       void import('./focal-point.js').then(({ focalPointPicker }) => {
         if (gone) return;
         live.current = focalPointPicker(host.current, {
-          focus: plain(latest.current.value),
+          focalPoint: plain(latest.current.value),
           frames: plain(field.get('frames')) ?? [],
           changed: (point) => latest.current.onChange(point ?? ''),
         });

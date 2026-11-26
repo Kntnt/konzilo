@@ -36,7 +36,7 @@ function blockOf(lines) {
   // the intake reads it; one with another title stays its text, for the intake to speak of.
   const picture = /^!\[(.*)\]\(([^)\s]+)(?: "([^"]*)")?\)$/.exec(first);
   const title = picture ? imageTitleIn(picture[3] ?? null) : null;
-  if (picture && lines.length === 1 && isImageTitle(picture[3] ?? null)) return made({ kind: 'image', alt: picture[1], src: picture[2], width: title?.width ?? null, focus: title?.focus ?? null });
+  if (picture && lines.length === 1 && isImageTitle(picture[3] ?? null)) return made({ kind: 'image', alt: picture[1], src: picture[2], width: title?.width ?? null, focalPoint: title?.focalPoint ?? null });
   if (/^- /.test(first) || /^\d+\. /.test(first)) {
     const ordered = /^\d/.test(first);
     const items = [];
@@ -100,7 +100,7 @@ function blockText(node) {
   switch (node.kind) {
     case 'heading': return `${'#'.repeat(node.level)} ${node.text}`;
     case 'image': {
-      const title = imageTitle({ width: node.width ?? null, focus: node.focus ?? null });
+      const title = imageTitle({ width: node.width ?? null, focalPoint: node.focalPoint ?? null });
       return `![${node.alt}](${node.src}${title === '' ? '' : ` "${title}"`})`;
     }
     case 'list': return node.children.map((item, index) => `${node.ordered ? `${index + 1}.` : '-'} ${item.text}`).join('\n');

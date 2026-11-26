@@ -5,8 +5,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import { focusIn, focusText } from '../src/format/body.js';
-import { cropOf, focalPointOf, ratioOf } from '../src/format/focal-point.js';
+import { cropOf, focalPointIn, focalPointOf, focalPointText, ratioOf } from '../src/format/focal-point.js';
 
 describe('the crop of an image to an aspect ratio', () => {
   test('is as large as fits in the image, and centred on the focal point as far as the image\'s edges allow', () => {
@@ -50,11 +49,11 @@ describe('a focal point', () => {
   });
 
   test('is written in an image\'s title as x and y after `focus=`, and read back', () => {
-    assert.equal(focusText({ x: 0.25, y: 0.4 }), '0.25,0.4');
-    assert.equal(focusText({ x: 0, y: 1 }), '0,1');
-    assert.deepEqual(focusIn('0.25,0.4'), { x: 0.25, y: 0.4 });
-    assert.deepEqual(focusIn('0.333333,1.0'), { x: 0.333, y: 1 });
-    for (const wrong of ['0.25', '0.25;0.4', '1.5,0.4', 'a,b', '0.25, 0.4', '-0,0.5', '.5,.5', '']) assert.equal(focusIn(wrong), null, wrong);
+    assert.equal(focalPointText({ x: 0.25, y: 0.4 }), '0.25,0.4');
+    assert.equal(focalPointText({ x: 0, y: 1 }), '0,1');
+    assert.deepEqual(focalPointIn('0.25,0.4'), { x: 0.25, y: 0.4 });
+    assert.deepEqual(focalPointIn('0.333333,1.0'), { x: 0.333, y: 1 });
+    for (const wrong of ['0.25', '0.25;0.4', '1.5,0.4', 'a,b', '0.25, 0.4', '-0,0.5', '.5,.5', '']) assert.equal(focalPointIn(wrong), null, wrong);
   });
 });
 

@@ -199,9 +199,9 @@ export function mountStructureField(host, { value: given, changed, key, forms = 
         const address = await shown;
         if (!address) return;
         const { moveFocalPoint } = await import('../image/focal-point.js');
-        const answer = await moveFocalPoint({ address, focus: node.focus ?? null, frames });
+        const answer = await moveFocalPoint({ address, focalPoint: node.focalPoint ?? null, frames });
         if (answer === null) return;
-        node.focus = answer.focalPoint;
+        node.focalPoint = answer.focalPoint;
         edited();
       },
     }, say('image.focalPointMove'));
@@ -214,7 +214,7 @@ export function mountStructureField(host, { value: given, changed, key, forms = 
         node.src = chosen.src;
         if (chosen.alt) node.alt = chosen.alt;
         node.width = chosen.displayWidth ?? null;
-        node.focus = chosen.focalPoint ?? null;
+        node.focalPoint = chosen.focalPoint ?? null;
         edited();
         render();
       },

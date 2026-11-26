@@ -76,10 +76,10 @@ function ownField(field, value, named) {
 
 // An image's focal point as its field gives it (focal-point.js): { focalPoint } to write beside its
 // master and its alt text, {} where it has none, or { reason } where it is no such point.
-function focalPointIn(image) {
-  const focus = focalPointOf(image.focalPoint);
-  if (focus === null) return {};
-  return focus.wrong ? { reason: say('refusal.focal-point') } : { focalPoint: focus };
+function ownFocalPoint(image) {
+  const point = focalPointOf(image.focalPoint);
+  if (point === null) return {};
+  return point.wrong ? { reason: say('refusal.focal-point') } : { focalPoint: point };
 }
 
 function featuredImage(field, value, images) {
@@ -87,11 +87,11 @@ function featuredImage(field, value, images) {
   if (!given.src) return field.required ? { reason: say('refusal.image-required') } : {};
   const alt = text(given.alt)?.trim() ?? '';
   if (alt === '') return { reason: say('refusal.image-alt') };
-  const focus = focalPointIn(given);
-  if (focus.reason) return focus;
+  const point = ownFocalPoint(given);
+  if (point.reason) return point;
   const master = images(given.src, field.name);
   if (master.reason) return master;
-  return { yaml: JSON.stringify({ src: master.src, alt, ...focus }), warning: master.warning };
+  return { yaml: JSON.stringify({ src: master.src, alt, ...point }), warning: master.warning };
 }
 
 // The search and sharing fields, from the source's three groups (seoSource()), as the
@@ -119,13 +119,13 @@ function seoValue(value, images, type) {
         if (!image.src) continue;
         const alt = text(image.alt)?.trim() ?? '';
         if (alt === '') return { reason: say('refusal.seo-image-alt'), part: place };
-        const focus = focalPointIn(image);
-        if (focus.reason) return { ...focus, part: place };
+        const point = ownFocalPoint(image);
+        if (point.reason) return { ...point, part: place };
         const master = images(image.src, place);
         if (master.reason) return { ...master, part: place };
         written.socialImage = master.src;
         written.socialImageAlt = alt;
-        if (focus.focalPoint) written.socialImageFocalPoint = focus.focalPoint;
+        if (point.focalPoint) written.socialImageFocalPoint = point.focalPoint;
         if (master.warning) warnings.push({ reason: master.warning });
       } else if (as === 'canonical') {
         const given = typeof one === 'string' ? one.trim() : one;
@@ -167,11 +167,11 @@ function teaserValue(field, value, images, named) {
   if (image?.src) {
     const alt = text(image.alt)?.trim() ?? '';
     if (alt === '') return { reason: say('refusal.image-alt'), part: `${field.name}.image` };
-    const focus = focalPointIn(image);
-    if (focus.reason) return { ...focus, part: `${field.name}.image` };
+    const point = ownFocalPoint(image);
+    if (point.reason) return { ...point, part: `${field.name}.image` };
     const master = images(image.src, `${field.name}.image`);
     if (master.reason) return { ...master, part: `${field.name}.image` };
-    written.image = { src: master.src, alt, ...focus };
+    written.image = { src: master.src, alt, ...point };
     warning = master.warning;
   }
   for (const key of ['headline', 'text']) {

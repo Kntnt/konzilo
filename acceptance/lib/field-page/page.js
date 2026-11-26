@@ -123,7 +123,7 @@ const toEnd = (index = 0) => {
   view.dispatch(view.state.tr.setSelection(Selection.atEnd(view.state.doc)));
 };
 
-const imageHeld = (node) => ({ src: node.attrs.src, alt: node.attrs.alt, caption: node.textContent, ...(node.attrs.width ? { width: node.attrs.width } : {}), ...(node.attrs.focus ? { focus: node.attrs.focus } : {}) });
+const imageHeld = (node) => ({ src: node.attrs.src, alt: node.attrs.alt, caption: node.textContent, ...(node.attrs.width ? { width: node.attrs.width } : {}), ...(node.attrs.focalPoint ? { focalPoint: node.attrs.focalPoint } : {}) });
 
 globalThis.fieldPage = {
   async open(value, options) {
@@ -450,11 +450,11 @@ globalThis.imagePage = {
 // picture three wide to two high, with each point it told.
 let focal = null;
 globalThis.focalPage = {
-  open({ focus = null, frames = [], address = 'wide' } = {}) {
+  open({ focalPoint = null, frames = [], address = 'wide' } = {}) {
     focal?.picker.destroy();
     useInterfaceLanguage('en');
     const told = [];
-    const picker = focalPointPicker(document.body, { address: null, focus, frames, changed: (point) => told.push(point) });
+    const picker = focalPointPicker(document.body, { address: null, focalPoint, frames, changed: (point) => told.push(point) });
     picker.root.classList.add('the-focal-point');
     void pictureOf(address).then((shown) => picker.setAddress(shown));
     focal = { picker, told };
