@@ -211,6 +211,9 @@ export const monthsBefore = (at, months) => {
 // Records are kept 13 months (ADR 0049).
 export const RECORD_MONTHS = 13;
 
+// How soon a release's revision that could not be read is read again, in milliseconds.
+const AGAIN = 1000;
+
 // The limits: records in one of the clock's hours, and of one client in its window.
 const IN_AN_HOUR = 3600;
 const OF_A_CLIENT = 100;
@@ -257,12 +260,20 @@ function matches(record, { categories, languages }) {
 // The consent revisions the site has published, from the releases in `folder`, as the web server
 // serves them (src/build/release.js): `current`, the release in use, holds its revision with what
 // its pages showed, which is kept in `store` as soon as `current` has moved to it, from the moment
-// it moved, which the link's own time says, since the builder makes a new link to move it.
+// it moved, which the link's own time says, since the builder makes a new link to move it. A
+// release whose revision could not be read, as one read while it was written, is read again at
+// the next look, at most once a second, and said in the log once. `now()`: the moment.
 //
 // Gives { look() }, which keeps the revision of the release in use where `current` has moved since
-// it last looked.
-export function publishedRevisions({ folder, store, warn = console.error }) {
+// it was last read.
+export function publishedRevisions({ folder, store, warn = console.error, now = () => new Date() }) {
+  // The release whose revision was last kept, and the one that could not be read, with when.
   let seen;
+  let failed = null;
+  const unread = (at, why) => {
+    if (failed?.at !== at && why !== null) warn(`The service could not read the consent revision of the release in use: ${why}`);
+    failed = { at, tried: now().getTime() };
+  };
   return {
     look() {
       if (folder === null) return;
@@ -273,22 +284,28 @@ export function publishedRevisions({ folder, store, warn = console.error }) {
         at = null;
       }
       if (at === seen) return;
-      seen = at;
-      if (at === null) return;
+      if (failed?.at === at && now().getTime() - failed.tried < AGAIN) return;
+      if (at === null) {
+        seen = null;
+        failed = null;
+        return;
+      }
       let held;
       let live;
       try {
         live = lstatSync(join(folder, 'current')).mtime;
         held = JSON.parse(readFileSync(join(folder, 'current', RELEASE_CONSENT_FILE), 'utf8'));
       } catch (error) {
-        if (error.code !== 'ENOENT') warn(`The service could not read the consent revision of the release in use: ${error.message}`);
+        unread(at, error.code === 'ENOENT' ? null : error.message);
         return;
       }
       if (!isRevision(held)) {
-        warn(`The service could not read the consent revision of the release in use: ${RELEASE_CONSENT_FILE} is not one`);
+        unread(at, `${RELEASE_CONSENT_FILE} is not one`);
         return;
       }
       store.consentRecords.keepRevision(held, live);
+      seen = at;
+      failed = null;
     },
   };
 }

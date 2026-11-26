@@ -303,6 +303,23 @@ describe('the consent records, for visitors', () => {
     assert.equal((await sendRecord()).status, 204);
   });
 
+  test('reads the consent revision of the release in use again, at most once a second, where a read of it failed', async () => {
+    await stop();
+    rmSync(join(folder, 'service.sqlite'), { force: true });
+    rmSync(join(folder, 'service.sqlite-wal'), { force: true });
+    release(published());
+    // Read while the builder was still writing it.
+    const file = join(releases, 'current', 'consent.json');
+    const whole = readFileSync(file, 'utf8');
+    writeFileSync(file, whole.slice(0, 20));
+    await start();
+    assert.equal((await sendRecord()).status, 400);
+    writeFileSync(file, whole);
+    assert.equal((await sendRecord()).status, 400, 'not read again within the second');
+    later(1);
+    assert.equal((await sendRecord()).status, 204);
+  });
+
   test('refuses every record while no release in use holds a consent revision, and takes one once a release does', async () => {
     rmSync(join(releases, 'current'), { force: true });
     await stop();

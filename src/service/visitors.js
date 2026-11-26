@@ -85,7 +85,7 @@ function write(outgoing, { status, json = {}, location = null, retryAfter = null
 // Gives { request(incoming, outgoing) }, which answers one request, and { look() }, which keeps
 // the consent revision of the release in use where it has moved.
 export function visitorsService({ site, store, hosts = [], releases = null, now = () => new Date(), warn = console.error }) {
-  const revisions = publishedRevisions({ folder: releases, store, warn });
+  const revisions = publishedRevisions({ folder: releases, store, warn, now });
   revisions.look();
   const kinds = [formsKind({ site, store, now }), consentRecordsKind({ store, revisions, now }), violationsKind({ store, now })];
   const clientKey = createHmac('sha256', store.key).update('clients').digest();
