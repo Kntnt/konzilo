@@ -33,6 +33,12 @@ const readJson = (bytes) => {
   }
 };
 
+// The slug a term's file gives it, as the intake and the form make it, or '' where it gives none.
+const slugOfTerm = (bytes) => {
+  const slug = termSlug(readJson(bytes));
+  return typeof slug === 'string' ? slug : '';
+};
+
 // The ID of the entry a source file is, and the language its folder names, or null.
 const idOf = (path) => path.split('/').at(-1).replace(/\.[^.]*$/, '');
 const tagOf = (path) => (path.split('/').length === 3 ? path.split('/')[1] : null);
@@ -160,9 +166,8 @@ async function sourcePlan(git, entry) {
   if (kind === 'post') for (const bytes of read) for (const address of otherAddressesOf(bytes)) addresses.add(addressKey(address));
   if (kind === 'term') {
     for (const bytes of read) {
-      const value = readJson(bytes);
-      const slug = termSlug(value);
-      if (typeof slug === 'string' && slug !== '') slugs.add(slug);
+      const slug = slugOfTerm(bytes);
+      if (slug !== '') slugs.add(slug);
     }
   }
   if (kind === 'image') {
@@ -261,11 +266,7 @@ async function entryPlan({ source, content, entry, before }) {
       slugsAt.set(commit, (async () => {
         const listed = (await gitText(source.git, ['ls-tree', '--name-only', commit, '--', termFolder]).catch(() => '')).split('\n').filter((one) => one.endsWith('.json') && one !== entry.path);
         const read = await blobsOf(source.git, listed.map((one) => `${commit}:${one}`));
-        return new Set([...read.values()].map((bytes) => {
-          const value = readJson(bytes);
-          const slug = termSlug(value);
-          return typeof slug === 'string' ? slug : '';
-        }));
+        return new Set([...read.values()].map(slugOfTerm));
       })());
     }
     return (await slugsAt.get(commit)).has(slug);
