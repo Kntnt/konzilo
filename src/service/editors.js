@@ -171,10 +171,12 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
   // DELETE, each with the tab's name; a DELETE of them all ends the tab, as its page is closed.
   const table = lockTable({ now, ...(alive ? { alive } : {}) });
   // An Admin's purge (ADR 0078), which shuts the forms while it waits and runs, and is told to
-  // every tab with the locks.
-  const purge = purgeKeeper({ table, control, now, warn, ...purgeOptions, onDone: () => {
+  // every tab with the locks. Once it is done, the entry's addresses go from the counts of
+  // addresses not found, and answer as any unknown address does (ADR 0040).
+  const purge = purgeKeeper({ table, control, now, warn, ...purgeOptions, onDone: (addresses) => {
     history.purgesChanged();
     pictures?.forget?.();
+    if (addresses.length > 0) notFound?.forget(addresses);
   } });
   const locksShown = (person, tab) => ({
     version: table.version,

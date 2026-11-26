@@ -345,17 +345,18 @@ async function attempt({ source, content, entry, by, at, pushedBy }) {
     });
     contentHead = done.head;
   }
-  return { before, source: rewritten, contentHead, noteCommit, paths: [...plan.drop, ...ledger.paths], originals: plan.originals, record: noted };
+  return { before, source: rewritten, contentHead, noteCommit, paths: [...plan.drop, ...ledger.paths], originals: plan.originals, record: noted, addresses: [...addresses] };
 }
 
 // Purges `entry`, { path, kind, collection }, `kind` one of `post`, `term` and `image`, as `by`,
 // { login, name }, at `at`. `source` and `content`: { git }, each a bare clone whose `origin` is
 // the repository. `pushedBy(commits)`: who pushed each commit as Forgejo's feed has it, { [sha]:
 // { login, name, at } }, a commit it has none of left out. Gives { source: { before, after,
-// renamed, gone, dropped }, content: { before, after }, paths, originals, record }, `gone` the
-// source commits that are no more, `dropped` those of them that held nothing else, `paths` the
-// files that went, of both repositories, and `originals` the LFS objects, { oid, size }, that no
-// commit names now.
+// renamed, gone, dropped }, content: { before, after }, paths, originals, record, addresses },
+// `gone` the source commits that are no more, `dropped` those of them that held nothing else,
+// `paths` the files that went, of both repositories, `originals` the LFS objects, { oid, size },
+// that no commit names now, and `addresses` those the entry had, as rules match them, which the
+// counts of addresses not found then forget (ADR 0040).
 // Throws a PurgeRefusal where the entry is not to be purged.
 export async function purgeEntry({ source, content, entry, by, at, pushedBy, tries = TRIES }) {
   for (let tried = 1; ; tried += 1) {
@@ -390,6 +391,7 @@ export async function purgeEntry({ source, content, entry, by, at, pushedBy, tri
       paths: made.paths,
       originals: made.originals,
       record: made.record,
+      addresses: made.addresses,
     };
   }
 }

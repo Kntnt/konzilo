@@ -55,6 +55,13 @@ describe('the purge\'s program', () => {
     assert.equal(control.requested(), true, 'a build follows');
   });
 
+  test('names the addresses the entry had once it is done, which the service takes out of its counts of addresses not found', async () => {
+    const control = controlOf();
+    control.askPurge({ id: 'p5', path: 'articles/aaaaaaaaaaaa.md' });
+    await running(control, async () => ({ addresses: ['/the-meadow', '/old-meadow'] }));
+    assert.deepEqual(control.purgeState(), { id: 'p5', state: 'done', at: '2026-11-26T10:00:00.000Z', addresses: ['/the-meadow', '/old-meadow'] });
+  });
+
   test('waits for a build that runs to end before it starts', async () => {
     const control = controlOf();
     control.building(true);

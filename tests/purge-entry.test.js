@@ -142,6 +142,8 @@ describe('a purge of a deleted post', () => {
       pushedBy: async (shas) => Object.fromEntries(shas.map((sha) => [sha, pushers[sha] ?? null])),
     });
 
+    assert.deepEqual([...result.addresses].sort(), ['/campaign', '/the-secret', '/the-secret-moved'], 'the addresses it had, which the counts of addresses not found forget');
+
     const fresh = cloned(source.bare);
     assert.ok(!everyPath(fresh).has(PATH), 'no source commit holds it');
     assert.ok(everyText(fresh).every((text) => !/secret|campaign/i.test(text)), 'no file of any commit names it, nor any of its addresses');

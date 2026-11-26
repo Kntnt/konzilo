@@ -3,7 +3,9 @@
 // it waits for the forms open to close, or, run anyway, tells their tabs to reload, waits a moment
 // for them, and lets go what they still hold; it then asks the purge's own program, in the folder
 // the two share, and once that says the purge is done, or failed, opens the forms again, and every
-// tab that saw it coming loads again, as what it read of the source may be gone.
+// tab that saw it coming loads again, as what it read of the source may be gone. The addresses the
+// entry had, which its program names once it is done, are handed to `onDone` and then kept no
+// longer, also where the purge ended while the service was stopped.
 //
 // A purge is in one of these states:
 //   waiting  for the forms open to close, `forms`
@@ -19,7 +21,8 @@ const RELOAD_WITHIN = 20_000;
 const ANSWERED_WITHIN = 30 * 60_000;
 
 // `table`: the locks, as locks.js gives them. `control`: as build/record.js gives it.
-// `onDone()`: what else is to forget once a purge is done.
+// `onDone(addresses)`: what else is to forget once a purge is done, `addresses` those the entry
+// had, as its program names them.
 export function purgeKeeper({ table, control, now = () => new Date(), reloadWithin = RELOAD_WITHIN, answeredWithin = ANSWERED_WITHIN, onDone = () => {}, warn = console.error }) {
   let current = null;
   let last = null;
@@ -35,22 +38,39 @@ export function purgeKeeper({ table, control, now = () => new Date(), reloadWith
     control.askPurge({ id, path: entry.path, collection: entry.collection, kind: entry.kind, by, at });
     become({ ...current, state: 'running', since: now().getTime() });
   };
-  const finish = (state) => {
-    last = state.state === 'failed' ? { id: current.id, state: 'failed', reason: state.reason ?? 'broke' } : { id: current.id, state: 'done' };
-    current = null;
+  // What a purge that is done, as its program said it, `said`, leaves to forget; the state it wrote
+  // then names none of the entry's addresses.
+  const forget = (said) => {
     try {
-      if (last.state === 'done') onDone();
+      onDone(Array.isArray(said.addresses) ? said.addresses.filter((one) => typeof one === 'string') : []);
     } catch (error) {
       warn(`What a purge leaves to forget could not be forgotten: ${error.message}`);
     }
+    if (!Object.hasOwn(said, 'addresses')) return;
+    try {
+      const { addresses, ...rest } = said;
+      control.writePurgeState(rest);
+    } catch (error) {
+      warn(`A purge's state could not be written without the addresses it named: ${error.message}`);
+    }
+  };
+  const finish = (state) => {
+    last = state.state === 'failed' ? { id: current.id, state: 'failed', reason: state.reason ?? 'broke' } : { id: current.id, state: 'done' };
+    current = null;
+    if (last.state === 'done') forget(state);
     table.open();
   };
 
-  // A purge asked for before the service last started, which its program may be making still.
+  // A purge asked for before the service last started, which its program may be making still;
+  // or one it made meanwhile, whose addresses are left to forget at the first step.
   const pending = control.purgeRequest();
+  let ended = null;
   if (pending?.id) {
     current = { id: pending.id, entry: { path: pending.path, collection: pending.collection, kind: pending.kind }, by: pending.by, at: pending.at, state: 'running', since: now().getTime() };
     table.shut();
+  } else {
+    const said = control.purgeState();
+    if (said?.state === 'done' && Object.hasOwn(said, 'addresses')) ended = said;
   }
 
   return {
@@ -102,6 +122,11 @@ export function purgeKeeper({ table, control, now = () => new Date(), reloadWith
     // Takes the purge on where it can go: once the forms are closed, or the tabs told to reload
     // have, or after a while; and once its program says it has ended.
     step() {
+      if (ended !== null) {
+        const said = ended;
+        ended = null;
+        forget(said);
+      }
       if (current === null) return;
       const { state, since } = current;
       if (state === 'waiting' && table.list().length === 0) run();

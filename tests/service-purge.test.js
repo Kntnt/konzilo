@@ -2,10 +2,11 @@
 // stand-in for Forgejo: only an Admin asks for one, of an entry the *Deleted* page lists; others'
 // open forms are run over, their tabs told to reload first, or waited for, while no form may be
 // opened; the purge's own program is asked once they are; and every tab is told when it is done.
-// A form's revisions name who pushed each save as the record of purges carried it over.
+// A form's revisions name who pushed each save as the record of purges carried it over. The
+// entry's addresses go from the counts of addresses not found once it is done (ADR 0040).
 
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -15,6 +16,7 @@ import { buildControl } from '../src/build/record.js';
 import { recordFile } from '../src/purge/record.js';
 import { deletableIn } from '../src/service/deleted.js';
 import { editorsService } from '../src/service/editors.js';
+import { LOG_FILE, notFoundLog } from '../src/service/not-found.js';
 
 const PEOPLE = {
   'token anna': { login: 'anna', full_name: 'Anna Admin', push: true },
@@ -48,8 +50,10 @@ describe('an Admin\'s purge', () => {
   const answerOf = (body, status = 200) => ({ ok: status < 400, status, json: async () => body, text: async () => (typeof body === 'string' ? body : JSON.stringify(body)), arrayBuffer: async () => new ArrayBuffer(0) });
 
   // The source: KEPT and ARTICLE made, ARTICLE changed by ebba, then deleted by ebba; or, with
-  // `record`, as a purge left it, its record naming who pushed C3 before.
-  const running = async ({ record = null, clock = { at: Date.parse('2026-11-26T10:00:00Z') } } = {}) => {
+  // `record`, as a purge left it, its record naming who pushed C3 before. With `notFound`, a log of
+  // addresses not found, and its counts; with `ended`, how the purge's program said a purge stands
+  // before the service started.
+  const running = async ({ record = null, clock = { at: Date.parse('2026-11-26T10:00:00Z') }, notFound = false, ended = null } = {}) => {
     const commits = [
       { sha: C1, date: '2026-11-01T08:00:00Z', files: { [ARTICLE]: '---\ntitle: The meadow\n---\n', [KEPT]: '---\ntitle: Kept\n---\n' } },
       { sha: C2, date: '2026-11-02T08:00:00Z', files: { [KEPT]: '---\ntitle: Kept, changed\n---\n' } },
@@ -107,6 +111,20 @@ describe('an Admin\'s purge', () => {
       throw new Error(`nothing to say of ${pathname}`);
     };
     const control = buildControl(join(folder, `control-${(count += 1)}`));
+    if (ended) control.writePurgeState(ended);
+    let notFoundShown = null;
+    if (notFound) {
+      const place = join(folder, `not-found-${count}`);
+      mkdirSync(join(place, 'log'), { recursive: true });
+      mkdirSync(join(place, 'public/current/pages'), { recursive: true });
+      const log = notFoundLog({ log: join(place, 'log'), counts: join(place, 'counts.json'), release: join(place, 'public/current'), now: () => Math.floor(clock.at / 1000) });
+      notFoundShown = {
+        log,
+        // A line as the web server writes it.
+        asked: (path) => appendFileSync(join(place, 'log', LOG_FILE), `${JSON.stringify({ ts: clock.at / 1000, path })}\n`),
+        counts: () => JSON.parse(readFileSync(join(place, 'counts.json'), 'utf8')).addresses,
+      };
+    }
     const forgotten = [];
     const service = editorsService({
       forgejo: 'http://forgejo',
@@ -122,6 +140,7 @@ describe('an Admin\'s purge', () => {
       locks: { waitAtMost: 200 },
       revisions: { now: () => new Date(clock.at), sleep: async () => {} },
       purge: { reloadWithin: 20_000 },
+      notFound: notFoundShown?.log ?? null,
     });
     const server = createServer((incoming, outgoing) => service.request(incoming, outgoing));
     await new Promise((go) => server.listen(0, '127.0.0.1', go));
@@ -138,6 +157,7 @@ describe('an Admin\'s purge', () => {
       control,
       clock,
       forgotten,
+      notFound: notFoundShown,
       call,
       purge: (who, body) => call('POST', '/_konzilo/purge', who, { body }),
       shown: (who) => call('GET', '/_konzilo/purge', who),
@@ -241,6 +261,28 @@ describe('an Admin\'s purge', () => {
     await step();
     assert.equal(control.purgeRequest()?.path, ARTICLE);
     assert.equal((await cancel('anna')).status, 409, 'a purge that runs is not stopped');
+  }));
+
+  test('takes the entry\'s addresses out of the counts of addresses not found once it is done, with and without their last slash, and keeps them no longer', withService({ notFound: true }, async ({ purge, control, step, notFound }) => {
+    for (const path of ['/the-meadow/', '/the-meadow', '/old-meadow/', '/kept/']) notFound.asked(path);
+    notFound.log.fold();
+    await purge('anna', { path: ARTICLE, course: 'anyway' });
+    const { id } = control.purgeRequest();
+    notFound.asked('/the-meadow/');
+    control.writePurgeState({ id, state: 'done', at: '2026-11-26T10:00:30Z', addresses: ['/the-meadow', '/old-meadow'] });
+    await step();
+    assert.deepEqual(Object.keys(notFound.counts()), ['/kept/']);
+    notFound.log.fold();
+    assert.deepEqual(Object.keys(notFound.counts()), ['/kept/'], 'nor is what was asked for before it ended counted at the next fold');
+    assert.deepEqual(control.purgeState(), { id, state: 'done', at: '2026-11-26T10:00:30Z' }, 'and what its program said names them no longer');
+  }));
+
+  test('takes them out at its first step where the purge ended while the service was stopped', withService({ notFound: true, ended: { id: 'p1', state: 'done', at: '2026-11-26T09:59:00Z', addresses: ['/the-meadow'] } }, async ({ control, step, notFound, shown }) => {
+    for (const path of ['/the-meadow/', '/kept/']) notFound.asked(path);
+    await step();
+    assert.deepEqual(Object.keys(notFound.counts()), ['/kept/']);
+    assert.deepEqual(control.purgeState(), { id: 'p1', state: 'done', at: '2026-11-26T09:59:00Z' });
+    assert.equal((await shown('anna')).body.purge, null, 'a purge it did not see is no news to an Admin');
   }));
 
   test('says a purge that failed, and opens the forms again', withService({}, async ({ purge, control, step, hold, shown }) => {
