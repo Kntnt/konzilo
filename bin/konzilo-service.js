@@ -10,13 +10,15 @@
 //   posts, terms and image library entries from the source history. It shows an Admin the
 //   consent records, and forgets each 13 months after it was made (ADR 0049). It folds the web
 //   server's log of addresses not found into the counts it keeps every five minutes, and shows
-//   Admins the addresses visitors asked for in vain (ADR 0040). It has a credential that can only
-//   read the source repository, one that can only read who is an Admin, and a read-only token of
-//   the instance's account, by which it reads who pushed what.
+//   Admins the addresses visitors asked for in vain (ADR 0040). It shows an Admin the counts of
+//   what the site's policy blocked, and forgets each 30 days after it was last seen (ADR 0051).
+//   It has a credential that can only read the source repository, one that can only read who is
+//   an Admin, and a read-only token of the instance's account, by which it reads who pushed what.
 // - `visitors`: it takes what visitors' browsers send below /_konzilo/, which the web server
-//   passes on, such as a site's forms (ADR 0045) and the records of their consent choices
-//   (ADR 0049), and keeps it in the service's data. It reads the consent revision of the release
-//   in use from the releases the web server serves, read-only. It reaches nothing.
+//   passes on, such as a site's forms (ADR 0045), the records of their consent choices
+//   (ADR 0049) and the policy's violation reports (ADR 0051), and keeps it in the service's data.
+//   It reads the consent revision of the release in use from the releases the web server serves,
+//   read-only. It reaches nothing.
 //
 // Each finds Forgejo and its credentials where the arrangement says, and listens on the address it
 // gives, every address where it gives none (src/arrangement.js).
@@ -37,13 +39,14 @@ import { notFoundLog } from '../src/service/not-found.js';
 import { retentionDuty } from '../src/service/retention.js';
 import { openStore, STORE_FILE } from '../src/service/store.js';
 import { thumbnails } from '../src/service/thumbnails.js';
+import { violationsDuty } from '../src/service/violations.js';
 import { visitorsService } from '../src/service/visitors.js';
 import { readSiteDescriptionWithoutTakenComponents, SITE_DESCRIPTION_FILE } from '../src/site-description.js';
 
 // In the site's folder, which Compose mounts whole, so that a description replaced is seen.
 const DESCRIPTION = `/site/${SITE_DESCRIPTION_FILE}`;
 // The service's data, which both roles open: the role for visitors keeps the forms' submissions
-// and the consent records there, and the role for editors shows them.
+// the consent records and the policy's violations there, and the role for editors shows them.
 const SERVICE_DATA = '/service-data';
 // The releases the web server serves, which the role for visitors reads the consent revision of
 // the release in use from, read-only.
@@ -142,11 +145,13 @@ function editors(store) {
   };
   mailInAMoment();
 
-  // Each submission older than its form's retention, spam older than seven days, and each consent
-  // record older than 13 months, forgotten at the start, so that what grew too old while the
-  // service was stopped is gone, and each minute.
+  // Each submission older than its form's retention, spam older than seven days, each consent
+  // record older than 13 months, and each of the policy's violations last seen more than 30 days
+  // ago, forgotten at the start, so that what grew too old while the service was stopped is gone,
+  // and each minute.
   const retention = retentionDuty({ store });
   const consent = consentRetention({ store });
+  const violations = violationsDuty({ store });
   const forgetWhatIsOld = () => {
     for (const duty of [retention, consent]) {
       try {
@@ -154,6 +159,11 @@ function editors(store) {
       } catch (error) {
         console.error(`The service's retention broke: ${error.stack ?? error.message}`);
       }
+    }
+    try {
+      violations.run();
+    } catch (error) {
+      console.error(`The service's forgetting of policy violations broke: ${error.stack ?? error.message}`);
     }
   };
   forgetWhatIsOld();

@@ -3,9 +3,11 @@
 // timing tokens and its digests of clients are derived; each form's submissions (ADR 0045), with
 // how each one's mail stands; what an Admin keeps of each form, its recipients and its retention;
 // the service's settings, such as the mail adapter an Admin chooses (ADR 0003), none of which is in
-// Git; and the consent records, with what each consent revision showed (ADR 0049). Nothing in it
-// holds a visitor's address, browser or referrer, and nothing it forgets stays in it: a submission
-// or a record forgotten is overwritten where it stood, and the log of writes emptied.
+// Git; the consent records, with what each consent revision showed (ADR 0049); and the counts of
+// what the site's policy blocked (ADR 0051), which violations.js keeps through `prepare`, `inOne`
+// and `forgot`. Nothing in it holds a visitor's address, browser or referrer, and nothing it
+// forgets stays in it: a submission, a record or a count forgotten is overwritten where it stood,
+// and the log of writes emptied.
 //
 // Each change to what it holds is one step in STEPS, taken once, in order, and counted in the
 // database's own `user_version`, so that a later duty adds a step of its own, such as a column of
@@ -45,6 +47,18 @@ const STEPS = [
   // The consent records (ADR 0049), with each revision's words, and the days' counts of those not
   // stored (consent-records.js).
   CONSENT_RECORDS_STEP,
+  // The policy's violations (ADR 0051): how often each page, directive and what was blocked was
+  // reported, and when last, the one entry for the rest past the first 1,000 with all three empty
+  // (violations.js).
+  `CREATE TABLE violation (
+     page TEXT NOT NULL,
+     directive TEXT NOT NULL,
+     blocked TEXT NOT NULL,
+     count INTEGER NOT NULL,
+     last_seen TEXT NOT NULL,
+     PRIMARY KEY (page, directive, blocked)
+   ) STRICT;
+   CREATE INDEX violation_by_last_seen ON violation (last_seen);`,
 ];
 
 // The store in `file`, made where there is none, and brought up to the last step. Two programs may
@@ -53,7 +67,8 @@ const STEPS = [
 // Gives { key, keep(submission), submissions(form), snapshot(form), counts(), mailDue(now),
 // mailDone(id, outcome), mailLater(id, at), mailSoon(now), formSettings(), setFormSettings(form,
 // settings), formsHeld(), expire(form, moments), everything(), chosen(ids), erase(ids), settle(),
-// setting(name), setSetting(name, value), consentRecords, close() }:
+// setting(name), setSetting(name, value), consentRecords, prepare(sql), inOne(work), forgot(count),
+// close() }:
 // `key`, 32 bytes, the same from the first opening on; `keep` takes { form, sentAt, language,
 // spam, fields }, `sentAt` a Date, `spam` null or why it was held as spam, and `fields` each
 // { name, label, value }, and gives its number, its mail pending unless it is spam;
@@ -83,6 +98,12 @@ const STEPS = [
 // `erase` forgets them, and gives how many. What `expire` and `erase` forget is overwritten where
 // it stood, and the log of writes emptied, unless a reading in progress holds that back: `settle`
 // tries it again. `consentRecords` holds the consent records, as consent-records.js gives them.
+//
+// A kind whose storage is a module of its own, such as the policy's violations (violations.js),
+// asks the store's connection itself: `prepare` gives a statement on it; `inOne` does `work()` in
+// one transaction, which waits for the other role's write, and gives what `work` gives; and
+// `forgot` says that a statement forgot `count` rows, which are then gone as `expire`'s are, and
+// gives `count`.
 export function openStore(file) {
   const database = new DatabaseSync(file);
   database.exec('PRAGMA busy_timeout = 5000');
@@ -241,6 +262,19 @@ export function openStore(file) {
       else keepSetting.run(name, JSON.stringify(value));
     },
     consentRecords: consentRecordStore(database, { file, forgot }),
+    prepare: (sql) => database.prepare(sql),
+    inOne(work) {
+      database.exec('BEGIN IMMEDIATE');
+      try {
+        const done = work();
+        database.exec('COMMIT');
+        return done;
+      } catch (error) {
+        database.exec('ROLLBACK');
+        throw error;
+      }
+    },
+    forgot,
     close() {
       database.close();
     },

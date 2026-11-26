@@ -284,7 +284,7 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Fold**: Turning the lines the web server wrote to the log of addresses not found since the last time into its counts, every five minutes. _Avoid_: rotation, aggregation.
 
-**Log of policy violations**: The counts of what the public site's policy blocked, kept 30 days. _Avoid_: CSP log.
+**Log of policy violations**: The counts of what the public site's policy blocked, by page, directive and what was blocked, each kept 30 days after it was last seen, which an Admin reads on *Policy violations*. _Avoid_: CSP log.
 
 ## Visitor functions
 

@@ -2,11 +2,12 @@
 // small picture of an image in the library (ADR 0055), the forms' submissions (ADR 0045), how the
 // site mails them and how long it keeps them, which an Admin sets on the *Mail* page (ADR 0003),
 // a person's submissions, which an Admin finds, downloads and erases on the *Personal data*
-// page, the consent records (ADR 0049), which an Admin reads on the *Consent records* page, and
-// the addresses visitors asked for in vain, which an Admin reads and hides on the *Addresses not
-// found* page (ADR 0040). Forgejo's webhook only says that something may have happened: the
-// build looks for itself, so a request here decides nothing, and needs no secret. Everything an
-// editor asks goes by what Forgejo says of the one asking, each time.
+// page, the consent records (ADR 0049), which an Admin reads on the *Consent records* page, the
+// addresses visitors asked for in vain, which an Admin reads and hides on the *Addresses not
+// found* page (ADR 0040), and the counts of what the site's policy blocked, which an Admin reads
+// on *Policy violations* (ADR 0051). Forgejo's webhook only says that something may have
+// happened: the build looks for itself, so a request here decides nothing, and needs no secret.
+// Everything an editor asks goes by what Forgejo says of the one asking, each time.
 
 import { ADMINS_TEAM } from '../build/roles.js';
 import { publishStatus } from '../build/status.js';
@@ -21,6 +22,7 @@ import { isSourcePath, sourceHistory } from './revisions.js';
 import { bodyOf } from './request-body.js';
 import { retentionDuty } from './retention.js';
 import { SEPARATORS, submissionsCsv, timeZoneOf } from './submissions-csv.js';
+import { violationCounts, VIOLATIONS_PATH } from './violations.js';
 
 const answerJson = (outgoing, status, body) => {
   outgoing.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
@@ -104,8 +106,8 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
     if (typeof login === 'string' && await inAdmins(login)) return 'admin';
     return await mayWrite({ forgejo, repository, credential, get }) ? 'writer' : null;
   };
-  // Whether a role may use the Admin's pages, *Mail*, *Personal data* and *Consent records*: an
-  // Admin's, and the instance administrator's.
+  // Whether a role may use the Admin's pages, *Mail*, *Personal data*, *Consent records*,
+  // *Addresses not found* and *Policy violations*: an Admin's, and the instance administrator's.
   const usesAdminPages = (role) => role === 'admin' || role === 'instanceAdministrator';
   // The consent records, an Admin's (ADR 0049).
   const consentRecords = consentRecordsPage({
@@ -298,6 +300,22 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
     store.mailSoon(now());
     retentionDuty({ store, now }).run();
     return answerJson(outgoing, 200, shown());
+  };
+
+  // The counts of what the site's policy blocked (ADR 0051), to an Admin alone, as the *Mail*
+  // page's settings are: an Editor is told only that they are an Admin's, and whoever may not write
+  // nothing.
+  const violations = store ? violationCounts(store) : null;
+  const answerViolations = async (incoming, outgoing) => {
+    incoming.resume();
+    if (incoming.method !== 'GET') {
+      outgoing.writeHead(405, { allow: 'GET', 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+      return outgoing.end('{}');
+    }
+    if (!violations) return answerJson(outgoing, 404, {});
+    const role = await roleOf(incoming.headers.authorization);
+    if (!usesAdminPages(role)) return answerJson(outgoing, role === null ? 401 : 403, {});
+    return answerJson(outgoing, 200, violations.shown());
   };
 
   // A person's submissions (ADR 0045), to an Admin alone, as privacy law asks: those that hold what
@@ -549,6 +567,7 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
       if (pathname === DELETED) return answerDeleted(incoming, outgoing, searchParams);
       if (consentRecords.owns(pathname)) return consentRecords.answer(incoming, outgoing, pathname, searchParams);
       if (pathname === NOT_FOUND || pathname.startsWith(`${NOT_FOUND}/`)) return answerNotFound(incoming, outgoing, pathname.slice(NOT_FOUND.length));
+      if (pathname === VIOLATIONS_PATH) return answerViolations(incoming, outgoing);
       return answerJson(outgoing, 404, {});
     },
 
