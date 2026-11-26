@@ -55,16 +55,20 @@ export function astroConfig(integration, options) {
 export const ENDS_WITHIN = 600_000;
 
 // `command` with `args`, waited for as spawnSync() waits, with its `options`, but no longer
-// than ENDS_WITHIN: one that has not ended by then is stopped, and its test fails saying
-// so, where it would have kept the whole run waiting with no word of why.
+// than ENDS_WITHIN: one that has not ended by then is stopped and run once more from the
+// start, as the builder runs a stopped build once more, since Node's exit deadlock is rare
+// but not gone. Stopped again, its test fails saying so, where it would have kept the
+// whole run waiting with no word of why.
 export function commandSync(command, args, options = {}) {
   const within = options.timeout ?? ENDS_WITHIN;
-  // Stopped outright: a Node whose main thread waits in its exit runs no handler of a signal.
-  const result = spawnSync(command, args, { killSignal: 'SIGKILL', ...options, timeout: within });
-  if (result.error?.code === 'ETIMEDOUT') {
-    throw new Error(`${[command, ...args].join(' ')} had not ended after ${within / 1000} seconds, and was stopped`);
+  const named = [command, ...args].join(' ');
+  for (let tried = 1; ; tried += 1) {
+    // Stopped outright: a Node whose main thread waits in its exit runs no handler of a signal.
+    const result = spawnSync(command, args, { killSignal: 'SIGKILL', ...options, timeout: within });
+    if (result.error?.code !== 'ETIMEDOUT') return result;
+    if (tried === 2) throw new Error(`${named} had not ended after ${within / 1000} seconds, twice, and was stopped`);
+    process.stderr.write(`${named} had not ended after ${within / 1000} seconds, and was stopped; running it once more\n`);
   }
-  return result;
 }
 
 // Node with `args`, as a build of the suite runs Astro's command, waited for likewise.
