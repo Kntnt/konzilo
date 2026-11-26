@@ -1,6 +1,31 @@
 /* The *Purge a passage* page (ADR 0078): the search, and each file and revision that holds the
-   passage, the text around it marked. It takes the *Deleted* page's own styles (deleted.css) for
-   what the two share. */
+   passage, the text around it marked. Its buttons, and the purge's dialog, are styled as on the
+   *Deleted* page (deleted.css). */
+
+.konzilo-passage {
+  box-sizing: border-box;
+  height: 100%;
+  overflow: auto;
+  padding: 16px;
+  font: 14px/1.4 system-ui, sans-serif;
+  overflow-wrap: anywhere;
+}
+
+.konzilo-passage p {
+  margin: 4px 0;
+}
+
+.konzilo-passage-note,
+.konzilo-passage-state {
+  color: var(--sui-secondary-foreground-color, #555);
+}
+
+.konzilo-passage-told {
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: var(--sui-info-background-color, #e8f0fe);
+  color: #222;
+}
 
 .konzilo-passage-search {
   display: grid;

@@ -140,7 +140,7 @@ describe('an Admin\'s purge of a passage', () => {
     await page.keyboard.press('ControlOrMeta+A');
     await page.keyboard.type(passage);
     await page.keyboard.press('Enter');
-    await page.locator('.konzilo-passage-found, .konzilo-passage .konzilo-deleted-state:not([role="status"])').first().waitFor({ timeout: 120_000 });
+    await page.locator('.konzilo-passage-found, .konzilo-passage-state:not([role="status"])').first().waitFor({ timeout: 120_000 });
     return page.locator('.konzilo-passage');
   };
   // The purge's steps, by the keyboard, from the page's button: that it is meant, and the passage

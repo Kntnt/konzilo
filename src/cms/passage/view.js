@@ -116,8 +116,8 @@ function FileFound({ file, collections }) {
     h('ol', { className: 'konzilo-passage-revisions', 'aria-label': wordsShown({ name: 'passage.revisionsOf', values: { name } }) }, file.revisions.map((revision) => h('li', { key: revision.commit, 'data-commit': revision.commit },
       h('p', { className: 'konzilo-passage-when' }, h('time', { dateTime: revision.moment }, savedWords(revision.moment)), revision.current ? h('strong', { className: 'konzilo-passage-current' }, ` ${say('passage.currentVersion')}`) : null),
       ...revision.around.map((around, at) => h(Around, { key: at, around })),
-      revision.count > revision.around.length ? h('p', { className: 'konzilo-deleted-note' }, wordsShown({ name: 'passage.morePlaces', values: { count: revision.count - revision.around.length } })) : null))),
-    file.more > 0 ? h('p', { className: 'konzilo-deleted-note' }, wordsShown({ name: 'passage.moreRevisions', values: { count: file.more } })) : null);
+      revision.count > revision.around.length ? h('p', { className: 'konzilo-passage-note' }, wordsShown({ name: 'passage.morePlaces', values: { count: revision.count - revision.around.length } })) : null))),
+    file.more > 0 ? h('p', { className: 'konzilo-passage-note' }, wordsShown({ name: 'passage.moreRevisions', values: { count: file.more } })) : null);
 }
 
 // What the search found: the files whose current version holds the passage, those whose old
@@ -128,7 +128,7 @@ function Found({ found, collections, onPurge }) {
   const current = found.files.filter((file) => file.current);
   const old = found.files.filter((file) => !file.current);
   const { counted } = found;
-  if (counted.files === 0 && counted.messages === 0) return h('p', { className: 'konzilo-deleted-state', role: 'status' }, say('passage.none'));
+  if (counted.files === 0 && counted.messages === 0) return h('p', { className: 'konzilo-passage-state', role: 'status' }, say('passage.none'));
   return h('div', { className: 'konzilo-passage-found' },
     h('p', { role: 'status' }, changedWords('passage.found', counted)),
     current.length > 0
@@ -143,7 +143,7 @@ function Found({ found, collections, onPurge }) {
         h('h2', { id: 'konzilo-passage-old' }, say('passage.oldHeading')),
         h('ul', { className: 'konzilo-passage-files' }, old.map((file) => h(FileFound, { key: file.path, file, collections }))))
       : null,
-    counted.files > found.files.length ? h('p', { className: 'konzilo-deleted-note' }, wordsShown({ name: 'passage.moreFiles', values: { count: counted.files - found.files.length } })) : null,
+    counted.files > found.files.length ? h('p', { className: 'konzilo-passage-note' }, wordsShown({ name: 'passage.moreFiles', values: { count: counted.files - found.files.length } })) : null,
     found.messages.length > 0
       ? h('section', { 'aria-labelledby': 'konzilo-passage-messages' },
         h('h2', { id: 'konzilo-passage-messages' }, say('passage.messagesHeading')),
@@ -151,7 +151,7 @@ function Found({ found, collections, onPurge }) {
           h('p', { className: 'konzilo-passage-when' }, h('time', { dateTime: one.moment }, savedWords(one.moment))),
           ...one.around.map((around, at) => h(Around, { key: at, around }))))))
       : null,
-    counted.messages > found.messages.length ? h('p', { className: 'konzilo-deleted-note' }, wordsShown({ name: 'passage.moreMessages', values: { count: counted.messages - found.messages.length } })) : null);
+    counted.messages > found.messages.length ? h('p', { className: 'konzilo-passage-note' }, wordsShown({ name: 'passage.moreMessages', values: { count: counted.messages - found.messages.length } })) : null);
 }
 
 // `config`: Sveltia's configuration, whose collections name the forms.
@@ -179,10 +179,10 @@ export function passagePage({ config }) {
         gone = true;
       };
     }, []);
-    const page = (...children) => h('div', { className: 'konzilo-deleted konzilo-passage' }, ...children);
-    if (standing === undefined) return page(h('p', { className: 'konzilo-deleted-state', role: 'status' }, say('passage.loading')));
-    if (standing === null) return page(h('p', { className: 'konzilo-deleted-state', role: 'alert' }, say('passage.unknown')));
-    if (!standing.admin) return page(h('p', { className: 'konzilo-deleted-note' }, say('passage.adminOnly')));
+    const page = (...children) => h('div', { className: 'konzilo-passage' }, ...children);
+    if (standing === undefined) return page(h('p', { className: 'konzilo-passage-state', role: 'status' }, say('passage.loading')));
+    if (standing === null) return page(h('p', { className: 'konzilo-passage-state', role: 'alert' }, say('passage.unknown')));
+    if (!standing.admin) return page(h('p', { className: 'konzilo-passage-note' }, say('passage.adminOnly')));
 
     const outcome = purged !== null && standing.purge?.id === purged && standing.purge.state === 'done' ? standing.purge : null;
     const search = async (event) => {
@@ -208,14 +208,14 @@ export function passagePage({ config }) {
       purgeFrom.current?.focus?.();
     };
     let told = null;
-    if (searching) told = h('p', { className: 'konzilo-deleted-state', role: 'status' }, say('passage.searching'));
-    else if (answer === null) told = h('p', { className: 'konzilo-deleted-state', role: 'alert' }, say('passage.failed'));
-    else if (answer?.refused) told = h('p', { className: 'konzilo-deleted-state', role: 'alert' }, wordsShown({ name: 'passage.refused', values: { least: LEAST, most: MOST } }));
-    else if (answer?.busy) told = h('p', { className: 'konzilo-deleted-state', role: 'alert' }, say('passage.busy'));
+    if (searching) told = h('p', { className: 'konzilo-passage-state', role: 'status' }, say('passage.searching'));
+    else if (answer === null) told = h('p', { className: 'konzilo-passage-state', role: 'alert' }, say('passage.failed'));
+    else if (answer?.refused) told = h('p', { className: 'konzilo-passage-state', role: 'alert' }, wordsShown({ name: 'passage.refused', values: { least: LEAST, most: MOST } }));
+    else if (answer?.busy) told = h('p', { className: 'konzilo-passage-state', role: 'alert' }, say('passage.busy'));
     return page(
-      outcome ? h('p', { className: 'konzilo-deleted-told', role: 'status' }, changedWords('passage.purgedNow', outcome.changed)) : null,
+      outcome ? h('p', { className: 'konzilo-passage-told', role: 'status' }, changedWords('passage.purgedNow', outcome.changed)) : null,
       purging ? h(PurgeDialog, { subject: passageSubject(sought, service), service, collectionOf, onClose: closePurge }) : null,
-      h('p', { className: 'konzilo-deleted-note' }, say('passage.about')),
+      h('p', { className: 'konzilo-passage-note' }, say('passage.about')),
       h('form', { role: 'search', className: 'konzilo-passage-search', onSubmit: search },
         h('label', { htmlFor: 'konzilo-passage-text' }, say('passage.text')),
         h('div', { className: 'konzilo-passage-row' },
