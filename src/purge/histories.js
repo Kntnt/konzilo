@@ -119,8 +119,9 @@ async function attempt({ source, content, by, at, pushedBy, plan }) {
 // rewritten by, as rewriteHistory() takes them, and `content({ published })` those of the content
 // repository's, `published(message)` giving the source commit a content commit's message says it
 // publishes, as it was; what more it gives is handed back as `planned`. Gives { source: { before,
-// after, renamed, gone, dropped }, content: { before, after }, record, planned }, `gone` the source
-// commits that are no more, and `dropped` those of them that held nothing else.
+// after, renamed, gone, dropped }, content: { before, after }, record, recordHead, planned }, `gone`
+// the source commits that are no more, `dropped` those of them that held nothing else, and
+// `recordHead` the commit of the record of purges pushed.
 // Throws a PurgeRefusal where nothing is to be purged, or where `plan` throws one.
 export async function purgeHistories({ source, content, by, at, pushedBy, plan, tries = TRIES }) {
   for (let tried = 1; ; tried += 1) {
@@ -153,6 +154,7 @@ export async function purgeHistories({ source, content, by, at, pushedBy, plan, 
       source: { before: before.source, after: made.source.head, renamed: made.source.renamed, gone: [...made.source.renamed.keys()].filter((commit) => made.source.renamed.get(commit) !== commit), dropped: [...made.source.gone] },
       content: { before: before.content, after: made.contentHead },
       record: made.record,
+      recordHead: made.noteCommit,
       planned: made.planned,
     };
   }
