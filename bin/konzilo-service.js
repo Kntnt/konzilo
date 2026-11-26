@@ -112,8 +112,11 @@ function editors(store) {
   const FEED_TOKEN = join(secrets, 'feed-token');
   const feedToken = existsSync(FEED_TOKEN) ? readFileSync(FEED_TOKEN, 'utf8').trim() : null;
   if (feedToken === null) console.error(`The service has no ${FEED_TOKEN}, so the feed reader cannot save the posts it makes`);
-  // The incoming feeds, each read at its interval; with none, nothing is read or reached.
-  const feeds = feedReader({ store, site: described, forgejo: FORGEJO, repository, token: feedToken });
+  // The incoming feeds, each read at its interval; with none, nothing is read or reached. No feed
+  // is read from a private address, the site's own network among them, but from a host the
+  // setting names, apart by spaces, such as a stand-in on the same network (ADR 0079).
+  const privateHosts = (process.env.KONZILO_FEED_PRIVATE_HOSTS ?? '').split(/[\s,]+/).filter(Boolean).map((host) => host.toLowerCase());
+  const feeds = feedReader({ store, site: described, forgejo: FORGEJO, repository, token: feedToken, privateHosts });
 
   const notFound = notFoundLog({ log: NOT_FOUND_LOG, counts: NOT_FOUND_COUNTS, release: RELEASE });
   const fold = () => {
@@ -175,17 +178,12 @@ function editors(store) {
   const consent = consentRetention({ store });
   const violations = violationsDuty({ store });
   const forgetWhatIsOld = () => {
-    for (const duty of [retention, consent]) {
+    for (const [what, duty] of [['submissions', retention], ['consent records', consent], ['policy violations', violations]]) {
       try {
         duty.run();
       } catch (error) {
-        console.error(`The service's retention broke: ${error.stack ?? error.message}`);
+        console.error(`The service's retention of ${what} broke: ${error.stack ?? error.message}`);
       }
-    }
-    try {
-      violations.run();
-    } catch (error) {
-      console.error(`The service's forgetting of policy violations broke: ${error.stack ?? error.message}`);
     }
   };
   forgetWhatIsOld();

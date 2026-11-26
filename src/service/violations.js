@@ -5,6 +5,9 @@
 // browser or referrer. An Admin reads them on the editor's *Policy violations* page, through the
 // role for editors.
 
+import { DAY } from './day.js';
+import { perClient, secondsUntil } from './per-client.js';
+
 export const VIOLATIONS_PATH = '/_konzilo/violations';
 
 // The most a body takes, in bytes and in reports: every report holds the whole policy, which a
@@ -24,7 +27,6 @@ export const ENTRIES_AT_MOST = 1000;
 
 // The days an entry is kept after it was last seen.
 export const VIOLATION_DAYS = 30;
-const DAY = 24 * 60 * 60_000;
 
 // The directives a violation is reported by, as the browsers name them.
 const DIRECTIVES = new Set([
@@ -131,13 +133,13 @@ const keptOf = (given, ownPage) => {
 // and `rest` { count, lastSeen }, or null while there is none; `expire` forgets each entry last
 // seen before `before`, a Date, overwritten where it stood, and gives how many.
 export function violationCounts(store) {
-  const again = store.prepare('UPDATE violation SET count = count + ?, last_seen = ? WHERE page = ? AND directive = ? AND blocked = ?');
+  const countInEntry = store.prepare('UPDATE violation SET count = count + ?, last_seen = ? WHERE page = ? AND directive = ? AND blocked = ?');
   const entries = store.prepare("SELECT COUNT(*) AS entries FROM violation WHERE page <> ''");
   const insert = store.prepare(`INSERT INTO violation (page, directive, blocked, count, last_seen) VALUES (?, ?, ?, ?, ?)
     ON CONFLICT (page, directive, blocked) DO UPDATE SET count = count + excluded.count, last_seen = excluded.last_seen`);
-  const all = store.prepare("SELECT page, directive, blocked, count, last_seen FROM violation WHERE page <> '' ORDER BY last_seen DESC, count DESC, page, directive, blocked");
-  const rest = store.prepare("SELECT count, last_seen FROM violation WHERE page = ''");
-  const old = store.prepare('DELETE FROM violation WHERE last_seen < ?');
+  const entriesShown = store.prepare("SELECT page, directive, blocked, count, last_seen FROM violation WHERE page <> '' ORDER BY last_seen DESC, count DESC, page, directive, blocked");
+  const entryForTheRest = store.prepare("SELECT count, last_seen FROM violation WHERE page = ''");
+  const forgetSeenBefore = store.prepare('DELETE FROM violation WHERE last_seen < ?');
   return {
     count(reports, at) {
       const seen = at.toISOString();
@@ -151,7 +153,7 @@ export function violationCounts(store) {
         let held = Number(entries.get().entries);
         for (const [key, times] of by) {
           const [page, directive, blocked] = JSON.parse(key);
-          if (Number(again.run(times, seen, page, directive, blocked).changes) > 0) continue;
+          if (Number(countInEntry.run(times, seen, page, directive, blocked).changes) > 0) continue;
           if (held < ENTRIES_AT_MOST) {
             insert.run(page, directive, blocked, times, seen);
             held += 1;
@@ -162,16 +164,16 @@ export function violationCounts(store) {
       });
     },
     shown() {
-      const other = rest.get();
+      const other = entryForTheRest.get();
       return {
         days: VIOLATION_DAYS,
         most: ENTRIES_AT_MOST,
-        violations: all.all().map((row) => ({ page: row.page, directive: row.directive, blocked: row.blocked, count: Number(row.count), lastSeen: row.last_seen })),
+        violations: entriesShown.all().map((row) => ({ page: row.page, directive: row.directive, blocked: row.blocked, count: Number(row.count), lastSeen: row.last_seen })),
         rest: other ? { count: Number(other.count), lastSeen: other.last_seen } : null,
       };
     },
     expire(before) {
-      return store.forgot(Number(old.run(before.toISOString()).changes));
+      return store.forgot(Number(forgetSeenBefore.run(before.toISOString()).changes));
     },
   };
 }
@@ -192,9 +194,8 @@ export function violationsDuty({ store, now = () => new Date() }) {
 export function violationsKind({ store, now }) {
   const counts = violationCounts(store);
 
-  // How many reports each client has had counted in the window, by its digest, held in memory
-  // alone and forgotten as the window ends.
-  const counted = { window: null, by: new Map() };
+  // How many reports each client has had counted in its window.
+  const ofClients = perClient(REPORTS_IN_A_WINDOW);
   return {
     path: VIOLATIONS_PATH,
     methods: ['POST'],
@@ -207,15 +208,11 @@ export function violationsKind({ store, now }) {
       if (reports === null) return { status: 400 };
       if (reports.length > REPORTS_IN_A_BODY) return { status: 413 };
       if (!fromSite) return { status: 403 };
-      if (counted.window !== client.ends.getTime()) {
-        counted.window = client.ends.getTime();
-        counted.by.clear();
-      }
-      const room = REPORTS_IN_A_WINDOW - (counted.by.get(client.digest) ?? 0);
-      if (room <= 0) return { status: 429, retryAfter: Math.max(1, Math.ceil((client.ends.getTime() - now().getTime()) / 1000)) };
+      const room = ofClients.room(client);
+      if (room === 0) return { status: 429, retryAfter: secondsUntil(client.ends.getTime(), now().getTime()) };
       const kept = reports.map((one) => keptOf(asGiven(type, one), ownPage)).filter((one) => one !== null).slice(0, room);
       counts.count(kept, now());
-      counted.by.set(client.digest, REPORTS_IN_A_WINDOW - room + kept.length);
+      ofClients.count(client, kept.length);
       return { status: 204 };
     },
   };

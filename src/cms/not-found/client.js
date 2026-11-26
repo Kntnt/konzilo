@@ -8,6 +8,7 @@
 // because another commit came first is made again from the file as it is then, at most three times
 // more; one answered with a server error that went in all the same is done. It holds no React.
 
+import { saveAgain } from '../../forgejo-saves.js';
 import { base64 } from '../base64.js';
 import { askAsAdmin, fetching } from '../service.js';
 import { contentsPath, decodedContent } from '../source.js';
@@ -17,7 +18,6 @@ import { readRules } from '../../intake/rules-file.js';
 
 const NOT_FOUND = '/_konzilo/not-found';
 const REDIRECTS = 'redirects.json';
-const TRIES = 4;
 // A redirect made from the log leads on for good, as an old address does.
 const REDIRECT = 301;
 const GONE = 410;
@@ -94,8 +94,6 @@ export async function saveRule({ api, repository, branch, credential, address, t
       }),
     });
     if (saved.ok) return { saved: true };
-    const again = [409, 422, 423].includes(saved.status) || saved.status >= 500;
-    if (!again || tried >= TRIES) throw Object.assign(new Error(`Forgejo answered ${saved.status} to the rule for ${address}`), { status: saved.status });
-    await pause(200 * tried + Math.random() * 400);
+    if (!await saveAgain(saved.status, tried, pause)) throw Object.assign(new Error(`Forgejo answered ${saved.status} to the rule for ${address}`), { status: saved.status });
   }
 }

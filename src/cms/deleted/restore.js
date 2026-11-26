@@ -14,10 +14,10 @@
 
 import { parseDocument } from 'yaml';
 
+import { saveAgain } from '../../forgejo-saves.js';
 import { base64 } from '../base64.js';
 import { momentValue } from '../refusals.js';
 
-const TRIES = 4;
 const DRAFT = 'draft';
 const FRONT_MATTER = /^---[ \t]*\n([\s\S]*?\n)?---([ \t]*(?:\n[\s\S]*)?)$/;
 const STATUS = /^status[ \t]*:/;
@@ -106,9 +106,7 @@ export async function restoreDeleted({ entry, api, repository, branch, credentia
         body: JSON.stringify({ branch, message: `Restore ${collection} “${idOf(path)}”`, files }),
       });
       if (answer.ok) break;
-      const again = [409, 422, 423].includes(answer.status) || answer.status >= 500;
-      if (!again || tried >= TRIES) throw Object.assign(new Error(`Forgejo answered ${answer.status} to the restore of ${path}`), { status: answer.status });
-      await pause(200 * tried + Math.random() * 400);
+      if (!await saveAgain(answer.status, tried, pause)) throw Object.assign(new Error(`Forgejo answered ${answer.status} to the restore of ${path}`), { status: answer.status });
     }
     await opened();
     return { restored: true };

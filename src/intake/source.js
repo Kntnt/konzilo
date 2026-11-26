@@ -20,7 +20,7 @@ function placeOf(rest, extension, several) {
 }
 
 // A post's frontmatter and body: { fields, body, bodyLine } or { problem, line }.
-function postParts(contents) {
+export function postParts(contents) {
   const text = contents.replace(/\r\n/g, '\n').replace(/^﻿/, '');
   const match = /^---\n(?:([\s\S]*?)\n)?---(?:\n|$)([\s\S]*)$/.exec(text);
   if (!match) return { problem: say('refusal.source-frontmatter'), line: 1 };

@@ -35,6 +35,14 @@ const integer = (bytes) => der(0x02, bytes[0] & 0x80 ? Buffer.concat([Buffer.fro
 const generalizedTime = (at) => der(0x18, Buffer.from(`${at.toISOString().replace(/[-:T]/g, '').slice(0, 14)}Z`));
 
 const ED25519 = sequence(oid('1.3.101.112'));
+
+// A certificate's serial: positive, and in as few bytes as DER asks, which a first byte of zero
+// before one under 0x80 would not be, so its first byte is neither zero nor above 0x7f.
+const serial = () => {
+  const bytes = randomBytes(8);
+  bytes[0] = (bytes[0] & 0x7f) | 0x01;
+  return bytes;
+};
 const named = (common) => sequence(set(sequence(oid('2.5.4.3'), der(0x0c, Buffer.from(common)))));
 
 // { key, cert }, PEM, as node:tls takes them.
@@ -44,7 +52,7 @@ export function selfSigned(name = 'localhost') {
   const alternatives = sequence(der(0x82, Buffer.from(name)), der(0x87, Buffer.from([127, 0, 0, 1])));
   const tbs = sequence(
     der(0xa0, integer(Buffer.from([2]))),
-    integer(randomBytes(8)),
+    integer(serial()),
     ED25519,
     named(name),
     sequence(generalizedTime(new Date(now - 60_000)), generalizedTime(new Date(now + 24 * 3600_000))),

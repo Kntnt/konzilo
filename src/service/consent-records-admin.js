@@ -4,14 +4,17 @@
 // alone, as the *Mail* page is: an Editor is told only that, and whoever may not write nothing.
 
 import { catalogueFor, text } from '../catalogues.js';
+import { CONSENT_ID } from '../consent/consent-id.js';
 import { momentIn } from '../submission-values.js';
+import { answerCsv, answerJson, answerMethods, asAdmin } from './answers.js';
+import { consentRecordStore } from './consent-records.js';
+import { DAY } from './day.js';
 import { row, SEPARATORS } from './submissions-csv.js';
 
 export const CONSENT_RECORDS_PAGE_PATH = '/_konzilo/consent-records';
 
 // The most days a span takes: the 13 months records are kept, and a little more.
 const SPAN_AT_MOST = 400;
-const DAY = 24 * 60 * 60_000;
 
 // The categories, in the order the CSV's columns take them.
 const CATEGORIES = ['necessary', 'functional', 'statistics', 'marketing'];
@@ -36,7 +39,7 @@ function spanOf(searchParams) {
 // A consent ID as the client makes one, in small letters, or null.
 const consentIdOf = (given) => {
   const id = typeof given === 'string' ? given.toLowerCase() : '';
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id) ? id : null;
+  return CONSENT_ID.test(id) ? id : null;
 };
 
 // Records as CSV, a piece at a time: the header row, after the byte-order mark, and then a row for
@@ -75,32 +78,28 @@ export function* consentRecordsCsv({ each, separator, language }) {
   }
 }
 
-// The page's answers. `store`: as store.js opens it. `adminOf(credential)`: whether the one asking
-// may use the Admin's pages, true or false, or null for whoever may not write. `answerJson` and
-// `answerCsv`: how the role for editors answers JSON, and a file written a piece at a time.
+// The page's answers. `store`: as store.js opens it, or null. `adminOf(credential)`: as answers.js's
+// asAdmin() takes it. `warn`: the service's log.
 //
 // Gives { owns(pathname), answer(incoming, outgoing, pathname, searchParams) }.
-export function consentRecordsPage({ store, adminOf, answerJson, answerCsv }) {
+export function consentRecordsPage({ store, adminOf, warn = console.error }) {
+  const records = store ? consentRecordStore(store) : null;
   return {
     owns: (pathname) => pathname === CONSENT_RECORDS_PAGE_PATH || pathname === `${CONSENT_RECORDS_PAGE_PATH}.csv`,
 
     async answer(incoming, outgoing, pathname, searchParams) {
+      if (incoming.method !== 'GET') return answerMethods(incoming, outgoing, ['GET']);
       incoming.resume();
-      if (incoming.method !== 'GET') {
-        outgoing.writeHead(405, { allow: 'GET', 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
-        return outgoing.end('{}');
-      }
       if (!store) return answerJson(outgoing, 404, {});
-      const admin = await adminOf(incoming.headers.authorization);
-      if (admin !== true) return answerJson(outgoing, admin === null ? 401 : 403, {});
+      if (!await asAdmin(incoming, outgoing, adminOf)) return undefined;
       if (pathname.endsWith('.csv')) {
         const span = spanOf(searchParams);
         const separator = searchParams.get('separator');
         if (span === null || !Object.hasOwn(SEPARATORS, separator ?? '')) return answerJson(outgoing, 400, {});
         // The rows from one moment's data, whatever is kept or forgotten while they are written.
-        const reading = store.consentRecords.snapshot(span.from, span.to);
+        const reading = records.snapshot(span.from, span.to);
         try {
-          return await answerCsv(outgoing, 'consent-records', consentRecordsCsv({ each: () => reading.each(), separator, language: searchParams.get('language') }));
+          return await answerCsv(outgoing, 'consent-records', consentRecordsCsv({ each: () => reading.each(), separator, language: searchParams.get('language') }), warn);
         } finally {
           reading.close();
         }
@@ -108,11 +107,11 @@ export function consentRecordsPage({ store, adminOf, answerJson, answerCsv }) {
       if (searchParams.has('id')) {
         const id = consentIdOf(searchParams.get('id'));
         if (id === null) return answerJson(outgoing, 400, {});
-        return answerJson(outgoing, 200, { records: store.consentRecords.of(id) });
+        return answerJson(outgoing, 200, { records: records.of(id) });
       }
       const span = spanOf(searchParams);
       if (span === null) return answerJson(outgoing, 400, {});
-      return answerJson(outgoing, 200, { days: store.consentRecords.days(span.from, span.to) });
+      return answerJson(outgoing, 200, { days: records.days(span.from, span.to) });
     },
   };
 }

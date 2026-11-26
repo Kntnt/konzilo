@@ -29,12 +29,13 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 
-import { FEED_READER } from '../src/format/feed-post.js';
+import { FEED_READER, isFeedPost } from '../src/format/feed-post.js';
 import { POST_IDS_FILE } from '../src/format/write.js';
 import { postFiles, walk, writeContent } from '../src/intake/content-folder.js';
 import { componentChecksOf } from '../src/intake/component-checks.js';
 import { imagesFrom, namedOriginals } from '../src/intake/images.js';
 import { deletion, intake } from '../src/intake/index.js';
+import { postParts } from '../src/intake/source.js';
 import { exitOnceWritten } from '../src/exit-once-written.js';
 import { readSiteDescription, SITE_DESCRIPTION_FILE } from '../src/site-description.js';
 
@@ -70,22 +71,47 @@ const content = resolve(parsed.values.content ?? process.env.KONZILO_CONTENT ?? 
 // it stops the check. A commit no one is known to have pushed is no Admin's, no
 // Reviewer's and not the feed reader's. A Reviewer is one whatever else their account is
 // (ADR 0008), and the feed reader is the one account that changes a post made from a feed
-// (ADR 0079).
+// (ADR 0079), until it releases the post by a commit that takes away what marks it, as a feed
+// removed does: a path whose newest commit of the feed reader's left it without that is
+// `released`, whoever changed it after. The feed reader never writes a post again once it
+// released it, so that release came after the version a build last accepted wherever that
+// version was still the feed's.
 function lastChanges(admins, reviewers, pushers) {
   const shallow = execFileSync('git', ['rev-parse', '--is-shallow-repository'], { cwd: checkout, encoding: 'utf8' }).trim();
   if (shallow !== 'false') throw new Error('a shallow clone cannot say who last changed a file; give the intake the whole history');
   const log = execFileSync('git', ['log', '--no-renames', '--format=%x00%H', '--name-only'], { cwd: checkout, encoding: 'utf8', maxBuffer: 1024 * 1024 * 256 });
   const changes = {};
+  // The feed reader's newest commit of each path someone else changed after it.
+  const feedReaders = {};
   for (const commit of log.split('\0').slice(1)) {
     const [hash, ...paths] = commit.split('\n');
     const by = Object.hasOwn(pushers, hash) ? pushers[hash] : null;
     for (const path of paths) {
-      if (path === '' || Object.hasOwn(changes, path)) continue;
+      if (path === '') continue;
+      if (Object.hasOwn(changes, path)) {
+        if (by === FEED_READER && !changes[path].feedReader && !Object.hasOwn(feedReaders, path)) feedReaders[path] = hash;
+        continue;
+      }
       const reviewer = by !== null && reviewers.includes(by);
       changes[path] = { by, admin: !reviewer && by !== null && admins.includes(by), reviewer, feedReader: by === FEED_READER };
     }
   }
+  for (const [path, hash] of Object.entries(feedReaders)) {
+    if (path.endsWith('.md') && releasedAt(hash, path)) changes[path].released = true;
+  }
   return changes;
+}
+
+// Whether the commit `hash` left the post at `path` without what marks it as a feed's.
+function releasedAt(hash, path) {
+  let contents;
+  try {
+    contents = execFileSync('git', ['show', `${hash}:${path}`], { cwd: checkout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 1024 * 1024 * 64 });
+  } catch {
+    return false;
+  }
+  const { fields } = postParts(contents);
+  return fields !== undefined && !isFeedPost(fields);
 }
 
 const readJson = (file) => JSON.parse(readFileSync(file, 'utf8'));

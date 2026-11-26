@@ -144,6 +144,8 @@ describe('the addresses not found, for Admins', () => {
     }
     const plain = await fetch(`${origin}/_konzilo/not-found/hidden`, { method: 'POST', headers: { ...ADMIN, 'content-type': 'text/plain' }, body: '{"address":"/x/"}' });
     assert.equal(plain.status, 415);
+    const large = await fetch(`${origin}/_konzilo/not-found/hidden`, { method: 'POST', headers: { ...ADMIN, 'content-type': 'application/json' }, body: JSON.stringify({ address: `/${'x'.repeat(5000)}/` }) });
+    assert.equal(large.status, 413);
   });
 
   test('is an Admin\'s alone: an Editor is told only that, and whoever may not write nothing', async () => {

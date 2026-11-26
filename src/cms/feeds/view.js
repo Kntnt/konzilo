@@ -1,18 +1,18 @@
 // The *Feeds* page (ADR 0079): the feeds of other sites the site reads, which an Admin alone sees,
 // adds, changes and removes, kept in the service and none in Git: each feed's address, the type its
 // items become, the language of its posts on a site in several, and the minutes between its reads,
-// with when it was last read and why the last read failed, where it did. Removing a feed asks
+// with when it was last read and why the last read failed, where it did, and each of its posts the
+// build refused as the feed reader wrote it, by its item. Removing a feed asks
 // first, and says that its posts stay published as posts like any other. It is React, since that
 // is what Sveltia takes, with its styles on the elements.
 
 import { labelIn } from '../../catalogues.js';
+import { heldBack, LINE, pageOf, TEXT, useAnswer } from '../admin-page.js';
 import { signedInCredential } from '../credential.js';
 import { interfaceLanguage, say } from '../interface-language.js';
 import { momentShown } from '../submissions/client.js';
 import { addFeed, changeFeed, failureShown, feedProblemsShown, readFeeds, removeFeed } from './client.js';
 
-const TEXT = { font: '14px/1.4 system-ui, sans-serif', overflowWrap: 'anywhere' };
-const LINE = { ...TEXT, margin: '4px 0 12px', maxWidth: '60em' };
 const SET = { border: '1px solid rgba(128, 128, 128, 0.3)', borderRadius: 6, margin: '0 0 16px', padding: 12, display: 'grid', gap: 10, maxWidth: '40em' };
 const LEGEND = { ...TEXT, fontWeight: 600, padding: '0 4px' };
 const FIELD = { ...TEXT, display: 'grid', gap: 4 };
@@ -102,6 +102,7 @@ function Feed({ feed, shown, onShown }) {
       h('legend', { style: LEGEND }, feed.address),
       h('p', { style: { ...TEXT, margin: 0 } }, feed.readAt ? say('feeds.read', { at: momentShown(feed.readAt) }) : say('feeds.notRead')),
       feed.failure ? h('p', { role: 'alert', style: PROBLEM }, say('feeds.lastFailure', { at: momentShown(feed.failure.at), reason: failureShown(feed.failure) })) : null,
+      ...(feed.refused ?? []).map(({ title }, at) => h('p', { key: `refused-${at}`, role: 'alert', style: PROBLEM }, say('feeds.refused', { title }))),
       ...Choices({ prefix, draft, shown, problems, onChange: setDraft }),
       h('div', { style: WAYS },
         h('button', { type: 'submit', disabled: said === 'feeds.saving' }, say('feeds.save')),
@@ -144,32 +145,22 @@ function NewFeed({ shown, onShown }) {
 
 export function feedsPage({ credential = signedInCredential } = {}) {
   return function KonziloFeedsPage() {
-    const { createElement: h, useEffect, useState } = react();
-    const [answer, setAnswer] = useState(undefined);
+    const { createElement: h, useState } = react();
+    const [answer, setAnswer] = useAnswer(() => readFeeds({ credential }));
     const [told, setTold] = useState(null);
-    useEffect(() => {
-      let gone = false;
-      readFeeds({ credential }).then((given) => {
-        if (!gone) setAnswer(given);
-      });
-      return () => {
-        gone = true;
-      };
-    }, []);
-    const page = (...children) => h('div', { style: { padding: 16, overflow: 'auto', height: '100%', boxSizing: 'border-box' } }, ...children);
-    if (answer === undefined) return null;
-    if (answer === null) return page(h('p', { style: LINE }, say('feeds.unknown')));
-    if (answer.adminOnly) return page(h('p', { style: LINE }, say('feeds.adminOnly')));
+    const held = heldBack(answer, { unknown: 'feeds.unknown', adminOnly: 'feeds.adminOnly' });
+    if (held !== undefined) return held;
     const shown = answer.feeds;
     const onShown = (result, words = null) => {
       setAnswer(result);
       setTold(words);
     };
-    return page(
+    return pageOf([
       h('p', { style: LINE }, say('feeds.intro')),
       told ? h('p', { role: 'status', style: LINE }, say(told)) : null,
       shown.feeds.length === 0 ? h('p', { style: LINE }, say('feeds.none')) : null,
       shown.feeds.map((feed) => h(Feed, { key: `${feed.id}:${feed.type}:${feed.language}:${feed.every}`, feed, shown, onShown })),
-      h(NewFeed, { shown, onShown }));
+      h(NewFeed, { shown, onShown }),
+    ]);
   };
 }

@@ -36,8 +36,9 @@ const STATUSES = new Set(POST_STATUSES);
 // `files`: the source files, each { path, contents }. `site`: the site description, as
 // declared or as checked. `now`: a Date or a function that gives one. `ledger`: the
 // previous `.post-ids.json`, parsed, or null. `changes`: who last changed what, by a
-// source file's path, { by, admin, reviewer, feedReader }; a path it does not name is not held
-// to a role.
+// source file's path, { by, admin, reviewer, feedReader, released }, `released` where the feed
+// reader released a post made from a feed by a change since, which the last change came after; a
+// path it does not name is not held to a role.
 // `images(path)`: what an original below `media/` is, as images.js gives it. `adminHost`:
 // the host no link may lead to, or null. `reader`: the Markdown reader, the site's own
 // but in a test of what happens when it breaks. `preview`: the paths of the source files
@@ -182,11 +183,14 @@ function reviewersPost(post, run) {
 // A post made from a feed is the feed reader's alone (ADR 0079): a change to its source file by
 // anyone else, which is not back at what was last accepted, is held as a Reviewer's is, whether the
 // file says it is a feed's or its last accepted version did, so that taking away what marks it
-// takes nothing from the feed. A path no one is known to have changed, as in a developer's own
-// checkout, is held to no one.
+// takes nothing from the feed. One the feed reader released since, by taking away what marks it,
+// is a post like any other, whoever changed it after. A path no one is known to have changed, as
+// in a developer's own checkout, is held to no one.
+const feedReaderLets = (change) => change.feedReader === true || change.released === true;
+
 function feedPostTaken(post, run) {
   const change = run.changes?.[post.path];
-  if (!change || change.feedReader === true) return null;
+  if (!change || feedReaderLets(change)) return null;
   const accepted = run.ledger.posts[post.key];
   if (!(isFeedPost(post.fields) || accepted?.fromFeed === true)) return null;
   if (!post.gone && post.hash === accepted?.source) return null;
@@ -208,7 +212,7 @@ function holdPostsTaken(run) {
     if (!type) continue;
     const path = `${type.collection}/${key}.md`;
     const legal = run.chosen.legalPages.includes(id) && run.changes?.[path]?.admin === false;
-    const feed = entry.fromFeed === true && run.changes?.[path] && run.changes[path].feedReader !== true;
+    const feed = entry.fromFeed === true && run.changes?.[path] && !feedReaderLets(run.changes[path]);
     if (!legal && !feed && !reviewersChange(run, path)) continue;
     const tag = key.includes('/') ? key.split('/')[0] : null;
     source.posts.push({ key, id, tag, language: tag ? site.languages.find((one) => one.tag === tag) ?? null : site.languages[0] ?? null, type, path, hash: null, fields: {}, body: '', bodyLine: 1, title: entry.title, gone: true });

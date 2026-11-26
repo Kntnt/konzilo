@@ -146,6 +146,11 @@ describe('incoming feeds', () => {
       '    command: ["node", "/stand-in/serve.mjs"]',
       '    volumes:',
       '      - ./feed-stand-in:/stand-in',
+      // On the project's own network, whose addresses are private, which the feed reader reads
+      // from only where the setting names the host.
+      '  editors:',
+      '    environment:',
+      '      KONZILO_FEED_PRIVATE_HOSTS: feed-stand-in',
       '',
     ].join('\n'));
     serve('news.rss', rss(B, A));
@@ -262,7 +267,8 @@ describe('incoming feeds', () => {
     const row = anna.page.locator(`tr[data-path="${withdrawn}"]`);
     await row.waitFor({ timeout: 60_000 });
     assert.equal(await row.getByRole('cell').nth(2).textContent(), 'feed-reader');
-    await row.getByRole('button').click();
+    // The row's name opens the entry; an Admin's row also offers to purge it (ADR 0078).
+    await row.getByRole('button', { name: D.title, exact: true }).click();
     const entry = anna.page.getByRole('article');
     await entry.getByText('only the feed brings it back').waitFor({ timeout: 30_000 });
     assert.equal(await entry.getByRole('button', { name: 'Restore', exact: true }).count(), 0);

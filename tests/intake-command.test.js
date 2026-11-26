@@ -349,6 +349,25 @@ describe('konzilo-intake', () => {
     assert.match(readFileSync(join(site.content, 'articles/first.md'), 'utf8'), /Mine\./);
   });
 
+  // A feed removed releases its posts in one commit of the feed reader's, and an Admin may change
+  // one before the next build, so that the last change is the Admin's (ADR 0079).
+  test('takes a change to a feed\'s post the feed reader released before it, and refuses one to a post still the feed\'s', () => {
+    const harbour = (body, feed) => post('harbour', { title: 'Harbour opens', feed }, body);
+    const quay = (body) => post('quay', { title: 'Quay closes', feed: { item: 'release-2', version: 'v1' } }, body);
+    const site = newSite({ 'articles/aaaaaaaaaaaa.md': harbour('Text.', { item: 'release-1', version: 'v1' }), 'articles/bbbbbbbbbbbb.md': quay('Text.') });
+    const { admins, commit } = inGit(site);
+    commit('feed-reader');
+    assert.deepEqual(intake(site, '--admins', admins).report.refusals, []);
+    put(site.checkout, { 'articles/aaaaaaaaaaaa.md': harbour('Text.') });
+    commit('feed-reader');
+    put(site.checkout, { 'articles/aaaaaaaaaaaa.md': harbour('Changed by an Admin.'), 'articles/bbbbbbbbbbbb.md': quay('Changed by an Admin.') });
+    commit('admin');
+    const { report } = intake(site, '--admins', admins);
+    assert.deepEqual(report.refusals.map(({ file, name }) => [file, name]), [['articles/bbbbbbbbbbbb.md', 'refusal.feed-post']]);
+    assert.match(readFileSync(join(site.content, 'articles/harbour.md'), 'utf8'), /Changed by an Admin\./);
+    assert.doesNotMatch(readFileSync(join(site.content, 'articles/quay.md'), 'utf8'), /Changed by an Admin\./);
+  });
+
   test('believes nothing a commit says of who made it', () => {
     const site = newSite({ 'menus/main.json': '{"items":[]}' });
     const { admins, commit } = inGit(site);

@@ -3,6 +3,7 @@
 // feed could not be read, which the *Publishing* page says too. It holds no React.
 
 import { say } from '../interface-language.js';
+import { FEED_FAILURES } from '../../feeds/failures.js';
 import { askAsAdmin, fetching } from '../service.js';
 
 const FEEDS_PATH = '/_konzilo/feeds';
@@ -47,17 +48,18 @@ const PROBLEMS = {
 // The service's problems, by the setting's name, each as the page shows it beside its field.
 export const feedProblemsShown = (problems) => Object.fromEntries(Object.entries(problems).map(([field, problem]) => [field, say(PROBLEMS[problem] ?? PROBLEMS.malformed)]));
 
-// Why a feed could not be read, by its kind as the service keeps it (src/service/feeds.js).
+// Why a feed could not be read, by its kind as the service keeps it (src/feeds/failures.js).
 const FAILURES = {
-  unreachable: 'feeds.failureUnreachable',
-  timeout: 'feeds.failureTimeout',
-  status: 'feeds.failureStatus',
-  'too-large': 'feeds.failureTooLarge',
-  'not-a-feed': 'feeds.failureNotAFeed',
-  'no-type': 'feeds.failureNoType',
-  'not-saved': 'feeds.failureNotSaved',
-  other: 'feeds.failureOther',
+  [FEED_FAILURES.UNREACHABLE]: 'feeds.failureUnreachable',
+  [FEED_FAILURES.TIMEOUT]: 'feeds.failureTimeout',
+  [FEED_FAILURES.STATUS]: 'feeds.failureStatus',
+  [FEED_FAILURES.TOO_LARGE]: 'feeds.failureTooLarge',
+  [FEED_FAILURES.NOT_A_FEED]: 'feeds.failureNotAFeed',
+  [FEED_FAILURES.NO_TYPE]: 'feeds.failureNoType',
+  [FEED_FAILURES.NOT_SAVED]: 'feeds.failureNotSaved',
+  [FEED_FAILURES.NOT_PUBLIC]: 'feeds.failureNotPublic',
 };
+const OTHER_FAILURE = 'feeds.failureOther';
 
 // Why a feed could not be read, { kind, status }, in the interface language.
-export const failureShown = ({ kind, status }) => say(Object.hasOwn(FAILURES, kind) ? FAILURES[kind] : FAILURES.other, { status: String(status ?? '') });
+export const failureShown = ({ kind, status }) => say(Object.hasOwn(FAILURES, kind) ? FAILURES[kind] : OTHER_FAILURE, { status: String(status ?? '') });

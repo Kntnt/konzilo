@@ -145,6 +145,35 @@ describe('a feed\'s post the feed reader withdrew or released', () => {
   });
 });
 
+// The feed reader's release and a change after it, both pushed before the next build: the last
+// change is someone else's, but the release is among the changes since the version last accepted,
+// which the command tells by `released` (bin/konzilo-intake.js).
+describe('a feed\'s post the feed reader released and someone changed before the next build', () => {
+  const released = fromFeed().replace(/^feed: .*\n/m, '');
+  const after = (login) => ({ [PATH]: { ...by(login), admin: login === 'anna', released: true } });
+
+  test('takes the change, by an Admin or an Editor, as a post like any other', () => {
+    for (const login of ['anna', 'ebba']) {
+      const [, result] = builds(
+        [{ [PATH]: fromFeed() }, pushedBy(FEED_READER, PATH)],
+        [{ [PATH]: released.replace('The harbour opens.', `The harbour opens, says ${login}.`) }, after(login)],
+      );
+      assert.deepEqual(result.refusals, [], login);
+      assert.match(written(result)['articles/harbour-opens.md'], new RegExp(`says ${login}`));
+      assert.equal(result.ledger.posts.f00d00000001.fromFeed, undefined);
+    }
+  });
+
+  test('takes its file deleted', () => {
+    const [, result] = builds(
+      [{ [PATH]: fromFeed() }, pushedBy(FEED_READER, PATH)],
+      [{}, after('ebba')],
+    );
+    assert.deepEqual(result.refusals, []);
+    assert.deepEqual(result.keep, []);
+  });
+});
+
 describe('a feed\'s post with no one known to have pushed it', () => {
   test('is not held to the feed reader in a developer\'s own checkout, which holds nothing to a role', () => {
     const [result] = builds([{ [PATH]: fromFeed() }, {}]);
