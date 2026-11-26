@@ -168,17 +168,12 @@ function editors(store) {
   const consent = consentRetention({ store });
   const violations = violationsDuty({ store });
   const forgetWhatIsOld = () => {
-    for (const duty of [retention, consent]) {
+    for (const [what, duty] of [['submissions', retention], ['consent records', consent], ['policy violations', violations]]) {
       try {
         duty.run();
       } catch (error) {
-        console.error(`The service's retention broke: ${error.stack ?? error.message}`);
+        console.error(`The service's retention of ${what} broke: ${error.stack ?? error.message}`);
       }
-    }
-    try {
-      violations.run();
-    } catch (error) {
-      console.error(`The service's forgetting of policy violations broke: ${error.stack ?? error.message}`);
     }
   };
   forgetWhatIsOld();
