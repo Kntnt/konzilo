@@ -15,7 +15,11 @@
 //   it was written over is no longer the file's.
 // - `change(path, bytes)`: a file's new bytes, or null to keep it as it is. It is given the file
 //   alone, so that each version of a file is changed once, however many commits hold it.
+// - `reads(path, blob)`: whether `change` is to be given this version of a file at all, so that
+//   one it would keep is not read; every one is, by default.
 // - `message(text)`: a commit's new message, or null to keep it.
+// - `keepEmpty`: whether a commit left with nothing it writes stays, as a save of nothing, rather
+//   than go; one that was empty before always stays.
 //
 // It gives { head, renamed, gone }, `head` the branch's new commit, `renamed` a map from each old
 // commit to the one that now stands in its place: itself, its new identity, or, for a commit that
@@ -118,7 +122,7 @@ function* commandsOf(stream) {
 }
 
 // `git`: as gitIn() gives it, in the repository whose branch `branch` is rewritten in place.
-export async function rewriteHistory({ git, branch = 'main', drop = () => false, change = () => null, message = () => null }) {
+export async function rewriteHistory({ git, branch = 'main', drop = () => false, change = () => null, reads = () => true, message = () => null, keepEmpty = false }) {
   const stream = await git(['-c', 'core.quotePath=false', 'fast-export', '--no-data', '--show-original-ids', '--signed-tags=strip', '--reencode=no', '--use-done-feature', `refs/heads/${branch}`]);
 
   // Each file a commit's rewritten tree holds otherwise than its old one did, by the commit's
@@ -206,7 +210,7 @@ export async function rewriteHistory({ git, branch = 'main', drop = () => false,
           settle(state, path, null, before);
           continue;
         }
-        const made = mode === '160000' ? null : await changedOf(path, sha);
+        const made = mode === '160000' || !await reads(path, sha) ? null : await changedOf(path, sha);
         // Only a file changed here, or one held otherwise before, can be what the parent holds
         // already: fast-export names a file only where the commit changed it.
         if (made === null && !state.has(path)) {
@@ -233,8 +237,8 @@ export async function rewriteHistory({ git, branch = 'main', drop = () => false,
     marks.set(mark, { commit, parent: first });
     differs.set(mark, state);
     // A commit left with nothing it writes, which wrote something, goes, unless it joins two
-    // lines of the history, and its children follow its parent.
-    if (wrote > 0 && kept.every(({ line }) => !/^(?:[MDCR] |deleteall$)/.test(line)) && parents.length <= 1) {
+    // lines of the history or is to be kept, and its children follow its parent.
+    if (!keepEmpty && wrote > 0 && kept.every(({ line }) => !/^(?:[MDCR] |deleteall$)/.test(line)) && parents.length <= 1) {
       instead.set(mark, first);
       continue;
     }

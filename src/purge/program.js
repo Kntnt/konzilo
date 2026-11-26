@@ -2,7 +2,7 @@
 // the builds back, waits for a build that runs to end, purges, says how it went, lets the builds
 // go on and asks for one, so that the release in use is made anew from what is left.
 
-import { PurgeRefusal } from './entry.js';
+import { PurgeRefusal } from './histories.js';
 
 // `control`: as build/record.js gives it. `purge(request)`: the purge itself, which throws where
 // it cannot be made.

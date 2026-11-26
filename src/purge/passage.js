@@ -11,6 +11,7 @@
 // nothing in its place.
 
 import { MEDIA_FOLDER } from '../format/masters.js';
+import { blobsOf, BRANCH, purgeHistories, PurgeRefusal } from './histories.js';
 
 // The shortest and the longest passage, in characters.
 export const PASSAGE_LEAST = 3;
@@ -73,7 +74,6 @@ export function passageMatcher(passage) {
   };
 }
 
-const BRANCH = 'main';
 const MEDIA = `${MEDIA_FOLDER}/`;
 const LFS = 'version https://git-lfs.github.com/spec/';
 // A search lists this many revisions of a file at most, this many files and this many saves whose
@@ -82,8 +82,6 @@ const REVISIONS_SHOWN = 20;
 const FILES_SHOWN = 100;
 const MESSAGES_SHOWN = 20;
 const PLACES_SHOWN = 3;
-// Blobs are read this many at a time.
-const BATCH = 500;
 
 const decoder = new TextDecoder('utf-8', { fatal: true });
 
@@ -101,24 +99,6 @@ export function textOf(bytes) {
 
 // Whether a path is one a passage is looked for in: any file but an image's, below `media/`.
 export const searched = (path) => !path.startsWith(MEDIA);
-
-// The bytes of each blob, read by `cat-file --batch` a share at a time.
-export async function blobsOf(git, shas) {
-  const found = new Map();
-  for (let from = 0; from < shas.length; from += BATCH) {
-    const out = await git(['cat-file', '--batch'], { input: `${shas.slice(from, from + BATCH).join('\n')}\n` });
-    let at = 0;
-    while (at < out.length) {
-      const end = out.indexOf(10, at);
-      const [sha, kind, size] = out.subarray(at, end).toString('utf8').split(' ');
-      at = end + 1;
-      if (kind === 'missing') continue;
-      found.set(sha, out.subarray(at, at + Number(size)));
-      at += Number(size) + 1;
-    }
-  }
-  return found;
-}
 
 // Each version of a file the branch's commits wrote, newest commit first, { commit, moment, path,
 // blob }, of each file a passage is looked for in; and the branch's head's files, path to blob.
@@ -207,4 +187,51 @@ export async function findPassage({ git, passage, branch = BRANCH }) {
     messages: messages.slice(0, MESSAGES_SHOWN).map(({ commit, moment, message }) => ({ commit, moment, around: matcher.around(message.trim()).slice(0, PLACES_SHOWN) })),
     counted: { files: files.size, revisions: versions.length, messages: messages.length },
   };
+}
+
+// The rules a history is rewritten by to take a passage from it, as rewriteHistory() takes them:
+// every version of a file `holding` names loses it, and every message that holds it, and every
+// save stays, though it changes nothing once the passage is gone from what it changed.
+function rulesWithout({ matcher, holding }) {
+  const without = (text) => matcher.without(text);
+  return {
+    reads: (path, blob) => holding.has(blob),
+    change: (path, bytes) => {
+      const text = textOf(bytes);
+      return text === null || !matcher.holds(text) ? null : without(text);
+    },
+    // Each line of a message is left without the space taking it out leaves at its end.
+    message: (text) => (matcher.holds(text) ? without(text).replace(/[ \t]+$/gmu, '') : null),
+    keepEmpty: true,
+  };
+}
+
+// Purges `passage` from every old revision of both repositories, as `by`, { login, name }, at `at`,
+// as purgeHistories() does, `source`, `content` and `pushedBy` as it takes them: every version of
+// every file of the source but an image's that holds it, and every message, and every content file
+// and message of the content repository, the head's among them, since each is built from the
+// source. Gives what purgeHistories() gives, with `changed`, { files, revisions, messages }, how
+// many files of the source, revisions of them and saves' messages it was taken from.
+// Throws a PurgeRefusal: `current`, with the `paths` of the files of the source as it stands that
+// hold it, which an Admin saves without it first; or `not-found`, where neither history holds it.
+export async function purgePassage({ source, content, passage, by, at, pushedBy, tries }) {
+  const { planned, ...result } = await purgeHistories({
+    source,
+    content,
+    by,
+    at,
+    pushedBy,
+    tries,
+    plan: async ({ before }) => {
+      const found = await passageIn(source.git, passage);
+      if (found.current.length > 0) throw new PurgeRefusal('current', { paths: found.current });
+      const published = before.content === null ? null : await passageIn(content.git, passage);
+      return {
+        source: rulesWithout(found),
+        content: () => rulesWithout(published),
+        changed: { files: new Set(found.versions.map(({ path }) => path)).size, revisions: found.versions.length, messages: found.messages.length },
+      };
+    },
+  });
+  return { ...result, changed: planned.changed };
 }
