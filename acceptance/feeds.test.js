@@ -225,7 +225,9 @@ describe('incoming feeds', () => {
     await nextRead();
     assert.deepEqual(await filesIn('articles'), posts);
 
-    serve('news.rss', rss({ ...C, title: 'Harbour opens at dawn' }, B, A));
+    // The item stays corrected in every later read.
+    C.title = 'Harbour opens at dawn';
+    serve('news.rss', rss(C, B, A));
     await until('the corrected post on the site', async () => /Harbour opens at dawn/.test(await pageText('/harbour-opens/') ?? ''));
     assert.deepEqual(await filesIn('articles'), posts, 'the same post');
   }, { timeout: 600_000 });
@@ -278,14 +280,9 @@ describe('incoming feeds', () => {
     const posts = await filesIn('articles');
     serve('news.rss', 'STATUS 500\n');
     await go(ebba.page, '#/pages/publishing');
+    // The page asks how publishing stands again by itself, every 15 seconds.
     const failure = ebba.page.getByText(`The feed ${RSS} could not be read at`);
-    await until('the failure on the Publishing page', async () => {
-      await ebba.page.reload();
-      await ebba.page.getByText('Articles').first().waitFor({ timeout: 60_000 });
-      await go(ebba.page, '#/pages/publishing');
-      await ebba.page.getByRole('table').waitFor({ timeout: 30_000 });
-      return await failure.count() > 0;
-    });
+    await failure.waitFor({ timeout: 240_000 });
     assert.match(await failure.textContent(), /it answered with the status 500/);
 
     serve('news.rss', rss());
@@ -307,6 +304,7 @@ describe('incoming feeds', () => {
     assert.doesNotMatch(text, /^feed: /m);
     assert.match(text, /^originalAddress: /m);
 
+    await ebba.page.goto(`${site.origin.admin}/#/collections/articles`);
     await ebba.page.reload();
     await ebba.page.getByText('Articles').first().waitFor({ timeout: 60_000 });
     await go(ebba.page, `#/collections/articles/entries/${id}`);
