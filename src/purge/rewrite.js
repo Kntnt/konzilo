@@ -6,8 +6,8 @@
 // keeps its identity, and each one after it gets a new one. A commit that held nothing but what
 // is purged is no longer a save of anything, and goes; a commit that was empty before stays.
 //
-// What to remove and what to change it is handed, so that a purge of an entry and the erasure of
-// a passage from every old revision (ADR 0078) rewrite alike:
+// What to remove and what to change it is handed, so that a purge of an entry and the purge of a
+// passage from every old revision (ADR 0078) rewrite alike:
 //
 // - `drop(path, at)`: whether a file a commit writes is to go from it, `at` being what the commit
 //   was, { commit, message, read(path) }, `commit` its old identity, `message` its message, and
