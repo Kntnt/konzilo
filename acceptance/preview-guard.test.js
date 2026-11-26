@@ -180,6 +180,23 @@ describe('a page in the preview\'s pane', () => {
       };
       const click = (selector, options) => () => frame().locator(selector).click(options);
       const run = (code) => () => inFrame(code);
+      // WebKit, as Playwright drives it on macOS, sets the middle button on a press by way of a
+      // CGEvent, whose point is the screen's; while the display is off, as through a run at night,
+      // the press comes back at another point, and the page meets no press at all, so nothing is
+      // the guard's to stop. Where the press did not reach the link, the link is sent the auxclick a
+      // press with the middle button ends in, so that the guard is still held to what it meets.
+      const middle = async (t) => {
+        await inFrame(() => {
+          window.pressed = false;
+          document.getElementById('link').addEventListener('mousedown', () => {
+            window.pressed = true;
+          });
+        });
+        await frame().locator('#link').click({ button: 'middle' });
+        if (await inFrame(() => window.pressed) !== false) return;
+        t.diagnostic(`${engine} gave the link no press with the middle button, so it is sent the auxclick one ends in`);
+        await inFrame(() => document.getElementById('link').dispatchEvent(new MouseEvent('auxclick', { button: 1, bubbles: true, cancelable: true, composed: true })));
+      };
 
       const LINKS = {
         'a link': ['link', '/other/', click('#link')],
@@ -192,7 +209,7 @@ describe('a page in the preview\'s pane', () => {
         'a link to a named window': ['window', '/other/', click('#named')],
         'a link to the whole window': ['link', '/other/', click('#whole')],
         'a link to the frame around': ['link', '/other/', click('#around')],
-        'a link with the middle button': ['link', '/other/', click('#link', { button: 'middle' })],
+        'a link with the middle button': ['link', '/other/', middle],
         'a link to this page again': ['link', '/work/', click('#self')],
         'a link the page sends on from': ['script', '/there/', click('#scripted')],
         'a form that posts': ['form', '/other/', click('#send')],
@@ -216,7 +233,7 @@ describe('a page in the preview\'s pane', () => {
         'a new window from a script': ['window', '/other/', run(() => window.open('/other/'))],
       };
       for (const [name, [how, to, attempt]] of Object.entries(LINKS)) {
-        test(`stays, and tells, at ${name}`, () => stopped(how, to, attempt));
+        test(`stays, and tells, at ${name}`, (t) => stopped(how, to, () => attempt(t)));
       }
 
       test('stays, and tells, at a refresh in a tag', async () => {

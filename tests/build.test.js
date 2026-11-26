@@ -328,6 +328,34 @@ describe('a build', () => {
     assert.equal(made, 1, 'and not again for the same release');
   });
 
+  // As the service has it, which asks for one more build when it looks at the start of a minute
+  // while a build runs, of the same release where nothing else was saved meanwhile.
+  test('tries again, and says so, at each build of a release whose index could not be made, however well one made before went', async () => {
+    const site = newSite({ 'articles/aaaaaaaaaaaa.md': post('first') });
+    let answering = true;
+    let made = 0;
+    const build = site.build({
+      index: async () => {
+        if (!answering) throw new Error('Typesense does not answer at http://typesense:8108');
+        made += 1;
+      },
+    });
+    await build();
+    assert.equal(made, 1);
+    answering = false;
+    site.save({ 'articles/aaaaaaaaaaaa.md': post('first', {}, 'New words.') });
+    await build();
+    assert.equal(site.logged().at(-1).unindexed, true);
+    site.save({ 'articles/aaaaaaaaaaaa.md': `${post('first', {}, 'New words.')}\n` });
+    await build();
+    assert.equal(site.logged().at(-1).unindexed, true, 'the same release, still not indexed');
+    answering = true;
+    site.save({ 'articles/aaaaaaaaaaaa.md': `${post('first', {}, 'New words.')}\n\n` });
+    await build();
+    assert.equal(made, 2, 'made at the next build, though the release is the same');
+    assert.equal(site.logged().at(-1).unindexed, undefined);
+  });
+
   test('publishes the rest when one post is refused, and says that visitors still see its last version', async () => {
     const site = newSite({ 'articles/aaaaaaaaaaaa.md': post('first'), 'articles/bbbbbbbbbbbb.md': post('second') });
     await site.build()();

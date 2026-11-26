@@ -70,10 +70,6 @@ export function siteBuild({ site, origin, code, source, content, roles, control,
     }
   };
 
-  // The search index (ADR 0053), made once `current` is switched, and at this builder's first build,
-  // since nothing says whether an index of the release in use was kept. One that cannot be made
-  // costs visitors nothing but search: the release stays live, the build's line says
-  // `unindexed`, and the next build makes it, of the same release too.
   // What an intake that was stopped may have written in part, undone, so that the next try reads
   // the content repository as its last commit left it.
   const undoing = async () => {
@@ -84,6 +80,11 @@ export function siteBuild({ site, origin, code, source, content, roles, control,
     }
   };
 
+  // The search index (ADR 0053), made once `current` is switched, and at this builder's first build,
+  // since nothing says whether an index of the release in use was kept. One that cannot be made
+  // costs visitors nothing but search: the release stays live, the build's line says
+  // `unindexed`, and the next build makes it, of the same release too, however well one made
+  // before went. `indexed`: whether the index is of the release in use.
   let indexed = false;
   const indexing = async () => {
     try {
@@ -91,6 +92,7 @@ export function siteBuild({ site, origin, code, source, content, roles, control,
       indexed = true;
       return false;
     } catch (error) {
+      indexed = false;
       warn(`The search index could not be made: ${error.message}`);
       return true;
     }
