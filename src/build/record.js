@@ -3,8 +3,9 @@
 // confirmed, and the build log (ADR 0031); and what a purge needs of them, which the purge's own
 // program shares too (ADR 0078): the purge the service asks for, how it stands, and two marks,
 // one while a purge holds the builds back and one while a build runs, so that neither runs while
-// the other does. Written whole and then moved into place, so that a reader never meets half a
-// file.
+// the other does; and a search for a passage the service asks the purge's program for, with its
+// answer, each taken as soon as it is read. Written whole and then moved into place, so that a
+// reader never meets half a file.
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -16,6 +17,8 @@ const LOG = 'build-log.jsonl';
 const PURGE_REQUEST = 'purge-request.json';
 const PURGE_STATE = 'purge-state.json';
 const PURGING = 'purging';
+const SEARCH_REQUEST = 'passage-search.json';
+const SEARCH_ANSWER = 'passage-found.json';
 const BUILDING = 'building';
 
 export function buildControl(folder) {
@@ -75,6 +78,15 @@ export function buildControl(folder) {
     takePurgeRequest: () => rmSync(place(PURGE_REQUEST), { force: true }),
     purgeState: () => readJson(PURGE_STATE),
     writePurgeState: (state) => whole(PURGE_STATE, `${JSON.stringify(state)}\n`),
+
+    // A search for a passage the service asks for (ADR 0078), and the answer the purge's program
+    // gives, each taken once it is read, as each holds the passage or the text around it.
+    askSearch: (request) => whole(SEARCH_REQUEST, `${JSON.stringify(request)}\n`),
+    searchRequest: () => readJson(SEARCH_REQUEST),
+    takeSearchRequest: () => rmSync(place(SEARCH_REQUEST), { force: true }),
+    answerSearch: (answer) => whole(SEARCH_ANSWER, `${JSON.stringify(answer)}\n`),
+    searchAnswer: () => readJson(SEARCH_ANSWER),
+    takeSearchAnswer: () => rmSync(place(SEARCH_ANSWER), { force: true }),
 
     // A purge holds the builds back while it runs, and waits for one that runs to end: each says
     // so first and then looks at the other, so that one of them always sees the other.

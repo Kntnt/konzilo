@@ -1,0 +1,108 @@
+/* The *Purge a passage* page (ADR 0078): the search, and each file and revision that holds the
+   passage, the text around it marked. Its buttons, and the purge's dialog, are styled as on the
+   *Deleted* page (deleted.css). */
+
+.konzilo-passage {
+  box-sizing: border-box;
+  height: 100%;
+  overflow: auto;
+  padding: 16px;
+  font: 14px/1.4 system-ui, sans-serif;
+  overflow-wrap: anywhere;
+}
+
+.konzilo-passage p {
+  margin: 4px 0;
+}
+
+.konzilo-passage-note,
+.konzilo-passage-state {
+  color: var(--sui-secondary-foreground-color, #555);
+}
+
+.konzilo-passage-told {
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: var(--sui-info-background-color, #e8f0fe);
+  color: #222;
+}
+
+.konzilo-passage-search {
+  display: grid;
+  gap: 4px;
+  max-width: 40rem;
+  margin: 12px 0 16px;
+}
+
+.konzilo-passage-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.konzilo-passage-row input {
+  flex: 1 1 20em;
+  padding: 4px 8px;
+  font: inherit;
+}
+
+.konzilo-passage-found h2 {
+  margin: 20px 0 8px;
+  font-size: 1.1em;
+}
+
+.konzilo-passage-files {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.konzilo-passage-file {
+  padding: 12px 0;
+  border-top: 1px solid rgba(128, 128, 128, 0.3);
+}
+
+.konzilo-passage-file h3 {
+  margin: 0 0 4px;
+  font-size: 1em;
+}
+
+.konzilo-passage-revisions {
+  margin: 8px 0 0;
+  padding-inline-start: 20px;
+}
+
+.konzilo-passage-revisions > li {
+  margin: 0 0 8px;
+}
+
+.konzilo-passage-when {
+  color: var(--sui-secondary-foreground-color, #555);
+}
+
+.konzilo-passage-around {
+  max-width: 60rem;
+  padding: 4px 8px;
+  border-inline-start: 3px solid rgba(128, 128, 128, 0.4);
+  white-space: pre-wrap;
+}
+
+.konzilo-passage-around mark {
+  padding: 0 2px;
+  background: #ffe08a;
+  color: #222;
+}
+
+.konzilo-passage-refusal {
+  font-weight: 600;
+}
+
+.konzilo-passage-link {
+  color: var(--sui-primary-accent-color-text, #1a5fb4);
+}
+
+.konzilo-passage-row input:focus-visible,
+.konzilo-passage-link:focus-visible {
+  outline: 2px solid var(--sui-primary-accent-color, #1a5fb4);
+  outline-offset: 2px;
+}

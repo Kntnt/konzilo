@@ -20,6 +20,7 @@ import { FAILURE_SETTING, MAIL_SETTING } from './mail.js';
 import { checkMailSettings, mailSettingsShown } from './mail-settings.js';
 import { isAdminsForm, isForm, isTab, lockTable } from './locks.js';
 import { findSubmissions, idsOf, soughtOf } from './personal-data.js';
+import { passageOf } from '../purge/passage.js';
 import { purgeKeeper } from './purge.js';
 import { isSourcePath, sourceHistory } from './revisions.js';
 import { bodyOf } from './request-body.js';
@@ -43,6 +44,7 @@ const NOT_FOUND = '/_konzilo/not-found';
 const HIDDEN_BODY_LIMIT = 4096;
 const FEEDS = '/_konzilo/feeds';
 const PURGE = '/_konzilo/purge';
+const PURGE_SEARCH = '/_konzilo/purge/search';
 // The most an Admin's purge takes, as JSON.
 const PURGE_BODY_LIMIT = 4096;
 // The most the *Mail* page's settings take, as JSON, and a feed's on the *Feeds* page.
@@ -281,8 +283,28 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
     }
   };
 
-  // An Admin's purge of a deleted entry (ADR 0078), to an Admin alone: how it stands, who has
-  // which form open, and the purges made before, who and when; asked for by an entry's path
+  // What an Admin's request to a purge's address holds, as JSON, or the status it is refused
+  // with: { given } or { refused }.
+  const purgeBodyOf = async (incoming) => {
+    if ((incoming.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase() !== 'application/json') {
+      incoming.resume();
+      return { refused: 415 };
+    }
+    const body = await bodyOf(incoming, PURGE_BODY_LIMIT);
+    if (body === null) return { refused: 413 };
+    try {
+      return { given: JSON.parse(body.toString('utf8')) };
+    } catch {
+      return { refused: 400 };
+    }
+  };
+  const refusedBody = (outgoing, status) => {
+    if (status === 413) outgoing.shouldKeepAlive = false;
+    return answerJson(outgoing, status, {});
+  };
+
+  // An Admin's purge (ADR 0078), to an Admin alone: how it stands, who has which form open, and
+  // the purges made before, who and when; asked for by a deleted entry's path, or by a passage,
   // and the course to take with the forms open, `anyway` or `wait`; and one that waits stopped.
   const answerPurge = async (incoming, outgoing) => {
     if (!['GET', 'POST', 'DELETE'].includes(incoming.method)) {
@@ -309,35 +331,51 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
       incoming.resume();
       return purge.cancel() ? answerJson(outgoing, 200, { purge: purge.forAdmin() }) : answerJson(outgoing, 409, { purge: purge.forAdmin() });
     }
-    if ((incoming.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase() !== 'application/json') {
-      incoming.resume();
-      return answerJson(outgoing, 415, {});
-    }
-    const body = await bodyOf(incoming, PURGE_BODY_LIMIT);
-    if (body === null) {
-      outgoing.shouldKeepAlive = false;
-      return answerJson(outgoing, 413, {});
-    }
-    let given;
-    try {
-      given = JSON.parse(body.toString('utf8'));
-    } catch {
-      return answerJson(outgoing, 400, {});
-    }
-    if (!isSourcePath(given?.path) || !['anyway', 'wait'].includes(given?.course)) return answerJson(outgoing, 400, {});
+    const { given, refused } = await purgeBodyOf(incoming);
+    if (refused) return refusedBody(outgoing, refused);
+    if (!['anyway', 'wait'].includes(given?.course)) return answerJson(outgoing, 400, {});
+    const ofPassage = given.passage !== undefined;
+    const passage = ofPassage ? passageOf(given.passage) : null;
+    if (ofPassage ? passage === null || given.path !== undefined : !isSourcePath(given.path)) return answerJson(outgoing, 400, {});
     const person = await personOf(incoming.headers.authorization);
     if (person === null) return answerJson(outgoing, 401, {});
-    let entry;
-    try {
-      entry = await history.deletedOne(given.path, deletable());
-    } catch (error) {
-      warn(`The deleted entries could not be read: ${error.message}`);
-      return answerJson(outgoing, 502, {});
+    let entry = null;
+    if (!ofPassage) {
+      try {
+        entry = await history.deletedOne(given.path, deletable());
+      } catch (error) {
+        warn(`The deleted entries could not be read: ${error.message}`);
+        return answerJson(outgoing, 502, {});
+      }
+      if (entry === null) return answerJson(outgoing, 404, {});
     }
-    if (entry === null) return answerJson(outgoing, 404, {});
-    const started = purge.start({ entry, by: { login: person.login, name: person.name }, course: given.course });
+    const started = purge.start({ entry, passage, by: { login: person.login, name: person.name }, course: given.course });
     if (started.busy) return answerJson(outgoing, 409, { purge: purge.forAdmin() });
     return answerJson(outgoing, 202, started);
+  };
+
+  // An Admin's search for a passage before its purge (ADR 0078), to an Admin alone: every file and
+  // revision of the source that holds it, as the purge's program finds them. The passage comes in
+  // the request's body, never its address, which logs may keep.
+  const answerSearch = async (incoming, outgoing) => {
+    if (incoming.method !== 'POST') {
+      incoming.resume();
+      outgoing.writeHead(405, { allow: 'POST', 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+      return outgoing.end('{}');
+    }
+    const role = await roleOf(incoming.headers.authorization);
+    if (!usesAdminPages(role)) {
+      incoming.resume();
+      return answerJson(outgoing, role === null ? 401 : 403, {});
+    }
+    const { given, refused } = await purgeBodyOf(incoming);
+    if (refused) return refusedBody(outgoing, refused);
+    const passage = passageOf(given?.passage);
+    if (passage === null) return answerJson(outgoing, 400, {});
+    const answer = await purge.search(passage);
+    if (answer.failed) return answerJson(outgoing, 502, {});
+    if (answer.busy) return answerJson(outgoing, 503, {});
+    return answerJson(outgoing, 200, { found: answer.found });
   };
 
   // How the site mails the forms' submissions, and how long it keeps them, to an Admin alone: an
@@ -736,6 +774,7 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
       if (pathname === VIOLATIONS_PATH) return answerViolations(incoming, outgoing);
       if (pathname === FEEDS || pathname.startsWith(`${FEEDS}/`)) return answerFeeds(incoming, outgoing, pathname.slice(FEEDS.length));
       if (pathname === PURGE) return answerPurge(incoming, outgoing);
+      if (pathname === PURGE_SEARCH) return answerSearch(incoming, outgoing);
       return answerJson(outgoing, 404, {});
     },
 

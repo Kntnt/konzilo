@@ -473,6 +473,15 @@ test('passes an Admin\'s purge to the service for editors, and keeps its credent
   assert.match(read('compose/builder/Dockerfile'), /mkdir -p [^\n]*\/purge-secret\b[^\n]*&& chown node:node [^\n]*\/purge-secret\b/);
 });
 
+// The search for a passage an Admin is shown before its purge (ADR 0078), asked of the service for
+// editors on the admin host, which asks the purge's program.
+test('passes the search for a passage to the service for editors, on the admin host', () => {
+  const caddyfile = read('compose/web/Caddyfile');
+  const admin = caddyfile.slice(caddyfile.indexOf(':{$KONZILO_PORT_ADMIN}'), caddyfile.indexOf(':{$KONZILO_PORT_PREVIEW}'));
+  const matcher = /@service path (.*)$/m.exec(admin)?.[1].split(' ') ?? [];
+  assert.ok(matcher.includes('/_konzilo/purge/search'));
+});
+
 // Who pushed what a private account pushed, Forgejo's feed tells only those who run it, so the
 // service reads the feed by a token of the instance's account that can do nothing but read.
 test('lets the service for editors read who pushed each commit', () => {

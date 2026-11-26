@@ -29,6 +29,7 @@ import { registerSettings } from './settings/register.js';
 import { registerLock } from './lock/register.js';
 import { registerHistory } from './history/register.js';
 import { registerDeleted } from './deleted/register.js';
+import { registerPassage } from './passage/register.js';
 import { registerNotFound } from './not-found/register.js';
 import { registerFeeds } from './feeds/register.js';
 import { chosenLanguage, followSite, languageChanged, loadedWith, say, useInterfaceLanguage } from './interface-language.js';
@@ -65,6 +66,7 @@ function start() {
   registerBodyField(CMS, config);
   registerPublishing(CMS, config);
   registerDeleted(CMS, config, { history, lock });
+  registerPassage(CMS, config);
   registerNotFound(CMS, config);
   registerFeeds(CMS);
   if (konzilo.forms) {

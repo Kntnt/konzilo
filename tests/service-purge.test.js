@@ -3,7 +3,9 @@
 // open forms are run over, their tabs told to reload first, or waited for, while no form may be
 // opened; the purge's own program is asked once they are; and every tab is told when it is done.
 // A form's revisions name who pushed each save as the record of purges carried it over. The
-// entry's addresses go from the counts of addresses not found once it is done (ADR 0040).
+// entry's addresses go from the counts of addresses not found once it is done (ADR 0040). A passage
+// is searched for by the purge's program, for an Admin alone, and purged as an entry is, with what
+// the purge changed, or the current files that hold it, told, and nothing of the passage kept.
 
 import assert from 'node:assert/strict';
 import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
@@ -52,8 +54,8 @@ describe('an Admin\'s purge', () => {
   // The source: KEPT and ARTICLE made, ARTICLE changed by ebba, then deleted by ebba; or, with
   // `record`, as a purge left it, its record naming who pushed C3 before. With `notFound`, a log of
   // addresses not found, and its counts; with `ended`, how the purge's program said a purge stands
-  // before the service started.
-  const running = async ({ record = null, clock = { at: Date.parse('2026-11-26T10:00:00Z') }, notFound = false, ended = null } = {}) => {
+  // before the service started; with `forget`, how the small pictures are forgotten.
+  const running = async ({ record = null, clock = { at: Date.parse('2026-11-26T10:00:00Z') }, notFound = false, ended = null, forget = null } = {}) => {
     const commits = [
       { sha: C1, date: '2026-11-01T08:00:00Z', files: { [ARTICLE]: '---\ntitle: The meadow\n---\n', [KEPT]: '---\ntitle: Kept\n---\n' } },
       { sha: C2, date: '2026-11-02T08:00:00Z', files: { [KEPT]: '---\ntitle: Kept, changed\n---\n' } },
@@ -136,10 +138,11 @@ describe('an Admin\'s purge', () => {
       get,
       now: () => new Date(clock.at),
       deletable: () => deletableIn(SITE),
-      pictures: { of: async () => ({ status: 404 }), forget: () => forgotten.push(true) },
+      pictures: { of: async () => ({ status: 404 }), forget: forget ?? (() => forgotten.push(true)) },
+      warn: () => {},
       locks: { waitAtMost: 200 },
       revisions: { now: () => new Date(clock.at), sleep: async () => {} },
-      purge: { reloadWithin: 20_000 },
+      purge: { reloadWithin: 20_000, searchWithin: 500, lookEvery: 5 },
       notFound: notFoundShown?.log ?? null,
     });
     const server = createServer((incoming, outgoing) => service.request(incoming, outgoing));
@@ -160,6 +163,7 @@ describe('an Admin\'s purge', () => {
       notFound: notFoundShown,
       call,
       purge: (who, body) => call('POST', '/_konzilo/purge', who, { body }),
+      search: (who, body) => call('POST', '/_konzilo/purge/search', who, { body }),
       shown: (who) => call('GET', '/_konzilo/purge', who),
       cancel: (who) => call('DELETE', '/_konzilo/purge', who),
       hold: (form, who, tab) => call('PUT', `/_konzilo/locks/${encodeURIComponent(form)}`, who, { query: { tab } }),
@@ -310,5 +314,90 @@ describe('an Admin\'s purge', () => {
     const deleted = await call('GET', '/_konzilo/deleted', 'ebba');
     assert.deepEqual(deleted.body.deleted.map(({ path, account, moment }) => [path, account, moment]), [[ARTICLE, null, '2026-11-03T08:00:00Z']], 'a save Forgejo had no record of the account of before');
     assert.deepEqual((await shown('anna')).body.purges, [{ at: '2026-11-26T09:00:00Z', by: { login: 'anna', name: 'Anna Admin' } }], 'an Admin sees who purged and when');
+  }));
+
+  // The purge's program, as it answers the next search the service asks it for.
+  const program = (control, answer) => (async () => {
+    for (let looked = 0; looked < 400; looked += 1) {
+      const request = control.searchRequest();
+      if (request) {
+        control.takeSearchRequest();
+        control.answerSearch({ id: request.id, ...answer });
+        return request;
+      }
+      await new Promise((go) => setTimeout(go, 5));
+    }
+    return null;
+  })();
+  const FOUND = { files: [{ path: KEPT, current: true, revisions: [], more: 0 }], messages: [], counted: { files: 1, revisions: 1, messages: 0 } };
+
+  test('searches for a passage by the purge\'s program, for an Admin alone, and keeps nothing of it', withService({}, async ({ search, control }) => {
+    assert.equal((await search('ebba', { passage: 'Ebba Svensson' })).status, 403);
+    assert.equal((await search(null, { passage: 'Ebba Svensson' })).status, 401);
+    assert.equal((await search('anna', { passage: 'ab' })).status, 400, 'too short');
+    assert.equal(control.searchRequest(), null, 'nothing is asked of a refused one');
+
+    const asked = program(control, { found: FOUND });
+    const answer = await search('anna', { passage: '  Ebba   Svensson ' });
+    assert.equal(answer.status, 200);
+    assert.deepEqual(answer.body, { found: FOUND });
+    assert.equal((await asked).passage, 'Ebba Svensson');
+    assert.equal(control.searchAnswer(), null, 'the answer is taken once read');
+
+    program(control, { failed: true });
+    assert.equal((await search('anna', { passage: 'Ebba Svensson' })).status, 502);
+    const late = await search('anna', { passage: 'Ebba Svensson' });
+    assert.equal(late.status, 503, 'a program that does not answer in time');
+    assert.equal(control.searchRequest(), null, 'and its request is taken back');
+  }));
+
+  test('purges a passage as it does an entry, and tells an Admin what it changed, with nothing of the passage', withService({}, async ({ purge, control, step, shown, locks }) => {
+    assert.equal((await purge('ebba', { passage: 'Ebba Svensson', course: 'anyway' })).status, 403);
+    assert.equal((await purge('anna', { passage: 'ab', course: 'anyway' })).status, 400);
+    assert.equal((await purge('anna', { passage: 'Ebba Svensson', path: ARTICLE, course: 'anyway' })).status, 400, 'a passage or an entry, not both');
+    const asked = await purge('anna', { passage: ' Ebba  Svensson ', course: 'anyway' });
+    assert.equal(asked.status, 202);
+    assert.deepEqual(asked.body.purge, { id: asked.body.purge.id, state: 'running', passage: true, forms: [] });
+    const request = control.purgeRequest();
+    assert.deepEqual({ ...request, id: undefined }, { id: undefined, passage: 'Ebba Svensson', by: { login: 'anna', name: 'Anna Admin' }, at: '2026-11-26T10:00:00.000Z' });
+    assert.doesNotMatch(JSON.stringify((await shown('anna')).body), /Svensson/);
+    assert.doesNotMatch(JSON.stringify((await locks('ebba', TAB_B)).body), /Svensson/);
+
+    control.writePurgeState({ id: request.id, state: 'done', changed: { files: 2, revisions: 5, messages: 1 }, at: '2026-11-26T10:00:30Z' });
+    await step();
+    assert.deepEqual((await shown('anna')).body.purge, { id: request.id, state: 'done', changed: { files: 2, revisions: 5, messages: 1 } });
+    assert.deepEqual((await locks('ebba', TAB_B)).body.purge, { id: request.id, state: 'done' });
+  }));
+
+  test('takes no address out of the counts of addresses not found once a passage\'s purge is done, as it changes none', withService({ notFound: true }, async ({ purge, control, step, notFound }) => {
+    notFound.asked('/the-meadow/');
+    notFound.log.fold();
+    await purge('anna', { passage: 'Ebba Svensson', course: 'anyway' });
+    const { id } = control.purgeRequest();
+    const said = { id, state: 'done', changed: { files: 1, revisions: 2, messages: 0 }, at: '2026-11-26T10:00:30Z' };
+    control.writePurgeState(said);
+    await step();
+    assert.deepEqual(Object.keys(notFound.counts()), ['/the-meadow/']);
+    assert.deepEqual(control.purgeState(), said, 'and what its program said is left as it was');
+  }));
+
+  test('says which current files hold a passage it was refused for', withService({}, async ({ purge, control, step, shown, hold }) => {
+    await purge('anna', { passage: 'Ebba Svensson', course: 'anyway' });
+    const { id } = control.purgeRequest();
+    control.writePurgeState({ id, state: 'failed', reason: 'current', paths: [KEPT], at: '2026-11-26T10:00:30Z' });
+    await step();
+    assert.deepEqual((await shown('anna')).body.purge, { id, state: 'failed', reason: 'current', paths: [KEPT] });
+    assert.equal((await hold('articles/bbbbbbbbbbbb', 'ebba', TAB_B)).status, 200, 'forms open again');
+  }));
+
+  test('says a purge is done, and opens the forms, though forgetting the small pictures breaks', withService({ forget: () => {
+    throw new Error('Read-only file system');
+  } }, async ({ purge, control, step, shown, hold }) => {
+    await purge('anna', { passage: 'Ebba Svensson', course: 'anyway' });
+    const { id } = control.purgeRequest();
+    control.writePurgeState({ id, state: 'done', changed: { files: 1, revisions: 1, messages: 0 }, at: '2026-11-26T10:00:30Z' });
+    await step();
+    assert.equal((await shown('anna')).body.purge.state, 'done');
+    assert.equal((await hold('articles/bbbbbbbbbbbb', 'ebba', TAB_B)).status, 200);
   }));
 });

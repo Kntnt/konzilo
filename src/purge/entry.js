@@ -18,23 +18,11 @@ import { parse as parseYaml } from 'yaml';
 import { IMAGE_LIBRARY_FOLDER, MEDIA_FOLDER } from '../format/masters.js';
 import { keyOf, REDIRECTS_FILE } from '../format/redirects.js';
 import { slugFrom } from '../intake/post-file.js';
-import { PURGES_BRANCH, PURGES_FILE, purgeRecord, recordFile } from './record.js';
-import { rewriteHistory } from './rewrite.js';
+import { blobsOf, BRANCH, purgeHistories, PurgeRefusal } from './histories.js';
 
-const BRANCH = 'main';
+export { PurgeRefusal };
+
 const LEDGER = '.post-ids.json';
-const IDENTITY = ['-c', 'user.name=Konzilo', '-c', 'user.email=konzilo@localhost.invalid'];
-// A save that comes while a purge runs makes it start again, this many times at most.
-const TRIES = 4;
-
-// Why a purge is not made: `not-deleted`, the entry is in the source as it stands, and
-// `not-found`, no commit of its history holds it.
-export class PurgeRefusal extends Error {
-  constructor(reason) {
-    super(`the purge is refused: ${reason}`);
-    this.reason = reason;
-  }
-}
 
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const json = (value) => `${JSON.stringify(value, null, 2)}\n`;
@@ -67,23 +55,6 @@ async function versionsBelow(git, folder, except) {
     if (path !== except && !/^0+$/.test(blob)) found.set(blob, path);
   }
   return [...found].map(([blob, path]) => [path, blob]);
-}
-
-// The bytes of each blob, by one `cat-file --batch`.
-async function blobsOf(git, shas) {
-  const found = new Map();
-  if (shas.length === 0) return found;
-  const out = await git(['cat-file', '--batch'], { input: `${shas.join('\n')}\n` });
-  let at = 0;
-  while (at < out.length) {
-    const end = out.indexOf(10, at);
-    const [sha, kind, size] = out.subarray(at, end).toString('utf8').split(' ');
-    at = end + 1;
-    if (kind === 'missing') continue;
-    found.set(sha, out.subarray(at, at + Number(size)));
-    at += Number(size) + 1;
-  }
-  return found;
 }
 
 const exists = async (git, object) => {
@@ -241,33 +212,18 @@ function ledgerWithout(bytes, { kind, key, id, files }) {
   return changed ? json(ledger) : null;
 }
 
-const fetchAll = (git) => git(['fetch', '--quiet', '--force', '--prune', 'origin', '+refs/heads/*:refs/heads/*']);
-const headOf = async (git, ref) => {
-  try {
-    return (await text(git, ['rev-parse', '--verify', '--quiet', `refs/heads/${ref}`])).trim();
-  } catch {
-    return null;
-  }
-};
-
-// One attempt, from what the clones hold: the rewrites made in the clones, and what the pushes
-// need.
-async function attempt({ source, content, entry, by, at, pushedBy }) {
+// What goes of the entry from both repositories, as purgeHistories() takes it: the rules each
+// history is rewritten by, the files and LFS objects that go, and the addresses it had.
+async function entryPlan({ source, content, entry, before }) {
   const id = idOf(entry.path);
   const tag = tagOf(entry.path);
-  const before = { source: await headOf(source.git, BRANCH), content: await headOf(content.git, BRANCH), record: await headOf(source.git, PURGES_BRANCH) };
   const plan = await sourcePlan(source.git, entry);
   const ledger = before.content === null ? { key: id, paths: new Set(), addresses: new Set() } : await ledgerPlan(content.git, entry);
   const addresses = new Set([...plan.addresses, ...ledger.addresses]);
-  const record = purgeRecord(before.record === null ? null : (await source.git(['show', `${before.record}:${PURGES_FILE}`]).catch(() => null))?.toString('utf8'));
-  const oldCommits = (await text(source.git, ['rev-list', BRANCH])).split('\n').filter(Boolean);
-  const pushes = await pushedBy(oldCommits.filter((commit) => !Object.hasOwn(record.pushes, commit)));
 
-  // The source, with an Admin's file's new hash by its old, which the content's ledger names.
+  // An Admin's file's new hash by its old, which the content's ledger names.
   const files = new Map();
-  const rewritten = await rewriteHistory({
-    git: source.git,
-    branch: BRANCH,
+  const sourceRules = {
     drop: (path) => plan.drop.has(path),
     change: async (path, bytes) => {
       if (path !== REDIRECTS_FILE) return null;
@@ -275,31 +231,15 @@ async function attempt({ source, content, entry, by, at, pushedBy }) {
       if (made !== null) files.set(sha256(bytes), sha256(Buffer.from(made)));
       return made;
     },
-  });
-  const newCommits = new Set((await text(source.git, ['rev-list', BRANCH])).split('\n').filter(Boolean));
-  const shortly = new Map(oldCommits.map((commit) => [commit.slice(0, 12), rewritten.renamed.get(commit)?.slice(0, 12) ?? null]));
-
-  // Who pushed each save as it was, by its new identity; a save that kept its own keeps what the
-  // record held of it.
-  const carried = {};
-  for (const commit of oldCommits) {
-    const now = rewritten.renamed.get(commit);
-    if (rewritten.gone.has(commit) || now === null || !newCommits.has(now)) continue;
-    const pusher = Object.hasOwn(record.pushes, commit) ? record.pushes[commit] : pushes[commit] ?? null;
-    if (now !== commit || Object.hasOwn(record.pushes, commit)) carried[now] = pusher;
-  }
-  const noted = { purges: [...record.purges, { at, by: { login: by.login, name: by.name ?? by.login } }], pushes: carried };
-  const blob = (await text(source.git, ['hash-object', '-w', '--stdin'], { input: recordFile(noted) })).trim();
-  const tree = (await text(source.git, ['mktree'], { input: `100644 blob ${blob}\t${PURGES_FILE}\n` })).trim();
-  const noteCommit = (await text(source.git, [...IDENTITY, 'commit-tree', tree, ...(before.record ? ['-p', before.record] : []), '-m', `Purge by ${by.login}`])).trim();
+  };
 
   // The content repository: the entry's files where its ledger says they are its, a term's by
   // its slug where no other term of the source the commit publishes has it, and the masters made
   // of an original that goes; its ledgers and its rules without it.
   const ledgers = new Map();
-  const ledgerAt = async (at2) => {
-    if (!ledgers.has(at2.commit)) ledgers.set(at2.commit, at2.read(LEDGER).then((bytes) => (bytes === null ? null : readJson(bytes))));
-    return ledgers.get(at2.commit);
+  const ledgerAt = async (at) => {
+    if (!ledgers.has(at.commit)) ledgers.set(at.commit, at.read(LEDGER).then((bytes) => (bytes === null ? null : readJson(bytes))));
+    return ledgers.get(at.commit);
   };
   const masters = plan.originals.length === 0 ? null : new RegExp(`^${MEDIA_FOLDER}/.+-(?:${plan.originals.map(({ oid }) => oid.slice(0, 10)).join('|')})\\.(?:webp|svg)$`);
   const termFolder = `${entry.collection}/${tag === null ? '' : `${tag}/`}`;
@@ -318,80 +258,41 @@ async function attempt({ source, content, entry, by, at, pushedBy }) {
     }
     return (await slugsAt.get(commit)).has(slug);
   };
-  const published = (message) => {
-    const prefix = /^Publish ([0-9a-f]{12})\b/.exec(message)?.[1];
-    return prefix === undefined ? null : oldCommits.find((commit) => commit.startsWith(prefix)) ?? null;
-  };
-  let contentHead = null;
-  if (before.content !== null) {
-    const done = await rewriteHistory({
-      git: content.git,
-      branch: BRANCH,
-      drop: async (path, at2) => {
-        if (masters?.test(path)) return true;
-        if (entry.kind === 'post' && ledger.paths.has(path)) return (await ledgerAt(at2))?.posts?.[ledger.key]?.path === path;
-        if (entry.kind === 'term' && termPaths.has(path)) {
-          const commit = published(at2.message);
-          return commit === null || !await otherTermsHave(commit, path.slice(termFolder.length, -'.json'.length));
-        }
-        return false;
-      },
-      change: (path, bytes) => {
-        if (path === LEDGER) return ledgerWithout(bytes, { kind: entry.kind, key: ledger.key, id, files });
-        if (path === REDIRECTS_FILE) return rulesWithout(bytes, { id, kind: entry.kind, addresses });
-        return null;
-      },
-      message: (said) => said.replace(/^Publish ([0-9a-f]{12})\b/, (whole, prefix) => (shortly.get(prefix) ? `Publish ${shortly.get(prefix)}` : whole)),
-    });
-    contentHead = done.head;
-  }
-  return { before, source: rewritten, contentHead, noteCommit, paths: [...plan.drop, ...ledger.paths], originals: plan.originals, record: noted, addresses: [...addresses] };
+  const contentRules = ({ published }) => ({
+    drop: async (path, at) => {
+      if (masters?.test(path)) return true;
+      if (entry.kind === 'post' && ledger.paths.has(path)) return (await ledgerAt(at))?.posts?.[ledger.key]?.path === path;
+      if (entry.kind === 'term' && termPaths.has(path)) {
+        const commit = published(at.message);
+        return commit === null || !await otherTermsHave(commit, path.slice(termFolder.length, -'.json'.length));
+      }
+      return false;
+    },
+    change: (path, bytes) => {
+      if (path === LEDGER) return ledgerWithout(bytes, { kind: entry.kind, key: ledger.key, id, files });
+      if (path === REDIRECTS_FILE) return rulesWithout(bytes, { id, kind: entry.kind, addresses });
+      return null;
+    },
+  });
+  return { source: sourceRules, content: contentRules, paths: [...plan.drop, ...ledger.paths], originals: plan.originals, addresses: [...addresses] };
 }
 
 // Purges `entry`, { path, kind, collection }, `kind` one of `post`, `term` and `image`, as `by`,
-// { login, name }, at `at`. `source` and `content`: { git }, each a bare clone whose `origin` is
-// the repository. `pushedBy(commits)`: who pushed each commit as Forgejo's feed has it, { [sha]:
-// { login, name, at } }, a commit it has none of left out. Gives { source: { before, after,
-// renamed, gone, dropped }, content: { before, after }, paths, originals, record, addresses },
-// `gone` the source commits that are no more, `dropped` those of them that held nothing else,
-// `paths` the files that went, of both repositories, `originals` the LFS objects, { oid, size },
-// that no commit names now, and `addresses` those the entry had, as rules match them, which the
-// counts of addresses not found then forget (ADR 0040).
-// Throws a PurgeRefusal where the entry is not to be purged.
-export async function purgeEntry({ source, content, entry, by, at, pushedBy, tries = TRIES }) {
-  for (let tried = 1; ; tried += 1) {
-    await fetchAll(source.git);
-    await fetchAll(content.git).catch(() => {});
-    const made = await attempt({ source, content, entry, by, at, pushedBy });
-    const { before } = made;
-    try {
-      await source.git(['push', '--quiet', '--atomic', 'origin',
-        `--force-with-lease=refs/heads/${BRANCH}:${before.source}`,
-        `--force-with-lease=refs/heads/${PURGES_BRANCH}:${before.record ?? ''}`,
-        `refs/heads/${BRANCH}:refs/heads/${BRANCH}`,
-        `${made.noteCommit}:refs/heads/${PURGES_BRANCH}`]);
-    } catch (error) {
-      if (tried >= tries) throw error;
-      continue;
-    }
-    if (made.contentHead !== null && made.contentHead !== before.content) {
-      for (let pushed = 1; ; pushed += 1) {
-        try {
-          await content.git(['push', '--quiet', 'origin', `--force-with-lease=refs/heads/${BRANCH}:${before.content}`, `refs/heads/${BRANCH}:refs/heads/${BRANCH}`]);
-          break;
-        } catch (error) {
-          if (pushed >= tries) throw error;
-          await new Promise((go) => setTimeout(go, 1000 * pushed));
-        }
-      }
-    }
-    return {
-      source: { before: before.source, after: made.source.head, renamed: made.source.renamed, gone: [...made.source.renamed.keys()].filter((commit) => made.source.renamed.get(commit) !== commit), dropped: [...made.source.gone] },
-      content: { before: before.content, after: made.contentHead },
-      paths: made.paths,
-      originals: made.originals,
-      record: made.record,
-      addresses: made.addresses,
-    };
-  }
+// { login, name }, at `at`, as purgeHistories() does. Gives { source, content, paths, originals,
+// record, addresses }, `source`, `content` and `record` as purgeHistories() gives them, `paths`
+// the files that went, of both repositories, `originals` the LFS objects, { oid, size }, that no
+// commit names now, and `addresses` those the entry had, as rules match them, which the counts of
+// addresses not found then forget (ADR 0040). Throws a PurgeRefusal where the entry is not to be
+// purged.
+export async function purgeEntry({ source, content, entry, by, at, pushedBy, tries }) {
+  const { planned, ...result } = await purgeHistories({
+    source,
+    content,
+    by,
+    at,
+    pushedBy,
+    tries,
+    plan: ({ before }) => entryPlan({ source, content, entry, before }),
+  });
+  return { ...result, paths: planned.paths, originals: planned.originals, addresses: planned.addresses };
 }
