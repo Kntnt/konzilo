@@ -13,6 +13,7 @@ import { randomUUID } from 'node:crypto';
 import { lookup as resolved } from 'node:dns/promises';
 import { BlockList, isIP } from 'node:net';
 
+import { FEED_FAILURES } from '../feeds/failures.js';
 import { readFeed } from '../feeds/read.js';
 import { feedPostFile, freeSlug, postDate, releasedFile, slugHeld } from '../feeds/post.js';
 import { reconcile } from '../feeds/reconcile.js';
@@ -80,8 +81,8 @@ async function* untilStopped(stream, stopped) {
 // that gives the read up before its time, as the feed's removal does.
 export async function fetchFeed(address, { get = fetch, lookup = resolved, privateHosts = [], bytes = FEED_BYTES, waitAtMost = FEED_WAIT, stop = null } = {}) {
   const signal = stop ? AbortSignal.any([AbortSignal.timeout(waitAtMost), stop]) : AbortSignal.timeout(waitAtMost);
-  const failed = (error) => ({ failure: { kind: error?.name === 'TimeoutError' || signal.aborted ? 'timeout' : 'unreachable' } });
-  const unreachable = { failure: { kind: 'unreachable' } };
+  const failed = (error) => ({ failure: { kind: error?.name === 'TimeoutError' || signal.aborted ? FEED_FAILURES.TIMEOUT : FEED_FAILURES.UNREACHABLE } });
+  const unreachable = { failure: { kind: FEED_FAILURES.UNREACHABLE } };
   // What does not answer within the wait is given up, whether or not it heeds the signal.
   const givenUp = new Promise((_, giveUp) => signal.addEventListener('abort', () => giveUp(signal.reason), { once: true }));
   givenUp.catch(() => {});
@@ -95,7 +96,7 @@ export async function fetchFeed(address, { get = fetch, lookup = resolved, priva
   for (let followed = 0; ; followed += 1) {
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return unreachable;
     try {
-      if (!await Promise.race([mayRead(url, { lookup, privateHosts }), givenUp])) return { failure: { kind: 'not-public' } };
+      if (!await Promise.race([mayRead(url, { lookup, privateHosts }), givenUp])) return { failure: { kind: FEED_FAILURES.NOT_PUBLIC } };
       answer = await Promise.race([get(url.href, { signal, redirect: 'manual', headers: { accept: ACCEPT, 'user-agent': 'Konzilo feed reader' } }), givenUp]);
     } catch (error) {
       return failed(error);
@@ -112,11 +113,11 @@ export async function fetchFeed(address, { get = fetch, lookup = resolved, priva
   }
   if (!answer.ok) {
     await answer.body?.cancel().catch(() => {});
-    return { failure: { kind: 'status', status: answer.status } };
+    return { failure: { kind: FEED_FAILURES.STATUS, status: answer.status } };
   }
   if (Number(answer.headers.get('content-length') ?? 0) > bytes) {
     await answer.body?.cancel().catch(() => {});
-    return { failure: { kind: 'too-large' } };
+    return { failure: { kind: FEED_FAILURES.TOO_LARGE } };
   }
   const pieces = [];
   let length = 0;
@@ -125,7 +126,7 @@ export async function fetchFeed(address, { get = fetch, lookup = resolved, priva
       length += piece.length;
       if (length > bytes) {
         await answer.body.cancel().catch(() => {});
-        return { failure: { kind: 'too-large' } };
+        return { failure: { kind: FEED_FAILURES.TOO_LARGE } };
       }
       pieces.push(Buffer.from(piece));
     }
@@ -220,7 +221,7 @@ export function feedReader({ store, site, forgejo, repository, token, get = fetc
     if (read.problem) return failed({ kind: read.problem });
     const described = site();
     const type = Object.hasOwn(described.types, feed.type) ? described.types[feed.type] : null;
-    if (type === null) return failed({ kind: 'no-type' });
+    if (type === null) return failed({ kind: FEED_FAILURES.NO_TYPE });
     const known = store.feedItems(feed.id);
     const done = reconcile({ known, first: !feed.firstRead, items: read.items, now: atText });
     const tag = described.languages.length > 1 ? feed.language : null;
@@ -254,7 +255,7 @@ export function feedReader({ store, site, forgejo, repository, token, get = fetc
       }
     } catch (error) {
       warn(`The feed reader could not tell the slugs of ${type.collection} for ${feed.address}: ${error.message}`);
-      return failed({ kind: 'not-saved' });
+      return failed({ kind: FEED_FAILURES.NOT_SAVED });
     }
     for (const { item, known: held } of done.correct) {
       const file = feedPostFile(item, { site: described, type: typeOfPath(held.path) ?? type, seen: held.seen, now: atText, slug: held.slug });
@@ -270,7 +271,7 @@ export function feedReader({ store, site, forgejo, repository, token, get = fetc
         await commit(changes, `Read the feed ${feed.address}`);
       } catch (error) {
         warn(`The feed reader could not save what it read of ${feed.address}: ${error.message}`);
-        return failed({ kind: 'not-saved' });
+        return failed({ kind: FEED_FAILURES.NOT_SAVED });
       }
     }
     return store.feedRead(feed.id, { at, items: kept });
