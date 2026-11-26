@@ -107,6 +107,8 @@ export function siteBuild({ site, origin, code, source, content, roles, control,
       warn(`A command of the build took too long again, so the build failed: ${error.message}`);
       return finishing();
     };
+    // A build whose intake reported nothing keeps what the last build read of each post, and
+    // `read`, the version of each file it read itself, which its reason fails (status.js).
     const finish = ({ source: read = previous?.source ?? null, reason = null, stopped = null, report = null, versions = {}, release = previous?.release ?? null, unindexed = false }) => {
       const posts = report ? postsFrom(report, versions) : previous?.posts ?? {};
       const refusals = report?.refusals ?? previous?.refusals ?? [];
@@ -118,6 +120,7 @@ export function siteBuild({ site, origin, code, source, content, roles, control,
         stopped,
         next: report ? report.next ?? null : previous?.next ?? null,
         release,
+        ...(report === null && Object.keys(versions).length > 0 ? { read: versions } : {}),
         posts,
         refusals: refusals.filter(({ post }) => !post),
         warnings: (report?.warnings ?? previous?.warnings ?? []).filter(({ post }) => !post),
@@ -159,10 +162,10 @@ export function siteBuild({ site, origin, code, source, content, roles, control,
     } catch (error) {
       if (error instanceof TookTooLong) {
         await undoing();
-        return stoppedBy(error, () => finish({ source: head, reason: TOOK_TOO_LONG }));
+        return stoppedBy(error, () => finish({ source: head, reason: TOOK_TOO_LONG, versions }));
       }
       warn(`The check broke: ${error.message}`);
-      return finish({ source: head, reason: CHECK_BROKE });
+      return finish({ source: head, reason: CHECK_BROKE, versions });
     }
 
     let fingerprint;

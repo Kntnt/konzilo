@@ -50,6 +50,15 @@ describe('a post\'s publish status', () => {
     assert.equal(fresh.stillShown, false);
   });
 
+  // An intake stopped, or broken, reports nothing, and the record keeps the posts the build
+  // before read, with the versions this one read.
+  test('is failed, with the build\'s reason, when the last build read that version and its intake reported nothing', () => {
+    const status = publishStatus({ ...record({ reason: REASON }), read: { [FILE]: 'v2' } }, FILE, 'v2');
+    assert.deepEqual({ status: status.status, reason: status.reason, stillShown: status.stillShown }, { status: 'failed', reason: REASON, stillShown: true });
+    assert.equal(publishStatus({ ...record({ reason: REASON }), read: { [FILE]: 'v2' } }, FILE, 'v3').status, 'being-published', 'a version saved since');
+    assert.equal(publishStatus({ ...record({ reason: REASON }), read: { [FILE]: 'v1' } }, FILE, 'v1').status, 'live', 'the version the release holds');
+  });
+
   test('is not failed by a build that never read that version', () => {
     const status = publishStatus(record({ posts: { [FILE]: post({ version: 'v2' }) }, reason: REASON }), FILE, 'v3');
     assert.equal(status.status, 'being-published');
