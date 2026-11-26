@@ -71,15 +71,12 @@ export function purgeControl(folder) {
   };
 }
 
-// The steps of a purge, in the order it takes them: what it will push, `planned`; the source
-// pushed, `source`; the content pushed, `content`; what went let go by Forgejo, `collected`; its
-// archives removed, `archives`; and the build log without what went, `log`. Once the source is
-// pushed, a purge that has not taken the last is unfinished.
-export const PURGE_STEPS = ['planned', 'source', 'content', 'collected', 'archives', 'log'];
-
 // A purge's progress, `kept`, { id, request, steps, planned }, as `control` keeps it: { request,
 // planned, has(step), did(step, more) }, `did` writing that a step is taken, with what more it
-// learned, before it gives.
+// learned, before it gives. The steps, in the order a purge takes them: what it will push,
+// `planned`; the source pushed, `source`; the content pushed, `content`; what went let go by
+// Forgejo, `collected`; its archives removed, `archives`; and the build log without what went,
+// `log`. Once the source is pushed, a purge that has not taken the last is unfinished.
 export function progressOf(control, kept) {
   let held = { ...kept, steps: [...kept.steps] };
   return {

@@ -15,10 +15,10 @@ const REVIEWERS_TEAM = 'reviewers';
 
 // `token`: a credential that may read the organisation's teams and every account's pushes.
 // `instance`: the account the core itself pushes with, which counts as an Admin and is never a
-// Reviewer. `folder`: where it keeps what it has learned. `settled`: how long it may wait for a new commit to show in the
-// feed, which Forgejo writes a moment after the push. `carried()`: who pushed each save a purge
-// rewrote, as the record of purges carried it over, { [sha]: { login } or null }, which goes before
-// the feed, where the purge's own push names the instance's account (ADR 0078).
+// Reviewer. `folder`: where it keeps what it has learned. `settled`: how long it may wait for a new
+// commit to show in the feed, which Forgejo writes a moment after the push. `carried()`: who pushed
+// each save a purge rewrote, as the record of purges carried it over, { [sha]: { login } or null },
+// which goes before the feed, where the purge's own push names the instance's account (ADR 0078).
 export function forgejoRoles({ forgejo, repository, token, instance, folder, sleep = (ms) => new Promise((go) => setTimeout(go, ms)), settled = 15_000, step = 500, get = fetch, carried = async () => ({}) }) {
   const asked = async (path) => {
     const answer = await get(`${forgejo}/api/v1${path}`, { headers: { authorization: `token ${token}` } });

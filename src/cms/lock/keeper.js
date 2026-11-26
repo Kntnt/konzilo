@@ -39,10 +39,10 @@ const PURGING = new Set(['waiting', 'warning', 'running', 'unfinished']);
 const PURGE_REFUSALS = { waiting: 'lock.refusedPurgeWaiting', unfinished: 'lock.refusedPurgeUnfinished' };
 const purgeRefused = (purge) => ({ name: PURGE_REFUSALS[purge] ?? 'lock.refusedPurge' });
 
-// What the locks say of an Admin's purge to a tab, which keeps the purges it saw before they
-// ended in `seen`: `warn`, the tab is to reload before it runs, as it has a form open; `shut`, it
-// waits, runs or is unfinished, and no form opens; `reload`, one the tab saw coming is done, and what the tab read
-// of the source may be gone; and `open`, none waits or runs.
+// What the locks say of an Admin's purge to a tab, which keeps the purges it saw before they ended
+// in `seen`: `warn`, the tab is to reload before it runs, as it has a form open; `shut`, it waits,
+// runs or is unfinished, and no form opens; `reload`, one the tab saw coming is done, and what the
+// tab read of the source may be gone; and `open`, none waits or runs.
 export function purgeNews(purge, seen) {
   if (purge && PURGING.has(purge.state)) {
     seen.add(purge.id);

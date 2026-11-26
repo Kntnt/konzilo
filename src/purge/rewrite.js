@@ -11,8 +11,8 @@
 //
 // - `drop(path, at)`: whether a file a commit writes is to go from it, `at` being what the commit
 //   was, { commit, message, read(path) }, `commit` its old identity, `message` its message, and
-//   `read(path)` a file as it left it, or null. A file dropped where the commit before it holds it is removed there, as the commit
-//   it was written over is no longer the file's.
+//   `read(path)` a file as it left it, or null. A file dropped where the commit before it holds it
+//   is removed there, as the commit it was written over is no longer the file's.
 // - `change(path, bytes)`: a file's new bytes, or null to keep it as it is. It is given the file
 //   alone, so that each version of a file is changed once, however many commits hold it.
 // - `reads(path, blob)`: whether `change` is to be given this version of a file at all, so that

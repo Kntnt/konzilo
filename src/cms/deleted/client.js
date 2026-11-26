@@ -51,8 +51,8 @@ export function entryTitle({ values, collection, path }) {
   return typeof title === 'string' && title.trim() !== '' ? title : idOf(path);
 }
 
-// What the editor calls the entry `id` where Sveltia has fetched it: { title }, `title` by the first
-// field that names it, or null where it holds none; else null.
+// What the editor calls the entry `id` where Sveltia has fetched it: { title }, `title` by the
+// first field that names it, or null where it holds none; else null.
 export function fetchedEntry(id) {
   const entry = (globalThis.konziloSveltia?.entries() ?? []).find(({ slug, id: own }) => slug === id || own === id);
   if (entry === undefined) return null;

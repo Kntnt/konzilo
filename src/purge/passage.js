@@ -135,7 +135,8 @@ async function textsHolding(git, shas, holds) {
   return found;
 }
 
-// Each save on the branch whose message holds the passage, newest first: { commit, moment, message }.
+// Each save on the branch whose message holds the passage, newest first: { commit, moment,
+// message }.
 async function messagesHolding(git, branch, holds) {
   const records = (await git(['log', '-z', '--format=%H %cI%n%B', branch])).toString('utf8').split('\0').filter(Boolean);
   return records.map((record) => {
@@ -214,14 +215,14 @@ function rulesWithout({ matcher, holding }) {
 // as purgeHistories() does, `source`, `content` and `pushedBy` as it takes them: every version of
 // every file of the source but an image's that holds it, and every message, and every content file
 // of an old revision and every message of the content repository, since each is built from the
-// source; never a file of either head, as an editor's save changes the published text first. Gives what purgeHistories() gives, which takes `tries`, `sleep` and `noted`, with
-// `changed`, in `outcome` and beside it, { files, revisions, messages }, how many files of the
-// source, revisions of them and saves' messages it was taken from.
-// Throws a PurgeRefusal: `current`, with the `paths` of the files of the source as it stands that
-// hold it, which an Admin saves without it first; `published`, with the `paths` of the files of the
-// content repository's head that do, which a build makes again from such a save, or which a post
-// the build refused keeps until one of it is published; or `not-found`, where neither history
-// holds it.
+// source; never a file of either head, as an editor's save changes the published text first. Gives
+// what purgeHistories() gives, which takes `tries`, `sleep` and `noted`, with `changed`, in
+// `outcome` and beside it, { files, revisions, messages }, how many files of the source, revisions
+// of them and saves' messages it was taken from. Throws a PurgeRefusal: `current`, with the `paths`
+// of the files of the source as it stands that hold it, which an Admin saves without it first;
+// `published`, with the `paths` of the files of the content repository's head that do, which a
+// build makes again from such a save, or which a post the build refused keeps until one of it is
+// published; or `not-found`, where neither history holds it.
 export async function purgePassage({ source, content, passage, by, at, pushedBy, tries, sleep, noted }) {
   const result = await purgeHistories({
     source,

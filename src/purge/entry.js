@@ -132,7 +132,8 @@ async function translatedAtHead(git, path) {
 }
 
 // The rules of a redirects file without those that lead to the entry, `post` or `term` by one of
-// `names`, or come from or lead to one of `addresses`: the file's new text, or null where none goes.
+// `names`, or come from or lead to one of `addresses`: the file's new text, or null where none
+// goes.
 function rulesWithout(bytes, { names, kind, addresses }) {
   const read = readJson(bytes);
   if (!Array.isArray(read?.rules)) return null;

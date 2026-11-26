@@ -16,9 +16,10 @@ import { IMAGE_LIBRARY_FOLDER, MEDIA_FOLDER } from '../format/masters.js';
 const BRANCH = 'main';
 
 // Whether a source file is a post, a term or an image library entry of the site `site` describes:
-// { collection, kind } where it is, `kind` one of `post`, `term` and `image`, else null. A post is `.md` and a term `.json` in its collection's
-// folder, on a site in several languages in its language's folder below it, and a library entry
-// `.json` in the library's folder, which is in one language.
+// { collection, kind } where it is, `kind` one of `post`, `term` and `image`, else null. A post is
+// `.md` and a term `.json` in its collection's folder, on a site in several languages in its
+// language's folder below it, and a library entry `.json` in the library's folder, which is in one
+// language.
 export function deletableIn(site) {
   const tags = site.languages.length > 1 ? site.languages.map(({ tag }) => tag) : null;
   const folders = [
