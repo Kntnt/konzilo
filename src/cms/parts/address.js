@@ -7,8 +7,7 @@
 // collection's entries. The address itself is filled where every address is
 // (format/addresses.js).
 
-import { filledAddress } from '../../format/addresses.js';
-import { slugFrom } from '../../format/article-parts.js';
+import { filledAddress, termSlug } from '../../format/addresses.js';
 import { momentOf } from '../../format/moment.js';
 import { sourceReader } from '../source.js';
 
@@ -38,8 +37,8 @@ export function termPathReader({ api, repository, branch, credential, get, now =
       if (seen.has(next)) return null;
       seen.add(next);
       const term = await read(`${collection}/${folder ? `${folder}/` : ''}${next}.json`);
-      const slug = typeof term?.slug === 'string' && term.slug !== '' ? term.slug : slugFrom(term?.name ?? '');
-      if (!slug) return null;
+      const slug = term === null ? null : termSlug(term);
+      if (typeof slug !== 'string' || slug === '') return null;
       slugs.unshift(slug);
       next = typeof term.parent === 'string' && term.parent !== '' ? term.parent : null;
     }

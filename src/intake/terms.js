@@ -3,7 +3,7 @@
 // each term above it.
 
 import { MARKUP } from '../checks.js';
-import { slugFrom } from './post-file.js';
+import { termSlug } from '../format/addresses.js';
 import { groupBy } from './run.js';
 import { named, say } from './words.js';
 
@@ -34,7 +34,7 @@ export function readTerms(run) {
     const description = typeof value?.description === 'string' ? value.description.trim() : '';
     term.description = description;
     if (MARKUP.test(name) || MARKUP.test(description)) term.problems.push(say('refusal.term-markup', { term: term.label }));
-    const slug = value?.slug === undefined || value?.slug === null || value?.slug === '' ? slugFrom(name) : value.slug;
+    const slug = termSlug(value);
     term.slug = typeof slug === 'string' ? slug : '';
     if (!TERM_SLUG.test(term.slug) && name !== '') term.problems.push(say('refusal.term-slug', { term: term.label, slug: String(slug) }));
     if (first.taxonomy.hierarchical && typeof value?.parent === 'string' && value.parent !== '') term.parentId = value.parent;

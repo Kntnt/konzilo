@@ -4,7 +4,7 @@
 
 import { isObject, MARKUP } from '../checks.js';
 import { checkBody, readBody } from '../format/body.js';
-import { canonicalAddress } from '../format/addresses.js';
+import { canonicalAddress, madeSlug } from '../format/addresses.js';
 import { embedOf } from '../format/embeds.js';
 import { focalPointOf } from '../format/focal-point.js';
 import { momentOf } from '../format/moment.js';
@@ -18,24 +18,15 @@ import { declaredNames, postListModel, SCHEMA_TYPES, SEO_KEYS, SEO_PARTS, siteRu
 import { sha256 } from './source.js';
 import { fieldValued, notOffered, say } from './words.js';
 
-// A slug: its own, or made from the title, in lowercase letters, digits, hyphens and
-// underscores; anything else given is refused.
+// A slug: its own, or made from the title (madeSlug()), in lowercase letters, digits, hyphens
+// and underscores; anything else given is refused.
 const SLUG = /^[a-z0-9_-]+$/;
-
-export function slugFrom(text) {
-  return text
-    .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
 
 // A post's slug, or { reason }.
 export function slugOf(post) {
   const { slug } = post.fields;
   if (slug === undefined || slug === null || slug === '') {
-    const made = slugFrom(post.title ?? '');
+    const made = madeSlug(post.title ?? '');
     return made === '' ? { reason: say('refusal.slug-empty') } : { slug: made };
   }
   return typeof slug === 'string' && SLUG.test(slug) ? { slug } : { reason: say('refusal.slug', { slug: String(slug) }) };

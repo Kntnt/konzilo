@@ -31,6 +31,26 @@ import { british } from '../refusals.js';
 // The tokens of the post's date, in the order an address holds them.
 export const DATE_TOKENS = Object.freeze(['year', 'month', 'day']);
 
+// A slug made from a text, as the intake makes a post's from its title and a term's from its
+// name: lowercase, letters without their accents, and a hyphen for each run of anything but
+// letters, digits, hyphens and underscores.
+export function madeSlug(text) {
+  return text
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+// A term's slug, from its file's data: its own, as the file gives it, or, where it gives none,
+// one made from its name. The site publishes a term at it, and the form shows it alike.
+export function termSlug(term) {
+  const own = term?.slug;
+  if (own !== undefined && own !== null && own !== '') return own;
+  return madeSlug(typeof term?.name === 'string' ? term.name.trim() : '');
+}
+
 // The steps of an address, a path from the site's root that ends in `/`, each { text } or
 // { token }, the name between braces of a step that is one token alone.
 export function addressSteps(address) {

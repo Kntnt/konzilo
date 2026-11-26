@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
 import { formAddress, termIdIn, termPathReader } from '../src/cms/parts/address.js';
+import { run, sourcePost } from './lib/intake.js';
 
 const encoded = (text) => Buffer.from(text).toString('base64');
 
@@ -50,6 +51,25 @@ describe('the address a post\'s form shows', () => {
     const asked = stand.asked.length;
     await pathOf('categories', 'ptsdptsdptsd');
     assert.equal(stand.asked.length, asked, 'each file read once a while');
+  });
+
+  // The site is where the intake puts a post, so the form makes a term's missing slug as the
+  // intake does, whatever letters its name holds.
+  test('gives the address the site gives, for a term whose file has a name and no slug', async () => {
+    const declared = {
+      language: 'en_GB',
+      images: { smallestWidth: 400, displayWidth: 1280 },
+      types: { story: { label: 'Story', plural: 'Stories', collection: 'stories', address: '/{category}/{slug}/', elements: ['paragraph'], fields: { category: { taxonomy: 'category', most: 1, required: true } } } },
+      taxonomies: { category: { label: 'Category', plural: 'Categories', collection: 'categories' } },
+    };
+    for (const name of ['Straße', 'Sjöfart_och_hamn']) {
+      const term = { name };
+      const published = run({ 'stories/aaaaaaaaaaaa.md': sourcePost({ title: 'Lanterns', slug: 'lanterns', status: 'published', category: 'termtermterm' }), 'categories/termtermterm.json': term }, declared);
+      assert.deepEqual(published.refusals, [], name);
+      const pathOf = termPathReader({ api: 'http://git/api/v1', repository: 'org/source', branch: 'main', credential: () => 'token mine', get: forgejo({ 'categories/termtermterm.json': term }).get });
+      const shown = formAddress(SITE, '/{category}/{slug}/', { slug: 'lanterns' }, { category: await pathOf('categories', 'termtermterm') });
+      assert.equal(new URL(shown).pathname, published.ledger.posts.aaaaaaaaaaaa.address, name);
+    }
   });
 
   test('takes the one term a field holds, as a list or alone', () => {
