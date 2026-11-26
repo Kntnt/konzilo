@@ -309,6 +309,32 @@ describe('the incoming feeds', () => {
     assert.equal((await hold(EDITOR)).status, 200);
   });
 
+  test('a feed is removed without waiting for another feed\'s read, and stops its own read under way', async () => {
+    const slow = feedReader({ store, site: () => site, forgejo: 'http://forgejo', repository: 'org/source', token: READER, get, now: () => clock, warn: () => {}, waitAtMost: 60_000, pause: async () => {} });
+    const service = editorsService({ forgejo: 'http://forgejo', repository: 'org/source', token: 'read-token', rolesToken: 'roles', control: buildControl(join(folder, `control-${Date.now()}`)), store, site: () => site, feeds: slow, get, now: () => clock, warn: () => {} });
+    const other = createServer((incoming, outgoing) => service.request(incoming, outgoing));
+    await new Promise((go) => other.listen(0, '127.0.0.1', go));
+    const remove = async (id) => (await fetch(`http://127.0.0.1:${other.address().port}/_konzilo/feeds/${id}`, { method: 'DELETE', headers: ADMIN })).status;
+    const within = (what, promise) => Promise.race([promise, new Promise((_, late) => setTimeout(() => late(new Error(`${what} took too long`)), 5000).unref())]);
+    try {
+      const hanging = ({ signal }) => new Promise((_, refuse) => signal.addEventListener('abort', () => refuse(signal.reason)));
+      served[RSS] = hanging;
+      served[ATOM] = () => new Promise(() => {});
+      const first = store.addFeed({ address: RSS, type: 'article', every: 5, at: clock });
+      const second = store.addFeed({ address: ATOM, type: 'page', every: 5, at: clock });
+      const running = slow.run();
+      await new Promise((go) => setTimeout(go, 50));
+      assert.equal(await within('removing the feed not read yet', remove(second)), 200);
+      assert.equal(await within('removing the feed being read', remove(first)), 200);
+      await within('the run', running);
+      assert.deepEqual(store.feeds(), []);
+      assert.deepEqual(asked.filter((url) => url === ATOM), [], 'the feed removed is not read after');
+    } finally {
+      other.closeAllConnections();
+      await new Promise((go) => other.close(go));
+    }
+  });
+
   test('a feed whose posts cannot be released stays', async () => {
     served[RSS] = rss(A);
     await add({ address: RSS, type: 'article' });

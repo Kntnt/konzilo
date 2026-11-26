@@ -49,9 +49,10 @@ async function* race(stream, stopped) {
 }
 
 // A feed's answer: { text }, or { failure: { kind, status } }, `kind` one of `unreachable`,
-// `timeout`, `status`, with the HTTP `status` it answered, and `too-large`.
-export async function fetchFeed(address, { get = fetch, bytes = FEED_BYTES, waitAtMost = FEED_WAIT } = {}) {
-  const signal = AbortSignal.timeout(waitAtMost);
+// `timeout`, `status`, with the HTTP `status` it answered, and `too-large`. `stop`: a signal that
+// gives the read up before its time, as the feed's removal does.
+export async function fetchFeed(address, { get = fetch, bytes = FEED_BYTES, waitAtMost = FEED_WAIT, stop = null } = {}) {
+  const signal = stop ? AbortSignal.any([AbortSignal.timeout(waitAtMost), stop]) : AbortSignal.timeout(waitAtMost);
   const failed = (error) => ({ failure: { kind: error?.name === 'TimeoutError' || signal.aborted ? 'timeout' : 'unreachable' } });
   // What does not answer within the wait is given up, whether or not it heeds the signal.
   const given = new Promise((_, giveUp) => signal.addEventListener('abort', () => giveUp(signal.reason), { once: true }));
@@ -94,8 +95,9 @@ export async function fetchFeed(address, { get = fetch, bytes = FEED_BYTES, wait
 //
 // Gives { run(), read(id), release(id) }: `run` reads each feed whose interval has passed, one
 // after another; `read` reads one now, whatever its interval; `release` releases a feed's posts
-// and forgets it, or throws where they could not be saved, the feed then kept. Each waits for the
-// one before, so that no two touch a feed at once.
+// and forgets it, or throws where they could not be saved, the feed then kept. What is asked of a
+// feed waits for what was asked of it before, so that no two touch a feed at once, but for no
+// other feed's; and a release gives up the feed's read under way, which then keeps nothing.
 export function feedReader({ store, site, forgejo, repository, token, get = fetch, now = () => new Date(), warn = console.error, newId = () => randomUUID().replace(/-/g, '').slice(-12), bytes = FEED_BYTES, waitAtMost = FEED_WAIT, pause = (ms) => new Promise((go) => setTimeout(go, ms)) }) {
   const asked = (path, init = {}) => get(`${forgejo}/api/v1/repos/${repository}${path}`, { ...init, headers: { ...init.headers, authorization: `token ${token}` } });
 
@@ -137,11 +139,12 @@ export function feedReader({ store, site, forgejo, repository, token, get = fetc
 
   const typeOfPath = (path) => Object.values(site().types).find(({ collection }) => collection === path.split('/')[0]) ?? null;
 
-  const readOne = async (feed) => {
+  const readOne = async (feed, stop) => {
     const at = now();
     const atText = moment(at);
     const failed = (failure) => store.feedRead(feed.id, { at, failure: { at: atText, ...failure } });
-    const answer = await fetchFeed(feed.address, { get, bytes, waitAtMost });
+    const answer = await fetchFeed(feed.address, { get, bytes, waitAtMost, stop });
+    if (stop.aborted) return undefined;
     if (answer.failure) return failed(answer.failure);
     const read = readFeed(answer.text, feed.address);
     if (read.problem) return failed({ kind: read.problem });
@@ -180,46 +183,68 @@ export function feedReader({ store, site, forgejo, repository, token, get = fetc
     return store.feedRead(feed.id, { at, items: kept });
   };
 
-  // What is asked of the reader waits for what was asked before.
-  let queue = Promise.resolve();
-  const inTurn = (work) => {
-    const turn = queue.then(work);
-    queue = turn.catch(() => {});
+  // What is asked of a feed waits for what was asked of it before, each feed's in a queue of its
+  // own, with the read under way, which a release stops.
+  const turns = new Map();
+  const inTurn = (id, work) => {
+    const held = turns.get(id) ?? { queue: Promise.resolve(), reading: null };
+    turns.set(id, held);
+    const turn = held.queue.then(() => work(held));
+    held.queue = turn.catch(() => {});
     return turn;
+  };
+  const feedOf = (id) => store.feeds().find((one) => one.id === id) ?? null;
+  const readNow = async (held, feed) => {
+    held.reading = new AbortController();
+    try {
+      await readOne(feed, held.reading.signal);
+    } finally {
+      held.reading = null;
+    }
   };
   const due = (feed, at) => feed.readAt === null || at - new Date(feed.readAt).getTime() >= feed.every * 60_000 - 5000;
 
   // A run asked for while one is running is the one running.
   let running = null;
   return {
-    run: () => (running ??= inTurn(async () => {
-      for (const feed of store.feeds()) {
-        if (!due(feed, now().getTime())) continue;
-        try {
-          await readOne(feed);
-        } catch (error) {
-          warn(`The feed reader broke on ${feed.address}: ${error.stack ?? error.message}`);
-        }
+    run: () => (running ??= (async () => {
+      for (const { id } of store.feeds()) {
+        await inTurn(id, async (held) => {
+          const feed = feedOf(id);
+          if (feed === null || !due(feed, now().getTime())) return;
+          try {
+            await readNow(held, feed);
+          } catch (error) {
+            warn(`The feed reader broke on ${feed.address}: ${error.stack ?? error.message}`);
+          }
+        });
       }
-    }).finally(() => {
+    })().finally(() => {
       running = null;
     })),
-    read: (id) => inTurn(async () => {
-      const feed = store.feeds().find((one) => one.id === id);
-      if (feed) await readOne(feed);
+    read: (id) => inTurn(id, async (held) => {
+      const feed = feedOf(id);
+      if (feed) await readNow(held, feed);
     }),
-    release: (id) => inTurn(async () => {
-      const feed = store.feeds().find((one) => one.id === id);
-      if (!feed) return 0;
-      const posts = store.feedPosts().filter((post) => post.feed === id);
-      const changes = [];
-      for (const { path } of posts) {
-        const held = await fileOf(path);
-        if (held) changes.push({ path, text: releasedFile(held.text) });
-      }
-      if (changes.length > 0) await commit(changes, `Release the posts of the feed ${feed.address}`);
-      store.removeFeed(id);
-      return posts.length;
-    }),
+    release: (id) => {
+      turns.get(id)?.reading?.abort();
+      return inTurn(id, async () => {
+        const feed = feedOf(id);
+        if (!feed) {
+          turns.delete(id);
+          return 0;
+        }
+        const posts = store.feedPosts().filter((post) => post.feed === id);
+        const changes = [];
+        for (const { path } of posts) {
+          const held = await fileOf(path);
+          if (held) changes.push({ path, text: releasedFile(held.text) });
+        }
+        if (changes.length > 0) await commit(changes, `Release the posts of the feed ${feed.address}`);
+        store.removeFeed(id);
+        turns.delete(id);
+        return posts.length;
+      });
+    },
   };
 }
