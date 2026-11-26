@@ -41,6 +41,9 @@ export const BEFORE_CONSENT = 'tagManagerBeforeConsent';
 // allows statistics.
 export const WITHOUT_STORAGE = 'statisticsWithoutStorageBeforeConsent';
 
+// Whether a departure of the site description's consent is that one.
+export const isWithoutStorage = (departure) => departure?.departure === WITHOUT_STORAGE;
+
 // The countries of the EU and the EEA by their two-letter codes, Greece's
 // as ISO 3166-1 has it (GR): an instance run in any other is a transfer of
 // what visitors' browsers send it out of them.

@@ -19,7 +19,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CONSENT_FILE } from '../format/consent.js';
-import { BEFORE_CONSENT, CONSENT_EVENT, CONSENT_KEY, tagManagerOf, trackerOf, WITHOUT_STORAGE } from '../format/tag-manager.js';
+import { BEFORE_CONSENT, CONSENT_EVENT, CONSENT_KEY, isWithoutStorage, tagManagerOf, trackerOf } from '../format/tag-manager.js';
 import { isPublicBuild, origin } from './public-site.js';
 
 // The variable of the build's environment that says the build is for the
@@ -87,7 +87,7 @@ export function pageTracker({ command, base, environment = process.env, folder, 
     warn(`Matomo's cookie domain is ${cookieDomain}, which the public host ${host} is neither at nor below, so Matomo keeps its cookies on the host`);
     cookieDomain = null;
   }
-  const departure = built.registry.departures?.find((one) => one.departure === WITHOUT_STORAGE);
+  const departure = built.registry.departures?.find(isWithoutStorage);
   let { timeZone } = chosen;
   if (timeZone !== null && !knownTimeZone(timeZone)) {
     warn(`Matomo's time zone is ${timeZone}, which this build does not know, so a visit counted before consent has its time of day in UTC`);

@@ -13,7 +13,7 @@ import { formulaReason } from '../format/mathml.js';
 import { readPostList, SECOND_PAGED_LIST } from '../format/post-list.js';
 import { isSource, OTHER_ANSWERS, SHOW } from '../format/redirects.js';
 import rules from '../format/rules.json' with { type: 'json' };
-import { WITHOUT_STORAGE } from '../format/tag-manager.js';
+import { isWithoutStorage } from '../format/tag-manager.js';
 import { declaredNames, postListModel, SCHEMA_TYPES, SEO_KEYS, SEO_PARTS, siteRules, TEXT_FIELDS } from '../site-description.js';
 import { sha256 } from './source.js';
 import { fieldValued, notOffered, say } from './words.js';
@@ -240,7 +240,7 @@ const OBJECTION = rules.elements['consent-objection'].directive.name;
 export function bodyHands(site, post, { reader, adminHost, listTerms, link, image, components = null }) {
   const lists = postListModel(site);
   const attributes = rules.elements['post-list'].directive.attributes;
-  const counts = site.consent.departures.some((departure) => departure.departure === WITHOUT_STORAGE);
+  const counts = site.consent.departures.some(isWithoutStorage);
   let paged = 0;
   return {
     reader,
