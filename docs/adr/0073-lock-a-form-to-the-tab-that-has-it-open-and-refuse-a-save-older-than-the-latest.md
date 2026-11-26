@@ -48,4 +48,5 @@
 ## Consequences
 
 - [ADR 0029](0029-configure-sveltia-from-the-description-and-patch-its-npm-build.md)'s patch of a retry when two people save at once is part of this decision, and *Save Anyway* is patched away, and so is a relation's *Edit* of an existing entry, which would save that entry with the form under no lock of its own.
+- While an Admin's purge waits or runs, no tab holds a form it does not hold already: a hold is answered `423`, the form opens read-only with the way back to the list, and a save, a deletion and a restore are refused; the purge's words are told with the locks, and each tab that has a form open when a purge runs anyway reloads ([ADR 0078](0078-purge-a-deleted-entry-from-both-repositories-histories-and-carry-over-each-rewritten-saves-identity.md)).
 - `GLOSSARY.md` defines the lock and the takeover, and a refusal covers a save older than the latest.

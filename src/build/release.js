@@ -42,8 +42,9 @@ export function releases(folder) {
     // its pages and the marks of its Markdown alternates among them, `marks`, each an empty file
     // at its path from the pages' root (web-server.js), in place of any the build wrote there, and
     // makes it what visitors get. The web server looks for a change of its rules by itself, and
-    // for a mark at each request.
-    publish(built, name, rules = '', marks = []) {
+    // for a mark at each request. `alone`: no release from before stays, as after a purge, which
+    // one may hold what it took (ADR 0078).
+    publish(built, name, rules = '', marks = [], { alone = false } = {}) {
       mkdirSync(below, { recursive: true });
       const making = join(below, `.${name}`);
       rmSync(making, { recursive: true, force: true });
@@ -62,21 +63,21 @@ export function releases(folder) {
       rmSync(link, { force: true });
       symlinkSync(join(RELEASES, name), link);
       renameSync(link, join(folder, CURRENT));
-      this.tidy();
+      this.tidy(alone ? 1 : KEPT);
     },
 
     // Removes what no longer serves: older releases, one that a stop left half made, and
     // whatever else lies in the folder, which only this code writes in.
-    tidy() {
+    tidy(kept = KEPT) {
       for (const name of readdirSync(folder)) {
         if (name !== RELEASES && name !== CURRENT) rmSync(join(folder, name), { recursive: true, force: true });
       }
       if (!existsSync(below)) return;
       const here = current();
       const names = readdirSync(below).filter((name) => lstatSync(join(below, name)).isDirectory());
-      const kept = new Set(names.filter((name) => !name.startsWith('.')).sort().slice(-KEPT));
-      if (here) kept.add(here);
-      for (const name of names) if (!kept.has(name)) rmSync(join(below, name), { recursive: true, force: true });
+      const staying = new Set(names.filter((name) => !name.startsWith('.')).sort().slice(-kept));
+      if (here) staying.add(here);
+      for (const name of names) if (!staying.has(name)) rmSync(join(below, name), { recursive: true, force: true });
     },
   };
 }

@@ -1,0 +1,220 @@
+// An Admin's purge of a deleted entry on the *Deleted* page (ADR 0078), in steps, each of which
+// says that it is meant and that there is no way back, and that backups keep what is purged until
+// they expire: first that it is meant, then the entry's name written to confirm it, then, where
+// others have forms open, who has which, and whether to run anyway, their tabs loading again, or to
+// wait for them, while nobody may open a form; then how it stands until it has ended. Every tab
+// that saw it coming loads again once it is done, this one too (lock/register.js), which then says
+// what was purged. It is React, since that is what Sveltia takes, in the browser's own dialog.
+
+import { say } from '../interface-language.js';
+import { momentValue, wordsShown } from '../refusals.js';
+
+const react = () => globalThis.__SVELTIA_CMS_REACT__;
+const sveltia = () => globalThis.konziloSveltia;
+// How often a purge that waits or runs is looked at again.
+const LOOK = 2000;
+// What this tab purged, said once after it loads again.
+const PURGED_KEY = 'konzilo-purged';
+
+// The purge this tab asked for, { id, title }, kept in the tab's storage from the moment it starts,
+// since every tab that saw it coming loads again once it is done (lock/register.js), before this
+// page may have seen it done.
+const asked = (purge, title) => {
+  try {
+    globalThis.sessionStorage?.setItem(PURGED_KEY, JSON.stringify({ id: purge.id, title }));
+  } catch { /* Nothing said after the page loads again, then. */ }
+};
+
+// What this tab purged before it loaded again, by `purge`, the last purge as the service tells it
+// to an Admin: its entry's name, where it is the purge this tab asked for and is done, else null.
+// What the tab kept goes once that purge has ended, and is said for as long as the page is open.
+let purgedLast;
+export function purgedBefore(purge) {
+  if (purgedLast !== undefined) return purgedLast;
+  let kept = null;
+  try {
+    kept = JSON.parse(globalThis.sessionStorage?.getItem(PURGED_KEY) ?? 'null');
+  } catch {
+    kept = null;
+  }
+  if (kept === null || purge?.id !== kept.id) return null;
+  if (!['done', 'failed'].includes(purge.state)) return null;
+  try {
+    globalThis.sessionStorage?.removeItem(PURGED_KEY);
+  } catch { /* Said once all the same. */ }
+  purgedLast = purge.state === 'done' ? kept.title : null;
+  return purgedLast;
+}
+
+// A form another tab has open, as an Admin reads it: its type and the name of its entry.
+function formShown({ form, name, since }, collectionOf) {
+  const [collection, ...rest] = form.split('/');
+  const id = rest.join('/');
+  const entry = (sveltia()?.entries() ?? []).find(({ slug, id: own }) => slug === id || own === id);
+  const content = entry?.locales?._default?.content ?? Object.values(entry?.locales ?? {})[0]?.content ?? {};
+  const title = [content.title, content['group-name.title'], content.name, content.alt].find((one) => typeof one === 'string' && one !== '') ?? id;
+  return wordsShown({ name: 'deleted.purgeFormOpen', values: { name, collection: collectionOf(collection)?.label ?? collection, title, since: momentValue(since) } });
+}
+
+// Why a purge was not made, in words.
+const FAILED = { 'not-deleted': 'deleted.purgeFailed-not-deleted', 'not-found': 'deleted.purgeFailed-not-found', unanswered: 'deleted.purgeFailed-unanswered' };
+const failedWords = (reason) => say(FAILED[reason] ?? 'deleted.purgeFailed-broke');
+
+// `row`: the entry, as the list holds it. `service`: as purge.js gives it. `onClose()`: closes it.
+export function PurgeDialog({ row, service, collectionOf, onClose }) {
+  const { createElement: h, useEffect, useRef, useState } = react();
+  const dialog = useRef(null);
+  const heading = useRef(null);
+  const [step, setStep] = useState('meant');
+  const [written, setWritten] = useState('');
+  const [open, setOpen] = useState([]);
+  const [purge, setPurge] = useState(null);
+  const [said, setSaid] = useState(null);
+  const ours = useRef(null);
+  const title = row.title;
+  const kind = collectionOf(row.collection)?.label ?? row.collection;
+
+  useEffect(() => {
+    const element = dialog.current;
+    if (!element.open) element.showModal();
+    return () => {
+      if (element.open) element.close();
+    };
+  }, []);
+  useEffect(() => {
+    heading.current?.focus();
+  }, [step]);
+  // A purge that waits or runs, looked at again until it has ended.
+  useEffect(() => {
+    if (step !== 'progress') return undefined;
+    let gone = false;
+    const look = async () => {
+      const now = await service.status();
+      if (gone || !now?.admin) return;
+      const shown = now.purge;
+      if (shown?.id !== ours.current) {
+        if (shown === null) setPurge({ id: ours.current, state: 'stopped' });
+        return;
+      }
+      setPurge(shown);
+      if (shown.state === 'done') setTimeout(() => globalThis.location.reload(), LOOK);
+    };
+    const timer = setInterval(look, LOOK);
+    void look();
+    return () => {
+      gone = true;
+      clearInterval(timer);
+    };
+  }, [step]);
+
+  const toForms = async () => {
+    setSaid(null);
+    const now = await service.status();
+    if (!now?.admin) {
+      setSaid(say('deleted.purgeFailed-broke'));
+      return;
+    }
+    setOpen(now.open ?? []);
+    setStep('forms');
+  };
+  const start = async (course) => {
+    setSaid(null);
+    try {
+      const answer = await service.start(row.path, course);
+      if (answer.gone) {
+        setSaid(say('deleted.purgeFailed-not-found'));
+        return;
+      }
+      if (answer.busy) {
+        setSaid(say('deleted.purgeBusy'));
+        return;
+      }
+      ours.current = answer.purge.id;
+      asked(answer.purge, title);
+      setPurge(answer.purge);
+      setStep('progress');
+    } catch (error) {
+      console.warn(`The purge could not be asked for: ${error.message}`);
+      setSaid(say('deleted.purgeFailed-broke'));
+    }
+  };
+  const stop = async () => {
+    if (await service.stop()) onClose();
+  };
+  const ended = purge && ['done', 'failed', 'stopped'].includes(purge.state);
+  const cancel = (event) => {
+    event.preventDefault();
+    if (step !== 'progress' || ended) onClose();
+  };
+
+  const button = (label, act, more = {}) => h('button', { type: 'button', className: 'konzilo-deleted-button', onClick: act, ...more }, label);
+  const noWayBack = h('p', { className: 'konzilo-purge-warning' }, say('deleted.purgeNoWayBack'));
+  const backups = h('p', null, say('deleted.purgeBackups'));
+  let body;
+  if (step === 'meant') {
+    body = [
+      h('p', { key: 'what' }, say(row.collection === 'image-library' ? 'deleted.purgeWhatImage' : 'deleted.purgeWhat')),
+      h('div', { key: 'no' }, noWayBack, backups),
+      h('div', { key: 'ways', className: 'konzilo-deleted-ways' }, button(say('deleted.purgeCancel'), onClose), button(say('deleted.purgeMeant'), () => setStep('name'), { className: 'konzilo-deleted-button konzilo-purge-go' })),
+    ];
+  } else if (step === 'name') {
+    const matches = written.trim() === title.trim();
+    body = [
+      h('div', { key: 'no' }, noWayBack, backups),
+      h('label', { key: 'name', className: 'konzilo-purge-name' },
+        h('span', null, wordsShown({ name: 'deleted.purgeWrite', values: { title } })),
+        h('input', { type: 'text', value: written, autoComplete: 'off', spellCheck: false, onChange: (event) => setWritten(event.target.value), onKeyDown: (event) => {
+          // By what the box holds as the key is pressed, which the last change may not yet have
+          // drawn.
+          if (event.key === 'Enter' && event.target.value.trim() === title.trim()) void toForms();
+        } })),
+      h('div', { key: 'ways', className: 'konzilo-deleted-ways' }, button(say('deleted.purgeCancel'), onClose), button(say('deleted.purgeConfirm'), toForms, { className: 'konzilo-deleted-button konzilo-purge-go', disabled: !matches })),
+    ];
+  } else if (step === 'forms') {
+    body = open.length === 0
+      ? [
+        h('p', { key: 'none' }, say('deleted.purgeNoneOpen')),
+        h('div', { key: 'no' }, noWayBack, backups),
+        h('div', { key: 'ways', className: 'konzilo-deleted-ways' }, button(say('deleted.purgeCancel'), onClose), button(say('deleted.purgeNow'), () => start('anyway'), { className: 'konzilo-deleted-button konzilo-purge-go' })),
+      ]
+      : [
+        h('p', { key: 'some' }, say('deleted.purgeSomeOpen')),
+        h('ul', { key: 'open', className: 'konzilo-purge-forms' }, open.map((one) => h('li', { key: one.form }, formShown(one, collectionOf)))),
+        h('p', { key: 'anyway' }, say('deleted.purgeAnywayWords')),
+        h('p', { key: 'wait' }, say('deleted.purgeWaitWords')),
+        h('div', { key: 'no' }, noWayBack, backups),
+        h('div', { key: 'ways', className: 'konzilo-deleted-ways' },
+          button(say('deleted.purgeCancel'), onClose),
+          button(say('deleted.purgeWait'), () => start('wait'), { className: 'konzilo-deleted-button konzilo-purge-go' }),
+          button(say('deleted.purgeAnyway'), () => start('anyway'), { className: 'konzilo-deleted-button konzilo-purge-go' })),
+      ];
+  } else {
+    const state = purge?.state ?? 'running';
+    const words = {
+      waiting: say('deleted.purgeWaiting'),
+      warning: say('deleted.purgeWarning'),
+      running: say('deleted.purgeRunning'),
+      done: say('deleted.purgeDone'),
+      stopped: say('deleted.purgeStopped'),
+      failed: failedWords(purge?.reason),
+    }[state];
+    body = [
+      h('p', { key: 'state', role: state === 'failed' ? 'alert' : 'status', className: 'konzilo-purge-state' }, words),
+      state === 'waiting' && (purge.forms ?? []).length > 0 ? h('ul', { key: 'open', className: 'konzilo-purge-forms' }, purge.forms.map((one) => h('li', { key: one.form }, formShown(one, collectionOf)))) : null,
+      h('div', { key: 'ways', className: 'konzilo-deleted-ways' },
+        state === 'waiting' ? button(say('deleted.purgeStop'), stop) : null,
+        ended && state !== 'done' ? button(say('deleted.purgeClose'), onClose) : null),
+    ];
+  }
+  return h('dialog', { ref: dialog, className: 'konzilo-purge-dialog', 'aria-labelledby': 'konzilo-purge-heading', onCancel: cancel },
+    h('h2', { id: 'konzilo-purge-heading', ref: heading, tabIndex: -1 }, wordsShown({ name: step === 'progress' ? 'deleted.purgeOf' : 'deleted.purgeTitle', values: { title, collection: kind } })),
+    ...body,
+    said ? h('p', { role: 'alert', className: 'konzilo-purge-state' }, said) : null);
+}
+
+// The line an Admin reads of the purges made before: how many, and the last by whom and when.
+export function purgesWords(purges) {
+  if (!purges?.length) return null;
+  const last = purges.at(-1);
+  return wordsShown({ name: 'deleted.purgedBefore', values: { count: purges.length, name: last.by.name, moment: momentValue(last.at) } });
+}

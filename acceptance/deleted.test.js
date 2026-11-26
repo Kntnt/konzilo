@@ -1,10 +1,11 @@
 // The *Deleted* page (ADR 0077), in a site in Compose, in each browser engine, with two people
 // signed in, an Admin and an Editor: a post the Editor deletes in the editor is listed with its
-// name, its type, its moment and the account that pushed the deletion, newest first and by type;
-// it opens read-only at its last revision, with its earlier revisions to read and compare by the
-// keyboard; and *Restore* saves it again as a draft under its own ID and opens its form, whose
-// History holds its revisions from before the deletion, the deletion among them. That the page's
-// list is the service's, which answers no one signed out, is held in one engine.
+// name, its type, its moment and the account that pushed the deletion, newest first and by type,
+// and to the Admin with the way to purge it (ADR 0078); it opens read-only at its last revision,
+// with its earlier revisions to read and compare by the keyboard; and *Restore* saves it again as
+// a draft under its own ID and opens its form, whose History holds its revisions from before the
+// deletion, the deletion among them. That the page's list is the service's, which answers no one
+// signed out, is held in one engine.
 
 import assert from 'node:assert/strict';
 import { after, before, beforeEach, describe, test } from 'node:test';
@@ -149,17 +150,18 @@ describe('the Deleted page', () => {
         await listed.waitFor({ timeout: 30_000 });
         assert.equal(await page.locator('tbody tr').first().getAttribute('data-path'), path, 'the newest deletion first');
         assert.equal(await listed.getByRole('rowheader').textContent(), `Deleted ${engine}`);
-        const [type, when, who] = await listed.getByRole('cell').allTextContents();
+        const [type, when, who, purge] = await listed.getByRole('cell').allTextContents();
         assert.equal(type, 'Articles');
         assert.match(when, /\d{1,2} \w+ \d{4}/);
         assert.equal(who, 'ebba', 'the account that pushed the deletion');
+        assert.equal(purge, 'Purge for good…', 'and, to an Admin, the way to purge it');
         await page.getByLabel('Type').selectOption({ label: 'Topics' });
         await page.getByText('Nothing of this type has been deleted.').waitFor({ timeout: 30_000 });
         await page.getByLabel('Type').selectOption({ label: 'Articles' });
         await listed.waitFor({ timeout: 30_000 });
 
         // Read-only at its last revision, by the keyboard, with its revisions.
-        await listed.getByRole('button', { name: `Deleted ${engine}` }).focus();
+        await listed.getByRole('button', { name: `Deleted ${engine}`, exact: true }).focus();
         await anna.page.keyboard.press('Enter');
         const entry = anna.page.getByRole('article', { name: `Deleted ${engine}` });
         await entry.waitFor();

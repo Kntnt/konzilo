@@ -67,6 +67,8 @@ describe('a form\'s revisions', () => {
       // lists a push's commits too.
       const feedOrPush = pathname.endsWith('/activities/feeds') || searchParams.has('sha');
       assert.equal(headers.authorization, feedOrPush ? 'token pushes-token' : 'token read-token', `${pathname} is asked with the service's own credential`);
+      // No purge was made (ADR 0078).
+      if (pathname === '/api/v1/repos/org/source/branches/konzilo-purges') return answerOf({}, 404);
       if (pathname === '/api/v1/repos/org/source/activities/feeds') {
         const page = Number(searchParams.get('page'));
         const limit = Number(searchParams.get('limit'));

@@ -25,6 +25,7 @@ import { demoSource, GIT_ATTRIBUTES } from '../../src/demo-source.js';
 import { enrolSecondFactor, must } from '../../src/forgejo.js';
 import { FEED_READER } from '../../src/format/feed-post.js';
 import { ACCOUNT_NAME, passwordFilesOf, peopleOf, seedPeople } from '../../src/people.js';
+import { keepPurgesProtected } from '../../src/purge/record.js';
 import { keepClient, keepHook } from '../../src/seed-addresses.js';
 import { readSiteDescriptionWithoutTakenComponents } from '../../src/site-description.js';
 import { totp } from '../../src/totp.js';
@@ -61,6 +62,9 @@ const BUILDER = 'builder';
 const BUILDER_TOKEN = '/builder-secret/token';
 const BUILDER_CLIENT = '/builder-secret/oauth-client';
 const ROLES_TOKEN = '/builder-secret/roles-token';
+// The purge's credential (ADR 0078): a token of the instance's account, which alone may rewrite
+// the source repository's history and have Forgejo let go of what no ref reaches (ADR 0007).
+const PURGE_TOKEN = '/purge-secret/token';
 const SEARCH_ADMIN_KEY = '/builder-secret/typesense-admin-key';
 const SEARCH_KEY = '/builder-secret/typesense-search-key';
 const TYPESENSE_CONFIG = '/typesense-secret/typesense.ini';
@@ -250,6 +254,12 @@ async function publishing(call, instancePassword, instanceKey) {
     const { sha1 } = must('making the token that reads who pushed what', await request('/users/konzilo/tokens', { name: `service-pushes-${randomBytes(4).toString('hex')}`, scopes: ['read:repository'] }, basic('konzilo', instancePassword), totp(instanceKey)), 201);
     writeFileSync(SERVICE_PUSHES_TOKEN, `${sha1}\n`, { mode: 0o600 });
   }
+  // The purge's credential, and its record's branch kept to the instance's account (ADR 0078).
+  if (!existsSync(PURGE_TOKEN)) {
+    const { sha1 } = must('making the purge\'s token', await request('/users/konzilo/tokens', { name: `purge-${randomBytes(4).toString('hex')}`, scopes: ['write:admin', 'write:repository'] }, basic('konzilo', instancePassword), totp(instanceKey)), 201);
+    writeFileSync(PURGE_TOKEN, `${sha1}\n`, { mode: 0o600 });
+  }
+  await keepPurgesProtected(call, `${site}/${REPOSITORY}`);
   await clients(call);
   await machineAccount(call, {
     name: SERVICE_READER,
