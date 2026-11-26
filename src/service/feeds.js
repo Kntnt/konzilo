@@ -96,7 +96,7 @@ export async function fetchFeed(address, { get = fetch, bytes = FEED_BYTES, wait
 // after another; `read` reads one now, whatever its interval; `release` releases a feed's posts
 // and forgets it, or throws where they could not be saved, the feed then kept. Each waits for the
 // one before, so that no two touch a feed at once.
-export function feedReader({ store, site, forgejo, repository, token, get = fetch, now = () => new Date(), warn = console.error, newId = () => randomUUID().replace(/-/g, '').slice(-12), bytes = FEED_BYTES, waitAtMost = FEED_WAIT, pause = (ms) => new Promise((go) => setTimeout(go, ms)) }) {
+export function feedReader({ store, site, forgejo, repository, token, get = fetch, now = () => new Date(), warn = console.error, newId = () => randomUUID().replace(/-/g, '').slice(-12), bytes = FEED_BYTES, waitAtMost = FEED_WAIT, pause = (ms) => new Promise((go) => setTimeout(go, ms)), paused = () => false }) {
   const asked = (path, init = {}) => get(`${forgejo}/api/v1/repos/${repository}${path}`, { ...init, headers: { ...init.headers, authorization: `token ${token}` } });
 
   // A source file as the branch holds it: { text, sha }, or null where it holds none.
@@ -113,6 +113,7 @@ export function feedReader({ store, site, forgejo, repository, token, get = fetc
   // made against the file as the branch holds it, and tried again where another commit came first.
   const commit = async (changes, message) => {
     if (token === null) throw new Error('the feed reader has no credential');
+    if (paused()) throw new Error('an Admin\'s purge waits or runs, which a save would start again');
     for (let tried = 1; ; tried += 1) {
       const files = [];
       for (const change of changes) {
@@ -140,6 +141,7 @@ export function feedReader({ store, site, forgejo, repository, token, get = fetc
   const readOne = async (feed) => {
     const at = now();
     const atText = moment(at);
+    if (paused()) return undefined;
     const failed = (failure) => store.feedRead(feed.id, { at, failure: { at: atText, ...failure } });
     const answer = await fetchFeed(feed.address, { get, bytes, waitAtMost });
     if (answer.failure) return failed(answer.failure);

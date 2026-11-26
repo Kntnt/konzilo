@@ -30,6 +30,11 @@ const standIn = ({ held = {}, adminOnly = [], fromFeed = [], down = false, shut 
       asked.push(['release', form]);
       if (held[form] === 'mine') delete held[form];
     },
+    // The locks as they stand, with an Admin's purge, `purge`, or null where the service is down.
+    purge: null,
+    async locks() {
+      return down ? null : { version: 1, locks: [], purge: service.purge };
+    },
   };
   return service;
 };
@@ -347,6 +352,25 @@ describe('the keeper of a tab\'s lock', () => {
       assert.equal(told.at(-1), 'shut');
       await keeper.seen({ version: 5, locks: [], purge: { id: 'p2', state: 'done' } });
       assert.equal(told.at(-1), 'reload');
+    });
+
+    test('refuses the save of a new entry, and a change made outside a form, while a purge waits, runs or is unfinished', async () => {
+      const { keeper, service } = keeping();
+      await keeper.open(null);
+      assert.equal(await keeper.beforeSave(), null, 'a new entry saves while none does');
+      assert.equal(await keeper.purgeRefusal(), null);
+      for (const state of ['waiting', 'warning', 'running', 'unfinished']) {
+        service.purge = { id: 'p1', state, reload: false };
+        assert.deepEqual(await keeper.beforeSave(), { name: 'lock.refusedPurge' }, state);
+        assert.deepEqual(await keeper.purgeRefusal(), { name: 'lock.refusedPurge' }, state);
+      }
+      service.purge = { id: 'p1', state: 'done' };
+      assert.equal(await keeper.beforeSave(), null);
+    });
+
+    test('lets a new entry save where the service does not answer, as a form does', async () => {
+      const { keeper } = keeping({ down: true });
+      assert.equal(await keeper.beforeSave(), null);
     });
 
     test('keeps the forms shut while a purge is unfinished, and reloads once it is finished', async () => {

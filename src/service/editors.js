@@ -790,6 +790,9 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
 
     // Takes an Admin's purge on where it can go, which the program asks for each second.
     purgeStep: () => purge.step(),
+    // Whether an Admin's purge waits, runs or is unfinished, while which the feed reader saves
+    // nothing (ADR 0078).
+    purging: () => purge.holds(),
 
     // What the clock asks for, at the start of each minute: a build when a scheduled moment has
     // passed, and when the source stands at a commit no build has read, as after a webhook that

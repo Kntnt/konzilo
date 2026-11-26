@@ -113,8 +113,10 @@ function editors(store) {
   const FEED_TOKEN = join(secrets, 'feed-token');
   const feedToken = existsSync(FEED_TOKEN) ? readFileSync(FEED_TOKEN, 'utf8').trim() : null;
   if (feedToken === null) console.error(`The service has no ${FEED_TOKEN}, so the feed reader cannot save the posts it makes`);
-  // The incoming feeds, each read at its interval; with none, nothing is read or reached.
-  const feeds = feedReader({ store, site: described, forgejo: FORGEJO, repository, token: feedToken });
+  // The incoming feeds, each read at its interval; with none, nothing is read or reached. Nothing is
+  // read while an Admin's purge waits or runs, as a save would start it again, and what came
+  // meanwhile is read once it has ended (ADR 0078).
+  const feeds = feedReader({ store, site: described, forgejo: FORGEJO, repository, token: feedToken, paused: () => service.purging() });
 
   const notFound = notFoundLog({ log: NOT_FOUND_LOG, counts: NOT_FOUND_COUNTS, release: RELEASE });
   const fold = () => {

@@ -4,7 +4,8 @@
 import { say } from '../interface-language.js';
 import { notFoundPage } from './view.js';
 
-// `config`: Sveltia's configuration, which names the source the rules are saved to.
-export function registerNotFound(CMS, config) {
-  CMS.registerCustomPage({ id: 'not-found', label: say('notFound.page'), icon: 'link_off', component: notFoundPage({ config }) });
+// `config`: Sveltia's configuration, which names the source the rules are saved to. `lock`: what
+// registerLock() gives, which refuses a rule while an Admin's purge waits or runs.
+export function registerNotFound(CMS, config, { lock = null } = {}) {
+  CMS.registerCustomPage({ id: 'not-found', label: say('notFound.page'), icon: 'link_off', component: notFoundPage({ config, lock }) });
 }

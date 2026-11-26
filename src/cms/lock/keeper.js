@@ -194,10 +194,19 @@ export function lockKeeper({ service, show = () => {}, mark = () => {}, purged =
       }
     },
 
-    // Null where the form may be saved, else the refusal, by its name and values.
+    // Null where nothing stops a change made outside a form, as a rule saved on the *Addresses not
+    // found* page, else the refusal, by its name: while an Admin's purge waits, runs or is
+    // unfinished, as the service says now, where it answers (ADR 0078).
+    async purgeRefusal() {
+      const answer = await service.locks?.(null);
+      return PURGING.has(answer?.purge?.state) ? { name: 'lock.refusedPurge' } : null;
+    },
+
+    // Null where the form may be saved, else the refusal, by its name and values. A new entry,
+    // which has no lock to keep, is held only while an Admin's purge waits, runs or is unfinished.
     async beforeSave() {
       const { form, mode } = state;
-      if (form === null) return null;
+      if (form === null) return this.purgeRefusal();
       if (mode === 'shut') return { name: 'lock.refusedPurge' };
       if (mode !== 'editing') return { name: 'lock.refusedReadOnly' };
       const answer = await asking(form);

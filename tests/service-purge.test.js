@@ -210,9 +210,11 @@ describe('an Admin\'s purge', () => {
     assert.equal((await purge('anna', { path: ARTICLE, course: 'now' })).status, 400);
   }));
 
-  test('with no form open, asks the purge\'s program at once, keeps every form shut while it runs, and tells every tab once it is done', withService({}, async ({ purge, control, step, hold, locks, shown, forgotten }) => {
+  test('with no form open, asks the purge\'s program at once, keeps every form shut while it runs, and tells every tab once it is done', withService({}, async ({ service, purge, control, step, hold, locks, shown, forgotten }) => {
+    assert.equal(service.purging(), false);
     const asked = await purge('anna', { path: ARTICLE, course: 'anyway' });
     assert.equal(asked.status, 202);
+    assert.equal(service.purging(), true, 'which the feed reader saves nothing while');
     assert.equal(asked.body.purge.state, 'running');
     const request = control.purgeRequest();
     assert.deepEqual({ ...request, id: undefined }, { id: undefined, path: ARTICLE, collection: 'articles', kind: 'post', by: { login: 'anna', name: 'Anna Admin' }, at: '2026-11-26T10:00:00.000Z' });
@@ -228,6 +230,7 @@ describe('an Admin\'s purge', () => {
     const told = await locks('ebba', TAB_B);
     assert.deepEqual(told.body.purge, { id: request.id, state: 'done' }, 'every tab is told, and reloads');
     assert.equal((await hold('articles/bbbbbbbbbbbb', 'ebba', TAB_B)).status, 200, 'forms open again');
+    assert.equal(service.purging(), false);
     assert.equal(forgotten.length, 1, 'the small pictures of what may be gone are forgotten');
     assert.deepEqual((await shown('anna')).body.purge, { id: request.id, state: 'done' });
   }));

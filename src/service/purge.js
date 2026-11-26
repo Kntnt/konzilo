@@ -126,6 +126,8 @@ export function purgeKeeper({ table, control, now = () => new Date(), reloadWith
   return {
     // Who has which form open: { form, name, since }.
     formsOpen,
+    // Whether a purge waits, runs or is unfinished, while which nothing else may save.
+    holds: () => current !== null,
     // What an Admin is told of the purge that runs, `path` its entry's, or `passage` where it is
     // of one, which is not told; or of the last that ended, with what it `changed`, or why it
     // failed and, where a current file holds its passage, which `paths` do; or null.

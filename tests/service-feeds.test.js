@@ -63,6 +63,8 @@ describe('the incoming feeds', () => {
   let asked;
   let reader;
   let ids;
+  // Whether an Admin's purge waits or runs (ADR 0078).
+  let purging;
 
   const answerOf = (body, status = 200) => new Response(typeof body === 'string' ? body : JSON.stringify(body), { status, headers: { 'content-type': typeof body === 'string' ? 'application/rss+xml' : 'application/json' } });
 
@@ -129,7 +131,8 @@ describe('the incoming feeds', () => {
     commits = [];
     asked = [];
     ids = 0;
-    reader = feedReader({ store, site: () => site, forgejo: 'http://forgejo', repository: 'org/source', token: READER, get, now: () => clock, warn: () => {}, newId: () => `f00d0000000${(ids += 1).toString(16)}`, waitAtMost: 1000, pause: async () => {} });
+    purging = false;
+    reader = feedReader({ store, site: () => site, forgejo: 'http://forgejo', repository: 'org/source', token: READER, get, now: () => clock, warn: () => {}, newId: () => `f00d0000000${(ids += 1).toString(16)}`, waitAtMost: 1000, pause: async () => {}, paused: () => purging });
     const service = editorsService({ forgejo: 'http://forgejo', repository: 'org/source', token: 'read-token', rolesToken: 'roles', control: buildControl(join(folder, `control-${Date.now()}-${Math.random()}`)), store, site: () => site, feeds: reader, get, now: () => clock, warn: () => {} });
     server = createServer((incoming, outgoing) => service.request(incoming, outgoing));
     await new Promise((go) => server.listen(0, '127.0.0.1', go));
@@ -201,6 +204,38 @@ describe('the incoming feeds', () => {
 
     await later();
     assert.equal(commits.length, 2, 'the same feed read again makes no second post');
+  });
+
+  test('reads and saves nothing while an Admin\'s purge waits or runs, and catches up once it has ended', async () => {
+    served[RSS] = rss(B, A);
+    await add({ address: RSS, type: 'article' });
+    await reader.run();
+    served[RSS] = rss(C, B, A);
+    purging = true;
+    asked.length = 0;
+    await later();
+    await reader.read((await ask('GET', '/_konzilo/feeds')).body.feeds[0].id);
+    assert.ok(!asked.includes(RSS), 'the feed is not even read');
+    purging = false;
+    await later(1);
+    assert.equal(commits.length, 1, 'what came meanwhile is saved at the first run after');
+
+    // A purge that comes while a feed is read.
+    served[RSS] = () => {
+      purging = true;
+      return answerOf(rss(D, C, B, A));
+    };
+    await later();
+    assert.equal(commits.length, 1, 'nothing is saved once it has come');
+    purging = false;
+    served[RSS] = rss(D, C, B, A);
+    await later();
+    assert.equal(commits.length, 2);
+    await assert.rejects((async () => {
+      purging = true;
+      await reader.release((await ask('GET', '/_konzilo/feeds')).body.feeds[0].id);
+    })(), 'nor are a removed feed\'s posts released meanwhile');
+    purging = false;
   });
 
   test('a corrected item corrects its post at the next read, under the same ID, its slug kept', async () => {
