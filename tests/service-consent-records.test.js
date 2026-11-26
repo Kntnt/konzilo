@@ -15,7 +15,7 @@ import { join } from 'node:path';
 import { after, afterEach, before, beforeEach, describe, test } from 'node:test';
 
 import { buildControl } from '../src/build/record.js';
-import { consentRetention } from '../src/service/consent-records.js';
+import { consentRecordStore, consentRetention } from '../src/service/consent-records.js';
 import { editorsService } from '../src/service/editors.js';
 import { openStore } from '../src/service/store.js';
 import { visitorsService } from '../src/service/visitors.js';
@@ -116,7 +116,7 @@ describe('the consent records, for visitors', () => {
   };
 
   // What the store holds of a consent ID, each record without what it showed.
-  const kept = (id = ID) => store.consentRecords.of(id).map(({ shown: _, ...record }) => record);
+  const kept = (id = ID) => consentRecordStore(store).of(id).map(({ shown: _, ...record }) => record);
 
   const start = async () => {
     store = openStore(join(folder, 'service.sqlite'));
@@ -247,13 +247,13 @@ describe('the consent records, for visitors', () => {
     assert.equal((await sendRecord(recordOf({ chosen: '2026-11-11T10:02:30.000Z' }))).status, 204);
     // By a visitor's clock that is behind the site's, before any release the service has seen.
     assert.equal((await sendRecord(recordOf({ chosen: '2026-11-11T08:00:00.000Z' }))).status, 204);
-    assert.deepEqual(store.consentRecords.of(ID).map(({ shown: words }) => words.banner.title), ['Cookies', 'Kakor', 'Cookies', 'Your privacy', 'Cookies']);
-    assert.deepEqual(store.consentRecords.of(ID)[1].shown, shown('Kakor'));
+    assert.deepEqual(consentRecordStore(store).of(ID).map(({ shown: words }) => words.banner.title), ['Cookies', 'Kakor', 'Cookies', 'Your privacy', 'Cookies']);
+    assert.deepEqual(consentRecordStore(store).of(ID)[1].shown, shown('Kakor'));
   });
 
   // A record of its own, the `n`th, made a second after the last.
   const nth = (n) => recordOf({ id: `6f1c2a3b-4d5e-4f60-8a7b-${String(n).padStart(12, '0')}`, chosen: new Date(Date.parse('2026-11-11T08:00:00.000Z') + n * 1000).toISOString() });
-  const day = () => store.consentRecords.days('2026-11-11', '2026-11-11')[0];
+  const day = () => consentRecordStore(store).days('2026-11-11', '2026-11-11')[0];
   const storedThatDay = () => Object.entries(day()).filter(([name]) => !['day', 'notStored'].includes(name)).reduce((sum, [, count]) => sum + count, 0);
 
   test('stores 100 records of one client in its window of ten minutes, and counts the next without storing it, saying when to try again, as another client\'s are stored', async () => {
@@ -262,7 +262,7 @@ describe('the consent records, for visitors', () => {
     const over = await sendRecord(nth(100));
     assert.equal(over.status, 429);
     assert.equal(over.headers['retry-after'], '300', 'until the window ends');
-    assert.deepEqual(store.consentRecords.of(nth(100).id), [], 'not stored');
+    assert.deepEqual(consentRecordStore(store).of(nth(100).id), [], 'not stored');
     assert.equal((await sendRecord(nth(101), fromThePage('192.0.2.8'))).status, 204, 'another client');
     assert.equal(storedThatDay(), 101);
     assert.equal(day().notStored, 1, 'counted');
@@ -340,7 +340,7 @@ describe('keeping the consent records for 13 months', () => {
 
   const duty = () => consentRetention({ store, now: () => clock });
   const record = (id, chosen) => ({ ...recordOf({ id, chosen }) });
-  const ids = (...consentIds) => consentIds.flatMap((id) => store.consentRecords.of(id).map(({ chosen }) => chosen));
+  const ids = (...consentIds) => consentIds.flatMap((id) => consentRecordStore(store).of(id).map(({ chosen }) => chosen));
 
   before(() => {
     folder = mkdtempSync(join(tmpdir(), 'konzilo-consent-retention-'));
@@ -357,21 +357,21 @@ describe('keeping the consent records for 13 months', () => {
   test('forgets a record 13 months after it was made, and the count of a day 13 months gone, and keeps the rest', () => {
     const OLD = '11111111-1111-4111-8111-111111111111';
     const NEW = '22222222-2222-4222-8222-222222222222';
-    store.consentRecords.keep(record(OLD, '2026-11-30T11:59:59.999Z'));
-    store.consentRecords.keep(record(NEW, '2026-11-30T12:00:00.000Z'));
-    store.consentRecords.notStored(new Date('2026-11-29T23:00:00Z'));
-    store.consentRecords.notStored(new Date('2026-11-30T01:00:00Z'));
+    consentRecordStore(store).keep(record(OLD, '2026-11-30T11:59:59.999Z'));
+    consentRecordStore(store).keep(record(NEW, '2026-11-30T12:00:00.000Z'));
+    consentRecordStore(store).notStored(new Date('2026-11-29T23:00:00Z'));
+    consentRecordStore(store).notStored(new Date('2026-11-30T01:00:00Z'));
     assert.equal(duty().run(), 1);
     assert.deepEqual(ids(OLD, NEW), ['2026-11-30T12:00:00.000Z']);
-    assert.deepEqual(store.consentRecords.days('2026-11-29', '2026-11-30').map(({ notStored }) => notStored), [0, 1]);
+    assert.deepEqual(consentRecordStore(store).days('2026-11-29', '2026-11-30').map(({ notStored }) => notStored), [0, 1]);
   });
 
   // The service's data goes into backups and the archive (ADR 0006), which must not carry what
   // was forgotten in the free space of the database's pages, or in its log of writes.
   test('leaves nothing of what it forgets in the service\'s data files, and forgets what grew too old while it was stopped once it starts', () => {
     const OLD = '33333333-3333-4333-8333-333333333333';
-    store.consentRecords.keep({ ...record(OLD, '2026-11-01T12:00:00.000Z'), path: '/a-page-to-be-forgotten/' });
-    store.consentRecords.keep(record('44444444-4444-4444-8444-444444444444', '2027-11-01T12:00:00.000Z'));
+    consentRecordStore(store).keep({ ...record(OLD, '2026-11-01T12:00:00.000Z'), path: '/a-page-to-be-forgotten/' });
+    consentRecordStore(store).keep(record('44444444-4444-4444-8444-444444444444', '2027-11-01T12:00:00.000Z'));
     store.close();
     store = openStore(file);
     duty().run();
@@ -419,13 +419,13 @@ describe('the consent records, for Admins', () => {
   // Ada accepted in the banner, chose in the dialog the next day, and withdrew; Bea rejected, in
   // Swedish, and allowed YouTube in its panel; one record more was not stored.
   const keepAdaAndBea = () => {
-    store.consentRecords.keepRevision(published(), new Date('2026-11-01T00:00:00Z'));
-    store.consentRecords.keep(recordOf({ id: ADA, chosen: '2026-11-09T23:59:59.000Z' }));
-    store.consentRecords.keep(recordOf({ id: ADA, chosen: '2026-11-10T08:00:00.000Z', how: 'dialog', control: 'save', categories: { necessary: true, functional: false, statistics: true, marketing: true }, services: { konzilo: true, youtube: false, matomo: true } }));
-    store.consentRecords.keep(recordOf({ id: ADA, chosen: '2026-11-10T09:00:00.000Z', how: 'withdrawal', control: 'withdraw', categories: { necessary: true, functional: false, statistics: false, marketing: true }, services: { konzilo: true, youtube: false, matomo: false } }));
-    store.consentRecords.keep(recordOf({ id: BEA, chosen: '2026-11-10T10:00:00.000Z', control: 'reject', language: 'sv-SE', path: '/sv/om-oss/', categories: { necessary: true, functional: false, statistics: false, marketing: true }, services: { konzilo: true, youtube: false, matomo: false } }));
-    store.consentRecords.keep(recordOf({ id: BEA, chosen: '2026-11-10T10:05:00.000Z', how: 'placeholder', control: 'allow', language: 'sv-SE', path: '/sv/om-oss/', categories: { necessary: true, functional: true, statistics: false, marketing: true }, services: { konzilo: true, youtube: true, matomo: false } }));
-    store.consentRecords.notStored(new Date('2026-11-10T12:00:00Z'));
+    consentRecordStore(store).keepRevision(published(), new Date('2026-11-01T00:00:00Z'));
+    consentRecordStore(store).keep(recordOf({ id: ADA, chosen: '2026-11-09T23:59:59.000Z' }));
+    consentRecordStore(store).keep(recordOf({ id: ADA, chosen: '2026-11-10T08:00:00.000Z', how: 'dialog', control: 'save', categories: { necessary: true, functional: false, statistics: true, marketing: true }, services: { konzilo: true, youtube: false, matomo: true } }));
+    consentRecordStore(store).keep(recordOf({ id: ADA, chosen: '2026-11-10T09:00:00.000Z', how: 'withdrawal', control: 'withdraw', categories: { necessary: true, functional: false, statistics: false, marketing: true }, services: { konzilo: true, youtube: false, matomo: false } }));
+    consentRecordStore(store).keep(recordOf({ id: BEA, chosen: '2026-11-10T10:00:00.000Z', control: 'reject', language: 'sv-SE', path: '/sv/om-oss/', categories: { necessary: true, functional: false, statistics: false, marketing: true }, services: { konzilo: true, youtube: false, matomo: false } }));
+    consentRecordStore(store).keep(recordOf({ id: BEA, chosen: '2026-11-10T10:05:00.000Z', how: 'placeholder', control: 'allow', language: 'sv-SE', path: '/sv/om-oss/', categories: { necessary: true, functional: true, statistics: false, marketing: true }, services: { konzilo: true, youtube: true, matomo: false } }));
+    consentRecordStore(store).notStored(new Date('2026-11-10T12:00:00Z'));
   };
 
   before(() => {

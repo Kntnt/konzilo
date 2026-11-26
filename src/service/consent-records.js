@@ -18,7 +18,6 @@
 
 import { lstatSync, readFileSync, readlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
 
 import { RELEASE_CONSENT_REVISION } from '../build/release.js';
 import { CONSENT_ID } from '../consent/consent-id.js';
@@ -56,8 +55,9 @@ export const CONSENT_RECORDS_STEP = `CREATE TABLE consent_revision (
    CREATE INDEX consent_record_by_time ON consent_record (chosen);
    CREATE TABLE consent_unstored (day TEXT PRIMARY KEY, count INTEGER NOT NULL) STRICT;`;
 
-// The records in the store, on its `database`, opened from `file`. `forgot(count)` overwrites
-// what was just forgotten and empties the log of writes, as store.js does for a submission.
+// The records in the service's data, `store` as store.js opens it, through its connection, as a
+// kind whose storage is a module of its own keeps it, so that what it forgets is overwritten and
+// the log of writes emptied, as a submission is.
 //
 // Gives { keepRevision(published, at), revision(revision), keep(record), notStored(at), of(id),
 // days(from, to), snapshot(from, to), expire(before) }:
@@ -74,24 +74,24 @@ export const CONSENT_RECORDS_STEP = `CREATE TABLE consent_revision (
 // days, oldest first, from the data as it stood when they were first read: { each(), close() }.
 // `expire` forgets the records made before `before`, a Date, and the counts of the days before
 // its day, and gives how many records.
-export function consentRecordStore(database, { file, forgot }) {
-  const keepVersion = database.prepare('INSERT INTO consent_revision (revision, categories, language, shown, since) VALUES (?, ?, ?, ?, ?)');
-  const latestVersion = database.prepare('SELECT shown FROM consent_revision WHERE revision = ? AND language = ? ORDER BY since DESC, id DESC LIMIT 1');
-  const revisionOf = database.prepare('SELECT categories, language FROM consent_revision WHERE revision = ? ORDER BY language');
-  const insert = database.prepare(`INSERT OR IGNORE INTO consent_record (consent_id, chosen, revision, categories, services, how, control, path, language)
+export function consentRecordStore(store) {
+  const keepVersion = store.prepare('INSERT INTO consent_revision (revision, categories, language, shown, since) VALUES (?, ?, ?, ?, ?)');
+  const latestVersion = store.prepare('SELECT shown FROM consent_revision WHERE revision = ? AND language = ? ORDER BY since DESC, id DESC LIMIT 1');
+  const revisionOf = store.prepare('SELECT categories, language FROM consent_revision WHERE revision = ? ORDER BY language');
+  const insert = store.prepare(`INSERT OR IGNORE INTO consent_record (consent_id, chosen, revision, categories, services, how, control, path, language)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-  const count = database.prepare('INSERT INTO consent_unstored (day, count) VALUES (?, 1) ON CONFLICT (day) DO UPDATE SET count = count + 1');
-  const byId = database.prepare(`SELECT r.consent_id, r.chosen, r.revision, r.categories, r.services, r.how, r.control, r.path, r.language,
+  const count = store.prepare('INSERT INTO consent_unstored (day, count) VALUES (?, 1) ON CONFLICT (day) DO UPDATE SET count = count + 1');
+  const byId = store.prepare(`SELECT r.consent_id, r.chosen, r.revision, r.categories, r.services, r.how, r.control, r.path, r.language,
       (SELECT v.shown FROM consent_revision v WHERE v.revision = r.revision AND v.language = r.language
         ORDER BY v.since <= r.chosen DESC, CASE WHEN v.since <= r.chosen THEN v.since END DESC, v.since ASC, v.id DESC LIMIT 1) AS shown
     FROM consent_record r WHERE r.consent_id = ? ORDER BY r.chosen, r.id`);
   const RECORDS = `SELECT consent_id, chosen, revision, categories, services, how, control, path, language FROM consent_record
     WHERE chosen >= :from AND chosen < :to ORDER BY chosen, id`;
-  const byDay = database.prepare(`SELECT substr(chosen, 1, 10) AS day, control, COUNT(*) AS count FROM consent_record
+  const byDay = store.prepare(`SELECT substr(chosen, 1, 10) AS day, control, COUNT(*) AS count FROM consent_record
     WHERE chosen >= ? AND chosen < ? GROUP BY day, control`);
-  const unstored = database.prepare('SELECT day, count FROM consent_unstored WHERE day >= ? AND day <= ?');
-  const expireRecords = database.prepare('DELETE FROM consent_record WHERE chosen < ?');
-  const expireCounts = database.prepare('DELETE FROM consent_unstored WHERE day < ?');
+  const unstored = store.prepare('SELECT day, count FROM consent_unstored WHERE day >= ? AND day <= ?');
+  const expireRecords = store.prepare('DELETE FROM consent_record WHERE chosen < ?');
+  const expireCounts = store.prepare('DELETE FROM consent_unstored WHERE day < ?');
 
   const recordOf = (row) => ({
     id: row.consent_id,
@@ -137,36 +137,19 @@ export function consentRecordStore(database, { file, forgot }) {
       for (const { day, count: made } of unstored.all(from, to)) found.get(day).notStored = Number(made);
       return [...found.values()];
     },
-    // A read transaction holds the data as it stood at its first read until it ends.
     snapshot(from, to) {
-      const reading = new DatabaseSync(file, { readOnly: true });
-      let open = true;
-      try {
-        reading.exec('PRAGMA busy_timeout = 5000');
-        reading.exec('BEGIN');
-      } catch (error) {
-        reading.close();
-        throw error;
-      }
+      const reading = store.snapshotOf(RECORDS, { from: `${from}T00:00:00.000Z`, to: dayAfter(to) });
       return {
         * each() {
-          for (const row of reading.prepare(RECORDS).iterate({ from: `${from}T00:00:00.000Z`, to: dayAfter(to) })) yield recordOf(row);
+          for (const row of reading.each()) yield recordOf(row);
         },
-        close() {
-          if (!open) return;
-          open = false;
-          try {
-            reading.exec('ROLLBACK');
-          } finally {
-            reading.close();
-          }
-        },
+        close: reading.close,
       };
     },
     expire(before) {
       const forgotten = Number(expireRecords.run(before.toISOString()).changes);
       const counts = Number(expireCounts.run(before.toISOString().slice(0, 10)).changes);
-      forgot(forgotten + counts);
+      store.forgot(forgotten + counts);
       return forgotten;
     },
   };
@@ -265,6 +248,7 @@ function matches(record, { categories, languages }) {
 // Gives { look() }, which keeps the revision of the release in use where `current` has moved since
 // it was last read.
 export function publishedRevisions({ folder, store, warn = console.error, now = () => new Date() }) {
+  const records = consentRecordStore(store);
   // The release whose revision was last kept, and the one that could not be read, with when.
   let seen;
   let failed = null;
@@ -301,7 +285,7 @@ export function publishedRevisions({ folder, store, warn = console.error, now = 
         unread(at, `${RELEASE_CONSENT_REVISION} is not one`);
         return;
       }
-      store.consentRecords.keepRevision(held, live);
+      records.keepRevision(held, live);
       seen = at;
       failed = null;
     },
@@ -318,6 +302,7 @@ const isRevision = (held) => isObject(held)
 // The kind (ADR 0044) that takes the records. `store`: as store.js opens it. `revisions`: as
 // publishedRevisions() gives them. `now()`: the moment.
 export function consentRecordsKind({ store, revisions, now }) {
+  const records = consentRecordStore(store);
   // How many records were taken in the clock's hour, and of each client in its window, held in
   // memory alone and forgotten as the hour or the window ends.
   const hour = { at: null, count: 0 };
@@ -336,7 +321,7 @@ export function consentRecordsKind({ store, revisions, now }) {
       const record = recordIn(body, moment);
       if (record === null) return { status: 400, json: { outcome: 'refused' } };
       revisions.look();
-      const revision = store.consentRecords.revision(record.revision);
+      const revision = records.revision(record.revision);
       if (revision === null || !matches(record, revision)) return { status: 400, json: { outcome: 'refused' } };
 
       const thisHour = Math.floor(moment.getTime() / HOUR);
@@ -344,11 +329,11 @@ export function consentRecordsKind({ store, revisions, now }) {
       hour.count += 1;
       const ofClient = ofClients.count(client);
       if (hour.count > IN_AN_HOUR || ofClient > OF_A_CLIENT) {
-        store.consentRecords.notStored(moment);
+        records.notStored(moment);
         const ends = hour.count > IN_AN_HOUR ? (thisHour + 1) * HOUR : client.ends.getTime();
         return { status: 429, json: { outcome: 'too-many' }, retryAfter: secondsUntil(ends, moment.getTime()) };
       }
-      store.consentRecords.keep(record);
+      records.keep(record);
       return { status: 204 };
     },
   };
@@ -359,9 +344,10 @@ export function consentRecordsKind({ store, revisions, now }) {
 //
 // Gives { run() }, which forgets them, and gives how many records.
 export function consentRetention({ store, now = () => new Date() }) {
+  const records = consentRecordStore(store);
   return {
     run() {
-      const forgotten = store.consentRecords.expire(monthsBefore(now(), RECORD_MONTHS));
+      const forgotten = records.expire(monthsBefore(now(), RECORD_MONTHS));
       store.settle();
       return forgotten;
     },

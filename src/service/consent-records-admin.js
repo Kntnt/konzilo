@@ -6,6 +6,7 @@
 import { catalogueFor, text } from '../catalogues.js';
 import { CONSENT_ID } from '../consent/consent-id.js';
 import { momentIn } from '../submission-values.js';
+import { consentRecordStore } from './consent-records.js';
 import { DAY } from './day.js';
 import { row, SEPARATORS } from './submissions-csv.js';
 
@@ -82,6 +83,7 @@ export function* consentRecordsCsv({ each, separator, language }) {
 //
 // Gives { owns(pathname), answer(incoming, outgoing, pathname, searchParams) }.
 export function consentRecordsPage({ store, adminOf, answerJson, answerCsv }) {
+  const records = store ? consentRecordStore(store) : null;
   return {
     owns: (pathname) => pathname === CONSENT_RECORDS_PAGE_PATH || pathname === `${CONSENT_RECORDS_PAGE_PATH}.csv`,
 
@@ -99,7 +101,7 @@ export function consentRecordsPage({ store, adminOf, answerJson, answerCsv }) {
         const separator = searchParams.get('separator');
         if (span === null || !Object.hasOwn(SEPARATORS, separator ?? '')) return answerJson(outgoing, 400, {});
         // The rows from one moment's data, whatever is kept or forgotten while they are written.
-        const reading = store.consentRecords.snapshot(span.from, span.to);
+        const reading = records.snapshot(span.from, span.to);
         try {
           return await answerCsv(outgoing, 'consent-records', consentRecordsCsv({ each: () => reading.each(), separator, language: searchParams.get('language') }));
         } finally {
@@ -109,11 +111,11 @@ export function consentRecordsPage({ store, adminOf, answerJson, answerCsv }) {
       if (searchParams.has('id')) {
         const id = consentIdOf(searchParams.get('id'));
         if (id === null) return answerJson(outgoing, 400, {});
-        return answerJson(outgoing, 200, { records: store.consentRecords.of(id) });
+        return answerJson(outgoing, 200, { records: records.of(id) });
       }
       const span = spanOf(searchParams);
       if (span === null) return answerJson(outgoing, 400, {});
-      return answerJson(outgoing, 200, { days: store.consentRecords.days(span.from, span.to) });
+      return answerJson(outgoing, 200, { days: records.days(span.from, span.to) });
     },
   };
 }
