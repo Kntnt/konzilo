@@ -48,7 +48,7 @@ const SAME_IN_EACH = { i18n: 'duplicate' };
  * @param {string} place.site the public site's origin
  * @param {string} [place.language] the interface language, by default the site's
  * @param {object} [place.ratios] the aspect ratio of each context the site's design draws images
- *   in, as its konzilo({ images }) names them, { card: '1:1' } (design-ratios.js), for the frames
+ *   in, as its konzilo({ images }) names them, { card: '1:1' } (src/design-ratios.js), for the frames
  *   an editor places an image's focal point by
  */
 export function cmsConfig(description, { forgejo, repository, clientId, site, preview = null, language: interfaceLanguage = description.interfaceLanguage, ratios = {} }) {

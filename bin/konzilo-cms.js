@@ -19,7 +19,7 @@ import { dirname, join, resolve } from 'node:path';
 
 import { INTERFACE_LANGUAGES } from '../src/catalogues.js';
 import { cmsConfig } from '../src/cms/config.js';
-import { designRatios } from '../src/cms/design-ratios.js';
+import { designRatios } from '../src/design-ratios.js';
 import { readSiteDescription, SITE_DESCRIPTION_FILE } from '../src/site-description.js';
 
 const [site, out] = process.argv.slice(2);

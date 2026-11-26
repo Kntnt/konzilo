@@ -127,6 +127,7 @@ import { isNumbered, SITEMAP } from './sitemap.js';
 import { themeColors, writeThemeColors } from './theme-colors.js';
 import { devHeaders, HEADER_LIMIT, HEADERS_FILE, headersFile, securityHeaders } from './security-headers.js';
 import { contentSecurityPolicy, readRegistry, releaseCode } from './content-security-policy.js';
+import { INTEGRATION_NAME } from './integration-name.js';
 
 export { bodyTree } from './body-tree.js';
 export { collections } from './collections.js';
@@ -459,9 +460,9 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
   // language, from what the last export left in the content folder.
   const formNotSent = () => siteFormNotSentPage(root, { locale: language, languageTag: languageTag(language), texts: ownFormTexts, folder: contentFolder(), languages });
   return {
-    name: '@kntnt/konzilo',
+    name: INTEGRATION_NAME,
     // The contexts the site draws images in, with the widths, sizes and aspect ratios its design
-    // gives, which the editor's configuration reads for its frames (cms/design-ratios.js).
+    // gives, which the editor's configuration reads for its frames (src/design-ratios.js).
     imageContexts: contexts,
     hooks: {
       'astro:config:setup': ({ config, command, injectRoute, injectScript, updateConfig, logger }) => {
