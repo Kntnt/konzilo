@@ -120,13 +120,18 @@ async function versionsOn(git, branch) {
       if (!/^0+$/.test(blob) && searched(path)) versions.push({ commit, moment, path, blob });
     }
   }
+  return { versions, head: await headOn(git, branch) };
+}
+
+// The branch's head's files a passage is looked for in, path to blob.
+async function headOn(git, branch) {
   const head = new Map();
   for (const entry of (await git(['-c', 'core.quotePath=false', 'ls-tree', '-r', '-z', branch])).toString('utf8').split('\0').filter(Boolean)) {
     const [about, path] = entry.split('\t');
     const [, kind, blob] = about.split(' ');
     if (kind === 'blob' && searched(path)) head.set(path, blob);
   }
-  return { versions, head };
+  return head;
 }
 
 // Of the blobs given, the text of each that holds the passage.
@@ -147,6 +152,14 @@ async function messagesHolding(git, branch, holds) {
     const [commit, date] = first.split(' ');
     return { commit, moment: new Date(date).toISOString(), message: rest.join('\n') };
   }).filter(({ message }) => holds(message));
+}
+
+// The files of a branch's head that hold a passage, as of the content repository, whose head a
+// purge refuses to change.
+export async function headHolding(git, passage, { branch = BRANCH } = {}) {
+  const head = await headOn(git, branch);
+  const holding = await textsHolding(git, [...head.values()], passageMatcher(passage).holds);
+  return [...head].filter(([, blob]) => holding.has(blob)).map(([path]) => path);
 }
 
 // What of a branch holds a passage: the versions of files that do, `holding`, blob to text; the
@@ -209,12 +222,15 @@ function rulesWithout({ matcher, holding }) {
 // Purges `passage` from every old revision of both repositories, as `by`, { login, name }, at `at`,
 // as purgeHistories() does, `source`, `content` and `pushedBy` as it takes them: every version of
 // every file of the source but an image's that holds it, and every message, and every content file
-// and message of the content repository, the head's among them, since each is built from the
-// source. Gives what purgeHistories() gives, which takes `tries`, `sleep` and `noted`, with
+// of an old revision and every message of the content repository, since each is built from the
+// source; never a file of either head, as an editor's save changes the published text first. Gives what purgeHistories() gives, which takes `tries`, `sleep` and `noted`, with
 // `changed`, in `outcome` and beside it, { files, revisions, messages }, how many files of the
 // source, revisions of them and saves' messages it was taken from.
 // Throws a PurgeRefusal: `current`, with the `paths` of the files of the source as it stands that
-// hold it, which an Admin saves without it first; or `not-found`, where neither history holds it.
+// hold it, which an Admin saves without it first; `published`, with the `paths` of the files of the
+// content repository's head that do, which a build makes again from such a save, or which a post
+// the build refused keeps until one of it is published; or `not-found`, where neither history
+// holds it.
 export async function purgePassage({ source, content, passage, by, at, pushedBy, tries, sleep, noted }) {
   const result = await purgeHistories({
     source,
@@ -229,6 +245,7 @@ export async function purgePassage({ source, content, passage, by, at, pushedBy,
       const found = await passageIn(source.git, passage);
       if (found.current.length > 0) throw new PurgeRefusal('current', { paths: found.current });
       const published = before.content === null ? null : await passageIn(content.git, passage);
+      if (published?.current.length > 0) throw new PurgeRefusal('published', { paths: published.current });
       return {
         source: rulesWithout(found),
         content: () => rulesWithout(published),

@@ -18,7 +18,7 @@ import { accountName, gitEnvironment } from '../forgejo.js';
 import { isPurgeId } from './control.js';
 import { purgeEntry } from './entry.js';
 import { pushContent, pushedAlready } from './histories.js';
-import { findPassage, passageMatcher, purgePassage } from './passage.js';
+import { findPassage, headHolding, passageMatcher, purgePassage } from './passage.js';
 import { gitIn } from './rewrite.js';
 
 const PAGE = 50;
@@ -162,7 +162,8 @@ export function forgejoPurge({ forgejo, repository, token, work, control = null,
 
 // The search for a passage in the site's Forgejo (ADR 0078): the source cloned anew, by the
 // instance's account, and every file and revision that holds the passage found in it
-// (passage.js); nothing of the clone stays. `forgejo`, `repository`, `token` and `work` as
+// (passage.js), with the files of the content repository's head that hold it, `published`, which
+// it reads alone; nothing of the clones stays. `forgejo`, `repository`, `token` and `work` as
 // forgejoPurge() takes them.
 export function forgejoSearch({ forgejo, repository, token, work, user = 'konzilo' }) {
   return async (request) => {
@@ -171,11 +172,23 @@ export function forgejoSearch({ forgejo, repository, token, work, user = 'konzil
     rmSync(folder, { recursive: true, force: true });
     const home = join(folder, 'home');
     mkdirSync(home, { recursive: true });
-    try {
-      const git = gitIn(folder, gitEnvironment({ user, token, home }));
+    const environment = gitEnvironment({ user, token, home });
+    const fetched = async (name, of, depth = []) => {
+      const git = gitIn(join(folder, name), environment);
+      mkdirSync(join(folder, name));
       await git(['init', '--quiet', '--bare', '--initial-branch=main']);
-      await git(['fetch', '--quiet', `${forgejo}/${repository}.git`, '+refs/heads/main:refs/heads/main']);
-      return await findPassage({ git, passage: request.passage });
+      await git(['fetch', '--quiet', ...depth, `${forgejo}/${of}.git`, '+refs/heads/main:refs/heads/main']);
+      return git;
+    };
+    try {
+      const found = await findPassage({ git: await fetched('source.git', repository), passage: request.passage });
+      let content = null;
+      try {
+        content = await fetched('content.git', `${repository.split('/')[0]}/content`, ['--depth=1']);
+      } catch {
+        // A content repository no build has written yet publishes nothing.
+      }
+      return { ...found, published: content === null ? [] : await headHolding(content, request.passage) };
     } finally {
       rmSync(folder, { recursive: true, force: true });
     }

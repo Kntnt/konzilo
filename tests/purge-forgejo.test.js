@@ -12,7 +12,7 @@ import { after, describe, test } from 'node:test';
 
 import { buildControl } from '../src/build/record.js';
 import { progressOf, purgeControl } from '../src/purge/control.js';
-import { forgejoPurge } from '../src/purge/forgejo.js';
+import { forgejoPurge, forgejoSearch } from '../src/purge/forgejo.js';
 import { cloned, everyPath, everyText, remote } from './lib/repositories.js';
 
 const folders = [];
@@ -138,5 +138,16 @@ describe('a purge in the site\'s Forgejo', () => {
     await assert.rejects(purgeOf(one, { work, control })({ ...REQUEST, path: 'articles/kept.md' }, progressOf(shared, { id: REQUEST.id, request: { ...REQUEST, path: 'articles/kept.md' }, steps: [] })), /not-deleted/);
     assert.equal(shared.progress(), null);
     assert.ok(!existsSync(join(work, REQUEST.id)));
+  });
+});
+
+describe('a search for a passage in the site\'s Forgejo', () => {
+  test('names the files of the content repository\'s head that hold it, beside every revision of the source that does', async () => {
+    const one = site();
+    const found = await forgejoSearch({ forgejo: one.forgejo, repository: 'org/source', token: 't', work: join(newFolder(), 'work') })({ id: 's-1', passage: 'Kept' });
+    assert.deepEqual(found.files.map(({ path, current }) => [path, current]), [['articles/kept.md', true]]);
+    assert.ok(found.published.includes('articles/kept.md'));
+    const none = await forgejoSearch({ forgejo: one.forgejo, repository: 'org/source', token: 't', work: join(newFolder(), 'work') })({ id: 's-2', passage: 'The secret' });
+    assert.deepEqual(none.published, [], 'the published files hold no deleted post');
   });
 });

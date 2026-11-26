@@ -3,7 +3,8 @@
 // whose current version holds it first and marked, each linked to its form, every revision with the
 // text around the passage, and the saves whose message names it. While a current version holds it,
 // it cannot be purged: the Admin takes it out there by hand and saves, so that an editor sees the
-// published text change, and finds it again. Then it is purged from every old revision, in the
+// published text change, and finds it again; nor while the published site does, until the build
+// has published those saves. Then it is purged from every old revision, in the
 // steps the purge of a deleted entry takes (deleted/purge-dialog.js), and once the editor has
 // loaded again the page says how many revisions in how many files changed, and nothing of the
 // passage itself. An Editor reads that the page is an Admin's, and finds nothing. It is React,
@@ -59,10 +60,17 @@ function RefusedFiles({ paths, collections }) {
   }));
 }
 
+// The files of the published site that hold the passage, by their paths in the content
+// repository, which no form edits.
+function PublishedFiles({ paths }) {
+  const { createElement: h } = react();
+  return h('ul', { className: 'konzilo-passage-files' }, paths.map((path) => h('li', { key: path, className: 'konzilo-passage-file', 'data-path': path }, h('code', null, path))));
+}
+
 // A passage as the purge's steps purge it, from every old revision. `collections`: Sveltia's,
 // whose forms the files a refusal names are linked to.
 function passageSubject(passage, service, collections) {
-  const failed = { current: 'passage.purgeFailed-current', 'not-found': 'passage.purgeFailed-not-found', unanswered: 'passage.purgeFailed-unanswered' };
+  const failed = { current: 'passage.purgeFailed-current', published: 'passage.purgeFailed-published', 'not-found': 'passage.purgeFailed-not-found', unanswered: 'passage.purgeFailed-unanswered' };
   return {
     heading: say('passage.purgeTitle'),
     during: say('passage.purgeOf'),
@@ -83,7 +91,9 @@ function passageSubject(passage, service, collections) {
     // Each file the refusal names, where it names any.
     failedFiles: (purge) => {
       const { createElement: h } = react();
-      return purge?.reason === 'current' && Array.isArray(purge.paths) && purge.paths.length > 0 ? h(RefusedFiles, { key: 'paths', paths: purge.paths, collections }) : null;
+      if (!Array.isArray(purge?.paths) || purge.paths.length === 0) return null;
+      if (purge.reason === 'current') return h(RefusedFiles, { key: 'paths', paths: purge.paths, collections });
+      return purge.reason === 'published' ? h(PublishedFiles, { key: 'paths', paths: purge.paths }) : null;
     },
     doneWords: say('passage.purgeDone'),
   };
@@ -135,15 +145,17 @@ function FileFound({ file, collections }) {
     file.more > 0 ? h('p', { className: 'konzilo-passage-note' }, wordsShown({ name: 'passage.moreRevisions', values: { count: file.more } })) : null);
 }
 
-// What the search found: the files whose current version holds the passage, those whose old
-// revisions alone do, and the saves whose message names it, and the way to purge it, where no
-// current version holds it.
+// What the search found: the files whose current version holds the passage, the files of the
+// published site that still do, those whose old revisions alone do, and the saves whose message
+// names it, and the way to purge it, where neither a current version nor the published site holds
+// it.
 function Found({ found, collections, onPurge }) {
   const { createElement: h } = react();
   const current = found.files.filter((file) => file.current);
   const old = found.files.filter((file) => !file.current);
+  const published = Array.isArray(found.published) ? found.published : [];
   const { counted } = found;
-  if (counted.files === 0 && counted.messages === 0) return h('p', { className: 'konzilo-passage-state', role: 'status' }, say('passage.none'));
+  if (counted.files === 0 && counted.messages === 0 && published.length === 0) return h('p', { className: 'konzilo-passage-state', role: 'status' }, say('passage.none'));
   return h('div', { className: 'konzilo-passage-found' },
     h('p', { role: 'status' }, changedWords('passage.found', counted)),
     current.length > 0
@@ -151,8 +163,17 @@ function Found({ found, collections, onPurge }) {
         h('h2', { id: 'konzilo-passage-current' }, say('passage.currentHeading')),
         h('p', { role: 'alert', className: 'konzilo-passage-refusal' }, say('passage.currentWords')),
         h('ul', { className: 'konzilo-passage-files' }, current.map((file) => h(FileFound, { key: file.path, file, collections }))))
-      : h('div', { className: 'konzilo-deleted-ways' },
-        h('button', { type: 'button', className: 'konzilo-deleted-button konzilo-purge-open', onClick: onPurge }, say('passage.purge'))),
+      : null,
+    published.length > 0
+      ? h('section', { 'aria-labelledby': 'konzilo-passage-published' },
+        h('h2', { id: 'konzilo-passage-published' }, say('passage.publishedHeading')),
+        h('p', { role: 'alert', className: 'konzilo-passage-refusal' }, say('passage.publishedWords')),
+        h(PublishedFiles, { paths: published }))
+      : null,
+    current.length === 0 && published.length === 0
+      ? h('div', { className: 'konzilo-deleted-ways' },
+        h('button', { type: 'button', className: 'konzilo-deleted-button konzilo-purge-open', onClick: onPurge }, say('passage.purge')))
+      : null,
     old.length > 0
       ? h('section', { 'aria-labelledby': 'konzilo-passage-old' },
         h('h2', { id: 'konzilo-passage-old' }, say('passage.oldHeading')),
