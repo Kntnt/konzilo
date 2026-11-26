@@ -13,7 +13,8 @@ import { fileURLToPath } from 'node:url';
 import { astroConfig, astroEnvironment, nodeSync } from './lib/astro.js';
 import { postFile, settingsFile, writeFiles } from './lib/content.js';
 import { plainImage, sharp } from './lib/images.js';
-import { markdownAddress, markdownAlternate, pageOfMarkdown, prefersMarkdown } from '../src/astro/markdown-alternates.js';
+import { markdownAlternate, pageOfMarkdown, prefersMarkdown } from '../src/astro/markdown-alternates.js';
+import { markdownAddress } from '../src/markdown-negotiation.js';
 import { pageMarkdown } from '../src/astro/html-to-markdown.js';
 import { siteDescription } from '../src/site-description.js';
 

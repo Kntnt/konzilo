@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
 import { markdownMarks, RefusedRules, searchRoute, webRules } from '../src/build/web-server.js';
-import { ACCEPT_LENGTH, ACCEPT_RANGES } from '../src/astro/markdown-alternates.js';
+import { ACCEPT_LENGTH, ACCEPT_RANGES } from '../src/markdown-negotiation.js';
 import { headersFile, securityHeaders } from '../src/astro/security-headers.js';
 import { siteDescription } from '../src/site-description.js';
 
