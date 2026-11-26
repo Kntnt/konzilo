@@ -1,6 +1,7 @@
 # The web server: Caddy with no file capability, so that it runs with every
 # capability dropped (ADR 0005), and the editor's static files, with the notices of
 # what they hold beside them, `third-party-notices.txt`, which the build writes (ADR 0072).
+# It writes the log of addresses not found, which the service folds (ADR 0040).
 
 ARG NODE
 ARG NODE_DIGEST
@@ -14,14 +15,16 @@ RUN npm ci --no-audit --no-fund --ignore-scripts
 COPY scripts/build-editor.js scripts/notices.js scripts/wasm-reader.js scripts/
 COPY src/cms src/cms
 COPY src/format src/format
-COPY src/catalogues.js src/refusals.js src/submission-values.js src/trigger-words.js src/
+COPY src/catalogues.js src/checks.js src/refusals.js src/submission-values.js src/trigger-words.js src/
 COPY src/catalogues src/catalogues
 COPY src/astro/reader-features.js src/astro/
-COPY src/intake/words.js src/intake/
+COPY src/intake/rules-file.js src/intake/words.js src/intake/
 RUN node scripts/build-editor.js /editor
 
 FROM caddy:${CADDY}-alpine@sha256:${CADDY_DIGEST}
 RUN setcap -r /usr/bin/caddy
+# The log of addresses not found, in a volume of its own, which takes its first owner from here.
+RUN mkdir -p /srv/not-found && chown 1000:1000 /srv/not-found
 COPY compose/web/Caddyfile /etc/caddy/Caddyfile
 COPY --from=editor /editor /srv/admin
 USER 1000:1000

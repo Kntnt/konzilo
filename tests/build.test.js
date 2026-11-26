@@ -615,7 +615,7 @@ describe('releases', () => {
     assert.deepEqual(readdirSync(join(root, 'current/pages')), ['index.html']);
     rmSync(join(built, '_consent.json'));
     releases(root).publish(built, '2');
-    assert.deepEqual(readdirSync(join(root, 'current')).sort(), ['pages', 'web-rules.caddy']);
+    assert.deepEqual(readdirSync(join(root, 'current')).sort(), ['_redirects', 'pages', 'web-rules.caddy']);
   });
 
   test('holds the marks the web server reads of its Markdown alternates, as empty files, and none the build wrote there', () => {
@@ -628,6 +628,20 @@ describe('releases', () => {
     const marks = join(root, 'current/pages/_konzilo/alternates');
     assert.deepEqual(readdirSync(marks, { recursive: true }).sort(), ['llms', 'llms/a', 'llms/a/b.md', 'markdown', 'markdown/index.md']);
     assert.equal(readFileSync(join(marks, 'markdown/index.md'), 'utf8'), '');
+  });
+
+  // The log of addresses not found lets an address go that a rule of the release answers (ADR 0040).
+  test('keeps its redirects as the build wrote them beside its pages, where no visitor reaches them', () => {
+    const root = join(folder, 'redirects');
+    const built = join(folder, 'dist-redirects');
+    mkdirSync(built);
+    writeFileSync(join(built, 'index.html'), 'x');
+    writeFileSync(join(built, '_redirects'), '/old/ /new/ 301\n');
+    releases(root).publish(built, '1', '');
+    assert.equal(readFileSync(join(root, 'current/_redirects'), 'utf8'), '/old/ /new/ 301\n');
+    rmSync(join(built, '_redirects'));
+    releases(root).publish(built, '2', '');
+    assert.equal(readFileSync(join(root, 'current/_redirects'), 'utf8'), '');
   });
 
   test('clears a release a stop left half made', () => {

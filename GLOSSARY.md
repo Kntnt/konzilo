@@ -280,7 +280,9 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **404 page**: The page an Admin chooses in the site settings, which the site shows with `404` or `410` wherever nothing else answers, with no address of its own. _Avoid_: error page.
 
-**Log of addresses not found**: The counts of the addresses visitors asked for in vain: each address, how often, and when last, kept 30 days. _Avoid_: access log.
+**Log of addresses not found**: The counts of the addresses visitors asked for in vain: each address, how often, and when last, kept 30 days, which an Admin reads on the *Addresses not found* page, in Swedish *Adresser som inte hittades*, and makes a rule from. _Avoid_: access log.
+
+**Fold**: Turning the lines the web server wrote to the log of addresses not found since the last time into its counts, every five minutes. _Avoid_: rotation, aggregation.
 
 **Log of policy violations**: The counts of what the public site's policy blocked, kept 30 days. _Avoid_: CSP log.
 
