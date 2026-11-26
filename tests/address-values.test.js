@@ -146,6 +146,9 @@ describe('a post\'s address', () => {
     const [, renamed] = history('/{category}/{slug}/', { [STORY]: story(), ...categories() }, { [STORY]: story(), ...categories('wellbeing') });
     assert.equal(addressOf(renamed), '/wellbeing/ptsd/lanterns/');
     assert.equal(frontmatter(written(renamed)['stories/lanterns.md']).oldAddresses, '["/health/ptsd/lanterns/"]');
+    const [, reparented] = history('/{category}/{slug}/', { [STORY]: story(), ...categories() }, { [STORY]: story(), ...categories(), 'categories/ptsdptsdptsd.json': { name: 'PTSD', slug: 'ptsd', parent: 'newsnewsnews' } });
+    assert.equal(addressOf(reparented), '/news/ptsd/lanterns/', 'its term moved under another parent');
+    assert.equal(frontmatter(written(reparented)['stories/lanterns.md']).oldAddresses, '["/health/ptsd/lanterns/"]');
   });
 
   test('is as before where the address holds the slug alone, whatever the date and the term', () => {
