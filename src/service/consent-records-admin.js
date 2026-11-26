@@ -4,14 +4,15 @@
 // alone, as the *Mail* page is: an Editor is told only that, and whoever may not write nothing.
 
 import { catalogueFor, text } from '../catalogues.js';
+import { CONSENT_ID } from '../consent/consent-id.js';
 import { momentIn } from '../submission-values.js';
+import { DAY } from './day.js';
 import { row, SEPARATORS } from './submissions-csv.js';
 
 export const CONSENT_RECORDS_PAGE_PATH = '/_konzilo/consent-records';
 
 // The most days a span takes: the 13 months records are kept, and a little more.
 const SPAN_AT_MOST = 400;
-const DAY = 24 * 60 * 60_000;
 
 // The categories, in the order the CSV's columns take them.
 const CATEGORIES = ['necessary', 'functional', 'statistics', 'marketing'];
@@ -36,7 +37,7 @@ function spanOf(searchParams) {
 // A consent ID as the client makes one, in small letters, or null.
 const consentIdOf = (given) => {
   const id = typeof given === 'string' ? given.toLowerCase() : '';
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id) ? id : null;
+  return CONSENT_ID.test(id) ? id : null;
 };
 
 // Records as CSV, a piece at a time: the header row, after the byte-order mark, and then a row for

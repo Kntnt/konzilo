@@ -14,6 +14,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { BUILT_CONSENT_REVISION } from '../build/release.js';
 import { CATALOGUES } from '../catalogues.js';
 import { CONSENT_SCRIPT_LIFETIME, CONSENT_SCRIPTS, CONSENT_STYLESHEET, consentScriptPath } from '../consent/registry.js';
 import { consentView } from '../consent/markup.js';
@@ -149,9 +150,6 @@ export function writeConsentScripts(dir, given) {
   return [...files.keys()];
 }
 
-// Where a public build writes its consent revision for the service, which
-// the release holds beside its pages (src/build/release.js).
-export const CONSENT_REVISION_FILE = '_consent.json';
 
 // What a page of the site shows a visitor of its consent, in its language,
 // from the input of the markup functions (consentInput()): the banner's and
@@ -214,7 +212,7 @@ export function consentRevision({ folder, languages = [], base = '/', origin: ho
 export function writeConsentRevision(dir, given) {
   const revision = consentRevision(given);
   if (revision === null) return false;
-  writeFileSync(join(fileURLToPath(dir), CONSENT_REVISION_FILE), JSON.stringify(revision));
+  writeFileSync(join(fileURLToPath(dir), BUILT_CONSENT_REVISION), JSON.stringify(revision));
   return true;
 }
 

@@ -5,6 +5,8 @@
 // browser or referrer. An Admin reads them on the editor's *Policy violations* page, through the
 // role for editors.
 
+import { DAY } from './day.js';
+
 export const VIOLATIONS_PATH = '/_konzilo/violations';
 
 // The most a body takes, in bytes and in reports: every report holds the whole policy, which a
@@ -24,7 +26,6 @@ export const ENTRIES_AT_MOST = 1000;
 
 // The days an entry is kept after it was last seen.
 export const VIOLATION_DAYS = 30;
-const DAY = 24 * 60 * 60_000;
 
 // The directives a violation is reported by, as the browsers name them.
 const DIRECTIVES = new Set([

@@ -20,10 +20,11 @@ import { lstatSync, readFileSync, readlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
-export const CONSENT_RECORDS_PATH = '/_konzilo/consent';
+import { RELEASE_CONSENT_REVISION } from '../build/release.js';
+import { CONSENT_ID } from '../consent/consent-id.js';
+import { DAY } from './day.js';
 
-// The file beside a release's pages that holds its consent revision with what it showed.
-export const RELEASE_CONSENT_FILE = 'consent.json';
+export const CONSENT_RECORDS_PATH = '/_konzilo/consent';
 
 // The service's data for the records (ADR 0044), a numbered step of store.js: each revision's
 // words, a version for each language and each time its pages' words changed, from when the
@@ -170,8 +171,6 @@ export function consentRecordStore(database, { file, forgot }) {
   };
 }
 
-const DAY = 24 * 60 * 60_000;
-
 // How a choice was made, the part of the consent it was made in and its control, as the client
 // names them, and the controls the Admin's page counts.
 const HOWS = ['banner', 'dialog', 'placeholder', 'withdrawal'];
@@ -180,8 +179,6 @@ export const CONTROLS = ['accept', 'reject', 'save', 'allow', 'withdraw'];
 // A record's fields, exactly.
 const FIELDS = ['id', 'chosen', 'revision', 'categories', 'services', 'how', 'control', 'path', 'language'].sort();
 
-// A random consent ID, as the client makes one: a UUID, in small letters.
-const CONSENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 // A moment as the client writes it, Date's own ISO 8601, in UTC.
 const MOMENT = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/;
 // A consent revision, a hash's first 16 hexadecimal digits (src/consent/registry.js).
@@ -294,13 +291,13 @@ export function publishedRevisions({ folder, store, warn = console.error, now = 
       let live;
       try {
         live = lstatSync(join(folder, 'current')).mtime;
-        held = JSON.parse(readFileSync(join(folder, 'current', RELEASE_CONSENT_FILE), 'utf8'));
+        held = JSON.parse(readFileSync(join(folder, 'current', RELEASE_CONSENT_REVISION), 'utf8'));
       } catch (error) {
         unread(at, error.code === 'ENOENT' ? null : error.message);
         return;
       }
       if (!isRevision(held)) {
-        unread(at, `${RELEASE_CONSENT_FILE} is not one`);
+        unread(at, `${RELEASE_CONSENT_REVISION} is not one`);
         return;
       }
       store.consentRecords.keepRevision(held, live);

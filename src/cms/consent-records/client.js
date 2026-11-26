@@ -2,6 +2,7 @@
 // answers: the choices per day of a span, a consent ID's records with what their revision showed,
 // and a span's records downloaded as CSV, every day and moment in UTC. It holds no React.
 
+import { CONSENT_ID } from '../../consent/consent-id.js';
 import { askAsAdmin, fetching } from '../service.js';
 import { downloadCsvFrom } from '../submissions/client.js';
 
@@ -38,5 +39,5 @@ export function lastDays(count, today = () => new Date()) {
 // what is none.
 export function consentIdOf(given) {
   const id = given.trim().toLowerCase();
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id) ? id : null;
+  return CONSENT_ID.test(id) ? id : null;
 }
