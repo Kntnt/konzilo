@@ -310,7 +310,9 @@ describe('incoming feeds', () => {
     await go(ebba.page, `#/collections/articles/entries/${id}`);
     const box = ebba.page.getByRole('textbox', { name: 'Working name' });
     await box.waitFor({ timeout: 30_000 });
-    assert.equal(await box.isEditable(), true);
+    // Read-only only while the service is asked for the form's lock, which it now gives.
+    await until('the form to edit', () => box.isEditable(), 30_000);
+    assert.equal(await ebba.page.getByText('This post is made from a feed').count(), 0);
     assert.ok(await pageText('/market-day/'), 'still published');
   }, { timeout: 300_000 });
 
