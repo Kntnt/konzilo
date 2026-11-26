@@ -7,7 +7,7 @@
 // collection's entries. The address itself is filled where every address is
 // (format/addresses.js).
 
-import { filledAddress, termSlug } from '../../format/addresses.js';
+import { filledAddress, termChain, termPath, termSlug } from '../../format/addresses.js';
 import { momentOf } from '../../format/moment.js';
 import { sourceReader } from '../source.js';
 
@@ -16,9 +16,9 @@ const FRESH = 30_000;
 
 // The source as sourceOf() names it, and `credential()`, the signed-in editor's. Gives
 // pathOf(collection, id, folder), the path of the term by its ID in a taxonomy's collection,
-// its parents' slugs from the top and its own, each its own `slug` or one made from its name,
-// as the intake makes it, the files in the language folder `folder` on a site in several
-// languages, the main language's, which decides a term's slug; null where a file is missing.
+// its parents' slugs from the top and its own, each as the intake takes it (termSlug()), the
+// files in the language folder `folder` on a site in several languages, the main language's,
+// which decides a term's slug; null where a file is missing or the parents go round.
 export function termPathReader({ api, repository, branch, credential, get, now = () => Date.now() }) {
   const source = sourceReader({ api, repository, branch, credential, get });
   const known = new Map();
@@ -31,26 +31,13 @@ export function termPathReader({ api, repository, branch, credential, get, now =
   };
   return async (collection, id, folder = null) => {
     if (!api || !credential() || typeof id !== 'string' || id === '') return null;
-    const slugs = [];
-    const seen = new Set();
-    for (let next = id; next !== null;) {
-      if (seen.has(next)) return null;
-      seen.add(next);
+    return termPath(await termChain(id, async (next) => {
       const term = await read(`${collection}/${folder ? `${folder}/` : ''}${next}.json`);
       const slug = term === null ? null : termSlug(term);
-      if (typeof slug !== 'string' || slug === '') return null;
-      slugs.unshift(slug);
-      next = typeof term.parent === 'string' && term.parent !== '' ? term.parent : null;
-    }
-    return slugs.join('/');
+      return typeof slug === 'string' && slug !== '' ? { slug, parent: term.parent } : null;
+    }));
   };
 }
-
-// The term ID a form holds in a field of terms that takes one, or null.
-export const termIdIn = (value) => {
-  const [first] = Array.isArray(value) ? value : [value];
-  return typeof first === 'string' && first !== '' ? first : null;
-};
 
 // A post's page on the public site at `site`, from its type's address `template`, with any
 // language's prefix (addressTemplate()), and the form's values: `data`, flat, its slug, date

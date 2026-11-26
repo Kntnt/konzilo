@@ -5,7 +5,8 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import { formAddress, termIdIn, termPathReader } from '../src/cms/parts/address.js';
+import { formAddress, termPathReader } from '../src/cms/parts/address.js';
+import { termIdOf } from '../src/format/addresses.js';
 import { run, sourcePost } from './lib/intake.js';
 
 const encoded = (text) => Buffer.from(text).toString('base64');
@@ -72,10 +73,12 @@ describe('the address a post\'s form shows', () => {
     }
   });
 
-  test('takes the one term a field holds, as a list or alone', () => {
-    assert.equal(termIdIn(['aaaaaaaaaaaa']), 'aaaaaaaaaaaa');
-    assert.equal(termIdIn('aaaaaaaaaaaa'), 'aaaaaaaaaaaa');
-    assert.equal(termIdIn([]), null);
-    assert.equal(termIdIn(undefined), null);
+  test('takes the one term a field holds, as a list or alone, or as Astro\'s reference to it', () => {
+    assert.equal(termIdOf(['aaaaaaaaaaaa']), 'aaaaaaaaaaaa');
+    assert.equal(termIdOf('aaaaaaaaaaaa'), 'aaaaaaaaaaaa');
+    assert.equal(termIdOf([{ id: 'sv-SE/news', collection: 'categories' }]), 'sv-SE/news');
+    assert.equal(termIdOf([]), null);
+    assert.equal(termIdOf(['']), null);
+    assert.equal(termIdOf(undefined), null);
   });
 });

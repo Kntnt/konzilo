@@ -60,6 +60,10 @@ export function addressSteps(address) {
   });
 }
 
+// Whether a token of a type's address (`fields`, the type's as read) fills any number of steps:
+// `{path}`, and the term of a hierarchical taxonomy, its path; every other token fills one.
+export const takesSteps = (token, fields) => token === 'path' || Boolean(fields.find((field) => field.name === token && field.kind === 'terms')?.taxonomy?.hierarchical);
+
 // The fields of terms whose term a type's address holds, in any of its languages, as the site
 // description declares them (as checked): none for a type whose address holds none.
 export function addressTermFields(type) {
@@ -67,13 +71,6 @@ export function addressTermFields(type) {
   const all = typeof type.address === 'string' ? [type.address] : Object.values(type.address);
   const named = new Set(all.flatMap((address) => addressSteps(address).map((step) => step.token).filter(Boolean)));
   return type.fields.filter((field) => field.kind === 'terms' && named.has(field.name));
-}
-
-// Whether a type's address holds its post's date, in any of its languages.
-export function addressHoldsDate(type) {
-  if (type?.address == null) return false;
-  const all = typeof type.address === 'string' ? [type.address] : Object.values(type.address);
-  return all.some((address) => addressSteps(address).some((step) => DATE_TOKENS.includes(step.token)));
 }
 
 // An address with its tokens filled by a post's values, or null where it lacks one the
@@ -103,32 +100,55 @@ export function filledAddress(address, { name = null, date = null, terms = {} } 
 export function contentValues(type, name, data, read) {
   const terms = {};
   for (const field of addressTermFields(type)) {
-    const [first] = Array.isArray(data?.[field.name]) ? data[field.name] : [];
-    const id = typeof first === 'string' ? first : first?.id;
-    if (typeof id !== 'string' || id === '') continue;
+    const id = termIdOf(data?.[field.name]);
+    if (id === null) continue;
     const path = field.taxonomy?.hierarchical ? publishedTermPath(field.taxonomy.collection, id, read) : id.split('/').at(-1);
     if (path) terms[field.name] = path;
   }
   return { name, date: data?.date ?? null, terms };
 }
 
-// A term's path by its published files, the slugs of its parents from the top and its own,
-// each file named by its slug, or `<tag>/<slug>`, its `parent` named the same way (or as Astro's
-// reference to it), `read(collection, id)` giving a file's data or null; null where a file is
-// missing or the parents go round.
-export function publishedTermPath(collection, id, read) {
-  const slugs = [];
-  const seen = new Set();
-  for (let next = id; typeof next === 'string' && next !== '';) {
-    if (seen.has(next)) return null;
-    seen.add(next);
-    const term = read(collection, next);
-    if (!term) return null;
-    slugs.unshift(next.split('/').at(-1));
-    next = typeof term.parent === 'string' ? term.parent : term.parent?.id;
-  }
-  return slugs.length === 0 ? null : slugs.join('/');
+// The ID of the one term a field holds, as a form, a source file or a content file holds it: the
+// first of a list, or the value alone, each a term's ID, its file's name, or Astro's reference to
+// it, { id }; null for none.
+export function termIdOf(value) {
+  const [first] = Array.isArray(value) ? value : [value];
+  const id = typeof first === 'string' ? first : first?.id;
+  return typeof id === 'string' && id !== '' ? id : null;
 }
+
+// A term and those above it, from the top: what `lookup(id)` gives for a term by its ID, with its
+// `parent` named as termIdOf() takes it, or none at the top; or a promise of it, and then this
+// gives a promise too. Gives { chain }, what `lookup` gave from the top, and, where it stopped
+// short, `missing`, the ID `lookup` gave nothing for, or `loop`, where the parents go round.
+export function termChain(id, lookup) {
+  const chain = [];
+  const seen = new Set();
+  const from = (next) => {
+    if (next === null) return { chain };
+    if (seen.has(next)) return { chain, loop: true };
+    seen.add(next);
+    const take = (term) => {
+      if (!term) return { chain, missing: next };
+      chain.unshift(term);
+      return from(termIdOf(term.parent));
+    };
+    const found = lookup(next);
+    return typeof found?.then === 'function' ? found.then(take) : take(found);
+  };
+  return from(termIdOf(id));
+}
+
+// A term's path from what termChain() gives, each term with its `slug`: the slugs from the top,
+// joined by `/`; null where it stopped short, or found no term.
+export const termPath = ({ chain, missing, loop }) => (missing !== undefined || loop || chain.length === 0 ? null : chain.map((term) => term.slug).join('/'));
+
+// A term's path by its published files, each named by its slug, or `<tag>/<slug>`, its `parent`
+// named the same way, `read(collection, id)` giving a file's data or null.
+export const publishedTermPath = (collection, id, read) => termPath(termChain(id, (next) => {
+  const term = read(collection, next);
+  return term && { slug: next.split('/').at(-1), parent: term.parent };
+}));
 
 // The slug, or path, that an address gives where a type's address in a language, `template`
 // (addressTemplate()), holds `{slug}` or `{path}`, or null where the template cannot give the

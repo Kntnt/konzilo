@@ -37,7 +37,7 @@
 
 import { SOURCE_LANGUAGE, textsOf } from '../catalogues.js';
 import { breadcrumbOf } from '../format/article-parts.js';
-import { nameIn } from '../format/addresses.js';
+import { nameIn, takesSteps } from '../format/addresses.js';
 import { firstEntry, labelOf } from '../format/menus.js';
 import { chosenStartPage, entryAddress as addressIn, menuEntry, pageLanguage, startAddress, typeAddress } from './languages.js';
 import { taxonomyWithPages } from './term-pages.js';
@@ -151,7 +151,7 @@ async function postAt(address, site, getEntry, language) {
   for (const type of Object.values(site.types)) {
     const inLanguage = type ? typeAddress(type, several ? language.locale : site.language) : null;
     const declared = inLanguage === null ? null : several ? `/${language.prefix}${inLanguage}` : inLanguage;
-    const name = declared === null ? null : nameIn(address, declared, (token) => token === 'path' || Boolean(type.fields.find((field) => field.name === token)?.taxonomy?.hierarchical));
+    const name = declared === null ? null : nameIn(address, declared, (token) => takesSteps(token, type.fields));
     const found = name === null ? undefined : await getEntry(type.collection, several ? `${language.tag}/${name}` : name);
     if (found && addressIn(type, found, site.languages ?? []) === address) return found;
   }

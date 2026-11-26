@@ -35,7 +35,8 @@ import { computedDefault } from '../groups/menu.js';
 import { postValues } from '../groups/values.js';
 import { signedInCredential } from '../credential.js';
 import { sourceOf, sourceReader } from '../source.js';
-import { formAddress, termIdIn, termPathReader } from './address.js';
+import { termIdOf } from '../../format/addresses.js';
+import { formAddress, termPathReader } from './address.js';
 import { menuLabelReader } from './menu-label.js';
 import { SCHEMA_WIDGET, SLUG_WIDGET, TEXT_WIDGET } from './widgets.js';
 import './form.css';
@@ -73,7 +74,7 @@ export function registerParts(CMS, config) {
   const useAddressTerms = (field, data) => {
     const wanted = plain(field.get('addressTerms')) ?? [];
     const folder = plain(field.get('termFolder')) ?? null;
-    const ids = wanted.map(({ name }) => termIdIn(data?.[name]));
+    const ids = wanted.map(({ name }) => termIdOf(data?.[name]));
     const [terms, setTerms] = React.useState({});
     React.useEffect(() => {
       if (wanted.length === 0) return undefined;
