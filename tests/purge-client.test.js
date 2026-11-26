@@ -48,3 +48,28 @@ test('asks for a purge by the entry\'s path and the course, and stops one that w
   assert.equal(await service.stop(), false);
   assert.equal(asked.at(-1).method, 'DELETE');
 });
+
+test('searches for a passage in the request\'s body, and asks for its purge', async () => {
+  const asked = [];
+  const found = { files: [], messages: [], counted: { files: 0, revisions: 0, messages: 0 } };
+  const answers = [
+    answer(200, { found }),
+    answer(400, {}),
+    answer(503, {}),
+    answer(502, {}),
+    answer(202, { purge: { id: 'p2', state: 'running', passage: true, forms: [] } }),
+    answer(409, { purge: { id: 'p1', state: 'running', path: 'articles/a.md', forms: [] } }),
+  ];
+  const service = purgeService({ credential: () => 'token mine', ask: async (address, init) => {
+    asked.push({ address, method: init.method, body: init.body, type: init.headers['content-type'] });
+    return answers.shift();
+  } });
+  assert.deepEqual(await service.search('Ebba Svensson'), { found });
+  assert.deepEqual(asked[0], { address: '/_konzilo/purge/search', method: 'POST', body: '{"passage":"Ebba Svensson"}', type: 'application/json' });
+  assert.deepEqual(await service.search('Eb'), { refused: true });
+  assert.deepEqual(await service.search('Ebba Svensson'), { busy: true });
+  assert.equal(await service.search('Ebba Svensson'), null);
+  assert.deepEqual(await service.startPassage('Ebba Svensson', 'anyway'), { purge: { id: 'p2', state: 'running', passage: true, forms: [] } });
+  assert.deepEqual(asked.at(-1), { address: '/_konzilo/purge', method: 'POST', body: '{"passage":"Ebba Svensson","course":"anyway"}', type: 'application/json' });
+  assert.deepEqual(await service.startPassage('Ebba Svensson', 'anyway'), { busy: true, purge: { id: 'p1', state: 'running', path: 'articles/a.md', forms: [] } });
+});
