@@ -143,10 +143,11 @@
 		# How publishing stands (ADR 0031), small pictures of images (ADR 0055), the forms'
 		# submissions and a person's (ADR 0045), how the site mails them and keeps them
 		# (ADR 0003), the locks of the editor's forms (ADR 0073), whose call a tab makes is held
-		# open until they change, a form's revisions, at /_konzilo/revisions (ADR 0074), and the
-		# deleted posts, terms and image library entries, at /_konzilo/deleted (ADR 0077), from the
-		# service, which asks Forgejo who is asking.
-		@service path /_konzilo/status /_konzilo/thumbnail /_konzilo/submissions /_konzilo/submissions/* /_konzilo/mail /_konzilo/personal-data /_konzilo/personal-data.csv /_konzilo/locks /_konzilo/locks/* /_konzilo/revisions /_konzilo/deleted
+		# open until they change, a form's revisions, at /_konzilo/revisions (ADR 0074), the
+		# deleted posts, terms and image library entries, at /_konzilo/deleted (ADR 0077), and an
+		# Admin's purge of one, at /_konzilo/purge (ADR 0078), from the service, which asks Forgejo
+		# who is asking.
+		@service path /_konzilo/status /_konzilo/thumbnail /_konzilo/submissions /_konzilo/submissions/* /_konzilo/mail /_konzilo/personal-data /_konzilo/personal-data.csv /_konzilo/locks /_konzilo/locks/* /_konzilo/revisions /_konzilo/deleted /_konzilo/purge
 		handle @service {
 			reverse_proxy {$KONZILO_PEER_EDITORS:http://editors:4100} {
 				header_up -X-Real-IP

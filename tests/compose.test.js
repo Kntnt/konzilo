@@ -374,6 +374,31 @@ test('passes the deleted entries to the service for editors, on the admin host',
   assert.ok(matcher.includes('/_konzilo/deleted'));
 });
 
+// An Admin's purge (ADR 0078): asked of the service for editors on the admin host, and made by a
+// program of its own, which alone mounts the credential that can rewrite the source's history,
+// with no port, nothing of the site's code and the folder it shares with the builder; Forgejo lets
+// go at once of what no ref reaches when the purge asks it to.
+test('passes an Admin\'s purge to the service for editors, and keeps its credential to the purge alone', () => {
+  const caddyfile = read('compose/web/Caddyfile');
+  const admin = caddyfile.slice(caddyfile.indexOf(':{$KONZILO_PORT_ADMIN}'), caddyfile.indexOf(':{$KONZILO_PORT_PREVIEW}'));
+  const matcher = /@service path (.*)$/m.exec(admin)?.[1].split(' ') ?? [];
+  assert.ok(matcher.includes('/_konzilo/purge'));
+  const blocks = servicesOf(compose);
+  assert.match(blocks.purge, /^ {4}command: \["node", "\/konzilo\/bin\/konzilo-purge\.js"\]$/m);
+  assert.match(blocks.purge, /^ {6}- purge-secret:\/secret:ro$/m);
+  assert.match(blocks.purge, /^ {6}- build-control:\/control$/m);
+  assert.doesNotMatch(blocks.purge, /^ {4}ports:/m);
+  assert.doesNotMatch(blocks.purge, /\/site:ro|KONZILO_CORE/, 'nothing of the site\'s code');
+  for (const [name, block] of Object.entries(blocks)) {
+    if (!['purge', 'seed'].includes(name)) assert.doesNotMatch(block, /purge-secret/, name);
+  }
+  assert.match(blocks.seed, /^ {6}- purge-secret:\/purge-secret$/m);
+  assert.match(compose, /^ {4}FORGEJO__git__GC_ARGS: --prune=now$/m);
+  assert.match(compose, /^ {4}FORGEJO__git_0X2E_config__gc_0X2E_reflogExpireUnreachable: now$/m);
+  assert.match(compose, /^ {4}FORGEJO__cron_0X2E_gc_lfs__OLDER_THAN: 1m$/m);
+  assert.match(read('compose/builder/Dockerfile'), /mkdir -p [^\n]*\/purge-secret\b[^\n]*&& chown node:node [^\n]*\/purge-secret\b/);
+});
+
 // Who pushed what a private account pushed, Forgejo's feed tells only those who run it, so the
 // service reads the feed by a token of the instance's account that can do nothing but read.
 test('lets the service for editors read who pushed each commit', () => {

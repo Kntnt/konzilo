@@ -11,7 +11,7 @@ const json = async (answer) => {
   try {
     return await answer.json();
   } catch {
-    return {};
+    return null;
   }
 };
 
@@ -26,7 +26,9 @@ export function purgeService({ credential, ask = fetching() }) {
         if (answer === null) return null;
         if (answer.status === 403) return { admin: false };
         if (!answer.ok) return null;
-        const { purge = null, purges = [], open = [] } = await json(answer);
+        const read = await json(answer);
+        if (read === null || typeof read !== 'object' || !Array.isArray(read.purges)) return null;
+        const { purge = null, purges, open = [] } = read;
         return { admin: true, purge, purges, open };
       } catch {
         return null;
@@ -38,8 +40,8 @@ export function purgeService({ credential, ask = fetching() }) {
     async start(path, course) {
       const answer = await asked({ method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path, course }) });
       if (answer === null) throw new Error('nobody is signed in');
-      if (answer.status === 202) return { purge: (await json(answer)).purge };
-      if (answer.status === 409) return { busy: true, purge: (await json(answer)).purge };
+      if (answer.status === 202) return { purge: (await json(answer))?.purge ?? null };
+      if (answer.status === 409) return { busy: true, purge: (await json(answer))?.purge ?? null };
       if (answer.status === 404) return { gone: true };
       throw new Error(`the service answered ${answer.status}`);
     },
