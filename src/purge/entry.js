@@ -78,8 +78,13 @@ function originalOf(bytes) {
   }
 }
 
-// The LFS object a pointer names, by its SHA-256, or null.
-const oidOf = (bytes) => /^oid sha256:([0-9a-f]{64})$/m.exec(Buffer.from(bytes).toString('utf8'))?.[1] ?? null;
+// The LFS object a pointer names, { oid, size }, `oid` its SHA-256, or null.
+const objectOf = (bytes) => {
+  const text = Buffer.from(bytes).toString('utf8');
+  const oid = /^oid sha256:([0-9a-f]{64})$/m.exec(text)?.[1];
+  const size = /^size (\d+)$/m.exec(text)?.[1];
+  return oid && size ? { oid, size: Number(size) } : null;
+};
 
 // The addresses a post's own file gives it beside its own, `otherAddresses`.
 function otherAddressesOf(bytes) {
@@ -157,11 +162,11 @@ async function sourcePlan(git, entry) {
       if (await namedElsewhere(git, original, path)) continue;
       drop.add(original);
       const pointers = await blobsOf(git, await versionsOf(git, original));
-      originals.push(...[...pointers.values()].map(oidOf).filter(Boolean));
+      originals.push(...[...pointers.values()].map(objectOf).filter(Boolean));
     }
   }
   addresses.delete(null);
-  return { drop, addresses, slugs, originals: [...new Set(originals)] };
+  return { drop, addresses, slugs, originals: [...new Map(originals.map((one) => [one.oid, one])).values()] };
 }
 
 // What the content repository's ledgers say of the entry: the paths of its files and the addresses
@@ -236,7 +241,7 @@ async function entryPlan({ source, content, entry, before }) {
     if (!ledgers.has(at.commit)) ledgers.set(at.commit, at.read(LEDGER).then((bytes) => (bytes === null ? null : readJson(bytes))));
     return ledgers.get(at.commit);
   };
-  const masters = plan.originals.length === 0 ? null : new RegExp(`^${MEDIA_FOLDER}/.+-(?:${plan.originals.map((oid) => oid.slice(0, 10)).join('|')})\\.(?:webp|svg)$`);
+  const masters = plan.originals.length === 0 ? null : new RegExp(`^${MEDIA_FOLDER}/.+-(?:${plan.originals.map(({ oid }) => oid.slice(0, 10)).join('|')})\\.(?:webp|svg)$`);
   const termFolder = `${entry.collection}/${tag === null ? '' : `${tag}/`}`;
   const termPaths = new Set([...plan.slugs].map((slug) => `${termFolder}${slug}.json`));
   const slugsAt = new Map();
@@ -275,8 +280,8 @@ async function entryPlan({ source, content, entry, before }) {
 // Purges `entry`, { path, kind, collection }, `kind` one of `post`, `term` and `image`, as `by`,
 // { login, name }, at `at`, as purgeHistories() does. Gives { source, content, paths, originals,
 // record }, `source`, `content` and `record` as purgeHistories() gives them, `paths` the files
-// that went, of both repositories, and `originals` the LFS objects, by their SHA-256, that no
-// commit names now. Throws a PurgeRefusal where the entry is not to be purged.
+// that went, of both repositories, and `originals` the LFS objects, { oid, size }, that no commit
+// names now. Throws a PurgeRefusal where the entry is not to be purged.
 export async function purgeEntry({ source, content, entry, by, at, pushedBy, tries }) {
   const { planned, ...result } = await purgeHistories({
     source,

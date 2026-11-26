@@ -272,10 +272,12 @@ describe('an Admin\'s purge', () => {
             });
             return (await answer.json()).objects;
           };
-          const oidOfFile = async (path) => {
+          // An LFS object by the file it is, { oid, size }.
+          const objectOfFile = async (path) => {
             const answer = await get(`${site.origin.git}/api/v1${repository()}/media/${path}`, { headers: { authorization: `token ${token}` } });
             assert.ok(answer.ok, `${path}: ${answer.status}`);
-            return createHash('sha256').update(Buffer.from(await answer.arrayBuffer())).digest('hex');
+            const bytes = Buffer.from(await answer.arrayBuffer());
+            return { oid: createHash('sha256').update(bytes).digest('hex'), size: bytes.length };
           };
           const shared = (await api(`${repository()}/contents/media`)).find(({ name }) => /\.(?:jpe?g|png|webp)$/.test(name)).name;
           const id = randomBytes(6).toString('hex');
@@ -286,9 +288,9 @@ describe('an Admin\'s purge', () => {
             { operation: 'create', path: original, content: bytes.toString('base64') },
             { operation: 'create', path: entry, content: base64(JSON.stringify({ src: `/${original}`, alt: 'Purged' })) },
           ]);
-          const oid = createHash('sha256').update(bytes).digest('hex');
-          const sharedOid = await oidOfFile(`media/${shared}`);
-          assert.equal((await lfs([{ oid, size: bytes.length }]))[0].error, undefined, 'the original is in LFS');
+          const own = { oid: createHash('sha256').update(bytes).digest('hex'), size: bytes.length };
+          const sharedObject = await objectOfFile(`media/${shared}`);
+          assert.equal((await lfs([own]))[0].error, undefined, 'the original is in LFS');
           await pushAs('ebba', entry, () => JSON.stringify({ src: `/media/${shared}`, alt: 'Shared' }));
           await remove('ebba', [entry, original]);
 
@@ -307,7 +309,7 @@ describe('an Admin\'s purge', () => {
             assert.ok(Date.now() < deadline, 'the purge did not end in time');
             await new Promise((go) => setTimeout(go, 2000));
           }
-          const [gone, kept] = await lfs([{ oid, size: bytes.length }, { oid: sharedOid, size: 1 }]);
+          const [gone, kept] = await lfs([own, sharedObject]);
           assert.equal(gone.error?.code, 404, 'its own original is gone from LFS');
           assert.equal(kept.error, undefined, 'one a current file names stays');
           assert.ok(!clonedAnew('source', original).paths.has(original));

@@ -54,7 +54,7 @@ export function purgeKeeper({ table, control, now = () => new Date(), reloadWith
     try {
       if (last.state === 'done') onDone();
     } catch (error) {
-      warn(`What a purge leaves to forget was not forgotten: ${error.message}`);
+      warn(`What a purge leaves to forget could not be forgotten: ${error.message}`);
     }
     table.open();
   };

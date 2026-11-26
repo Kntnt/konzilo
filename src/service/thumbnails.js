@@ -87,11 +87,15 @@ export function thumbnails({ forgejo, repository, token, folder, get = fetch, sm
     },
 
     // Forgets every picture, as after a purge (ADR 0078), which may have taken an original one is
-    // of; each is made again as it is next asked for. The folder stays, as it may be a volume's,
-    // which no one in the container can remove.
+    // of; each is made again as it is next asked for.
     forget() {
-      mkdirSync(folder, { recursive: true });
-      for (const name of readdirSync(folder)) rmSync(join(folder, name), { recursive: true, force: true });
+      let names = [];
+      try {
+        names = readdirSync(folder);
+      } catch {
+        return;
+      }
+      for (const name of names) rmSync(join(folder, name), { recursive: true, force: true });
     },
   };
 }

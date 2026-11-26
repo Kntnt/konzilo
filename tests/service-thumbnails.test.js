@@ -2,7 +2,7 @@
 // one is, and how seldom an original is fetched.
 
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -137,6 +137,15 @@ describe('small pictures of originals', () => {
     }
   });
 
+  test('are forgotten after a purge, which may have taken an original one is of, the folder kept as it may be a volume\'s own (ADR 0078)', async () => {
+    const kept = join(folder, 'forgotten');
+    mkdirSync(kept);
+    writeFileSync(join(kept, 'abc123.webp'), 'a picture');
+    thumbnails({ forgejo: 'http://forgejo', repository: 'org/source', token: 'read-token', folder: kept, get: async () => assert.fail('asked') }).forget();
+    assert.deepEqual(readdirSync(kept), []);
+    thumbnails({ forgejo: 'http://forgejo', repository: 'org/source', token: 'read-token', folder: join(folder, 'never-made'), get: async () => assert.fail('asked') }).forget();
+  });
+
   test('give an SVG as itself', withService({ originals: { 'a.svg': { sha: 'def456', bytes: Buffer.from(SVG) } } }, async ({ picture }) => {
     const answer = await picture('a.svg');
     assert.equal(answer.headers.get('content-type'), 'image/svg+xml');
@@ -165,20 +174,5 @@ describe('small pictures of originals', () => {
     assert.equal(answer.status, 404);
     server.closeAllConnections();
     await new Promise((go) => server.close(go));
-  });
-
-  test('forgets every picture after a purge, and keeps their folder, which may be a volume no one can remove', () => {
-    const parent = join(folder, `mounted-${(count += 1)}`);
-    const kept = join(parent, 'thumbnails');
-    mkdirSync(join(kept, 'ab'), { recursive: true });
-    writeFileSync(join(kept, 'ab', 'abcdef.webp'), 'a picture');
-    writeFileSync(join(kept, 'other.webp'), 'another');
-    chmodSync(parent, 0o555);
-    try {
-      thumbnails({ forgejo: 'http://forgejo', repository: 'org/source', token: 'read-token', folder: kept }).forget();
-      assert.deepEqual(readdirSync(kept), []);
-    } finally {
-      chmodSync(parent, 0o755);
-    }
   });
 });
