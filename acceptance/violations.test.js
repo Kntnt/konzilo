@@ -1,11 +1,17 @@
 // The policy's violations (ADR 0051), in a site in Compose: in each browser engine, a page of the
-// site's own that loads what its policy does not allow has the browser report it, by the policy's
-// `report-uri` or `report-to`, as that engine does; the service counts it by the page's path
-// without its query, the directive and the origin blocked; and an Admin finds it on the editor's
-// *Policy violations* page, which an Editor is told is an Admin's, and the service answers no one
-// signed out.
+// site's own that loads what its policy does not allow has the browser report it, as that engine
+// does; the service counts it by the page's path without its query, the directive and the origin
+// blocked; and an Admin finds it on the editor's *Policy violations* page, which an Editor is told
+// is an Admin's, and the service answers no one signed out.
+//
+// Firefox sends its report by the Reporting API to the group the policy's `report-to` names, and
+// WebKit to its `report-uri`, each at once. Chromium, given `report-to`, reports by the Reporting
+// API alone, and in a browser Playwright drives it queues the report for the group and never finds
+// the endpoint the page's `Reporting-Endpoints` names, so it sends none. So in Chromium the report
+// it queued, read through its DevTools, is sent to the site as Chromium's uploader sends one.
 
 import assert from 'node:assert/strict';
+import { request as httpRequest } from 'node:http';
 import { after, before, describe, test } from 'node:test';
 
 import { ENGINES, openEditor, seeded, signIn } from './lib/editor.js';
@@ -38,7 +44,7 @@ describe('the policy\'s violations', () => {
     return answer.json();
   };
   // The entry of what `engine`'s page had blocked, once it is counted, or null when the time is up.
-  const countedFrom = async (engine, { within = 150_000 } = {}) => {
+  const countedFrom = async (engine, { within = 60_000 } = {}) => {
     const deadline = Date.now() + within;
     for (;;) {
       const found = (await counts()).violations.find(({ blocked }) => blocked === blockedIn(engine));
@@ -76,11 +82,39 @@ describe('the policy\'s violations', () => {
 
   after(() => site?.remove());
 
+  // What Chromium queued for the policy's group of the violation that blocked `source`, read
+  // through its DevTools: { report }, once it is queued.
+  const queuedIn = async (context, page, source) => {
+    const devTools = await context.newCDPSession(page);
+    const queued = new Promise((resolve) => {
+      devTools.on('Network.reportingApiReportAdded', ({ report }) => {
+        if (report.type === 'csp-violation' && report.body?.blockedURL?.startsWith(source)) resolve(report);
+      });
+    });
+    await devTools.send('Network.enable');
+    await devTools.send('Network.enableReportingApi', { enable: true });
+    return queued;
+  };
+
+  // A report sent through the web server as Chromium's uploader sends one: a list of reports, as
+  // JSON of the Reporting API's type, from the page's origin.
+  const sendAsChromium = (report, agent) => new Promise((resolve, reject) => {
+    const body = JSON.stringify([{ age: 0, type: report.type, url: report.initiatorUrl, user_agent: agent, body: report.body }]);
+    const asked = httpRequest(new URL('/_konzilo/violations', site.origin.site), {
+      method: 'POST',
+      headers: { 'content-type': 'application/reports+json', origin: site.origin.site, 'user-agent': agent },
+      agent: false,
+    }, (answer) => {
+      answer.resume();
+      answer.on('end', () => resolve(answer.statusCode));
+    });
+    asked.on('error', reject);
+    asked.end(body);
+  });
+
   for (const engine of Object.keys(ENGINES)) {
     test(`are reported by ${engine} from a page of the site's own, and counted by its path, the directive and the origin blocked`, async () => {
-      // Chromium sends what `report-to` names by the Reporting API, a minute later unless told
-      // otherwise, and only while it runs.
-      const browser = await ENGINES[engine].launch(engine === 'chromium' ? { args: ['--short-reporting-delay'] } : {});
+      const browser = await ENGINES[engine].launch();
       try {
         const context = await browser.newContext({ locale: 'en-GB' });
         const outside = [];
@@ -91,6 +125,7 @@ describe('the policy\'s violations', () => {
           return route.abort();
         });
         const page = await context.newPage();
+        const queued = engine === 'chromium' ? queuedIn(context, page, blockedIn(engine)) : null;
         await page.goto(`${site.origin.site}${PAGE}?from=${engine}`);
         await page.evaluate((source) => {
           const image = document.createElement('img');
@@ -98,6 +133,11 @@ describe('the policy\'s violations', () => {
           image.alt = '';
           document.body.append(image);
         }, blockedIn(engine));
+        if (queued) {
+          const report = await queued;
+          assert.equal(report.destination, 'violations', 'queued for the group the policy names');
+          assert.equal(await sendAsChromium(report, await page.evaluate(() => navigator.userAgent)), 204);
+        }
         const found = await countedFrom(engine);
         assert.ok(found, `${engine} reported nothing that was counted`);
         assert.equal(found.page, PAGE, 'the path without its query');
