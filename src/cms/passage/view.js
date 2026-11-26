@@ -13,7 +13,7 @@ import { signedInCredential } from '../credential.js';
 import { say } from '../interface-language.js';
 import { wordsShown } from '../refusals.js';
 import { savedWords } from '../history/words.js';
-import { PurgeDialog } from '../deleted/purge-dialog.js';
+import { PurgeDialog, UnfinishedPurge } from '../deleted/purge-dialog.js';
 import { purgeService } from '../deleted/purge.js';
 import { formOfPath } from './forms.js';
 import '../deleted/deleted.css';
@@ -206,6 +206,7 @@ export function passagePage({ config }) {
     else if (answer?.busy) told = h('p', { className: 'konzilo-passage-state', role: 'alert' }, say('passage.busy'));
     return page(
       outcome ? h('p', { className: 'konzilo-passage-told', role: 'status' }, changedWords('passage.purgedNow', outcome.changed)) : null,
+      standing.purge?.state === 'unfinished' ? h(UnfinishedPurge, { purge: standing.purge, service, collectionOf }) : null,
       purging ? h(PurgeDialog, { subject: passageSubject(sought, service), service, collectionOf, onClose: closePurge }) : null,
       h('p', { className: 'konzilo-passage-note' }, say('passage.about')),
       h('form', { role: 'search', className: 'konzilo-passage-search', onSubmit: search },

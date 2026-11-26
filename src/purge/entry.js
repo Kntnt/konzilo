@@ -274,25 +274,27 @@ async function entryPlan({ source, content, entry, before }) {
       return null;
     },
   });
-  return { source: sourceRules, content: contentRules, paths: [...plan.drop, ...ledger.paths], originals: plan.originals, addresses: [...addresses] };
+  return { source: sourceRules, content: contentRules, outcome: { paths: [...plan.drop, ...ledger.paths], originals: plan.originals, addresses: [...addresses] } };
 }
 
 // Purges `entry`, { path, kind, collection }, `kind` one of `post`, `term` and `image`, as `by`,
-// { login, name }, at `at`, as purgeHistories() does. Gives { source, content, paths, originals,
-// record, addresses }, `source`, `content` and `record` as purgeHistories() gives them, `paths`
-// the files that went, of both repositories, `originals` the LFS objects, { oid, size }, that no
-// commit names now, and `addresses` those the entry had, as rules match them, which the counts of
-// addresses not found then forget (ADR 0040). Throws a PurgeRefusal where the entry is not to be
-// purged.
-export async function purgeEntry({ source, content, entry, by, at, pushedBy, tries }) {
-  const { planned, ...result } = await purgeHistories({
+// { login, name }, at `at`, as purgeHistories() does, which takes `tries`, `sleep` and `noted`.
+// Gives { source, content, record, outcome, paths, originals, addresses }, the first four as
+// purgeHistories() gives them, and in `outcome` and beside it `paths`, the files that went, of
+// both repositories, `originals`, the LFS objects, { oid, size }, that no commit names now, and
+// `addresses`, those the entry had, as rules match them, which the counts of addresses not found
+// then forget (ADR 0040). Throws a PurgeRefusal where the entry is not to be purged.
+export async function purgeEntry({ source, content, entry, by, at, pushedBy, tries, sleep, noted }) {
+  const result = await purgeHistories({
     source,
     content,
     by,
     at,
     pushedBy,
     tries,
+    sleep,
+    noted,
     plan: ({ before }) => entryPlan({ source, content, entry, before }),
   });
-  return { ...result, paths: planned.paths, originals: planned.originals, addresses: planned.addresses };
+  return { ...result, ...result.outcome };
 }

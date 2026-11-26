@@ -21,6 +21,7 @@ import { checkMailSettings, mailSettingsShown } from './mail-settings.js';
 import { isAdminsForm, isForm, isTab, lockTable } from './locks.js';
 import { findSubmissions, idsOf, soughtOf } from './personal-data.js';
 import { passageOf } from '../purge/passage.js';
+import { purgeControl } from '../purge/control.js';
 import { purgeKeeper } from './purge.js';
 import { isSourcePath, sourceHistory } from './revisions.js';
 import { bodyOf } from './request-body.js';
@@ -77,7 +78,7 @@ const PICTURE_HOLDS = 3600;
 // `pushesToken`: one that can read who pushed each commit, which the feed shows of a private account
 // only to the instance's account, else `token`.
 // `control`: as record.js gives it. `purgeControl`: what the service shares with the purge's
-// program alone, as purge/control.js gives it. `isPost(file)`: whether a file in the source is a post.
+// program alone, as purge/control.js gives it, else nothing. `isPost(file)`: whether a file in the source is a post.
 // `pictures`: as thumbnails.js gives them. `store`: the service's data, as store.js opens it, which
 // holds the forms' submissions and how the site mails them, and `forms()`: the forms the site
 // description in use declares. `local`: whether this is a local copy, which sends no mail.
@@ -89,7 +90,7 @@ const PICTURE_HOLDS = 3600;
 // gives it, or null where there is none. `site()`: the site description in use, as checked, which
 // the *Feeds* page chooses a feed's type and language from. `feeds`: the feed reader, as feeds.js
 // gives it, or null. `purge`: how an Admin's purge waits, as purge.js has it.
-export function editorsService({ forgejo, repository, token, rolesToken = null, pushesToken = null, control, purgeControl = null, pictures = null, store = null, forms = () => ({}), local = false, isPost = () => true, deletable = () => () => null, notFound = null, site = () => null, feeds = null, now = () => new Date(), warn = console.error, get = fetch, locks: { waitAtMost = 25_000, alive } = {}, revisions = {}, purge: purgeOptions = {} }) {
+export function editorsService({ forgejo, repository, token, rolesToken = null, pushesToken = null, control, purgeControl: shared = purgeControl(null), pictures = null, store = null, forms = () => ({}), local = false, isPost = () => true, deletable = () => () => null, notFound = null, site = () => null, feeds = null, now = () => new Date(), warn = console.error, get = fetch, locks: { waitAtMost = 25_000, alive } = {}, revisions = {}, purge: purgeOptions = {} }) {
   const answers = new Map();
   const mayWriteLately = async (credential) => {
     const held = answers.get(credential);
@@ -176,7 +177,7 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
   // An Admin's purge (ADR 0078), which shuts the forms while it waits and runs, and is told to
   // every tab with the locks. Once it is done, the entry's addresses go from the counts of
   // addresses not found, and answer as any unknown address does (ADR 0040).
-  const purge = purgeKeeper({ table, control: purgeControl, now, warn, ...purgeOptions, onDone: (addresses) => {
+  const purge = purgeKeeper({ table, control: shared, now, warn, ...purgeOptions, onDone: (addresses) => {
     history.purgesChanged();
     pictures?.forget?.();
     if (addresses.length > 0) notFound?.forget(addresses);
@@ -306,7 +307,8 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
 
   // An Admin's purge (ADR 0078), to an Admin alone: how it stands, who has which form open, and
   // the purges made before, who and when; asked for by a deleted entry's path, or by a passage,
-  // and the course to take with the forms open, `anyway` or `wait`; and one that waits stopped.
+  // and the course to take with the forms open, `anyway` or `wait`; one that is unfinished
+  // finished, by `finish`; and one that waits stopped.
   const answerPurge = async (incoming, outgoing) => {
     if (!['GET', 'POST', 'DELETE'].includes(incoming.method)) {
       incoming.resume();
@@ -334,6 +336,10 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
     }
     const { given, refused } = await purgeBodyOf(incoming);
     if (refused) return refusedBody(outgoing, refused);
+    if (given?.finish === true) {
+      const finishing = purge.finish();
+      return finishing ? answerJson(outgoing, 202, finishing) : answerJson(outgoing, 409, { purge: purge.forAdmin() });
+    }
     if (!['anyway', 'wait'].includes(given?.course)) return answerJson(outgoing, 400, {});
     const ofPassage = given.passage !== undefined;
     const passage = ofPassage ? passageOf(given.passage) : null;

@@ -17,7 +17,8 @@
 //   staleBackup the form shows a draft backup from `at`, which a later save makes unsaveable, or,
 //               `takenOver`, the changes it held when it was taken over at `at`, set aside as the
 //               tab took it back, which are never saved
-//   shut        an Admin's purge waits or runs, and no form opens until it has ended (ADR 0078)
+//   shut        an Admin's purge waits, runs or is unfinished, and no form opens until it has ended
+//               (ADR 0078)
 // A holder is { name, since, yours }, `yours` where it is the Editor's own other tab.
 //
 // `service`: as client.js gives it. Where it does not answer the keeper lets the Editor work on,
@@ -29,12 +30,13 @@ const HOLDING = new Set(['editing', 'staleBackup']);
 
 const READ_ONLY = new Set(['checking', 'asking', 'reading', 'takenOver', 'adminOnly', 'fromFeed', 'staleBackup', 'shut']);
 
-// The states of an Admin's purge in which the forms are shut (ADR 0078).
-const PURGING = new Set(['waiting', 'warning', 'running']);
+// The states of an Admin's purge in which the forms are shut (ADR 0078): until it has ended, and
+// while it is unfinished, its source pushed and the rest not done.
+const PURGING = new Set(['waiting', 'warning', 'running', 'unfinished']);
 
 // What the locks say of an Admin's purge to a tab, which keeps the purges it saw before they
 // ended in `seen`: `warn`, the tab is to reload before it runs, as it has a form open; `shut`, it
-// waits or runs and no form opens; `reload`, one the tab saw coming is done, and what the tab read
+// waits, runs or is unfinished, and no form opens; `reload`, one the tab saw coming is done, and what the tab read
 // of the source may be gone; and `open`, none waits or runs.
 export function purgeNews(purge, seen) {
   if (purge && PURGING.has(purge.state)) {

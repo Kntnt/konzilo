@@ -1,8 +1,8 @@
 // What the *Deleted* page and the *Purge a passage* page ask of the service about an Admin's purge
 // (ADR 0078), with what Sveltia signed in with: how a purge stands, to an Admin alone; a purge of a
 // deleted entry, by its path, or of a passage, and the course chosen for the forms others have
-// open, `anyway` or `wait`; one that waits stopped; and the search for a passage, which goes in
-// the request's body. It holds no React.
+// open, `anyway` or `wait`; one that is unfinished finished; one that waits stopped; and the
+// search for a passage, which goes in the request's body. It holds no React.
 
 import { askSignedIn, fetching } from '../service.js';
 
@@ -51,6 +51,9 @@ export function purgeService({ credential, ask = fetching() }) {
     start: (path, course) => started({ path, course }),
     // Asks for the purge of `passage` from every old revision: as start() answers.
     startPassage: (passage, course) => started({ passage, course }),
+    // Asks for the purge that is unfinished to be finished: { purge } as it runs again, or { busy,
+    // purge } where none is unfinished. Throws as start() does.
+    finish: () => started({ finish: true }),
     // Every file and revision that holds `passage`: { found }, as the purge's program finds them,
     // { refused } where the passage is too short or too long, { busy } where the service could
     // not ask in time, as while a purge runs, or null where it cannot be asked or broke.

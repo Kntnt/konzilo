@@ -114,6 +114,61 @@ describe('the purge\'s program', () => {
     assert.equal(control.purgeRequest(), null, 'nothing of the passage is left behind');
   });
 
+  test('leaves a purge broken after its source was pushed unfinished, with the builds held back, and finishes it where it was when asked', async () => {
+    const control = controlOf();
+    const asked = { id: 'p7', path: 'articles/aaaaaaaaaaaa.md', collection: 'articles', kind: 'post', by: { login: 'anna', name: 'Anna' }, at: '2026-11-26T09:59:00Z' };
+    control.askPurge(asked);
+    await running(control, async (request, progress) => {
+      await progress.did('planned', { planned: { outcome: { addresses: ['/the-meadow'] } } });
+      await progress.did('source');
+      throw new Error('the content push failed');
+    });
+    assert.deepEqual(control.purgeState(), { id: 'p7', state: 'unfinished', at: '2026-11-26T10:00:00.000Z' });
+    assert.equal(control.buildsHeld(), true, 'no build runs on a history half rewritten');
+    assert.equal(control.requested(), false);
+    assert.equal(control.purgeRequest(), null);
+    assert.deepEqual(control.progress().steps, ['planned', 'source']);
+
+    await running(control, async () => assert.fail('nothing is purged until an Admin asks for it to be finished'));
+    assert.equal(control.buildsHeld(), true, 'nor as the program starts again');
+
+    control.askPurge({ id: 'p7', finish: true });
+    const seen = [];
+    await running(control, async (request, progress) => {
+      seen.push({ request, source: progress.has('source'), content: progress.has('content') });
+      return { addresses: ['/the-meadow'] };
+    });
+    assert.deepEqual(seen, [{ request: asked, source: true, content: false }], 'from the step it had not taken, as it was asked for');
+    assert.deepEqual(control.purgeState(), { id: 'p7', state: 'done', at: '2026-11-26T10:00:00.000Z', addresses: ['/the-meadow'] });
+    assert.equal(control.progress(), null);
+    assert.equal(control.buildsHeld(), false);
+    assert.equal(control.requested(), true, 'a build follows');
+  });
+
+  test('takes no other purge while one is unfinished', async () => {
+    const control = controlOf();
+    control.writeProgress({ id: 'p8', request: { id: 'p8', path: 'articles/aaaaaaaaaaaa.md' }, steps: ['planned', 'source'] });
+    control.askPurge({ id: 'p9', path: 'articles/bbbbbbbbbbbb.md' });
+    await running(control, async () => assert.fail('not this one'));
+    assert.deepEqual(control.purgeState(), { id: 'p9', state: 'failed', reason: 'unfinished', at: '2026-11-26T10:00:00.000Z' });
+    assert.equal(control.progress().id, 'p8');
+    assert.equal(control.buildsHeld(), true);
+  });
+
+  test('takes away only its own request, so that one asked for since stays to be made next', async () => {
+    const control = controlOf();
+    control.askPurge({ id: 'p10', path: 'articles/aaaaaaaaaaaa.md' });
+    const made = [];
+    await running(control, async (request) => {
+      made.push(request.id);
+      // The service gave up on it meanwhile, and another purge was asked for.
+      if (request.id === 'p10') control.askPurge({ id: 'p11', path: 'articles/bbbbbbbbbbbb.md' });
+      return {};
+    });
+    assert.deepEqual(made, ['p10', 'p11']);
+    assert.equal(control.purgeRequest(), null);
+  });
+
   test('answers a search for a passage the service asks for, taking the request, and says one that broke', async () => {
     const control = controlOf();
     control.askSearch({ id: 's1', passage: 'Ebba Svensson' });

@@ -16,22 +16,26 @@ const SEARCH_ANSWER = 'passage-found.json';
 // The name the service gives a purge or a search, which names the program's folder for it.
 export const isPurgeId = (id) => typeof id === 'string' && /^[0-9a-z-]{1,64}$/.test(id);
 
+// `folder`: the folder, or null for none, where what is written is kept in memory alone, as for a
+// service with no purge's program beside it.
 export function purgeControl(folder) {
   const place = (name) => join(folder, name);
+  const kept = new Map();
   const write = (name, value) => {
+    if (folder === null) return void kept.set(name, JSON.stringify(value));
     mkdirSync(folder, { recursive: true });
     writeFileSync(`${place(name)}.new`, `${JSON.stringify(value)}\n`);
     renameSync(`${place(name)}.new`, place(name));
   };
   const read = (name) => {
     try {
-      return JSON.parse(readFileSync(place(name), 'utf8'));
+      return JSON.parse(folder === null ? kept.get(name) ?? 'null' : readFileSync(place(name), 'utf8'));
     } catch (error) {
       if (error.code === 'ENOENT' || error instanceof SyntaxError) return null;
       throw error;
     }
   };
-  const take = (name) => rmSync(place(name), { force: true });
+  const take = (name) => (folder === null ? void kept.delete(name) : rmSync(place(name), { force: true }));
   // A file that names a purge or a search, or null where it names none by a name it may have.
   const named = (name) => {
     const value = read(name);
@@ -64,5 +68,29 @@ export function purgeControl(folder) {
     answerSearch: (answer) => write(SEARCH_ANSWER, answer),
     searchAnswer: () => read(SEARCH_ANSWER),
     takeSearchAnswer: () => take(SEARCH_ANSWER),
+  };
+}
+
+// The steps of a purge, in the order it takes them: what it will push, `planned`; the source
+// pushed, `source`; the content pushed, `content`; what went let go by Forgejo, `collected`; its
+// archives removed, `archives`; and the build log without what went, `log`. Once the source is
+// pushed, a purge that has not taken the last is unfinished.
+export const PURGE_STEPS = ['planned', 'source', 'content', 'collected', 'archives', 'log'];
+
+// A purge's progress, `kept`, { id, request, steps, planned }, as `control` keeps it: { request,
+// planned, has(step), did(step, more) }, `did` writing that a step is taken, with what more it
+// learned, before it gives.
+export function progressOf(control, kept) {
+  let held = { ...kept, steps: [...kept.steps] };
+  return {
+    request: held.request,
+    get planned() {
+      return held.planned ?? null;
+    },
+    has: (step) => held.steps.includes(step),
+    async did(step, more = {}) {
+      held = { ...held, ...more, steps: held.steps.includes(step) ? held.steps : [...held.steps, step] };
+      control.writeProgress(held);
+    },
   };
 }

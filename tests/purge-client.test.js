@@ -92,3 +92,16 @@ test('searches for a passage in the request\'s body, and asks for its purge', as
   assert.deepEqual(asked.at(-1), { address: '/_konzilo/purge', method: 'POST', body: '{"passage":"Ebba Svensson","course":"anyway"}', type: 'application/json' });
   assert.deepEqual(await service.startPassage('Ebba Svensson', 'anyway'), { busy: true, purge: { id: 'p1', state: 'running', path: 'articles/a.md', forms: [] } });
 });
+
+test('asks for an unfinished purge to be finished', async () => {
+  const asked = [];
+  const answers = [answer(202, { purge: { id: 'p1', state: 'running', path: 'articles/a.md', forms: [] } }), answer(409, { purge: null }), answer(502, {})];
+  const service = purgeService({ credential: () => 'token mine', ask: async (address, init) => {
+    asked.push({ address, method: init.method, body: init.body });
+    return answers.shift();
+  } });
+  assert.deepEqual(await service.finish(), { purge: { id: 'p1', state: 'running', path: 'articles/a.md', forms: [] } });
+  assert.deepEqual(asked[0], { address: '/_konzilo/purge', method: 'POST', body: JSON.stringify({ finish: true }) });
+  assert.deepEqual(await service.finish(), { busy: true, purge: null }, 'none is unfinished');
+  await assert.rejects(service.finish());
+});

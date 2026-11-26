@@ -348,5 +348,13 @@ describe('the keeper of a tab\'s lock', () => {
       await keeper.seen({ version: 5, locks: [], purge: { id: 'p2', state: 'done' } });
       assert.equal(told.at(-1), 'reload');
     });
+
+    test('keeps the forms shut while a purge is unfinished, and reloads once it is finished', async () => {
+      const { keeper, told } = keeping();
+      await keeper.seen({ version: 2, locks: [], purge: { id: 'p3', state: 'unfinished', reload: false } });
+      assert.equal(told.at(-1), 'shut');
+      await keeper.seen({ version: 3, locks: [], purge: { id: 'p3', state: 'done' } });
+      assert.equal(told.at(-1), 'reload');
+    });
   });
 });

@@ -210,18 +210,21 @@ function rulesWithout({ matcher, holding }) {
 // as purgeHistories() does, `source`, `content` and `pushedBy` as it takes them: every version of
 // every file of the source but an image's that holds it, and every message, and every content file
 // and message of the content repository, the head's among them, since each is built from the
-// source. Gives what purgeHistories() gives, with `changed`, { files, revisions, messages }, how
-// many files of the source, revisions of them and saves' messages it was taken from.
+// source. Gives what purgeHistories() gives, which takes `tries`, `sleep` and `noted`, with
+// `changed`, in `outcome` and beside it, { files, revisions, messages }, how many files of the
+// source, revisions of them and saves' messages it was taken from.
 // Throws a PurgeRefusal: `current`, with the `paths` of the files of the source as it stands that
 // hold it, which an Admin saves without it first; or `not-found`, where neither history holds it.
-export async function purgePassage({ source, content, passage, by, at, pushedBy, tries }) {
-  const { planned, ...result } = await purgeHistories({
+export async function purgePassage({ source, content, passage, by, at, pushedBy, tries, sleep, noted }) {
+  const result = await purgeHistories({
     source,
     content,
     by,
     at,
     pushedBy,
     tries,
+    sleep,
+    noted,
     plan: async ({ before }) => {
       const found = await passageIn(source.git, passage);
       if (found.current.length > 0) throw new PurgeRefusal('current', { paths: found.current });
@@ -229,9 +232,9 @@ export async function purgePassage({ source, content, passage, by, at, pushedBy,
       return {
         source: rulesWithout(found),
         content: () => rulesWithout(published),
-        changed: { files: new Set(found.versions.map(({ path }) => path)).size, revisions: found.versions.length, messages: found.messages.length },
+        outcome: { changed: { files: new Set(found.versions.map(({ path }) => path)).size, revisions: found.versions.length, messages: found.messages.length } },
       };
     },
   });
-  return { ...result, changed: planned.changed };
+  return { ...result, ...result.outcome };
 }

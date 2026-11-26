@@ -58,7 +58,7 @@ function formShown({ form, name, since }, collectionOf) {
 }
 
 // Why a purge of an entry was not made, in words.
-const FAILED = { 'not-deleted': 'deleted.purgeFailed-not-deleted', 'not-found': 'deleted.purgeFailed-not-found', unanswered: 'deleted.purgeFailed-unanswered' };
+const FAILED = { 'not-deleted': 'deleted.purgeFailed-not-deleted', 'not-found': 'deleted.purgeFailed-not-found', unanswered: 'deleted.purgeFailed-unanswered', unfinished: 'deleted.purgeFailed-unfinished' };
 const failedWords = (reason) => say(FAILED[reason] ?? 'deleted.purgeFailed-broke');
 
 // A deleted entry as the dialog purges it, `row` as the *Deleted* page lists it: what it is
@@ -84,22 +84,27 @@ function entrySubject(row, service, collectionOf) {
   };
 }
 
+// A purge that is unfinished as the dialog finishes it: it was confirmed as it was asked for, and
+// what it is the service does not tell.
+const unfinishedSubject = () => ({ heading: say('deleted.purgeFinishTitle'), during: say('deleted.purgeFinishTitle'), failed: (purge) => failedWords(purge?.reason), doneWords: say('deleted.purgeDone') });
+
 // `subject`: what is purged, as the dialog says it, { heading, during, what, noWayBack, write,
 // doneWords }, its words, `matches(written)`, whether what is written confirms it, `start(course)`,
 // which asks for it as purge.js answers and keeps what the page says of it once it loads again,
 // and `failed(purge)`, why it was not made, in words; or `row`, the entry, as the *Deleted* page
-// lists it, which it is made from. `service`: as purge.js gives it. `onClose()`: closes it.
-export function PurgeDialog({ row = null, subject: given = null, service, collectionOf, onClose }) {
+// lists it, which it is made from. `started`: a purge asked for already, as the service tells it,
+// whose progress alone it shows. `service`: as purge.js gives it. `onClose()`: closes it.
+export function PurgeDialog({ row = null, subject: given = null, started = null, service, collectionOf, onClose }) {
   const { createElement: h, useEffect, useRef, useState } = react();
   const dialog = useRef(null);
   const heading = useRef(null);
-  const [step, setStep] = useState('meant');
+  const [step, setStep] = useState(started ? 'progress' : 'meant');
   const [written, setWritten] = useState('');
   const [open, setOpen] = useState([]);
-  const [purge, setPurge] = useState(null);
+  const [purge, setPurge] = useState(started);
   const [said, setSaid] = useState(null);
-  const ours = useRef(null);
-  const [subject] = useState(() => given ?? entrySubject(row, service, collectionOf));
+  const ours = useRef(started?.id ?? null);
+  const [subject] = useState(() => given ?? (row ? entrySubject(row, service, collectionOf) : unfinishedSubject()));
 
   // The focus goes back where it was once the dialog has gone, as what is behind a modal dialog
   // takes none while it is open.
@@ -171,7 +176,19 @@ export function PurgeDialog({ row = null, subject: given = null, service, collec
   const stop = async () => {
     if (await service.stop()) onClose();
   };
-  const ended = purge && ['done', 'failed', 'stopped'].includes(purge.state);
+  // A purge that is unfinished asked to be finished, which then runs again.
+  const finish = async () => {
+    setSaid(null);
+    try {
+      const answer = await service.finish();
+      if (answer.purge?.id === ours.current && !answer.busy) setPurge(answer.purge);
+      else setSaid(failedWords('broke'));
+    } catch (error) {
+      console.warn(`The purge could not be finished: ${error.message}`);
+      setSaid(failedWords('broke'));
+    }
+  };
+  const ended = purge && ['done', 'failed', 'stopped', 'unfinished'].includes(purge.state);
   const cancel = (event) => {
     event.preventDefault();
     if (step !== 'progress' || ended) onClose();
@@ -227,18 +244,45 @@ export function PurgeDialog({ row = null, subject: given = null, service, collec
       done: subject.doneWords,
       stopped: say('deleted.purgeStopped'),
       failed: subject.failed(purge),
+      unfinished: say('deleted.purgeUnfinished'),
     }[state];
     body = [
-      h('p', { key: 'state', role: state === 'failed' ? 'alert' : 'status', className: 'konzilo-purge-state' }, words),
+      h('p', { key: 'state', role: ['failed', 'unfinished'].includes(state) ? 'alert' : 'status', className: 'konzilo-purge-state' }, words),
       state === 'waiting' && (purge.forms ?? []).length > 0 ? h('ul', { key: 'open', className: 'konzilo-purge-forms' }, purge.forms.map((one) => h('li', { key: one.form }, formShown(one, collectionOf)))) : null,
       h('div', { key: 'ways', className: 'konzilo-deleted-ways' },
         state === 'waiting' ? button(say('deleted.purgeStop'), stop) : null,
+        state === 'unfinished' ? button(say('deleted.purgeFinish'), finish, { className: 'konzilo-deleted-button konzilo-purge-go' }) : null,
         ended && state !== 'done' ? button(say('deleted.purgeClose'), onClose) : null),
     ];
   }
   return h('dialog', { ref: dialog, className: 'konzilo-purge-dialog', 'aria-labelledby': 'konzilo-purge-heading', onCancel: cancel },
     h('h2', { id: 'konzilo-purge-heading', ref: heading, tabIndex: -1 }, step === 'progress' ? subject.during : subject.heading),
     ...body,
+    said ? h('p', { role: 'alert', className: 'konzilo-purge-state' }, said) : null);
+}
+
+// What an Admin reads of a purge that is unfinished, `purge` as the service tells it, on the page
+// it purges from, and the way to finish it, which then shows its progress in the dialog.
+export function UnfinishedPurge({ purge, service, collectionOf }) {
+  const { createElement: h, useState } = react();
+  const [finishing, setFinishing] = useState(null);
+  const [said, setSaid] = useState(null);
+  const finish = async () => {
+    setSaid(null);
+    try {
+      const answer = await service.finish();
+      if (answer.purge && !answer.busy) setFinishing(answer.purge);
+      else setSaid(failedWords('broke'));
+    } catch (error) {
+      console.warn(`The purge could not be finished: ${error.message}`);
+      setSaid(failedWords('broke'));
+    }
+  };
+  return h('div', { className: 'konzilo-purge-unfinished' },
+    finishing ? h(PurgeDialog, { started: finishing, service, collectionOf, onClose: () => setFinishing(null) }) : null,
+    h('p', { role: 'alert' }, say('deleted.purgeUnfinishedNotice')),
+    h('div', { className: 'konzilo-deleted-ways' },
+      h('button', { type: 'button', className: 'konzilo-deleted-button konzilo-purge-go', onClick: finish, disabled: purge?.state !== 'unfinished' }, say('deleted.purgeFinish'))),
     said ? h('p', { role: 'alert', className: 'konzilo-purge-state' }, said) : null);
 }
 
