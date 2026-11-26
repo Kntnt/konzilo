@@ -14,6 +14,7 @@ import { lookup as resolved } from 'node:dns/promises';
 import { BlockList, isIP } from 'node:net';
 
 import { FEED_FAILURES } from '../feeds/failures.js';
+import { saveAgain } from '../forgejo-saves.js';
 import { readFeed } from '../feeds/read.js';
 import { feedPostFile, freeSlug, postDate, releasedFile, slugHeld } from '../feeds/post.js';
 import { reconcile } from '../feeds/reconcile.js';
@@ -23,8 +24,6 @@ const BRANCH = 'main';
 // The most a feed's answer may be, and how long a read may take, its answer whole.
 export const FEED_BYTES = 5 * 1024 * 1024;
 export const FEED_WAIT = 30_000;
-// A save Git turns away because another commit came first is tried again, as the editor's is.
-const TRIES = 4;
 
 const ACCEPT = 'application/rss+xml, application/atom+xml, application/xml;q=0.9, text/xml;q=0.9, */*;q=0.1';
 const moment = (date) => date.toISOString().replace(/\.\d{3}Z$/, 'Z');
@@ -180,9 +179,7 @@ export function feedReader({ store, site, forgejo, repository, token, get = fetc
       const answer = await asked('/contents', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ branch: BRANCH, message, files }) });
       await answer.arrayBuffer().catch(() => {});
       if (answer.ok) return;
-      const again = [409, 422, 423].includes(answer.status) || answer.status >= 500;
-      if (!again || tried >= TRIES) throw new Error(`Forgejo answered ${answer.status} to the feed reader's save`);
-      await pause(200 * tried);
+      if (!await saveAgain(answer.status, tried, pause)) throw new Error(`Forgejo answered ${answer.status} to the feed reader's save`);
     }
   };
 
