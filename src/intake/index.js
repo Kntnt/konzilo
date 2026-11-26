@@ -8,6 +8,8 @@
 // itself breaks it throws, and nothing is written.
 
 import { isObject, MARKUP } from '../checks.js';
+import { canonicalAddress } from '../format/addresses.js';
+import { FEED_ITEM, isFeedPost, ORIGINAL_ADDRESS } from '../format/feed-post.js';
 import { DRAFT, POST_STATUSES, PUBLISHED, SCHEDULED } from '../format/post-status.js';
 import { REDIRECTS_FILE } from '../format/redirects.js';
 import { START_PAGE, startFile } from '../format/start-page.js';
@@ -34,7 +36,8 @@ const STATUSES = new Set(POST_STATUSES);
 // `files`: the source files, each { path, contents }. `site`: the site description, as
 // declared or as checked. `now`: a Date or a function that gives one. `ledger`: the
 // previous `.post-ids.json`, parsed, or null. `changes`: who last changed what, by a
-// source file's path, { by, admin, reviewer }; a path it does not name is not held to a role.
+// source file's path, { by, admin, reviewer, feedReader }; a path it does not name is not held
+// to a role.
 // `images(path)`: what an original below `media/` is, as images.js gives it. `adminHost`:
 // the host no link may lead to, or null. `reader`: the Markdown reader, the site's own
 // but in a test of what happens when it breaks. `preview`: the paths of the source files
@@ -176,6 +179,20 @@ function reviewersPost(post, run) {
   return change;
 }
 
+// A post made from a feed is the feed reader's alone (ADR 0079): a change to its source file by
+// anyone else, which is not back at what was last accepted, is held as a Reviewer's is, whether the
+// file says it is a feed's or its last accepted version did, so that taking away what marks it
+// takes nothing from the feed. A path no one is known to have changed, as in a developer's own
+// checkout, is held to no one.
+function feedPostTaken(post, run) {
+  const change = run.changes?.[post.path];
+  if (!change || change.feedReader === true) return null;
+  const accepted = run.ledger.posts[post.key];
+  if (!(isFeedPost(post.fields) || accepted?.fromFeed === true)) return null;
+  if (!post.gone && post.hash === accepted?.source) return null;
+  return change;
+}
+
 // A post on the site whose source file a Reviewer took away, or a non-Admin where it is a legal
 // page, is held like any other change of theirs: what it stands on comes from the ledger, as it
 // does for every refused post. An Admin who wants a legal page gone chooses another page
@@ -191,7 +208,8 @@ function holdPostsTaken(run) {
     if (!type) continue;
     const path = `${type.collection}/${key}.md`;
     const legal = run.chosen.legalPages.includes(id) && run.changes?.[path]?.admin === false;
-    if (!legal && !reviewersChange(run, path)) continue;
+    const feed = entry.fromFeed === true && run.changes?.[path] && run.changes[path].feedReader !== true;
+    if (!legal && !feed && !reviewersChange(run, path)) continue;
     const tag = key.includes('/') ? key.split('/')[0] : null;
     source.posts.push({ key, id, tag, language: tag ? site.languages.find((one) => one.tag === tag) ?? null : site.languages[0] ?? null, type, path, hash: null, fields: {}, body: '', bodyLine: 1, title: entry.title, gone: true });
   }
@@ -232,6 +250,15 @@ function ownStateOf(post, run) {
     post.held = true;
     post.notFound = run.chosen.notFound === post.id;
     refuse(run, post, { reason: reviewerReason(reviewer, post.path) });
+    return;
+  }
+  // Nor does anything anyone but the feed reader changed in a feed's post.
+  const taker = feedPostTaken(post, run);
+  if (taker) {
+    post.on = true;
+    post.held = true;
+    post.notFound = run.chosen.notFound === post.id;
+    refuse(run, post, { reason: say(post.gone ? 'refusal.feed-post-gone' : 'refusal.feed-post', { by: taker.by ?? say('about.someone') }) });
     return;
   }
   if (post.unreadable) {
@@ -350,10 +377,30 @@ function checkPost(post, run) {
   if (slug.reason) refuse(run, post, { field: 'slug', reason: slug.reason });
   const other = otherAddressesIn(post);
   if (other.reason) refuse(run, post, { field: 'otherAddresses', reason: other.reason });
+  const original = originalAddressOf(post);
+  if (original?.reason) refuse(run, post, { reason: original.reason });
   const { problems } = fieldsOf(post, contextFor(post, run, ''), {});
   for (const problem of problems) refuse(run, post, problem);
   const hands = handsFor(post, run, '');
   for (const problem of bodyProblems(post, hands)) refuse(run, post, inBody(problem, post));
+}
+
+// The address of the original a post's text was first published at, as a feed's post has its
+// item's link (ADR 0079): { address }, { reason } where it is no whole web address, or null where
+// the post has none.
+function originalAddressOf(post) {
+  const given = post.fields[ORIGINAL_ADDRESS];
+  if (given === undefined || given === null || given === '') return null;
+  const address = typeof given === 'string' ? canonicalAddress(given.trim()) : null;
+  return address === null ? { reason: say('refusal.original-address', { address: JSON.stringify(given) }) } : { address };
+}
+
+// The body elements a feed's item held that its post's type does not take, which the feed reader
+// left out and named in the source file (ADR 0079): a warning naming them, or none.
+function droppedWarnings(post) {
+  const dropped = isFeedPost(post.fields) && Array.isArray(post.fields[FEED_ITEM].dropped) ? post.fields[FEED_ITEM].dropped.filter((one) => typeof one === 'string' && /^[a-z-]+$/.test(one)) : [];
+  if (dropped.length === 0) return [];
+  return [{ reason: say('warning.feed-dropped', { elements: { and: dropped.map((one) => say(`body.element.${one}`)) } }) }];
 }
 
 // The start page an Admin chose has its file at the content folder's root, whose name holds
@@ -393,6 +440,8 @@ function writePost(post, run) {
     const others = allOthers(post).sort((a, b) => (a.address < b.address ? -1 : a.address > b.address ? 1 : 0));
     if (others.length > 0) lines.push(['otherAddresses', JSON.stringify(others)]);
   }
+  const original = originalAddressOf(post);
+  if (original?.address) lines.push([ORIGINAL_ADDRESS, JSON.stringify(original.address)]);
   const published = publishedHash(lines, body);
   const first = !previous?.published;
   const modified = previous?.published === published ? previous.modified : first ? own ?? taken : run.nowText;
@@ -407,11 +456,13 @@ function writePost(post, run) {
     warnings: [
       ...(post.passed ? [{ field: post.momentField ?? 'date', reason: say('warning.scheduled-passed', { moment: { moment: post.passed } }) }] : []),
       ...(post.passedTriggers ? [{ field: TRIGGERS, reason: say('warning.triggers-passed', { moment: { moment: post.passedTriggers } }) }] : []),
+      ...droppedWarnings(post),
       ...warnings.map((warning) => inBody(warning, post)),
       ...fields.warnings,
     ],
     terms: [...post.termIds],
     masters: post.masters,
+    fromFeed: isFeedPost(post.fields),
   };
 }
 

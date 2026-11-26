@@ -17,6 +17,7 @@ import { suffixTakenIn } from './format/public-suffixes.js';
 import { readComponents, withComponents } from './format/components.js';
 import rules from './format/rules.json' with { type: 'json' };
 import { TRIGGERS } from './format/triggers.js';
+import { FEED_ITEM, ORIGINAL_ADDRESS } from './format/feed-post.js';
 import { coreSettingsGroups, groupsFor, settingsGroups } from './settings-groups.js';
 import { isSiteFile, siteJson } from './site-repository.js';
 
@@ -1373,6 +1374,14 @@ function fieldOf(name, field, path, taxonomies, problems) {
   }
   if (name === TRIGGERS) {
     problems.push(`${path}: a scheduled post's triggers are kept under this name; it is not declared`);
+    return null;
+  }
+  if (name === ORIGINAL_ADDRESS) {
+    problems.push(`${path}: the address of the original a post's text was first published at is kept under this name; it is not declared`);
+    return null;
+  }
+  if (name === FEED_ITEM) {
+    problems.push(`${path}: a source file marks a post made from a feed under this name; give the field another`);
     return null;
   }
   if (Object.hasOwn(SEO_PARTS, name)) {

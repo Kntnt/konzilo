@@ -132,3 +132,13 @@ test('reads a site\'s own fields into their group in an article\'s file, leaves 
   const fromReview = await written(formatOf('reviews'), { ...review, rating: 5 });
   assert.deepEqual([fromReview.rating, fromReview.title, fromReview.verdict], [5, 'A fair', 'Worth the trip']);
 });
+
+// Only the feed reader writes what marks a post made from a feed, whose form the editor never
+// saves; a copy of one saved in the editor is a post like any other, its original's address kept
+// (ADR 0079).
+test('writes no mark of a post made from a feed, and keeps the address of the original', async () => {
+  const data = format.fromFile(`---\ntitle: From a feed\nstatus: published\noriginalAddress: "https://news.example.com/1"\nfeed: {"item":"release-1","version":"v"}\n---\n\nText.\n`);
+  const given = await written(data);
+  assert.equal(given.feed, undefined);
+  assert.equal(given.originalAddress, 'https://news.example.com/1');
+});

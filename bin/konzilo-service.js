@@ -12,8 +12,10 @@
 //   server's log of addresses not found into the counts it keeps every five minutes, and shows
 //   Admins the addresses visitors asked for in vain (ADR 0040). It shows an Admin the counts of
 //   what the site's policy blocked, and forgets each 30 days after it was last seen (ADR 0051).
-//   It has a credential that can only read the source repository, one that can only read who is
-//   an Admin, and a read-only token of the instance's account, by which it reads who pushed what.
+//   It reads the incoming feeds an Admin adds, making a post of each new item (ADR 0079). It has
+//   a credential that can only read the source repository, one that can only read who is an
+//   Admin, a read-only token of the instance's account, by which it reads who pushed what, and
+//   the feed reader's, which writes the posts made from a feed.
 // - `visitors`: it takes what visitors' browsers send below /_konzilo/, which the web server
 //   passes on, such as a site's forms (ADR 0045), the records of their consent choices
 //   (ADR 0049) and the policy's violation reports (ADR 0051), and keeps it in the service's data.
@@ -32,6 +34,7 @@ import { buildControl } from '../src/build/record.js';
 import { consentRetention } from '../src/service/consent-records.js';
 import { deletableIn } from '../src/service/deleted.js';
 import { editorsService, nextMinute } from '../src/service/editors.js';
+import { feedReader } from '../src/service/feeds.js';
 import { liveDescription } from '../src/service/live-description.js';
 import { mailDuty } from '../src/service/mail.js';
 import { mailDelivery } from '../src/service/mail-delivery.js';
@@ -103,6 +106,13 @@ function editors(store) {
   if (pushesToken === null) console.error(`The service has no ${PUSHES_TOKEN}, so it cannot tell who pushed what a private account pushed`);
   // A local copy sends no mail, and writes each to the log instead.
   const local = process.env.KONZILO_MAIL_TO_LOG === 'true';
+  // The seed makes it at each start where it is missing; without it, the feed reader reads, and
+  // saves nothing, which each feed's failure says.
+  const FEED_TOKEN = join(secrets, 'feed-token');
+  const feedToken = existsSync(FEED_TOKEN) ? readFileSync(FEED_TOKEN, 'utf8').trim() : null;
+  if (feedToken === null) console.error(`The service has no ${FEED_TOKEN}, so the feed reader cannot save the posts it makes`);
+  // The incoming feeds, each read at its interval; with none, nothing is read or reached.
+  const feeds = feedReader({ store, site: described, forgejo: FORGEJO, repository, token: feedToken });
 
   const notFound = notFoundLog({ log: NOT_FOUND_LOG, counts: NOT_FOUND_COUNTS, release: RELEASE });
   const fold = () => {
@@ -129,6 +139,8 @@ function editors(store) {
     isPost: (file) => file.endsWith('.md') && collections.includes(file.split('/')[0]),
     deletable: () => deletableIn(described()),
     notFound,
+    site: described,
+    feeds,
   });
   serve(service, PORT);
   // The locks of tabs that have stopped answering let go, well within the two minutes ADR 0073
@@ -171,6 +183,7 @@ function editors(store) {
   const atEachMinute = () => {
     setTimeout(async () => {
       forgetWhatIsOld();
+      void feeds.run().catch((error) => console.error(`The feed reader broke: ${error.stack ?? error.message}`));
       await service.tick().catch((error) => console.error(`The service's clock broke: ${error.stack ?? error.message}`));
       atEachMinute();
     }, nextMinute(Date.now()));

@@ -4,16 +4,18 @@
 // a person's submissions, which an Admin finds, downloads and erases on the *Personal data*
 // page, the consent records (ADR 0049), which an Admin reads on the *Consent records* page, the
 // addresses visitors asked for in vain, which an Admin reads and hides on the *Addresses not
-// found* page (ADR 0040), and the counts of what the site's policy blocked, which an Admin reads
-// on *Policy violations* (ADR 0051). Forgejo's webhook only says that something may have
-// happened: the build looks for itself, so a request here decides nothing, and needs no secret.
-// Everything an editor asks goes by what Forgejo says of the one asking, each time.
+// found* page (ADR 0040), the counts of what the site's policy blocked, which an Admin reads on
+// *Policy violations* (ADR 0051), and the incoming feeds an Admin adds, changes and removes on the
+// *Feeds* page (ADR 0079), whose posts no form saves. Forgejo's webhook only says that something
+// may have happened: the build looks for itself, so a request here decides nothing, and needs no
+// secret. Everything an editor asks goes by what Forgejo says of the one asking, each time.
 
 import { ADMINS_TEAM } from '../build/roles.js';
 import { publishStatus } from '../build/status.js';
 import { accountName, CREDENTIAL, mayWrite, organisationTeams } from '../forgejo.js';
 import { FORM_NAME } from '../site-description.js';
 import { consentRecordsPage } from './consent-records-admin.js';
+import { checkFeed, feedsShown } from './feed-settings.js';
 import { FAILURE_SETTING, MAIL_SETTING } from './mail.js';
 import { checkMailSettings, mailSettingsShown } from './mail-settings.js';
 import { isAdminsForm, isForm, isTab, lockTable } from './locks.js';
@@ -38,7 +40,8 @@ const DELETED = '/_konzilo/deleted';
 const NOT_FOUND = '/_konzilo/not-found';
 // The most an address to hide takes, as JSON.
 const HIDDEN_BODY_LIMIT = 4096;
-// The most the *Mail* page's settings take, as JSON.
+const FEEDS = '/_konzilo/feeds';
+// The most the *Mail* page's settings take, as JSON, and a feed's on the *Feeds* page.
 const MAIL_BODY_LIMIT = 64 * 1024;
 // A form's submissions are shown this many at a time, newest first.
 const SUBMISSIONS_AT_ONCE = 50;
@@ -76,8 +79,10 @@ const PICTURE_HOLDS = 3600;
 // revisions are given, { perPage }, as revisions.js has it. `deletable()`: whether a file in the
 // source is a post, a term or an image library entry, by the site description in use, as
 // deleted.js's deletableIn() tells it. `notFound`: the log of addresses not found, as not-found.js
-// gives it, or null where there is none.
-export function editorsService({ forgejo, repository, token, rolesToken = null, pushesToken = null, control, pictures = null, store = null, forms = () => ({}), local = false, isPost = () => true, deletable = () => () => null, notFound = null, now = () => new Date(), warn = console.error, get = fetch, locks: { waitAtMost = 25_000, alive } = {}, revisions = {} }) {
+// gives it, or null where there is none. `site()`: the site description in use, as checked, which
+// the *Feeds* page chooses a feed's type and language from. `feeds`: the feed reader, as feeds.js
+// gives it, or null.
+export function editorsService({ forgejo, repository, token, rolesToken = null, pushesToken = null, control, pictures = null, store = null, forms = () => ({}), local = false, isPost = () => true, deletable = () => () => null, notFound = null, site = () => null, feeds = null, now = () => new Date(), warn = console.error, get = fetch, locks: { waitAtMost = 25_000, alive } = {}, revisions = {} }) {
   const answers = new Map();
   const mayWriteLately = async (credential) => {
     const held = answers.get(credential);
@@ -149,6 +154,13 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
     return person;
   };
 
+  // The forms of the posts made from a feed's item, which only the feed reader changes (ADR 0079):
+  // `<collection>/<ID>`, as the lock names a form, a translation's its entry's.
+  const feedForms = () => new Set((store?.feedPosts() ?? []).map(({ path }) => {
+    const parts = path.split('/');
+    return `${parts[0]}/${parts.at(-1).replace(/\.md$/, '')}`;
+  }));
+
   // The locks of the editor's forms (ADR 0073). A tab asks for them all, and the call is held open
   // until they change or the wait is up, so that a tab whose form is taken over is told at once,
   // and each call says the tab answers. A form is held, or taken over, by PUT, and let go by
@@ -206,6 +218,7 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
       return outgoing.end();
     }
     if (isAdminsForm(form) && !await person.admin()) return answerJson(outgoing, 403, { adminOnly: true });
+    if (feedForms().has(form)) return answerJson(outgoing, 403, { fromFeed: true });
     const result = table.hold(form, person, tab, searchParams.get('takeOver') === 'true');
     if (result.ended) return answerJson(outgoing, 410, {});
     if (result.held) return answerJson(outgoing, 200, { held: true, since: result.held.since.toISOString() });
@@ -316,6 +329,84 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
     const role = await roleOf(incoming.headers.authorization);
     if (!usesAdminPages(role)) return answerJson(outgoing, role === null ? 401 : 403, {});
     return answerJson(outgoing, 200, violations.shown());
+  };
+
+  // The incoming feeds (ADR 0079), to an Admin alone, as the mail settings are: an Editor is told
+  // only that they are an Admin's, and whoever may not write nothing. A feed added is read at
+  // once, which takes its first read, and a feed removed releases its posts before it goes, or
+  // stays where they could not be saved.
+  const answerFeeds = async (incoming, outgoing, below) => {
+    const methods = below === '' ? ['GET', 'POST'] : ['PUT', 'DELETE'];
+    if (!methods.includes(incoming.method)) {
+      incoming.resume();
+      outgoing.writeHead(405, { allow: methods.join(', '), 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+      return outgoing.end('{}');
+    }
+    if (!store || !feeds || !site()) {
+      incoming.resume();
+      return answerJson(outgoing, 404, {});
+    }
+    const role = await roleOf(incoming.headers.authorization);
+    if (!usesAdminPages(role)) {
+      incoming.resume();
+      return answerJson(outgoing, role === null ? 401 : 403, {});
+    }
+    const shown = () => feedsShown({ store, site: site() });
+    if (incoming.method === 'GET') return answerJson(outgoing, 200, shown());
+    const id = below === '' ? null : Number(below.slice(1));
+    if (id !== null && (!Number.isSafeInteger(id) || !store.feeds().some((one) => one.id === id))) {
+      incoming.resume();
+      return answerJson(outgoing, 404, {});
+    }
+    if (incoming.method === 'DELETE') {
+      incoming.resume();
+      try {
+        await feeds.release(id);
+      } catch (error) {
+        warn(`The feed's posts could not be released: ${error.message}`);
+        return answerJson(outgoing, 502, {});
+      }
+      return answerJson(outgoing, 200, shown());
+    }
+    const given = await jsonOf(incoming, outgoing);
+    if (given === undefined) return undefined;
+    const checked = checkFeed(given, { store, site: site(), id });
+    if (checked.problems) return answerJson(outgoing, 400, { problems: checked.problems });
+    if (id === null) {
+      const added = store.addFeed({ ...checked.feed, at: now() });
+      void feeds.read(added).catch((error) => warn(`The feed reader broke: ${error.message}`));
+      return answerJson(outgoing, 201, shown());
+    }
+    store.changeFeed(id, checked.feed);
+    return answerJson(outgoing, 200, shown());
+  };
+
+  // A request's JSON, up to the most a setting takes, or undefined where it was answered already,
+  // as one too large or of another type.
+  const jsonOf = async (incoming, outgoing) => {
+    if ((incoming.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase() !== 'application/json') {
+      incoming.resume();
+      answerJson(outgoing, 415, {});
+      return undefined;
+    }
+    if (Number(incoming.headers['content-length'] ?? 0) > MAIL_BODY_LIMIT) {
+      outgoing.shouldKeepAlive = false;
+      incoming.resume();
+      answerJson(outgoing, 413, {});
+      return undefined;
+    }
+    const body = await bodyOf(incoming, MAIL_BODY_LIMIT);
+    if (body === null) {
+      outgoing.shouldKeepAlive = false;
+      answerJson(outgoing, 413, {});
+      return undefined;
+    }
+    try {
+      return JSON.parse(body.toString('utf8'));
+    } catch {
+      answerJson(outgoing, 400, { problems: { '': 'malformed' } });
+      return undefined;
+    }
   };
 
   // A person's submissions (ADR 0045), to an Admin alone, as privacy law asks: those that hold what
@@ -556,7 +647,9 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
         const record = control.record();
         const standing = await versions();
         const posts = Object.entries(standing).filter(([file]) => isPost(file)).map(([file, version]) => publishStatus(record, file, version));
-        return answerJson(outgoing, 200, { posts, others: { refusals: record?.refusals ?? [], warnings: record?.warnings ?? [] }, reason: record?.reason ?? null, at: record?.at ?? null });
+        // Each incoming feed that could not be read, until a read succeeds (ADR 0079).
+        const failing = (store?.feeds() ?? []).filter(({ failure }) => failure !== null).map(({ address, failure }) => ({ address, failure }));
+        return answerJson(outgoing, 200, { posts, others: { refusals: record?.refusals ?? [], warnings: record?.warnings ?? [] }, feeds: failing, reason: record?.reason ?? null, at: record?.at ?? null });
       }
       if (pathname === '/_konzilo/thumbnail') return answerPicture(incoming, outgoing, searchParams.get('of'));
       if (pathname === SUBMISSIONS || pathname.startsWith(`${SUBMISSIONS}/`)) return answerSubmissions(incoming, outgoing, pathname.slice(SUBMISSIONS.length), searchParams);
@@ -568,6 +661,7 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
       if (consentRecords.owns(pathname)) return consentRecords.answer(incoming, outgoing, pathname, searchParams);
       if (pathname === NOT_FOUND || pathname.startsWith(`${NOT_FOUND}/`)) return answerNotFound(incoming, outgoing, pathname.slice(NOT_FOUND.length));
       if (pathname === VIOLATIONS_PATH) return answerViolations(incoming, outgoing);
+      if (pathname === FEEDS || pathname.startsWith(`${FEEDS}/`)) return answerFeeds(incoming, outgoing, pathname.slice(FEEDS.length));
       return answerJson(outgoing, 404, {});
     },
 

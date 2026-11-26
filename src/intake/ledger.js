@@ -78,6 +78,8 @@ export function nextLedger(run, settings) {
         taken: post.written.taken,
         modified: post.written.modified,
         names: namesOf({ ...post.written, termPaths }),
+        // A post made from a feed's item, which only the feed reader changes (ADR 0079).
+        ...(post.written.fromFeed ? { fromFeed: true } : {}),
       };
       continue;
     }

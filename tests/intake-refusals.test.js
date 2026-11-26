@@ -218,6 +218,7 @@ const cases = {
   'trigger-since': [() => onePost({ status: 'scheduled', triggers: [[{ published: [[{ type: 'story' }]] }]] }), { field: 'triggers' }],
   'trigger-type': [() => onePost({ status: 'scheduled', triggers: [[{ published: [[{ type: 'essay' }]], since: '2026-11-01T00:00:00Z' }]] }), { field: 'triggers' }],
   'trigger-window': [() => onePost({ status: 'scheduled', triggers: [[{ published: [[{ from: '2026-12-02T00:00:00Z', to: '2026-12-01T00:00:00Z' }]], since: '2026-11-01T00:00:00Z' }]] }), { field: 'triggers' }],
+  'feed-dropped': [() => onePost({ feed: { item: 'release-1', version: 'v', dropped: ['table', 'quote'] } }, 'Text.'), { post: true }, 'warning'],
   'triggers-passed': [() => onePost({ status: 'scheduled', triggers: [[{ moment: '2026-10-01T00:00:00Z' }], [{ moment: '2026-10-02T00:00:00Z' }]] }), { post: true, field: 'triggers' }, 'warning'],
   'language-folder': [() => run({
     'articles/sv-SE/aaaaaaaaaaaa.md': article({}, 'Text.'),
@@ -234,6 +235,13 @@ const cases = {
     ...Object.fromEntries([pagePost('cccccccccccc', { slug: 'privacy' })]),
   }, { changes: { 'pages/cccccccccccc.md': { by: 'editor@example.com', admin: false } } }), { post: true }],
   reviewer: [() => withFiles({ 'articles/aaaaaaaaaaaa.md': article() }, { changes: { 'articles/aaaaaaaaaaaa.md': { by: 'reviewer@example.com', admin: false, reviewer: true } } }), { post: true }],
+  'feed-post': [() => withFiles({ 'articles/aaaaaaaaaaaa.md': article({ feed: { item: 'release-1', version: 'v' } }) }, { changes: { 'articles/aaaaaaaaaaaa.md': { by: 'editor@example.com', admin: false, reviewer: false, feedReader: false } } }), { post: true }],
+  'feed-post-gone': [() => {
+    const path = 'articles/aaaaaaaaaaaa.md';
+    const first = withFiles({ [path]: article({ feed: { item: 'release-1', version: 'v' } }) }, { changes: { [path]: { by: 'feed-reader', admin: false, reviewer: false, feedReader: true } } });
+    return withFiles({}, { ledger: first.ledger, changes: { [path]: { by: 'editor@example.com', admin: false, reviewer: false, feedReader: false } } });
+  }, { post: true }],
+  'original-address': [() => onePost({ originalAddress: 'news.example.com/1' }), { post: true }],
   'title-empty': [() => onePost({ title: '' }), { field: 'title' }],
   'title-markup': [() => onePost({ title: 'A <b>bold</b> title' }), { field: 'title' }],
   slug: [() => onePost({ slug: 'Not A Slug' }), { field: 'slug' }],

@@ -30,6 +30,7 @@ import { registerLock } from './lock/register.js';
 import { registerHistory } from './history/register.js';
 import { registerDeleted } from './deleted/register.js';
 import { registerNotFound } from './not-found/register.js';
+import { registerFeeds } from './feeds/register.js';
 import { chosenLanguage, followSite, languageChanged, loadedWith, say, useInterfaceLanguage } from './interface-language.js';
 import './form.css';
 // The preview's window hides its pane by these; template.js, which shows it, is read by tests too.
@@ -65,6 +66,7 @@ function start() {
   registerPublishing(CMS, config);
   registerDeleted(CMS, config, { history, lock });
   registerNotFound(CMS, config);
+  registerFeeds(CMS);
   if (konzilo.forms) {
     registerSubmissions(CMS);
     registerMail(CMS);

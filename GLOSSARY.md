@@ -20,7 +20,7 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Operator**: The person at Kntnt who runs the hosting layer's servers and may run every job on them. _Avoid_: admin, sysadmin.
 
-**Machine account**: A Forgejo account that a program uses, enrolled with a second factor like any other: one read-only per site for the builder and the service.
+**Machine account**: A Forgejo account that a program uses, enrolled with a second factor like any other: one read-only per site for the builder and the service, and the feed reader's, which writes the posts made from a feed.
 
 ## Sites
 
@@ -127,6 +127,12 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 **Takeover**: Taking a form's lock from the tab that holds it, which then saves no more and keeps its unsaved changes to read. _Avoid_: steal, force unlock.
 
 **Revision**: A form's content as one save left it, kept in the source repository's history; an Editor sees, compares and restores them. _Avoid_: version, history entry.
+
+**Incoming feed**: An RSS 2.0 or Atom feed of another site that an Admin adds on the *Feeds* page, in Swedish *Flöden*, which the site reads at its interval into a post type of the Admin's choice. Its *item* is one entry of it, known by its ID in the feed. _Avoid_: feed alone where the site's own could be meant, import, subscription.
+
+**Feed reader**: What reads the incoming feeds, a timed duty of the service in its role for editors, and the machine account it saves with, `feed-reader`, which alone may change a post made from a feed. _Avoid_: importer, bot.
+
+**Post made from a feed**: A published post that mirrors an item of an incoming feed: it follows the item's corrections, is deleted when the item is withdrawn, stays when the item falls out of a feed of its latest items, and no Editor changes, unpublishes or deletes it. When its feed is removed it becomes a post like any other. _Avoid_: imported post, syndicated post.
 
 **Deleted post**: A post whose source file a save removed, which the source history keeps until it is purged; an Editor finds it on the *Deleted* page, in Swedish *Raderat*, reads it with its revisions, and restores it as a draft under its own ID, its revisions following it back. A term or an image library entry is deleted and restored alike. _Avoid_: trashed, archived; trash, bin.
 
@@ -306,7 +312,7 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Breadcrumbs**: The levels a page sits at: the start page, each published page whose address begins the page's address, and the page itself. _Avoid_: trail.
 
-**Feed**: The RSS of a post type or of one term, at the address the site description declares. _Avoid_: newsfeed.
+**Feed**: The RSS of a post type or of one term, at the address the site description declares; another site's feed the site reads is an incoming feed. _Avoid_: newsfeed.
 
 **Markdown alternate**: The Markdown version of a built page, at its address with `.md`. _Avoid_: .md copy.
 

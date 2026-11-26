@@ -10,7 +10,7 @@ import { formOf, lockKeeper } from '../src/cms/lock/keeper.js';
 const EBBA = { name: 'Ebba Editor', since: '2026-11-23T10:00:00.000Z', yours: false };
 
 // A service that answers as `held` says: each form's holder, by form, or `mine` for this tab's.
-const standIn = ({ held = {}, adminOnly = [], down = false } = {}) => {
+const standIn = ({ held = {}, adminOnly = [], fromFeed = [], down = false } = {}) => {
   const asked = [];
   return {
     asked,
@@ -19,6 +19,7 @@ const standIn = ({ held = {}, adminOnly = [], down = false } = {}) => {
       asked.push(['hold', form, takeOver]);
       if (down) return null;
       if (adminOnly.includes(form.split('/')[0])) return { adminOnly: true };
+      if (fromFeed.includes(form)) return { fromFeed: true };
       if (held[form] && held[form] !== 'mine' && !takeOver) return { holder: held[form] };
       held[form] = 'mine';
       return { held: true, since: '2026-11-23T10:05:00.000Z' };
@@ -126,6 +127,19 @@ describe('the keeper of a tab\'s lock', () => {
     assert.equal(keeper.readOnly(), true);
     await keeper.takeOver();
     assert.deepEqual(last(), { form: 'settings/settings', mode: 'adminOnly' });
+  });
+
+  test('opens a post made from a feed read-only to everyone, with no takeover, no save and no deletion (ADR 0079)', async () => {
+    const { keeper, last } = keeping({ fromFeed: ['articles/f00d00000001'] });
+    await keeper.open('articles/f00d00000001');
+    assert.deepEqual(last(), { form: 'articles/f00d00000001', mode: 'fromFeed' });
+    assert.equal(keeper.readOnly(), true);
+    await keeper.takeOver();
+    assert.deepEqual(last(), { form: 'articles/f00d00000001', mode: 'fromFeed' });
+    assert.deepEqual(await keeper.beforeSave(), { name: 'lock.refusedReadOnly' });
+    assert.deepEqual(keeper.toLetGo(), []);
+    await keeper.open(null);
+    assert.deepEqual(await keeper.beforeDeleting(['articles/f00d00000001']), { refusal: { name: 'lock.refusedFeed' } });
   });
 
   test('lets a save through while the tab holds the lock, and refuses it, naming who took it, once it does not', async () => {
