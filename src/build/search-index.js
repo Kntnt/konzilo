@@ -11,8 +11,6 @@ import { ensureSearchKey, indexSearch, scopedSearchKey } from '../typesense.js';
 import { commandWithin } from './command.js';
 import { searchRoute } from './web-server.js';
 
-const BIG = 1024 * 1024 * 256;
-
 // The site's search documents, its collection's schema and the search every query runs, as the
 // site's own installed core makes them (`konzilo-search documents`), reading the content files
 // as the site does, with Astro's reader: a program of its own, as the intake and Astro are,
@@ -25,7 +23,7 @@ export function searchDocumentsCommand({ program, site, content, environment, li
   return async () => {
     let stdout;
     try {
-      ({ stdout } = await command(process.execPath, [program, 'documents', '--site', site, '--content', content], { env: environment, maxBuffer: BIG }));
+      ({ stdout } = await command(process.execPath, [program, 'documents', '--site', site, '--content', content], { env: environment }));
     } catch (error) {
       throw new Error(`the search documents could not be made: ${(error.stderr || error.message).trim()}`);
     }

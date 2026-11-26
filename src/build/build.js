@@ -11,7 +11,6 @@ import { failure } from '../intake/words.js';
 import { commandWithin, TookTooLong } from './command.js';
 import { markdownMarks, webRules } from './web-server.js';
 
-const BIG = 1024 * 1024 * 256;
 const STOPPED_BY_GUARD = 3;
 
 // Why a build made no release, by its name, which the publish status shows in the interface
@@ -228,7 +227,7 @@ export function intakeCommand({ program, siteFolder, contentFolder, environment,
   return async (checkout, { admins, reviewers, pushers }, confirmed) => {
     const args = [program, checkout, '--admins', admins, '--reviewers', reviewers, '--pushers', pushers, '--site', siteFolder, '--content', contentFolder, ...(confirmed ? ['--confirm', confirmed] : [])];
     try {
-      const { stdout } = await command(process.execPath, args, { env: environment, maxBuffer: BIG });
+      const { stdout } = await command(process.execPath, args, { env: environment });
       return { status: 0, report: JSON.parse(stdout) };
     } catch (error) {
       if (error instanceof TookTooLong) throw error;
@@ -246,7 +245,7 @@ export function astroBuild({ folder, environment, limit, built = `${folder}/dist
   const command = commandWithin(limit);
   return async () => {
     rmSync(built, { recursive: true, force: true });
-    await command('npm', ['run', 'build', '--silent'], { cwd: folder, env: environment, maxBuffer: BIG });
+    await command('npm', ['run', 'build', '--silent'], { cwd: folder, env: environment });
     if (!existsSync(built)) throw new Error(`no pages in ${built}`);
     return built;
   };

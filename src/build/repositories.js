@@ -11,9 +11,9 @@ import { promisify } from 'node:util';
 
 import { gitEnvironment } from '../forgejo.js';
 import { POST_IDS_FILE } from '../format/write.js';
+import { BIG } from './command.js';
 
 const run = promisify(execFile);
-const BIG = 1024 * 1024 * 256;
 const IDENTITY = ['-c', 'user.name=Konzilo', '-c', 'user.email=konzilo@localhost.invalid'];
 
 function gitIn(folder, access, command) {
