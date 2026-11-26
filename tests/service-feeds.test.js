@@ -79,6 +79,7 @@ describe('the incoming feeds', () => {
   let asked;
   let reader;
   let ids;
+  let control;
 
   const answerOf = (body, status = 200) => new Response(typeof body === 'string' ? body : JSON.stringify(body), { status, headers: { 'content-type': typeof body === 'string' ? 'application/rss+xml' : 'application/json' } });
 
@@ -103,7 +104,14 @@ describe('the incoming feeds', () => {
       assert.equal(headers.authorization, `token ${READER}`);
       assert.equal(searchParams.get('ref'), 'main');
       const path = decodeURIComponent(pathname.slice('/api/v1/repos/org/source/contents/'.length));
-      return Object.hasOwn(files, path) ? answerOf({ content: Buffer.from(files[path].text).toString('base64'), sha: files[path].sha }) : answerOf({ message: 'not found' }, 404);
+      if (Object.hasOwn(files, path)) return answerOf({ content: Buffer.from(files[path].text).toString('base64'), sha: files[path].sha });
+      // A folder, as Forgejo lists one: what it holds, each without its content.
+      const held = Object.keys(files).filter((one) => one.startsWith(`${path}/`)).sort();
+      if (held.length === 0) return answerOf({ message: 'not found' }, 404);
+      return answerOf([...new Set(held.map((one) => one.slice(path.length + 1).split('/')[0]))].map((name) => {
+        const one = `${path}/${name}`;
+        return Object.hasOwn(files, one) ? { type: 'file', name, path: one, sha: files[one].sha } : { type: 'dir', name, path: one, sha: `tree-${one}` };
+      }));
     }
     if (pathname === '/api/v1/repos/org/source/contents' && init.method === 'POST') {
       const body = JSON.parse(init.body);
@@ -146,7 +154,8 @@ describe('the incoming feeds', () => {
     asked = [];
     ids = 0;
     reader = feedReader({ store, site: () => site, forgejo: 'http://forgejo', repository: 'org/source', token: READER, get, lookup, now: () => clock, warn: () => {}, newId: () => `f00d0000000${(ids += 1).toString(16)}`, waitAtMost: 1000, pause: async () => {} });
-    const service = editorsService({ forgejo: 'http://forgejo', repository: 'org/source', token: 'read-token', rolesToken: 'roles', control: buildControl(join(folder, `control-${Date.now()}-${Math.random()}`)), store, site: () => site, feeds: reader, get, now: () => clock, warn: () => {} });
+    control = buildControl(join(folder, `control-${Date.now()}-${Math.random()}`));
+    const service = editorsService({ forgejo: 'http://forgejo', repository: 'org/source', token: 'read-token', rolesToken: 'roles', control, store, site: () => site, feeds: reader, get, now: () => clock, warn: () => {} });
     server = createServer((incoming, outgoing) => service.request(incoming, outgoing));
     await new Promise((go) => server.listen(0, '127.0.0.1', go));
     origin = `http://127.0.0.1:${server.address().port}`;
@@ -276,7 +285,7 @@ describe('the incoming feeds', () => {
     ]) {
       served[RSS] = answer;
       await later();
-      assert.deepEqual(await statusFeeds(), [{ address: RSS, failure: { at: clock.toISOString().replace(/\.\d{3}Z$/, 'Z'), ...failure } }], JSON.stringify(failure));
+      assert.deepEqual(await statusFeeds(), [{ address: RSS, failure: { at: clock.toISOString().replace(/\.\d{3}Z$/, 'Z'), ...failure }, refused: [] }], JSON.stringify(failure));
     }
     served[RSS] = rss();
     await later();
@@ -287,8 +296,47 @@ describe('the incoming feeds', () => {
 
   test('a feed whose address leads to a private network is not read, and its failure says so and nothing more', async () => {
     await add({ address: 'https://internal.example.com/news.rss', type: 'article' });
-    assert.deepEqual(await statusFeeds(), [{ address: 'https://internal.example.com/news.rss', failure: { at: clock.toISOString().replace(/\.\d{3}Z$/, 'Z'), kind: 'not-public' } }]);
+    assert.deepEqual(await statusFeeds(), [{ address: 'https://internal.example.com/news.rss', failure: { at: clock.toISOString().replace(/\.\d{3}Z$/, 'Z'), kind: 'not-public' }, refused: [] }]);
     assert.deepEqual(asked.filter((url) => url.includes('internal.example.com')), []);
+  });
+
+  test('items of the same title make posts of slugs of their own, after the slug a post of the type an Editor made holds', async () => {
+    files['articles/aaaaaaaaaaaa.md'] = { text: '---\ntitle: "Ours"\nslug: "same"\nstatus: published\n---\n\nText.\n', sha: 'sha-ours' };
+    files['articles/bbbbbbbbbbbb.md'] = { text: '---\ntitle: "Same again"\nstatus: draft\n---\n\nText.\n', sha: 'sha-draft' };
+    served[RSS] = rss(A);
+    await add({ address: RSS, type: 'article' });
+    served[RSS] = rss({ ...C, title: 'Same' }, { ...B, title: 'Same' }, A);
+    await later();
+    served[RSS] = rss({ ...D, title: 'Same again' }, { ...C, title: 'Same' }, { ...B, title: 'Same' }, A);
+    await later();
+    const slugOf = (id) => /^slug: "(.*)"$/m.exec(textOf(pathOf(id)))[1];
+    assert.deepEqual(['b', 'c', 'd'].map(slugOf), ['same-2', 'same-3', 'same-again-2']);
+  });
+
+  test('an item whose title makes no slug takes one from the last step of its link, else item', async () => {
+    served[RSS] = rss(A);
+    await add({ address: RSS, type: 'article' });
+    served[RSS] = rss({ ...D, id: 'новости', title: 'Новости' }, { ...C, id: 'статья', title: 'Статья' }, { ...B, id: '2026/harbour-opens.html', title: 'Гавань' }, A);
+    await later();
+    const slugOf = (id) => /^slug: "(.*)"$/m.exec(textOf(pathOf(id)))[1];
+    assert.deepEqual(['2026/harbour-opens.html', 'статья', 'новости'].map(slugOf), ['harbour-opens', 'item', 'item-2']);
+  });
+
+  test('a post the build refused at the version the feed reader wrote is a failure of its feed, naming its item, and not among its posts', async () => {
+    served[RSS] = rss(A);
+    await add({ address: RSS, type: 'article' });
+    served[RSS] = rss(C, B, A);
+    await later();
+    const refused = (name) => ({ state: 'refused', title: 'Release b', version: 'v', refusals: [{ field: 'slug', block: null, line: null, name, values: {}, reason: 'held', message: 'held' }] });
+    control.writeRecord({ posts: { [pathOf('b')]: refused('refusal.address-search'), [pathOf('c')]: { state: 'live', title: 'Release c', version: 'v', refusals: [] } } });
+    const [feed] = (await ask('GET', '/_konzilo/feeds')).body.feeds;
+    assert.deepEqual([feed.posts, feed.refused], [1, [{ title: 'Release b' }]]);
+    assert.deepEqual(await statusFeeds(), [{ address: RSS, failure: null, refused: [{ title: 'Release b' }] }]);
+
+    // A change someone else pushed, which the build refuses, is no failure of the feed's.
+    control.writeRecord({ posts: { [pathOf('b')]: refused('refusal.feed-post') } });
+    assert.deepEqual(await statusFeeds(), []);
+    assert.deepEqual((await ask('GET', '/_konzilo/feeds')).body.feeds[0].refused, []);
   });
 
   test('a feed is read at its interval, and an Admin changes its type and interval', async () => {

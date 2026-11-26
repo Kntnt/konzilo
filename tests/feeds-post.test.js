@@ -1,14 +1,14 @@
 // A post made from an incoming feed's item, as its source file (ADR 0079): published, with the
 // item's title, its text as the type's body elements, its date, or the moment it was first read
-// where it gives none or gives one ahead, and the address of the original; a slug made from its
-// title as the editor makes one, kept when the title changes; the item's ID and what tells that it
+// where it gives none or gives one ahead, and the address of the original; a slug no other post of
+// its type holds, made from its title as the editor makes one, kept when the title changes; the item's ID and what tells that it
 // has changed; and an article's main headline, which an article requires, its title. Released, it
 // is the same file without what marks it as the feed's.
 
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import { feedPostFile, itemVersion, releasedFile } from '../src/feeds/post.js';
+import { feedPostFile, freeSlug, itemVersion, releasedFile, slugHeld } from '../src/feeds/post.js';
 import { siteDescription } from '../src/site-description.js';
 
 const site = siteDescription({
@@ -73,6 +73,25 @@ describe('a post made from an item', () => {
       assert.notEqual(itemVersion({ ...ITEM, ...change }), version, JSON.stringify(change));
     }
     assert.equal(itemVersion({ ...ITEM, id: 'another' }), version);
+  });
+});
+
+describe('a new post\'s slug', () => {
+  test('is made from its title, else from the last step of its link\'s path, else item, with a number after it while another post holds it', () => {
+    assert.equal(freeSlug({ title: 'Harbour opens', link: 'https://news.example.com/x' }), 'harbour-opens');
+    assert.equal(freeSlug({ title: 'Гавань', link: 'https://news.example.com/2026/harbour-opens.html' }), 'harbour-opens');
+    assert.equal(freeSlug({ title: 'Гавань', link: 'https://news.example.com/2026/11/' }), '11');
+    assert.equal(freeSlug({ title: 'Гавань', link: 'https://news.example.com/%D0%B3%D0%B0%D0%B2%D0%B0%D0%BD%D1%8C' }), 'item');
+    assert.equal(freeSlug({ title: '…', link: null }), 'item');
+    assert.equal(freeSlug({ title: 'Harbour opens', link: null }, new Set(['harbour-opens', 'harbour-opens-2'])), 'harbour-opens-3');
+    assert.equal(freeSlug({ title: '…', link: null }, new Set(['item'])), 'item-2');
+  });
+
+  test('is told held by another post by its own slug, else one made from its title, as the build reads it', () => {
+    assert.equal(slugHeld('---\ntitle: "Ours"\nslug: "taken"\n---\n\nText.\n'), 'taken');
+    assert.equal(slugHeld('---\ntitle: "Hafen öffnet"\nstatus: draft\n---\n'), 'hafen-offnet');
+    assert.equal(slugHeld('---\ntitle: "…"\n---\n'), null);
+    assert.equal(slugHeld('no front matter'), null);
   });
 });
 

@@ -14,7 +14,7 @@ import { lookup as resolved } from 'node:dns/promises';
 import { BlockList, isIP } from 'node:net';
 
 import { readFeed } from '../feeds/read.js';
-import { feedPostFile, postDate, releasedFile } from '../feeds/post.js';
+import { feedPostFile, freeSlug, postDate, releasedFile, slugHeld } from '../feeds/post.js';
 import { reconcile } from '../feeds/reconcile.js';
 
 // The branch the editor saves to, which the feed reader saves to as well.
@@ -187,6 +187,28 @@ export function feedReader({ store, site, forgejo, repository, token, get = fetc
 
   const typeOfPath = (path) => Object.values(site().types).find(({ collection }) => collection === path.split('/')[0]) ?? null;
 
+  // The slugs the posts in a folder of the source hold, as the branch holds them, each file read
+  // once for each version of it, which Forgejo's listing names.
+  const slugsBy = new Map();
+  const slugsIn = async (folder) => {
+    const answer = await asked(`/contents/${encodedPath(folder)}?ref=${BRANCH}`);
+    if (!answer.ok) await answer.arrayBuffer().catch(() => {});
+    if (answer.status === 404) return new Set();
+    if (!answer.ok) throw new Error(`Forgejo answered ${answer.status} for ${folder}`);
+    const listed = await answer.json();
+    const held = new Set();
+    for (const { type, path, sha } of Array.isArray(listed) ? listed : []) {
+      if (type !== 'file' || !path.endsWith('.md')) continue;
+      if (!slugsBy.has(sha)) {
+        const file = await fileOf(path);
+        slugsBy.set(sha, file === null ? null : slugHeld(file.text));
+      }
+      if (slugsBy.get(sha)) held.add(slugsBy.get(sha));
+    }
+    return held;
+  };
+  const folderOf = (path) => path.slice(0, path.lastIndexOf('/'));
+
   const readOne = async (feed, stop) => {
     const at = now();
     const atText = moment(at);
@@ -205,13 +227,36 @@ export function feedReader({ store, site, forgejo, repository, token, get = fetc
     const changes = [];
     const kept = [];
     for (const item of done.hold) kept.push({ item: item.id, seen: atText, moment: postDate(item, { seen: atText, now: atText }), state: 'held' });
-    for (const { item } of done.make) {
-      const path = `${type.collection}/${tag ? `${tag}/` : ''}${newId()}.md`;
-      const file = feedPostFile(item, { site: described, type, seen: atText, now: atText });
-      changes.push({ path, text: file.text });
-      kept.push({ item: item.id, seen: atText, moment: file.date, state: 'live', path, version: file.version, slug: file.slug });
+    // The slugs taken in each folder a post is made in, the source's and those this read gives. A
+    // new post's slug is one no other post there holds, the oldest item's chosen first; one made
+    // again takes its own where it is still free; a correction keeps its own.
+    const taken = new Map();
+    const takenIn = async (path) => {
+      if (!taken.has(folderOf(path))) taken.set(folderOf(path), await slugsIn(folderOf(path)));
+      return taken.get(folderOf(path));
+    };
+    const dateOf = ({ item }) => postDate(item, { seen: atText, now: atText });
+    try {
+      for (const { item } of [...done.make].sort((one, other) => (dateOf(one) < dateOf(other) ? -1 : dateOf(one) > dateOf(other) ? 1 : 0))) {
+        const path = `${type.collection}/${tag ? `${tag}/` : ''}${newId()}.md`;
+        const held = await takenIn(path);
+        const file = feedPostFile(item, { site: described, type, seen: atText, now: atText, slug: freeSlug(item, held) });
+        held.add(file.slug);
+        changes.push({ path, text: file.text });
+        kept.push({ item: item.id, seen: atText, moment: file.date, state: 'live', path, version: file.version, slug: file.slug });
+      }
+      for (const { item, known: held } of done.restore) {
+        const slugs = await takenIn(held.path);
+        const file = feedPostFile(item, { site: described, type: typeOfPath(held.path) ?? type, seen: held.seen, now: atText, slug: slugs.has(held.slug) ? freeSlug(item, slugs) : held.slug });
+        slugs.add(file.slug);
+        changes.push({ path: held.path, text: file.text });
+        kept.push({ item: item.id, seen: held.seen, moment: file.date, state: 'live', path: held.path, version: file.version, slug: file.slug });
+      }
+    } catch (error) {
+      warn(`The feed reader could not tell the slugs of ${type.collection} for ${feed.address}: ${error.message}`);
+      return failed({ kind: 'not-saved' });
     }
-    for (const { item, known: held } of [...done.correct, ...done.restore]) {
+    for (const { item, known: held } of done.correct) {
       const file = feedPostFile(item, { site: described, type: typeOfPath(held.path) ?? type, seen: held.seen, now: atText, slug: held.slug });
       changes.push({ path: held.path, text: file.text });
       kept.push({ item: item.id, seen: held.seen, moment: file.date, state: 'live', path: held.path, version: file.version, slug: file.slug });

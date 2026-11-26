@@ -1,7 +1,8 @@
 // The *Feeds* page (ADR 0079): the feeds of other sites the site reads, which an Admin alone sees,
 // adds, changes and removes, kept in the service and none in Git: each feed's address, the type its
 // items become, the language of its posts on a site in several, and the minutes between its reads,
-// with when it was last read and why the last read failed, where it did. Removing a feed asks
+// with when it was last read and why the last read failed, where it did, and each of its posts the
+// build refused as the feed reader wrote it, by its item. Removing a feed asks
 // first, and says that its posts stay published as posts like any other. It is React, since that
 // is what Sveltia takes, with its styles on the elements.
 
@@ -102,6 +103,7 @@ function Feed({ feed, shown, onShown }) {
       h('legend', { style: LEGEND }, feed.address),
       h('p', { style: { ...TEXT, margin: 0 } }, feed.readAt ? say('feeds.read', { at: momentShown(feed.readAt) }) : say('feeds.notRead')),
       feed.failure ? h('p', { role: 'alert', style: PROBLEM }, say('feeds.lastFailure', { at: momentShown(feed.failure.at), reason: failureShown(feed.failure) })) : null,
+      ...(feed.refused ?? []).map(({ title }, at) => h('p', { key: `refused-${at}`, role: 'alert', style: PROBLEM }, say('feeds.refused', { title }))),
       ...Choices({ prefix, draft, shown, problems, onChange: setDraft }),
       h('div', { style: WAYS },
         h('button', { type: 'submit', disabled: said === 'feeds.saving' }, say('feeds.save')),

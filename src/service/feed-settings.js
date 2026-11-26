@@ -21,14 +21,37 @@ const wholeOf = (value) => {
   return typeof value === 'string' && /^[0-9]{1,5}$/.test(value.trim()) ? Number(value) : null;
 };
 
-// What the page is shown: each feed, with its last failure, { at, kind, status }, or null; each
+// The refusals of a post made from a feed that are no failure of the feed's: a change someone else
+// pushed, which the build holds to the feed reader (ADR 0079).
+const HELD_TO_THE_FEED = new Set(['refusal.feed-post', 'refusal.feed-post-gone']);
+
+// The posts made from each feed that the last build refused as the feed reader wrote them, as at a
+// search page's address or one another type's post holds, by the feed's number: each { title },
+// its item's. `record`: the last build's, as record.js reads it, or null.
+export function refusedPosts({ store, record }) {
+  const refused = new Map();
+  for (const { feed, path } of store.feedPosts()) {
+    const post = record?.posts?.[path];
+    if (post?.state !== 'refused' || (post.refusals ?? []).some(({ name }) => HELD_TO_THE_FEED.has(name))) continue;
+    refused.set(feed, [...(refused.get(feed) ?? []), { title: post.title ?? path }]);
+  }
+  return refused;
+}
+
+// What the page is shown: each feed, with its last failure, { at, kind, status }, or null, the
+// number of its posts the build publishes, and those it refused, as refusedPosts() gives them; each
 // type of the site, by its name and label, with whether a feed may become it; and on a site in
 // several languages the tags of its languages, else null.
-export function feedsShown({ store, site }) {
+export function feedsShown({ store, site, record = null }) {
   const several = site.languages.length > 1;
   const posts = store.feedPosts();
+  const refused = refusedPosts({ store, record });
   return {
-    feeds: store.feeds().map(({ id, address, type, language, every, readAt, failure }) => ({ id, address, type, language, every, readAt, failure, posts: posts.filter((post) => post.feed === id).length })),
+    feeds: store.feeds().map(({ id, address, type, language, every, readAt, failure }) => ({
+      id, address, type, language, every, readAt, failure,
+      posts: posts.filter((post) => post.feed === id).length - (refused.get(id)?.length ?? 0),
+      refused: refused.get(id) ?? [],
+    })),
     types: feedTypes(site),
     languages: several ? site.languages.map(({ tag }) => tag) : null,
   };

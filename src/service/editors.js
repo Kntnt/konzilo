@@ -15,7 +15,7 @@ import { publishStatus } from '../build/status.js';
 import { accountName, CREDENTIAL, mayWrite, organisationTeams } from '../forgejo.js';
 import { FORM_NAME } from '../site-description.js';
 import { consentRecordsPage } from './consent-records-admin.js';
-import { checkFeed, feedsShown } from './feed-settings.js';
+import { checkFeed, feedsShown, refusedPosts } from './feed-settings.js';
 import { FAILURE_SETTING, MAIL_SETTING } from './mail.js';
 import { checkMailSettings, mailSettingsShown } from './mail-settings.js';
 import { isAdminsForm, isForm, isTab, lockTable } from './locks.js';
@@ -351,7 +351,7 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
       incoming.resume();
       return answerJson(outgoing, role === null ? 401 : 403, {});
     }
-    const shown = () => feedsShown({ store, site: site() });
+    const shown = () => feedsShown({ store, site: site(), record: control.record() });
     if (incoming.method === 'GET') return answerJson(outgoing, 200, shown());
     const id = below === '' ? null : Number(below.slice(1));
     if (id !== null && (!Number.isSafeInteger(id) || !store.feeds().some((one) => one.id === id))) {
@@ -647,8 +647,10 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
         const record = control.record();
         const standing = await versions();
         const posts = Object.entries(standing).filter(([file]) => isPost(file)).map(([file, version]) => publishStatus(record, file, version));
-        // Each incoming feed that could not be read, until a read succeeds (ADR 0079).
-        const failing = (store?.feeds() ?? []).filter(({ failure }) => failure !== null).map(({ address, failure }) => ({ address, failure }));
+        // Each incoming feed that could not be read, until a read succeeds, and each with a post the
+        // build refused as the feed reader wrote it (ADR 0079).
+        const refused = store ? refusedPosts({ store, record }) : new Map();
+        const failing = (store?.feeds() ?? []).filter(({ id, failure }) => failure !== null || refused.has(id)).map(({ id, address, failure }) => ({ address, failure, refused: refused.get(id) ?? [] }));
         return answerJson(outgoing, 200, { posts, others: { refusals: record?.refusals ?? [], warnings: record?.warnings ?? [] }, feeds: failing, reason: record?.reason ?? null, at: record?.at ?? null });
       }
       if (pathname === '/_konzilo/thumbnail') return answerPicture(incoming, outgoing, searchParams.get('of'));

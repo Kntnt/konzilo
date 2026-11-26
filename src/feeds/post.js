@@ -1,14 +1,17 @@
 // A post made from an incoming feed's item, as its source file (ADR 0079), which the feed reader
 // writes, and which only it changes: published, with the item's title, its text as the body
-// elements of its type, its date and the address of the original, a slug made from its title as
-// the editor makes one, and, under `feed`, the item's ID in its feed and what tells that the item
-// has changed. Released, as its feed is removed, it is the same file without `feed`.
+// elements of its type, its date and the address of the original, a slug no other post of its type
+// holds, made from its title as the editor makes one, and, under `feed`, the item's ID in its feed
+// and what tells that the item has changed. Released, as its feed is removed, it is the same file
+// without `feed`.
 
 import { createHash } from 'node:crypto';
 import { parseDocument } from 'yaml';
 
 import { slugFrom } from '../format/article-parts.js';
 import { FEED_ITEM, ORIGINAL_ADDRESS } from '../format/feed-post.js';
+import { slugOf } from '../intake/post-file.js';
+import { postParts } from '../intake/source.js';
 import { feedBody } from './body.js';
 
 // What tells that an item has changed: its title, its text, its date and its link, as the feed
@@ -19,12 +22,40 @@ export const itemVersion = ({ title, text, date, link }) => createHash('sha256')
 // gives none, or one ahead of `now`.
 export const postDate = (item, { seen, now }) => (item.date && item.date <= now ? item.date : seen);
 
+// The last step of a link's path, without a file's extension of letters, such as `.html`, or ''.
+const lastStep = (link) => {
+  try {
+    const steps = new URL(link).pathname.split('/').filter(Boolean);
+    return decodeURIComponent(steps.at(-1) ?? '').replace(/\.[a-z]{1,5}$/i, '');
+  } catch {
+    return '';
+  }
+};
+
+// A slug for a new post of `item` that none of `taken` is: one made from its title, else from the
+// last step of its link's path, else `item`, with `-2`, `-3` and on after it while that is taken.
+export function freeSlug(item, taken = new Set()) {
+  const made = slugFrom(item.title) || (item.link ? slugFrom(lastStep(item.link)) : '') || 'item';
+  if (!taken.has(made)) return made;
+  for (let count = 2; ; count += 1) if (!taken.has(`${made}-${count}`)) return `${made}-${count}`;
+}
+
+// The slug a post's source file holds, as the build reads it: its own, else one made from its
+// title; or null where it holds none the build would take.
+export function slugHeld(text) {
+  const { fields } = postParts(String(text));
+  if (fields === undefined) return null;
+  const title = typeof fields.title === 'number' ? String(fields.title) : typeof fields.title === 'string' ? fields.title.trim() : '';
+  return slugOf({ fields, title }).slug ?? null;
+}
+
 // `item`: as read.js reads it. `site`: the site description, as checked. `type`: the post's.
-// `seen`: when the item was first read. `now`: the moment of this read. `slug`: the post's, where
-// it has one, which a changed title keeps, so that its address stays. Gives { text, slug, date,
-// version, dropped }: the source file, and what it holds of each.
+// `seen`: when the item was first read. `now`: the moment of this read. `slug`: the post's, which
+// the feed reader chooses so that no other post of its type holds it, and which a changed title
+// keeps, so that its address stays; else one made as freeSlug() makes it. Gives { text, slug,
+// date, version, dropped }: the source file, and what it holds of each.
 export function feedPostFile(item, { site, type, seen, now, slug: kept = null }) {
-  const slug = kept ?? slugFrom(item.title);
+  const slug = kept ?? freeSlug(item);
   const date = postDate(item, { seen, now });
   const version = itemVersion(item);
   const { body, dropped } = feedBody(item.text, { site, type, base: item.link ?? undefined });
