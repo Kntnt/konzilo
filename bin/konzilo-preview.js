@@ -42,7 +42,7 @@ const readToken = readFileSync(join(secrets, 'read-token'), 'utf8').trim();
 
 // After a purge (ADR 0078), the checkout of the source and the content folder go, as they may
 // hold what it took, and the preview starts again, with nothing of them in its memory: at once as
-// it starts, and within a minute of a purge while it runs, Compose starting it again.
+// it starts, and within half a minute of a purge while it runs, Compose starting it again.
 const SOURCE_FOLDER = join(work, 'source');
 const purges = purgeMarks({ reader: purgeRecordReader({ forgejo: FORGEJO, repository, token: readToken }), file: join(work, 'purge-mark') });
 const forgetWhatWasPurged = async () => {
