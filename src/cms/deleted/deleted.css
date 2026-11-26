@@ -141,3 +141,59 @@
   max-width: 240px;
   max-height: 160px;
 }
+
+/* An Admin's purge (ADR 0078): its steps, in the browser's own dialog over the page. */
+
+.konzilo-purge-dialog {
+  box-sizing: border-box;
+  max-width: min(36rem, calc(100vw - 32px));
+  padding: 20px 24px;
+  border: 1px solid rgba(128, 128, 128, 0.5);
+  border-radius: 8px;
+  background: var(--sui-primary-background-color, #fff);
+  color: var(--sui-primary-foreground-color, #222);
+  font: 14px/1.4 system-ui, sans-serif;
+  overflow-wrap: anywhere;
+}
+
+.konzilo-purge-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.konzilo-purge-dialog h2 {
+  margin: 0 0 12px;
+  font-size: 1.2em;
+}
+
+.konzilo-purge-dialog h2:focus {
+  outline: none;
+}
+
+.konzilo-purge-dialog p {
+  margin: 8px 0;
+}
+
+.konzilo-purge-warning {
+  font-weight: 600;
+}
+
+.konzilo-purge-name {
+  display: grid;
+  gap: 4px;
+  margin: 12px 0;
+}
+
+.konzilo-purge-name input {
+  padding: 6px 8px;
+  font: inherit;
+}
+
+.konzilo-purge-forms {
+  margin: 8px 0;
+  padding-inline-start: 20px;
+}
+
+.konzilo-purge-dialog .konzilo-purge-go:not(:disabled) {
+  border-color: #b3261e;
+  color: #b3261e;
+}

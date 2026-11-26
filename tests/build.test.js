@@ -160,6 +160,32 @@ describe('a build', () => {
     assert.deepEqual(line.failures, []);
   });
 
+  test('after a purge, drops its checkouts, takes both repositories as they now are, and makes a release of its own, alone (ADR 0078)', async () => {
+    const site = newSite({ 'articles/aaaaaaaaaaaa.md': post('first') });
+    await site.build()();
+    const before = readlinkSync(join(site.root, 'public/current'));
+    let purged = true;
+    let done = 0;
+    const purges = { take: async () => purged, done: () => {
+      done += 1;
+      purged = false;
+    } };
+    // A file in each checkout that no clone from Forgejo holds.
+    writeFileSync(join(site.root, 'source/.git/left-behind'), 'x');
+    writeFileSync(join(site.siteFolder, 'content/.git/left-behind'), 'x');
+    await new Promise((go) => setTimeout(go, 1100));
+    const record = await site.build({ purges })();
+    assert.equal(record.outcome, 'live');
+    assert.ok(!existsSync(join(site.root, 'source/.git/left-behind')), 'the source\'s checkout is made anew');
+    assert.ok(!existsSync(join(site.siteFolder, 'content/.git/left-behind')), 'and the content\'s');
+    const now = readlinkSync(join(site.root, 'public/current'));
+    assert.notEqual(now, before, 'a release of its own, though nothing a visitor sees changed');
+    assert.deepEqual(readdirSync(join(site.root, 'public/releases')), [now.split('/').at(-1)], 'and no release from before');
+    assert.equal(done, 1);
+    await site.build({ purges })();
+    assert.equal(readlinkSync(join(site.root, 'public/current')), now, 'and the next is as any');
+  });
+
   test('says of a new version that it is being published, until a build has read it', async () => {
     const site = newSite({ 'articles/aaaaaaaaaaaa.md': post('first') });
     await site.build()();

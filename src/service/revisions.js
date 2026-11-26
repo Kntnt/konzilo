@@ -5,10 +5,13 @@
 // the history: what has been purged from it is in no revision. What the service learns of who
 // pushed what it keeps in memory alone, since a commit's pusher never changes, and a restart learns
 // it again from the feed. The same history, and the same pushes, give the deleted posts, terms and
-// image library entries (deleted.js, ADR 0077).
+// image library entries (deleted.js, ADR 0077). A save a purge rewrote was pushed anew by the
+// instance's account, so the feed names the purge's push; the record of purges, which only that
+// account writes, names the push that brought it as it was, and is read first (ADR 0078).
 
 import { addPushers, eventsAfter } from '../build/pushers.js';
 import { accountName, commitsFrom } from '../forgejo.js';
+import { PURGES_BRANCH, PURGES_FILE, purgeRecord } from '../purge/record.js';
 import { deletions } from './deleted.js';
 
 // The feed is asked for this many events at a time.
@@ -20,6 +23,8 @@ export const REVISIONS_AT_ONCE = 20;
 const LATELY = 120_000;
 const SETTLED = 10_000;
 const STEP = 500;
+// The record of purges is looked at again after this long at most.
+const RECORD_HOLDS = 5000;
 
 // A file in the source, as a form names it: a path below the repository's root, with no part that
 // leads elsewhere.
@@ -45,7 +50,15 @@ export function sourceHistory({ forgejo, repository, token, pushesToken = token,
 
   // Each commit's push: { login, name, at }.
   const known = { last: 0, commits: {} };
-  const commitsOf = async (after, before) => (await commitsFrom((path) => ask(path, pushesToken), after, before)).map(({ sha }) => sha);
+  // A push whose commits Forgejo can no longer list, as one a purge took the head it started from
+  // of, brought none the history still has.
+  const commitsOf = async (after, before) => {
+    try {
+      return (await commitsFrom((path) => ask(path, pushesToken), after, before)).map(({ sha }) => sha);
+    } catch {
+      return [];
+    }
+  };
   const whom = ({ act_user: user, created }) => ({ login: user.login, name: accountName(user), at: created });
   // One look at the feed at a time, each from where the last left off.
   let learning = Promise.resolve();
@@ -56,6 +69,24 @@ export function sourceHistory({ forgejo, repository, token, pushesToken = token,
       known.last = Math.max(known.last, ...events.map(({ id }) => id));
     });
     return learning;
+  };
+
+  // The record of purges (ADR 0078), as its branch stands, looked at again after a moment.
+  const record = { head: undefined, held: purgeRecord(null), at: -Infinity };
+  const purges = async () => {
+    if (now().getTime() - record.at < RECORD_HOLDS) return record.held;
+    let head = null;
+    try {
+      head = (await (await ask(`/branches/${PURGES_BRANCH}`)).json())?.commit?.id ?? null;
+    } catch (error) {
+      if (error.status !== 404) throw error;
+    }
+    if (head !== record.head) {
+      record.held = head === null ? purgeRecord(null) : purgeRecord(await textAt(PURGES_FILE, head));
+      record.head = head;
+    }
+    record.at = now().getTime();
+    return record.held;
   };
 
   // The file at a commit, or null where the commit removed it.
@@ -74,13 +105,14 @@ export function sourceHistory({ forgejo, repository, token, pushesToken = token,
   // lately waited for a moment.
   const saved = async (commits, { learnt = false } = {}) => {
     if (!learnt) await learn();
-    const awaited = () => commits.some(({ sha, date }) => !Object.hasOwn(known.commits, sha) && now().getTime() - Date.parse(date ?? '') < LATELY);
+    const { pushes: carried } = await purges();
+    const awaited = () => commits.some(({ sha, date }) => !Object.hasOwn(known.commits, sha) && !Object.hasOwn(carried, sha) && now().getTime() - Date.parse(date ?? '') < LATELY);
     for (let waited = 0; waited < SETTLED && awaited(); waited += STEP) {
       await sleep(STEP);
       await learn();
     }
     return Object.fromEntries(commits.map(({ sha, date }) => {
-      const push = known.commits[sha];
+      const push = Object.hasOwn(carried, sha) ? carried[sha] : known.commits[sha];
       return [sha, { moment: push?.at ?? date ?? null, account: push ? { login: push.login, name: push.name } : null }];
     }));
   };
@@ -91,8 +123,12 @@ export function sourceHistory({ forgejo, repository, token, pushesToken = token,
     // A page of the revisions of the file at `path`, newest first: { revisions, more }, each
     // { commit, moment, account, text }, as saved() gives the moment and the account.
     async revisions(path, { page = 1 } = {}) {
+      // Forgejo answers 404 for a file no commit of the branch holds, as one purged (ADR 0078).
       const [shown] = await Promise.all([
-        ask(`/commits?path=${encodeURIComponent(path)}&limit=${perPage}&page=${page}&${LIST}`).then((answer) => answer.json()),
+        ask(`/commits?path=${encodeURIComponent(path)}&limit=${perPage}&page=${page}&${LIST}`).then((answer) => answer.json(), (error) => {
+          if (error.status === 404) return [];
+          throw error;
+        }),
         learn(),
       ]);
       const pushes = await saved(shown.map(({ sha, commit }) => ({ sha, date: commit?.committer?.date ?? commit?.author?.date ?? null })), { learnt: true });
@@ -103,5 +139,15 @@ export function sourceHistory({ forgejo, repository, token, pushesToken = token,
     // A page of the deleted posts, terms and image library entries, newest deletion first, as
     // deleted.js lists them, with the moment and the account of the push that deleted each.
     deleted: ({ page = 1, collection = null, deletable }) => removed.list({ page, perPage, collection, deletable }),
+
+    // The deleted entry at `path`, { path, collection, kind }, or null.
+    deletedOne: (path, deletable) => removed.find(path, { deletable }),
+
+    // The record of purges, { purges, pushes } (ADR 0078).
+    purges,
+    // Looks at the record of purges again at the next call, as after a purge.
+    purgesChanged() {
+      record.at = -Infinity;
+    },
   };
 }

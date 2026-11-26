@@ -2,8 +2,9 @@
 // newest deletion first, each with what its last save called it, its type, when it was deleted and
 // the account that pushed the deletion, a type at a time where one is chosen. A deleted entry opens
 // read-only, at its last revision, beside its revisions, which compare as a form's do, and *Restore*
-// saves it again, as a draft, under its own ID, and opens its form. It is React, since that is what
-// Sveltia takes; what a revision holds is drawn by the form's History (history/register.js).
+// saves it again, as a draft, under its own ID, and opens its form. An Admin also purges one for
+// good, from its row or as it is read (ADR 0078). It is React, since that is what Sveltia takes;
+// what a revision holds is drawn by the form's History (history/register.js).
 
 import { signedInCredential } from '../credential.js';
 import { languageTag, say } from '../interface-language.js';
@@ -11,6 +12,8 @@ import { momentValue, wordsShown } from '../refusals.js';
 import { latestSaveOf, revisionsOf } from '../history/client.js';
 import { accountWords, choiceWords, savedWords, withMoment } from '../history/words.js';
 import { deletedPages, entryTitle } from './client.js';
+import { PurgeDialog, purgedBefore, purgesWords } from './purge-dialog.js';
+import { purgeService } from './purge.js';
 import { idOf, restoreDeleted } from './restore.js';
 import { sourceOf } from '../source.js';
 import { frontMatterOf } from '../groups/source.js';
@@ -52,8 +55,9 @@ async function openForm({ path, collection }) {
   if (!known) globalThis.location.reload();
 }
 
-// The list of deleted entries, of one collection where `collection` is given.
-function DeletedList({ collection, collectionOf, onOpen }) {
+// The list of deleted entries, of one collection where `collection` is given, with a way to purge
+// each for an Admin, `admin`.
+function DeletedList({ collection, collectionOf, onOpen, admin, onPurge }) {
   const { createElement: h, useEffect, useRef, useState } = react();
   const pages = useRef(null);
   const [shown, setShown] = useState(undefined);
@@ -98,12 +102,14 @@ function DeletedList({ collection, collectionOf, onOpen }) {
         h('th', { scope: 'col' }, say('deleted.name')),
         h('th', { scope: 'col' }, say('deleted.type')),
         h('th', { scope: 'col' }, say('deleted.when')),
-        h('th', { scope: 'col' }, say('deleted.who')))),
+        h('th', { scope: 'col' }, say('deleted.who')),
+        admin ? h('th', { scope: 'col' }, say('deleted.purgeColumn')) : null)),
       h('tbody', null, shown.deleted.map((row) => h('tr', { key: row.path, 'data-path': row.path },
         h('th', { scope: 'row' }, h('button', { type: 'button', className: 'konzilo-deleted-open', onClick: () => onOpen(row) }, row.title)),
         h('td', null, collectionOf(row.collection)?.label ?? row.collection),
         h('td', null, h('time', { dateTime: row.moment }, momentShown(row.moment))),
-        h('td', null, row.account ? row.account.name : say('deleted.unknownAccount')))))),
+        h('td', null, row.account ? row.account.name : say('deleted.unknownAccount')),
+        admin ? h('td', null, h('button', { type: 'button', className: 'konzilo-deleted-button konzilo-purge-open', 'aria-label': wordsShown({ name: 'deleted.purgeOne', values: { title: row.title } }), onClick: () => onPurge(row) }, say('deleted.purge'))) : null)))),
     shown.more ? h('button', { type: 'button', className: 'konzilo-deleted-button', onClick: older }, say('deleted.older')) : null);
 }
 
@@ -160,8 +166,8 @@ const fromFeed = (row) => {
 };
 
 // A deleted entry, read-only, as its last revision left it, with the way to restore it, but for a
-// post made from a feed.
-function DeletedEntry({ row, collection, history, lock, api, repository, branch, onBack }) {
+// post made from a feed, and for an Admin, `admin`, the way to purge it.
+function DeletedEntry({ row, collection, history, lock, api, repository, branch, onBack, admin, onPurge }) {
   const { createElement: h, useEffect, useRef, useState } = react();
   const heading = useRef(null);
   const drawn = useRef(null);
@@ -210,8 +216,9 @@ function DeletedEntry({ row, collection, history, lock, api, repository, branch,
     fromFeed(row)
       ? h('p', { className: 'konzilo-deleted-note' }, say('deleted.fromFeed'))
       : h('p', { className: 'konzilo-deleted-note' }, say('deleted.restoreWords')),
-    fromFeed(row) ? null : h('div', { className: 'konzilo-deleted-ways' },
-      h('button', { type: 'button', className: 'konzilo-deleted-button konzilo-deleted-restore', disabled: state.restoring, onClick: restore }, say('deleted.restore'))),
+    fromFeed(row) && !admin ? null : h('div', { className: 'konzilo-deleted-ways' },
+      fromFeed(row) ? null : h('button', { type: 'button', className: 'konzilo-deleted-button konzilo-deleted-restore', disabled: state.restoring, onClick: restore }, say('deleted.restore')),
+      admin ? h('button', { type: 'button', className: 'konzilo-deleted-button konzilo-purge-open', onClick: () => onPurge(row) }, say('deleted.purge')) : null),
     h('p', { className: 'konzilo-deleted-told', role: state.alert ? 'alert' : 'status' }, state.said ?? ''),
     h('div', { className: 'konzilo-deleted-columns' },
       h('section', { className: 'konzilo-deleted-fields', 'aria-labelledby': 'konzilo-deleted-fields' },
@@ -227,25 +234,53 @@ export function deletedPage({ config, history, lock }) {
   const { api, repository, branch } = sourceOf(config);
   const collections = (config.collections ?? []).filter(({ folder }) => typeof folder === 'string');
   const collectionOf = (name) => collections.find((one) => one.name === name);
+  const purges = purgeService({ credential: signedInCredential });
   return function KonziloDeletedPage() {
     const { createElement: h, useEffect, useRef, useState } = react();
     const [collection, setCollection] = useState('');
     const [opened, setOpened] = useState(null);
+    const [standing, setStanding] = useState(null);
+    const [purging, setPurging] = useState(null);
+
     const back = useRef(null);
+    const purgeFrom = useRef(null);
+    // Whether the one reading is an Admin, who may purge, and the purges made before.
+    useEffect(() => {
+      let gone = false;
+      purges.status().then((now) => {
+        if (!gone) setStanding(now);
+      });
+      return () => {
+        gone = true;
+      };
+    }, []);
+    const admin = standing?.admin === true;
+    const purged = admin ? purgedBefore(standing.purge) : null;
+    const onPurge = (row) => {
+      purgeFrom.current = document.activeElement;
+      setPurging(row);
+    };
+    const purgeClosed = () => {
+      setPurging(null);
+      purgeFrom.current?.focus?.();
+    };
     useEffect(() => {
       if (opened !== null || back.current === null) return;
       document.querySelector(`.konzilo-deleted tr[data-path="${CSS.escape(back.current)}"] button`)?.focus();
       back.current = null;
     }, [opened]);
     return h('div', { className: 'konzilo-deleted' },
+      purged ? h('p', { className: 'konzilo-deleted-told', role: 'status' }, wordsShown({ name: 'deleted.purgedNow', values: { title: purged } })) : null,
+      purging ? h(PurgeDialog, { key: purging.path, row: purging, service: purges, collectionOf, onClose: purgeClosed }) : null,
       h('div', { hidden: opened !== null },
         h('p', { className: 'konzilo-deleted-note' }, say('deleted.about')),
+        admin && purgesWords(standing.purges) ? h('p', { className: 'konzilo-deleted-note' }, purgesWords(standing.purges)) : null,
         h('label', { className: 'konzilo-deleted-filter' },
           h('span', null, say('deleted.type')),
           h('select', { value: collection, onChange: (event) => setCollection(event.target.value) },
             h('option', { value: '' }, say('deleted.allTypes')),
             collections.map(({ name, label }) => h('option', { key: name, value: name }, label)))),
-        h(DeletedList, { collection, collectionOf, onOpen: setOpened })),
+        h(DeletedList, { collection, collectionOf, onOpen: setOpened, admin, onPurge })),
       opened === null ? null : h(DeletedEntry, {
         key: opened.path,
         row: opened,
@@ -255,6 +290,8 @@ export function deletedPage({ config, history, lock }) {
         api,
         repository,
         branch,
+        admin,
+        onPurge,
         onBack: () => {
           back.current = opened.path;
           setOpened(null);

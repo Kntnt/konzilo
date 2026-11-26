@@ -7,7 +7,7 @@
 // default the container's own. The dev server gets none of this environment, and the credential
 // is never passed to anything but Git.
 
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 
@@ -18,6 +18,7 @@ import { devServer } from '../src/preview/dev-server.js';
 import { previewGate } from '../src/preview/gate.js';
 import { runnerOncePrepared } from '../src/preview/runner.js';
 import { gitSource } from '../src/preview/source.js';
+import { purgeMarks, purgeRecordReader } from '../src/purge/mark.js';
 
 const PORT = 4000;
 const DEV_PORT = 4001;
@@ -37,10 +38,35 @@ const {
   KONZILO_PREVIEW_ORIGIN: origin,
 } = process.env;
 
+const readToken = readFileSync(join(secrets, 'read-token'), 'utf8').trim();
+
+// After a purge (ADR 0078), the checkout of the source and the content folder go, as they may
+// hold what it took, and the preview starts again, with nothing of them in its memory: at once as
+// it starts, and within a minute of a purge while it runs, Compose starting it again.
+const SOURCE_FOLDER = join(work, 'source');
+const purges = purgeMarks({ reader: purgeRecordReader({ forgejo: FORGEJO, repository, token: readToken }), file: join(work, 'purge-mark') });
+const forgetWhatWasPurged = async () => {
+  if (!await purges.take()) return false;
+  rmSync(SOURCE_FOLDER, { recursive: true, force: true });
+  rmSync(`${SITE_FOLDER}/content`, { recursive: true, force: true });
+  purges.done();
+  return true;
+};
+const purgesLookedAt = forgetWhatWasPurged().catch((error) => {
+  console.error(`The preview could not tell whether a purge was made: ${error.message}`);
+});
+setInterval(() => {
+  forgetWhatWasPurged().then((purged) => {
+    if (!purged) return;
+    console.error('A purge was made, so the preview starts again.');
+    process.exit(0);
+  }, (error) => console.error(`The preview could not tell whether a purge was made: ${error.message}`));
+}, 30_000).unref();
+
 // The site's code first, as it now is, without what a site repository may hold of a local copy's
 // content, or its own demo content, with its dependencies installed only when what they are
 // installed from has changed.
-const prepared = prepareSiteCode(work).then(() => {
+const prepared = purgesLookedAt.then(() => prepareSiteCode(work)).then(() => {
   mkdirSync(`${SITE_FOLDER}/content`, { recursive: true });
 });
 prepared.catch((error) => console.error(`The preview could not prepare the site: ${error.message}`));
@@ -52,8 +78,8 @@ const adminHost = new URL(siteOrigin).hostname === adminName ? null : adminName;
 const source = gitSource({
   remote: `${FORGEJO}/${repository}.git`,
   user: READER,
-  token: readFileSync(join(secrets, 'read-token'), 'utf8').trim(),
-  folder: join(work, 'source'),
+  token: readToken,
+  folder: SOURCE_FOLDER,
   home: HOME,
 });
 

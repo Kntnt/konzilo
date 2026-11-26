@@ -1,0 +1,36 @@
+// The life of the purge's program (ADR 0078): it sleeps until the service asks for a purge, holds
+// the builds back, waits for a build that runs to end, purges, says how it went, lets the builds
+// go on and asks for one, so that the release in use is made anew from what is left.
+
+import { PurgeRefusal } from './entry.js';
+
+// `control`: as build/record.js gives it. `purge(request)`: the purge itself, which throws where
+// it cannot be made.
+export async function purgeOnRequest({ control, purge, every = 1000, sleep = (ms) => new Promise((go) => setTimeout(go, ms)), going = () => true, now = () => new Date(), warn = console.error }) {
+  // A program stopped after its purge, before it let the builds go on, lets them go as it starts;
+  // one stopped while it purged purges again.
+  if (control.purgeRequest() === null) control.releaseBuilds();
+  while (going()) {
+    const request = control.purgeRequest();
+    if (request === null || typeof request.id !== 'string') {
+      await sleep(every);
+      continue;
+    }
+    control.holdBuilds();
+    while (control.isBuilding() && going()) await sleep(every);
+    const { id } = request;
+    control.writePurgeState({ id, state: 'running', at: now().toISOString() });
+    try {
+      await purge(request);
+      control.writePurgeState({ id, state: 'done', at: now().toISOString() });
+    } catch (error) {
+      const reason = error instanceof PurgeRefusal ? error.reason : 'broke';
+      warn(`The purge of ${request.path} was not made: ${error.stack ?? error.message}`);
+      control.writePurgeState({ id, state: 'failed', reason, at: now().toISOString() });
+    } finally {
+      control.takePurgeRequest();
+      control.releaseBuilds();
+      control.request();
+    }
+  }
+}

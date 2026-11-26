@@ -9,7 +9,9 @@
 // the words of its Reload; for a draft backup that can no longer be saved, `konziloStaleBackup`; and
 // before it looks for a draft backup, `konziloLockSettled`, so that it finds the form's lock known.
 // Before each save the keeper checks the lock, as a `preSave` handler, and the *Deleted* page holds
-// a deleted entry's form for its restore by what registerLock() gives.
+// a deleted entry's form for its restore by what registerLock() gives. While an Admin's purge waits
+// or runs, no form opens, a tab with a form open that the purge runs over is told to load again,
+// and every tab that saw it coming loads again once it is done (ADR 0078).
 
 import { signedInCredential } from '../credential.js';
 import { made, madeButton } from '../elements.js';
@@ -23,6 +25,9 @@ import { conflictWords, heldWords, lineWords, markWords } from './words.js';
 import './lock.css';
 
 const button = (words, parent, act) => madeButton('konzilo-lock-button', words, parent, act);
+
+// How long a tab told to load again before a purge waits before it does (ADR 0078).
+const RELOAD_AFTER = 10_000;
 
 export function registerLock(CMS) {
   const client = lockClient({ tab: newTab(), credential: signedInCredential });
@@ -127,10 +132,28 @@ export function registerLock(CMS) {
       });
     } else if (state.mode === 'takenOver' && shownMode !== 'takenOver') {
       ask({ title: say('lock.takenOverTitle'), words: lineWords(state), choices: [[say('lock.ok'), () => {}]], cancel: () => {} });
-    } else if (state.mode !== 'takenOver') {
+    } else if (state.mode === 'shut' && shownMode !== 'shut' && !warned) {
+      ask({ title: say('lock.shutTitle'), words: lineWords(state), choices: [[say('lock.back'), backToList], [say('lock.read'), () => {}]], cancel: backToList });
+    } else if (!['takenOver', 'shut'].includes(state.mode) && !warned) {
       close();
     }
     shownMode = state.mode;
+  };
+
+  // What the locks say of an Admin's purge (ADR 0078): a tab with a form open that the purge runs
+  // over is told that it loads again, and does after a moment, or at once where the Editor says
+  // so; and every tab that saw the purge coming loads again once it is done.
+  let warned = false;
+  const purged = (news) => {
+    if (news === 'reload') {
+      globalThis.location.reload();
+      return;
+    }
+    if (news !== 'warn' || warned) return;
+    warned = true;
+    const reload = () => globalThis.location.reload();
+    setTimeout(reload, RELOAD_AFTER);
+    ask({ title: say('lock.purgeTitle'), words: say('lock.purgeReload'), choices: [[say('lock.reloadNow'), reload]], cancel: reload });
   };
 
   const mark = (marks) => {
@@ -138,7 +161,7 @@ export function registerLock(CMS) {
     globalThis.konziloHeld.current = Object.fromEntries(Object.entries(marks).map(([form, held]) => [form, { ...held, text: markWords(held) }]));
   };
 
-  const keeper = lockKeeper({ service: client, show, mark });
+  const keeper = lockKeeper({ service: client, show, mark, purged });
 
   guardReadOnly(document, { readOnly: readOnlyNow, follow: (listener) => onReadOnly(() => listener(readOnlyNow())) });
 

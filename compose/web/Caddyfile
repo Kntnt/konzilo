@@ -188,12 +188,13 @@
 		# submissions and a person's (ADR 0045), how the site mails them and keeps them
 		# (ADR 0003), the locks of the editor's forms (ADR 0073), whose call a tab makes is held
 		# open until they change, a form's revisions, at /_konzilo/revisions (ADR 0074), the
-		# deleted posts, terms and image library entries, at /_konzilo/deleted (ADR 0077), the
-		# consent records, an Admin's, at /_konzilo/consent-records (ADR 0049), the addresses
-		# visitors asked for in vain, at /_konzilo/not-found (ADR 0040), the counts of what the
-		# site's policy blocked, at /_konzilo/violations (ADR 0051), and the incoming feeds, at
-		# /_konzilo/feeds (ADR 0079), from the service, which asks Forgejo who is asking.
-		@service path /_konzilo/status /_konzilo/thumbnail /_konzilo/submissions /_konzilo/submissions/* /_konzilo/mail /_konzilo/personal-data /_konzilo/personal-data.csv /_konzilo/locks /_konzilo/locks/* /_konzilo/revisions /_konzilo/deleted /_konzilo/consent-records /_konzilo/consent-records.csv /_konzilo/not-found /_konzilo/not-found/* /_konzilo/violations /_konzilo/feeds /_konzilo/feeds/*
+		# deleted posts, terms and image library entries, at /_konzilo/deleted (ADR 0077), an
+		# Admin's purge of one, at /_konzilo/purge (ADR 0078), the consent records, an Admin's, at
+		# /_konzilo/consent-records (ADR 0049), the addresses visitors asked for in vain, at
+		# /_konzilo/not-found (ADR 0040), the counts of what the site's policy blocked, at
+		# /_konzilo/violations (ADR 0051), and the incoming feeds, at /_konzilo/feeds (ADR 0079),
+		# from the service, which asks Forgejo who is asking.
+		@service path /_konzilo/status /_konzilo/thumbnail /_konzilo/submissions /_konzilo/submissions/* /_konzilo/mail /_konzilo/personal-data /_konzilo/personal-data.csv /_konzilo/locks /_konzilo/locks/* /_konzilo/revisions /_konzilo/deleted /_konzilo/purge /_konzilo/consent-records /_konzilo/consent-records.csv /_konzilo/not-found /_konzilo/not-found/* /_konzilo/violations /_konzilo/feeds /_konzilo/feeds/*
 		handle @service {
 			reverse_proxy {$KONZILO_PEER_EDITORS:http://editors:4100} {
 				header_up -X-Real-IP

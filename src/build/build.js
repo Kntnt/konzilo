@@ -51,12 +51,14 @@ const heldBy = (posts) => Object.fromEntries(Object.entries(posts).filter(([, { 
 // { status, report, detail } and `astro()` the folder it built into, or throws; either rejects
 // with TookTooLong (command.js) where its command had not ended within the builder's time limit.
 // `index()` makes the site's search index of the release in use (search-index.js), or throws.
+// `purges`: { take(), done() }, `take()` whether a purge has been made since the last build that
+// took one in, and `done()` called once a build has (ADR 0078).
 //
 // A build whose intake or site's build took too long runs once more from the start, since what
 // holds a command up, Node's deadlock as it exits (nodejs/node#67596), comes by chance; its line in
 // the build log says why. One that takes too long again fails, with a reason of its own, and the
 // release in use stays. A build that fails otherwise is not tried again.
-export function siteBuild({ site, origin, code, source, content, roles, control, live, intake, astro, index = async () => {}, now = () => new Date(), warn = console.error }) {
+export function siteBuild({ site, origin, code, source, content, roles, control, live, intake, astro, index = async () => {}, purges = { take: async () => false, done: () => {} }, now = () => new Date(), warn = console.error }) {
   const stamp = (date) => date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
 
   // The content repository is a copy here until this has worked. A push that fails goes with
@@ -134,6 +136,19 @@ export function siteBuild({ site, origin, code, source, content, roles, control,
       return record;
     };
 
+    // After a purge both checkouts go, as they hold what it took, and the history they hold is no
+    // more; the release is made anew, and none from before stays, which may hold it too.
+    let purged = false;
+    try {
+      purged = await purges.take();
+    } catch (error) {
+      warn(`The build could not tell whether a purge was made: ${error.message}`);
+    }
+    if (purged) {
+      source.forget();
+      content.forget();
+    }
+
     let head;
     try {
       head = await source.refresh();
@@ -168,7 +183,7 @@ export function siteBuild({ site, origin, code, source, content, roles, control,
     let fingerprint;
     try {
       fingerprint = { content: await content.commit(`Publish ${head.slice(0, 12)}`), code, origin };
-      const same = previous?.release && live.current() === previous.release.name && JSON.stringify(previous.release.fingerprint) === JSON.stringify(fingerprint);
+      const same = !purged && previous?.release && live.current() === previous.release.name && JSON.stringify(previous.release.fingerprint) === JSON.stringify(fingerprint);
       if (same) {
         const unindexed = indexed ? false : await indexing();
         await pushing();
@@ -193,7 +208,7 @@ export function siteBuild({ site, origin, code, source, content, roles, control,
       const given = (file) => (existsSync(join(built, file)) ? readFileSync(join(built, file), 'utf8') : '');
       const holds = (path) => statSync(join(built, path), { throwIfNoEntry: false })?.isFile() === true;
       const marks = markdownMarks(given('_markdown'), holds);
-      live.publish(built, name, webRules({ headers: given('_headers'), redirects: given('_redirects'), origin }), marks);
+      live.publish(built, name, webRules({ headers: given('_headers'), redirects: given('_redirects'), origin }), marks, { alone: purged });
     } catch (error) {
       warn(`The release could not be put in place: ${error.message}`);
       return finish({ source: head, reason: NOT_RELEASED, report, versions });
@@ -201,6 +216,7 @@ export function siteBuild({ site, origin, code, source, content, roles, control,
 
     const unindexed = await indexing();
     await pushing();
+    if (purged) purges.done();
     return finish({ source: head, report, versions, release: { name, at: now().toISOString(), fingerprint, held: heldBy(postsFrom(report, versions)) }, unindexed });
   };
 

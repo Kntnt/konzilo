@@ -28,6 +28,11 @@ test('holds a form by its name and the tab\'s, and takes one over when asked', a
   ]);
 });
 
+test('says that the forms are shut while an Admin\'s purge waits or runs (ADR 0078)', async () => {
+  const { client } = asking([answer(423, { purge: { id: 'p1', state: 'waiting', reload: false } })]);
+  assert.deepEqual(await client.hold('articles/aaaaaaaaaaaa'), { shut: true });
+});
+
 test('says who holds a form, that it is an Admin\'s, or nothing where the service cannot tell', async () => {
   const { client } = asking([
     answer(409, { holder: { name: 'Ebba Editor', since: '2026-11-23T10:00:00.000Z', yours: false } }),
