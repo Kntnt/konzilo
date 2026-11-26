@@ -905,6 +905,51 @@ describe('the canonical address in Sveltia, on a site in two languages', () => {
   });
 });
 
+// Real Sveltia on its test repository, on a site whose article's address holds its category and the
+// year of its date (ADR 0080), with Forgejo standing in for the term files the form reads.
+describe('the address an article\'s form shows, from its category and its date', () => {
+  let site;
+  let page;
+  let seen;
+
+  before(async () => {
+    const declared = JSON.parse(readFileSync(`${core}site-template/files/site-description.json`, 'utf8'));
+    declared.types.article.address = '/{category}/{year}/{slug}/';
+    const config = cmsConfig(siteDescription(declared), { forgejo: 'http://localhost:1', repository: 'a/b', clientId: 'c', site: 'http://localhost:2' });
+    site = await openFieldPage({ config: { ...config, backend: { ...config.backend, name: 'test-repo' } } });
+    ({ page, seen } = await site.newPage({ viewport: { width: 1400, height: 1200 } }));
+    // Every category's file holds a name and no slug, which the form makes as the site does; any
+    // other file is not there.
+    await page.context().route('http://localhost:1/api/v1/**', (route) => (/\/contents\/categories\/[^/]+\.json/.test(route.request().url())
+      ? route.fulfill({ json: { type: 'file', encoding: 'base64', content: Buffer.from('{"name":"Harbour News"}').toString('base64') } })
+      : route.fulfill({ status: 404, json: { message: 'not found' } })));
+    await page.getByRole('button', { name: 'Work with Test Repository' }).click();
+    await page.getByText('Articles', { exact: true }).first().waitFor();
+    // The form reads the term files with what Sveltia signed in with.
+    await page.evaluate(() => localStorage.setItem('sveltia-cms.user', JSON.stringify({ ...JSON.parse(localStorage.getItem('sveltia-cms.user') ?? '{}'), token: 'a-token' })));
+  }, { timeout: 120_000 });
+
+  after(() => site?.close());
+
+  test('follows the category chosen and the date given, as the site will publish it', async () => {
+    await openNew(page, 'categories', 'section.field[data-key-path="name"] input');
+    await page.locator('section.field[data-key-path="name"] input').fill('Harbour News');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.waitForFunction(() => /\/entries\//.test(window.location.hash));
+    await openNew(page, 'articles');
+    await page.getByRole('textbox', { name: 'Working name', exact: true }).fill('Lanterns');
+    const category = page.locator('section.field[data-key-path="group-terms.category"]').getByRole('radio', { name: 'Harbour News' });
+    await category.scrollIntoViewIfNeeded();
+    await category.click();
+    const date = page.locator('[data-key-path="group-status.date"] input[type="datetime-local"]');
+    await date.scrollIntoViewIfNeeded();
+    await date.fill('2025-03-07T09:00');
+    await page.waitForFunction(() => document.querySelector('[data-key-path="group-name.slug"] a')?.href === 'http://localhost:2/harbour-news/2025/lanterns/');
+    assert.deepEqual(seen.outside, []);
+    assert.deepEqual(seen.refused, []);
+  });
+});
+
 // A label in the middle of a phrase starts with a small letter, as in "Lägg till annan adress", but
 // for an abbreviation, and begins with a capital where Sveltia shows the same text alone (ADR
 // 0066); and a site's own fields on the built-in article stand in a group of their own, while a
