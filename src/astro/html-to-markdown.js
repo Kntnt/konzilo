@@ -13,6 +13,7 @@
 
 import { htmlToHast } from 'satteri';
 import { isFormulaBox, latexOf } from './formulas.js';
+import { styleAlignment } from './tables.js';
 
 // The mark of the element that holds a page's main content.
 export const MAIN_MARK = 'data-konzilo-main';
@@ -165,7 +166,7 @@ function pipeTable(node, base) {
   const alignment = (cell) => {
     const { dataAlign, style } = propertiesOf(cell);
     if (['start', 'center', 'end'].includes(dataAlign)) return dataAlign;
-    return { left: 'start', center: 'center', right: 'end' }[/text-align:\s*(left|center|right)/.exec(String(style ?? ''))?.[1]];
+    return styleAlignment(style)?.align;
   };
   const rule = sizes.map((size, i) => {
     const align = alignment(cellsOf(rows[0])[i] ?? {});
