@@ -1,6 +1,7 @@
 // What the *Deleted* page asks of the service (ADR 0077), with what Sveltia signed in with: the
 // deleted posts, terms and image library entries, a page at a time, newest deletion first, of one
-// collection where one is chosen; and what it names each by. It holds no React.
+// collection where one is chosen; and what it names each by, and an entry Sveltia has fetched. It
+// holds no React.
 
 import { askSignedIn } from '../service.js';
 import { idOf } from './restore.js';
@@ -48,4 +49,13 @@ export function deletedPages({ collection = null, credential, ask = (...args) =>
 export function entryTitle({ values, collection, path }) {
   const title = values?.[collection?.identifier_field];
   return typeof title === 'string' && title.trim() !== '' ? title : idOf(path);
+}
+
+// What the editor calls the entry `id` where Sveltia has fetched it: { title }, `title` by the first
+// field that names it, or null where it holds none; else null.
+export function fetchedEntry(id) {
+  const entry = (globalThis.konziloSveltia?.entries() ?? []).find(({ slug, id: own }) => slug === id || own === id);
+  if (entry === undefined) return null;
+  const content = entry.locales?._default?.content ?? Object.values(entry.locales ?? {})[0]?.content ?? {};
+  return { title: [content.title, content['group-name.title'], content.name, content.alt].find((one) => typeof one === 'string' && one !== '') ?? null };
 }

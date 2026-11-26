@@ -19,6 +19,7 @@ COPY src/catalogues.js src/checks.js src/refusals.js src/submission-values.js sr
 COPY src/catalogues src/catalogues
 COPY src/astro/reader-features.js src/astro/
 COPY src/intake/rules-file.js src/intake/words.js src/intake/
+COPY src/purge/passage-text.js src/purge/
 RUN node scripts/build-editor.js /editor
 
 FROM caddy:${CADDY}-alpine@sha256:${CADDY_DIGEST}

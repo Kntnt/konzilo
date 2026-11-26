@@ -12,21 +12,12 @@
 
 import { MEDIA_FOLDER } from '../format/masters.js';
 import { blobsOf, BRANCH, purgeHistories, PurgeRefusal } from './histories.js';
+import { passageOf } from './passage-text.js';
 
-// The shortest and the longest passage, in characters.
-export const PASSAGE_LEAST = 3;
-export const PASSAGE_MOST = 500;
+export { PASSAGE_LEAST, PASSAGE_MOST, passageOf } from './passage-text.js';
+
 // How much of the text on each side of a place it is found is shown, in characters.
 const AROUND = 60;
-
-// A passage as given, trimmed, each run of whitespace in it one space, or null where it is none
-// or too short or too long.
-export function passageOf(given) {
-  if (typeof given !== 'string') return null;
-  const passage = given.replace(/\s+/gu, ' ').trim();
-  const length = [...passage].length;
-  return length >= PASSAGE_LEAST && length <= PASSAGE_MOST ? passage : null;
-}
 
 const SYNTAX = /[\\^$.*+?()[\]{}|/]/u;
 const PUNCTUATION = /[!-/:-@[-`{-~]/u;

@@ -9,9 +9,10 @@
 
 import { say } from '../interface-language.js';
 import { momentValue, wordsShown } from '../refusals.js';
+import { IMAGE_LIBRARY_FOLDER } from '../../format/masters.js';
+import { fetchedEntry } from './client.js';
 
 const react = () => globalThis.__SVELTIA_CMS_REACT__;
-const sveltia = () => globalThis.konziloSveltia;
 // How often a purge that waits or runs is looked at again.
 const LOOK = 2000;
 // What this tab purged, said once after it loads again.
@@ -51,9 +52,7 @@ export function purgedBefore(purge) {
 function formShown({ form, name, since }, collectionOf) {
   const [collection, ...rest] = form.split('/');
   const id = rest.join('/');
-  const entry = (sveltia()?.entries() ?? []).find(({ slug, id: own }) => slug === id || own === id);
-  const content = entry?.locales?._default?.content ?? Object.values(entry?.locales ?? {})[0]?.content ?? {};
-  const title = [content.title, content['group-name.title'], content.name, content.alt].find((one) => typeof one === 'string' && one !== '') ?? id;
+  const title = fetchedEntry(id)?.title ?? id;
   return wordsShown({ name: 'deleted.purgeFormOpen', values: { name, collection: collectionOf(collection)?.label ?? collection, title, since: momentValue(since) } });
 }
 
@@ -70,7 +69,7 @@ function entrySubject(row, service, collectionOf) {
   return {
     heading: wordsShown({ name: 'deleted.purgeTitle', values }),
     during: wordsShown({ name: 'deleted.purgeOf', values }),
-    what: say(row.collection === 'image-library' ? 'deleted.purgeWhatImage' : 'deleted.purgeWhat'),
+    what: say(row.collection === IMAGE_LIBRARY_FOLDER ? 'deleted.purgeWhatImage' : 'deleted.purgeWhat'),
     noWayBack: say('deleted.purgeNoWayBack'),
     write: wordsShown({ name: 'deleted.purgeWrite', values: { title } }),
     matches: (written) => written.trim() === title.trim(),

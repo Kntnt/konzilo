@@ -15,7 +15,9 @@ import { say } from '../interface-language.js';
 import { wordsShown } from '../refusals.js';
 import { savedWords } from '../history/words.js';
 import { PurgeDialog, UnfinishedPurge } from '../deleted/purge-dialog.js';
+import { fetchedEntry } from '../deleted/client.js';
 import { purgeService } from '../deleted/purge.js';
+import { PASSAGE_LEAST, PASSAGE_MOST, passageOf } from '../../purge/passage-text.js';
 import { formOfPath } from './forms.js';
 import '../deleted/deleted.css';
 import './passage.css';
@@ -23,9 +25,6 @@ import './passage.css';
 const react = () => globalThis.__SVELTIA_CMS_REACT__;
 const sveltia = () => globalThis.konziloSveltia;
 
-// The shortest and the longest passage, as the service takes it (purge/passage.js).
-const LEAST = 3;
-const MOST = 500;
 // The purge this tab asked for, by its name, whose outcome the page says once the tab has loaded
 // again.
 const PURGING_KEY = 'konzilo-purging-passage';
@@ -44,8 +43,7 @@ function purgingBefore() {
   return purgingLast;
 }
 
-const normal = (text) => text.replace(/\s+/gu, ' ').trim();
-const same = (one, other) => normal(one).toLocaleLowerCase() === normal(other).toLocaleLowerCase();
+const same = (one, other) => passageOf(one)?.toLocaleLowerCase() === passageOf(other)?.toLocaleLowerCase();
 
 // What the purge changed, in words, nothing of the passage among them.
 const changedWords = (name, changed) => wordsShown({ name, values: { revisions: changed?.revisions ?? 0, files: changed?.files ?? 0, messages: changed?.messages ?? 0 } });
@@ -105,13 +103,12 @@ function fileShown({ path, current }, collections) {
   const form = formOfPath(collections, path);
   if (form === null) return { form, name: wordsShown({ name: 'passage.fileOther', values: { path } }), linked: false };
   if (form.file) return { form, name: form.label, linked: true };
-  const entry = (sveltia()?.entries() ?? []).find(({ slug, id }) => slug === form.entry || id === form.entry);
-  const content = entry?.locales?._default?.content ?? Object.values(entry?.locales ?? {})[0]?.content ?? {};
-  const title = [content.title, content['group-name.title'], content.name, content.alt].find((one) => typeof one === 'string' && one !== '');
+  const entry = fetchedEntry(form.entry);
+  const title = entry?.title;
   return {
     form,
     name: title ? wordsShown({ name: 'passage.fileNamed', values: { collection: form.label, title } }) : wordsShown({ name: 'passage.fileUnnamed', values: { collection: form.label, path } }),
-    linked: current || entry !== undefined,
+    linked: current || entry !== null,
   };
 }
 
@@ -222,8 +219,8 @@ export function passagePage({ config }) {
     const outcome = purged !== null && standing.purge?.id === purged && standing.purge.state === 'done' ? standing.purge : null;
     const search = async (event) => {
       event.preventDefault();
-      const passage = normal(text);
-      if ([...passage].length < LEAST || [...passage].length > MOST) {
+      const passage = passageOf(text);
+      if (passage === null) {
         setAnswer({ refused: true });
         return;
       }
@@ -239,7 +236,7 @@ export function passagePage({ config }) {
     let told = null;
     if (searching) told = h('p', { className: 'konzilo-passage-state', role: 'status' }, say('passage.searching'));
     else if (answer === null) told = h('p', { className: 'konzilo-passage-state', role: 'alert' }, say('passage.failed'));
-    else if (answer?.refused) told = h('p', { className: 'konzilo-passage-state', role: 'alert' }, wordsShown({ name: 'passage.refused', values: { least: LEAST, most: MOST } }));
+    else if (answer?.refused) told = h('p', { className: 'konzilo-passage-state', role: 'alert' }, wordsShown({ name: 'passage.refused', values: { least: PASSAGE_LEAST, most: PASSAGE_MOST } }));
     else if (answer?.busy) told = h('p', { className: 'konzilo-passage-state', role: 'alert' }, say('passage.busy'));
     return page(
       outcome ? h('p', { className: 'konzilo-passage-told', role: 'status' }, changedWords('passage.purgedNow', outcome.changed)) : null,
@@ -249,7 +246,7 @@ export function passagePage({ config }) {
       h('form', { role: 'search', className: 'konzilo-passage-search', onSubmit: search },
         h('label', { htmlFor: 'konzilo-passage-text' }, say('passage.text')),
         h('div', { className: 'konzilo-passage-row' },
-          h('input', { id: 'konzilo-passage-text', type: 'search', value: text, maxLength: MOST, autoComplete: 'off', spellCheck: false, onChange: (event) => setText(event.target.value) }),
+          h('input', { id: 'konzilo-passage-text', type: 'search', value: text, maxLength: PASSAGE_MOST, autoComplete: 'off', spellCheck: false, onChange: (event) => setText(event.target.value) }),
           h('button', { type: 'submit', className: 'konzilo-deleted-button', disabled: searching }, say('passage.find')))),
       told,
       answer?.found ? h(Found, { key: sought, found: answer.found, collections, onPurge: openPurge }) : null);
