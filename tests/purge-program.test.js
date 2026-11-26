@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { after, describe, test } from 'node:test';
 
 import { buildControl } from '../src/build/record.js';
-import { PurgeRefusal } from '../src/purge/entry.js';
+import { PurgeRefusal } from '../src/purge/histories.js';
 import { purgeOnRequest } from '../src/purge/program.js';
 
 const folder = mkdtempSync(join(tmpdir(), 'konzilo-purge-program-'));
@@ -21,11 +21,12 @@ const controlOf = () => {
 };
 
 // Runs the program until it has looked `looks` times with nothing to do.
-const running = async (control, purge, { looks = 1, during = () => {} } = {}) => {
+const running = async (control, purge, { looks = 1, during = () => {}, search = async () => ({}) } = {}) => {
   let left = looks;
   await purgeOnRequest({
     control,
     purge,
+    search,
     now: () => new Date('2026-11-26T10:00:00Z'),
     warn: () => {},
     sleep: async () => {
@@ -87,5 +88,40 @@ describe('the purge\'s program', () => {
     });
     assert.deepEqual(control.purgeState(), { id: 'p4', state: 'failed', reason: 'broke', at: '2026-11-26T10:00:00.000Z' });
     assert.equal(control.buildsHeld(), false);
+  });
+
+  test('says which current files hold a passage it was refused for, and how much a passage purge changed', async () => {
+    const control = controlOf();
+    control.askPurge({ id: 'p5', passage: 'Ebba Svensson' });
+    await running(control, async () => {
+      throw new PurgeRefusal('current', { paths: ['articles/aaaaaaaaaaaa.md'] });
+    });
+    assert.deepEqual(control.purgeState(), { id: 'p5', state: 'failed', reason: 'current', paths: ['articles/aaaaaaaaaaaa.md'], at: '2026-11-26T10:00:00.000Z' });
+    control.askPurge({ id: 'p6', passage: 'Ebba Svensson' });
+    await running(control, async () => ({ changed: { files: 2, revisions: 5, messages: 1 } }));
+    assert.deepEqual(control.purgeState(), { id: 'p6', state: 'done', changed: { files: 2, revisions: 5, messages: 1 }, at: '2026-11-26T10:00:00.000Z' });
+    assert.equal(control.purgeRequest(), null, 'nothing of the passage is left behind');
+  });
+
+  test('answers a search for a passage the service asks for, taking the request, and says one that broke', async () => {
+    const control = controlOf();
+    control.askSearch({ id: 's1', passage: 'Ebba Svensson' });
+    const asked = [];
+    await running(control, async () => assert.fail('no purge'), {
+      search: async (request) => {
+        asked.push({ request, held: control.buildsHeld() });
+        return { files: [], messages: [], counted: { files: 0, revisions: 0, messages: 0 } };
+      },
+    });
+    assert.deepEqual(asked, [{ request: { id: 's1', passage: 'Ebba Svensson' }, held: false }], 'a search holds no build back');
+    assert.equal(control.searchRequest(), null);
+    assert.deepEqual(control.searchAnswer(), { id: 's1', found: { files: [], messages: [], counted: { files: 0, revisions: 0, messages: 0 } } });
+    control.askSearch({ id: 's2', passage: 'Ebba Svensson' });
+    await running(control, async () => assert.fail('no purge'), {
+      search: async () => {
+        throw new Error('Forgejo answered 500');
+      },
+    });
+    assert.deepEqual(control.searchAnswer(), { id: 's2', failed: true });
   });
 });

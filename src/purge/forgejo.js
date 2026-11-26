@@ -1,9 +1,11 @@
 // A purge in the site's Forgejo (ADR 0078), by the instance's account, which alone may rewrite the
 // source repository's history, write the record of purges and have Forgejo let go of what no ref
-// reaches any more (ADR 0007): both repositories cloned anew, rewritten and pushed (entry.js);
-// then Forgejo's own collection of what is unreachable, until no commit that is gone answers,
-// and of the LFS objects no commit names, until none that went answers; and the archives Forgejo
-// keeps of a repository's files, which may hold what went, removed. Nothing of the clones stays.
+// reaches any more (ADR 0007): both repositories cloned anew, rewritten and pushed, without a
+// deleted entry (entry.js) or a passage (passage.js); then Forgejo's own collection of what is
+// unreachable, until no commit that is gone answers, and of the LFS objects no commit names, until
+// none that went answers; and the archives Forgejo keeps of a repository's files, which may hold
+// what went, removed. And the search for a passage an Admin is shown before its purge, in the
+// source cloned anew. Nothing of the clones stays.
 
 import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -11,6 +13,7 @@ import { join } from 'node:path';
 import { addPushers, eventsAfter } from '../build/pushers.js';
 import { accountName, gitEnvironment } from '../forgejo.js';
 import { purgeEntry } from './entry.js';
+import { findPassage, passageMatcher, purgePassage } from './passage.js';
 import { gitIn } from './rewrite.js';
 
 const PAGE = 50;
@@ -101,20 +104,46 @@ export function forgejoPurge({ forgejo, repository, token, work, control = null,
         await addPushers(known, events, commitsOf, ({ act_user: account, created }) => ({ login: account.login, name: accountName(account), at: created }));
         return Object.fromEntries(commits.filter((commit) => Object.hasOwn(known, commit)).map((commit) => [commit, known[commit]]));
       };
-      const result = await purgeEntry({ source, content, entry: request, by: request.by, at: request.at, pushedBy });
+      const passage = typeof request.passage === 'string' ? request.passage : null;
+      const result = passage === null
+        ? await purgeEntry({ source, content, entry: request, by: request.by, at: request.at, pushedBy })
+        : await purgePassage({ source, content, passage, by: request.by, at: request.at, pushedBy });
 
       // What went, let go by Forgejo: the commits that are no more, of both repositories, by the
       // heads that were and the saves that held nothing else, and the LFS objects no commit names
       // now.
       const gone = [
-        ...[...new Set([result.source.before, ...result.source.dropped])].slice(0, MOST_LOOKED_AT).map((commit) => [repository, commit]),
+        ...[...new Set([...(result.source.after !== result.source.before ? [result.source.before] : []), ...result.source.dropped])].slice(0, MOST_LOOKED_AT).map((commit) => [repository, commit]),
         ...(result.content.after !== null && result.content.after !== result.content.before ? [[contentRepository, result.content.before]] : []),
       ];
       await until('git_gc_repos', () => filter(gone, ([of, commit]) => holds(of, commit)));
-      if (result.originals.length > 0) await until('gc_lfs', () => filter(result.originals, holdsObject));
+      if (result.originals?.length > 0) await until('gc_lfs', () => filter(result.originals, holdsObject));
       await task('delete_repo_archives').catch(() => {});
-      control?.scrubLog((line) => result.paths.some((path) => line.includes(path)));
+      if (passage === null) control?.scrubLog((line) => result.paths.some((path) => line.includes(path)));
+      else control?.scrubLog(passageMatcher(passage).holds);
       return result;
+    } finally {
+      rmSync(folder, { recursive: true, force: true });
+    }
+  };
+}
+
+// The search for a passage in the site's Forgejo (ADR 0078): the source cloned anew, by the
+// instance's account, and every file and revision that holds the passage found in it
+// (passage.js); nothing of the clone stays. `forgejo`, `repository`, `token` and `work` as
+// forgejoPurge() takes them.
+export function forgejoSearch({ forgejo, repository, token, work, user = 'konzilo' }) {
+  return async (request) => {
+    if (!/^[0-9a-z-]{1,64}$/.test(request.id)) throw new Error('the search has no name the program takes');
+    const folder = join(work, `search-${request.id}`);
+    rmSync(folder, { recursive: true, force: true });
+    const home = join(folder, 'home');
+    mkdirSync(home, { recursive: true });
+    try {
+      const git = gitIn(folder, gitEnvironment({ user, token, home }));
+      await git(['init', '--quiet', '--bare', '--initial-branch=main']);
+      await git(['fetch', '--quiet', `${forgejo}/${repository}.git`, '+refs/heads/main:refs/heads/main']);
+      return await findPassage({ git, passage: request.passage });
     } finally {
       rmSync(folder, { recursive: true, force: true });
     }
