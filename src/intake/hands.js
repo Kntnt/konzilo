@@ -2,11 +2,10 @@
 // their IDs, and where a link leads.
 
 import { keepsOrder } from '../format/built-in-types.js';
+import { hashDigits } from '../format/masters.js';
 import { bodyHands, slugOf } from './post-file.js';
 import { linkTarget } from './resolve.js';
 import { fieldValued, say } from './words.js';
-
-const hashDigits = (hash) => hash.slice(0, 10);
 
 const fileFolders = (path) => path.split('/').length - 1;
 

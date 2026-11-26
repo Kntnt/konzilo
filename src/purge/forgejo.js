@@ -14,12 +14,12 @@ import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { addPushers, eventsAfter } from '../build/pushers.js';
-import { accountName, gitEnvironment } from '../forgejo.js';
+import { accountName, gitEnvironment, INSTANCE_ACCOUNT } from '../forgejo.js';
 import { isPurgeId } from './control.js';
 import { purgeEntry } from './entry.js';
 import { pushContent, pushedAlready } from './histories.js';
 import { findPassage, headHolding, passageMatcher, purgePassage } from './passage.js';
-import { gitIn } from './rewrite.js';
+import { gitRunner } from './rewrite.js';
 
 const PAGE = 50;
 // How long Forgejo is given to let go of what a purge made unreachable, and how often it is asked
@@ -35,7 +35,7 @@ const MOST_LOOKED_AT = 20;
 // instance's account's, which may write every repository and run Forgejo's own tasks. `work`: a
 // folder of the program's own. `control`: as build/record.js gives it, whose build log loses each
 // line that names what went.
-export function forgejoPurge({ forgejo, repository, token, work, control = null, user = 'konzilo', get = fetch, sleep = (ms) => new Promise((go) => setTimeout(go, ms)), now = Date.now }) {
+export function forgejoPurge({ forgejo, repository, token, work, control = null, user = INSTANCE_ACCOUNT, get = fetch, sleep = (ms) => new Promise((go) => setTimeout(go, ms)), now = Date.now }) {
   const organisation = repository.split('/')[0];
   const contentRepository = `${organisation}/content`;
   const api = async (method, path, { allow = [] } = {}) => {
@@ -91,7 +91,7 @@ export function forgejoPurge({ forgejo, repository, token, work, control = null,
     const environment = gitEnvironment({ user, token, home });
     const cloneOf = async (name, of) => {
       const at = join(folder, `${name}.git`);
-      const git = gitIn(at, environment);
+      const git = gitRunner(at, environment);
       if (!existsSync(at)) {
         mkdirSync(at);
         await git(['init', '--quiet', '--bare', '--initial-branch=main']);
@@ -165,7 +165,7 @@ export function forgejoPurge({ forgejo, repository, token, work, control = null,
 // (passage.js), with the files of the content repository's head that hold it, `published`, which
 // it reads alone; nothing of the clones stays. `forgejo`, `repository`, `token` and `work` as
 // forgejoPurge() takes them.
-export function forgejoSearch({ forgejo, repository, token, work, user = 'konzilo' }) {
+export function forgejoSearch({ forgejo, repository, token, work, user = INSTANCE_ACCOUNT }) {
   return async (request) => {
     if (!isPurgeId(request.id)) throw new Error('the search has no name the program takes');
     const folder = join(work, `search-${request.id}`);
@@ -174,7 +174,7 @@ export function forgejoSearch({ forgejo, repository, token, work, user = 'konzil
     mkdirSync(home, { recursive: true });
     const environment = gitEnvironment({ user, token, home });
     const fetched = async (name, of, depth = []) => {
-      const git = gitIn(join(folder, name), environment);
+      const git = gitRunner(join(folder, name), environment);
       mkdirSync(join(folder, name));
       await git(['init', '--quiet', '--bare', '--initial-branch=main']);
       await git(['fetch', '--quiet', ...depth, `${forgejo}/${of}.git`, '+refs/heads/main:refs/heads/main']);

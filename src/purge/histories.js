@@ -10,11 +10,11 @@
 //
 // It works on two clones it is handed, each a bare repository whose `origin` is Forgejo's.
 
+import { IDENTITY } from '../build/repositories.js';
 import { PURGES_BRANCH, PURGES_FILE, purgeRecord, recordFile } from './record.js';
 import { rewriteHistory } from './rewrite.js';
 
 export const BRANCH = 'main';
-const IDENTITY = ['-c', 'user.name=Konzilo', '-c', 'user.email=konzilo@localhost.invalid'];
 // A save that comes while a purge runs makes it start again, this many times at most.
 const TRIES = 4;
 // Blobs are read this many at a time.
@@ -49,17 +49,18 @@ export async function blobsOf(git, shas) {
   return found;
 }
 
-const text = async (git, args, options) => (await git(args, options)).toString('utf8');
+// What Git wrote, as text, by `git` as gitRunner() gives it.
+export const gitText = async (git, args, options) => (await git(args, options)).toString('utf8');
 const fetchAll = (git) => git(['fetch', '--quiet', '--force', '--prune', 'origin', '+refs/heads/*:refs/heads/*']);
 const headOf = async (git, ref) => {
   try {
-    return (await text(git, ['rev-parse', '--verify', '--quiet', `refs/heads/${ref}`])).trim();
+    return (await gitText(git, ['rev-parse', '--verify', '--quiet', `refs/heads/${ref}`])).trim();
   } catch {
     return null;
   }
 };
 // A branch's head as `origin` holds it, or null where it holds no such branch.
-const originHead = async (git, ref) => (await text(git, ['ls-remote', 'origin', `refs/heads/${ref}`])).split(/\s/)[0] || null;
+const originHead = async (git, ref) => (await gitText(git, ['ls-remote', 'origin', `refs/heads/${ref}`])).split(/\s/)[0] || null;
 const wait = (ms) => new Promise((go) => setTimeout(go, ms));
 
 // The source commit a content commit publishes, by its message, among `commits`, or null.
@@ -74,11 +75,11 @@ async function attempt({ source, content, by, at, pushedBy, plan }) {
   const before = { source: await headOf(source.git, BRANCH), content: await headOf(content.git, BRANCH), record: await headOf(source.git, PURGES_BRANCH) };
   const planned = await plan({ before });
   const record = purgeRecord(before.record === null ? null : (await source.git(['show', `${before.record}:${PURGES_FILE}`]).catch(() => null))?.toString('utf8'));
-  const oldCommits = (await text(source.git, ['rev-list', BRANCH])).split('\n').filter(Boolean);
+  const oldCommits = (await gitText(source.git, ['rev-list', BRANCH])).split('\n').filter(Boolean);
   const pushes = await pushedBy(oldCommits.filter((commit) => !Object.hasOwn(record.pushes, commit)));
 
   const rewritten = await rewriteHistory({ git: source.git, branch: BRANCH, ...planned.source });
-  const newCommits = new Set((await text(source.git, ['rev-list', BRANCH])).split('\n').filter(Boolean));
+  const newCommits = new Set((await gitText(source.git, ['rev-list', BRANCH])).split('\n').filter(Boolean));
   const shortly = new Map(oldCommits.map((commit) => [commit.slice(0, 12), rewritten.renamed.get(commit)?.slice(0, 12) ?? null]));
 
   // Who pushed each save as it was, by its new identity; a save that kept its own keeps what the
@@ -91,9 +92,9 @@ async function attempt({ source, content, by, at, pushedBy, plan }) {
     if (now !== commit || Object.hasOwn(record.pushes, commit)) carried[now] = pusher;
   }
   const noted = { purges: [...record.purges, { at, by: { login: by.login, name: by.name ?? by.login } }], pushes: carried };
-  const blob = (await text(source.git, ['hash-object', '-w', '--stdin'], { input: recordFile(noted) })).trim();
-  const tree = (await text(source.git, ['mktree'], { input: `100644 blob ${blob}\t${PURGES_FILE}\n` })).trim();
-  const noteCommit = (await text(source.git, [...IDENTITY, 'commit-tree', tree, ...(before.record ? ['-p', before.record] : []), '-m', `Purge by ${by.login}`])).trim();
+  const blob = (await gitText(source.git, ['hash-object', '-w', '--stdin'], { input: recordFile(noted) })).trim();
+  const tree = (await gitText(source.git, ['mktree'], { input: `100644 blob ${blob}\t${PURGES_FILE}\n` })).trim();
+  const noteCommit = (await gitText(source.git, [...IDENTITY, 'commit-tree', tree, ...(before.record ? ['-p', before.record] : []), '-m', `Purge by ${by.login}`])).trim();
 
   // The content repository, by its own rules, each commit naming the source commit it publishes
   // by its new identity.

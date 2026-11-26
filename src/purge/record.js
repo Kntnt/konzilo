@@ -9,6 +9,8 @@
 //   save is pushed anew by the instance's account, so its push in Forgejo's feed is the purge's;
 //   whoever reads who pushed a save (ADR 0008, ADR 0074) reads it here first.
 
+import { INSTANCE_ACCOUNT } from '../forgejo.js';
+
 export const PURGES_BRANCH = 'konzilo-purges';
 export const PURGES_FILE = 'purges.json';
 
@@ -37,7 +39,7 @@ export const recordFile = ({ purges, pushes }) => `${JSON.stringify({ purges, pu
 // holds for the name whether or not the branch is there yet, so that nobody else can make it
 // first. `call(method, path, body)` asks Forgejo's API as the instance's account, giving
 // { status, body }. Changes nothing that is so already.
-export async function keepPurgesProtected(call, repository, instance = 'konzilo') {
+export async function keepPurgesProtected(call, repository, instance = INSTANCE_ACCOUNT) {
   const listed = await call('GET', `/repos/${repository}/branch_protections`);
   if (listed.status !== 200) throw new Error(`listing the branch protections: ${listed.status}`);
   const rule = { enable_push: true, enable_push_whitelist: true, push_whitelist_usernames: [instance], push_whitelist_teams: [], push_whitelist_deploy_keys: false };

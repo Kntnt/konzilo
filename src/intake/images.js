@@ -7,15 +7,12 @@
 import { createHash } from 'node:crypto';
 import sharp from 'sharp';
 import { optimize } from 'svgo';
-import { IMAGE_LIBRARY_FOLDER } from '../format/masters.js';
+import { hashDigits, IMAGE_LIBRARY_FOLDER } from '../format/masters.js';
 import { isLosslessWebp, kindOf, LONGEST_SIDE, MOST_BYTES } from '../format/originals.js';
 import { svgProblem, svgSize } from './svg.js';
 import { say } from './words.js';
 
 const QUALITY = 90;
-
-// The ten hexadecimal digits a master's name holds of its original's SHA-256.
-export const hashDigits = (hash) => hash.slice(0, 10);
 
 // The master of a still raster: a WebP at quality 90, its longest side at most 2520
 // pixels, scaled down only, upright, in sRGB by the original's own profile, and without

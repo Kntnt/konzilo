@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after } from 'node:test';
 
-import { gitIn } from '../../src/purge/rewrite.js';
+import { gitRunner } from '../../src/purge/rewrite.js';
 
 const folders = [];
 after(() => {
@@ -61,7 +61,7 @@ export function cloneOf(bare) {
   const environment = environmentOf(dirname(folder));
   execFileSync('git', ['init', '--quiet', '--bare', '--initial-branch=main', folder], { env: environment });
   execFileSync('git', ['remote', 'add', 'origin', bare], { cwd: folder, env: environment });
-  return { git: gitIn(folder, environment) };
+  return { git: gitRunner(folder, environment) };
 }
 
 // A fresh clone of a repository, as one cloned anew from Forgejo, with everything it holds.

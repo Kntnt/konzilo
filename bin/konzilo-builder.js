@@ -21,9 +21,10 @@ import { releases } from '../src/build/release.js';
 import { contentRepository, sourceRepository } from '../src/build/repositories.js';
 import { buildOnRequest } from '../src/build/requests.js';
 import { forgejoRoles } from '../src/build/roles.js';
-import { purgeMarks, purgeRecordReader } from '../src/purge/mark.js';
 import { searchDocumentsCommand, siteSearch } from '../src/build/search-index.js';
+import { INSTANCE_ACCOUNT } from '../src/forgejo.js';
 import { walk } from '../src/intake/content-folder.js';
+import { purgeMarks, purgeRecordReader } from '../src/purge/mark.js';
 import { prepareSiteCode } from '../src/site-code.js';
 import { readSiteDescription } from '../src/site-description.js';
 
@@ -39,7 +40,6 @@ const SITE_FOLDER = join(work, 'site');
 const SEARCH_ROUTE_FILE = '/search-route/search-route.caddy';
 const ACCOUNT = 'builder';
 const HOME = join(work, 'home');
-const INSTANCE = 'konzilo';
 
 const {
   KONZILO_SITE: site,
@@ -90,7 +90,7 @@ const build = siteBuild({
   code: codeOf('/site', `${SITE_FOLDER}/node_modules/@kntnt/konzilo`),
   source,
   content,
-  roles: forgejoRoles({ forgejo: FORGEJO, repository, token: secret('roles-token'), instance: INSTANCE, folder: join(work, 'roles'), carried: async () => (await purgeRecords.record()).pushes }),
+  roles: forgejoRoles({ forgejo: FORGEJO, repository, token: secret('roles-token'), instance: INSTANCE_ACCOUNT, folder: join(work, 'roles'), carried: async () => (await purgeRecords.record()).pushes }),
   purges,
   control,
   live,

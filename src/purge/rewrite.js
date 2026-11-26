@@ -32,9 +32,10 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-// Git in `folder`, with `environment`: run(args, { input }) gives what it wrote, as bytes, or
-// throws with what it said.
-export function gitIn(folder, environment) {
+// Git in `folder`, with `environment`, as a purge runs it, its arguments in one array and what it
+// is fed as `input`: run(args, { input }) gives what it wrote, as bytes, or throws with what it
+// said.
+export function gitRunner(folder, environment) {
   return (args, { input = null } = {}) => new Promise((resolve, reject) => {
     const child = spawn('git', args, { cwd: folder, env: environment, stdio: ['pipe', 'pipe', 'pipe'] });
     const out = [];
@@ -121,7 +122,7 @@ function* commandsOf(stream) {
   }
 }
 
-// `git`: as gitIn() gives it, in the repository whose branch `branch` is rewritten in place.
+// `git`: as gitRunner() gives it, in the repository whose branch `branch` is rewritten in place.
 export async function rewriteHistory({ git, branch = 'main', drop = () => false, change = () => null, reads = () => true, message = () => null, keepEmpty = false }) {
   const stream = await git(['-c', 'core.quotePath=false', 'fast-export', '--no-data', '--show-original-ids', '--signed-tags=strip', '--reencode=no', '--use-done-feature', `refs/heads/${branch}`]);
 

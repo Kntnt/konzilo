@@ -15,14 +15,13 @@ import { createHash } from 'node:crypto';
 
 import { parse as parseYaml } from 'yaml';
 
-import { IMAGE_LIBRARY_FOLDER, MEDIA_FOLDER } from '../format/masters.js';
+import { hashDigits, IMAGE_LIBRARY_FOLDER, MEDIA_FOLDER } from '../format/masters.js';
 import { keyOf, REDIRECTS_FILE } from '../format/redirects.js';
+import { POST_IDS_FILE } from '../format/write.js';
 import { slugFrom } from '../intake/post-file.js';
-import { blobsOf, BRANCH, purgeHistories, PurgeRefusal } from './histories.js';
+import { blobsOf, BRANCH, gitText, purgeHistories, PurgeRefusal } from './histories.js';
 
 export { PurgeRefusal };
-
-const LEDGER = '.post-ids.json';
 
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const json = (value) => `${JSON.stringify(value, null, 2)}\n`;
@@ -33,7 +32,6 @@ const readJson = (bytes) => {
     return null;
   }
 };
-const text = async (git, args, options) => (await git(args, options)).toString('utf8');
 
 // The ID of the entry a source file is, and the language its folder names, or null.
 const idOf = (path) => path.split('/').at(-1).replace(/\.[^.]*$/, '');
@@ -41,13 +39,13 @@ const tagOf = (path) => (path.split('/').length === 3 ? path.split('/')[1] : nul
 
 // Each version a file has had on the branch, by its blob, oldest last.
 async function versionsOf(git, path) {
-  const raw = await text(git, ['log', '--format=', '--raw', '--no-abbrev', '--no-renames', BRANCH, '--', path]);
+  const raw = await gitText(git, ['log', '--format=', '--raw', '--no-abbrev', '--no-renames', BRANCH, '--', path]);
   return [...new Set(raw.split('\n').filter((line) => line.startsWith(':')).map((line) => line.split(/\s+/)[3]).filter((sha) => !/^0+$/.test(sha)))];
 }
 
 // Each version of every file below a folder on the branch, but `except`: [path, blob].
 async function versionsBelow(git, folder, except) {
-  const raw = await text(git, ['log', '--format=', '--raw', '--no-abbrev', '--no-renames', BRANCH, '--', `${folder}/`]);
+  const raw = await gitText(git, ['log', '--format=', '--raw', '--no-abbrev', '--no-renames', BRANCH, '--', `${folder}/`]);
   const found = new Map();
   for (const line of raw.split('\n').filter((one) => one.startsWith(':'))) {
     const [about, path] = line.split('\t');
@@ -114,7 +112,7 @@ async function namedElsewhere(git, original, entry) {
   const forms = [...new Set([`${MEDIA_FOLDER}/${name}`, `${MEDIA_FOLDER}/${encodeURI(name)}`])];
   let current = '';
   try {
-    current = await text(git, ['grep', '-F', '-l', ...forms.flatMap((form) => ['-e', form]), BRANCH, '--']);
+    current = await gitText(git, ['grep', '-F', '-l', ...forms.flatMap((form) => ['-e', form]), BRANCH, '--']);
   } catch {
     current = '';
   }
@@ -129,7 +127,7 @@ async function namedElsewhere(git, original, entry) {
 async function translatedAtHead(git, path) {
   const parts = path.split('/');
   if (parts.length !== 3) return false;
-  const listed = (await text(git, ['ls-tree', '-r', '--name-only', BRANCH, '--', `${parts[0]}/`])).split('\n');
+  const listed = (await gitText(git, ['ls-tree', '-r', '--name-only', BRANCH, '--', `${parts[0]}/`])).split('\n');
   return listed.some((one) => one !== path && one.split('/').length === 3 && one.split('/')[2] === parts[2]);
 }
 
@@ -186,7 +184,7 @@ async function ledgerPlan(git, entry) {
   const key = entry.kind === 'post' && tag !== null ? `${tag}/${id}` : id;
   const paths = new Set();
   const addresses = new Set();
-  const read = await blobsOf(git, await versionsOf(git, LEDGER));
+  const read = await blobsOf(git, await versionsOf(git, POST_IDS_FILE));
   for (const bytes of read.values()) {
     const ledger = readJson(bytes);
     const held = entry.kind === 'post' ? ledger?.posts?.[key] : entry.kind === 'term' ? ledger?.terms?.[id] : null;
@@ -250,17 +248,17 @@ async function entryPlan({ source, content, entry, before }) {
   // of an original that goes; its ledgers and its rules without it.
   const ledgers = new Map();
   const ledgerAt = async (at) => {
-    if (!ledgers.has(at.commit)) ledgers.set(at.commit, at.read(LEDGER).then((bytes) => (bytes === null ? null : readJson(bytes))));
+    if (!ledgers.has(at.commit)) ledgers.set(at.commit, at.read(POST_IDS_FILE).then((bytes) => (bytes === null ? null : readJson(bytes))));
     return ledgers.get(at.commit);
   };
-  const masters = plan.originals.length === 0 ? null : new RegExp(`^${MEDIA_FOLDER}/.+-(?:${plan.originals.map(({ oid }) => oid.slice(0, 10)).join('|')})\\.(?:webp|svg)$`);
+  const masters = plan.originals.length === 0 ? null : new RegExp(`^${MEDIA_FOLDER}/.+-(?:${plan.originals.map(({ oid }) => hashDigits(oid)).join('|')})\\.(?:webp|svg)$`);
   const termFolder = `${entry.collection}/${tag === null ? '' : `${tag}/`}`;
   const termPaths = new Set([...plan.slugs].map((slug) => `${termFolder}${slug}.json`));
   const slugsAt = new Map();
   const otherTermsHave = async (commit, slug) => {
     if (!slugsAt.has(commit)) {
       slugsAt.set(commit, (async () => {
-        const listed = (await text(source.git, ['ls-tree', '--name-only', commit, '--', termFolder]).catch(() => '')).split('\n').filter((one) => one.endsWith('.json') && one !== entry.path);
+        const listed = (await gitText(source.git, ['ls-tree', '--name-only', commit, '--', termFolder]).catch(() => '')).split('\n').filter((one) => one.endsWith('.json') && one !== entry.path);
         const read = await blobsOf(source.git, listed.map((one) => `${commit}:${one}`));
         return new Set([...read.values()].map((bytes) => {
           const value = readJson(bytes);
@@ -281,7 +279,7 @@ async function entryPlan({ source, content, entry, before }) {
       return false;
     },
     change: (path, bytes) => {
-      if (path === LEDGER) return ledgerWithout(bytes, { kind: entry.kind, key: ledger.key, id, files });
+      if (path === POST_IDS_FILE) return ledgerWithout(bytes, { kind: entry.kind, key: ledger.key, id, files });
       if (path === REDIRECTS_FILE) return rulesWithout(bytes, { names, kind: entry.kind, addresses });
       return null;
     },
