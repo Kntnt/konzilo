@@ -223,7 +223,15 @@
       }
     },
     "inline-math": {},
-    "block-math": {}
+    "block-math": {},
+    "consent-objection": {
+      "directive": {
+        "name": "consent-objection",
+        "form": "leaf",
+        "attributes": {},
+        "body": "none"
+      }
+    }
   },
   "inline": {
     "strong": {

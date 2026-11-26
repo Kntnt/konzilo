@@ -2,7 +2,9 @@
 //
 // The page's main content is its one <main>, or the one element its design
 // marks with `data-konzilo-main`. Inside it, dialog, nav, script, style and template
-// are left out, an embed's panel becomes the link to its address that it holds, and a
+// are left out, and so is the right to object to counting without storage, the
+// visitor's control and no content, wherever a body or a template places it; an
+// embed's panel becomes the link to its address that it holds, and a
 // formula its LaTeX, `$…$` in the text and on lines of `$$` as a block.
 // The front matter comes as the build wrote it, then the page's title as a
 // heading, unless the body begins with it, then the body. Every relative link
@@ -25,6 +27,9 @@ const classesOf = (node) => {
   if (Array.isArray(className)) return className;
   return typeof (className ?? text) === 'string' ? (className ?? text).split(/\s+/) : [];
 };
+// What the alternate leaves out: an element of LEFT_OUT, and the right to object
+// (src/consent/markup.js), `[data-konzilo-consent-objection]`.
+const isLeftOut = (node) => LEFT_OUT.has(node.tagName) || Object.hasOwn(propertiesOf(node), 'dataKonziloConsentObjection');
 const isMarked = (node) => {
   const properties = propertiesOf(node);
   return Object.hasOwn(properties, 'dataKonziloMain') || Object.hasOwn(properties, MAIN_MARK);
@@ -93,7 +98,7 @@ function wrapped(mark, text) {
 
 function inlineNode(node, base) {
   if (node.type === 'text') return escapedText(node.value.replace(/\s+/g, ' '));
-  if (!isElement(node) || LEFT_OUT.has(node.tagName)) return '';
+  if (!isElement(node) || isLeftOut(node)) return '';
   const inner = () => inline(node.children ?? [], base);
   switch (node.tagName) {
     case 'strong':
@@ -226,7 +231,7 @@ function blocks(nodes, base) {
       continue;
     }
     flush();
-    if (!isElement(node) || LEFT_OUT.has(node.tagName)) continue;
+    if (!isElement(node) || isLeftOut(node)) continue;
     const { tagName } = node;
     if (Object.hasOwn(HEADINGS, tagName)) {
       const text = inline(node.children ?? [], base).trim();

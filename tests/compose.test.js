@@ -216,16 +216,43 @@ test('answers for its own names alone, on each of its four hosts, and refuses ev
   for (const [, name, block] of hosts) {
     const directives = level(block, 1);
     assert.equal(directives[0], 'import own_hosts', name);
-    // `root` only sets where the files are, which the public site's errors read too.
-    assert.deepEqual(directives.slice(1).filter((line) => !line.startsWith('root ')), ['handle {', ...(name === 'SITE' ? ['handle_errors {'] : [])], name);
+    // `root` only sets where the files are, which the public site's errors read too, and the log
+    // of addresses not found only what is written of an answer, which nothing is of a refusal.
+    const own = name === 'SITE' ? ['log_skip', 'log {', 'handle {', 'handle_errors {'] : ['handle {'];
+    assert.deepEqual(directives.slice(1).filter((line) => !line.startsWith('root ')), own, name);
   }
   const errors = hosts.find(([, name]) => name === 'SITE')[2].split('\n\thandle_errors {\n')[1];
-  assert.deepEqual(level(errors, 2), ['handle @foreign {', 'handle {']);
+  assert.deepEqual(level(errors, 2).filter((line) => !/^(@konzilo_not_found \{|vars |log_append )/.test(line)), ['handle @foreign {', 'handle {']);
   assert.match(errors, /^\t\thandle @foreign \{\n\t\t\trespond 421\n\t\t\}$/m);
   // The names, a local copy's by default, which a server sets to its own; the web server alone reads them.
   const blocks = servicesOf(compose);
   assert.match(blocks.web, /^ {6}KONZILO_WEB_HOSTS: \$\{KONZILO_WEB_HOSTS:-localhost 127\.0\.0\.1 ::1 \*\.localhost\}$/m);
   for (const [name, block] of Object.entries(blocks)) if (name !== 'web') assert.doesNotMatch(block, /KONZILO_WEB_HOSTS/, name);
+});
+
+// The log of addresses not found (ADR 0040): Real Caddy writes it in the acceptance suite, which
+// reads every line it writes.
+test('logs the public host\'s addresses not found with the time and the path alone, and nothing of any other answer or host', () => {
+  const caddyfile = read('compose/web/Caddyfile');
+  const host = /^:\{\$KONZILO_PORT_SITE\} \{\n([\s\S]*?)\n\}$/m.exec(caddyfile)[1];
+  assert.equal((caddyfile.match(/^\t+log \{$/gm) ?? []).length, 1, 'one log, the public host\'s');
+  assert.match(host, /^\tlog_skip$/m);
+  const log = /^\tlog \{\n([\s\S]*?)\n\t\}$/m.exec(host)[1];
+  assert.match(log, /^\t\toutput file \/srv\/not-found\/not-found\.log \{$/m);
+  const deleted = [...log.matchAll(/^\t{4}([a-z_]+) delete$/gm)].map(([, field]) => field).sort();
+  assert.deepEqual(deleted, ['bytes_read', 'duration', 'request', 'resp_headers', 'size', 'status', 'user_id']);
+  assert.match(log, /^\t{4}path regexp "\\\?\.\*" ""$/m);
+  const errors = host.split('\n\thandle_errors {\n')[1];
+  const matcher = /^\t\t@konzilo_not_found \{\n([\s\S]*?)\n\t\t\}$/m.exec(errors)[1].split('\n').map((line) => line.trim());
+  assert.deepEqual(matcher, ['expression `{err.status_code} == 404`', 'method GET HEAD', 'not path /_konzilo /_konzilo/*', 'vars_regexp {http.request.orig_uri} ^/[^?]{0,299}(?:\\?|$)']);
+  assert.match(errors, /^\t\tvars log_skip true\n\t\tvars @konzilo_not_found log_skip false\n\t\tlog_append @konzilo_not_found path \{http\.request\.orig_uri\}$/m);
+  // Where the web server writes it, and the service reads it, each in a volume of its own.
+  const blocks = servicesOf(compose);
+  assert.match(blocks.web, /^ {6}- not-found-log:\/srv\/not-found$/m);
+  assert.match(blocks.editors, /^ {6}- not-found-log:\/not-found-log:ro$/m);
+  assert.match(blocks.editors, /^ {6}- not-found:\/not-found$/m);
+  assert.match(blocks.editors, /^ {6}- site-public:\/public:ro$/m);
+  for (const [name, block] of Object.entries(blocks)) if (!['web', 'editors'].includes(name)) assert.doesNotMatch(block, /not-found/, name);
 });
 
 test('mounts Docker\'s socket nowhere', () => {
@@ -315,6 +342,16 @@ test('runs the service for visitors in a container of its own, which the web ser
   assert.doesNotMatch(visitors, /^ {4}ports:/m);
   assert.match(visitors, /^ {4}command: \["node", "\/konzilo\/bin\/konzilo-service\.js", "visitors"\]$/m);
   assert.match(visitors, /^ {6}- service-data:\/service-data$/m);
+  // The releases, read-only, whose release in use holds its consent revision (ADR 0049), where the
+  // builder writes them, a folder the image makes the program's own, so that a volume a role
+  // mounts first takes the builder's owner. The role for editors reads them too, for the log of
+  // addresses not found (ADR 0040).
+  assert.match(visitors, /^ {6}- site-public:\/public:ro$/m);
+  assert.match(blocks.editors, /^ {6}- site-public:\/public:ro$/m);
+  assert.match(blocks.builder, /^ {6}- site-public:\/public$/m);
+  for (const [name, block] of Object.entries(blocks)) {
+    if (!['web', 'builder', 'visitors', 'editors'].includes(name)) assert.doesNotMatch(block, /site-public:/, name);
+  }
   // The site's folder, not its description alone: a mount of one file holds on to the file it was
   // made with, and a description replaced, as Git writes one, would never reach the service.
   for (const role of ['visitors', 'editors']) {
@@ -345,6 +382,20 @@ test('lets the service for editors read the forms\' submissions, on the admin ho
   assert.ok(matcher, 'a matcher of its own');
   for (const path of ['/_konzilo/submissions', '/_konzilo/submissions/*', '/_konzilo/mail', '/_konzilo/personal-data', '/_konzilo/personal-data.csv']) assert.ok(matcher.includes(path), path);
   assert.match(/handle @service \{\n([\s\S]*?)\n\t\t\}/.exec(admin)?.[1] ?? '', /reverse_proxy \{\$KONZILO_PEER_EDITORS:http:\/\/editors:4100\} \{/);
+});
+
+// The consent records (ADR 0049): the service in its role for visitors takes them on the public
+// host, as it takes every path below the prefix but search and the consent scripts' files, and in
+// its role for editors gives them to an Admin on the admin host alone.
+test('passes a visitor\'s consent record to the service for visitors, and an Admin\'s page of them to the service for editors on the admin host alone', () => {
+  const caddyfile = read('compose/web/Caddyfile');
+  const admin = caddyfile.slice(caddyfile.indexOf(':{$KONZILO_PORT_ADMIN}'), caddyfile.indexOf(':{$KONZILO_PORT_PREVIEW}'));
+  const matcher = /@service path (.*)$/m.exec(admin)?.[1].split(' ');
+  for (const path of ['/_konzilo/consent-records', '/_konzilo/consent-records.csv']) assert.ok(matcher.includes(path), path);
+  const visitors = /@konzilo_visitors \{\n([\s\S]*?)\n\t\t\}/.exec(siteHost())?.[1];
+  assert.match(visitors, /path \/_konzilo\/\*/);
+  assert.match(visitors, /not \{\n\t+path \/_konzilo\/consent\/\*\n\t+method GET HEAD\n\t+\}/, 'the consent scripts\' files alone are the release\'s');
+  assert.doesNotMatch(siteHost(), /consent-records/);
 });
 
 // The locks of the editor's forms (ADR 0073) are the service's, in its role for editors, on the

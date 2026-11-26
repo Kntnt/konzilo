@@ -16,6 +16,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CATALOGUES } from '../catalogues.js';
 import { CONSENT_SCRIPT_LIFETIME, CONSENT_SCRIPTS, CONSENT_STYLESHEET, consentScriptPath } from '../consent/registry.js';
+import { consentView } from '../consent/markup.js';
 import { consentScript } from '../consent/script.js';
 import { CATEGORIES, categoryDescription, CONSENT_FILE, CONSENT_GROUP, textsOf } from '../format/consent.js';
 import { RESERVED_PREFIX } from '../site-description.js';
@@ -146,6 +147,75 @@ export function writeConsentScripts(dir, given) {
     writeFileSync(file, contents);
   }
   return [...files.keys()];
+}
+
+// Where a public build writes its consent revision for the service, which
+// the release holds beside its pages (src/build/release.js).
+export const CONSENT_REVISION_FILE = '_consent.json';
+
+// What a page of the site shows a visitor of its consent, in its language,
+// from the input of the markup functions (consentInput()): the banner's and
+// the dialog's texts, each category with its name, its description and its
+// services, each with its name, purpose, why it is necessary where it is,
+// and its provider with the provider's country, or null for the site's own;
+// what each placeholder says; the right to object's explanation, where it
+// is offered; and the legal pages the banner links to. The service keeps it
+// with each record of the revision (ADR 0049), as what the visitor saw.
+export function consentShown(input) {
+  const view = consentView(input);
+  const { banner, dialog } = view.texts;
+  return {
+    banner: { title: banner.title, text: banner.text, accept: banner.accept, reject: banner.reject, customise: banner.customise },
+    dialog: { title: dialog.title, introduction: dialog.introduction, accept: dialog.accept, reject: dialog.reject, save: dialog.save },
+    categories: view.categories.map((category) => ({
+      id: category.id,
+      name: category.name,
+      description: category.description,
+      services: category.services.map((service) => ({
+        id: service.id,
+        name: service.name,
+        purpose: service.purpose,
+        necessity: service.necessity ?? null,
+        provider: service.provider ? `${service.provider.name}, ${service.provider.country}` : null,
+      })),
+    })),
+    placeholders: view.placeholders,
+    ...(view.objection ? { objection: view.objection.text } : {}),
+    policies: view.policies.map(({ title, href }) => ({ title, href })),
+  };
+}
+
+// The consent revision of a public build, for the service, which takes a
+// record of a choice only of a revision the site has published, with
+// exactly its categories and services, and keeps it with what its pages
+// showed (ADR 0049): { revision, categories, languages }, each category's
+// services by its id, and what the pages showed in each language of the
+// site, by its language tag, as consentShown() gives it; null while the
+// content folder holds no registry. `folder` is the content folder the build
+// reads, `languages` the site's, `base` the build's and `origin` the public
+// host's.
+export function consentRevision({ folder, languages = [], base = '/', origin: host = null }) {
+  const read = (path) => {
+    const file = join(folder, path);
+    return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : null;
+  };
+  const registry = read(CONSENT_FILE);
+  if (registry === null) return null;
+  const several = languages.length > 1;
+  const shown = {};
+  for (const language of languages.length > 0 ? languages : [{ tag: 'en' }]) {
+    shown[language.tag] = consentShown(consentInput(registry, read(several ? `settings/${language.tag}.json` : 'settings.json'), { languageTag: language.tag, base, origin: host }));
+  }
+  return { revision: registry.revision, categories: Object.fromEntries(registry.categories.map((category) => [category.id, category.services])), languages: shown };
+}
+
+// Write the consent revision into the release at `dir`, as
+// consentRevision() gives it; whether there was one.
+export function writeConsentRevision(dir, given) {
+  const revision = consentRevision(given);
+  if (revision === null) return false;
+  writeFileSync(join(fileURLToPath(dir), CONSENT_REVISION_FILE), JSON.stringify(revision));
+  return true;
 }
 
 // The headers the consent scripts and their stylesheet are served with, as

@@ -280,7 +280,9 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **404 page**: The page an Admin chooses in the site settings, which the site shows with `404` or `410` wherever nothing else answers, with no address of its own. _Avoid_: error page.
 
-**Log of addresses not found**: The counts of the addresses visitors asked for in vain: each address, how often, and when last, kept 30 days. _Avoid_: access log.
+**Log of addresses not found**: The counts of the addresses visitors asked for in vain: each address, how often, and when last, kept 30 days, which an Admin reads on the *Addresses not found* page, in Swedish *Adresser som inte hittades*, and makes a rule from. _Avoid_: access log.
+
+**Fold**: Turning the lines the web server wrote to the log of addresses not found since the last time into its counts, every five minutes. _Avoid_: rotation, aggregation.
 
 **Log of policy violations**: The counts of what the public site's policy blocked, kept 30 days. _Avoid_: CSP log.
 
@@ -346,7 +348,7 @@ Konzilo is a core for websites whose editors write in Sveltia CMS with a Crepe b
 
 **Placeholder**: An embed's panel while the visitor has not allowed its service. _Avoid_: content blocker.
 
-**Consent record**: The site's proof of one choice, kept 13 months without an IP address or user agent. _Avoid_: cookie log.
+**Consent record**: The site's proof of one choice, kept 13 months without an IP address or user agent, with what its consent revision showed the visitor; an Admin finds a visitor's by their consent ID on the *Consent records* page, in Swedish *Samtycken*. _Avoid_: cookie log.
 
 **Consent revision**: The version of what a visitor consents to; a new one asks every visitor again. _Avoid_: version.
 

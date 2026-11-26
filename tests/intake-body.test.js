@@ -306,3 +306,31 @@ test('a formula Temml cannot read is named with the LaTeX it could not read, and
   // Where Temml stops at an error of its own, the whole formula is what it could not read.
   assert.deepEqual(refusalsOf('Here $x^$ stops')[0].values, { formula: 'x^', unread: 'x^', problem: { name: 'about.math-error', values: {} } });
 });
+
+// The right to object to counting without storage, placed in a body (ADR 0049): a leaf with no
+// attributes, which writes nothing on a site that does not count so, and says why.
+const counting = {
+  ...everyElement,
+  consent: { departures: [{ departure: 'statisticsWithoutStorageBeforeConsent', reason: 'We count every visit, and store nothing before consent.', privacySignals: 'stop' }] },
+};
+
+test('writes the right to object as a leaf of its own, on a site that counts visits without storage', () => {
+  const { text, warnings } = out('Read this.\n\n::consent-objection', counting);
+  assert.equal(text, pageFile('Read this.\n\n::consent-objection'));
+  assert.deepEqual(warnings, []);
+});
+
+test('warns of the right to object in a post of a site that counts no visits without storage, since it shows nothing there', () => {
+  const { text, warnings } = out('::consent-objection');
+  assert.equal(text, pageFile('::consent-objection'));
+  assert.deepEqual(warnings.map(({ name, block, reason }) => [name, block, reason]), [
+    ['warning.consent-objection-none', { path: '1', name: 'consent-objection' }, 'the site counts no visits without storage before consent, so the right to object shows nothing here'],
+  ]);
+});
+
+test('refuses the right to object in a type that does not list it, and one with attributes or a label', () => {
+  const without = { ...counting, types: { page: { ...counting.types.page, elements: ['paragraph'] } } };
+  assert.deepEqual(refusalsOf('::consent-objection', without), [{ name: 'refusal.element-not-taken', block: 'consent-objection', values: { element: { name: 'body.element.consent-objection', values: {} } } }]);
+  assert.deepEqual(refusalsOf('::consent-objection{tone="loud"}', counting).map(({ name }) => name), ['refusal.directive-attribute']);
+  assert.deepEqual(refusalsOf('::consent-objection[Object]', counting).map(({ name }) => name), ['refusal.directive-label']);
+});

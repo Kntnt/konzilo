@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { request } from 'node:http';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -380,9 +381,10 @@ She keeps the light.
     for (const [path, links] of Object.entries(heads)) assert.deepEqual(linked(html(path)), links, path);
   });
 
-  test('lists each page that has an alternate, and its alternate, in _markdown for the web server, as browsers send the addresses', () => {
+  test('lists each page that has an alternate, its alternate, and llms.txt and llms-full.txt where its row has them on, in _markdown for the web server, as browsers send the addresses', () => {
     assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
-    assert.equal(html('_markdown'), '/ /index.md\n/harbour-lights/ /harbour-lights.md\n/index/ /index/index.md\n/pages/about/ /pages/about.md\n');
+    // By default llms.txt is on for every row, and llms-full.txt for the start page and pages.
+    assert.equal(html('_markdown'), '/ /index.md /llms.txt /llms-full.txt\n/harbour-lights/ /harbour-lights.md /llms.txt\n/index/ /index/index.md /llms.txt\n/pages/about/ /pages/about.md /llms.txt /llms-full.txt\n');
   });
 
   test('no page keeps the mark its build made the alternate from', () => {
@@ -492,7 +494,8 @@ describe('the dev server', () => {
     const varies = response.headers.get('vary')?.split(/,\s*/) ?? [];
     return { status: response.status, type: response.headers.get('content-type'), links, varies, text: await response.text() };
   };
-  const RELATED = ['<https://www.example.com/llms.txt>; rel="related"; type="text/plain"', '<https://www.example.com/llms-full.txt>; rel="related"; type="text/plain"'];
+  const LLMS = '<https://www.example.com/llms.txt>; rel="related"; type="text/plain"';
+  const LLMS_FULL = '<https://www.example.com/llms-full.txt>; rel="related"; type="text/plain"';
 
   test('answers a page\'s own address with its Markdown where the request prefers it , with the alternate\'s headers, and varies by Accept', async () => {
     for (const [accept, markdown] of NEGOTIATION) {
@@ -513,10 +516,12 @@ describe('the dev server', () => {
     assert.ok(!contact.varies.includes('Accept'));
   });
 
-  test('links llms.txt and llms-full.txt from every page, and its alternate from a page with one, and each alternate names its page', async () => {
-    assert.deepEqual((await discovery('/pages/about/')).links, ['<https://www.example.com/pages/about.md>; rel="alternate"; type="text/markdown"', ...RELATED]);
-    assert.deepEqual((await discovery('/')).links, ['<https://www.example.com/index.md>; rel="alternate"; type="text/markdown"', ...RELATED]);
-    assert.deepEqual((await discovery('/contact/')).links, RELATED);
+  test('links a page\'s alternate, then llms.txt and llms-full.txt where its row has them on, from a page with one alone, and each alternate names its page', async () => {
+    // By default llms.txt is on for every row, and llms-full.txt for the start page and pages.
+    assert.deepEqual((await discovery('/harbour-lights/')).links, ['<https://www.example.com/harbour-lights.md>; rel="alternate"; type="text/markdown"', LLMS]);
+    assert.deepEqual((await discovery('/pages/about/')).links, ['<https://www.example.com/pages/about.md>; rel="alternate"; type="text/markdown"', LLMS, LLMS_FULL]);
+    assert.deepEqual((await discovery('/')).links, ['<https://www.example.com/index.md>; rel="alternate"; type="text/markdown"', LLMS, LLMS_FULL]);
+    assert.deepEqual((await discovery('/contact/')).links, []);
     const missing = await discovery('/missing/');
     assert.deepEqual([missing.status, missing.links], [404, []]);
     assert.deepEqual((await discovery('/pages/about.md')).links, ['<https://www.example.com/pages/about/>; rel="canonical"']);
@@ -527,6 +532,29 @@ describe('the dev server', () => {
     for (const path of ['/night-watch.md', '/pages/private.md', '/notes/jotting.md', '/contact.md', '/missing.md', '/harbour-lights/index.md', '/index/index/index.md']) {
       assert.equal((await answer(path)).status, 404, path);
     }
+  });
+
+  // Two lines of Accept, as Caddy joins them: by a comma alone, so that a header of
+  // ACCEPT_LENGTH bytes in all is weighed on the public host, and so here.
+  test('weighs a header of several lines as the public host does', async () => {
+    const first = `text/html;q=0.1;x=${'a'.repeat(500)}`;
+    const second = `text/markdown;y=${'b'.repeat(1024 - first.length - 1 - 'text/markdown;y='.length)}`;
+    const answer = await new Promise((resolve, reject) => {
+      const asked = request(`${origin}/pages/about/`, { headers: { accept: [first, second] } }, (response) => {
+        response.resume();
+        response.on('end', () => resolve(response.headers['content-type']));
+      });
+      asked.on('error', reject);
+      asked.end();
+    });
+    assert.equal(answer, 'text/markdown; charset=utf-8');
+  });
+
+  test('follows a change of a row: llms-full.txt on and llms.txt off for pages', async () => {
+    writeInto(repository, disk, { ...AI, types: { ...AI.types, page: { markdown: true, llms: false, llmsFull: true } } });
+    const links = ['<https://www.example.com/pages/about.md>; rel="alternate"; type="text/markdown"', LLMS_FULL];
+    await until(async () => JSON.stringify((await discovery('/pages/about/')).links) === JSON.stringify(links));
+    assert.deepEqual((await discovery('/pages/about/')).links, links);
   });
 
   test('follows the next change of the content: with Markdown off for pages, a page\'s address answers 404 and its head links none', async () => {
@@ -607,4 +635,17 @@ $$
 \\int_0^1 x \\, dx
 $$
 `);
+});
+
+// The right to object, which a body places by `::consent-objection` and a template by
+// ConsentControls.astro, is the visitor's control over the counting, no content of the page.
+test('leaves out the right to object, wherever the page holds it', () => {
+  const objection = [
+    '<div class="konzilo-consent-controls"><div class="konzilo-consent-objection" data-konzilo-consent-objection hidden>',
+    '<p class="konzilo-consent-objection-text">We count the visits. If you disagree, you have the right to <a href="#konzilo-consent-objection" class="konzilo-consent-objection-link" data-konzilo-consent-action="objection">object</a>.</p>',
+    '<p class="konzilo-consent-objection-objected" data-konzilo-consent-objected hidden>You have objected. <a href="#konzilo-consent-objection" class="konzilo-consent-objection-link" data-konzilo-consent-action="resume">Undo your objection</a></p>',
+    '</div></div>',
+  ].join('');
+  const html = `<main><p>We count the visits.</p>${objection}<p>Ask us anything.</p></main>`;
+  assert.equal(pageMarkdown({ html, url: 'https://example.com/privacy/', title: 'Privacy' }).markdown, '\n# Privacy\n\nWe count the visits.\n\nAsk us anything.\n');
 });

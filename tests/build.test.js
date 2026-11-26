@@ -483,6 +483,31 @@ describe('a build', () => {
     assert.equal(statusOf(site, 'articles/aaaaaaaaaaaa.md').status, 'failed');
   });
 
+  // ADR 0047: the release's list of its Markdown alternates becomes the web server's marks, each
+  // line checked before the release is current.
+  test('marks the pages the release has Markdown alternates of, and keeps the release when a line names no file of the new one', async () => {
+    const site = newSite({ 'articles/aaaaaaaaaaaa.md': post('first') });
+    const made = (files) => {
+      const built = join(site.root, `dist-${Object.keys(files).length}-${Math.random().toString(36).slice(2)}`);
+      for (const [path, contents] of Object.entries(files)) {
+        mkdirSync(dirname(join(built, path)), { recursive: true });
+        writeFileSync(join(built, path), contents);
+      }
+      return built;
+    };
+    const release = { 'index.html': 'start', 'first/index.html': 'first', 'first.md': '# First', 'llms.txt': '# Site', _markdown: '/first/ /first.md /llms.txt\n' };
+    await site.build({ astro: async () => made(release) })();
+    const marks = join(site.root, 'public/current/pages/_konzilo/alternates');
+    assert.deepEqual(readdirSync(marks, { recursive: true }).sort(), ['llms', 'llms/first.md', 'markdown', 'markdown/first.md']);
+    assert.match(readFileSync(join(site.root, 'public/current/web-rules.caddy'), 'utf8'), /rel="alternate"; type="text\/markdown"/);
+    const current = readlinkSync(join(site.root, 'public/current'));
+    site.save({ 'articles/aaaaaaaaaaaa.md': post('first', {}, 'New words.') });
+    const record = await site.build({ astro: async () => made({ ...release, _markdown: '/ /index.md\n/first/ /first.md /llms.txt\n' }) })();
+    assert.deepEqual(record.reason, NOT_RELEASED);
+    assert.equal(readlinkSync(join(site.root, 'public/current')), current);
+    assert.match(site.seen.warned.at(-1), /_markdown, line 1: \/index\.md is no file of the release/);
+  });
+
   test('says what it can when the source cannot be read, and goes on', async () => {
     const site = newSite({ 'articles/aaaaaaaaaaaa.md': post('first') });
     const first = await site.build()();
@@ -603,6 +628,46 @@ describe('releases', () => {
     releases(root).publish(built, '1', 'the rules\n');
     assert.equal(readFileSync(join(root, 'current/web-rules.caddy'), 'utf8'), 'the rules\n');
     assert.deepEqual(readdirSync(join(root, 'current/pages')), ['index.html']);
+  });
+
+  test('holds its consent revision beside its pages, where the service reads it and no visitor reaches it, and a release without one holds none', () => {
+    const root = join(folder, 'consent');
+    const built = join(folder, 'dist-consent');
+    mkdirSync(built);
+    writeFileSync(join(built, 'index.html'), 'x');
+    writeFileSync(join(built, '_consent.json'), '{"revision":"0123456789abcdef"}');
+    releases(root).publish(built, '1');
+    assert.equal(readFileSync(join(root, 'current/consent.json'), 'utf8'), '{"revision":"0123456789abcdef"}');
+    assert.deepEqual(readdirSync(join(root, 'current/pages')), ['index.html']);
+    rmSync(join(built, '_consent.json'));
+    releases(root).publish(built, '2');
+    assert.deepEqual(readdirSync(join(root, 'current')).sort(), ['_redirects', 'pages', 'web-rules.caddy']);
+  });
+
+  test('holds the marks the web server reads of its Markdown alternates, as empty files, and none the build wrote there', () => {
+    const root = join(folder, 'marks');
+    const built = join(folder, 'dist-marks');
+    mkdirSync(join(built, '_konzilo/alternates/markdown'), { recursive: true });
+    writeFileSync(join(built, 'index.html'), 'x');
+    writeFileSync(join(built, '_konzilo/alternates/markdown/planted.md'), '');
+    releases(root).publish(built, '1', '', ['_konzilo/alternates/markdown/index.md', '_konzilo/alternates/llms/a/b.md']);
+    const marks = join(root, 'current/pages/_konzilo/alternates');
+    assert.deepEqual(readdirSync(marks, { recursive: true }).sort(), ['llms', 'llms/a', 'llms/a/b.md', 'markdown', 'markdown/index.md']);
+    assert.equal(readFileSync(join(marks, 'markdown/index.md'), 'utf8'), '');
+  });
+
+  // The log of addresses not found lets an address go that a rule of the release answers (ADR 0040).
+  test('keeps its redirects as the build wrote them beside its pages, where no visitor reaches them', () => {
+    const root = join(folder, 'redirects');
+    const built = join(folder, 'dist-redirects');
+    mkdirSync(built);
+    writeFileSync(join(built, 'index.html'), 'x');
+    writeFileSync(join(built, '_redirects'), '/old/ /new/ 301\n');
+    releases(root).publish(built, '1', '');
+    assert.equal(readFileSync(join(root, 'current/_redirects'), 'utf8'), '/old/ /new/ 301\n');
+    rmSync(join(built, '_redirects'));
+    releases(root).publish(built, '2', '');
+    assert.equal(readFileSync(join(root, 'current/_redirects'), 'utf8'), '');
   });
 
   test('clears a release a stop left half made', () => {

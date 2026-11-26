@@ -25,6 +25,7 @@ import { fileURLToPath } from 'node:url';
 import { astroEnvironment, nodeSync } from './lib/astro.js';
 import { paragraphs, post, term, writeContent } from './lib/content.js';
 import { drawing, plainImage, sharp, shortHash } from './lib/images.js';
+import { run, sourcePost } from './lib/intake.js';
 
 const template = fileURLToPath(new URL('../site-template/files/', import.meta.url));
 const core = fileURLToPath(new URL('../', import.meta.url));
@@ -110,6 +111,21 @@ const menuOf = (html) => JSON.parse(/<pre id="menu"[^>]*>(.*?)<\/pre>/s.exec(htm
 
 // The publisher's details in a footer, each line as a visitor reads it.
 const details = (html) => /<address\b[^>]*>(.*?)<\/address>/s.exec(html)?.[1].match(/<p\b[^>]*>.*?<\/p>/gs).map((line) => line.replace(/<[^>]+>/g, '').trim());
+
+// A privacy policy is a page, which may place the right to object beside what it says of the
+// counting (ADR 0049); an article and a canvas have no need of it.
+test('lets a page place the right to object, and neither an article nor a canvas', () => {
+  const declared = JSON.parse(readFileSync(join(template, 'site-description.json'), 'utf8'));
+  const result = run({
+    'pages/aaaaaaaaaaaa.md': sourcePost({ title: 'Privacy policy', slug: 'privacy-policy', status: 'published' }, '::consent-objection'),
+    'articles/bbbbbbbbbbbb.md': sourcePost({ title: 'News', slug: 'news', status: 'published', headline: 'News' }, '::consent-objection'),
+    'canvases/cccccccccccc.md': sourcePost({ title: 'Landing', slug: 'landing', status: 'published' }, '::consent-objection'),
+  }, declared);
+  assert.deepEqual(result.refusals.map(({ post, name, block }) => [post.type, name, block.name]).sort(), [
+    ['article', 'refusal.element-not-taken', 'consent-objection'],
+    ['canvas', 'refusal.element-not-taken', 'consent-objection'],
+  ]);
+});
 
 describe('the site template, built by Astro', () => {
   let repository;

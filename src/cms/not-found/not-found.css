@@ -1,0 +1,94 @@
+/* The *Addresses not found* page (ADR 0040): the addresses, most asked first, each with the ways
+   to deal with it. */
+
+.konzilo-not-found {
+  box-sizing: border-box;
+  height: 100%;
+  overflow: auto;
+  padding: 16px;
+  font: 14px/1.4 system-ui, sans-serif;
+  overflow-wrap: anywhere;
+}
+
+.konzilo-not-found p {
+  margin: 4px 0;
+  max-width: 60em;
+}
+
+.konzilo-not-found-note {
+  color: var(--sui-secondary-foreground-color, #555);
+}
+
+.konzilo-not-found-told:empty {
+  display: none;
+}
+
+.konzilo-not-found-told {
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: var(--sui-info-background-color, #e8f0fe);
+  color: #222;
+}
+
+.konzilo-not-found-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+}
+
+.konzilo-not-found-table caption {
+  margin-bottom: 8px;
+  font-weight: 600;
+  text-align: start;
+}
+
+.konzilo-not-found-table th,
+.konzilo-not-found-table td {
+  padding: 8px 12px 8px 0;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.3);
+  text-align: start;
+  vertical-align: top;
+}
+
+.konzilo-not-found-table tbody th {
+  font-weight: normal;
+}
+
+.konzilo-not-found-ways {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.konzilo-not-found-button {
+  padding: 4px 12px;
+  border: 1px solid #a8a8a8;
+  border-radius: 4px;
+  background: #f5f5f5;
+  color: #222;
+  font: inherit;
+  cursor: pointer;
+}
+
+.konzilo-not-found-button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.konzilo-not-found-redirect {
+  display: grid;
+  gap: 4px;
+  max-width: 28em;
+}
+
+.konzilo-not-found-redirect input {
+  font: inherit;
+  padding: 4px 6px;
+}
+
+.konzilo-not-found-button:focus-visible,
+.konzilo-not-found-redirect input:focus-visible {
+  outline: 2px solid #1a73e8;
+  outline-offset: 2px;
+}

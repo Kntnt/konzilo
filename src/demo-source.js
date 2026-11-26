@@ -3,16 +3,18 @@
 // image by its place in the media folder, and only the settings that differ from a
 // default. The published demo content is the fiction's one record, and this reads it, so
 // that the two cannot tell different stories, and a local copy's Forgejo starts with it.
-// A post dated after the moment it is read is scheduled for its date (ADR 0025).
+// A post dated after the moment it is read is scheduled for its date, and one whose
+// frontmatter says `status: draft` is a draft, whatever its date (ADR 0025).
 // An ID comes from the file's place, so that seeding twice gives the same files.
 
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { isObject } from './checks.js';
-import { isScheduled, readPost } from './demo-content.js';
+import { isDraft, isScheduled, readPost } from './demo-content.js';
 import { contentValues, publicAddress } from './format/addresses.js';
 import { pageTypeOf } from './format/built-in-types.js';
+import { DRAFT, PUBLISHED, SCHEDULED } from './format/post-status.js';
 import { IMAGE_LIBRARY_FOLDER } from './format/masters.js';
 import { NOT_FOUND_FILE } from './format/not-found.js';
 import { START_ENTRY, START_PAGE, startFile } from './format/start-page.js';
@@ -40,13 +42,14 @@ const toMedia = (image) => {
 const mediaPath = (src) => `/media/${src.split('/').at(-1)}`;
 
 // A post's place on a site: { path, type, tag, language, place, fields, body, id, address,
-// scheduled, start }, its path in the published content, `scheduled` true where it is dated
-// after `now`. The start page an Admin chose, at the content folder's root, `start` true, has
-// no address of its own, and its place is the one its file holds, its `slug` after its
-// `parent`'s path, so that its ID is the one its children's parent has, and it has its own
-// address again once it is no longer chosen; a file that holds none gives it no place, and
-// an ID no other post's can be.
+// status, start }, its path in the published content, its `status` a draft where it says so,
+// else scheduled where it is dated after `now`, else published. The start page an Admin
+// chose, at the content folder's root, `start` true, has no address of its own, and its place
+// is the one its file holds, its `slug` after its `parent`'s path, so that its ID is the one
+// its children's parent has, and it has its own address again once it is no longer chosen; a
+// file that holds none gives it no place, and an ID no other post's can be.
 function postsOf(description, published, now) {
+  const statusOf = (fields) => (isDraft(fields) ? DRAFT : isScheduled(fields, now) ? SCHEDULED : PUBLISHED);
   const several = description.languages.length > 1;
   const posts = [];
   // A term's published file, by its collection and its name there, which a post's address may
@@ -60,7 +63,7 @@ function postsOf(description, published, now) {
     if (start) {
       const { fields: { slug, parent, ...fields }, body } = readPost(start.content);
       const place = typeof slug === 'string' && slug !== '' ? [parent, slug].filter((part) => typeof part === 'string' && part !== '').join('/') : null;
-      posts.push({ path: start.path, type, tag: null, language: description.languages[0] ?? null, place, fields, body, id: idOf(type.collection, place ?? START_ENTRY), address: null, start: true, scheduled: isScheduled(fields, now) });
+      posts.push({ path: start.path, type, tag: null, language: description.languages[0] ?? null, place, fields, body, id: idOf(type.collection, place ?? START_ENTRY), address: null, start: true, status: statusOf(fields) });
     }
     for (const { path, content } of published) {
       if (!path.startsWith(`${type.collection}/`) || !path.endsWith('.md')) continue;
@@ -70,7 +73,7 @@ function postsOf(description, published, now) {
       const place = several ? within.slice(tag.length + 1) : within;
       const { fields, body } = readPost(content);
       const address = type.address === null ? null : publicAddress(type, contentValues(type, place, fields, termIn), language);
-      posts.push({ path, type, tag, language, place, fields, body, id: idOf(type.collection, place), address, scheduled: isScheduled(fields, now) });
+      posts.push({ path, type, tag, language, place, fields, body, id: idOf(type.collection, place), address, status: statusOf(fields) });
     }
   }
   return posts;
@@ -92,7 +95,8 @@ function bodyAsSource(body, ids) {
 }
 
 // Published content as source files. `published`: each { path, content }, as the content
-// folder holds them; `now`, the moment after which a post's date makes it scheduled.
+// folder holds them, or demo content, with its drafts; `now`, the moment after which a post's
+// date makes it scheduled.
 export function sourceFrom(description, published, { now = new Date() } = {}) {
   const files = [];
   const several = description.languages.length > 1;
@@ -131,9 +135,9 @@ export function sourceFrom(description, published, { now = new Date() } = {}) {
   }));
 
   for (const post of posts) {
-    const { type, tag, place, fields, body, id, scheduled } = post;
-    const { modified: _modified, oldAddresses: _old, ...kept } = fields;
-    const status = scheduled ? 'scheduled' : 'published';
+    const { type, tag, place, fields, body, id, status } = post;
+    // The status is the seed's to write, by what the post says and its date, as a copy asks.
+    const { modified: _modified, oldAddresses: _old, status: _status, ...kept } = fields;
     // A start page whose file holds no place has its slug made from its title, as a new post's is.
     const segments = place === null ? [] : place.split('/');
     const written = place === null ? { title: kept.title, status } : { title: kept.title, slug: segments.at(-1), status };
@@ -165,7 +169,7 @@ export function sourceFrom(description, published, { now = new Date() } = {}) {
   }
 
   // The page for addresses not found is a post an Admin chooses, of a type with an address,
-  // published whatever its date, since it has no address at which it could wait.
+  // published whatever its date and status, since it has no address at which it could wait.
   const notFound = published.find(({ path }) => path === NOT_FOUND_FILE);
   const notFoundId = notFound ? notFoundPost(description, notFound, ids, files) : null;
 
@@ -196,7 +200,7 @@ function notFoundPost(description, { content }, ids, files) {
   const type = pageTypeOf(description.types);
   const { fields, body } = readPost(content);
   const id = idOf(type.collection, 'not-found');
-  files.push({ path: `${type.collection}/${id}.md`, content: writePost({ title: fields.title, slug: 'not-found', status: 'published' }, bodyAsSource(body, ids)) });
+  files.push({ path: `${type.collection}/${id}.md`, content: writePost({ title: fields.title, slug: 'not-found', status: PUBLISHED }, bodyAsSource(body, ids)) });
   return id;
 }
 
@@ -275,7 +279,7 @@ function publishedIn(demo) {
  * @param {object} description the form siteDescription() returns
  * @param {string} demo the folder of published demo content
  * @param {{ now?: Date }} [options] `now`, the moment of seeding, after which a post's date makes it scheduled
- * @returns {{ path: string, content: string|Buffer }[]} every source file, sorted by path
+ * @returns {{ path: string, content: string|Buffer }[]} every source file, a draft's among them, sorted by path
  */
 export function demoSource(description, demo, { now = new Date() } = {}) {
   return sourceFrom(description, publishedIn(demo), { now });
@@ -283,10 +287,10 @@ export function demoSource(description, demo, { now = new Date() } = {}) {
 
 /**
  * What in published demo content leads to a post a copy without Compose leaves out, dated ahead
- * (copyDemoContent() of demo-content.js), which has no page there: each link of a body, the
- * page for addresses not found's too, and each entry of a menu, at any depth, whose address is
- * that post's, as a warning naming its file. It refuses nothing; the intake, which Compose runs,
- * drops such a link and entry with a warning of its own.
+ * or a draft (copyDemoContent() of demo-content.js), which has no page there: each link of a
+ * body, the page for addresses not found's too, and each entry of a menu, at any depth, whose
+ * address is that post's, as a warning naming its file. It refuses nothing; the intake, which
+ * Compose runs, drops such a link and entry with a warning of its own.
  * @param {object} description the form siteDescription() returns
  * @param {string} demo the folder of published demo content
  * @param {string[]} left each post left out, by its path in `demo`
@@ -297,8 +301,11 @@ export function leadsToLeftOut(description, demo, left) {
   const published = publishedIn(demo).filter(({ path }) => !left.includes(path)).sort((a, b) => (a.path < b.path ? -1 : 1));
   const gone = new Map(postsOf(description, publishedIn(demo).filter(({ path }) => left.includes(path)), new Date())
     .filter((post) => post.address !== null)
-    .map((post) => [post.address, post.fields.title]));
-  const said = (address) => `${address}, ${gone.get(address)}, a post dated ahead that is left out, so it leads to no page`;
+    .map((post) => [post.address, post]));
+  const said = (address) => {
+    const { fields: { title }, status } = gone.get(address);
+    return `${address}, ${title}, ${status === DRAFT ? 'a draft' : 'a post dated ahead'} that is left out, so it leads to no page`;
+  };
   const warnings = [];
   for (const { path, content } of published) {
     if (path.endsWith('.md')) {

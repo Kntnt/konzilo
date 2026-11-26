@@ -60,6 +60,9 @@ const shown = {
     form: /<form class="konzilo-form" id="konzilo-form-contact" method="post" action="\/_konzilo\/forms\/contact"/,
     'inline-math': /a formula, <math><semantics>.*<annotation encoding="application\/x-tex">\\pi r\^2<\/annotation><\/semantics><\/math>/s,
     'block-math': /<div class="konzilo-math"><math display="block"[^>]*><semantics>.*<annotation encoding="application\/x-tex">a\^2 \+ b\^2 = c\^2<\/annotation><\/semantics><\/math><\/div>/s,
+    // The right to object, which draws nothing on a site that counts no visits without storage,
+    // as the document's does not: the form's end and the footnotes with nothing between.
+    'consent-objection': /<\/form>\s*<section[^>]*data-footnotes/,
   },
   inline: {
     strong: /<strong>bold<\/strong>/,

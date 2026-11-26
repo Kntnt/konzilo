@@ -98,7 +98,7 @@ import { declaredNames, languageTag, postListModel, readSiteDescription, SITE_DE
 import { bodyStylesOf, pageImports } from './body-styles.js';
 import { contentFolder } from './collections.js';
 import { consentClient, cookieDeclaration, datawrapperHeights, embedPanels, matomoTracker } from '../consent/client.js';
-import { CONSENT_RECORDS, CONSENT_SCRIPT_HEADERS, consentDomain, devConsentScripts, writeConsentScripts } from './consent.js';
+import { CONSENT_RECORDS, CONSENT_SCRIPT_HEADERS, consentDomain, devConsentScripts, writeConsentRevision, writeConsentScripts } from './consent.js';
 import { pagesWithBareEmbeds } from './embeds.js';
 import { imageContexts, versionsInBody } from './image-versions.js';
 import { lightboxClient } from './lightbox.js';
@@ -265,9 +265,11 @@ function directiveComponents(root, directives) {
   };
 }
 
-// The directive the integration renders itself: the post list,
-// through the presentation the site registers for each.
+// The directives the integration renders itself: the post list, through the
+// presentation the site registers for each, and the right to object to counting
+// without storage, as ConsentControls.astro draws it with `objection` alone.
 const LIST = rules.elements['post-list'].directive;
+const OBJECTION = rules.elements['consent-objection'].directive;
 
 // The module Body.astro's post lists take the site from (post-lists.js):
 // `presentations`, each presentation's component by its name, and `site`,
@@ -434,6 +436,7 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
   if (emptyList !== undefined && (typeof emptyList !== 'string' || emptyList.trim() === '')) throw new Error('Konzilo: emptyList must be a text');
   for (const name of Object.keys(directives)) {
     if (name === LIST.name) throw new Error(`Konzilo: the integration renders the directive ${name} itself, through the presentations the site registers in konzilo({ presentations })`);
+    if (name === OBJECTION.name) throw new Error(`Konzilo: the integration renders the directive ${name} itself, as the consent's right to object, where the site counts visits without storage before consent`);
   }
   const named = tokensOf(tokens);
   let root;
@@ -610,9 +613,10 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
         // Each page's Markdown alternate, made from the page as the dev
         // server renders it, at its own address; a preview has none.
         if (isPublicBuild(base)) server.middlewares.use(devMarkdown({ server, logger }));
-        // The Link headers of every page, and a page's Markdown at its own
-        // address to a request that prefers it, as the public host has them.
-        if (isPublicBuild(base)) server.middlewares.use(devDiscovery({ server, logger, origin: origin(), related: [LLMS, LLMS_FULL] }));
+        // The Link headers of a page with an alternate, and its Markdown at
+        // its own address to a request that prefers it, as the public host
+        // has them.
+        if (isPublicBuild(base)) server.middlewares.use(devDiscovery({ server, logger, origin: origin(), related: { llms: LLMS, llmsFull: LLMS_FULL } }));
         // llms-full.txt with them, made the same way, and llms.txt, which
         // lists the pages that have one; a preview has neither.
         if (isPublicBuild(base)) server.middlewares.use(devLlmsFull({ server, logger }));
@@ -633,7 +637,7 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
         if (alternates.length > 0) logger.info(`made the Markdown alternates of ${alternates.length} pages`);
         // The list of them for the public host's web server; a preview has
         // none.
-        if (isPublicBuild(base)) writeFileSync(new URL(MARKDOWN_LIST, dir), markdownList(alternates));
+        if (isPublicBuild(base)) writeFileSync(new URL(MARKDOWN_LIST, dir), markdownList(alternates, { llms: LLMS, llmsFull: LLMS_FULL }));
         // llms-full.txt holds them, as written, and llms.txt lists the
         // pages that have one.
         const full = writeLlmsFull(dir, (message) => logger.warn(message));
@@ -658,6 +662,10 @@ export default function konzilo({ directives = {}, presentations = {}, emptyList
         // per language, with their stylesheet.
         const consentScripts = isPublicBuild(base) ? writeConsentScripts(dir, { folder: resolve(root, contentFolder()), languages, origin: origin(), domain: consentShared }) : [];
         if (consentScripts.length > 0) logger.info(`wrote the consent scripts ${consentScripts.join(', ')}`);
+        // The public site's consent revision, with what its pages showed,
+        // for the service, which takes a record of a choice only of a
+        // revision the site has published; a preview's pages send none.
+        if (isPublicBuild(base)) writeConsentRevision(dir, { folder: resolve(root, contentFolder()), languages, base, origin: origin() });
         // The headers last, once the release holds every page, the
         // redirects' among them.
         const { code, problems } = releaseCode(fileURLToPath(dir));

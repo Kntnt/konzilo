@@ -8,6 +8,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { isDraft, readPost } from '../src/demo-content.js';
 import { demoSource, sourceFrom } from '../src/demo-source.js';
 import { imagesFrom } from '../src/intake/images.js';
 import { intake } from '../src/intake/index.js';
@@ -113,7 +114,9 @@ describe('the published demo content, as source files, through the intake and th
     const path = join(folder, name);
     return statSync(path).isDirectory() ? walk(path) : [path];
   });
-  const expected = new Map(walk(demo).map((path) => [relative(demo, path), readFileSync(path)]));
+  // A draft of the demo content publishes nothing, so nothing gives it back.
+  const drafted = (path) => path.endsWith('.md') && isDraft(readPost(readFileSync(path, 'utf8')).fields);
+  const expected = new Map(walk(demo).filter((path) => !drafted(path)).map((path) => [relative(demo, path), readFileSync(path)]));
 
   const source = demoSource(site, demo).map(({ path, content }) => ({ path, contents: content }));
   const once = async () => intake({
@@ -124,7 +127,7 @@ describe('the published demo content, as source files, through the intake and th
     images: await imagesFrom(source.filter(({ path }) => path.startsWith('media/'))),
   });
 
-  test('gives back every file, byte for byte where the format decides the bytes', async () => {
+  test('gives back every file but a draft, byte for byte where the format decides the bytes', async () => {
     const result = await once();
     assert.deepEqual(result.refusals, []);
     assert.deepEqual(result.warnings, []);

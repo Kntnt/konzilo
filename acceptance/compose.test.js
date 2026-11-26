@@ -336,7 +336,7 @@ describe('a site in Compose', () => {
 
   test('holds the demo content as source files, media in LFS', async () => {
     const articles = await api(`${repository()}/contents/articles`);
-    assert.equal(articles.length, 6);
+    assert.equal(articles.length, 7);
     for (const file of articles) assert.match(file.name, /^[0-9a-f]{12}\.md$/);
     const media = await api(`${repository()}/contents/media`);
     assert.ok(media.length > 0);
@@ -349,6 +349,17 @@ describe('a site in Compose', () => {
     assert.ok((await image.arrayBuffer()).byteLength > 1000, 'and LFS the file');
     const lfs = await api(`${repository()}/contents/.gitattributes`);
     assert.match(Buffer.from(lfs.content, 'base64').toString(), /media\/\*\* filter=lfs/);
+  });
+
+  // Something for a local copy's Reviewer to find in the live preview (ADR 0025).
+  test('holds the demo content\'s draft as a draft, listed so, which the public site does not show', async () => {
+    const draft = await fileNamed('articles', 'Distant workshops and the river');
+    assert.ok(draft, 'the draft\'s source file');
+    assert.match(draft.text, /^status: "?draft"?$/m);
+    const { posts } = await (await get(`${site.origin.admin}/_konzilo/status`, { headers: { authorization: `token ${token}` } })).json();
+    assert.equal(posts.find(({ file }) => file === draft.path)?.status, 'draft');
+    assert.equal((await get(`${site.origin.site}/distant-workshops-and-the-river/`)).status, 404);
+    assert.doesNotMatch(await (await get(`${site.origin.site}/`)).text(), /Distant workshops and the river/);
   });
 
   test('gives the account write access through its team, and no ownership, and Reviewers a team that reads', async () => {
@@ -1541,6 +1552,90 @@ describe('a site in Compose', () => {
     });
   });
 
+  describe('a visitor\'s consent', () => {
+    // What the service keeps of a consent ID, read through its store in its own container.
+    const recordsOf = (id) => JSON.parse(site.compose('exec', '-T', 'visitors', 'node', '--no-warnings', '--input-type=module', '-e', [
+      "import { openStore } from '/konzilo/src/service/store.js';",
+      "const store = openStore('/service-data/service.sqlite');",
+      `console.log(JSON.stringify(store.consentRecords.of(${JSON.stringify(id)})));`,
+      'store.close();',
+    ].join('\n')));
+    const record = (id, more = {}) => JSON.stringify({ id, chosen: new Date().toISOString(), revision: '0123456789abcdef', categories: {}, services: {}, how: 'banner', control: 'reject', path: '/', language: 'en-GB', ...more });
+
+    test('keeps a choice made in the banner as a record of what the visitor allowed and saw, with nothing of the visitor, refuses one from elsewhere, and shows them to an Admin per day, by consent ID and as CSV', async () => {
+      const browser = await ENGINES.chromium.launch();
+      let id;
+      let title;
+      try {
+        const context = await browser.newContext({ locale: 'en-GB', viewport: { width: 1280, height: 900 } });
+        const page = await context.newPage();
+        const refused = [];
+        page.on('console', (line) => {
+          if (/content.security.policy|refused to/i.test(line.text())) refused.push(line.text());
+        });
+        await page.goto(`${site.origin.site}/`);
+        const banner = page.locator('.konzilo-consent-banner');
+        await banner.waitFor({ state: 'visible' });
+        title = (await banner.locator('h2').textContent()).trim();
+        await banner.getByRole('button', { name: 'Accept all' }).click();
+        // Stored once the service has said so, when nothing waits beside the choice.
+        await page.waitForFunction(() => {
+          const kept = JSON.parse(localStorage.getItem('konzilo-consent'));
+          return typeof kept?.id === 'string' && kept.unsent === undefined;
+        }, null, { timeout: 15_000 });
+        id = await page.evaluate(() => JSON.parse(localStorage.getItem('konzilo-consent')).id);
+        assert.deepEqual(refused, []);
+      } finally {
+        await browser.close();
+      }
+      const [kept, ...more] = recordsOf(id);
+      assert.deepEqual(more, []);
+      assert.deepEqual(Object.keys(kept).sort(), ['categories', 'chosen', 'control', 'how', 'id', 'language', 'path', 'revision', 'services', 'shown']);
+      assert.deepEqual([kept.id, kept.how, kept.control, kept.path, kept.language], [id, 'banner', 'accept', '/', 'en-GB']);
+      assert.ok(Object.values(kept.services).every((allowed) => allowed === true), JSON.stringify(kept.services));
+      assert.equal(kept.shown.banner.title, title, 'with what the banner said');
+      const held = site.compose('exec', '-T', 'visitors', 'sh', '-c', 'cat /service-data/*');
+      for (const words of ['Mozilla', 'HeadlessChrome']) assert.ok(!held.includes(words), words);
+
+      // Not from the site's own pages, or of a revision it never published.
+      const send = (body, origin) => get(`${site.origin.site}/_konzilo/consent`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: origin }, body });
+      const other = '00000000-0000-4000-8000-000000000001';
+      assert.equal((await send(record(other, { revision: kept.revision, categories: kept.categories, services: kept.services }), 'https://elsewhere.example')).status, 403);
+      assert.equal((await send(record(other), site.origin.site)).status, 400);
+      assert.deepEqual(recordsOf(other), []);
+
+      const session = await openEditor('chromium', site);
+      try {
+        await signIn(session, site);
+        const { page } = session;
+        await page.getByRole('radio', { name: 'Consent records', exact: true }).click();
+        const today = new Date().toISOString().slice(0, 10);
+        const row = page.getByRole('row', { name: new RegExp(`^${today}`) });
+        await row.waitFor();
+        assert.ok(Number(await row.getByRole('cell').first().textContent()) >= 1, 'Accept all, today');
+
+        await page.getByLabel('Consent ID', { exact: true }).fill(` ${id.toUpperCase()} `);
+        await page.getByRole('button', { name: 'Find', exact: true }).click();
+        await page.getByText('Records: 1.', { exact: true }).waitFor();
+        await page.getByText('What the visitor was shown').click();
+        await page.getByText(title, { exact: true }).first().waitFor();
+
+        const [file] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Download as CSV' }).click()]);
+        assert.match(file.suggestedFilename(), /^consent-records-\d{4}-\d\d-\d\d\.csv$/);
+        const [header, ...rows] = readCsv(readFileSync(await file.path()).toString('utf8'), ',');
+        assert.deepEqual(header.slice(0, 3), ['Consent ID', 'Made at (UTC)', 'Consent revision']);
+        const mine = rows.find((one) => one[0] === id);
+        assert.ok(mine, 'the record is in the file');
+        assert.deepEqual(mine.slice(5, 7), ['Banner', 'Accept all']);
+        assert.deepEqual(session.seen.outside, []);
+        assert.deepEqual(session.seen.refused, []);
+        assert.deepEqual(session.seen.errors, []);
+      } finally {
+        await session.browser.close();
+      }
+    }, { timeout: 300_000 });
+  });
+
   describe('publishing', () => {
     let category;
     const file = (id) => `articles/${id}.md`;
@@ -1643,6 +1738,27 @@ describe('a site in Compose', () => {
         assert.equal(answer.headers.get('content-type'), 'application/rss+xml; charset=utf-8', address);
         assert.match(await answer.text(), /^<\?xml[^>]*\?>\s*<rss /, address);
       }
+    });
+
+    // A post's Markdown alternate (ADR 0047), which a publish adds and the web server finds by the
+    // release's marks.
+    test('links a post\'s Markdown alternate once it is published, and answers it at the post\'s address to a request that prefers Markdown', async () => {
+      await saveFile(file('0b0b0b0b0b0b'), published('a-post-for-agents', {}, 'Words an agent reads.'), 'anna');
+      await onTheSite('/a-post-for-agents/', 'Words an agent reads.');
+      const page = await get(`${site.origin.site}/a-post-for-agents/`);
+      const links = page.headers.get('link')?.split(/, (?=<)/) ?? [];
+      assert.equal(links[0], `<${site.origin.site}/a-post-for-agents.md>; rel="alternate"; type="text/markdown"`);
+      assert.ok(links.includes(`<${site.origin.site}/llms.txt>; rel="related"; type="text/plain"`), links.join('\n'));
+      assert.match(page.headers.get('vary') ?? '', /\bAccept\b/);
+      const markdown = await get(`${site.origin.site}/a-post-for-agents/`, { headers: { accept: 'text/markdown' } });
+      assert.equal(markdown.headers.get('content-type'), 'text/markdown; charset=utf-8');
+      assert.equal(markdown.headers.get('link'), `<${site.origin.site}/a-post-for-agents/>; rel="canonical"`);
+      assert.match(await markdown.text(), /Words an agent reads\./);
+      for (const accept of ['text/html, text/markdown', '*/*']) {
+        assert.match((await get(`${site.origin.site}/a-post-for-agents/`, { headers: { accept } })).headers.get('content-type'), /^text\/html/, accept);
+      }
+      assert.equal((await get(`${site.origin.site}/a-post-for-agents.md`)).headers.get('link'), `<${site.origin.site}/a-post-for-agents/>; rel="canonical"`);
+      assert.equal((await get(`${site.origin.site}/_konzilo/alternates/markdown/a-post-for-agents.md`)).status, 404, 'and no mark is a visitor\'s');
     });
 
     // Search (ADR 0053): what is published, through the web server's route to Typesense, which
