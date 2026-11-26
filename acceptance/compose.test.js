@@ -1564,9 +1564,10 @@ describe('a site in Compose', () => {
   describe('a visitor\'s consent', () => {
     // What the service keeps of a consent ID, read through its store in its own container.
     const recordsOf = (id) => JSON.parse(site.compose('exec', '-T', 'visitors', 'node', '--no-warnings', '--input-type=module', '-e', [
+      "import { consentRecordStore } from '/konzilo/src/service/consent-records.js';",
       "import { openStore } from '/konzilo/src/service/store.js';",
       "const store = openStore('/service-data/service.sqlite');",
-      `console.log(JSON.stringify(store.consentRecords.of(${JSON.stringify(id)})));`,
+      `console.log(JSON.stringify(consentRecordStore(store).of(${JSON.stringify(id)})));`,
       'store.close();',
     ].join('\n')));
     const record = (id, more = {}) => JSON.stringify({ id, chosen: new Date().toISOString(), revision: '0123456789abcdef', categories: {}, services: {}, how: 'banner', control: 'reject', path: '/', language: 'en-GB', ...more });
