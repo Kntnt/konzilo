@@ -101,6 +101,9 @@ describe('an Admin\'s purge', () => {
           files: Object.keys(one.files).map((filename) => ({ filename })),
         })));
       }
+      if (pathname.startsWith('/api/v1/repos/org/source/git/commits/')) {
+        return commits.some(({ sha }) => sha === pathname.split('/').at(-1)) ? answerOf({}) : answerOf({ message: 'object does not exist' }, 404);
+      }
       if (pathname.startsWith('/api/v1/repos/org/source/git/trees/')) {
         const files = {};
         for (const one of upTo(head)) Object.assign(files, one.files);
