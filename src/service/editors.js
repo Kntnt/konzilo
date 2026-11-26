@@ -8,56 +8,35 @@
 // *Policy violations* (ADR 0051), and the incoming feeds an Admin adds, changes and removes on the
 // *Feeds* page (ADR 0079), whose posts no form saves. Forgejo's webhook only says that something
 // may have happened: the build looks for itself, so a request here decides nothing, and needs no
-// secret. Everything an editor asks goes by what Forgejo says of the one asking, each time.
+// secret. Everything an editor asks goes by what Forgejo says of the one asking, each time. Each
+// of the Admin's pages but *Personal data* is a module of its own, which owns its paths and answers
+// them as answers.js does; this routes each request to it.
 
 import { ADMINS_TEAM } from '../build/roles.js';
 import { publishStatus } from '../build/status.js';
 import { accountName, CREDENTIAL, mayWrite, organisationTeams } from '../forgejo.js';
 import { FORM_NAME } from '../site-description.js';
+import { answerCsv, answerJson, answerMethods, asAdmin } from './answers.js';
 import { consentRecordsPage } from './consent-records-admin.js';
-import { checkFeed, feedsShown, refusedPosts } from './feed-settings.js';
-import { FAILURE_SETTING, MAIL_SETTING } from './mail.js';
-import { checkMailSettings, mailSettingsShown } from './mail-settings.js';
+import { refusedPosts } from './feed-settings.js';
+import { feedsPage } from './feeds-admin.js';
 import { isAdminsForm, isForm, isTab, lockTable } from './locks.js';
+import { mailPage } from './mail-admin.js';
+import { notFoundPage } from './not-found-admin.js';
 import { findSubmissions, idsOf, soughtOf } from './personal-data.js';
 import { isSourcePath, sourceHistory } from './revisions.js';
-import { bodyOf } from './request-body.js';
-import { retentionDuty } from './retention.js';
 import { SEPARATORS, submissionsCsv, timeZoneOf } from './submissions-csv.js';
-import { violationCounts, VIOLATIONS_PATH } from './violations.js';
-
-const answerJson = (outgoing, status, body) => {
-  outgoing.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
-  outgoing.end(JSON.stringify(body));
-};
+import { violationsPage } from './violations-admin.js';
 
 const SUBMISSIONS = '/_konzilo/submissions';
-const MAIL = '/_konzilo/mail';
 const PERSONAL_DATA = '/_konzilo/personal-data';
 const LOCKS = '/_konzilo/locks';
 const REVISIONS = '/_konzilo/revisions';
 const DELETED = '/_konzilo/deleted';
-const NOT_FOUND = '/_konzilo/not-found';
-// The most an address to hide takes, as JSON.
-const HIDDEN_BODY_LIMIT = 4096;
-const FEEDS = '/_konzilo/feeds';
-// The most the *Mail* page's settings take, as JSON, and a feed's on the *Feeds* page.
-const MAIL_BODY_LIMIT = 64 * 1024;
 // A form's submissions are shown this many at a time, newest first.
 const SUBMISSIONS_AT_ONCE = 50;
 
 export const nextMinute = (at) => 60_000 - (at % 60_000);
-
-// Until an answer has room for more, or is gone.
-const drained = (outgoing) => new Promise((go) => {
-  const goOn = () => {
-    outgoing.off('drain', goOn);
-    outgoing.off('close', goOn);
-    go();
-  };
-  outgoing.on('drain', goOn);
-  outgoing.on('close', goOn);
-});
 
 // A page of pictures would ask Forgejo once for each, about the same person, so an answer holds a
 // moment: long enough for that page, and short enough that a person taken off the site is told no.
@@ -112,18 +91,24 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
     return await mayWrite({ forgejo, repository, credential, get }) ? 'writer' : null;
   };
   // Whether a role may use the Admin's pages, *Mail*, *Personal data*, *Consent records*,
-  // *Addresses not found* and *Policy violations*: an Admin's, and the instance administrator's.
+  // *Addresses not found*, *Policy violations* and *Feeds*: an Admin's, and the instance
+  // administrator's; and whether the one asking may, by their credential, or null for whoever may
+  // not write.
   const usesAdminPages = (role) => role === 'admin' || role === 'instanceAdministrator';
-  // The consent records, an Admin's (ADR 0049).
-  const consentRecords = consentRecordsPage({
-    store,
-    adminOf: async (credential) => {
-      const role = await roleOf(credential);
-      return role === null ? null : usesAdminPages(role);
-    },
-    answerJson,
-    answerCsv: (...given) => answerCsv(...given),
-  });
+  const adminOf = async (credential) => {
+    const role = await roleOf(credential);
+    return role === null ? null : usesAdminPages(role);
+  };
+  // The Admin's pages that are modules of their own, each owning its paths: *Mail* (ADR 0003),
+  // *Consent records* (ADR 0049), *Addresses not found* (ADR 0040), *Policy violations*
+  // (ADR 0051) and *Feeds* (ADR 0079).
+  const adminPages = [
+    mailPage({ store, forms, local, adminOf, now }),
+    consentRecordsPage({ store, adminOf, warn }),
+    notFoundPage({ notFound, adminOf, forgejo, repository, token, get, warn }),
+    violationsPage({ store, adminOf }),
+    feedsPage({ store, feeds, site, record: () => control.record(), adminOf, now, warn }),
+  ];
 
   // Who is asking, for the locks, which a tab asks about again and again: { login, name, admin },
   // `name` the account's full name, else its login, and `admin` whether its role saves an
@@ -173,10 +158,7 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
   const answerLocks = async (incoming, outgoing, below, searchParams) => {
     incoming.resume();
     const methods = below === '' ? ['GET', 'DELETE'] : ['PUT', 'DELETE'];
-    if (!methods.includes(incoming.method)) {
-      outgoing.writeHead(405, { allow: methods.join(', '), 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
-      return outgoing.end('{}');
-    }
+    if (!methods.includes(incoming.method)) return answerMethods(incoming, outgoing, methods);
     const person = await personOf(incoming.headers.authorization);
     if (person === null) return answerJson(outgoing, 401, {});
     const tab = searchParams.get('tab');
@@ -231,10 +213,7 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
   const history = sourceHistory({ forgejo, repository, token, pushesToken: pushesToken ?? token, get, ...revisions });
   const answerRevisions = async (incoming, outgoing, searchParams) => {
     incoming.resume();
-    if (incoming.method !== 'GET') {
-      outgoing.writeHead(405, { allow: 'GET', 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
-      return outgoing.end('{}');
-    }
+    if (incoming.method !== 'GET') return answerMethods(incoming, outgoing, ['GET']);
     if (await personOf(incoming.headers.authorization) === null) return answerJson(outgoing, 401, {});
     const path = searchParams.get('path');
     const page = Number(searchParams.get('page') ?? '1');
@@ -251,10 +230,7 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
   // open their forms: a page at a time, newest deletion first, of one collection where it is named.
   const answerDeleted = async (incoming, outgoing, searchParams) => {
     incoming.resume();
-    if (incoming.method !== 'GET') {
-      outgoing.writeHead(405, { allow: 'GET', 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
-      return outgoing.end('{}');
-    }
+    if (incoming.method !== 'GET') return answerMethods(incoming, outgoing, ['GET']);
     if (await personOf(incoming.headers.authorization) === null) return answerJson(outgoing, 401, {});
     const page = Number(searchParams.get('page') ?? '1');
     const collection = searchParams.get('collection');
@@ -267,148 +243,6 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
     }
   };
 
-  // How the site mails the forms' submissions, and how long it keeps them, to an Admin alone: an
-  // Editor is told only that it is an Admin's, and whoever may not write nothing. A save makes
-  // what waits to be tried again due at once, since what failed may now go, and forgets at once
-  // what is older than the retention it sets.
-  const answerMail = async (incoming, outgoing) => {
-    if (!['GET', 'PUT'].includes(incoming.method)) {
-      incoming.resume();
-      outgoing.writeHead(405, { allow: 'GET, PUT', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
-      return outgoing.end();
-    }
-    if (!store) return answerJson(outgoing, 404, {});
-    const role = await roleOf(incoming.headers.authorization);
-    if (!usesAdminPages(role)) {
-      incoming.resume();
-      return answerJson(outgoing, role === null ? 401 : 403, {});
-    }
-    const shown = () => mailSettingsShown({ store, forms: forms(), local });
-    if (incoming.method === 'GET') return answerJson(outgoing, 200, shown());
-    if ((incoming.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase() !== 'application/json') {
-      incoming.resume();
-      return answerJson(outgoing, 415, {});
-    }
-    if (Number(incoming.headers['content-length'] ?? 0) > MAIL_BODY_LIMIT) {
-      outgoing.shouldKeepAlive = false;
-      incoming.resume();
-      return answerJson(outgoing, 413, {});
-    }
-    const body = await bodyOf(incoming, MAIL_BODY_LIMIT);
-    if (body === null) {
-      outgoing.shouldKeepAlive = false;
-      return answerJson(outgoing, 413, {});
-    }
-    let given;
-    try {
-      given = JSON.parse(body.toString('utf8'));
-    } catch {
-      return answerJson(outgoing, 400, { problems: { '': 'malformed' } });
-    }
-    const checked = checkMailSettings(given, { store, forms: forms() });
-    if (checked.problems) return answerJson(outgoing, 400, { problems: checked.problems });
-    store.setSetting(MAIL_SETTING, checked.mail);
-    for (const [form, settings] of Object.entries(checked.forms)) store.setFormSettings(form, settings);
-    store.setSetting(FAILURE_SETTING, null);
-    store.mailSoon(now());
-    retentionDuty({ store, now }).run();
-    return answerJson(outgoing, 200, shown());
-  };
-
-  // The counts of what the site's policy blocked (ADR 0051), to an Admin alone, as the *Mail*
-  // page's settings are: an Editor is told only that they are an Admin's, and whoever may not write
-  // nothing.
-  const violations = store ? violationCounts(store) : null;
-  const answerViolations = async (incoming, outgoing) => {
-    incoming.resume();
-    if (incoming.method !== 'GET') {
-      outgoing.writeHead(405, { allow: 'GET', 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
-      return outgoing.end('{}');
-    }
-    if (!violations) return answerJson(outgoing, 404, {});
-    const role = await roleOf(incoming.headers.authorization);
-    if (!usesAdminPages(role)) return answerJson(outgoing, role === null ? 401 : 403, {});
-    return answerJson(outgoing, 200, violations.shown());
-  };
-
-  // The incoming feeds (ADR 0079), to an Admin alone, as the mail settings are: an Editor is told
-  // only that they are an Admin's, and whoever may not write nothing. A feed added is read at
-  // once, which takes its first read, and a feed removed releases its posts before it goes, or
-  // stays where they could not be saved.
-  const answerFeeds = async (incoming, outgoing, below) => {
-    const methods = below === '' ? ['GET', 'POST'] : ['PUT', 'DELETE'];
-    if (!methods.includes(incoming.method)) {
-      incoming.resume();
-      outgoing.writeHead(405, { allow: methods.join(', '), 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
-      return outgoing.end('{}');
-    }
-    if (!store || !feeds || !site()) {
-      incoming.resume();
-      return answerJson(outgoing, 404, {});
-    }
-    const role = await roleOf(incoming.headers.authorization);
-    if (!usesAdminPages(role)) {
-      incoming.resume();
-      return answerJson(outgoing, role === null ? 401 : 403, {});
-    }
-    const shown = () => feedsShown({ store, site: site(), record: control.record() });
-    if (incoming.method === 'GET') return answerJson(outgoing, 200, shown());
-    const id = below === '' ? null : Number(below.slice(1));
-    if (id !== null && (!Number.isSafeInteger(id) || !store.feeds().some((one) => one.id === id))) {
-      incoming.resume();
-      return answerJson(outgoing, 404, {});
-    }
-    if (incoming.method === 'DELETE') {
-      incoming.resume();
-      try {
-        await feeds.release(id);
-      } catch (error) {
-        warn(`The feed's posts could not be released: ${error.message}`);
-        return answerJson(outgoing, 502, {});
-      }
-      return answerJson(outgoing, 200, shown());
-    }
-    const given = await jsonOf(incoming, outgoing);
-    if (given === undefined) return undefined;
-    const checked = checkFeed(given, { store, site: site(), id });
-    if (checked.problems) return answerJson(outgoing, 400, { problems: checked.problems });
-    if (id === null) {
-      const added = store.addFeed({ ...checked.feed, at: now() });
-      void feeds.read(added).catch((error) => warn(`The feed reader broke: ${error.message}`));
-      return answerJson(outgoing, 201, shown());
-    }
-    store.changeFeed(id, checked.feed);
-    return answerJson(outgoing, 200, shown());
-  };
-
-  // A request's JSON, up to the most a setting takes, or undefined where it was answered already,
-  // as one too large or of another type.
-  const jsonOf = async (incoming, outgoing) => {
-    if ((incoming.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase() !== 'application/json') {
-      incoming.resume();
-      answerJson(outgoing, 415, {});
-      return undefined;
-    }
-    if (Number(incoming.headers['content-length'] ?? 0) > MAIL_BODY_LIMIT) {
-      outgoing.shouldKeepAlive = false;
-      incoming.resume();
-      answerJson(outgoing, 413, {});
-      return undefined;
-    }
-    const body = await bodyOf(incoming, MAIL_BODY_LIMIT);
-    if (body === null) {
-      outgoing.shouldKeepAlive = false;
-      answerJson(outgoing, 413, {});
-      return undefined;
-    }
-    try {
-      return JSON.parse(body.toString('utf8'));
-    } catch {
-      answerJson(outgoing, 400, { problems: { '': 'malformed' } });
-      return undefined;
-    }
-  };
-
   // A person's submissions (ADR 0045), to an Admin alone, as privacy law asks: those that hold what
   // the Admin searches by, in every form, spam among them, each with its form's label; those the
   // Admin chooses as CSV, by the separator, in the time zone and in the interface language the
@@ -417,13 +251,9 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
   const answerPersonalData = async (incoming, outgoing, asCsv, searchParams) => {
     incoming.resume();
     const methods = asCsv ? ['GET'] : ['GET', 'DELETE'];
-    if (!methods.includes(incoming.method)) {
-      outgoing.writeHead(405, { allow: methods.join(', '), 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
-      return outgoing.end('{}');
-    }
+    if (!methods.includes(incoming.method)) return answerMethods(incoming, outgoing, methods);
     if (!store) return answerJson(outgoing, 404, {});
-    const role = await roleOf(incoming.headers.authorization);
-    if (!usesAdminPages(role)) return answerJson(outgoing, role === null ? 401 : 403, {});
+    if (!await asAdmin(incoming, outgoing, adminOf)) return undefined;
     const declared = forms();
     const labelOf = (form) => declared[form]?.label ?? form;
     if (incoming.method === 'GET' && !asCsv) {
@@ -447,78 +277,7 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
       separator,
       timeZone: timeZoneOf(searchParams.get('timeZone')),
       language: searchParams.get('language'),
-    }));
-  };
-
-  // The rules the source's `redirects.json` holds, as it stands now: an Admin's save of a rule
-  // has just written it, before any build. None where there is no file, or none the site reads.
-  // Throws where Forgejo cannot be asked.
-  const sourceRules = async () => {
-    const answer = await get(`${forgejo}/api/v1/repos/${repository}/raw/redirects.json?ref=main`, { headers: { authorization: `token ${token}` } });
-    if (answer.status === 404) return [];
-    if (!answer.ok) throw new Error(`Forgejo answered ${answer.status} about redirects.json`);
-    let given;
-    try {
-      given = JSON.parse(await answer.text());
-    } catch {
-      return [];
-    }
-    return Array.isArray(given) ? given : Array.isArray(given?.rules) ? given.rules : [];
-  };
-
-  // The addresses visitors asked for in vain (ADR 0040), to an Admin alone, folded as the page
-  // asks: each with how often and when last, most asked first, but those an Admin hid and those a
-  // rule holds; and one hidden, which goes on being counted. An Editor is told only that it is an
-  // Admin's, and whoever may not write nothing.
-  const answerNotFound = async (incoming, outgoing, below) => {
-    const method = below === '' ? 'GET' : 'POST';
-    if (below !== '' && below !== '/hidden') {
-      incoming.resume();
-      return answerJson(outgoing, 404, {});
-    }
-    if (incoming.method !== method) {
-      incoming.resume();
-      outgoing.writeHead(405, { allow: method, 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
-      return outgoing.end('{}');
-    }
-    if (!notFound) {
-      incoming.resume();
-      return answerJson(outgoing, 404, {});
-    }
-    const role = await roleOf(incoming.headers.authorization);
-    if (!usesAdminPages(role)) {
-      incoming.resume();
-      return answerJson(outgoing, role === null ? 401 : 403, {});
-    }
-    if (method === 'POST') {
-      if ((incoming.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase() !== 'application/json') {
-        incoming.resume();
-        return answerJson(outgoing, 415, {});
-      }
-      const body = await bodyOf(incoming, HIDDEN_BODY_LIMIT);
-      if (body === null) {
-        outgoing.shouldKeepAlive = false;
-        return answerJson(outgoing, 413, {});
-      }
-      let address;
-      try {
-        ({ address } = JSON.parse(body.toString('utf8')) ?? {});
-      } catch {
-        address = undefined;
-      }
-      if (typeof address !== 'string') return answerJson(outgoing, 400, {});
-      if (!notFound.hide(address)) return answerJson(outgoing, 404, {});
-    } else {
-      incoming.resume();
-    }
-    let rules;
-    try {
-      rules = await sourceRules();
-    } catch (error) {
-      warn(`The addresses not found could not be told: ${error.message}`);
-      return answerJson(outgoing, 502, {});
-    }
-    return answerJson(outgoing, 200, { addresses: notFound.listed({ sourceRules: rules }) });
+    }), warn);
   };
 
   const answerPicture = async (incoming, outgoing, of) => {
@@ -572,7 +331,7 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
           separator,
           timeZone: timeZoneOf(searchParams.get('timeZone')),
           language: searchParams.get('language'),
-        }));
+        }), warn);
       } finally {
         reading.close();
       }
@@ -584,39 +343,6 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
       submissions: shown.slice(0, SUBMISSIONS_AT_ONCE).map(({ id, sentAt, language, fields }) => ({ id, sentAt, language, fields })),
       more: shown.length > SUBMISSIONS_AT_ONCE,
     });
-  };
-
-  // A file written a piece at a time, as its pieces are read, never held whole. Its first piece is
-  // read before anything is answered, so that what breaks while the store is first read is a 500;
-  // what breaks after it ends the answer unfinished, which a browser reports as a failed download
-  // rather than keep a file cut short. Either is said in the service's log.
-  const answerCsv = async (outgoing, name, pieces) => {
-    const broke = (error) => warn(`The service could not write ${name}.csv: ${error.stack ?? error.message}`);
-    let piece;
-    try {
-      piece = pieces.next();
-    } catch (error) {
-      broke(error);
-      return answerJson(outgoing, 500, {});
-    }
-    outgoing.writeHead(200, {
-      'content-type': 'text/csv; charset=utf-8; header=present',
-      'content-disposition': `attachment; filename="${name}.csv"`,
-      'cache-control': 'no-store',
-      'x-content-type-options': 'nosniff',
-    });
-    try {
-      for (; !piece.done; piece = pieces.next()) {
-        if (outgoing.destroyed) return;
-        if (!outgoing.write(piece.value)) await drained(outgoing);
-      }
-      outgoing.end();
-    } catch (error) {
-      broke(error);
-      outgoing.destroy();
-    } finally {
-      pieces.return();
-    }
   };
 
   // Each file in the source as it stands, with its version.
@@ -655,15 +381,12 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
       }
       if (pathname === '/_konzilo/thumbnail') return answerPicture(incoming, outgoing, searchParams.get('of'));
       if (pathname === SUBMISSIONS || pathname.startsWith(`${SUBMISSIONS}/`)) return answerSubmissions(incoming, outgoing, pathname.slice(SUBMISSIONS.length), searchParams);
-      if (pathname === MAIL) return answerMail(incoming, outgoing);
       if (pathname === PERSONAL_DATA || pathname === `${PERSONAL_DATA}.csv`) return answerPersonalData(incoming, outgoing, pathname.endsWith('.csv'), searchParams);
       if (pathname === LOCKS || pathname.startsWith(`${LOCKS}/`)) return answerLocks(incoming, outgoing, pathname.slice(LOCKS.length), searchParams);
       if (pathname === REVISIONS) return answerRevisions(incoming, outgoing, searchParams);
       if (pathname === DELETED) return answerDeleted(incoming, outgoing, searchParams);
-      if (consentRecords.owns(pathname)) return consentRecords.answer(incoming, outgoing, pathname, searchParams);
-      if (pathname === NOT_FOUND || pathname.startsWith(`${NOT_FOUND}/`)) return answerNotFound(incoming, outgoing, pathname.slice(NOT_FOUND.length));
-      if (pathname === VIOLATIONS_PATH) return answerViolations(incoming, outgoing);
-      if (pathname === FEEDS || pathname.startsWith(`${FEEDS}/`)) return answerFeeds(incoming, outgoing, pathname.slice(FEEDS.length));
+      const page = adminPages.find((one) => one.owns(pathname));
+      if (page) return page.answer(incoming, outgoing, pathname, searchParams);
       return answerJson(outgoing, 404, {});
     },
 

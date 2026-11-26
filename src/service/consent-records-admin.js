@@ -6,6 +6,7 @@
 import { catalogueFor, text } from '../catalogues.js';
 import { CONSENT_ID } from '../consent/consent-id.js';
 import { momentIn } from '../submission-values.js';
+import { answerCsv, answerJson, answerMethods, asAdmin } from './answers.js';
 import { consentRecordStore } from './consent-records.js';
 import { DAY } from './day.js';
 import { row, SEPARATORS } from './submissions-csv.js';
@@ -77,25 +78,20 @@ export function* consentRecordsCsv({ each, separator, language }) {
   }
 }
 
-// The page's answers. `store`: as store.js opens it. `adminOf(credential)`: whether the one asking
-// may use the Admin's pages, true or false, or null for whoever may not write. `answerJson` and
-// `answerCsv`: how the role for editors answers JSON, and a file written a piece at a time.
+// The page's answers. `store`: as store.js opens it, or null. `adminOf(credential)`: as answers.js's
+// asAdmin() takes it. `warn`: the service's log.
 //
 // Gives { owns(pathname), answer(incoming, outgoing, pathname, searchParams) }.
-export function consentRecordsPage({ store, adminOf, answerJson, answerCsv }) {
+export function consentRecordsPage({ store, adminOf, warn = console.error }) {
   const records = store ? consentRecordStore(store) : null;
   return {
     owns: (pathname) => pathname === CONSENT_RECORDS_PAGE_PATH || pathname === `${CONSENT_RECORDS_PAGE_PATH}.csv`,
 
     async answer(incoming, outgoing, pathname, searchParams) {
+      if (incoming.method !== 'GET') return answerMethods(incoming, outgoing, ['GET']);
       incoming.resume();
-      if (incoming.method !== 'GET') {
-        outgoing.writeHead(405, { allow: 'GET', 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
-        return outgoing.end('{}');
-      }
       if (!store) return answerJson(outgoing, 404, {});
-      const admin = await adminOf(incoming.headers.authorization);
-      if (admin !== true) return answerJson(outgoing, admin === null ? 401 : 403, {});
+      if (!await asAdmin(incoming, outgoing, adminOf)) return undefined;
       if (pathname.endsWith('.csv')) {
         const span = spanOf(searchParams);
         const separator = searchParams.get('separator');
@@ -103,7 +99,7 @@ export function consentRecordsPage({ store, adminOf, answerJson, answerCsv }) {
         // The rows from one moment's data, whatever is kept or forgotten while they are written.
         const reading = records.snapshot(span.from, span.to);
         try {
-          return await answerCsv(outgoing, 'consent-records', consentRecordsCsv({ each: () => reading.each(), separator, language: searchParams.get('language') }));
+          return await answerCsv(outgoing, 'consent-records', consentRecordsCsv({ each: () => reading.each(), separator, language: searchParams.get('language') }), warn);
         } finally {
           reading.close();
         }
