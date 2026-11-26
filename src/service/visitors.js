@@ -14,7 +14,7 @@ import { createHmac } from 'node:crypto';
 
 import { consentRecordsKind, publishedRevisions } from './consent-records.js';
 import { formsKind } from './forms.js';
-import { bodyOf } from './request-body.js';
+import { bodyOf, refuseTooLarge } from './request-body.js';
 import { violationsKind } from './violations.js';
 
 // The headers the web server passes on beside the browser's own (compose/web/Caddyfile, and
@@ -121,15 +121,9 @@ export function visitorsService({ site, store, hosts = [], releases = null, now 
           return write(outgoing, { status: 415 });
         }
         const declared = Number(header(incoming.headers, 'content-length') ?? 0);
-        if (declared > kind.limit) {
-          outgoing.shouldKeepAlive = false;
-          return write(outgoing, { status: 413 });
-        }
+        if (declared > kind.limit) return refuseTooLarge(incoming, outgoing);
         body = await bodyOf(incoming, kind.limit);
-        if (body === null) {
-          outgoing.shouldKeepAlive = false;
-          return write(outgoing, { status: 413 });
-        }
+        if (body === null) return refuseTooLarge(incoming, outgoing);
       } else {
         incoming.resume();
       }
