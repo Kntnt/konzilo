@@ -227,7 +227,7 @@ export function deletedPage({ config, history, lock }) {
     const [opened, setOpened] = useState(null);
     const [standing, setStanding] = useState(null);
     const [purging, setPurging] = useState(null);
-    const [purged] = useState(() => purgedBefore());
+
     const back = useRef(null);
     const purgeFrom = useRef(null);
     // Whether the one reading is an Admin, who may purge, and the purges made before.
@@ -241,6 +241,7 @@ export function deletedPage({ config, history, lock }) {
       };
     }, []);
     const admin = standing?.admin === true;
+    const purged = admin ? purgedBefore(standing.purge) : null;
     const onPurge = (row) => {
       purgeFrom.current = document.activeElement;
       setPurging(row);

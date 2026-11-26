@@ -16,17 +16,33 @@ const LOOK = 2000;
 // What this tab purged, said once after it loads again.
 const PURGED_KEY = 'konzilo-purged';
 
-// What this tab purged before it loaded again, or null: taken once from the tab's storage, and
-// said for as long as the page is open.
-let purgedLast;
-export function purgedBefore() {
-  if (purgedLast !== undefined) return purgedLast;
+// The purge this tab asked for, { id, title }, kept in the tab's storage from the moment it starts,
+// since every tab that saw it coming loads again once it is done (lock/register.js), before this
+// page may have seen it done.
+const asked = (purge, title) => {
   try {
-    purgedLast = globalThis.sessionStorage?.getItem(PURGED_KEY) ?? null;
-    globalThis.sessionStorage?.removeItem(PURGED_KEY);
+    globalThis.sessionStorage?.setItem(PURGED_KEY, JSON.stringify({ id: purge.id, title }));
+  } catch { /* Nothing said after the page loads again, then. */ }
+};
+
+// What this tab purged before it loaded again, by `purge`, the last purge as the service tells it
+// to an Admin: its entry's name, where it is the purge this tab asked for and is done, else null.
+// What the tab kept goes once that purge has ended, and is said for as long as the page is open.
+let purgedLast;
+export function purgedBefore(purge) {
+  if (purgedLast !== undefined) return purgedLast;
+  let kept = null;
+  try {
+    kept = JSON.parse(globalThis.sessionStorage?.getItem(PURGED_KEY) ?? 'null');
   } catch {
-    purgedLast = null;
+    kept = null;
   }
+  if (kept === null || purge?.id !== kept.id) return null;
+  if (!['done', 'failed'].includes(purge.state)) return null;
+  try {
+    globalThis.sessionStorage?.removeItem(PURGED_KEY);
+  } catch { /* Said once all the same. */ }
+  purgedLast = purge.state === 'done' ? kept.title : null;
   return purgedLast;
 }
 
@@ -81,12 +97,7 @@ export function PurgeDialog({ row, service, collectionOf, onClose }) {
         return;
       }
       setPurge(shown);
-      if (shown.state === 'done') {
-        try {
-          globalThis.sessionStorage?.setItem(PURGED_KEY, title);
-        } catch { /* Said by the page's own line, then. */ }
-        setTimeout(() => globalThis.location.reload(), LOOK);
-      }
+      if (shown.state === 'done') setTimeout(() => globalThis.location.reload(), LOOK);
     };
     const timer = setInterval(look, LOOK);
     void look();
@@ -119,6 +130,7 @@ export function PurgeDialog({ row, service, collectionOf, onClose }) {
         return;
       }
       ours.current = answer.purge.id;
+      asked(answer.purge, title);
       setPurge(answer.purge);
       setStep('progress');
     } catch (error) {

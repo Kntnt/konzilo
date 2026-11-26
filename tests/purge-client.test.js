@@ -51,3 +51,19 @@ test('asks for a purge by the entry\'s path and the course, and stops one that w
   assert.equal(await service.stop(), false);
   assert.equal(asked.at(-1).method, 'DELETE');
 });
+
+test('says what this tab purged once the page loads again, by the purge it asked for, and once that is done', async () => {
+  const kept = new Map();
+  globalThis.sessionStorage = { getItem: (key) => kept.get(key) ?? null, setItem: (key, value) => kept.set(key, value), removeItem: (key) => kept.delete(key) };
+  try {
+    const { purgedBefore } = await import('../src/cms/deleted/purge-dialog.js');
+    kept.set('konzilo-purged', JSON.stringify({ id: 'p1', title: 'The meadow' }));
+    assert.equal(purgedBefore({ id: 'p0', state: 'done' }), null, 'another purge');
+    assert.equal(purgedBefore({ id: 'p1', state: 'running' }), null, 'not before it is done');
+    assert.equal(purgedBefore({ id: 'p1', state: 'done' }), 'The meadow');
+    assert.equal(kept.has('konzilo-purged'), false, 'said once');
+    assert.equal(purgedBefore({ id: 'p1', state: 'done' }), 'The meadow', 'for as long as the page is open');
+  } finally {
+    delete globalThis.sessionStorage;
+  }
+});
