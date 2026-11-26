@@ -187,7 +187,9 @@ export async function markdownLink(page, astro) {
 
 // What Head.astro writes for the page's alternate where its build finds it,
 // or '' for a page that takes part in none: MARK, holding the alternate's
-// address, the page's canonical address, its title and the front matter.
+// address, the page's canonical address, its title, the front matter, and
+// whether the page's row has llms.txt and llms-full.txt on, which its Link
+// header names.
 // The page is as Head.astro has it: `entry`, the entry it shows, or null;
 // `path`, its path from the site's root, which a post's public address
 // stands in for; `title`, the title a page of the site's own gives its
@@ -203,7 +205,9 @@ export async function markdownMark({ entry = null, path: own, page = 1, origin, 
   const url = new URL(path, origin).href;
   const named = entry === null ? title || settings?.title || '' : entry.data.title ?? '';
   const front = await frontMatter({ entry, type, url, title: named }, origin, astro);
-  const data = { markdown: address, url, title: named, front };
+  const ai = aiSettings(settings, site);
+  const row = entry === null || isStartEntry(entry.id) ? ai.home : ai.types?.[type.name];
+  const data = { markdown: address, url, title: named, front, llms: row?.llms === true, llmsFull: row?.llmsFull === true };
   return `<!--konzilo:markdown ${Buffer.from(JSON.stringify(data)).toString('base64')}-->`;
 }
 
@@ -244,17 +248,21 @@ function pathOfFile(file) {
 }
 
 // The release's list of the pages that have a Markdown alternate, for the
-// web server: `<page> <alternate>` a line, `/about/ /about.md`,
-// in the order of the pages' addresses, each address as browsers send it.
-// Every public build writes it, empty when no page takes part. The web server
-// takes it as it takes `_redirects`: the public host links each page's
-// alternate and answers it at the page's address to a request that prefers
-// Markdown.
+// web server: `<page> <alternate>` a line, then llms.txt's and
+// llms-full.txt's addresses where the page's row has them on,
+// `/about/ /about.md /llms.txt`, in the order of the pages' addresses, each
+// address as browsers send it. Every public build writes it, empty when no
+// page takes part. The host checks it before the release is current and
+// makes it marks the web server reads (src/build/web-server.js): the public
+// host links each page's alternate, and the files named, and answers the
+// alternate at the page's address to a request that prefers Markdown.
 export const MARKDOWN_LIST = '_markdown';
 
-// MARKDOWN_LIST's text for the alternates writeMarkdownAlternates() wrote.
-export function markdownList(written) {
-  const lines = written.map(({ page, markdown }) => [encodeURI(page), encodeURI(markdown)]);
+// MARKDOWN_LIST's text for the alternates writeMarkdownAlternates() wrote,
+// with `related`, the addresses of llms.txt and llms-full.txt, { llms,
+// llmsFull }.
+export function markdownList(written, related) {
+  const lines = written.map(({ page, markdown, llms, llmsFull }) => [encodeURI(page), encodeURI(markdown), ...(llms ? [related.llms] : []), ...(llmsFull ? [related.llmsFull] : [])]);
   return lines.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map((line) => `${line.join(' ')}\n`).join('');
 }
 
@@ -262,8 +270,9 @@ export function markdownList(written) {
 // URL) that holds the mark, beside it, and take the marks away. A page whose
 // main content cannot be told fails the build, naming it and what to mark.
 // Gives the alternates written, each { page,
-// markdown }, the page's path from the release's root and the alternate's,
-// decoded.
+// markdown, llms, llmsFull }, the page's path from the release's root and the
+// alternate's, decoded, and whether its row has llms.txt and llms-full.txt
+// on.
 export function writeMarkdownAlternates(dir) {
   const release = fileURLToPath(dir);
   const pages = [];
@@ -275,7 +284,7 @@ export function writeMarkdownAlternates(dir) {
     if (marks.length === 0) continue;
     writeFileSync(path, html.replaceAll(MARK, ''));
     const [mark] = marks;
-    pages.push({ page: pathOfFile(file), html, markdown: mark.markdown, url: mark.url, title: mark.title, front: mark.front });
+    pages.push({ page: pathOfFile(file), html, markdown: mark.markdown, url: mark.url, title: mark.title, front: mark.front, llms: mark.llms, llmsFull: mark.llmsFull });
   }
   if (pages.length === 0) return [];
   const answers = pages.map(({ html, url, title, front }) => pageMarkdown({ html, url, title, front }));
@@ -286,7 +295,7 @@ export function writeMarkdownAlternates(dir) {
     const file = join(release, markdown);
     mkdirSync(dirname(file), { recursive: true });
     writeFileSync(file, answers[index].markdown);
-    return { page: page.page, markdown };
+    return { page: page.page, markdown, llms: page.llms, llmsFull: page.llmsFull };
   });
 }
 
@@ -407,19 +416,21 @@ export function devMarkdown({ server, logger }) {
 }
 
 // Astro's dev server's Link headers and negotiation, as the public host's
-// every HTML page it answers with 2xx links
-// `related`, the addresses of llms.txt and llms-full.txt, on `origin`, the
-// public host's, and a page with an alternate links that first; such a
-// page varies by Accept, and its own address answers a GET or a HEAD with
-// its Markdown, as devMarkdown() does, where the request prefers Markdown
-// (prefersMarkdown()). It holds each HTML answer until it ends, to read
-// the page's mark.
+// (src/build/web-server.js): an HTML page with an alternate that it answers
+// with 2xx links its alternate, then of `related`, the addresses of llms.txt
+// and llms-full.txt, { llms, llmsFull }, those its row has on, each on
+// `origin`, the public host's; such a page varies by Accept, and its own
+// address answers a GET or a HEAD with its Markdown, as devMarkdown() does,
+// where the request prefers Markdown (prefersMarkdown()), its Accept lines
+// joined by commas, as the public host's web server joins them. A page
+// without an alternate has none of it. It holds each HTML answer until it
+// ends, to read the page's mark.
 export function devDiscovery({ server, logger, origin, related }) {
-  const site = related.map((address) => link(new URL(address, origin).href, 'related', 'text/plain'));
+  const relatedLink = (address) => link(new URL(address, origin).href, 'related', 'text/plain');
   return async (req, res, next) => {
     if (!['GET', 'HEAD'].includes(req.method)) return next();
     const asked = new URL(req.url, 'http://localhost').pathname;
-    if (asked.endsWith('/') && prefersMarkdown(req.headers.accept)) {
+    if (asked.endsWith('/') && prefersMarkdown(req.headersDistinct.accept?.join(',') ?? '')) {
       let address = null;
       try {
         address = markdownAddress(decodeURIComponent(asked));
@@ -434,8 +445,9 @@ export function devDiscovery({ server, logger, origin, related }) {
     }
     holdHtml(res, (html) => {
       const [mark] = marksOf(html);
-      const own = mark === undefined ? [] : [link(new URL(mark.markdown, origin).href, 'alternate', MARKDOWN_TYPE)];
-      return { links: [...own, ...site], vary: mark !== undefined };
+      if (mark === undefined) return { links: [], vary: false };
+      const files = [...(mark.llms ? [related.llms] : []), ...(mark.llmsFull ? [related.llmsFull] : [])];
+      return { links: [link(new URL(mark.markdown, origin).href, 'alternate', MARKDOWN_TYPE), ...files.map(relatedLink)], vary: true };
     });
     return next();
   };

@@ -5,7 +5,9 @@
 // still be reading it.
 
 import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readlinkSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
+
+import { ALTERNATE_MARKS } from './web-server.js';
 
 const RELEASES = 'releases';
 const CURRENT = 'current';
@@ -31,15 +33,22 @@ export function releases(folder) {
   return {
     current,
 
-    // Copies `built` in as the release `name`, with these rules beside its pages, and makes it
-    // what visitors get. The web server looks for a change of its rules by itself.
-    publish(built, name, rules = '') {
+    // Copies `built` in as the release `name`, with these rules beside its pages and the marks of
+    // its Markdown alternates among them, `marks`, each an empty file at its path from the pages'
+    // root (web-server.js), in place of any the build wrote there, and makes it what visitors get.
+    // The web server looks for a change of its rules by itself, and for a mark at each request.
+    publish(built, name, rules = '', marks = []) {
       mkdirSync(below, { recursive: true });
       const making = join(below, `.${name}`);
       rmSync(making, { recursive: true, force: true });
       cpSync(built, join(making, PAGES), { recursive: true });
       for (const file of FOR_THE_WEB_SERVER) rmSync(join(making, PAGES, file), { force: true });
       if (existsSync(join(making, PAGES, FOR_THE_SERVICE))) renameSync(join(making, PAGES, FOR_THE_SERVICE), join(making, CONSENT));
+      rmSync(join(making, PAGES, ALTERNATE_MARKS), { recursive: true, force: true });
+      for (const mark of marks) {
+        mkdirSync(dirname(join(making, PAGES, mark)), { recursive: true });
+        writeFileSync(join(making, PAGES, mark), '');
+      }
       writeFileSync(join(making, RULES), rules);
       renameSync(making, join(below, name));
       const link = join(folder, `.${CURRENT}`);

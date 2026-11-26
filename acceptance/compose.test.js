@@ -1740,6 +1740,27 @@ describe('a site in Compose', () => {
       }
     });
 
+    // A post's Markdown alternate (ADR 0047), which a publish adds and the web server finds by the
+    // release's marks.
+    test('links a post\'s Markdown alternate once it is published, and answers it at the post\'s address to a request that prefers Markdown', async () => {
+      await saveFile(file('0b0b0b0b0b0b'), published('a-post-for-agents', {}, 'Words an agent reads.'), 'anna');
+      await onTheSite('/a-post-for-agents/', 'Words an agent reads.');
+      const page = await get(`${site.origin.site}/a-post-for-agents/`);
+      const links = page.headers.get('link')?.split(/, (?=<)/) ?? [];
+      assert.equal(links[0], `<${site.origin.site}/a-post-for-agents.md>; rel="alternate"; type="text/markdown"`);
+      assert.ok(links.includes(`<${site.origin.site}/llms.txt>; rel="related"; type="text/plain"`), links.join('\n'));
+      assert.match(page.headers.get('vary') ?? '', /\bAccept\b/);
+      const markdown = await get(`${site.origin.site}/a-post-for-agents/`, { headers: { accept: 'text/markdown' } });
+      assert.equal(markdown.headers.get('content-type'), 'text/markdown; charset=utf-8');
+      assert.equal(markdown.headers.get('link'), `<${site.origin.site}/a-post-for-agents/>; rel="canonical"`);
+      assert.match(await markdown.text(), /Words an agent reads\./);
+      for (const accept of ['text/html, text/markdown', '*/*']) {
+        assert.match((await get(`${site.origin.site}/a-post-for-agents/`, { headers: { accept } })).headers.get('content-type'), /^text\/html/, accept);
+      }
+      assert.equal((await get(`${site.origin.site}/a-post-for-agents.md`)).headers.get('link'), `<${site.origin.site}/a-post-for-agents/>; rel="canonical"`);
+      assert.equal((await get(`${site.origin.site}/_konzilo/alternates/markdown/a-post-for-agents.md`)).status, 404, 'and no mark is a visitor\'s');
+    });
+
     // Search (ADR 0053): what is published, through the web server's route to Typesense, which
     // every build indexes and writes the route to. What a search answers, once it answers so.
     const searched = async (query, { within = 60_000, until = () => true } = {}) => {

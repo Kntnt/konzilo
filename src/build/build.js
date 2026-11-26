@@ -3,13 +3,13 @@
 // live before visitors have it. There is one builder per site and it does one thing at a time,
 // so it needs no lock. Nothing is built again for the same content, code and origin.
 
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { STOPPED } from '../intake/guard.js';
 import { failure } from '../intake/words.js';
 import { commandWithin, TookTooLong } from './command.js';
-import { webRules } from './web-server.js';
+import { markdownMarks, webRules } from './web-server.js';
 
 const BIG = 1024 * 1024 * 256;
 const STOPPED_BY_GUARD = 3;
@@ -191,7 +191,9 @@ export function siteBuild({ site, origin, code, source, content, roles, control,
     const name = `${stamp(started)}-${head.slice(0, 12)}`;
     try {
       const given = (file) => (existsSync(join(built, file)) ? readFileSync(join(built, file), 'utf8') : '');
-      live.publish(built, name, webRules({ headers: given('_headers'), redirects: given('_redirects') }));
+      const holds = (path) => statSync(join(built, path), { throwIfNoEntry: false })?.isFile() === true;
+      const marks = markdownMarks(given('_markdown'), holds);
+      live.publish(built, name, webRules({ headers: given('_headers'), redirects: given('_redirects'), origin }), marks);
     } catch (error) {
       warn(`The release could not be put in place: ${error.message}`);
       return finish({ source: head, reason: NOT_RELEASED, report, versions });

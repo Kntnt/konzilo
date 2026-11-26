@@ -4,7 +4,8 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import { RefusedRules, searchRoute, webRules } from '../src/build/web-server.js';
+import { markdownMarks, RefusedRules, searchRoute, webRules } from '../src/build/web-server.js';
+import { ACCEPT_LENGTH, ACCEPT_RANGES } from '../src/astro/markdown-alternates.js';
 import { headersFile, securityHeaders } from '../src/astro/security-headers.js';
 import { siteDescription } from '../src/site-description.js';
 
@@ -147,6 +148,101 @@ describe('a release\'s redirects', () => {
 
   test('name the line that was refused', () => {
     refused({ redirects: '/fine/ /ok/ 301\n/also/ /ok/ 301\n/a /b/ 200\n' }, /_redirects, line 3/);
+  });
+});
+
+// What the public host does with a release's Markdown alternates (ADR 0047), the same rules for
+// every release, which name no page and so need no reload when a publish adds or removes one:
+// real Caddy reads them in the acceptance suite.
+describe('a release\'s rules for Markdown alternates', () => {
+  const rules = webRules({ origin: 'https://www.example.com' });
+
+  test('come with the public host\'s origin alone, and name no page', () => {
+    assert.equal(webRules({ origin: 'https://www.example.com' }), rules);
+    assert.ok(webRules({ origin: 'https://www.example.com', redirects: '/a/ /b/ 301\n' }).endsWith(`\n${rules}`), 'after the redirects');
+    for (const origin of ['www.example.com', 'https://www.example.com/', 'https://www.example.com/x', 'https://{$SECRET}', 'https://a`b']) {
+      assert.throws(() => webRules({ origin }), RefusedRules, origin);
+    }
+  });
+
+  test('find a page\'s alternate by its mark, at the alternate\'s address, which a page\'s own gives', () => {
+    for (const kind of ['markdown', 'llms', 'llms-full']) assert.match(rules, new RegExp(`\\troot \\{http\\.vars\\.root\\}/_konzilo/alternates/${kind}\\n\\t\\ttry_files \\{konzilo\\.alternate\\}\\n`), kind);
+    assert.match(rules, /^map \{http\.request\.orig_uri\.path\} \{konzilo\.alternate\} \{konzilo\.alternate_asked\} \{\n\t\/ \/index\.md page\n\t\/index\.md \/index\.md alternate\n/m);
+  });
+
+  test('link the alternate and the files that hold the page from its HTML, and the page from its Markdown, on the public host', () => {
+    assert.match(rules, /\+Link `<https:\/\/www\.example\.com\{konzilo\.alternate_link\}>; rel="alternate"; type="text\/markdown"\{http\.vars\.konzilo_llms\}\{http\.vars\.konzilo_llms_full\}`/);
+    assert.match(rules, /konzilo_llms `, <https:\/\/www\.example\.com\/llms\.txt>; rel="related"; type="text\/plain"`/);
+    assert.match(rules, /konzilo_llms_full `, <https:\/\/www\.example\.com\/llms-full\.txt>; rel="related"; type="text\/plain"`/);
+    assert.equal(rules.split('+Link `<https://www.example.com{konzilo.page_link}>; rel="canonical"`').length, 3, 'from the alternate at its own address, and at the page\'s');
+    assert.match(rules, /\theader @konzilo-page \+Vary Accept\n/);
+  });
+
+  test('weigh Accept as the dev server does, up to as many ranges and characters', () => {
+    assert.match(rules, new RegExp(`bytes\\(h\\)\\.size\\(\\) <= ${ACCEPT_LENGTH} && \\[h\\.lowerAscii\\(\\)\\.split\\(','\\)\\]\\.exists\\(rs, rs\\.size\\(\\) <= ${ACCEPT_RANGES} `));
+    assert.match(rules, /\trewrite @konzilo-markdown \{konzilo\.alternate\}\n/);
+  });
+});
+
+// The pages a release has Markdown alternates of (ADR 0047), which its build lists in `_markdown`
+// and the host checks line by line before the release is current: each line it takes becomes
+// marks, empty files the web server looks for, and a line it cannot take refuses the release.
+describe('a release\'s list of Markdown alternates', () => {
+  // A release that holds these files, by their paths from its root.
+  const holding = (...files) => (path) => files.includes(path);
+  const RELEASE = holding('index.html', 'index.md', 'about/index.html', 'about.md', 'index/index.html', 'index/index.md', 'öppet/index.html', 'öppet.md', 'llms.txt', 'llms-full.txt');
+  const refusedList = (line, words) => assert.throws(() => markdownMarks(`/about/ /about.md /llms.txt\n${line}\n`, RELEASE), (error) => error instanceof RefusedRules && words.test(error.message) && /_markdown, line 2/.test(error.message), `${line}: ${words}`);
+
+  test('marks each page\'s alternate, and llms.txt and llms-full.txt where its line names them, at the alternate\'s address as the web server reads it', () => {
+    const list = '/ /index.md /llms.txt /llms-full.txt\n/about/ /about.md /llms.txt\n/index/ /index/index.md\n/%C3%B6ppet/ /%C3%B6ppet.md /llms-full.txt\n';
+    assert.deepEqual(markdownMarks(list, RELEASE), [
+      '_konzilo/alternates/markdown/index.md',
+      '_konzilo/alternates/llms/index.md',
+      '_konzilo/alternates/llms-full/index.md',
+      '_konzilo/alternates/markdown/about.md',
+      '_konzilo/alternates/llms/about.md',
+      '_konzilo/alternates/markdown/index/index.md',
+      '_konzilo/alternates/markdown/öppet.md',
+      '_konzilo/alternates/llms-full/öppet.md',
+    ]);
+  });
+
+  test('may be empty, as on a site with Markdown off', () => {
+    assert.deepEqual(markdownMarks('', RELEASE), []);
+  });
+
+  test('is refused for a line that names no file of the release', () => {
+    refusedList('/gone/ /gone.md', /\/gone\/ is no page of the release/);
+    refusedList('/contact/ /contact.md', /\/contact\/ is no page of the release/);
+    assert.throws(() => markdownMarks('/about/ /about.md\n', holding('about/index.html')), /_markdown, line 1: \/about\.md is no file of the release/);
+    assert.throws(() => markdownMarks('/about/ /about.md /llms-full.txt\n', holding('about/index.html', 'about.md')), /\/llms-full\.txt is no file of the release/);
+  });
+
+  test('is refused for an alternate that is not the page\'s, or a page twice', () => {
+    refusedList('/index/ /index.md', /\/index\.md is not the alternate of \/index\//);
+    refusedList('/about/ /about.md', /\/about\/ comes twice/);
+  });
+
+  test('is refused for a line it cannot tell is safe', () => {
+    for (const [line, words] of [
+      ['/about/', /a page, its alternate, and perhaps \/llms\.txt and \/llms-full\.txt/],
+      ['/about/  /about.md', /a page, its alternate, and perhaps \/llms\.txt and \/llms-full\.txt/],
+      ['/öppet/ /öppet.md', /printable ASCII/],
+      ['/about /about.md', /no page's address/],
+      ['about/ /about.md', /no page's address/],
+      ['/../about/ /../about.md', /no page's address/],
+      ['/a//b/ /a//b.md', /no page's address/],
+      ['/%2E%2E/ /%2E%2E.md', /no page's address/],
+      ['/a%2Fb/ /a%2Fb.md', /not written as a browser sends it/],
+      ['/%c3%b6ppet/ /%c3%b6ppet.md', /not written as a browser sends it/],
+      ['/%E0%A4%A/ /%E0%A4%A.md', /not written as a browser sends it/],
+      ['/a%0Ab/ /a%0Ab.md', /no page's address/],
+      ['/index/ /index/index.md /robots.txt', /\/robots\.txt is not \/llms\.txt or \/llms-full\.txt, each once and in that order/],
+      ['/index/ /index/index.md /llms-full.txt /llms.txt', /\/llms\.txt is not \/llms\.txt or \/llms-full\.txt, each once and in that order/],
+      ['/index/ /index/index.md /llms.txt /llms.txt', /\/llms\.txt is not \/llms\.txt or/],
+    ]) {
+      refusedList(line, words);
+    }
   });
 });
 

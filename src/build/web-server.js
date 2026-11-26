@@ -1,8 +1,10 @@
-// What the web server takes of a release (ADR 0036, ADR 0051): its `_headers` and `_redirects`,
-// which a build writes and which are therefore untrusted, read line by line and written again as
-// rules for Caddy, or refused whole. What is written holds nothing a Caddyfile would read as its
+// What the web server takes of a release (ADR 0036, ADR 0051, ADR 0047): its `_headers` and
+// `_redirects`, which a build writes and which are therefore untrusted, read line by line and
+// written again as rules for Caddy, or refused whole, and its `_markdown`, read the same way and
+// made marks among its pages. What is written holds nothing a Caddyfile would read as its
 // own: every value lies in backticks, and neither a backtick nor a placeholder gets through.
 
+import { ACCEPT_LENGTH, ACCEPT_RANGES, markdownAddress } from '../astro/markdown-alternates.js';
 import { CONSENT_SCRIPTS } from '../consent/registry.js';
 
 // The names a release may set, and nothing the web server reads as its own.
@@ -157,10 +159,11 @@ const answering = (name, to, status, keeps) => [
   ]),
 ];
 
-// The rules of a release for Caddy, from what its `_headers` and `_redirects` hold, or a
-// RefusedRules that says what is wrong. A rule lies in the address the browser asked for, the
-// whole of it for a source with a query, and the path Caddy has decoded for the others.
-export function webRules({ headers = '', redirects = '' }) {
+// The rules of a release for Caddy, from what its `_headers` and `_redirects` hold, and, given
+// the public host's origin, `origin`, those of its Markdown alternates, or a RefusedRules that
+// says what is wrong. A rule lies in the address the browser asked for, the whole of it for a
+// source with a query, and the path Caddy has decoded for the others.
+export function webRules({ headers = '', redirects = '', origin = null }) {
   const header = headerRules(headers);
   const { path, address } = redirectRows(redirects);
   return [
@@ -168,8 +171,168 @@ export function webRules({ headers = '', redirects = '' }) {
     ...(header.consent.length > 0 ? [`@konzilo-consent path ${CONSENT_SECTION}`, 'header @konzilo-consent {', ...header.consent, '}'] : []),
     ...(address.length > 0 ? [...mapOf('{http.request.orig_uri}', ['konzilo.asked', 'konzilo.asked_status', 'konzilo.asked_keeps'], address), ...answering('asked', 'konzilo.asked', 'konzilo.asked_status', 'konzilo.asked_keeps')] : []),
     ...(path.length > 0 ? [...mapOf('{http.request.orig_uri.path}', ['konzilo.to', 'konzilo.status', 'konzilo.keeps'], path), ...answering('path', 'konzilo.to', 'konzilo.status', 'konzilo.keeps')] : []),
+    ...(origin === null ? [] : alternateRules(origin)),
     '',
   ].join('\n');
+}
+
+// Where a release holds the marks of its Markdown alternates (ADR 0047): below its pages, in the
+// core's reserved prefix, which the public host hands to the service, a folder for each kind,
+// with an empty file at each alternate's address, as the web server reads an address, decoded.
+// `markdown` marks a page's alternate, and `llms` and `llms-full` that its Link names llms.txt and
+// llms-full.txt, which RELATED gives by their addresses.
+export const ALTERNATE_MARKS = '_konzilo/alternates';
+const RELATED = new Map([['/llms.txt', 'llms'], ['/llms-full.txt', 'llms-full']]);
+// What a decoded path may not hold, which no page's address does.
+const NOT_IN_A_PAGE = /[\x00-\x1f\x7f\\]/;
+
+// A page's path as `_markdown` writes it, decoded, or a refusal: a path from the root, ending in
+// a slash, each part of it a name, written as a browser sends it, as encodeURI() writes it.
+function pagePath(page, number) {
+  if (!/^\/(?:[^/]+\/)*$/.test(page)) refuse('_markdown', number, `${page} is no page's address`);
+  let plain;
+  try {
+    plain = decodeURIComponent(page);
+  } catch {
+    refuse('_markdown', number, `${page} is not written as a browser sends it`);
+  }
+  const parts = plain.slice(1, -1).split('/');
+  if (plain !== '/' && (NOT_IN_A_PAGE.test(plain) || parts.some((part) => part === '' || part === '.' || part === '..'))) refuse('_markdown', number, `${page} is no page's address`);
+  if (encodeURI(plain) !== page) refuse('_markdown', number, `${page} is not written as a browser sends it`);
+  return plain;
+}
+
+// What the web server takes of a release's `_markdown`, `text`, the list of its pages with a
+// Markdown alternate, which its build wrote and is therefore untrusted: `<page> <alternate>`, then
+// /llms.txt and /llms-full.txt where the page's row has them on, each line read and checked
+// before the release is current. `holds(path)` says whether the release holds a file at the path from its
+// root, decoded. Gives the marks to write, each a path from the release's root, or a RefusedRules
+// that names the first line it cannot take: one that names no file of the release, an alternate
+// that is not the page's, a page twice, or what is not as markdownList() writes it.
+export function markdownMarks(text, holds) {
+  const marks = [];
+  const seen = new Set();
+  text.split('\n').forEach((line, at) => {
+    if (line === '') return;
+    const number = at + 1;
+    if (!PLAIN.test(line)) refuse('_markdown', number, 'it holds what is not printable ASCII');
+    const [page, alternate, ...files] = line.split(' ');
+    if (alternate === undefined || [page, alternate, ...files].includes('')) refuse('_markdown', number, 'a line is a page, its alternate, and perhaps /llms.txt and /llms-full.txt, one space between each');
+    const plain = pagePath(page, number);
+    if (seen.has(plain)) refuse('_markdown', number, `${page} comes twice`);
+    seen.add(plain);
+    const address = markdownAddress(plain);
+    if (alternate !== encodeURI(address)) refuse('_markdown', number, `${alternate} is not the alternate of ${page}`);
+    const order = [...RELATED.keys()];
+    files.forEach((file, index) => {
+      if (!RELATED.has(file) || order.indexOf(file) <= order.indexOf(files[index - 1])) refuse('_markdown', number, `${file} is not /llms.txt or /llms-full.txt, each once and in that order`);
+    });
+    if (!holds(`${plain.slice(1)}index.html`)) refuse('_markdown', number, `${page} is no page of the release`);
+    for (const [file, path] of [[alternate, address], ...files.map((file) => [file, file])]) if (!holds(path.slice(1))) refuse('_markdown', number, `${file} is no file of the release`);
+    marks.push(`${ALTERNATE_MARKS}/markdown${address}`, ...files.map((file) => `${ALTERNATE_MARKS}/${RELATED.get(file)}${address}`));
+  });
+  return marks;
+}
+
+// The public host's origin, which a Link header names, as plain as an upstream's.
+const ORIGIN = /^https?:\/\/(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:.]+\])(?::[0-9]{1,5})?$/;
+
+// prefersMarkdown() of the dev server (markdown-alternates.js), as an expression in the CEL of
+// Caddy's standard build, of the request's Accept header, which Caddy gives with its lines joined by
+// commas, as the dev server takes it. A header of more than ACCEPT_LENGTH bytes, which the dev
+// server reads one character each, or ACCEPT_RANGES ranges gets HTML. The rest is read in ASCII
+// lowercase and split at each comma, and each range at each semicolon. A web server takes no
+// control character but a tab in a header, so a part is matched with spaces and tabs around it,
+// where the dev server trims it, and no part's pattern has a brace, which Caddy would read as a
+// placeholder.
+const celString = (pattern) => `'${pattern.replaceAll('\\', '\\\\')}'`;
+const SPACE = String.raw`[ \t]*`;
+const WEIGHT_PARAMETER = celString(`^${SPACE}q(?:${SPACE}=.*)?${SPACE}$`);
+const GOOD_WEIGHT = celString(String.raw`^${SPACE}q${SPACE}=${SPACE}(?:0(?:\.[0-9]?[0-9]?[0-9]?)?|1(?:\.0?0?0?)?)${SPACE}$`);
+// Whether the range `range` is of the media type `type`.
+const isType = (range, type) => `${range}.split(';')[0].matches(${celString(`^${SPACE}${escapedForPattern(type)}${SPACE}$`)})`;
+// A range's weight: 1 without a weight among its parameters, its parts after the first, 0 with
+// more than one, and else the one's, where it is well formed, or 0. `[x].map(name, …)[0]` names a
+// value once.
+const weightOf = (range) => `[${range}.split(';')].map(ps, [ps.filter(p, p.matches(${WEIGHT_PARAMETER}))].map(qs, [ps[0].matches(${WEIGHT_PARAMETER}) ? 1 : 0].map(o, qs.size() - o == 0 ? 1.0 : qs.size() - o > 1 ? 0.0 : qs[o].matches(${GOOD_WEIGHT}) ? double(qs[o].split('=')[1].trim()) : 0.0)[0])[0])[0]`;
+// Whether the weight `w` is above the effective weight of the first of `types`, most specific
+// first, that a range of `rs` has, each type the most a range of it weighs.
+const above = (types) => {
+  const [type, ...wider] = types;
+  const below = `rs.all(r, !${isType('r', type)} || ${weightOf('r')} < w)`;
+  return wider.length === 0 ? below : `(rs.exists(r, ${isType('r', type)}) ? ${below} : ${above(wider)})`;
+};
+const PREFERS_MARKDOWN = `[{http.request.header.Accept}].exists(h, bytes(h).size() <= ${ACCEPT_LENGTH} && [h.lowerAscii().split(',')].exists(rs, rs.size() <= ${ACCEPT_RANGES} && rs.exists(m, (${isType('m', 'text/markdown')} || ${isType('m', 'text/x-markdown')}) && [${weightOf('m')}].exists(w, w > 0.0 && ${above(['text/html', 'text/*', '*/*'])} && ${above(['application/xhtml+xml', 'application/*', '*/*'])}))))`;
+
+// A matcher of a GET or a HEAD of a page or an alternate, `asked`, whose alternate has a mark of
+// `kind`, and that holds `also` besides, a CEL expression.
+const marked = (name, asked, kind, also = null) => [
+  `@${name} {`,
+  '\tmethod GET HEAD',
+  `\texpression \`{konzilo.alternate_asked} == "${asked}"${also ? ` && ${also}` : ''}\``,
+  '\tfile {',
+  `\t\troot {http.vars.root}/${ALTERNATE_MARKS}/${kind}`,
+  '\t\ttry_files {konzilo.alternate}',
+  '\t}',
+  '}',
+];
+
+// The rules of the Markdown alternates (ADR 0047), the same for every release: no page is named
+// in them, so a publish that adds or removes one needs no reload. A page's path, `/x/`, gives its
+// alternate's, `/x.md`, `/` `/index.md` and `/x/index/` `/x/index/index.md`, as markdownAddress()
+// has it, and the marks say which have one. A GET or a HEAD of a page with an alternate varies by
+// Accept, and answers with the alternate where the request prefers Markdown; its HTML links the
+// alternate, then llms.txt and llms-full.txt where its marks say so, and the alternate, at its own
+// address too, links the page, each Link on an answer with 2xx alone. Each Link names its address
+// as the browser sent it, on `origin`; the marks are read by the decoded path, as the files are.
+function alternateRules(origin) {
+  if (!ORIGIN.test(String(origin))) refuse('the rules of the Markdown alternates', null, `"${origin}" is not the public host's origin`);
+  const linked = (value, type) => [`\t\t+Link \`${value}\``, '\t\tmatch {', '\t\t\tstatus 2xx', ...(type ? [`\t\t\theader Content-Type ${type}*`] : []), '\t\t}'];
+  return [
+    'map {http.request.orig_uri.path} {konzilo.alternate} {konzilo.alternate_asked} {',
+    '\t/ /index.md page',
+    '\t/index.md /index.md alternate',
+    '\t~^(.*/index)/$ ${1}/index.md page',
+    '\t~^(.*/index)/index\\.md$ ${1}/index.md alternate',
+    '\t~^(.+)/$ ${1}.md page',
+    '\t~^(.+)\\.md$ ${1}.md alternate',
+    '\tdefault "" ""',
+    '}',
+    'map {http.request.orig_uri} {konzilo.alternate_link} {konzilo.page_link} {',
+    '\t~^/(?:\\?.*)?$ /index.md /',
+    '\t~^/index\\.md(?:\\?.*)?$ /index.md /',
+    '\t~^([^?]*/index)/(?:\\?.*)?$ ${1}/index.md ${1}/',
+    '\t~^([^?]*/index)/index\\.md(?:\\?.*)?$ ${1}/index.md ${1}/',
+    '\t~^([^?]+)/(?:\\?.*)?$ ${1}.md ${1}/',
+    '\t~^([^?]+)\\.md(?:\\?.*)?$ ${1}.md ${1}/',
+    '\tdefault "" ""',
+    '}',
+    ...marked('konzilo-alternate', 'alternate', 'markdown'),
+    ...marked('konzilo-page', 'page', 'markdown'),
+    ...marked('konzilo-llms', 'page', 'llms'),
+    ...marked('konzilo-llms-full', 'page', 'llms-full'),
+    ...marked('konzilo-markdown', 'page', 'markdown', PREFERS_MARKDOWN),
+    // In a route, which keeps the order written.
+    'route {',
+    '\tvars {',
+    '\t\tkonzilo_llms ""',
+    '\t\tkonzilo_llms_full ""',
+    '\t}',
+    `\tvars @konzilo-llms konzilo_llms \`, <${origin}/llms.txt>; rel="related"; type="text/plain"\``,
+    `\tvars @konzilo-llms-full konzilo_llms_full \`, <${origin}/llms-full.txt>; rel="related"; type="text/plain"\``,
+    '\theader @konzilo-alternate {',
+    ...linked(`<${origin}{konzilo.page_link}>; rel="canonical"`),
+    '\t}',
+    '\theader @konzilo-page +Vary Accept',
+    '\theader @konzilo-page {',
+    ...linked(`<${origin}{konzilo.alternate_link}>; rel="alternate"; type="text/markdown"{http.vars.konzilo_llms}{http.vars.konzilo_llms_full}`, 'text/html'),
+    '\t}',
+    '\theader @konzilo-page {',
+    ...linked(`<${origin}{konzilo.page_link}>; rel="canonical"`, 'text/markdown'),
+    '\t}',
+    '\trewrite @konzilo-markdown {konzilo.alternate}',
+    '}',
+  ];
 }
 
 // A collection is named as the site, a hostname label; a key is base64, plain or for addresses;
@@ -177,7 +340,7 @@ export function webRules({ headers = '', redirects = '' }) {
 // an upstream.
 const COLLECTION = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const SEARCH_KEY = /^[A-Za-z0-9+/=_-]+$/;
-const UPSTREAM = /^https?:\/\/(?:[A-Za-z0-9.-]+|\[[0-9A-Fa-f:.]+\])(?::[0-9]{1,5})?$/;
+const UPSTREAM = ORIGIN;
 const AS_JSON = '`application/json; charset=utf-8`';
 
 // The route to the site's search (ADR 0053, ADR 0044), as rules for the web server's site host,
