@@ -265,7 +265,10 @@ describe('an Admin\'s purge', () => {
         await anna.page.getByRole('textbox', { name: 'Working name' }).waitFor({ timeout: 60_000 });
         const frame = anna.page.frameLocator('iframe.preview').frameLocator('iframe');
         await frame.locator('h1').first().waitFor({ timeout: 180_000 });
+        // The form let go before the browser closes, so that the next engine's purge finds none open.
+        const letGo = anna.page.waitForResponse((response) => response.request().method() === 'DELETE' && response.url().includes('/_konzilo/locks/'), { timeout: 30_000 });
         await go(anna.page, '#/collections/articles');
+        await letGo;
       });
 
       if (engine === 'chromium') {
