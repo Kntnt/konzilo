@@ -245,7 +245,19 @@ describe('an Admin\'s purge', () => {
 
         // Its addresses answer as unknown; every other form's History reads as before.
         const latest = await built();
-        for (const at of [address, `/to-${post.slug}/`, `/also-${post.slug}/`]) assert.equal((await get(`${site.origin.site}${at}`, { redirect: 'manual' })).status, 404, at);
+        // The web server takes a new release's rules by itself, a moment after it is in place.
+        for (const at of [address, `/to-${post.slug}/`, `/also-${post.slug}/`]) {
+          const deadline = Date.now() + 30_000;
+          let status;
+          for (;;) {
+            const answer = await get(`${site.origin.site}${at}`, { redirect: 'manual' });
+            await answer.arrayBuffer();
+            status = answer.status;
+            if (status === 404 || Date.now() > deadline) break;
+            await new Promise((go) => setTimeout(go, 1000));
+          }
+          assert.equal(status, 404, at);
+        }
         assert.deepEqual(await historyOf(other), before.other, 'the same revisions, moments and accounts');
         assert.deepEqual(await historyOf('redirects.json'), before.rules);
         assert.equal((await service('anna', '/_konzilo/deleted')).body.deleted.some(({ path }) => path === post.path), false);
