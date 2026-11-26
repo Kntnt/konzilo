@@ -344,11 +344,13 @@ test('runs the service for visitors in a container of its own, which the web ser
   assert.match(visitors, /^ {6}- service-data:\/service-data$/m);
   // The releases, read-only, whose release in use holds its consent revision (ADR 0049), where the
   // builder writes them, a folder the image makes the program's own, so that a volume a role
-  // mounts first takes the builder's owner.
+  // mounts first takes the builder's owner. The role for editors reads them too, for the log of
+  // addresses not found (ADR 0040).
   assert.match(visitors, /^ {6}- site-public:\/public:ro$/m);
+  assert.match(blocks.editors, /^ {6}- site-public:\/public:ro$/m);
   assert.match(blocks.builder, /^ {6}- site-public:\/public$/m);
   for (const [name, block] of Object.entries(blocks)) {
-    if (!['web', 'builder', 'visitors'].includes(name)) assert.doesNotMatch(block, /site-public:/, name);
+    if (!['web', 'builder', 'visitors', 'editors'].includes(name)) assert.doesNotMatch(block, /site-public:/, name);
   }
   // The site's folder, not its description alone: a mount of one file holds on to the file it was
   // made with, and a description replaced, as Git writes one, would never reach the service.
