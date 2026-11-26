@@ -74,8 +74,9 @@ function passageSubject(passage, service) {
   };
 }
 
-// A file's form, and what the editor calls it: { form, name, linked }.
-function fileShown(path, collections) {
+// A file's form, and what the editor calls it: { form, name, linked }, `linked` where the form can
+// be opened, as one whose current version holds the passage always can.
+function fileShown({ path, current }, collections) {
   const form = formOfPath(collections, path);
   if (form === null) return { form, name: wordsShown({ name: 'passage.fileOther', values: { path } }), linked: false };
   if (form.file) return { form, name: form.label, linked: true };
@@ -85,8 +86,18 @@ function fileShown(path, collections) {
   return {
     form,
     name: title ? wordsShown({ name: 'passage.fileNamed', values: { collection: form.label, title } }) : wordsShown({ name: 'passage.fileUnnamed', values: { collection: form.label, path } }),
-    linked: entry !== undefined,
+    linked: current || entry !== undefined,
   };
+}
+
+// Sveltia's entries fetched anew, so that a file saved since the editor loaded is named by its
+// form; the page goes on without, where they cannot be.
+async function refreshed() {
+  try {
+    await sveltia()?.refresh();
+  } catch (error) {
+    console.warn(`The entries could not be fetched: ${error.message}`);
+  }
 }
 
 // One place the passage is found, with the text around it.
@@ -98,7 +109,7 @@ const Around = ({ around }) => {
 // A file that holds the passage, with its revisions that do, newest first.
 function FileFound({ file, collections }) {
   const { createElement: h } = react();
-  const { form, name, linked } = fileShown(file.path, collections);
+  const { form, name, linked } = fileShown(file, collections);
   return h('li', { className: 'konzilo-passage-file', 'data-path': file.path },
     h('h3', null, name),
     linked ? h('p', null, h('a', { href: form.hash, className: 'konzilo-passage-link' }, wordsShown({ name: 'passage.openForm', values: { name } }))) : null,
@@ -183,7 +194,7 @@ export function passagePage({ config }) {
       }
       setSearching(true);
       setAnswer(undefined);
-      const given = await service.search(passage);
+      const [given] = await Promise.all([service.search(passage), refreshed()]);
       setSearching(false);
       setSought(passage);
       setAnswer(given);
