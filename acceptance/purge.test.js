@@ -51,7 +51,11 @@ describe('an Admin\'s purge', () => {
     await changeAs(login, [{ operation: 'update', path, sha, content: base64(change(text)) }]);
   };
   const head = async () => (await api(`${repository()}/branches/main`)).commit.id;
-  const commitsOf = async (path) => (await api(`${repository()}/commits?path=${encodeURIComponent(path)}&limit=50&stat=false&files=false&verification=false`)).map(({ sha }) => sha);
+  // Forgejo answers 404 for a file no commit holds.
+  const commitsOf = async (path) => {
+    const listed = await api(`${repository()}/commits?path=${encodeURIComponent(path)}&limit=50&stat=false&files=false&verification=false`, {}, { allow: [404] });
+    return Array.isArray(listed) ? listed.map(({ sha }) => sha) : [];
+  };
   const inBuilder = (...command) => site.compose('exec', '-T', 'builder', ...command);
   const record = () => JSON.parse(inBuilder('cat', '/control/published.json'));
   // Until a build has read the source as it stands, and given its record.
@@ -244,6 +248,7 @@ describe('an Admin\'s purge', () => {
         assert.deepEqual(await historyOf(other), before.other, 'the same revisions, moments and accounts');
         assert.deepEqual(await historyOf('redirects.json'), before.rules);
         assert.equal((await service('anna', '/_konzilo/deleted')).body.deleted.some(({ path }) => path === post.path), false);
+        assert.deepEqual((await service('anna', '/_konzilo/revisions', { path: post.path })).body, { revisions: [], more: false });
 
         // The role check reads the same pushers, and the next build made a release of its own.
         const pushers = JSON.parse(inBuilder('cat', '/work/roles/pushers.json'));

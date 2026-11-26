@@ -85,6 +85,8 @@ describe('an Admin\'s purge', () => {
         }
         const path = searchParams.get('path');
         if (path) list = list.filter((one) => Object.hasOwn(one.files, path));
+        // Forgejo answers so for a file no commit holds.
+        if (path && list.length === 0) return answerOf({ message: 'not found' }, 404);
         if (Number(searchParams.get('page')) > 1) list = [];
         return answerOf(list.map((one) => ({
           sha: one.sha,
@@ -262,6 +264,7 @@ describe('an Admin\'s purge', () => {
       [C2, 'ebba', '2026-11-02T08:00:05Z'],
       [C1, 'konzilo', '2026-11-01T09:00:00Z'],
     ]);
+    assert.deepEqual((await call('GET', '/_konzilo/revisions', 'ebba', { query: { path: 'articles/cccccccccccc.md' } })).body, { revisions: [], more: false }, 'a file purged has no revisions');
     const deleted = await call('GET', '/_konzilo/deleted', 'ebba');
     assert.deepEqual(deleted.body.deleted.map(({ path, account, moment }) => [path, account, moment]), [[ARTICLE, null, '2026-11-03T08:00:00Z']], 'a save Forgejo had no record of the account of before');
     assert.deepEqual((await shown('anna')).body.purges, [{ at: '2026-11-26T09:00:00Z', by: { login: 'anna', name: 'Anna Admin' } }], 'an Admin sees who purged and when');

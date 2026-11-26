@@ -123,8 +123,12 @@ export function sourceHistory({ forgejo, repository, token, pushesToken = token,
     // A page of the revisions of the file at `path`, newest first: { revisions, more }, each
     // { commit, moment, account, text }, as saved() gives the moment and the account.
     async revisions(path, { page = 1 } = {}) {
+      // Forgejo answers 404 for a file no commit of the branch holds, as one purged (ADR 0078).
       const [shown] = await Promise.all([
-        ask(`/commits?path=${encodeURIComponent(path)}&limit=${perPage}&page=${page}&${LIST}`).then((answer) => answer.json()),
+        ask(`/commits?path=${encodeURIComponent(path)}&limit=${perPage}&page=${page}&${LIST}`).then((answer) => answer.json(), (error) => {
+          if (error.status === 404) return [];
+          throw error;
+        }),
         learn(),
       ]);
       const pushes = await saved(shown.map(({ sha, commit }) => ({ sha, date: commit?.committer?.date ?? commit?.author?.date ?? null })), { learnt: true });
@@ -141,5 +145,9 @@ export function sourceHistory({ forgejo, repository, token, pushesToken = token,
 
     // The record of purges, { purges, pushes } (ADR 0078).
     purges,
+    // Looks at the record of purges again at the next call, as after a purge.
+    purgesChanged() {
+      record.at = -Infinity;
+    },
   };
 }
