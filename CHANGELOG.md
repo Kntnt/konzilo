@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.11.0] – 2026-11-26
+
 ### Added
 
 - A type's address can hold its post's date and its term, before the slug: `{year}`, `{year}/{month}` or `{year}/{month}/{day}`, as in `/{year}/{month}/{day}/{slug}/`, from the post's date in UTC, the month and the day in two digits; and the term of a field that takes exactly one, `"most": 1` and `"required": true`, by the field's name, as in `/articles/{category}/{slug}/`, the term's whole path in a hierarchical taxonomy, `/articles/health/ptsd/{slug}/`. The built-in article's category becomes required where its address holds it. A changed date or term, or a term renamed or moved under another parent, moves the post, and the address it was live at leads to the new one with `301`. A draft's and a scheduled post's address in the form and the live preview follows its date and term as they are edited, and a live post without a date of its own shows in the form at the date it was first published. The site description's checker refuses every other shape, naming the type with an example that works, and two types whose addresses would give each other's every address. A site whose addresses hold only `{slug}` or `{path}` keeps the addresses it had.
@@ -37,6 +39,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - A build no longer halts publishing for good when Node deadlocks as it exits (nodejs/node#67596). Every Node the builder starts keeps V8's baseline compiler on its main thread, which makes the deadlock rare, and a command still running at the time limit is stopped, with every process it started. The build then runs once more from the start, its line in the build log saying `retried`; stopped again, it fails, and the post's publish status and the build log say that the build took too long and was stopped, while visitors keep the version they have. Nothing a stopped build wrote is published.
 - A form or a report sent to the service with a body longer than it takes is refused with `413` whatever the client is still sending. The service closed the connection at once, which reset it while the client, or the web server passing the body on, was still sending, so that the refusal could be lost to a broken connection.
+- After a build that could not make the search index, the next build makes it even when the release is the same, and its line in the build log says `unindexed` for as long as the index still cannot be made. Before, a second build of the same release took the index for made, and its line said nothing of it.
 
 ## [0.10.0] – 2026-11-25
 
