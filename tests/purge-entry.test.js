@@ -218,3 +218,35 @@ describe('a purge of a deleted term', () => {
     assert.equal(fileAt(freshContent, 'main', 'topics/meadows.json'), json({ name: 'Meadows', description: 'Another.' }).trim());
   });
 });
+
+describe('a purge of a deleted post on a site in several languages', () => {
+  const rules = (list) => json({ rules: list });
+  const post = (title) => `---\ntitle: ${title}\n---\nText.\n`;
+  // The post `aaaaaaaaaaaa` in English and Swedish, with a rule to each translation by its key, and
+  // one by its bare ID, which leads to the first translation there is; the English one deleted,
+  // and the Swedish one too where `both`.
+  const purgedRules = async ({ both }) => {
+    const source = remote();
+    const content = remote();
+    source.save({ files: { 'articles/en/aaaaaaaaaaaa.md': post('Secret'), 'articles/sv/aaaaaaaaaaaa.md': post('Hemlig') } });
+    source.save({ files: { 'redirects.json': rules([{ from: '/one/', post: 'en/aaaaaaaaaaaa', status: 301 }, { from: '/two/', post: 'aaaaaaaaaaaa', status: 301 }, { from: '/three/', post: 'sv/aaaaaaaaaaaa', status: 301 }]) } });
+    source.save({ files: { 'articles/en/aaaaaaaaaaaa.md': null, ...(both ? { 'articles/sv/aaaaaaaaaaaa.md': null } : {}) } });
+    await purgeEntry({
+      source: cloneOf(source.bare),
+      content: cloneOf(content.bare),
+      entry: { path: 'articles/en/aaaaaaaaaaaa.md', kind: 'post', collection: 'articles' },
+      by: ADMIN,
+      at: '2026-11-26T10:00:00Z',
+      pushedBy: async () => ({}),
+    });
+    return JSON.parse(fileAt(cloned(source.bare), 'main', 'redirects.json')).rules.map(({ from }) => from);
+  };
+
+  test('takes the rule to the translation purged, and keeps the one by its bare ID while another translation stands', async () => {
+    assert.deepEqual(await purgedRules({ both: false }), ['/two/', '/three/']);
+  });
+
+  test('takes the rule by its bare ID once no translation stands', async () => {
+    assert.deepEqual(await purgedRules({ both: true }), ['/three/']);
+  });
+});

@@ -124,13 +124,22 @@ async function namedElsewhere(git, original, entry) {
   return [...read.values()].some((bytes) => originalOf(bytes) === original);
 }
 
-// The rules of a redirects file without those that lead to the entry, `post` or `term` by its ID,
-// or come from or lead to one of `addresses`: the file's new text, or null where none goes.
-function rulesWithout(bytes, { id, kind, addresses }) {
+// Whether another translation of an entry, of the same ID in another language's folder, stands
+// at the head.
+async function translatedAtHead(git, path) {
+  const parts = path.split('/');
+  if (parts.length !== 3) return false;
+  const listed = (await text(git, ['ls-tree', '-r', '--name-only', BRANCH, '--', `${parts[0]}/`])).split('\n');
+  return listed.some((one) => one !== path && one.split('/').length === 3 && one.split('/')[2] === parts[2]);
+}
+
+// The rules of a redirects file without those that lead to the entry, `post` or `term` by one of
+// `names`, or come from or lead to one of `addresses`: the file's new text, or null where none goes.
+function rulesWithout(bytes, { names, kind, addresses }) {
   const read = readJson(bytes);
   if (!Array.isArray(read?.rules)) return null;
-  const leads = (rule) => (kind === 'post' && String(rule?.post ?? '') === id)
-    || (kind === 'term' && String(rule?.term ?? '') === id)
+  const leads = (rule) => (kind === 'post' && names.has(String(rule?.post ?? '')))
+    || (kind === 'term' && names.has(String(rule?.term ?? '')))
     || addresses.has(addressKey(rule?.from))
     || addresses.has(addressKey(rule?.to));
   const kept = read.rules.filter((rule) => !leads(rule));
@@ -220,6 +229,9 @@ async function entryPlan({ source, content, entry, before }) {
   const plan = await sourcePlan(source.git, entry);
   const ledger = before.content === null ? { key: id, paths: new Set(), addresses: new Set() } : await ledgerPlan(content.git, entry);
   const addresses = new Set([...plan.addresses, ...ledger.addresses]);
+  // A rule leads to the entry by its key, `<language>/<ID>` on a site in several languages, or by
+  // its bare ID, which leads to whichever translation there is, so only once none stands.
+  const names = new Set([tag === null ? id : `${tag}/${id}`, ...(tag !== null && await translatedAtHead(source.git, entry.path) ? [] : [id])]);
 
   // An Admin's file's new hash by its old, which the content's ledger names.
   const files = new Map();
@@ -227,7 +239,7 @@ async function entryPlan({ source, content, entry, before }) {
     drop: (path) => plan.drop.has(path),
     change: async (path, bytes) => {
       if (path !== REDIRECTS_FILE) return null;
-      const made = rulesWithout(bytes, { id, kind: entry.kind, addresses });
+      const made = rulesWithout(bytes, { names, kind: entry.kind, addresses });
       if (made !== null) files.set(sha256(bytes), sha256(Buffer.from(made)));
       return made;
     },
@@ -270,7 +282,7 @@ async function entryPlan({ source, content, entry, before }) {
     },
     change: (path, bytes) => {
       if (path === LEDGER) return ledgerWithout(bytes, { kind: entry.kind, key: ledger.key, id, files });
-      if (path === REDIRECTS_FILE) return rulesWithout(bytes, { id, kind: entry.kind, addresses });
+      if (path === REDIRECTS_FILE) return rulesWithout(bytes, { names, kind: entry.kind, addresses });
       return null;
     },
   });
