@@ -132,8 +132,15 @@ function editors(store) {
   // The locks of tabs that have stopped answering let go, well within the two minutes ADR 0073
   // gives them.
   setInterval(() => service.sweepLocks(), 10_000).unref();
-  // An Admin's purge taken on as soon as it can go, and told as soon as it has ended (ADR 0078).
-  setInterval(() => service.purgeStep(), 1000).unref();
+  // An Admin's purge taken on as soon as it can go, and told as soon as it has ended (ADR 0078);
+  // what breaks in a step is said, and the next step tries again, as the purge lives in memory.
+  setInterval(() => {
+    try {
+      service.purgeStep();
+    } catch (error) {
+      console.error(`An Admin's purge could not be taken on: ${error.stack ?? error.message}`);
+    }
+  }, 1000).unref();
 
   // Each submission whose mail is due, a moment after it is kept, one look after another.
   const mail = mailDuty({ store, forms: () => described().forms, deliver: mailDelivery({ toLog: local }) });

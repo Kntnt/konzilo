@@ -51,7 +51,7 @@ describe('an Admin\'s purge', () => {
 
   // The source: KEPT and ARTICLE made, ARTICLE changed by ebba, then deleted by ebba; or, with
   // `record`, as a purge left it, its record naming who pushed C3 before.
-  const running = async ({ record = null, clock = { at: Date.parse('2026-11-26T10:00:00Z') } } = {}) => {
+  const running = async ({ record = null, clock = { at: Date.parse('2026-11-26T10:00:00Z') }, forget = null } = {}) => {
     const commits = [
       { sha: C1, date: '2026-11-01T08:00:00Z', files: { [ARTICLE]: '---\ntitle: The meadow\n---\n', [KEPT]: '---\ntitle: Kept\n---\n' } },
       { sha: C2, date: '2026-11-02T08:00:00Z', files: { [KEPT]: '---\ntitle: Kept, changed\n---\n' } },
@@ -118,7 +118,8 @@ describe('an Admin\'s purge', () => {
       get,
       now: () => new Date(clock.at),
       deletable: () => deletableIn(SITE),
-      pictures: { of: async () => ({ status: 404 }), forget: () => forgotten.push(true) },
+      pictures: { of: async () => ({ status: 404 }), forget: forget ?? (() => forgotten.push(true)) },
+      warn: () => {},
       locks: { waitAtMost: 200 },
       revisions: { now: () => new Date(clock.at), sleep: async () => {} },
       purge: { reloadWithin: 20_000, searchWithin: 500, lookEvery: 5 },
@@ -330,5 +331,16 @@ describe('an Admin\'s purge', () => {
     await step();
     assert.deepEqual((await shown('anna')).body.purge, { id, state: 'failed', reason: 'current', paths: [KEPT] });
     assert.equal((await hold('articles/bbbbbbbbbbbb', 'ebba', TAB_B)).status, 200, 'forms open again');
+  }));
+
+  test('says a purge is done, and opens the forms, though forgetting the small pictures breaks', withService({ forget: () => {
+    throw new Error('Read-only file system');
+  } }, async ({ purge, control, step, shown, hold }) => {
+    await purge('anna', { passage: 'Ebba Svensson', course: 'anyway' });
+    const { id } = control.purgeRequest();
+    control.writePurgeState({ id, state: 'done', changed: { files: 1, revisions: 1, messages: 0 }, at: '2026-11-26T10:00:30Z' });
+    await step();
+    assert.equal((await shown('anna')).body.purge.state, 'done');
+    assert.equal((await hold('articles/bbbbbbbbbbbb', 'ebba', TAB_B)).status, 200);
   }));
 });

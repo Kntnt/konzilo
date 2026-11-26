@@ -25,8 +25,9 @@ const SEARCH_WITHIN = 60_000;
 const LOOK_EVERY = 250;
 
 // `table`: the locks, as locks.js gives them. `control`: as build/record.js gives it.
-// `onDone()`: what else is to forget once a purge is done.
-export function purgeKeeper({ table, control, now = () => new Date(), reloadWithin = RELOAD_WITHIN, answeredWithin = ANSWERED_WITHIN, searchWithin = SEARCH_WITHIN, lookEvery = LOOK_EVERY, sleep = (ms) => new Promise((go) => setTimeout(go, ms)), onDone = () => {} }) {
+// `onDone()`: what else is to forget once a purge is done, which, should it break, is said and
+// leaves the purge done.
+export function purgeKeeper({ table, control, now = () => new Date(), reloadWithin = RELOAD_WITHIN, answeredWithin = ANSWERED_WITHIN, searchWithin = SEARCH_WITHIN, lookEvery = LOOK_EVERY, sleep = (ms) => new Promise((go) => setTimeout(go, ms)), onDone = () => {}, warn = console.error }) {
   let current = null;
   let last = null;
   // The search that waits for the program's answer, and those after it.
@@ -50,7 +51,11 @@ export function purgeKeeper({ table, control, now = () => new Date(), reloadWith
       ? { id, state: 'failed', reason: state.reason ?? 'broke', ...(Array.isArray(state.paths) ? { paths: state.paths } : {}) }
       : { id, state: 'done', ...(state.changed ? { changed: state.changed } : {}) };
     current = null;
-    if (last.state === 'done') onDone();
+    try {
+      if (last.state === 'done') onDone();
+    } catch (error) {
+      warn(`What a purge leaves to forget was not forgotten: ${error.message}`);
+    }
     table.open();
   };
   const what = ({ entry }) => (entry ? { path: entry.path } : { passage: true });

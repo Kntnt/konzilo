@@ -2,7 +2,7 @@
 // one is, and how seldom an original is fetched.
 
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -165,5 +165,20 @@ describe('small pictures of originals', () => {
     assert.equal(answer.status, 404);
     server.closeAllConnections();
     await new Promise((go) => server.close(go));
+  });
+
+  test('forgets every picture after a purge, and keeps their folder, which may be a volume no one can remove', () => {
+    const parent = join(folder, `mounted-${(count += 1)}`);
+    const kept = join(parent, 'thumbnails');
+    mkdirSync(join(kept, 'ab'), { recursive: true });
+    writeFileSync(join(kept, 'ab', 'abcdef.webp'), 'a picture');
+    writeFileSync(join(kept, 'other.webp'), 'another');
+    chmodSync(parent, 0o555);
+    try {
+      thumbnails({ forgejo: 'http://forgejo', repository: 'org/source', token: 'read-token', folder: kept }).forget();
+      assert.deepEqual(readdirSync(kept), []);
+    } finally {
+      chmodSync(parent, 0o755);
+    }
   });
 });
