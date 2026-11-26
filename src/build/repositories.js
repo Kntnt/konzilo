@@ -11,9 +11,9 @@ import { promisify } from 'node:util';
 
 import { gitEnvironment } from '../forgejo.js';
 import { POST_IDS_FILE } from '../format/write.js';
+import { BIG } from './command.js';
 
 const run = promisify(execFile);
-const BIG = 1024 * 1024 * 256;
 // The name and address a commit Konzilo makes itself is written with, which names no one (ADR 0008).
 export const IDENTITY = ['-c', 'user.name=Konzilo', '-c', 'user.email=konzilo@localhost.invalid'];
 

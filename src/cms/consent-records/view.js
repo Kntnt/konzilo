@@ -5,18 +5,16 @@
 // the visitor. Every day and moment is in UTC, as the records are kept. It is React, since that
 // is what Sveltia takes, with its styles on the elements, and it writes nothing.
 
+import { CELL, heldBack, LINE, pageOf, TEXT, useAnswer } from '../admin-page.js';
 import { signedInCredential } from '../credential.js';
 import { say } from '../interface-language.js';
 import { momentIn } from '../../submission-values.js';
 import { Download } from '../submissions/view.js';
 import { consentIdOf, downloadRecords, findRecords, lastDays, readDays } from './client.js';
 
-const TEXT = { font: '14px/1.4 system-ui, sans-serif', overflowWrap: 'anywhere' };
-const LINE = { ...TEXT, margin: '4px 0 12px', maxWidth: '60em' };
 const HEADING = { ...TEXT, fontSize: 16, fontWeight: 600, margin: '24px 0 8px' };
 const ROW = { display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'end', margin: '0 0 16px' };
 const FIELD = { ...TEXT, display: 'grid', gap: 4 };
-const CELL = { ...TEXT, padding: '4px 12px 4px 0', textAlign: 'start', verticalAlign: 'top' };
 const NUMBER = { ...CELL, textAlign: 'end', fontVariantNumeric: 'tabular-nums' };
 const RECORD = { borderTop: '1px solid rgba(128, 128, 128, 0.3)', padding: '12px 0' };
 const FACTS = { display: 'grid', gridTemplateColumns: 'minmax(8em, max-content) 1fr', gap: '4px 16px', margin: 0, ...TEXT };
@@ -168,28 +166,17 @@ function Find({ credential }) {
 
 export function consentRecordsPage({ credential = signedInCredential, today = () => new Date() } = {}) {
   return function KonziloConsentRecordsPage() {
-    const { createElement: h, useEffect, useState } = react();
+    const { createElement: h, useState } = react();
     const [span, setSpan] = useState(() => lastDays(30, today));
-    // What the service answered of the span: undefined until it is told, else as readDays() gives it.
-    const [answer, setAnswer] = useState(undefined);
-    const [asked, setAsked] = useState(false);
-    useEffect(() => {
-      let gone = false;
-      readDays({ credential, ...span }).then((given) => {
-        if (gone) return;
-        setAnswer(given);
-        setAsked(true);
-      });
-      return () => {
-        gone = true;
-      };
-    }, [span.from, span.to]);
-    const page = (...children) => h('div', { style: { padding: 16, overflow: 'auto', height: '100%', boxSizing: 'border-box' } }, ...children);
-    if (!asked) return null;
-    if (answer?.adminOnly) return page(h('p', { style: LINE }, say('consentRecords.adminOnly')));
-    return page(
+    // What the service answered of the span, as readDays() gives it, which the days show, null
+    // among it, as the page goes on offering a span and a consent ID.
+    const [answer] = useAnswer(() => readDays({ credential, ...span }), [span.from, span.to]);
+    const held = heldBack(answer, { adminOnly: 'consentRecords.adminOnly' });
+    if (held !== undefined) return held;
+    return pageOf([
       h('p', { style: LINE }, say('consentRecords.intro')),
       h(Days, { credential, answer, span, onSpan: setSpan }),
-      h(Find, { credential }));
+      h(Find, { credential }),
+    ]);
   };
 }

@@ -13,7 +13,7 @@ import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { promisify } from 'node:util';
 
-import { arrangement } from '../src/arrangement.js';
+import { arrangement, commandTimeLimit } from '../src/arrangement.js';
 import { astroBuild, intakeCommand, siteBuild } from '../src/build/build.js';
 import { nodeOptions } from '../src/build/command.js';
 import { buildControl } from '../src/build/record.js';
@@ -31,7 +31,8 @@ import { readSiteDescription } from '../src/site-description.js';
 const run = promisify(execFile);
 
 // Forgejo, and Typesense, which the web server's route to search reaches at the same address.
-const { forgejo: FORGEJO, typesense: TYPESENSE, secrets, work, commandTimeLimit: limit } = arrangement();
+const { forgejo: FORGEJO, typesense: TYPESENSE, secrets, work } = arrangement();
+const limit = commandTimeLimit();
 // What it starts with its own environment, the site's install and the editor's configuration,
 // as what a build runs with one of its own.
 process.env.NODE_OPTIONS = nodeOptions(process.env.NODE_OPTIONS);

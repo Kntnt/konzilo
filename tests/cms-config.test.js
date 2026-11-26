@@ -11,7 +11,7 @@ import { describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { cmsConfig } from '../src/cms/config.js';
-import { designRatios } from '../src/cms/design-ratios.js';
+import { designRatios } from '../src/design-ratios.js';
 import { demoSource } from '../src/demo-source.js';
 import { SCHEMA_TYPES, SEO_KEYS, siteDescription } from '../src/site-description.js';
 

@@ -463,9 +463,14 @@ describe('a build', () => {
     assert.deepEqual(record.reason, TOOK_TOO_LONG);
     assert.equal(readlinkSync(join(site.root, 'public/current')), release);
     assert.doesNotMatch(readFileSync(join(site.siteFolder, 'content/articles/first.md'), 'utf8'), /half|New words/);
-    assert.equal(statusOf(site, 'articles/aaaaaaaaaaaa.md').status, 'being-published', 'a version no build has read');
+    const status = statusOf(site, 'articles/aaaaaaaaaaaa.md');
+    assert.deepEqual({ status: status.status, reason: status.reason, stillShown: status.stillShown }, { status: 'failed', reason: TOOK_TOO_LONG, stillShown: true }, 'a version the stopped build read');
     assert.deepEqual(site.logged().at(-1).failures, [TOOK_TOO_LONG]);
     assert.equal(site.seen.astro, 1);
+    site.save({ 'articles/aaaaaaaaaaaa.md': post('first', {}, 'Newer words.') });
+    assert.equal(statusOf(site, 'articles/aaaaaaaaaaaa.md').status, 'being-published', 'a version saved since');
+    await site.build()();
+    assert.equal(statusOf(site, 'articles/aaaaaaaaaaaa.md').status, 'live');
   });
 
   test('keeps the release when what a build wrote for the web server cannot be taken', async () => {

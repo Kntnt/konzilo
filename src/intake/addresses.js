@@ -2,7 +2,7 @@
 // of the site's own holds one, a post's other addresses and the rules that lead to it, and
 // which of its old addresses still answer.
 
-import { addressTermFields, feedAt, feedWords, listPageOwners, publicAddress, searchPages, unprefixedAddress } from '../format/addresses.js';
+import { addressTermFields, feedAt, feedWords, listPageOwners, publicAddress, searchPages, termIdOf, unprefixedAddress } from '../format/addresses.js';
 import { momentOf } from '../format/moment.js';
 import { keyOf, REDIRECTS_FILE, reservedBy, SHOW } from '../format/redirects.js';
 import { START_ADDRESS, startFile } from '../format/start-page.js';
@@ -45,9 +45,8 @@ function pathOf(post, run) {
 export function addressValues(post, run, name) {
   const terms = {};
   for (const field of addressTermFields(post.type)) {
-    const given = post.fields[field.name];
-    const id = Array.isArray(given) ? given[0] : given;
-    const term = id === undefined || id === null || id === '' ? undefined : run.terms.get(`${field.taxonomy.collection}/${id}`);
+    const id = termIdOf(post.fields[field.name]);
+    const term = id === null ? undefined : run.terms.get(`${field.taxonomy.collection}/${id}`);
     if (term) terms[field.name] = term.chain.map((one) => one.slug).join('/');
   }
   const date = post.dated ?? momentOf(post.fields.date ?? '') ?? run.ledger.posts[post.key]?.taken ?? run.nowText;

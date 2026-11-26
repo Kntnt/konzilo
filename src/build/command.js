@@ -12,7 +12,8 @@
 import { spawn } from 'node:child_process';
 
 const FIRST = `--import=${new URL('../node-exit.js', import.meta.url).href}`;
-const BIG = 1024 * 1024 * 256;
+// The most output the builder takes from a command, a Git command's among them: 256 MiB.
+export const BIG = 1024 * 1024 * 256;
 
 // `given` NODE_OPTIONS, with the core's module loaded first.
 export function nodeOptions(given = '') {

@@ -8,6 +8,8 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import { INTEGRATION_NAME } from './astro/integration-name.js';
+
 // The names Astro looks for its configuration under, in its order, but for TypeScript's, which
 // Node reads too.
 const CONFIG_FILES = ['astro.config.mjs', 'astro.config.js', 'astro.config.ts', 'astro.config.mts'];
@@ -26,6 +28,6 @@ export async function designRatios(site, warn = (message) => console.warn(messag
     return {};
   }
   const integrations = [config?.integrations ?? []].flat(Number.POSITIVE_INFINITY);
-  const contexts = integrations.find((one) => one?.name === '@kntnt/konzilo')?.imageContexts ?? {};
+  const contexts = integrations.find((one) => one?.name === INTEGRATION_NAME)?.imageContexts ?? {};
   return Object.fromEntries(Object.entries(contexts).filter(([, context]) => typeof context?.ratio === 'string').map(([context, { ratio }]) => [context, ratio]));
 }

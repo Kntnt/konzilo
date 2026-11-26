@@ -3,13 +3,12 @@
 // on, its SMTP settings, and each form's recipients and retention, all kept in the service and
 // none in Git. It is React, since that is what Sveltia takes, with its styles on the elements.
 
+import { LINE, TEXT } from '../admin-page.js';
 import { signedInCredential } from '../credential.js';
 import { say } from '../interface-language.js';
 import { momentShown } from '../submissions/client.js';
 import { failureShown, passwordKeptFor, problemsShown, readMail, recipientsOf, recipientsText, saveMail } from './client.js';
 
-const TEXT = { font: '14px/1.4 system-ui, sans-serif', overflowWrap: 'anywhere' };
-const LINE = { ...TEXT, margin: '4px 0 12px', maxWidth: '60em' };
 const SET = { border: 0, margin: '0 0 20px', padding: 0, display: 'grid', gap: 10, maxWidth: '40em' };
 const LEGEND = { ...TEXT, fontWeight: 600, padding: 0, marginBottom: 6 };
 const FIELD = { ...TEXT, display: 'grid', gap: 4 };

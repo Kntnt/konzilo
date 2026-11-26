@@ -12,17 +12,19 @@ import { ALTERNATE_MARKS } from './web-server.js';
 const RELEASES = 'releases';
 const CURRENT = 'current';
 const KEPT = 2;
-const PAGES = 'pages';
+// A release's pages, which the web server serves.
+export const RELEASE_PAGES = 'pages';
 const RULES = 'web-rules.caddy';
 // The release's redirects as the build wrote them, beside its pages, which the log of addresses
 // not found reads (ADR 0040).
-const REDIRECTS = '_redirects';
+export const RELEASE_REDIRECTS = '_redirects';
 // What a build writes for the web server, and no address of a visitor's.
 export const FOR_THE_WEB_SERVER = ['_headers', '_redirects', '_markdown'];
-// What a public build writes for the service: its consent revision with what its pages showed
-// (ADR 0049), which the release holds beside its pages, where the service reads it.
-const FOR_THE_SERVICE = '_consent.json';
-const CONSENT = 'consent.json';
+// What a public build writes for the service among its pages, its consent revision with what its
+// pages showed (ADR 0049), and the file the release holds it in beside its pages, where the service
+// reads it.
+export const BUILT_CONSENT_REVISION = '_consent.json';
+export const RELEASE_CONSENT_REVISION = 'consent.json';
 
 export function releases(folder) {
   const below = join(folder, RELEASES);
@@ -46,14 +48,14 @@ export function releases(folder) {
       mkdirSync(below, { recursive: true });
       const making = join(below, `.${name}`);
       rmSync(making, { recursive: true, force: true });
-      cpSync(built, join(making, PAGES), { recursive: true });
-      writeFileSync(join(making, REDIRECTS), existsSync(join(built, REDIRECTS)) ? readFileSync(join(built, REDIRECTS)) : '');
-      for (const file of FOR_THE_WEB_SERVER) rmSync(join(making, PAGES, file), { force: true });
-      if (existsSync(join(making, PAGES, FOR_THE_SERVICE))) renameSync(join(making, PAGES, FOR_THE_SERVICE), join(making, CONSENT));
-      rmSync(join(making, PAGES, ALTERNATE_MARKS), { recursive: true, force: true });
+      cpSync(built, join(making, RELEASE_PAGES), { recursive: true });
+      writeFileSync(join(making, RELEASE_REDIRECTS), existsSync(join(built, RELEASE_REDIRECTS)) ? readFileSync(join(built, RELEASE_REDIRECTS)) : '');
+      for (const file of FOR_THE_WEB_SERVER) rmSync(join(making, RELEASE_PAGES, file), { force: true });
+      if (existsSync(join(making, RELEASE_PAGES, BUILT_CONSENT_REVISION))) renameSync(join(making, RELEASE_PAGES, BUILT_CONSENT_REVISION), join(making, RELEASE_CONSENT_REVISION));
+      rmSync(join(making, RELEASE_PAGES, ALTERNATE_MARKS), { recursive: true, force: true });
       for (const mark of marks) {
-        mkdirSync(dirname(join(making, PAGES, mark)), { recursive: true });
-        writeFileSync(join(making, PAGES, mark), '');
+        mkdirSync(dirname(join(making, RELEASE_PAGES, mark)), { recursive: true });
+        writeFileSync(join(making, RELEASE_PAGES, mark), '');
       }
       writeFileSync(join(making, RULES), rules);
       renameSync(making, join(below, name));

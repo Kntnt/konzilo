@@ -13,8 +13,7 @@
 // versions, the core's sizes are the site template's, for a site without a design package, and
 // the core crops nothing.
 
-import { focusIn, focusText } from '../format/body.js';
-import { MIDDLE, ratioOf } from '../format/focal-point.js';
+import { focalPointIn, focalPointText, MIDDLE, ratioOf } from '../format/focal-point.js';
 
 // The widest version the build makes of any image, whatever a context asks: the master's longest
 // side, so that a hero across a wide, dense screen gets no more than the master holds.
@@ -122,7 +121,7 @@ export function versionsInBody(contexts = IMAGE_CONTEXTS) {
         }
         ctx.setProperty(node, 'widths', [...context.widths]);
         ctx.setProperty(node, 'sizes', sizes);
-        for (const [key, value] of Object.entries(cropOptions(context.ratio, node.data?.focus ?? null))) ctx.setProperty(node, key, value);
+        for (const [key, value] of Object.entries(cropOptions(context.ratio, node.data?.focalPoint ?? null))) ctx.setProperty(node, key, value);
         if (isTag(figure, 'figure')) {
           ctx.insertAfter(node, { type: 'element', tagName: 'img', properties: { src, alt, widths: [...contexts.lightbox.widths], sizes: contexts.lightbox.sizes, hidden: '', [WHOLE_ATTRIBUTE]: '' }, children: [] });
         }
@@ -132,29 +131,29 @@ export function versionsInBody(contexts = IMAGE_CONTEXTS) {
 }
 
 // The options by which an image is asked to be cropped to a context's aspect ratio, `ratio` as
-// the design names it, `16:9`, around its focal point `focus`, { x, y }, or its middle where it has
+// the design names it, `16:9`, around its focal point `point`, { x, y }, or its middle where it has
 // none (image-service.js): none where the context has no ratio of its own. Each a number or a
 // text, since Sätteri keeps no other kind of property on an image of a body.
-export function cropOptions(ratio, focus = null) {
+export function cropOptions(ratio, point = null) {
   const read = ratioOf(ratio);
   if (read === null) return {};
-  return { [RATIO_OPTION]: read.value, [FOCUS_OPTION]: focusText(focus ?? MIDDLE) };
+  return { [RATIO_OPTION]: read.value, [FOCAL_POINT_OPTION]: focalPointText(point ?? MIDDLE) };
 }
 
 // The options cropOptions() gives: the ratio, its width over its height, and the focal point as an
 // image's title writes it.
 export const RATIO_OPTION = 'konziloRatio';
-export const FOCUS_OPTION = 'konziloFocus';
+export const FOCAL_POINT_OPTION = 'konziloFocalPoint';
 
 // What a crop around a focal point asks of Astro's image service once its options are read: its
 // `position`, which Astro hashes into the name of each version and carries in the address the dev
 // server makes it at, as it does every option of its own, so that a crop around another point is
-// another file. `focus` { x, y }.
+// another file. `point` { x, y }, written after `konzilo-focus`, as an image's title writes it.
 const POSITION = 'konzilo-focus ';
-export const focusPosition = (focus) => `${POSITION}${focusText(focus)}`;
+export const focalPointPosition = (point) => `${POSITION}${focalPointText(point)}`;
 
 // The focal point a `position` names, { x, y }, or null where it names none.
-export const focusOfPosition = (position) => (typeof position === 'string' && position.startsWith(POSITION) ? focusIn(position.slice(POSITION.length)) : null);
+export const focalPointOfPosition = (position) => (typeof position === 'string' && position.startsWith(POSITION) ? focalPointIn(position.slice(POSITION.length)) : null);
 
 // The attribute of the hidden image in a figure that the lightbox shows in place of a cropped one.
 // The image is given it as a property by this name, since Astro writes each property of an image

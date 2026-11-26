@@ -92,7 +92,7 @@ export function editGallery({ images, choose = null, picture = null, frames = []
       focal.addEventListener('click', async () => {
         const address = await shown;
         if (!address) return;
-        const answer = await moveFocalPoint({ address, focus: held.focalPoint, frames });
+        const answer = await moveFocalPoint({ address, focalPoint: held.focalPoint, frames });
         if (answer !== null) held.focalPoint = answer.focalPoint;
         focal.focus();
       });

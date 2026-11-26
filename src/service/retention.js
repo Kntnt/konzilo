@@ -2,6 +2,8 @@
 // duty of the service in its role for editors (ADR 0044), which forgets what is older at its start
 // and then every minute, so that what grew too old while it was stopped is gone once it starts.
 
+import { DAY } from './day.js';
+
 // The days a form's submissions are kept until an Admin sets others on the *Mail* page, and the
 // most and the fewest an Admin may set.
 export const RETENTION_DAYS = 30;
@@ -11,7 +13,6 @@ export const RETENTION_MOST = 3650;
 // The days spam is kept, or its form's retention where that is shorter.
 export const SPAM_DAYS = 7;
 
-const DAY = 24 * 60 * 60_000;
 
 // The duty. `store`: as store.js opens it, which holds each form's retention where an Admin has
 // set one. A form the site no longer declares keeps its submissions for the retention it had.

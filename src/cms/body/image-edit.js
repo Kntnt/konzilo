@@ -1,14 +1,14 @@
 // The dialog behind the button on an image in the field: its alt text, its focal point, and taking
-// it out, which asks first. It gives { alt, focus } or { remove: true } when an answer is reached,
-// and null when it was left, with nothing changed. `address` is the picture to describe, when there
-// is one to show, on which the focal point `focus`, { x, y } or null, is moved by the `frames` of
+// it out, which asks first. It gives { alt, focalPoint } or { remove: true } when an answer is
+// reached, and null when it was left, with nothing changed. `address` is the picture to describe,
+// when there is one to show, on which the focal point `focalPoint`, { x, y } or null, is moved by the `frames` of
 // the site's aspect ratios (ADR 0055, image/focal-point.js).
 
 import { asking, button, dialogOf, made, textRow } from './dialog.js';
 import { focalPointPicker } from '../image/focal-point.js';
 import { say } from '../interface-language.js';
 
-export function editImage({ alt, address = null, focus = null, frames = [], root = document.body }) {
+export function editImage({ alt, address = null, focalPoint = null, frames = [], root = document.body }) {
   return new Promise((resolve) => {
     const { dialog, body } = dialogOf(say('body.imageEdit'));
     dialog.classList.add('konzilo-dialog-narrow');
@@ -23,7 +23,7 @@ export function editImage({ alt, address = null, focus = null, frames = [], root
     };
     dialog.addEventListener('close', () => finish(null));
 
-    const picker = address === null ? null : focalPointPicker(body, { address, focus, frames });
+    const picker = address === null ? null : focalPointPicker(body, { address, focalPoint, frames });
 
     const form = made('form', 'konzilo-dialog-form', body);
     form.noValidate = true;
@@ -46,7 +46,7 @@ export function editImage({ alt, address = null, focus = null, frames = [], root
       event.preventDefault();
       const written = field.value.trim();
       if (written !== '') {
-        finish({ alt: written, focus: picker ? picker.read() : focus });
+        finish({ alt: written, focalPoint: picker ? picker.read() : focalPoint });
         return;
       }
       note.textContent = say('body.noAlt');

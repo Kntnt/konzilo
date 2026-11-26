@@ -18,8 +18,20 @@
 // on the left on a right-to-left site. A design reads the attribute, which no inline style
 // outranks, and the site's security policy has no style of a table to allow.
 
-const ALIGNED = /^text-align:\s*(left|center|right);?$/;
+const ALIGNED = /^text-align:\s*(left|center|right)$/;
 const LOGICAL = { left: 'start', center: 'center', right: 'end' };
+
+// A cell's alignment as its `style` says it, `text-align: left`, `center` or `right`, as the reader
+// writes it and a page of the site's own may: { align }, the core's `start`, `center` or `end`, and
+// `rest`, what else the style says, '' for nothing; null where it says no alignment. The Markdown
+// alternate reads a page's cells by it too (html-to-markdown.js).
+export function styleAlignment(style) {
+  if (typeof style !== 'string') return null;
+  const declarations = style.split(';').map((one) => one.trim()).filter(Boolean);
+  const at = declarations.findIndex((one) => ALIGNED.test(one));
+  if (at === -1) return null;
+  return { align: LOGICAL[ALIGNED.exec(declarations[at])[1]], rest: declarations.filter((_, i) => i !== at).join('; ') };
+}
 
 // Sätteri's HTML tree plugin that puts each table in its box, and writes each aligned
 // cell's alignment as `data-align`.
@@ -35,10 +47,10 @@ export const tables = {
     {
       filter: ['th', 'td'],
       visit(node, ctx) {
-        const aligned = typeof node.properties.style === 'string' ? ALIGNED.exec(node.properties.style.trim())?.[1] : undefined;
-        if (aligned === undefined) return;
-        ctx.setProperty(node, 'style', undefined);
-        ctx.setProperty(node, 'dataAlign', LOGICAL[aligned]);
+        const aligned = styleAlignment(node.properties.style);
+        if (aligned === null) return;
+        ctx.setProperty(node, 'style', aligned.rest === '' ? undefined : aligned.rest);
+        ctx.setProperty(node, 'dataAlign', aligned.align);
       },
     },
   ],

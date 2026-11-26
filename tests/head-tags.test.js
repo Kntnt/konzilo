@@ -19,7 +19,7 @@ import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { feedSafe, feedTitle, siteFeeds } from '../src/astro/feeds.js';
 import { renderTemplate } from '../src/metadata-templates.js';
-import { focusPosition } from '../src/astro/image-versions.js';
+import { focalPointPosition } from '../src/astro/image-versions.js';
 import { ALTERNATES, headTags, templateValues } from '../src/astro/search-and-sharing.js';
 import { siteDescription } from '../src/site-description.js';
 import { astroConfig, astroEnvironment, nodeSync } from './lib/astro.js';
@@ -195,8 +195,8 @@ test('a sharing image is cropped around the focal point of the image it is made 
   await shared({ image: { src: 'featured', alt: 'The lantern', focalPoint: { x: 0.1, y: 0.3 } }, seo: { socialImage: 'own', socialImageAlt: 'A letter', socialImageFocalPoint: { x: 0.8, y: 0.2 } } });
   await shared({ image: { src: 'featured', alt: 'The lantern' } });
   assert.deepEqual(asked.map(({ src, width, height, fit, position }) => ({ src, width, height, fit, position })), [
-    { src: 'featured', width: 1200, height: 630, fit: 'cover', position: focusPosition({ x: 0.1, y: 0.3 }) },
-    { src: 'own', width: 1200, height: 630, fit: 'cover', position: focusPosition({ x: 0.8, y: 0.2 }) },
+    { src: 'featured', width: 1200, height: 630, fit: 'cover', position: focalPointPosition({ x: 0.1, y: 0.3 }) },
+    { src: 'own', width: 1200, height: 630, fit: 'cover', position: focalPointPosition({ x: 0.8, y: 0.2 }) },
     { src: 'featured', width: 1200, height: 630, fit: 'cover', position: undefined },
   ]);
 });

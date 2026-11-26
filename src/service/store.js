@@ -3,10 +3,10 @@
 // timing tokens and its digests of clients are derived; each form's submissions (ADR 0045), with
 // how each one's mail stands; what an Admin keeps of each form, its recipients and its retention;
 // the service's settings, such as the mail adapter an Admin chooses (ADR 0003), none of which is in
-// Git; the consent records, with what each consent revision showed (ADR 0049); the counts of
-// what the site's policy blocked (ADR 0051), which violations.js keeps through `prepare`, `inOne`
-// and `forgot`; and the incoming feeds an Admin adds, with what is known of each one's items
-// (ADR 0079). Nothing in it holds a visitor's address, browser or referrer, and nothing it
+// Git; the consent records, with what each consent revision showed (ADR 0049), and the counts of
+// what the site's policy blocked (ADR 0051), which consent-records.js and violations.js keep
+// through `prepare`, `inOne`, `forgot` and `snapshotOf`; and the incoming feeds an Admin adds, with
+// what is known of each one's items (ADR 0079). Nothing in it holds a visitor's address, browser or referrer, and nothing it
 // forgets stays in it: a submission, a record or a count forgotten is overwritten where it stood,
 // and the log of writes emptied.
 //
@@ -17,7 +17,7 @@
 import { randomBytes } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 
-import { CONSENT_RECORDS_STEP, consentRecordStore } from './consent-records.js';
+import { CONSENT_RECORDS_STEP } from './consent-records.js';
 
 // The file in the service's data folder.
 export const STORE_FILE = 'service.sqlite';
@@ -96,9 +96,9 @@ const STEPS = [
 // Gives { key, keep(submission), submissions(form), snapshot(form), counts(), mailDue(now),
 // mailDone(id, outcome), mailLater(id, at), mailSoon(now), formSettings(), setFormSettings(form,
 // settings), formsHeld(), expire(form, moments), everything(), chosen(ids), erase(ids), settle(),
-// setting(name), setSetting(name, value), consentRecords, prepare(sql), inOne(work), forgot(count),
-// feeds(), addFeed(feed), changeFeed(id, change), removeFeed(id), feedItems(id), feedRead(id, read),
-// feedPosts(), close() }:
+// setting(name), setSetting(name, value), prepare(sql), inOne(work), forgot(count), snapshotOf(sql,
+// values), feeds(), addFeed(feed), changeFeed(id, change), removeFeed(id), feedItems(id),
+// feedRead(id, read), feedPosts(), close() }:
 // `key`, 32 bytes, the same from the first opening on; `keep` takes { form, sentAt, language,
 // spam, fields }, `sentAt` a Date, `spam` null or why it was held as spam, and `fields` each
 // { name, label, value }, and gives its number, its mail pending unless it is spam;
@@ -137,13 +137,15 @@ const STEPS = [
 // `submissions` does with spam among them; `chosen` gives those numbered `ids`, newest first; and
 // `erase` forgets them, and gives how many. What `expire` and `erase` forget is overwritten where
 // it stood, and the log of writes emptied, unless a reading in progress holds that back: `settle`
-// tries it again. `consentRecords` holds the consent records, as consent-records.js gives them.
+// tries it again.
 //
-// A kind whose storage is a module of its own, such as the policy's violations (violations.js),
-// asks the store's connection itself: `prepare` gives a statement on it; `inOne` does `work()` in
-// one transaction, which waits for the other role's write, and gives what `work` gives; and
-// `forgot` says that a statement forgot `count` rows, which are then gone as `expire`'s are, and
-// gives `count`.
+// A kind whose storage is a module of its own, such as the consent records (consent-records.js)
+// and the policy's violations (violations.js), asks the store's connection itself: `prepare` gives
+// a statement on it; `inOne` does `work()` in one transaction, which waits for the other role's
+// write, and gives what `work` gives; `forgot` says that a statement forgot `count` rows, which
+// are then gone as `expire`'s are, and gives `count`; and `snapshotOf` gives the rows a query, `sql`
+// with its `values`, reads from the data as it stood when they were first read, as `snapshot`
+// gives a form's submissions: { each(), close() }, `each()` the rows one at a time.
 export function openStore(file) {
   const database = new DatabaseSync(file);
   database.exec('PRAGMA busy_timeout = 5000');
@@ -222,6 +224,47 @@ export function openStore(file) {
     return count;
   };
 
+  // A read transaction on a connection of its own holds the data as it stood at its first read until
+  // it ends, so that anything else asked of the store meanwhile is answered as the data stands.
+  const snapshotOf = (sql, values) => {
+    const reading = new DatabaseSync(file, { readOnly: true });
+    let open = true;
+    try {
+      reading.exec('PRAGMA busy_timeout = 5000');
+      reading.exec('BEGIN');
+    } catch (error) {
+      reading.close();
+      throw error;
+    }
+    return {
+      * each() {
+        yield* reading.prepare(sql).iterate(values);
+      },
+      close() {
+        if (!open) return;
+        open = false;
+        try {
+          reading.exec('ROLLBACK');
+        } finally {
+          reading.close();
+        }
+      },
+    };
+  };
+
+  // One transaction of `work()`, which waits for the other role's write.
+  const inOne = (work) => {
+    database.exec('BEGIN IMMEDIATE');
+    try {
+      const done = work();
+      database.exec('COMMIT');
+      return done;
+    } catch (error) {
+      database.exec('ROLLBACK');
+      throw error;
+    }
+  };
+
   const submissionOf = (row) => ({
     id: Number(row.id),
     form: row.form,
@@ -240,30 +283,13 @@ export function openStore(file) {
     submissions(form, { spam = true, before = null, limit = null } = {}) {
       return byForm.all({ form, spam: spam ? 1 : 0, before, limit: limit ?? -1 }).map(submissionOf);
     },
-    // A read transaction holds the data as it stood at its first read until it ends.
     snapshot(form) {
-      const reading = new DatabaseSync(file, { readOnly: true });
-      let open = true;
-      try {
-        reading.exec('PRAGMA busy_timeout = 5000');
-        reading.exec('BEGIN');
-      } catch (error) {
-        reading.close();
-        throw error;
-      }
+      const reading = snapshotOf(BY_FORM, { form, spam: 0, before: null, limit: -1 });
       return {
         * each() {
-          for (const row of reading.prepare(BY_FORM).iterate({ form, spam: 0, before: null, limit: -1 })) yield submissionOf(row);
+          for (const row of reading.each()) yield submissionOf(row);
         },
-        close() {
-          if (!open) return;
-          open = false;
-          try {
-            reading.exec('ROLLBACK');
-          } finally {
-            reading.close();
-          }
-        },
+        close: reading.close,
       };
     },
     counts() {
@@ -311,20 +337,10 @@ export function openStore(file) {
       if (value === null) forgetSetting.run(name);
       else keepSetting.run(name, JSON.stringify(value));
     },
-    consentRecords: consentRecordStore(database, { file, forgot }),
     prepare: (sql) => database.prepare(sql),
-    inOne(work) {
-      database.exec('BEGIN IMMEDIATE');
-      try {
-        const done = work();
-        database.exec('COMMIT');
-        return done;
-      } catch (error) {
-        database.exec('ROLLBACK');
-        throw error;
-      }
-    },
+    inOne,
     forgot,
+    snapshotOf,
     feeds() {
       return feedsKept.all().map((row) => ({
         id: Number(row.id),
@@ -345,29 +361,19 @@ export function openStore(file) {
       changedFeed.run(type, language, every, id);
     },
     removeFeed(id) {
-      database.exec('BEGIN IMMEDIATE');
-      try {
+      inOne(() => {
         forgetItems.run(id);
         forgetFeed.run(id);
-        database.exec('COMMIT');
-      } catch (error) {
-        database.exec('ROLLBACK');
-        throw error;
-      }
+      });
     },
     feedItems(id) {
       return new Map(itemsOf.all(id).map(({ item, ...held }) => [item, held]));
     },
     feedRead(id, { at, failure = null, items = [] }) {
-      database.exec('BEGIN IMMEDIATE');
-      try {
+      inOne(() => {
         for (const { item, seen, moment, state, path = null, version = null, slug = null } of items) keepItem.run(id, item, seen, moment, state, path, version, slug);
         readFeed.run(at.toISOString(), failure === null ? null : JSON.stringify(failure), failure === null ? 1 : 0, id);
-        database.exec('COMMIT');
-      } catch (error) {
-        database.exec('ROLLBACK');
-        throw error;
-      }
+      });
     },
     feedPosts() {
       return livePosts.all().map(({ feed, path }) => ({ feed: Number(feed), path }));

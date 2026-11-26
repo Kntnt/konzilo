@@ -67,7 +67,7 @@
 import { labelIn } from '../catalogues.js';
 import { listPageAddress, searchPages } from '../format/addresses.js';
 import { searchDescriptionOf, searchTitleOf, SHARING_SIZE, socialDescriptionOf, socialTitleOf } from '../format/article-parts.js';
-import { focusPosition } from './image-versions.js';
+import { focalPointPosition } from './image-versions.js';
 import { followsParts, isKindOfArticle, structuredDataTypeOf } from '../format/built-in-types.js';
 import { renderTemplate } from '../metadata-templates.js';
 import { isSiteTitle } from '../settings-groups.js';
@@ -275,7 +275,7 @@ async function postPage({ entry, type, path, number, search, site }, known, getE
 // middle where it has none (image-service.js), as a JPEG on white, since a JPEG has no
 // transparency, at its address on the public host.
 async function sharingImage({ src, alt, focalPoint }, origin, getImage) {
-  const around = focalPoint ? { position: focusPosition(focalPoint) } : {};
+  const around = focalPoint ? { position: focalPointPosition(focalPoint) } : {};
   const made = await getImage({ src, ...SHARING_IMAGE, fit: 'cover', ...around, format: 'jpeg', background: '#ffffff' });
   return { src: new URL(made.src, origin).href, width: made.attributes.width, height: made.attributes.height, alt };
 }

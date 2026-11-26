@@ -25,21 +25,20 @@
 // that wide, its `src` and its versions as they were.
 //
 // A picture asked to be cropped to an aspect ratio (RATIO_OPTION) around a focal
-// point (FOCUS_OPTION), as cropOptions() asks, is cropped as cropOf() says: as
+// point (FOCAL_POINT_OPTION), as cropOptions() asks, is cropped as cropOf() says: as
 // large as fits, centred on the point as far as its edges allow, and each of its
 // versions is that crop alone, scaled, so that no pixel outside it is sent, and
 // none wider than the crop. Its options are then Astro's own, a size in the
 // crop's proportions, `fit: 'cover'` and the point as its `position`
-// (focusPosition()), so that Astro names each version by them and its dev
+// (focalPointPosition()), so that Astro names each version by them and its dev
 // server makes it from its address; and any picture asked for at a size to fill
 // with a focal point as its `position`, as a sharing image is, is cropped around
 // that point. One in the ratio already is not cropped, and an SVG never is.
 
 import sharpService from 'astro/assets/services/sharp';
-import { focusIn } from '../format/body.js';
-import { cropOf, MIDDLE } from '../format/focal-point.js';
+import { cropOf, focalPointIn, MIDDLE } from '../format/focal-point.js';
 import { isLosslessWebp } from '../format/originals.js';
-import { DISPLAY_WIDTH_OPTION, FOCUS_OPTION, focusOfPosition, focusPosition, QUALITY, RATIO_OPTION, versionWidths } from './image-versions.js';
+import { DISPLAY_WIDTH_OPTION, FOCAL_POINT_OPTION, focalPointOfPosition, focalPointPosition, QUALITY, RATIO_OPTION, versionWidths } from './image-versions.js';
 
 // An SVG, as Astro's own detector knows one: an <svg> tag in its first
 // kilobyte.
@@ -95,10 +94,10 @@ const isImported = (src) => typeof src === 'object' && src !== null && typeof sr
 // Astro's own options for that crop: a size in the crop's proportions, at its widest version
 // where it is asked for in widths, none wider than the crop, else at the width asked for or the
 // crop's own, `fit: 'cover'` and the point as its `position`. True where it is cropped.
-function cropped(validated, ratio, focus) {
+function cropped(validated, ratio, point) {
   const { src } = validated;
   if (!(ratio > 0) || !isImported(src) || src.format === 'svg') return false;
-  const crop = cropOf(src, ratio, focus);
+  const crop = cropOf(src, ratio, point);
   if (crop === null) return false;
   if (Array.isArray(validated.widths) && validated.widths.length > 0 && !validated.densities) {
     validated.widths = versionWidths(validated.widths, crop.width);
@@ -106,17 +105,17 @@ function cropped(validated, ratio, focus) {
   } else validated.width = Math.min(validated.width ?? crop.width, crop.width);
   validated.height = Math.round((validated.width * crop.height) / crop.width);
   validated.fit = 'cover';
-  validated.position = focusPosition(focus);
+  validated.position = focalPointPosition(point);
   return true;
 }
 
 const service = {
   ...sharpService,
   async validateOptions(options, imageConfig, logger) {
-    const { [RATIO_OPTION]: ratio, [FOCUS_OPTION]: focus, ...rest } = options;
+    const { [RATIO_OPTION]: ratio, [FOCAL_POINT_OPTION]: point, ...rest } = options;
     const validated = await sharpService.validateOptions(rest, imageConfig, logger);
     if (validated.format === 'webp' && validated.quality === undefined) validated.quality = QUALITY;
-    if (cropped(validated, Number(ratio), focusIn(focus) ?? MIDDLE)) return validated;
+    if (cropped(validated, Number(ratio), focalPointIn(point) ?? MIDDLE)) return validated;
     const { src } = validated;
     // Asked for in widths, at no size of its own: Astro hands it over at its master's size.
     const asked = Array.isArray(validated.widths) && validated.widths.length > 0 && !validated.densities && isImported(src) && src.format !== 'svg';
@@ -141,16 +140,16 @@ const service = {
       const own = config.service?.config ?? {};
       config = { ...config, service: { ...config.service, config: { ...own, webp: { ...own.webp, lossless: true } } } };
     }
-    const focus = focusOfPosition(options.position);
+    const point = focalPointOfPosition(options.position);
     const raster = !isSvg(input) || (options.format !== undefined && options.format !== 'svg');
-    if (focus !== null && raster && options.fit === 'cover' && options.width && options.height) {
+    if (point !== null && raster && options.fit === 'cover' && options.width && options.height) {
       // The crop around the point, at the size asked for, enlarged where it is smaller, and
       // without loss until Astro's service writes it as asked.
       const picture = isSvg(input) ? await drawSvg(input, options) : input;
       const { width, height } = options;
       const shape = await sharp(picture).metadata();
       const [across, down] = (shape.orientation ?? 1) >= 5 ? [shape.height, shape.width] : [shape.width, shape.height];
-      const crop = cropOf({ width: across, height: down }, width / height, focus) ?? { left: 0, top: 0, width: across, height: down };
+      const crop = cropOf({ width: across, height: down }, width / height, point) ?? { left: 0, top: 0, width: across, height: down };
       const made = await sharp(picture).rotate().extract(crop).resize({ width, height, fit: 'fill', kernel: config.service?.config?.kernel }).png({ compressionLevel: 0 }).toBuffer();
       const { fit, position, ...asked } = options;
       return sharpService.transform(made, asked, config, logger);

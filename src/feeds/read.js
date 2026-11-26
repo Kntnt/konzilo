@@ -10,6 +10,7 @@ import { canonicalAddress } from '../format/addresses.js';
 import { fitLength } from '../format/article-parts.js';
 import { momentOf } from '../format/moment.js';
 import { MARKUP } from '../checks.js';
+import { FEED_FAILURES } from './failures.js';
 
 const ATOM = 'http://www.w3.org/2005/Atom';
 const CONTENT = 'http://purl.org/rss/1.0/modules/content/';
@@ -68,7 +69,7 @@ const textOf = (part) => (part.kind === 'plain' ? { plain: part.value.trim() } :
 // feed, RSS's `guid` or Atom's `id`, else its link; `text` its full content where it has one, else
 // its summary, as { html } or { plain }; `date` its publishing moment, or null; `link` the address
 // of the original, or null. An item with neither ID nor link, or neither title nor text, is left
-// out. An answer that is no RSS 2.0 or Atom feed gives { problem: 'not-a-feed' }.
+// out. An answer that is no RSS 2.0 or Atom feed gives { problem }, FEED_FAILURES.NOT_A_FEED.
 export function readFeed(text, address) {
   const parser = sax.parser(true, { xmlns: true, position: false, trim: false });
   const stack = [];
@@ -159,7 +160,7 @@ export function readFeed(text, address) {
   } catch {
     failed = true;
   }
-  if (failed || kind === null || stack.length > 0) return { problem: 'not-a-feed' };
+  if (failed || kind === null || stack.length > 0) return { problem: FEED_FAILURES.NOT_A_FEED };
   return { items };
 }
 

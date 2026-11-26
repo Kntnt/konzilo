@@ -17,6 +17,7 @@
 import { closeSync, fstatSync, openSync, readdirSync, readFileSync, readSync, statSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 
+import { RELEASE_PAGES, RELEASE_REDIRECTS } from '../build/release.js';
 import { compilePattern, isPattern } from '../format/patterns.js';
 import { isSource, matcher, STATUSES } from '../format/redirects.js';
 import { countedPath, forgetAddresses, kept, readCountsFile, writeCounts } from '../not-found-counts.js';
@@ -168,7 +169,7 @@ export function notFoundLog({ log, counts, release, now = () => Math.floor(Date.
   // The rules of the release, from its `_redirects`, which the build keeps beside its pages.
   const releaseRules = () => {
     try {
-      return redirectsRules(readFileSync(join(release, '_redirects'), 'utf8'));
+      return redirectsRules(readFileSync(join(release, RELEASE_REDIRECTS), 'utf8'));
     } catch {
       return [];
     }
@@ -185,7 +186,7 @@ export function notFoundLog({ log, counts, release, now = () => Math.floor(Date.
       const known = addresses[asked.path] ?? { count: 0, last: 0 };
       addresses[asked.path] = { ...known, count: known.count + 1, last: Math.max(known.last, asked.at) };
     }
-    const pages = join(release, 'pages');
+    const pages = join(release, RELEASE_PAGES);
     const holding = rulesHolding(releaseRules());
     for (const path of Object.keys(addresses)) {
       if (fileHolding(pages, path) || (holding(path) && holding(path).status !== 404)) delete addresses[path];

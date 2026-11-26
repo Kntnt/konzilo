@@ -317,6 +317,16 @@ describe('the service, for visitors', () => {
       assert.equal(answer.statusCode, 413);
       answer.resume();
     });
+
+    // A connection closed at once, while the client is still sending, is reset, and a client that
+    // has not yet read the answer then reads none.
+    test('lets a client still sending a body refused for its length read the answer, rather than a reset', async () => {
+      const json = { ...fromThePage(), 'Content-Type': 'application/json' };
+      const body = JSON.stringify({ note: 'x'.repeat(8 * 1024 * 1024) });
+      const answers = await Promise.all(Array.from({ length: 12 }, () => send(origin, 'POST', '/_konzilo/forms/note', { headers: json, body }).then(({ status }) => status, (error) => error.code)));
+      assert.deepEqual(answers, Array(12).fill(413));
+      assert.deepEqual(kept('note'), []);
+    });
   });
 
   describe('what is kept', () => {

@@ -6,6 +6,7 @@
 // goes on being counted. Each takes the address off the page at once. An Admin's alone, as the
 // service says. It is React, since that is what Sveltia takes.
 
+import { useAnswer } from '../admin-page.js';
 import { signedInCredential } from '../credential.js';
 import { languageTag, say } from '../interface-language.js';
 import { wordsShown } from '../refusals.js';
@@ -44,26 +45,16 @@ function RedirectForm({ address, busy, onSave, onCancel }) {
 export function notFoundPage({ config, credential = signedInCredential, lock = null } = {}) {
   const { api, repository, branch } = sourceOf(config);
   return function KonziloNotFoundPage() {
-    const { createElement: h, useEffect, useState } = react();
-    // What the service answered: undefined until it has, null where it cannot be told, else as
-    // readNotFound() answers.
-    const [shown, setShown] = useState(undefined);
+    const { createElement: h, useState } = react();
     const [tried, setTried] = useState(0);
+    // What the service answered: undefined until it has, null where it cannot be told, else as
+    // readNotFound() answers; asked again at each *Try again*.
+    const [shown, setShown] = useAnswer(() => readNotFound({ credential }), [tried]);
     // What the last thing done says: { words, alert }, or null.
     const [told, setTold] = useState(null);
     // The address a target is being asked for, or null.
     const [redirecting, setRedirecting] = useState(null);
     const [busy, setBusy] = useState(false);
-    useEffect(() => {
-      let gone = false;
-      readNotFound({ credential }).then((given) => {
-        if (!gone) setShown(given);
-      });
-      return () => {
-        gone = true;
-      };
-    }, [tried]);
-
     // A rule for `address`, a redirect to `to` or, without it, a 410, saved, and the list read
     // again, which no longer holds it.
     const makeRule = async (address, to) => {

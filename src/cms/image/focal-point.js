@@ -11,8 +11,7 @@
 // and of its height from the top, to the thousandth, or null; `changed(point)` hears of each change.
 // The frames are drawn by the image's own proportions, as the build crops its master.
 
-import { toThousandth } from '../../format/body.js';
-import { cropOf, focalPointOf, MIDDLE } from '../../format/focal-point.js';
+import { cropOf, heldFocalPoint, MIDDLE, toThousandth } from '../../format/focal-point.js';
 import { button, dialogOf, made } from '../body/dialog.js';
 import { say } from '../interface-language.js';
 import '../body/field.css';
@@ -44,8 +43,8 @@ const frameLabel = ({ text, contexts }) => say('image.frame', { contexts: contex
 const pointWords = (point) => (point === null ? say('image.focalPointNone') : say('image.focalPointAt', { x: whole(point.x), y: whole(point.y) }));
 
 // The picker in `parent`, for the picture at `address`, which may come later (setAddress()).
-export function focalPointPicker(parent, { address = null, focus = null, frames = [], changed = () => {} } = {}) {
-  let point = readPoint(focus);
+export function focalPointPicker(parent, { address = null, focalPoint = null, frames = [], changed = () => {} } = {}) {
+  let point = heldFocalPoint(focalPoint);
   let natural = null;
   pickers += 1;
 
@@ -166,7 +165,7 @@ export function focalPointPicker(parent, { address = null, focus = null, frames 
     read: () => point,
     // A point from outside, which no one is told of.
     set(next) {
-      point = readPoint(next);
+      point = heldFocalPoint(next);
       draw();
     },
     setAddress: show,
@@ -175,16 +174,10 @@ export function focalPointPicker(parent, { address = null, focus = null, frames 
   };
 }
 
-// A point as the format holds one, or null for none or what is no point.
-function readPoint(given) {
-  const read = focalPointOf(given);
-  return read === null || read.wrong ? null : read;
-}
-
 // The dialog in which a post moves the focal point of an image a field holds (field.js): the
 // picker, and *Done* or *Cancel*. It gives { focalPoint }, the point or null, once it is done, and
 // null where it was left, with nothing changed.
-export function moveFocalPoint({ address, focus = null, frames = [], root = document.body }) {
+export function moveFocalPoint({ address, focalPoint = null, frames = [], root = document.body }) {
   return new Promise((resolve) => {
     const { dialog, body } = dialogOf(say('image.focalPointEdit'));
     dialog.classList.add('konzilo-dialog-narrow');
@@ -197,7 +190,7 @@ export function moveFocalPoint({ address, focus = null, frames = [], root = docu
       resolve(answer);
     };
     dialog.addEventListener('close', () => finish(null));
-    const picker = focalPointPicker(body, { address, focus, frames });
+    const picker = focalPointPicker(body, { address, focalPoint, frames });
     const actions = made('div', 'konzilo-dialog-actions', body);
     button('', say('body.cancel'), actions).addEventListener('click', () => finish(null));
     button('konzilo-dialog-accept', say('body.done'), actions).addEventListener('click', () => finish({ focalPoint: picker.read() }));

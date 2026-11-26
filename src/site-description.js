@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { catalogueFor, INTERFACE_LANGUAGES, labelIn, SOURCE_LANGUAGE } from './catalogues.js';
 import { freeze, interfaceLanguagesNamed, isLinkAddress, isObject, label, onlyKeys as checkedKeys, text } from './checks.js';
-import { addressSteps, DATE_TOKENS, stepsGive } from './format/addresses.js';
+import { addressSteps, DATE_TOKENS, stepsGive, takesSteps } from './format/addresses.js';
 import { ARTICLE, BUILT_IN_TAXONOMIES, BUILT_IN_TYPES, catalogueLabel, EVERY_STRUCTURED_DATA_TYPE, fieldsWith } from './format/built-in-types.js';
 import { IMAGE_LIBRARY_FOLDER, MEDIA_FOLDER } from './format/masters.js';
 import { suffixTakenIn } from './format/public-suffixes.js';
@@ -1588,10 +1588,6 @@ function holdsToken(address, token) {
   const all = typeof address === 'string' ? [address] : isObject(address) ? Object.values(address).filter((one) => typeof one === 'string') : [];
   return all.some((one) => /^\/.*\/$/.test(one) && addressSteps(one).some((step) => step.token === token));
 }
-
-// Whether a token of a type's address (`fields`, the type's as read) fills any number of steps:
-// `{path}`, and the term of a hierarchical taxonomy, its path; every other token fills one.
-const takesSteps = (token, fields) => token === 'path' || Boolean(fields.find((field) => field.name === token && field.kind === 'terms')?.taxonomy?.hierarchical);
 
 // An address's shape: its texts as they are, each token that fills one step `*` and each that
 // may fill several `**`. Two addresses of one shape give the same addresses.

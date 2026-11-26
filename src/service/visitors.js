@@ -14,7 +14,7 @@ import { createHmac } from 'node:crypto';
 
 import { consentRecordsKind, publishedRevisions } from './consent-records.js';
 import { formsKind } from './forms.js';
-import { bodyOf } from './request-body.js';
+import { bodyOf, refuseTooLarge } from './request-body.js';
 import { violationsKind } from './violations.js';
 
 // The headers the web server passes on beside the browser's own (compose/web/Caddyfile, and
@@ -85,7 +85,7 @@ function write(outgoing, { status, json = {}, location = null, retryAfter = null
 // Gives { request(incoming, outgoing) }, which answers one request, and { look() }, which keeps
 // the consent revision of the release in use where it has moved.
 export function visitorsService({ site, store, hosts = [], releases = null, now = () => new Date(), warn = console.error }) {
-  const revisions = publishedRevisions({ folder: releases, store, warn });
+  const revisions = publishedRevisions({ folder: releases, store, warn, now });
   revisions.look();
   const kinds = [formsKind({ site, store, now }), consentRecordsKind({ store, revisions, now }), violationsKind({ store, now })];
   const clientKey = createHmac('sha256', store.key).update('clients').digest();
@@ -121,15 +121,9 @@ export function visitorsService({ site, store, hosts = [], releases = null, now 
           return write(outgoing, { status: 415 });
         }
         const declared = Number(header(incoming.headers, 'content-length') ?? 0);
-        if (declared > kind.limit) {
-          outgoing.shouldKeepAlive = false;
-          return write(outgoing, { status: 413 });
-        }
+        if (declared > kind.limit) return refuseTooLarge(incoming, outgoing);
         body = await bodyOf(incoming, kind.limit);
-        if (body === null) {
-          outgoing.shouldKeepAlive = false;
-          return write(outgoing, { status: 413 });
-        }
+        if (body === null) return refuseTooLarge(incoming, outgoing);
       } else {
         incoming.resume();
       }

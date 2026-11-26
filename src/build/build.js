@@ -11,7 +11,6 @@ import { failure } from '../intake/words.js';
 import { commandWithin, TookTooLong } from './command.js';
 import { markdownMarks, webRules } from './web-server.js';
 
-const BIG = 1024 * 1024 * 256;
 const STOPPED_BY_GUARD = 3;
 
 // Why a build made no release, by its name, which the publish status shows in the interface
@@ -109,6 +108,8 @@ export function siteBuild({ site, origin, code, source, content, roles, control,
       warn(`A command of the build took too long again, so the build failed: ${error.message}`);
       return finishing();
     };
+    // A build whose intake reported nothing keeps what the last build read of each post, and
+    // `read`, the version of each file it read itself, which its reason fails (status.js).
     const finish = ({ source: read = previous?.source ?? null, reason = null, stopped = null, report = null, versions = {}, release = previous?.release ?? null, unindexed = false }) => {
       const posts = report ? postsFrom(report, versions) : previous?.posts ?? {};
       const refusals = report?.refusals ?? previous?.refusals ?? [];
@@ -120,6 +121,7 @@ export function siteBuild({ site, origin, code, source, content, roles, control,
         stopped,
         next: report ? report.next ?? null : previous?.next ?? null,
         release,
+        ...(report === null && Object.keys(versions).length > 0 ? { read: versions } : {}),
         posts,
         refusals: refusals.filter(({ post }) => !post),
         warnings: (report?.warnings ?? previous?.warnings ?? []).filter(({ post }) => !post),
@@ -174,10 +176,10 @@ export function siteBuild({ site, origin, code, source, content, roles, control,
     } catch (error) {
       if (error instanceof TookTooLong) {
         await undoing();
-        return stoppedBy(error, () => finish({ source: head, reason: TOOK_TOO_LONG }));
+        return stoppedBy(error, () => finish({ source: head, reason: TOOK_TOO_LONG, versions }));
       }
       warn(`The check broke: ${error.message}`);
-      return finish({ source: head, reason: CHECK_BROKE });
+      return finish({ source: head, reason: CHECK_BROKE, versions });
     }
 
     let fingerprint;
@@ -241,7 +243,7 @@ export function intakeCommand({ program, siteFolder, contentFolder, environment,
   return async (checkout, { admins, reviewers, pushers }, confirmed) => {
     const args = [program, checkout, '--admins', admins, '--reviewers', reviewers, '--pushers', pushers, '--site', siteFolder, '--content', contentFolder, ...(confirmed ? ['--confirm', confirmed] : [])];
     try {
-      const { stdout } = await command(process.execPath, args, { env: environment, maxBuffer: BIG });
+      const { stdout } = await command(process.execPath, args, { env: environment });
       return { status: 0, report: JSON.parse(stdout) };
     } catch (error) {
       if (error instanceof TookTooLong) throw error;
@@ -259,7 +261,7 @@ export function astroBuild({ folder, environment, limit, built = `${folder}/dist
   const command = commandWithin(limit);
   return async () => {
     rmSync(built, { recursive: true, force: true });
-    await command('npm', ['run', 'build', '--silent'], { cwd: folder, env: environment, maxBuffer: BIG });
+    await command('npm', ['run', 'build', '--silent'], { cwd: folder, env: environment });
     if (!existsSync(built)) throw new Error(`no pages in ${built}`);
     return built;
   };
