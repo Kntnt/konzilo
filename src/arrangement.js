@@ -46,10 +46,13 @@ const timeLimit = (name, value) => {
   return limit;
 };
 
+const settingIn = (environment, name) => environment[name] || ARRANGEMENT[name];
+
 // The settings as `environment` gives them, each in its default's place where it gives none or
-// an empty one. Throws, naming the setting, where one is not what it may be.
+// an empty one, but the time limit, which the builder alone reads (commandTimeLimit()), so that
+// the others start whatever it holds. Throws, naming the setting, where one is not what it may be.
 export function arrangement(environment = process.env) {
-  const setting = (name) => environment[name] || ARRANGEMENT[name];
+  const setting = (name) => settingIn(environment, name);
   return {
     forgejo: peer('KONZILO_PEER_FORGEJO', setting('KONZILO_PEER_FORGEJO')),
     typesense: peer('KONZILO_PEER_TYPESENSE', setting('KONZILO_PEER_TYPESENSE')),
@@ -59,6 +62,9 @@ export function arrangement(environment = process.env) {
     secrets: folder('KONZILO_FOLDER_SECRET', setting('KONZILO_FOLDER_SECRET')),
     work: folder('KONZILO_FOLDER_WORK', setting('KONZILO_FOLDER_WORK')),
     listen: setting('KONZILO_LISTEN'),
-    commandTimeLimit: timeLimit('KONZILO_COMMAND_TIME_LIMIT', setting('KONZILO_COMMAND_TIME_LIMIT')),
   };
 }
+
+// How long the builder waits for a command of a build, in milliseconds, as `environment` gives
+// it, read as the builder starts. Throws, naming the setting, where it is not what it may be.
+export const commandTimeLimit = (environment = process.env) => timeLimit('KONZILO_COMMAND_TIME_LIMIT', settingIn(environment, 'KONZILO_COMMAND_TIME_LIMIT'));
