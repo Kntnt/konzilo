@@ -188,6 +188,15 @@ export function stepValues(steps, given, multiple = () => false) {
 // Whether the steps of an address can give the steps `given`, as stepValues() takes them.
 export const stepsGive = (steps, given, multiple = () => false) => stepValues(steps, given, multiple) !== null;
 
+// What a route's rest parameter stands for in a post's address, `address`, by its type's address
+// in its language, `template` (addressTemplate()): its steps from the template's first token on,
+// joined by `/`, as `2026/lanterns` of `/news/2026/lanterns/` by `/news/{year}/{slug}/`. The
+// steps before it are the route's own folders.
+export function routeRest(address, template) {
+  const fixed = addressSteps(template).findIndex((step) => step.token !== undefined);
+  return address.slice(1, -1).split('/').slice(fixed).join('/');
+}
+
 // A type's address in a language, its tokens unfilled, after the language's prefix on a site in
 // several, or null for a type without one.
 export function addressTemplate(type, language = null) {
