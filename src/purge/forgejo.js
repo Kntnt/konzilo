@@ -1,9 +1,7 @@
 // A purge in the site's Forgejo (ADR 0078), by the instance's account, which alone may rewrite the
 // source repository's history, write the record of purges and have Forgejo let go of what no ref
 // reaches any more (ADR 0007): both repositories cloned anew, rewritten and pushed, without a
-// deleted entry (entry.js) or a passage (passage.js); then, once Forgejo has taken each push in, as
-// it does from a queue after the push and cannot once the commit the push replaced is gone, so
-// that its branches name what the purge left, Forgejo's own collection of what is
+// deleted entry (entry.js) or a passage (passage.js); then Forgejo's own collection of what is
 // unreachable, until no commit that is gone answers, and of the LFS objects no commit names, until
 // none that went answers; and the archives Forgejo keeps of a repository's files, which may hold
 // what went, removed. And the search for a passage an Admin is shown before its purge, in the
@@ -15,7 +13,6 @@ import { join } from 'node:path';
 import { addPushers, eventsAfter } from '../build/pushers.js';
 import { accountName, gitEnvironment } from '../forgejo.js';
 import { purgeEntry } from './entry.js';
-import { PURGES_BRANCH } from './record.js';
 import { findPassage, passageMatcher, purgePassage } from './passage.js';
 import { gitIn } from './rewrite.js';
 
@@ -75,25 +72,6 @@ export function forgejoPurge({ forgejo, repository, token, work, control = null,
     }
   };
   const filter = async (list, test) => (await Promise.all(list.map(async (one) => [one, await test(one)]))).filter(([, kept]) => kept).map(([one]) => one);
-  // The commit a branch names, as Forgejo's API reads it, or null where it has none.
-  const branchAt = async (of, branch) => {
-    const answer = await api('GET', `/repos/${of}/branches/${encodeURIComponent(branch)}`, { allow: [404] });
-    if (!answer.ok) {
-      await answer.arrayBuffer();
-      return null;
-    }
-    return (await answer.json())?.commit?.id ?? null;
-  };
-  // Until Forgejo's API reads each branch as the purge pushed it, [repository, branch, commit].
-  const takenIn = async (heads) => {
-    const deadline = now() + LET_GO_WITHIN;
-    for (;;) {
-      const behind = await filter(heads, async ([of, branch, commit]) => await branchAt(of, branch) !== commit);
-      if (behind.length === 0) return;
-      if (now() > deadline) throw new Error(`Forgejo did not take in the purge's push of ${behind.map(([of, branch]) => `${of} ${branch}`).join(', ')}`);
-      await sleep(LOOK);
-    }
-  };
 
   return async (request) => {
     const folder = join(work, request.id);
@@ -131,19 +109,12 @@ export function forgejoPurge({ forgejo, repository, token, work, control = null,
         ? await purgeEntry({ source, content, entry: request, by: request.by, at: request.at, pushedBy })
         : await purgePassage({ source, content, passage, by: request.by, at: request.at, pushedBy });
 
-      const contentPushed = result.content.after !== null && result.content.after !== result.content.before;
-      await takenIn([
-        [repository, 'main', result.source.after],
-        [repository, PURGES_BRANCH, result.recordHead],
-        ...(contentPushed ? [[contentRepository, 'main', result.content.after]] : []),
-      ]);
-
       // What went, let go by Forgejo: the commits that are no more, of both repositories, by the
       // heads that were and the saves that held nothing else, and the LFS objects no commit names
       // now.
       const gone = [
         ...[...new Set([...(result.source.after !== result.source.before ? [result.source.before] : []), ...result.source.dropped])].slice(0, MOST_LOOKED_AT).map((commit) => [repository, commit]),
-        ...(contentPushed ? [[contentRepository, result.content.before]] : []),
+        ...(result.content.after !== null && result.content.after !== result.content.before ? [[contentRepository, result.content.before]] : []),
       ];
       await until('git_gc_repos', () => filter(gone, ([of, commit]) => holds(of, commit)));
       if (result.originals?.length > 0) await until('gc_lfs', () => filter(result.originals, holdsObject));
