@@ -16,6 +16,8 @@ test('tells an Admin how a purge stands, and an Editor nothing but that it is fo
     answer(200, { purge: null, purges: [{ at: '2026-11-26T10:00:00Z', by: { login: 'anna', name: 'Anna' } }], open: [] }),
     answer(403, {}),
     answer(502, {}),
+    // A page the web server gives where the service is not reached.
+    { status: 200, ok: true, json: async () => { throw new SyntaxError('not JSON'); } },
   ];
   const service = purgeService({ credential: () => 'token mine', ask: async (address, init) => {
     asked.push({ address, method: init.method ?? 'GET', authorization: init.headers.authorization, cache: init.cache });
@@ -24,6 +26,7 @@ test('tells an Admin how a purge stands, and an Editor nothing but that it is fo
   assert.deepEqual(await service.status(), { admin: true, purge: null, purges: [{ at: '2026-11-26T10:00:00Z', by: { login: 'anna', name: 'Anna' } }], open: [] });
   assert.deepEqual(await service.status(), { admin: false });
   assert.equal(await service.status(), null);
+  assert.equal(await service.status(), null, 'what is not the service\'s answer makes no one an Admin');
   assert.deepEqual(asked[0], { address: '/_konzilo/purge', method: 'GET', authorization: 'token mine', cache: 'no-store' });
 });
 

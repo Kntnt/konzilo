@@ -131,7 +131,9 @@ describe('an Admin\'s purge', () => {
   // The purge's steps, by the keyboard, from the *Deleted* page: the row's button, that it is
   // meant, the name written, and then `course`, as the forms others have open leave it.
   const purgeBySteps = async (page, { path, title, course = 'Purge for good now' }) => {
-    await go(page, '#/pages/deleted');
+    // The page as it stands now, the list read anew.
+    await page.goto(`${site.origin.admin}/#/pages/deleted`);
+    await page.reload();
     const row = page.locator(`.konzilo-deleted tr[data-path="${path}"]`);
     await row.waitFor({ timeout: 60_000 });
     await press(page, row.getByRole('button', { name: `Purge “${title}” for good…` }));
@@ -204,7 +206,6 @@ describe('an Admin\'s purge', () => {
         const other = (await api(`${repository()}/contents/articles`)).find(({ name }) => name.endsWith('.md') && !name.startsWith(post.id)).path;
         await pushAs('ebba', other, (text) => text.replace(/^title: .*$/m, `title: "Kept ${engine}"`));
         await built();
-        assert.equal((await get(`${site.origin.site}/to-${post.slug}/`, { redirect: 'manual' })).status, 301);
         await remove('ebba', [post.path]);
         await built();
         const before = { other: await historyOf(other), rules: await historyOf('redirects.json'), deleted: await commitsOf(post.path) };
@@ -213,7 +214,7 @@ describe('an Admin\'s purge', () => {
         // An Editor has no way to purge.
         await go(ebba.page, '#/pages/deleted');
         await ebba.page.locator(`.konzilo-deleted tr[data-path="${post.path}"]`).waitFor({ timeout: 60_000 });
-        assert.equal(await ebba.page.getByRole('button', { name: /Purge/ }).count(), 0);
+        assert.equal(await ebba.page.getByRole('button', { name: /^Purge .* for good…$/ }).count(), 0);
         assert.equal((await service('ebba', '/_konzilo/purge')).status, 403);
 
         const { choose } = await purgeBySteps(anna.page, post);

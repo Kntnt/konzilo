@@ -13,7 +13,7 @@ const json = async (answer) => {
   try {
     return await answer.json();
   } catch {
-    return {};
+    return null;
   }
 };
 
@@ -23,8 +23,8 @@ export function purgeService({ credential, ask = fetching() }) {
   const started = async (body) => {
     const answer = await posted(body);
     if (answer === null) throw new Error('nobody is signed in');
-    if (answer.status === 202) return { purge: (await json(answer)).purge };
-    if (answer.status === 409) return { busy: true, purge: (await json(answer)).purge };
+    if (answer.status === 202) return { purge: (await json(answer))?.purge ?? null };
+    if (answer.status === 409) return { busy: true, purge: (await json(answer))?.purge ?? null };
     if (answer.status === 404) return { gone: true };
     throw new Error(`the service answered ${answer.status}`);
   };
@@ -37,7 +37,9 @@ export function purgeService({ credential, ask = fetching() }) {
         if (answer === null) return null;
         if (answer.status === 403) return { admin: false };
         if (!answer.ok) return null;
-        const { purge = null, purges = [], open = [] } = await json(answer);
+        const read = await json(answer);
+        if (read === null || typeof read !== 'object' || !Array.isArray(read.purges)) return null;
+        const { purge = null, purges, open = [] } = read;
         return { admin: true, purge, purges, open };
       } catch {
         return null;
@@ -55,7 +57,10 @@ export function purgeService({ credential, ask = fetching() }) {
     async search(passage) {
       try {
         const answer = await posted({ passage }, SEARCH);
-        if (answer?.status === 200) return { found: (await json(answer)).found };
+        if (answer?.status === 200) {
+          const found = (await json(answer))?.found;
+          return found && typeof found === 'object' && Array.isArray(found.files) ? { found } : null;
+        }
         if (answer?.status === 400) return { refused: true };
         if (answer?.status === 503) return { busy: true };
         return null;
