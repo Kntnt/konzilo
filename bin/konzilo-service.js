@@ -83,6 +83,13 @@ function editors(store) {
   if (pushesToken === null) console.error(`The service has no ${PUSHES_TOKEN}, so it cannot tell who pushed what a private account pushed`);
   // A local copy sends no mail, and writes each to the log instead.
   const local = process.env.KONZILO_MAIL_TO_LOG === 'true';
+  // The seed makes it at each start where it is missing; without it, the feed reader reads, and
+  // saves nothing, which each feed's failure says.
+  const FEED_TOKEN = join(secrets, 'feed-token');
+  const feedToken = existsSync(FEED_TOKEN) ? readFileSync(FEED_TOKEN, 'utf8').trim() : null;
+  if (feedToken === null) console.error(`The service has no ${FEED_TOKEN}, so the feed reader cannot save the posts it makes`);
+  // The incoming feeds, each read at its interval; with none, nothing is read or reached.
+  const feeds = feedReader({ store, site: described, forgejo: FORGEJO, repository, token: feedToken });
 
   const service = editorsService({
     forgejo: FORGEJO,
