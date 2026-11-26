@@ -202,9 +202,6 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
   // declares one, shows in its search and sharing fields what its teaser shows, as its head
   // does (article-parts.js); another type's leave it to its templates.
 
-  // A post's own address, from which the canonical address field shows it while the post names
-  // none: its type's address with `{slug}`, and on a site in several languages one for the
-  // language of each pane, by its tag, after its prefix (parts/register.js).
   // The fields whose term a type's address holds, each by its name and its taxonomy's
   // collection, and the language folder of the term files that give a term's slug, the main
   // language's, which the form reads to show the post's address as its values stand
@@ -215,6 +212,11 @@ export function cmsConfig(description, { forgejo, repository, clientId, site, pr
     return { addressTerms: fields.map((field) => ({ name: field.name, collection: field.taxonomy.collection })), termFolder: several ? description.languages[0].tag : null };
   };
 
+  // A post's own address, which the slug field links and the canonical address field shows while
+  // the post names none: its type's address with its tokens, `{slug}` or `{path}`, its date's and
+  // its term's, as the site description declares it, which the form fills from the values it
+  // holds as they stand (parts/address.js); on a site in several languages one for the language
+  // of each pane, by its tag, after its prefix (parts/register.js).
   const ownAddress = (type) => {
     if (type.address === null) return null;
     if (!several) return addressTemplate(type);
