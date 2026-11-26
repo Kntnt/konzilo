@@ -26,7 +26,8 @@ const ANSWERED_WITHIN = 30 * 60_000;
 const SEARCH_WITHIN = 60_000;
 const LOOK_EVERY = 250;
 
-// `table`: the locks, as locks.js gives them. `control`: as build/record.js gives it.
+// `table`: the locks, as locks.js gives them. `control`: what the service shares with the purge's
+// program, as purge/control.js gives it.
 // `onDone(addresses)`: what else is to forget once a purge is done, `addresses` those the entry
 // had, as its program names them, which, should it break, is said and leaves the purge done.
 export function purgeKeeper({ table, control, now = () => new Date(), reloadWithin = RELOAD_WITHIN, answeredWithin = ANSWERED_WITHIN, searchWithin = SEARCH_WITHIN, lookEvery = LOOK_EVERY, sleep = (ms) => new Promise((go) => setTimeout(go, ms)), onDone = () => {}, warn = console.error }) {

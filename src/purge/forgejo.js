@@ -12,6 +12,7 @@ import { join } from 'node:path';
 
 import { addPushers, eventsAfter } from '../build/pushers.js';
 import { accountName, gitEnvironment } from '../forgejo.js';
+import { isPurgeId } from './control.js';
 import { purgeEntry } from './entry.js';
 import { findPassage, passageMatcher, purgePassage } from './passage.js';
 import { gitIn } from './rewrite.js';
@@ -75,6 +76,7 @@ export function forgejoPurge({ forgejo, repository, token, work, control = null,
   const filter = async (list, test) => (await Promise.all(list.map(async (one) => [one, await test(one)]))).filter(([, kept]) => kept).map(([one]) => one);
 
   return async (request) => {
+    if (!isPurgeId(request.id)) throw new Error('the purge has no name the program takes');
     const folder = join(work, request.id);
     rmSync(folder, { recursive: true, force: true });
     const home = join(folder, 'home');
@@ -135,7 +137,7 @@ export function forgejoPurge({ forgejo, repository, token, work, control = null,
 // forgejoPurge() takes them.
 export function forgejoSearch({ forgejo, repository, token, work, user = 'konzilo' }) {
   return async (request) => {
-    if (!/^[0-9a-z-]{1,64}$/.test(request.id)) throw new Error('the search has no name the program takes');
+    if (!isPurgeId(request.id)) throw new Error('the search has no name the program takes');
     const folder = join(work, `search-${request.id}`);
     rmSync(folder, { recursive: true, force: true });
     const home = join(folder, 'home');

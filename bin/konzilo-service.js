@@ -32,6 +32,7 @@ import { join } from 'node:path';
 
 import { arrangement } from '../src/arrangement.js';
 import { buildControl } from '../src/build/record.js';
+import { purgeControl } from '../src/purge/control.js';
 import { consentRetention } from '../src/service/consent-records.js';
 import { deletableIn } from '../src/service/deleted.js';
 import { editorsService, nextMinute } from '../src/service/editors.js';
@@ -133,6 +134,7 @@ function editors(store) {
     rolesToken,
     pushesToken,
     control: buildControl('/control'),
+    purgeControl: purgeControl('/purge-control'),
     pictures: thumbnails({ forgejo: FORGEJO, repository, token, folder: '/thumbnails' }),
     store,
     forms: () => described().forms,

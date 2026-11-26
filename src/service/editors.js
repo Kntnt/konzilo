@@ -76,7 +76,8 @@ const PICTURE_HOLDS = 3600;
 // read it. `rolesToken`: one that can read the organisation's teams, and so who is an Admin.
 // `pushesToken`: one that can read who pushed each commit, which the feed shows of a private account
 // only to the instance's account, else `token`.
-// `control`: as record.js gives it. `isPost(file)`: whether a file in the source is a post.
+// `control`: as record.js gives it. `purgeControl`: what the service shares with the purge's
+// program alone, as purge/control.js gives it. `isPost(file)`: whether a file in the source is a post.
 // `pictures`: as thumbnails.js gives them. `store`: the service's data, as store.js opens it, which
 // holds the forms' submissions and how the site mails them, and `forms()`: the forms the site
 // description in use declares. `local`: whether this is a local copy, which sends no mail.
@@ -88,7 +89,7 @@ const PICTURE_HOLDS = 3600;
 // gives it, or null where there is none. `site()`: the site description in use, as checked, which
 // the *Feeds* page chooses a feed's type and language from. `feeds`: the feed reader, as feeds.js
 // gives it, or null. `purge`: how an Admin's purge waits, as purge.js has it.
-export function editorsService({ forgejo, repository, token, rolesToken = null, pushesToken = null, control, pictures = null, store = null, forms = () => ({}), local = false, isPost = () => true, deletable = () => () => null, notFound = null, site = () => null, feeds = null, now = () => new Date(), warn = console.error, get = fetch, locks: { waitAtMost = 25_000, alive } = {}, revisions = {}, purge: purgeOptions = {} }) {
+export function editorsService({ forgejo, repository, token, rolesToken = null, pushesToken = null, control, purgeControl = null, pictures = null, store = null, forms = () => ({}), local = false, isPost = () => true, deletable = () => () => null, notFound = null, site = () => null, feeds = null, now = () => new Date(), warn = console.error, get = fetch, locks: { waitAtMost = 25_000, alive } = {}, revisions = {}, purge: purgeOptions = {} }) {
   const answers = new Map();
   const mayWriteLately = async (credential) => {
     const held = answers.get(credential);
@@ -175,7 +176,7 @@ export function editorsService({ forgejo, repository, token, rolesToken = null, 
   // An Admin's purge (ADR 0078), which shuts the forms while it waits and runs, and is told to
   // every tab with the locks. Once it is done, the entry's addresses go from the counts of
   // addresses not found, and answer as any unknown address does (ADR 0040).
-  const purge = purgeKeeper({ table, control, now, warn, ...purgeOptions, onDone: (addresses) => {
+  const purge = purgeKeeper({ table, control: purgeControl, now, warn, ...purgeOptions, onDone: (addresses) => {
     history.purgesChanged();
     pictures?.forget?.();
     if (addresses.length > 0) notFound?.forget(addresses);

@@ -9,15 +9,18 @@ import { join } from 'node:path';
 import { after, describe, test } from 'node:test';
 
 import { buildControl } from '../src/build/record.js';
+import { purgeControl } from '../src/purge/control.js';
 import { PurgeRefusal } from '../src/purge/histories.js';
 import { purgeOnRequest } from '../src/purge/program.js';
 
 const folder = mkdtempSync(join(tmpdir(), 'konzilo-purge-program-'));
 after(() => rmSync(folder, { recursive: true, force: true }));
 let count = 0;
+// The folder the program shares with the builder and the one it shares with the service alone, as
+// one, since the tests stand in for both.
 const controlOf = () => {
   count += 1;
-  return buildControl(join(folder, String(count)));
+  return { ...buildControl(join(folder, String(count), 'control')), ...purgeControl(join(folder, String(count), 'purge-control')) };
 };
 
 // Runs the program until it has looked `looks` times with nothing to do.
@@ -25,6 +28,7 @@ const running = async (control, purge, { looks = 1, during = () => {}, search = 
   let left = looks;
   await purgeOnRequest({
     control,
+    purgeControl: control,
     purge,
     search,
     now: () => new Date('2026-11-26T10:00:00Z'),

@@ -290,6 +290,7 @@ services:
     volumes:
       - editors-secret:/secret:ro
       - build-control:/control
+      - purge-control:/purge-control
       - thumbnails:/thumbnails
       - service-data:/service-data
       - not-found-log:/not-found-log:ro
@@ -365,10 +366,11 @@ services:
       - ${KONZILO_SITE_DIR:-.}:/site:ro
       - ${KONZILO_CORE}:${KONZILO_CORE}:ro
 
-  # The purge (ADR 0078): it sleeps until the service asks for an Admin's purge, in the folder the
-  # builder shares, holds the builds back, rewrites both repositories' histories by the instance's
-  # account, which alone may (ADR 0007), has Forgejo let go of what no ref reaches any more, and
-  # asks for a build. It holds the one credential that can, and runs nothing of the site's code.
+  # The purge (ADR 0078): it sleeps until the service asks for an Admin's purge, in a folder only
+  # the two of them share, holds the builds back in the folder the builder shares, rewrites both
+  # repositories' histories by the instance's account, which alone may (ADR 0007), has Forgejo let
+  # go of what no ref reaches any more, and asks for a build. It holds the one credential that can,
+  # and runs nothing of the site's code.
   purge:
     <<: *hardened
     build: *builder
@@ -386,6 +388,7 @@ services:
       - purge-secret:/secret:ro
       - purge-work:/work
       - build-control:/control
+      - purge-control:/purge-control
 
   # `docker compose run --rm code` prints the current code of the account KONZILO_ACCOUNT
   # names, and `docker compose run --rm code <name>` that of the person named. The program is
@@ -442,3 +445,4 @@ volumes:
   not-found:
   purge-secret:
   purge-work:
+  purge-control:

@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 
 import { buildControl } from '../src/build/record.js';
+import { purgeControl } from '../src/purge/control.js';
 import { recordFile } from '../src/purge/record.js';
 import { deletableIn } from '../src/service/deleted.js';
 import { editorsService } from '../src/service/editors.js';
@@ -115,7 +116,8 @@ describe('an Admin\'s purge', () => {
       }
       throw new Error(`nothing to say of ${pathname}`);
     };
-    const control = buildControl(join(folder, `control-${(count += 1)}`));
+    // What the service shares with the purge's program, which the tests stand in for.
+    const control = purgeControl(join(folder, `purge-control-${(count += 1)}`));
     if (ended) control.writePurgeState(ended);
     let notFoundShown = null;
     if (notFound) {
@@ -137,7 +139,8 @@ describe('an Admin\'s purge', () => {
       token: 'read-token',
       rolesToken: 'roles-token',
       pushesToken: 'pushes-token',
-      control,
+      control: buildControl(join(folder, `control-${count}`)),
+      purgeControl: control,
       get,
       now: () => new Date(clock.at),
       deletable: () => deletableIn(SITE),
