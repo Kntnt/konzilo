@@ -9,6 +9,7 @@ import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { pageLanguage } from '../astro/languages.js';
 import { languageTag } from '../site-description.js';
 import { isEmailAddress } from './email-address.js';
+import { perClient, secondsUntil } from './per-client.js';
 
 export const FORMS_PATH = '/_konzilo/forms';
 
@@ -141,9 +142,8 @@ export function formsKind({ site, store, now }) {
     return `${issued}.${nonce}.${signed(form, issued, nonce)}`;
   };
 
-  // How many forms each client has sent in the window, by its digest, held in memory alone and
-  // forgotten as the window ends.
-  const sent = { window: null, by: new Map() };
+  // How many forms each client has sent in its window.
+  const sent = perClient(SENDS_IN_A_WINDOW);
 
   // How many seconds ago the form's token `given` was given, or null for one the service did not
   // give for the form, or gave too long ago.
@@ -177,12 +177,8 @@ export function formsKind({ site, store, now }) {
       if (fields === null) return answer(400, 'refused');
       if (form === null) return answer(404, 'refused');
       if (!fromSite) return answer(403, 'refused');
-      if (sent.window !== client.ends.getTime()) {
-        sent.window = client.ends.getTime();
-        sent.by.clear();
-      }
-      if ((sent.by.get(client.digest) ?? 0) >= SENDS_IN_A_WINDOW) {
-        const retryAfter = Math.max(1, Math.ceil((client.ends.getTime() - now().getTime()) / 1000));
+      if (sent.room(client) === 0) {
+        const retryAfter = secondsUntil(client.ends.getTime(), now().getTime());
         const refused = answer(429, 'too-many', { retryAfter });
         return refused.status === 429 ? { ...refused, retryAfter } : refused;
       }
@@ -208,7 +204,7 @@ export function formsKind({ site, store, now }) {
         spam,
         fields: read.map(({ field, value }) => ({ name: field.name, label: field.label, value })),
       });
-      sent.by.set(client.digest, (sent.by.get(client.digest) ?? 0) + 1);
+      sent.count(client);
       return answer(200, 'sent');
     },
   };

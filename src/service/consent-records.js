@@ -23,6 +23,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { RELEASE_CONSENT_REVISION } from '../build/release.js';
 import { CONSENT_ID } from '../consent/consent-id.js';
 import { DAY } from './day.js';
+import { perClient, secondsUntil } from './per-client.js';
 
 export const CONSENT_RECORDS_PATH = '/_konzilo/consent';
 
@@ -317,10 +318,10 @@ const isRevision = (held) => isObject(held)
 // The kind (ADR 0044) that takes the records. `store`: as store.js opens it. `revisions`: as
 // publishedRevisions() gives them. `now()`: the moment.
 export function consentRecordsKind({ store, revisions, now }) {
-  // How many records were taken in the clock's hour, and of each client in its window, by its
-  // digest, held in memory alone and forgotten as the hour or the window ends.
+  // How many records were taken in the clock's hour, and of each client in its window, held in
+  // memory alone and forgotten as the hour or the window ends.
   const hour = { at: null, count: 0 };
-  const clients = { window: null, by: new Map() };
+  const ofClients = perClient(OF_A_CLIENT);
 
   return {
     path: CONSENT_RECORDS_PATH,
@@ -340,17 +341,12 @@ export function consentRecordsKind({ store, revisions, now }) {
 
       const thisHour = Math.floor(moment.getTime() / HOUR);
       if (hour.at !== thisHour) Object.assign(hour, { at: thisHour, count: 0 });
-      if (clients.window !== client.ends.getTime()) {
-        clients.window = client.ends.getTime();
-        clients.by.clear();
-      }
-      const ofClient = clients.by.get(client.digest) ?? 0;
       hour.count += 1;
-      clients.by.set(client.digest, ofClient + 1);
-      if (hour.count > IN_AN_HOUR || ofClient + 1 > OF_A_CLIENT) {
+      const ofClient = ofClients.count(client);
+      if (hour.count > IN_AN_HOUR || ofClient > OF_A_CLIENT) {
         store.consentRecords.notStored(moment);
         const ends = hour.count > IN_AN_HOUR ? (thisHour + 1) * HOUR : client.ends.getTime();
-        return { status: 429, json: { outcome: 'too-many' }, retryAfter: Math.max(1, Math.ceil((ends - moment.getTime()) / 1000)) };
+        return { status: 429, json: { outcome: 'too-many' }, retryAfter: secondsUntil(ends, moment.getTime()) };
       }
       store.consentRecords.keep(record);
       return { status: 204 };

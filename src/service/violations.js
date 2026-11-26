@@ -6,6 +6,7 @@
 // role for editors.
 
 import { DAY } from './day.js';
+import { perClient, secondsUntil } from './per-client.js';
 
 export const VIOLATIONS_PATH = '/_konzilo/violations';
 
@@ -193,9 +194,8 @@ export function violationsDuty({ store, now = () => new Date() }) {
 export function violationsKind({ store, now }) {
   const counts = violationCounts(store);
 
-  // How many reports each client has had counted in the window, by its digest, held in memory
-  // alone and forgotten as the window ends.
-  const counted = { window: null, by: new Map() };
+  // How many reports each client has had counted in its window.
+  const ofClients = perClient(REPORTS_IN_A_WINDOW);
   return {
     path: VIOLATIONS_PATH,
     methods: ['POST'],
@@ -208,15 +208,11 @@ export function violationsKind({ store, now }) {
       if (reports === null) return { status: 400 };
       if (reports.length > REPORTS_IN_A_BODY) return { status: 413 };
       if (!fromSite) return { status: 403 };
-      if (counted.window !== client.ends.getTime()) {
-        counted.window = client.ends.getTime();
-        counted.by.clear();
-      }
-      const room = REPORTS_IN_A_WINDOW - (counted.by.get(client.digest) ?? 0);
-      if (room <= 0) return { status: 429, retryAfter: Math.max(1, Math.ceil((client.ends.getTime() - now().getTime()) / 1000)) };
+      const room = ofClients.room(client);
+      if (room === 0) return { status: 429, retryAfter: secondsUntil(client.ends.getTime(), now().getTime()) };
       const kept = reports.map((one) => keptOf(asGiven(type, one), ownPage)).filter((one) => one !== null).slice(0, room);
       counts.count(kept, now());
-      counted.by.set(client.digest, REPORTS_IN_A_WINDOW - room + kept.length);
+      ofClients.count(client, kept.length);
       return { status: 204 };
     },
   };
