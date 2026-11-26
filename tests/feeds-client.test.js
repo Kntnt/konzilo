@@ -66,6 +66,7 @@ describe('the words', () => {
     useInterfaceLanguage('en');
     assert.equal(failureShown({ kind: 'status', status: 503 }), 'it answered with the status 503');
     assert.equal(failureShown({ kind: 'not-a-feed' }), 'its answer is no RSS or Atom feed');
+    assert.equal(failureShown({ kind: 'not-public' }), 'its address leads to a private network, which no feed is read from');
     assert.equal(failureShown({ kind: 'something new' }), 'the service\'s log says why');
     useInterfaceLanguage('sv');
     assert.equal(failureShown({ kind: 'timeout' }), 'det tog längre än 30 sekunder att svara');

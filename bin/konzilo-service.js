@@ -111,8 +111,11 @@ function editors(store) {
   const FEED_TOKEN = join(secrets, 'feed-token');
   const feedToken = existsSync(FEED_TOKEN) ? readFileSync(FEED_TOKEN, 'utf8').trim() : null;
   if (feedToken === null) console.error(`The service has no ${FEED_TOKEN}, so the feed reader cannot save the posts it makes`);
-  // The incoming feeds, each read at its interval; with none, nothing is read or reached.
-  const feeds = feedReader({ store, site: described, forgejo: FORGEJO, repository, token: feedToken });
+  // The incoming feeds, each read at its interval; with none, nothing is read or reached. No feed
+  // is read from a private address, the site's own network among them, but from a host the
+  // setting names, apart by spaces, such as a stand-in on the same network (ADR 0079).
+  const privateHosts = (process.env.KONZILO_FEED_PRIVATE_HOSTS ?? '').split(/[\s,]+/).filter(Boolean).map((host) => host.toLowerCase());
+  const feeds = feedReader({ store, site: described, forgejo: FORGEJO, repository, token: feedToken, privateHosts });
 
   const notFound = notFoundLog({ log: NOT_FOUND_LOG, counts: NOT_FOUND_COUNTS, release: RELEASE });
   const fold = () => {

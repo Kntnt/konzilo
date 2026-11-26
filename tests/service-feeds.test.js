@@ -11,13 +11,14 @@
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { isIP } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, afterEach, before, beforeEach, describe, test } from 'node:test';
 
 import { buildControl } from '../src/build/record.js';
 import { editorsService } from '../src/service/editors.js';
-import { feedReader } from '../src/service/feeds.js';
+import { feedReader, fetchFeed } from '../src/service/feeds.js';
 import { openStore } from '../src/service/store.js';
 import { siteDescription } from '../src/site-description.js';
 
@@ -45,6 +46,21 @@ const ATOM = 'https://feeds.example.com/news.atom';
 const rssItem = ({ id, title = `Release ${id}`, text = `<p>Text of ${id}.</p>`, date }) => `<item><title>${title}</title><guid>${id}</guid><link>https://news.example.com/${id}</link>${date ? `<pubDate>${new Date(date).toUTCString()}</pubDate>` : ''}<description><![CDATA[${text}]]></description></item>`;
 const rss = (...items) => `<?xml version="1.0"?><rss version="2.0"><channel><title>News</title>${items.map(rssItem).join('')}</channel></rss>`;
 const atom = (...entries) => `<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"><title>News</title><id>urn:news</id>${entries.map(({ id, title = `Entry ${id}`, date }) => `<entry><title>${title}</title><id>urn:${id}</id><link href="https://news.example.com/atom/${id}"/><published>${date}</published><content type="html">&lt;p&gt;Entry ${id}.&lt;/p&gt;</content></entry>`).join('')}</feed>`;
+
+// Where each host leads, as DNS would answer, with no outside address asked.
+const HOSTS = {
+  'feeds.example.com': ['93.184.215.14'],
+  'other.example.com': ['93.184.215.15', '2606:2800:21f:cb07:6820:80da:af6b:8b2c'],
+  'internal.example.com': ['10.0.0.5'],
+  'mixed.example.com': ['93.184.215.16', '192.168.1.2'],
+  'nat.example.com': ['100.64.0.7'],
+  'mapped.example.com': ['::ffff:127.0.0.1'],
+  'unique.example.com': ['fd12:3456::1'],
+};
+const lookup = async (host) => {
+  if (!Object.hasOwn(HOSTS, host)) throw Object.assign(new Error(`getaddrinfo ENOTFOUND ${host}`), { code: 'ENOTFOUND' });
+  return HOSTS[host].map((address) => ({ address, family: isIP(address) }));
+};
 
 const A = { id: 'a', date: '2026-11-20T08:00:00Z' };
 const B = { id: 'b', date: '2026-11-21T08:00:00Z' };
@@ -129,7 +145,7 @@ describe('the incoming feeds', () => {
     commits = [];
     asked = [];
     ids = 0;
-    reader = feedReader({ store, site: () => site, forgejo: 'http://forgejo', repository: 'org/source', token: READER, get, now: () => clock, warn: () => {}, newId: () => `f00d0000000${(ids += 1).toString(16)}`, waitAtMost: 1000, pause: async () => {} });
+    reader = feedReader({ store, site: () => site, forgejo: 'http://forgejo', repository: 'org/source', token: READER, get, lookup, now: () => clock, warn: () => {}, newId: () => `f00d0000000${(ids += 1).toString(16)}`, waitAtMost: 1000, pause: async () => {} });
     const service = editorsService({ forgejo: 'http://forgejo', repository: 'org/source', token: 'read-token', rolesToken: 'roles', control: buildControl(join(folder, `control-${Date.now()}-${Math.random()}`)), store, site: () => site, feeds: reader, get, now: () => clock, warn: () => {} });
     server = createServer((incoming, outgoing) => service.request(incoming, outgoing));
     await new Promise((go) => server.listen(0, '127.0.0.1', go));
@@ -269,6 +285,12 @@ describe('the incoming feeds', () => {
     assert.ok(pathOf('b'));
   });
 
+  test('a feed whose address leads to a private network is not read, and its failure says so and nothing more', async () => {
+    await add({ address: 'https://internal.example.com/news.rss', type: 'article' });
+    assert.deepEqual(await statusFeeds(), [{ address: 'https://internal.example.com/news.rss', failure: { at: clock.toISOString().replace(/\.\d{3}Z$/, 'Z'), kind: 'not-public' } }]);
+    assert.deepEqual(asked.filter((url) => url.includes('internal.example.com')), []);
+  });
+
   test('a feed is read at its interval, and an Admin changes its type and interval', async () => {
     served[RSS] = rss(A);
     await add({ address: RSS, type: 'article', every: 10 });
@@ -310,7 +332,7 @@ describe('the incoming feeds', () => {
   });
 
   test('a feed is removed without waiting for another feed\'s read, and stops its own read under way', async () => {
-    const slow = feedReader({ store, site: () => site, forgejo: 'http://forgejo', repository: 'org/source', token: READER, get, now: () => clock, warn: () => {}, waitAtMost: 60_000, pause: async () => {} });
+    const slow = feedReader({ store, site: () => site, forgejo: 'http://forgejo', repository: 'org/source', token: READER, get, lookup, now: () => clock, warn: () => {}, waitAtMost: 60_000, pause: async () => {} });
     const service = editorsService({ forgejo: 'http://forgejo', repository: 'org/source', token: 'read-token', rolesToken: 'roles', control: buildControl(join(folder, `control-${Date.now()}`)), store, site: () => site, feeds: slow, get, now: () => clock, warn: () => {} });
     const other = createServer((incoming, outgoing) => service.request(incoming, outgoing));
     await new Promise((go) => other.listen(0, '127.0.0.1', go));
@@ -343,8 +365,78 @@ describe('the incoming feeds', () => {
     const [{ id }] = store.feeds();
     const saving = get;
     const failing = async (url, init) => (init?.method === 'POST' ? new Response('{}', { status: 403 }) : saving(url, init));
-    const stuck = feedReader({ store, site: () => site, forgejo: 'http://forgejo', repository: 'org/source', token: READER, get: failing, now: () => clock, warn: () => {}, pause: async () => {} });
+    const stuck = feedReader({ store, site: () => site, forgejo: 'http://forgejo', repository: 'org/source', token: READER, get: failing, lookup, now: () => clock, warn: () => {}, pause: async () => {} });
     await assert.rejects(stuck.release(id));
     assert.equal(store.feeds().length, 1);
+  });
+});
+
+describe('reading a feed\'s address', () => {
+  const RSS_TEXT = rss(A);
+  const answerOf = (body, status = 200, headers = {}) => new Response(body, { status, headers: { 'content-type': 'application/rss+xml', ...headers } });
+  const moved = (to, status = 301) => () => new Response(null, { status, headers: { location: to } });
+  // The feeds, as `served` holds each address's answer, and each address asked.
+  const reading = (served) => {
+    const asked = [];
+    const get = async (url, init) => {
+      asked.push(url);
+      assert.equal(init.redirect, 'manual');
+      if (!Object.hasOwn(served, url)) throw new TypeError('fetch failed');
+      return typeof served[url] === 'function' ? served[url](init) : answerOf(served[url]);
+    };
+    return { asked, read: (address, options = {}) => fetchFeed(address, { get, lookup, waitAtMost: 1000, ...options }) };
+  };
+
+  test('reads an address whose host leads to public addresses alone', async () => {
+    const { read } = reading({ 'https://other.example.com/news.rss': RSS_TEXT, 'http://93.184.215.14/news.rss': RSS_TEXT });
+    assert.deepEqual(await read('https://other.example.com/news.rss'), { text: RSS_TEXT });
+    assert.deepEqual(await read('http://93.184.215.14/news.rss'), { text: RSS_TEXT });
+  });
+
+  test('reads nothing from the loopback, a private, link-local, unique-local, carrier-grade NAT or unspecified address, by name or written out', async () => {
+    const addresses = [
+      'http://127.0.0.1/news.rss', 'http://localhost.example/news.rss', 'http://10.1.2.3/news.rss', 'http://172.16.0.1/news.rss', 'http://192.168.0.10:8080/news.rss',
+      'http://169.254.169.254/latest/meta-data/', 'http://100.64.0.1/news.rss', 'http://0.0.0.0/news.rss', 'http://[::1]/news.rss', 'http://[::]/news.rss',
+      'http://[fe80::1]/news.rss', 'http://[fd00::5]/news.rss', 'http://[::ffff:10.0.0.1]/news.rss',
+      'https://internal.example.com/news.rss', 'https://mixed.example.com/news.rss', 'https://nat.example.com/news.rss', 'https://mapped.example.com/news.rss', 'https://unique.example.com/news.rss',
+    ];
+    HOSTS['localhost.example'] = ['127.0.0.1'];
+    try {
+      const { asked, read } = reading(Object.fromEntries(addresses.map((address) => [address, RSS_TEXT])));
+      for (const address of addresses) assert.deepEqual(await read(address), { failure: { kind: 'not-public' } }, address);
+      assert.deepEqual(asked, []);
+    } finally {
+      delete HOSTS['localhost.example'];
+    }
+  });
+
+  test('follows at most five redirects by hand, each to a public address, and reads nothing a redirect leads to a private one', async () => {
+    const hops = Object.fromEntries(Array.from({ length: 6 }, (_, at) => [`https://feeds.example.com/${at}`, moved(`/${at + 1}`, [301, 302, 303, 307, 308][at % 5])]));
+    const { asked, read } = reading({
+      ...hops,
+      'https://feeds.example.com/5': RSS_TEXT,
+      'https://feeds.example.com/inward': moved('http://internal.example.com/news.rss', 302),
+      'https://feeds.example.com/loop': moved('http://127.0.0.1:3000/api/v1/version', 307),
+      'http://internal.example.com/news.rss': RSS_TEXT,
+    });
+    assert.deepEqual(await read('https://feeds.example.com/0'), { text: RSS_TEXT });
+    assert.deepEqual(await read('https://feeds.example.com/inward'), { failure: { kind: 'not-public' } });
+    assert.deepEqual(await read('https://feeds.example.com/loop'), { failure: { kind: 'not-public' } });
+    assert.ok(!asked.some((url) => url.includes('internal.example.com') || url.includes('127.0.0.1')));
+    const { read: further } = reading({ ...hops, 'https://feeds.example.com/6': moved('/7'), 'https://feeds.example.com/7': RSS_TEXT });
+    assert.deepEqual(await further('https://feeds.example.com/1'), { failure: { kind: 'unreachable' } }, 'six redirects');
+  });
+
+  test('reads a host a setting names despite its private address, and a redirect to it', async () => {
+    const { read } = reading({ 'http://internal.example.com/news.rss': RSS_TEXT, 'https://feeds.example.com/inward': moved('http://internal.example.com/news.rss', 302) });
+    const privateHosts = ['internal.example.com'];
+    assert.deepEqual(await read('http://internal.example.com/news.rss', { privateHosts }), { text: RSS_TEXT });
+    assert.deepEqual(await read('https://feeds.example.com/inward', { privateHosts }), { text: RSS_TEXT });
+    assert.deepEqual(await read('http://internal.example.com/news.rss'), { failure: { kind: 'not-public' } });
+  });
+
+  test('says a host no name leads to is unreachable', async () => {
+    const { read } = reading({});
+    assert.deepEqual(await read('https://nowhere.example.com/news.rss'), { failure: { kind: 'unreachable' } });
   });
 });

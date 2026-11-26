@@ -146,6 +146,11 @@ describe('incoming feeds', () => {
       '    command: ["node", "/stand-in/serve.mjs"]',
       '    volumes:',
       '      - ./feed-stand-in:/stand-in',
+      // On the project's own network, whose addresses are private, which the feed reader reads
+      // from only where the setting names the host.
+      '  editors:',
+      '    environment:',
+      '      KONZILO_FEED_PRIVATE_HOSTS: feed-stand-in',
       '',
     ].join('\n'));
     serve('news.rss', rss(B, A));

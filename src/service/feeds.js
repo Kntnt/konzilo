@@ -10,6 +10,8 @@
 // feed's, so that it is a post like any other, and only then is the feed forgotten.
 
 import { randomUUID } from 'node:crypto';
+import { lookup as resolved } from 'node:dns/promises';
+import { BlockList, isIP } from 'node:net';
 
 import { readFeed } from '../feeds/read.js';
 import { feedPostFile, postDate, releasedFile } from '../feeds/post.js';
@@ -38,6 +40,27 @@ function decoded(bytes, type) {
   }
 }
 
+// The addresses no feed is read from, unless a setting names its host (ADR 0079), since what the
+// reader reaches is the service's own network, Forgejo and the site's other containers among it:
+// the loopback, the private networks of RFC 1918, link-local and unique-local addresses, those of
+// carrier-grade NAT (RFC 6598) and the unspecified address, an IPv4 address mapped into IPv6 too.
+const NOT_PUBLIC = new BlockList();
+for (const [network, prefix] of [['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8], ['169.254.0.0', 16], ['172.16.0.0', 12], ['192.168.0.0', 16]]) NOT_PUBLIC.addSubnet(network, prefix, 'ipv4');
+for (const [network, prefix] of [['::', 128], ['::1', 128], ['fc00::', 7], ['fe80::', 10]]) NOT_PUBLIC.addSubnet(network, prefix, 'ipv6');
+
+// The most redirects a read follows, and the statuses that redirect.
+const REDIRECTS = 5;
+const REDIRECTING = new Set([301, 302, 303, 307, 308]);
+
+// Whether an address may be read: its host is one of `privateHosts`, or every address it leads to,
+// by `lookup`, as DNS answers, is public. Throws where its host leads nowhere.
+async function mayRead(url, { lookup, privateHosts }) {
+  const host = url.hostname.replace(/^\[(.*)\]$/, '$1').toLowerCase();
+  if (privateHosts.includes(host)) return true;
+  const found = isIP(host) ? [{ address: host }] : await lookup(host, { all: true, verbatim: true });
+  return found.length > 0 && found.every(({ address }) => !NOT_PUBLIC.check(address, isIP(address) === 6 ? 'ipv6' : 'ipv4'));
+}
+
 // Each piece of `stream`, until `stopped` throws.
 async function* race(stream, stopped) {
   const pieces = stream[Symbol.asyncIterator]();
@@ -49,19 +72,43 @@ async function* race(stream, stopped) {
 }
 
 // A feed's answer: { text }, or { failure: { kind, status } }, `kind` one of `unreachable`,
-// `timeout`, `status`, with the HTTP `status` it answered, and `too-large`. `stop`: a signal that
-// gives the read up before its time, as the feed's removal does.
-export async function fetchFeed(address, { get = fetch, bytes = FEED_BYTES, waitAtMost = FEED_WAIT, stop = null } = {}) {
+// `timeout`, `status`, with the HTTP `status` it answered, `too-large`, and `not-public`, for an
+// address, or one a redirect leads to, on the service's own network or another private one, of
+// which nothing more is said. Redirects are followed by hand, at most five, each address checked
+// before it is asked. `lookup`: what tells the addresses a host leads to, as DNS does.
+// `privateHosts`: the hosts a feed may be read from despite a private address. `stop`: a signal
+// that gives the read up before its time, as the feed's removal does.
+export async function fetchFeed(address, { get = fetch, lookup = resolved, privateHosts = [], bytes = FEED_BYTES, waitAtMost = FEED_WAIT, stop = null } = {}) {
   const signal = stop ? AbortSignal.any([AbortSignal.timeout(waitAtMost), stop]) : AbortSignal.timeout(waitAtMost);
   const failed = (error) => ({ failure: { kind: error?.name === 'TimeoutError' || signal.aborted ? 'timeout' : 'unreachable' } });
+  const unreachable = { failure: { kind: 'unreachable' } };
   // What does not answer within the wait is given up, whether or not it heeds the signal.
   const given = new Promise((_, giveUp) => signal.addEventListener('abort', () => giveUp(signal.reason), { once: true }));
   given.catch(() => {});
-  let answer;
+  let url;
   try {
-    answer = await Promise.race([get(address, { signal, redirect: 'follow', headers: { accept: ACCEPT, 'user-agent': 'Konzilo feed reader' } }), given]);
-  } catch (error) {
-    return failed(error);
+    url = new URL(address);
+  } catch {
+    return unreachable;
+  }
+  let answer;
+  for (let followed = 0; ; followed += 1) {
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return unreachable;
+    try {
+      if (!await Promise.race([mayRead(url, { lookup, privateHosts }), given])) return { failure: { kind: 'not-public' } };
+      answer = await Promise.race([get(url.href, { signal, redirect: 'manual', headers: { accept: ACCEPT, 'user-agent': 'Konzilo feed reader' } }), given]);
+    } catch (error) {
+      return failed(error);
+    }
+    const location = REDIRECTING.has(answer.status) ? answer.headers.get('location') : null;
+    if (location === null) break;
+    await answer.body?.cancel().catch(() => {});
+    if (followed >= REDIRECTS) return unreachable;
+    try {
+      url = new URL(location, url);
+    } catch {
+      return unreachable;
+    }
   }
   if (!answer.ok) {
     await answer.body?.cancel().catch(() => {});
@@ -91,14 +138,15 @@ export async function fetchFeed(address, { get = fetch, bytes = FEED_BYTES, wait
 // `store`: the service's data, as store.js opens it. `site()`: the site description in use, as
 // checked. `forgejo`, `repository`: where the source repository is. `token`: the feed reader's
 // credential, which may write it, or null where the seed made none. `get`: what reaches the feeds
-// and Forgejo. `newId()`: a new post's ID, as the editor makes one.
+// and Forgejo, and `lookup`, `privateHosts`: as fetchFeed() takes them. `newId()`: a new post's ID,
+// as the editor makes one.
 //
 // Gives { run(), read(id), release(id) }: `run` reads each feed whose interval has passed, one
 // after another; `read` reads one now, whatever its interval; `release` releases a feed's posts
 // and forgets it, or throws where they could not be saved, the feed then kept. What is asked of a
 // feed waits for what was asked of it before, so that no two touch a feed at once, but for no
 // other feed's; and a release gives up the feed's read under way, which then keeps nothing.
-export function feedReader({ store, site, forgejo, repository, token, get = fetch, now = () => new Date(), warn = console.error, newId = () => randomUUID().replace(/-/g, '').slice(-12), bytes = FEED_BYTES, waitAtMost = FEED_WAIT, pause = (ms) => new Promise((go) => setTimeout(go, ms)) }) {
+export function feedReader({ store, site, forgejo, repository, token, get = fetch, lookup = resolved, privateHosts = [], now = () => new Date(), warn = console.error, newId = () => randomUUID().replace(/-/g, '').slice(-12), bytes = FEED_BYTES, waitAtMost = FEED_WAIT, pause = (ms) => new Promise((go) => setTimeout(go, ms)) }) {
   const asked = (path, init = {}) => get(`${forgejo}/api/v1/repos/${repository}${path}`, { ...init, headers: { ...init.headers, authorization: `token ${token}` } });
 
   // A source file as the branch holds it: { text, sha }, or null where it holds none.
@@ -143,7 +191,7 @@ export function feedReader({ store, site, forgejo, repository, token, get = fetc
     const at = now();
     const atText = moment(at);
     const failed = (failure) => store.feedRead(feed.id, { at, failure: { at: atText, ...failure } });
-    const answer = await fetchFeed(feed.address, { get, bytes, waitAtMost, stop });
+    const answer = await fetchFeed(feed.address, { get, lookup, privateHosts, bytes, waitAtMost, stop });
     if (stop.aborted) return undefined;
     if (answer.failure) return failed(answer.failure);
     const read = readFeed(answer.text, feed.address);

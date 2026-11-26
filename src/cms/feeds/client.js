@@ -56,6 +56,7 @@ const FAILURES = {
   'not-a-feed': 'feeds.failureNotAFeed',
   'no-type': 'feeds.failureNoType',
   'not-saved': 'feeds.failureNotSaved',
+  'not-public': 'feeds.failureNotPublic',
   other: 'feeds.failureOther',
 };
 

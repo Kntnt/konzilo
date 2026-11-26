@@ -634,6 +634,7 @@
   "feeds.failureNotAFeed": "its answer is no RSS or Atom feed",
   "feeds.failureNoType": "the site no longer has the type its items become; choose another",
   "feeds.failureNotSaved": "its posts could not be saved in the source repository, and the next read tries again",
+  "feeds.failureNotPublic": "its address leads to a private network, which no feed is read from",
   "feeds.failureOther": "the service's log says why",
   "personalData.page": "Personal data",
   "personalData.intro": "Find a person's submissions by what they wrote in them, such as their email address or their name, in every form, spam among them. Then download those that are theirs for them, or erase them, as privacy law asks. Only an Admin sees this.",

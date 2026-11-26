@@ -634,6 +634,7 @@
   "feeds.failureNotAFeed": "dess svar är inget RSS- eller Atom-flöde",
   "feeds.failureNoType": "webbplatsen har inte längre den typ som dess poster blir; välj en annan",
   "feeds.failureNotSaved": "dess inlägg kunde inte sparas i källförrådet, och nästa läsning försöker igen",
+  "feeds.failureNotPublic": "dess adress leder till ett privat nät, som inget flöde läses från",
   "feeds.failureOther": "tjänstens logg säger varför",
   "personalData.page": "Personuppgifter",
   "personalData.intro": "Hitta en persons inskick genom vad personen skrev i dem, till exempel sin e-postadress eller sitt namn, i alla formulär, skräppost också. Ladda sedan ned dem som är personens åt personen, eller radera dem, som dataskyddsreglerna kräver. Bara en Admin ser det här.",
