@@ -350,7 +350,7 @@ describe('an Admin\'s purge', () => {
           // Another tab trying to open a form is told that a purge is waiting.
           const third = await ebba.context.newPage();
           await third.goto(`${site.origin.admin}/#/collections/articles/entries/${two}`);
-          const shut = third.getByRole('dialog', { name: 'An entry is being purged' });
+          const shut = third.getByRole('dialog', { name: 'A purge is under way' });
           await shut.waitFor({ timeout: 60_000 });
           assert.match(await shut.textContent(), /Forms open again once it is done/);
           await new Promise((go) => setTimeout(go, 5000));
