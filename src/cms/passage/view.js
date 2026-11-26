@@ -160,7 +160,7 @@ export function passagePage({ config }) {
   const collectionOf = (name) => collections.find((one) => one.name === name);
   const service = purgeService({ credential: signedInCredential });
   return function KonziloPassagePage() {
-    const { createElement: h, useEffect, useRef, useState } = react();
+    const { createElement: h, useEffect, useState } = react();
     const [standing, setStanding] = useState(undefined);
     const [text, setText] = useState('');
     const [sought, setSought] = useState(null);
@@ -168,7 +168,6 @@ export function passagePage({ config }) {
     const [searching, setSearching] = useState(false);
     const [purging, setPurging] = useState(false);
     const [purged] = useState(() => purgingBefore());
-    const purgeFrom = useRef(null);
     // Whether the one reading is an Admin, and how the purge this tab asked for went.
     useEffect(() => {
       let gone = false;
@@ -199,14 +198,8 @@ export function passagePage({ config }) {
       setSought(passage);
       setAnswer(given);
     };
-    const openPurge = () => {
-      purgeFrom.current = document.activeElement;
-      setPurging(true);
-    };
-    const closePurge = () => {
-      setPurging(false);
-      purgeFrom.current?.focus?.();
-    };
+    const openPurge = () => setPurging(true);
+    const closePurge = () => setPurging(false);
     let told = null;
     if (searching) told = h('p', { className: 'konzilo-passage-state', role: 'status' }, say('passage.searching'));
     else if (answer === null) told = h('p', { className: 'konzilo-passage-state', role: 'alert' }, say('passage.failed'));

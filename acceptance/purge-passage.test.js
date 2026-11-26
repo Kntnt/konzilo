@@ -239,7 +239,20 @@ describe('an Admin\'s purge of a passage', () => {
 
           const dialog = await purgeBySteps(anna.page, passage);
           await press(anna.page, dialog.getByRole('button', { name: 'Purge for good now' }));
-          await anna.page.getByText(/^The passage was purged\. Revisions changed: 3\. Files: 2\. Messages of saves changed: 1\.$/).waitFor({ timeout: PURGED_WITHIN });
+          const deadline = Date.now() + PURGED_WITHIN;
+          const said = () => `${JSON.stringify(purge)}\n${site.compose('logs', '--no-color', '--tail=60', 'purge')}`;
+          let purge;
+          for (;;) {
+            purge = (await service('anna', '/_konzilo/purge')).body?.purge;
+            if (['done', 'failed'].includes(purge?.state)) break;
+            assert.ok(Date.now() < deadline, `the purge did not end in time: ${said()}`);
+            await new Promise((go) => setTimeout(go, 2000));
+          }
+          assert.deepEqual(purge, { id: purge.id, state: 'done', changed: { files: 2, revisions: 3, messages: 1 } }, said());
+          const purged = anna.page.getByText(/^The passage was purged\. Revisions changed: 3\. Files: 2\. Messages of saves changed: 1\.$/);
+          await purged.waitFor({ timeout: 60_000 }).catch(async (error) => {
+            throw new Error(`${error.message}\nThe page said: ${await anna.page.locator('body').textContent()}`);
+          });
           assert.doesNotMatch(await anna.page.locator('.konzilo-passage').textContent(), /Märta/i, 'the page says nothing of the passage');
 
           // Nowhere in either repository cloned anew, in Forgejo, or in what the service answers.

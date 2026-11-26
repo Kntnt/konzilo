@@ -86,11 +86,15 @@ export function PurgeDialog({ row = null, subject: given = null, service, collec
   const ours = useRef(null);
   const [subject] = useState(() => given ?? entrySubject(row, service, collectionOf));
 
+  // The focus goes back where it was once the dialog has gone, as what is behind a modal dialog
+  // takes none while it is open.
   useEffect(() => {
     const element = dialog.current;
+    const before = document.activeElement;
     if (!element.open) element.showModal();
     return () => {
       if (element.open) element.close();
+      if (before?.isConnected) before.focus?.();
     };
   }, []);
   useEffect(() => {
