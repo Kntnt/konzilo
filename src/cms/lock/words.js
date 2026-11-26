@@ -30,6 +30,8 @@ export function lineWords(state) {
       return wordsShown({ name: 'lock.checking' });
     case 'staleBackup':
       return wordsShown({ name: state.takenOver ? 'lock.takenBack' : 'lock.staleBackup', values: { at: momentValue(state.at) } });
+    case 'shut':
+      return wordsShown({ name: 'lock.shut' });
     default:
       return '';
   }

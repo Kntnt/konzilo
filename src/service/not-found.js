@@ -224,7 +224,13 @@ export function notFoundLog({ log, counts, release, now = () => Math.floor(Date.
       return true;
     },
 
-    /** Takes addresses out of the counts, each with and without its last slash, as a purge does. */
-    forget: (addresses) => forgetAddresses(counts, addresses),
+    /**
+     * Takes addresses out of the counts, each with and without its last slash, as a purge does,
+     * after a fold, so that nothing asked for before is counted at the next. How many went.
+     */
+    forget(addresses) {
+      fold();
+      return forgetAddresses(counts, addresses);
+    },
   };
 }

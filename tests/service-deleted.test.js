@@ -94,6 +94,8 @@ describe('the deleted posts, terms and image library entries', () => {
         const limit = Number(searchParams.get('limit'));
         return answerOf([...source.feed].reverse().slice((page - 1) * limit, page * limit));
       }
+      // No purge was made (ADR 0078).
+      if (pathname === '/api/v1/repos/org/source/branches/konzilo-purges') return answerOf({}, 404);
       if (pathname === '/api/v1/repos/org/source/branches/main') return answerOf({ name: 'main', commit: { id: head() } });
       if (pathname === '/api/v1/repos/org/source/commits') {
         const page = Number(searchParams.get('page'));
@@ -234,9 +236,9 @@ describe('the deleted posts, terms and image library entries', () => {
 describe('which source files are posts, terms and image library entries', () => {
   test('on a site in one language: a post, a term or a library entry in its collection\'s folder', () => {
     const deletable = deletableIn(SITE);
-    assert.deepEqual(deletable('articles/aaaaaaaaaaaa.md'), { collection: 'articles' });
-    assert.deepEqual(deletable('topics/aaaaaaaaaaaa.json'), { collection: 'topics' });
-    assert.deepEqual(deletable('image-library/aaaaaaaaaaaa.json'), { collection: 'image-library' });
+    assert.deepEqual(deletable('articles/aaaaaaaaaaaa.md'), { collection: 'articles', kind: 'post' });
+    assert.deepEqual(deletable('topics/aaaaaaaaaaaa.json'), { collection: 'topics', kind: 'term' });
+    assert.deepEqual(deletable('image-library/aaaaaaaaaaaa.json'), { collection: 'image-library', kind: 'image' });
     for (const path of ['articles/aaaaaaaaaaaa.json', 'topics/aaaaaaaaaaaa.md', 'articles/.gitkeep', 'articles/en-GB/aaaaaaaaaaaa.md', 'menus/main.json', 'settings.json', 'media/meadow.jpg', 'redirects.json', 'start.page.md', 'other/aaaaaaaaaaaa.md']) {
       assert.equal(deletable(path), null, path);
     }
@@ -244,9 +246,9 @@ describe('which source files are posts, terms and image library entries', () => 
 
   test('on a site in several languages: each translation in its language\'s folder', () => {
     const deletable = deletableIn({ ...SITE, languages: [{ tag: 'sv-SE', main: true }, { tag: 'en-GB', main: false }] });
-    assert.deepEqual(deletable('articles/en-GB/aaaaaaaaaaaa.md'), { collection: 'articles' });
-    assert.deepEqual(deletable('topics/sv-SE/aaaaaaaaaaaa.json'), { collection: 'topics' });
-    assert.deepEqual(deletable('image-library/aaaaaaaaaaaa.json'), { collection: 'image-library' }, 'the library is in one language');
+    assert.deepEqual(deletable('articles/en-GB/aaaaaaaaaaaa.md'), { collection: 'articles', kind: 'post' });
+    assert.deepEqual(deletable('topics/sv-SE/aaaaaaaaaaaa.json'), { collection: 'topics', kind: 'term' });
+    assert.deepEqual(deletable('image-library/aaaaaaaaaaaa.json'), { collection: 'image-library', kind: 'image' }, 'the library is in one language');
     for (const path of ['articles/aaaaaaaaaaaa.md', 'articles/de-DE/aaaaaaaaaaaa.md', 'image-library/sv-SE/aaaaaaaaaaaa.json']) assert.equal(deletable(path), null, path);
   });
 });

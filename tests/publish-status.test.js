@@ -191,6 +191,15 @@ describe('who pushed what', () => {
       assert.deepEqual(JSON.parse(readFileSync(files.pushers, 'utf8')), { c1: 'konzilo', c2: 'anna' });
     });
 
+    test('names who pushed each save a purge rewrote as the record of purges carried it over (ADR 0078)', async () => {
+      // The purge's push brought every save after the oldest one rewritten, by the instance's account.
+      const files = await read(join(folder, 'purged'), {
+        get: standIn(() => [feedEntry(1, 'anna', 'c1'), feedEntry(2, 'konzilo', 'c4', 'c1')]).get,
+        carried: async () => ({ c2: { login: 'ebba', name: 'Ebba Editor', at: '2026-11-02T08:00:00Z' }, c3: null }),
+      });
+      assert.deepEqual(JSON.parse(readFileSync(files.pushers, 'utf8')), { c1: 'anna', c2: 'ebba', c4: 'konzilo' }, 'a save whose account Forgejo had no record of has none');
+    });
+
     test('writes who the Reviewers are, never the account the core pushes with, and none where the site has no such team', async () => {
       const files = await read(join(folder, 'reviewers'), { get: standIn(() => [], [{ login: 'rut' }, { login: 'konzilo' }, { login: 'olle' }]).get });
       assert.deepEqual(JSON.parse(readFileSync(files.reviewers, 'utf8')), ['rut', 'olle']);
@@ -296,10 +305,26 @@ describe('the build request', () => {
     assert.equal(await buildsFor(buildControl(join(folder, 'none'))), 0);
   });
 
+  test('nothing is built while a purge holds the builds back, and a build says it runs while it does (ADR 0078)', async () => {
+    const control = buildControl(join(folder, 'held'));
+    control.request();
+    control.holdBuilds();
+    assert.equal(await buildsFor(control), 0);
+    assert.equal(control.requested(), true, 'the request waits for the purge');
+    control.releaseBuilds();
+    let seen = null;
+    assert.equal(await buildsFor(control, () => {
+      seen = control.isBuilding();
+    }), 1);
+    assert.equal(seen, true);
+    assert.equal(control.isBuilding(), false);
+  });
+
   test('a build that throws is not the end of the builder\'s world, if the caller says so', async () => {
     const control = buildControl(join(folder, 'throws'));
     control.request();
     await assert.rejects(buildOnRequest({ control, build: async () => { throw new Error('no'); }, sleep: async () => {} }), /no/);
     assert.equal(control.requested(), false, 'it has taken its request');
+    assert.equal(control.isBuilding(), false, 'and says it builds no more');
   });
 });

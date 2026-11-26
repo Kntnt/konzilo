@@ -40,6 +40,6 @@
 
 ## Consequences
 
-- A purge rewrites the history, which the service learns anew, so a purged entry leaves the list with nothing more to do.
+- A purge rewrites the history, which the service learns anew, so a purged entry leaves the list with nothing more to do; an Admin purges one from the page ([ADR 0078](0078-purge-a-deleted-entry-from-both-repositories-histories-and-carry-over-each-rewritten-saves-identity.md)).
 - The service learns the whole history once after each start, fifty commits at a time; a site with a long history waits for its first list a while longer.
 - `GLOSSARY.md` defines a deleted post.

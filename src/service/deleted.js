@@ -16,25 +16,25 @@ import { IMAGE_LIBRARY_FOLDER, MEDIA_FOLDER } from '../format/masters.js';
 const BRANCH = 'main';
 
 // Whether a source file is a post, a term or an image library entry of the site `site` describes:
-// { collection } where it is, else null. A post is `.md` and a term `.json` in its collection's
+// { collection, kind } where it is, `kind` one of `post`, `term` and `image`, else null. A post is `.md` and a term `.json` in its collection's
 // folder, on a site in several languages in its language's folder below it, and a library entry
 // `.json` in the library's folder, which is in one language.
 export function deletableIn(site) {
   const tags = site.languages.length > 1 ? site.languages.map(({ tag }) => tag) : null;
   const folders = [
-    ...Object.values(site.types ?? {}).map(({ collection }) => [collection, '.md', tags]),
-    ...Object.values(site.taxonomies ?? {}).map(({ collection }) => [collection, '.json', tags]),
-    [IMAGE_LIBRARY_FOLDER, '.json', null],
+    ...Object.values(site.types ?? {}).map(({ collection }) => [collection, '.md', tags, 'post']),
+    ...Object.values(site.taxonomies ?? {}).map(({ collection }) => [collection, '.json', tags, 'term']),
+    [IMAGE_LIBRARY_FOLDER, '.json', null, 'image'],
   ];
   return (path) => {
     const parts = path.split('/');
     const name = parts.at(-1);
     if (name.startsWith('.')) return null;
-    for (const [collection, extension, languages] of folders) {
+    for (const [collection, extension, languages, kind] of folders) {
       const placed = languages === null
         ? parts.length === 2 && parts[0] === collection
         : parts.length === 3 && parts[0] === collection && languages.includes(parts[1]);
-      if (placed && name.endsWith(extension) && name.length > extension.length) return { collection };
+      if (placed && name.endsWith(extension) && name.length > extension.length) return { collection, kind };
     }
     return null;
   };
@@ -102,6 +102,16 @@ export function deletions({ ask, textAt, saved }) {
   };
 
   return {
+    // The deleted entry at `path`, { path, collection, kind }, as list() would give it, or null.
+    async find(path, { deletable }) {
+      await learn();
+      const { head, changed } = learned;
+      const change = changed.get(path);
+      const kind = deletable(path);
+      if (head === null || !change || change.parent === null || kind === null || (await filesAt(head)).has(path)) return null;
+      return { path, ...kind };
+    },
+
     // A page of the deleted entries, newest deletion first, those of `collection` alone where it is
     // given, by `deletable(path)` as deletableIn() gives it: { deleted, more }, each { path,
     // collection, commit, moment, account, last: { commit, text }, along }, `commit` the deletion's

@@ -150,10 +150,13 @@ describe('the log of addresses not found', () => {
     assert.deepEqual(Object.keys(counts()).sort(), ['/kept/', '/missing/', '/queried/']);
   });
 
-  test('takes a purged post\'s addresses out, with and without their last slash', () => {
-    for (const path of ['/purged/', '/purged', '/caf%C3%A9/', '/other/']) asked(path);
+  test('takes a purged post\'s addresses out, with and without their last slash, and what was asked for before at the next fold', () => {
+    for (const path of ['/purged/', '/purged', '/other/']) asked(path);
     keeper().fold();
+    asked('/caf%C3%A9/');
     assert.equal(keeper().forget(['/purged/', '/café/']), 3);
+    assert.deepEqual(Object.keys(counts()), ['/other/']);
+    keeper().fold();
     assert.deepEqual(Object.keys(counts()), ['/other/']);
   });
 
