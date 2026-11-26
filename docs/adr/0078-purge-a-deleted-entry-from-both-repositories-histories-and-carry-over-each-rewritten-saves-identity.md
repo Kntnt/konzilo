@@ -53,7 +53,7 @@ Settled by Thomas the same day for a passage (#117): only an Admin purges one, w
 - **The builder purging.** It runs the site's code and its dependencies, which would then hold the instance's credential.
 - **Removing what is purged from Forgejo's activity feed.** Forgejo has no way to change one push's record, and the feed is what names who pushed every save no purge rewrote.
 - **A passage purged from the current versions too.** The published text would change with no save of an editor's, and nothing in a form would show it.
-- **A passage purged from the content repository's head,** where a build has not yet published the Admin's save, or a post's last accepted version holds it after the build refused a newer one. That too would change the published text with no save of an editor's, and the brief keeps the purge from any current version.
+- **A passage purged from the content repository's head,** where a build has not yet published the Admin's save, or a post's last accepted version holds it after the build refused a newer one. That too would change the published text with no save of an editor's, which the purge leaves to the editor.
 - **A marker where a passage was,** such as `[removed]`. It would say that something was there, and where.
 - **A search by Forgejo's API, or by its code search.** The API reads one file at one commit at a time, and the code search reads the branch as it stands alone.
 
