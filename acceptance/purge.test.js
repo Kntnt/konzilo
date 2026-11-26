@@ -153,6 +153,7 @@ describe('an Admin\'s purge', () => {
     assert.equal(await dialog.getByRole('button', { name: 'Purge for good', exact: true }).isDisabled(), true, 'not before the name is written');
     await box.focus();
     await page.keyboard.type(title);
+    await page.waitForFunction(() => [...document.querySelectorAll('.konzilo-purge-dialog button')].some((one) => one.textContent === 'Purge for good' && !one.disabled), null, { timeout: 10_000 });
     await page.keyboard.press('Enter');
     const chosen = dialog.getByRole('button', { name: course });
     await chosen.waitFor({ timeout: 30_000 });

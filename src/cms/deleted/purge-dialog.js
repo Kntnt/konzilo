@@ -164,7 +164,9 @@ export function PurgeDialog({ row, service, collectionOf, onClose }) {
       h('label', { key: 'name', className: 'konzilo-purge-name' },
         h('span', null, wordsShown({ name: 'deleted.purgeWrite', values: { title } })),
         h('input', { type: 'text', value: written, autoComplete: 'off', spellCheck: false, onChange: (event) => setWritten(event.target.value), onKeyDown: (event) => {
-          if (event.key === 'Enter' && matches) void toForms();
+          // By what the box holds as the key is pressed, which the last change may not yet have
+          // drawn.
+          if (event.key === 'Enter' && event.target.value.trim() === title.trim()) void toForms();
         } })),
       h('div', { key: 'ways', className: 'konzilo-deleted-ways' }, button(say('deleted.purgeCancel'), onClose), button(say('deleted.purgeConfirm'), toForms, { className: 'konzilo-deleted-button konzilo-purge-go', disabled: !matches })),
     ];
