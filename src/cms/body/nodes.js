@@ -14,7 +14,8 @@ import { $command, $inputRule, $markSchema, $node, $nodeSchema, $prose, $view } 
 
 import rules from '../../format/rules.json' with { type: 'json' };
 import { made } from './dialog.js';
-import { focusIn, focusText, imageTitle, isDisplayWidth } from '../../format/body.js';
+import { imageTitle, isDisplayWidth } from '../../format/body.js';
+import { focalPointIn, focalPointText } from '../../format/focal-point.js';
 import { embedOf } from '../../format/embeds.js';
 import { editEmbed } from './embed-edit.js';
 import { CAPTION_NODE, LINE_NODE } from './format.js';
@@ -94,7 +95,7 @@ const writeCaption = (state, node) => {
 };
 
 const writeImage = (state, node) => {
-  const title = imageTitle({ width: node.attrs.width ?? null, focus: node.attrs.focus ?? null });
+  const title = imageTitle({ width: node.attrs.width ?? null, focalPoint: node.attrs.focalPoint ?? null });
   state.addNode('image', undefined, undefined, { url: node.attrs.src, alt: node.attrs.alt, title: title === '' ? null : title });
   if (hasCaption(node)) {
     state.addNode('break');
@@ -115,19 +116,19 @@ export const imageNode = $nodeSchema(IMAGE, () => ({
   defining: true,
   draggable: true,
   selectable: true,
-  attrs: { src: { validate: 'string' }, alt: { default: '', validate: 'string' }, width: { default: null, validate: 'number|null' }, focus: { default: null, validate: 'object|null' } },
+  attrs: { src: { validate: 'string' }, alt: { default: '', validate: 'string' }, width: { default: null, validate: 'number|null' }, focalPoint: { default: null, validate: 'object|null' } },
   parseDOM: [
     {
       tag: 'figure[data-konzilo-image]',
       contentElement: 'figcaption',
-      getAttrs: (dom) => ({ src: dom.dataset.src ?? '', alt: dom.dataset.alt ?? '', width: isDisplayWidth(Number(dom.dataset.width)) ? Number(dom.dataset.width) : null, focus: focusIn(dom.dataset.focus) }),
+      getAttrs: (dom) => ({ src: dom.dataset.src ?? '', alt: dom.dataset.alt ?? '', width: isDisplayWidth(Number(dom.dataset.width)) ? Number(dom.dataset.width) : null, focalPoint: focalPointIn(dom.dataset.focalPoint) }),
     },
   ],
-  toDOM: ({ attrs: { src, alt, width, focus } }) => ['figure', { 'data-konzilo-image': '', 'data-src': src, 'data-alt': alt, ...(width ? { 'data-width': String(width) } : {}), ...(focus ? { 'data-focus': focusText(focus) } : {}) }, ['figcaption', 0]],
+  toDOM: ({ attrs: { src, alt, width, focalPoint } }) => ['figure', { 'data-konzilo-image': '', 'data-src': src, 'data-alt': alt, ...(width ? { 'data-width': String(width) } : {}), ...(focalPoint ? { 'data-focal-point': focalPointText(focalPoint) } : {}) }, ['figcaption', 0]],
   parseMarkdown: {
     match: ({ type }) => type === 'konziloImage',
     runner: (state, node, type) => {
-      state.openNode(type, { src: node.src, alt: node.alt, width: node.width ?? null, focus: node.focus ?? null });
+      state.openNode(type, { src: node.src, alt: node.alt, width: node.width ?? null, focalPoint: node.focalPoint ?? null });
       state.next(node.children);
       state.closeNode();
     },
@@ -243,7 +244,7 @@ export const inImageCaption = ({ selection: { $from } }) => CAPTIONS.has($from.p
 // Whether two focal points, each { x, y } or null, are the same.
 const samePoint = (one, other) => (one ?? null) === (other ?? null) || (one?.x === other?.x && one?.y === other?.y);
 
-const imageOf = ({ schema }, chosen) => schema.nodes[IMAGE].create({ src: chosen.src, alt: chosen.alt, width: chosen.displayWidth ?? null, focus: chosen.focalPoint ?? null }, chosen.caption ? schema.text(chosen.caption) : null);
+const imageOf = ({ schema }, chosen) => schema.nodes[IMAGE].create({ src: chosen.src, alt: chosen.alt, width: chosen.displayWidth ?? null, focalPoint: chosen.focalPoint ?? null }, chosen.caption ? schema.text(chosen.caption) : null);
 
 // A block in place of an empty block, or after the block at the cursor, with the cursor after it,
 // so that writing can go on.
@@ -372,12 +373,12 @@ function imageControls(initial, view, getPos, picture, frames) {
 
   if (view.state.doc.resolve(getPos()).parent.type.name !== GALLERY) {
     penOn(shown, say('body.imageEdit'), async () => {
-      const answer = await editImage({ alt: node.attrs.alt, address: shown.dataset.state === 'shown' ? img.src : null, focus: node.attrs.focus, frames });
+      const answer = await editImage({ alt: node.attrs.alt, address: shown.dataset.state === 'shown' ? img.src : null, focalPoint: node.attrs.focalPoint, frames });
       if (view.isDestroyed) return;
       const pos = getPos();
       if (answer !== null && pos !== undefined) {
         if (answer.remove) view.dispatch(view.state.tr.delete(pos, pos + node.nodeSize));
-        else if (answer.alt !== node.attrs.alt || !samePoint(answer.focus, node.attrs.focus)) view.dispatch(view.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, alt: answer.alt, focus: answer.focus }));
+        else if (answer.alt !== node.attrs.alt || !samePoint(answer.focalPoint, node.attrs.focalPoint)) view.dispatch(view.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, alt: answer.alt, focalPoint: answer.focalPoint }));
       }
       view.focus();
     });
@@ -411,7 +412,7 @@ function galleryControls(initial, view, getPos, images, frames) {
   const pen = penOn(dom, say('body.galleryEdit'), async () => {
     const held = [];
     node.forEach((child) => {
-      if (child.type.name === IMAGE) held.push({ kept: child, src: child.attrs.src, alt: child.attrs.alt, focalPoint: child.attrs.focus });
+      if (child.type.name === IMAGE) held.push({ kept: child, src: child.attrs.src, alt: child.attrs.alt, focalPoint: child.attrs.focalPoint });
     });
     const answer = await editGallery({ images: held, choose: images?.chooseSeveral ?? null, picture: images?.picture ?? null, frames });
     if (view.isDestroyed) return;
@@ -421,7 +422,7 @@ function galleryControls(initial, view, getPos, images, frames) {
       const end = pos + node.nodeSize - 1 - node.lastChild.nodeSize;
       if (answer.remove) view.dispatch(view.state.tr.delete(pos, pos + node.nodeSize));
       else if (answer.images.length !== held.length || answer.images.some(({ kept, alt, focalPoint }, index) => kept !== held[index].kept || alt !== held[index].alt || !samePoint(focalPoint, held[index].focalPoint))) {
-        const rebuilt = answer.images.map((one) => (one.kept ? one.kept.type.create({ ...one.kept.attrs, alt: one.alt, focus: one.focalPoint ?? null }, one.kept.content) : imageOf(view.state, one)));
+        const rebuilt = answer.images.map((one) => (one.kept ? one.kept.type.create({ ...one.kept.attrs, alt: one.alt, focalPoint: one.focalPoint ?? null }, one.kept.content) : imageOf(view.state, one)));
         view.dispatch(rebuilt.length > 0 ? view.state.tr.replaceWith(start, end, rebuilt) : view.state.tr.delete(start, end));
       }
     }

@@ -15,9 +15,9 @@ import { createHash } from 'node:crypto';
 
 import { parse as parseYaml } from 'yaml';
 
+import { termSlug } from '../format/addresses.js';
 import { IMAGE_LIBRARY_FOLDER, MEDIA_FOLDER } from '../format/masters.js';
 import { keyOf, REDIRECTS_FILE } from '../format/redirects.js';
-import { slugFrom } from '../intake/post-file.js';
 import { blobsOf, BRANCH, purgeHistories, PurgeRefusal } from './histories.js';
 
 export { PurgeRefusal };
@@ -153,8 +153,8 @@ async function sourcePlan(git, entry) {
   if (kind === 'term') {
     for (const bytes of read) {
       const value = readJson(bytes);
-      const slug = typeof value?.slug === 'string' && value.slug !== '' ? value.slug : typeof value?.name === 'string' ? slugFrom(value.name.trim()) : '';
-      if (slug !== '') slugs.add(slug);
+      const slug = termSlug(value);
+      if (typeof slug === 'string' && slug !== '') slugs.add(slug);
     }
   }
   if (kind === 'image') {
@@ -252,7 +252,8 @@ async function entryPlan({ source, content, entry, before }) {
         const read = await blobsOf(source.git, listed.map((one) => `${commit}:${one}`));
         return new Set([...read.values()].map((bytes) => {
           const value = readJson(bytes);
-          return typeof value?.slug === 'string' && value.slug !== '' ? value.slug : typeof value?.name === 'string' ? slugFrom(value.name.trim()) : '';
+          const slug = termSlug(value);
+          return typeof slug === 'string' ? slug : '';
         }));
       })());
     }

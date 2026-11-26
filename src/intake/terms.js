@@ -3,7 +3,7 @@
 // each term above it.
 
 import { MARKUP } from '../checks.js';
-import { slugFrom } from './post-file.js';
+import { termChain, termSlug } from '../format/addresses.js';
 import { groupBy } from './run.js';
 import { named, say } from './words.js';
 
@@ -23,7 +23,7 @@ export function readTerms(run) {
     const main = group.find((one) => one.tag === mainTag);
     const value = main?.value;
     const name = typeof value?.name === 'string' ? value.name.trim() : '';
-    const term = { key, id: first.id, file: (main ?? first).path, taxonomy: first.taxonomy, name, value, byTag: new Map(group.map((one) => [one.tag, one.value])), problems: [], parentId: null };
+    const term = { key, id: first.id, file: (main ?? first).path, taxonomy: first.taxonomy, name, value, byTag: new Map(group.map((one) => [one.tag, one.value])), problems: [], parent: null };
     term.label = name || first.id;
     // A term a Reviewer changed holds back the posts that use it (ADR 0008).
     const reviewer = group.find((one) => run.changes?.[one.path]?.reviewer === true);
@@ -34,10 +34,10 @@ export function readTerms(run) {
     const description = typeof value?.description === 'string' ? value.description.trim() : '';
     term.description = description;
     if (MARKUP.test(name) || MARKUP.test(description)) term.problems.push(say('refusal.term-markup', { term: term.label }));
-    const slug = value?.slug === undefined || value?.slug === null || value?.slug === '' ? slugFrom(name) : value.slug;
+    const slug = termSlug(value);
     term.slug = typeof slug === 'string' ? slug : '';
     if (!TERM_SLUG.test(term.slug) && name !== '') term.problems.push(say('refusal.term-slug', { term: term.label, slug: String(slug) }));
-    if (first.taxonomy.hierarchical && typeof value?.parent === 'string' && value.parent !== '') term.parentId = value.parent;
+    if (first.taxonomy.hierarchical && typeof value?.parent === 'string' && value.parent !== '') term.parent = value.parent;
     for (const one of group) {
       if (!run.several || one === main || !one.value) continue;
       const differs = (field) => (typeof one.value[field] === 'string' ? one.value[field].trim() : '') !== (typeof value?.[field] === 'string' ? value[field].trim() : '');
@@ -48,22 +48,10 @@ export function readTerms(run) {
     run.termsById.set(first.id, term);
   }
   for (const term of run.terms.values()) {
-    const seen = new Set([term.key]);
-    term.chain = [term];
-    for (let next = term; next.parentId !== null;) {
-      const parent = run.terms.get(`${term.taxonomy.collection}/${next.parentId}`);
-      if (!parent) {
-        term.problems.push(say('refusal.term-parent', { term: term.label, parent: next.parentId }));
-        break;
-      }
-      if (seen.has(parent.key)) {
-        term.problems.push(say('refusal.term-loop', { term: term.label }));
-        break;
-      }
-      seen.add(parent.key);
-      term.chain.unshift(parent);
-      next = parent;
-    }
+    const { chain, missing, loop } = termChain(term.id, (id) => run.terms.get(`${term.taxonomy.collection}/${id}`));
+    term.chain = chain;
+    if (missing !== undefined) term.problems.push(say('refusal.term-parent', { term: term.label, parent: missing }));
+    if (loop) term.problems.push(say('refusal.term-loop', { term: term.label }));
   }
 }
 

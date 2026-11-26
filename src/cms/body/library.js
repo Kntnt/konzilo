@@ -8,7 +8,7 @@
 // original in Git LFS by the repository's `.gitattributes`, as it does for any save.
 
 import { isDisplayWidth } from '../../format/body.js';
-import { focalPointOf } from '../../format/focal-point.js';
+import { heldFocalPoint } from '../../format/focal-point.js';
 import { IMAGE_LIBRARY_FOLDER, MEDIA_FOLDER } from '../../format/masters.js';
 import { kindOf } from '../../format/originals.js';
 import { base64 } from '../base64.js';
@@ -37,6 +37,14 @@ export function mediaNameOf(address) {
   }
 }
 
+// An address to show an image at, in a field or a dialog: a file chosen and not yet saved at its
+// own blob address, any other as the library's small picture of it (picture()); null where there
+// is none to show, or no library to ask.
+export const pictureAddress = (library, address) => {
+  if (!address) return Promise.resolve(null);
+  return address.startsWith('blob:') ? Promise.resolve(address) : library?.picture(address) ?? Promise.resolve(null);
+};
+
 // An entry's display width, as a post's body takes it, or null where it fills the column.
 export const displayWidthOf = (given) => (isDisplayWidth(given) ? given : null);
 
@@ -47,13 +55,13 @@ function entryOf(text) {
     const { src, alt, caption, displayWidth, focalPoint } = JSON.parse(text);
     if (typeof src !== 'string' || src === '') return null;
     const width = displayWidthOf(displayWidth);
-    const focus = focalPointOf(focalPoint);
+    const point = heldFocalPoint(focalPoint);
     return {
       src,
       alt: typeof alt === 'string' ? alt : '',
       caption: typeof caption === 'string' ? caption : '',
       ...(width === null ? {} : { displayWidth: width }),
-      ...(focus === null || focus.wrong ? {} : { focalPoint: focus }),
+      ...(point === null ? {} : { focalPoint: point }),
     };
   } catch {
     return null;

@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, before, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { madeOnce } from '../src/astro/body-tree.js';
 import { astroConfig, astroEnvironment, nodeSync } from './lib/astro.js';
 import { plainImage, sharp } from './lib/images.js';
 
@@ -262,6 +263,23 @@ describe("the live preview's dev server", () => {
     ]);
     const [content] = contentsOf(html);
     assert.deepEqual(elements(tree)[4].children, content.children);
+  });
+});
+
+// What renders an entry's body, Astro's container, is made once; one that could not be made, as a
+// dev server may meet, is made again at the next ask rather than failing every one after it.
+describe('the container that renders an entry\'s body', () => {
+  test('is made once, and again at the next ask where making it failed', async () => {
+    let tries = 0;
+    const container = madeOnce(async () => {
+      tries += 1;
+      if (tries === 1) throw new Error('not now');
+      return { made: tries };
+    });
+    await assert.rejects(container(), /not now/);
+    assert.deepEqual(await container(), { made: 2 });
+    assert.deepEqual(await container(), { made: 2 });
+    assert.equal(tries, 2);
   });
 });
 

@@ -4,7 +4,7 @@
 // made marks among its pages. What is written holds nothing a Caddyfile would read as its
 // own: every value lies in backticks, and neither a backtick nor a placeholder gets through.
 
-import { ACCEPT_LENGTH, ACCEPT_RANGES, markdownAddress } from '../astro/markdown-alternates.js';
+import { ACCEPT_LENGTH, ACCEPT_RANGES, markdownAddress } from '../markdown-negotiation.js';
 import { CONSENT_SCRIPTS } from '../consent/registry.js';
 
 // The names a release may set, and nothing the web server reads as its own.

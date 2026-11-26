@@ -204,6 +204,20 @@ describe('Astro', () => {
     assert.equal(built.aside('alpha'), 'Echo /echo/, Delta /delta/');
   });
 
+  // A site's own route for a type stands at its address's fixed steps, and its rest parameter
+  // stands for the steps from the address's first token on, the date's among them.
+  test('gives a site\'s own route for a type whose address holds the date the steps from the date on', () => {
+    const dated = build({
+      'site-description.json': JSON.stringify({ ...site, types: { ...site.types, post: { ...site.types.post, address: '/news/{year}/{slug}/' } } }),
+      'src/pages/[...slug].astro': '---\nexport function getStaticPaths() {\n  return [];\n}\n---\n',
+      'src/pages/news/[...slug].astro': template('articles'),
+    }, { presentations, emptyList: 'Nothing here yet.' });
+    assert.equal(dated.status, 0, dated.output);
+    assert.equal(dated.has('news/2026/alpha/index.html'), true);
+    assert.equal(dated.has('news/alpha/index.html'), false);
+    assert.match(dated.main('pages/start'), /<a class="card" href="\/news\/2026\/alpha\/">Alpha<\/a>/);
+  });
+
   test('says what is wrong with a refused site description, and not that a presentation is undeclared', () => {
     const failed = build({ 'site-description.json': JSON.stringify({ ...site, language: 'not a language' }) }, { presentations });
     assert.notEqual(failed.status, 0);

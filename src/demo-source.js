@@ -158,15 +158,15 @@ export function sourceFrom(description, published, { now = new Date() } = {}) {
     if (path.startsWith('media/')) files.push({ path, content });
   }
 
-  // The image library starts with what the posts show, each picture once, with the words its first
-  // post has for it.
+  // The image library starts with what the posts show, each picture once, with what its first post
+  // holds beside it: its alt text, and its focal point where it has one.
   const inLibrary = new Set();
   for (const { fields: { image } } of posts) {
     const hash = /-([0-9a-f]{10})\.[a-z]+$/.exec(image?.src ?? '')?.[1];
     if (!hash || inLibrary.has(hash)) continue;
     inLibrary.add(hash);
-    const { src, alt } = toMedia(image);
-    files.push({ path: `${IMAGE_LIBRARY_FOLDER}/${idOf(IMAGE_LIBRARY_FOLDER, hash)}.json`, content: `${JSON.stringify({ src, alt }, null, 2)}\n` });
+    const { src, alt, focalPoint } = toMedia(image);
+    files.push({ path: `${IMAGE_LIBRARY_FOLDER}/${idOf(IMAGE_LIBRARY_FOLDER, hash)}.json`, content: `${JSON.stringify({ src, alt, ...(focalPoint ? { focalPoint } : {}) }, null, 2)}\n` });
   }
 
   // The page for addresses not found is a post an Admin chooses, of a type with an address,

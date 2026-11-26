@@ -708,7 +708,7 @@ The quay _at dusk_
 
 An image is drawn as wide as its column lets it, and never wider than its master. One drawn at most a width of its own, its *display width*, such as a diagram or a screenshot saved at twice the size it is meant to be read at, has it as its title, `width=` and a whole number of pixels from 1 to 16383, in double quotes after the address. The site writes its `width` and `height` at that width, by its master's proportions, or its crop's ([Focal point](#focal-point)), and its versions as any other image's, up to its master's width, so that a dense screen draws it sharp ([Masters](#masters)). An image in a gallery keeps its display width, and fills what the design gives it all the same.
 
-An image's title holds its *focal point* too, `focus=` and two fractions with a comma between, after its display width, with a space between where it has both: `"width=632 focus=0.3,0.6"` ([Focal point](#focal-point)). A title that says anything else, or one thing twice, is refused, and so is a display width or a focal point that is not one.
+An image's title holds its *focal point* too, `focus=` and two fractions with a comma between: `"width=632 focus=0.3,0.6"` ([Focal point](#focal-point)). A writer puts it after the display width, with a space between where it has both, and a reader takes the two in either order. A title that says anything else, or one thing twice, is refused, and so is a display width or a focal point that is not one.
 
 ```markdown body read
 ![A diagram of the flow of work](../media/example-8c1e5d2a90.webp "width=632")\

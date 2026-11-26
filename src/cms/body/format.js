@@ -75,7 +75,7 @@ const inCaption = (node) => {
 const canHold = (image) => isImageTitle(image.title) && !(image.alt ?? '').includes('\n');
 const imageOf = (image, caption = []) => {
   const title = imageTitleIn(image.title);
-  return { type: 'konziloImage', src: image.url, alt: image.alt ?? '', width: title?.width ?? null, focus: title?.focus ?? null, children: caption };
+  return { type: 'konziloImage', src: image.url, alt: image.alt ?? '', width: title?.width ?? null, focalPoint: title?.focalPoint ?? null, children: caption };
 };
 
 // A paragraph as the image the editor holds, or null where it is no image the site can show as

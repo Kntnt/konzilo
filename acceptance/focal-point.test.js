@@ -65,7 +65,7 @@ for (const [name, engine] of Object.entries(ENGINES)) {
     });
 
     test('moves with the arrow keys, by a tenth with Shift, says where it stands, and is cleared by Delete and by its button', async () => {
-      await openPicker({ focus: { x: 0.5, y: 0.5 }, frames: FRAMES });
+      await openPicker({ focalPoint: { x: 0.5, y: 0.5 }, frames: FRAMES });
       await point().focus();
       await page.keyboard.press('ArrowRight', { delay: KEY_DELAY });
       await page.keyboard.press('ArrowUp', { delay: KEY_DELAY });

@@ -21,18 +21,32 @@
 
 import { bodyTree as treeOf } from './directives.js';
 
+// What `make()` gives, made when first asked and then kept, but made again at the next ask where
+// making it failed, so that one failure, such as a dev server may meet, does not stay.
+export function madeOnce(make) {
+  let made = null;
+  return () => {
+    made ??= Promise.resolve().then(make).catch((error) => {
+      made = null;
+      throw error;
+    });
+    return made;
+  };
+}
+
 // What renders an entry's Content to its HTML outside the page's own rendering, its images made,
-// as a feed renders a body (routes/feed.js): Astro's container, made once, when a template first
-// asks.
-let container;
+// as a feed renders a body (routes/feed.js): Astro's container, made when a template first asks.
+// Imported then, since the site's astro.config.mjs loads this file too, where Astro's own modules
+// are not.
+const container = madeOnce(async () => {
+  const { experimental_AstroContainer: AstroContainer } = await import('astro/container');
+  return AstroContainer.create();
+});
 
 export async function bodyTree(given) {
   if (typeof given === 'string') return treeOf(given);
-  // Imported when asked, since the site's astro.config.mjs loads this file too, where Astro's
-  // own modules are not.
+  // Imported when asked, as the container is.
   const { render } = await import('astro:content');
-  const { experimental_AstroContainer: AstroContainer } = await import('astro/container');
-  container ??= AstroContainer.create();
   const { Content } = await render(given);
-  return treeOf(await (await container).renderToString(Content));
+  return treeOf(await (await container()).renderToString(Content));
 }

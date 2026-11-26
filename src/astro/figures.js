@@ -15,7 +15,7 @@
 // stands alone, which its <img> takes as its `width`; a gallery's image, which fills what
 // the design gives it, has none. Its focal point, `focus=0.25,0.4`, which a crop of it to the
 // aspect ratio of the context it is drawn in is centred on, goes with its <img> as the node's
-// data, `focus`, which no page shows (image-versions.js).
+// data, `focalPoint`, which no page shows (image-versions.js).
 //
 // A gallery carries Konzilo's own class, and nothing else here carries one.
 
@@ -58,7 +58,7 @@ function sized(picture, alone) {
   return {
     ...picture,
     properties: alone && given.width !== undefined ? { ...properties, width: given.width } : properties,
-    ...(given.focus === undefined ? {} : { data: { ...picture.data, focus: given.focus } }),
+    ...(given.focalPoint === undefined ? {} : { data: { ...picture.data, focalPoint: given.focalPoint } }),
   };
 }
 

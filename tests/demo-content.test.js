@@ -392,3 +392,26 @@ describe('konzilo-demo-content', () => {
     }
   });
 });
+
+// The image library starts with what the posts show, each picture with what its first post holds
+// beside it, its alt text and its focal point, as an editor's choice of it would have copied them.
+test('starts the image library with each picture a post shows, its alt text and its focal point copied as the post holds them', () => {
+  const site = mkdtempSync(join(tmpdir(), 'konzilo-demo-library-'));
+  try {
+    const article = siteDescription({ language: 'en_GB', images: { smallestWidth: 400, displayWidth: 1280 }, types: { article: { collection: 'articles', address: '/{slug}/', elements: ['paragraph'] } } });
+    mkdirSync(join(site, 'demo-content/articles'), { recursive: true });
+    mkdirSync(join(site, 'demo-content/media'), { recursive: true });
+    writeFileSync(join(site, 'demo-content/media/lamps-0123456789.webp'), 'a master');
+    writeFileSync(join(site, 'demo-content/media/quay-9876543210.webp'), 'a master');
+    const piece = (title, image) => `---\ntitle: ${JSON.stringify(title)}\ndate: 2026-10-20T08:00:00Z\nmodified: 2026-10-20T08:00:00Z\nheadline: ${JSON.stringify(title)}\nimage: ${JSON.stringify(image)}\n---\n\nThe lamps are lit.\n`;
+    writeFileSync(join(site, 'demo-content/articles/lamps.md'), piece('Lamps', { src: '../media/lamps-0123456789.webp', alt: 'Lamps on the quay', focalPoint: { x: 0.2, y: 0.7 } }));
+    writeFileSync(join(site, 'demo-content/articles/quay.md'), piece('Quay', { src: '../media/quay-9876543210.webp', alt: 'The quay' }));
+    const library = demoSource(article, join(site, 'demo-content'), { now: BEFORE }).filter(({ path }) => path.startsWith('image-library/')).map(({ content }) => JSON.parse(content));
+    assert.deepEqual(library.sort((a, b) => a.alt.localeCompare(b.alt)), [
+      { src: '/media/lamps-0123456789.webp', alt: 'Lamps on the quay', focalPoint: { x: 0.2, y: 0.7 } },
+      { src: '/media/quay-9876543210.webp', alt: 'The quay' },
+    ]);
+  } finally {
+    rmSync(site, { recursive: true, force: true });
+  }
+});

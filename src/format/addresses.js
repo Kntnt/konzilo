@@ -31,6 +31,26 @@ import { british } from '../refusals.js';
 // The tokens of the post's date, in the order an address holds them.
 export const DATE_TOKENS = Object.freeze(['year', 'month', 'day']);
 
+// A slug made from a text, as the intake makes a post's from its title and a term's from its
+// name: lowercase, letters without their accents, and a hyphen for each run of anything but
+// letters, digits, hyphens and underscores.
+export function madeSlug(text) {
+  return text
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+// A term's slug, from its file's data: its own, as the file gives it, or, where it gives none,
+// one made from its name. The site publishes a term at it, and the form shows it alike.
+export function termSlug(term) {
+  const own = term?.slug;
+  if (own !== undefined && own !== null && own !== '') return own;
+  return madeSlug(typeof term?.name === 'string' ? term.name.trim() : '');
+}
+
 // The steps of an address, a path from the site's root that ends in `/`, each { text } or
 // { token }, the name between braces of a step that is one token alone.
 export function addressSteps(address) {
@@ -40,6 +60,10 @@ export function addressSteps(address) {
   });
 }
 
+// Whether a token of a type's address (`fields`, the type's as read) fills any number of steps:
+// `{path}`, and the term of a hierarchical taxonomy, its path; every other token fills one.
+export const takesSteps = (token, fields) => token === 'path' || Boolean(fields.find((field) => field.name === token && field.kind === 'terms')?.taxonomy?.hierarchical);
+
 // The fields of terms whose term a type's address holds, in any of its languages, as the site
 // description declares them (as checked): none for a type whose address holds none.
 export function addressTermFields(type) {
@@ -47,13 +71,6 @@ export function addressTermFields(type) {
   const all = typeof type.address === 'string' ? [type.address] : Object.values(type.address);
   const named = new Set(all.flatMap((address) => addressSteps(address).map((step) => step.token).filter(Boolean)));
   return type.fields.filter((field) => field.kind === 'terms' && named.has(field.name));
-}
-
-// Whether a type's address holds its post's date, in any of its languages.
-export function addressHoldsDate(type) {
-  if (type?.address == null) return false;
-  const all = typeof type.address === 'string' ? [type.address] : Object.values(type.address);
-  return all.some((address) => addressSteps(address).some((step) => DATE_TOKENS.includes(step.token)));
 }
 
 // An address with its tokens filled by a post's values, or null where it lacks one the
@@ -83,32 +100,55 @@ export function filledAddress(address, { name = null, date = null, terms = {} } 
 export function contentValues(type, name, data, read) {
   const terms = {};
   for (const field of addressTermFields(type)) {
-    const [first] = Array.isArray(data?.[field.name]) ? data[field.name] : [];
-    const id = typeof first === 'string' ? first : first?.id;
-    if (typeof id !== 'string' || id === '') continue;
+    const id = termIdOf(data?.[field.name]);
+    if (id === null) continue;
     const path = field.taxonomy?.hierarchical ? publishedTermPath(field.taxonomy.collection, id, read) : id.split('/').at(-1);
     if (path) terms[field.name] = path;
   }
   return { name, date: data?.date ?? null, terms };
 }
 
-// A term's path by its published files, the slugs of its parents from the top and its own,
-// each file named by its slug, or `<tag>/<slug>`, its `parent` named the same way (or as Astro's
-// reference to it), `read(collection, id)` giving a file's data or null; null where a file is
-// missing or the parents go round.
-export function publishedTermPath(collection, id, read) {
-  const slugs = [];
-  const seen = new Set();
-  for (let next = id; typeof next === 'string' && next !== '';) {
-    if (seen.has(next)) return null;
-    seen.add(next);
-    const term = read(collection, next);
-    if (!term) return null;
-    slugs.unshift(next.split('/').at(-1));
-    next = typeof term.parent === 'string' ? term.parent : term.parent?.id;
-  }
-  return slugs.length === 0 ? null : slugs.join('/');
+// The ID of the one term a field holds, as a form, a source file or a content file holds it: the
+// first of a list, or the value alone, each a term's ID, its file's name, or Astro's reference to
+// it, { id }; null for none.
+export function termIdOf(value) {
+  const [first] = Array.isArray(value) ? value : [value];
+  const id = typeof first === 'string' ? first : first?.id;
+  return typeof id === 'string' && id !== '' ? id : null;
 }
+
+// A term and those above it, from the top: what `lookup(id)` gives for a term by its ID, with its
+// `parent` named as termIdOf() takes it, or none at the top; or a promise of it, and then this
+// gives a promise too. Gives { chain }, what `lookup` gave from the top, and, where it stopped
+// short, `missing`, the ID `lookup` gave nothing for, or `loop`, where the parents go round.
+export function termChain(id, lookup) {
+  const chain = [];
+  const seen = new Set();
+  const from = (next) => {
+    if (next === null) return { chain };
+    if (seen.has(next)) return { chain, loop: true };
+    seen.add(next);
+    const take = (term) => {
+      if (!term) return { chain, missing: next };
+      chain.unshift(term);
+      return from(termIdOf(term.parent));
+    };
+    const found = lookup(next);
+    return typeof found?.then === 'function' ? found.then(take) : take(found);
+  };
+  return from(termIdOf(id));
+}
+
+// A term's path from what termChain() gives, each term with its `slug`: the slugs from the top,
+// joined by `/`; null where it stopped short, or found no term.
+export const termPath = ({ chain, missing, loop }) => (missing !== undefined || loop || chain.length === 0 ? null : chain.map((term) => term.slug).join('/'));
+
+// A term's path by its published files, each named by its slug, or `<tag>/<slug>`, its `parent`
+// named the same way, `read(collection, id)` giving a file's data or null.
+export const publishedTermPath = (collection, id, read) => termPath(termChain(id, (next) => {
+  const term = read(collection, next);
+  return term && { slug: next.split('/').at(-1), parent: term.parent };
+}));
 
 // The slug, or path, that an address gives where a type's address in a language, `template`
 // (addressTemplate()), holds `{slug}` or `{path}`, or null where the template cannot give the
@@ -126,19 +166,35 @@ export function nameIn(address, template, multiple = () => false) {
   return stepsGive(head, given.slice(0, given.length - taken), multiple) ? given.slice(given.length - taken).join('/') : null;
 }
 
-// Whether the steps of an address, as addressSteps() gives them, can give the steps `given`: a
-// text the same text, a token any one step, or one or more where `multiple(token)` says so.
-export function stepsGive(steps, given, multiple = () => false) {
-  const from = (i, j) => {
-    if (i === steps.length) return j === given.length;
-    if (j === given.length) return false;
+// What the steps `given` give the tokens of an address's steps, as addressSteps() gives them,
+// each by the token's name, or null where they cannot give that address: a text the same text,
+// a token any one step, or one or more, joined by `/`, where `multiple(token)` says so.
+export function stepValues(steps, given, multiple = () => false) {
+  const from = (i, j, values) => {
+    if (i === steps.length) return j === given.length ? values : null;
+    if (j === given.length) return null;
     const step = steps[i];
-    if (step.token === undefined) return step.text === given[j] && from(i + 1, j + 1);
-    if (!multiple(step.token)) return from(i + 1, j + 1);
-    for (let k = j + 1; k <= given.length; k += 1) if (from(i + 1, k)) return true;
-    return false;
+    if (step.token === undefined) return step.text === given[j] ? from(i + 1, j + 1, values) : null;
+    const last = multiple(step.token) ? given.length : j + 1;
+    for (let k = j + 1; k <= last; k += 1) {
+      const found = from(i + 1, k, { ...values, [step.token]: given.slice(j, k).join('/') });
+      if (found !== null) return found;
+    }
+    return null;
   };
-  return from(0, 0);
+  return from(0, 0, {});
+}
+
+// Whether the steps of an address can give the steps `given`, as stepValues() takes them.
+export const stepsGive = (steps, given, multiple = () => false) => stepValues(steps, given, multiple) !== null;
+
+// What a route's rest parameter stands for in a post's address, `address`, by its type's address
+// in its language, `template` (addressTemplate()): its steps from the template's first token on,
+// joined by `/`, as `2026/lanterns` of `/news/2026/lanterns/` by `/news/{year}/{slug}/`. The
+// steps before it are the route's own folders.
+export function routeRest(address, template) {
+  const fixed = addressSteps(template).findIndex((step) => step.token !== undefined);
+  return address.slice(1, -1).split('/').slice(fixed).join('/');
 }
 
 // A type's address in a language, its tokens unfilled, after the language's prefix on a site in

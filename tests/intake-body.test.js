@@ -1,7 +1,8 @@
 // The body check: what a source holds, whatever its bytes, and the exact form it comes out
 // in. Exact bytes are the intake's job, so a padded table, another bullet or a bare address
 // in angle brackets make no difference; references are followed and image paths replaced.
-// It imports nothing, so that the field can run it in the browser.
+// It imports nothing but the focal point's reading, which imports nothing, so that the field can
+// run it in the browser.
 
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -217,9 +218,12 @@ test('whatever an editor types comes back as typed, in any block, and is a fixed
   }
 });
 
-test('imports nothing, so that the field can run it in the browser', () => {
-  const text = readFileSync(fileURLToPath(new URL('../src/format/body.js', import.meta.url)), 'utf8');
-  assert.doesNotMatch(text, /^\s*import\b|\bimport\(|\brequire\(/m);
+test('imports nothing but the focal point\'s reading, which imports nothing, so that the field can run it in the browser', () => {
+  const source = (name) => readFileSync(fileURLToPath(new URL(`../src/format/${name}`, import.meta.url)), 'utf8');
+  const imports = (text) => [...text.matchAll(/^\s*import\b.*?from\s+'([^']+)'/gm)].map((match) => match[1]);
+  assert.deepEqual(imports(source('body.js')), ['./focal-point.js']);
+  for (const name of ['body.js', 'focal-point.js']) assert.doesNotMatch(source(name), /\bimport\(|\brequire\(/, name);
+  assert.doesNotMatch(source('focal-point.js'), /^\s*import\b/m);
 });
 
 test('keeps each task\'s box, ticked or not, beside plain items, and escapes a plain item that begins as a box', () => {

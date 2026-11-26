@@ -25,14 +25,14 @@ import '../body/field.css';
 import { chooseImage } from '../body/chooser.js';
 import { uploadProblem } from '../body/chooser-check.js';
 import { button, made } from '../body/dialog.js';
-import { stemOf } from '../body/library.js';
+import { pictureAddress, stemOf } from '../body/library.js';
 import { say } from '../interface-language.js';
 import { MEDIA_FOLDER } from '../../format/masters.js';
 import { kindOf } from '../../format/originals.js';
 import { wordsShown } from '../refusals.js';
 import { displayWidthOfFile } from './display-width.js';
 import { moveFocalPoint } from './focal-point.js';
-import { cropOf, focalPointOf } from '../../format/focal-point.js';
+import { cropOf, heldFocalPoint } from '../../format/focal-point.js';
 import { isConverted, kindOfFile, losslessBox, losslessByDefault, preparedUpload } from './upload.js';
 import './field.css';
 
@@ -49,11 +49,6 @@ const fileNameOf = (address) => {
   }
 };
 
-// A focal point as a value holds it, or null.
-const pointOf = (given) => {
-  const read = focalPointOf(given);
-  return read === null || read.wrong ? null : read;
-};
 const samePoint = (one, other) => one?.x === other?.x && one?.y === other?.y;
 
 export function mountImageField(host, { value, changed, addFile, library, exists, alt: withAlt = true, text = false, upload = false, smallestWidth = null, fallback = false, crop = null, safe = null, frames = null, lossless: savedLossless = false, chosenLossless = () => {}, chosenDisplayWidth = () => {} }) {
@@ -67,7 +62,7 @@ export function mountImageField(host, { value, changed, addFile, library, exists
 
   const read = (given) => {
     if (text) return { src: typeof given === 'string' ? given : '', alt: '', point: null };
-    return { src: typeof given?.src === 'string' ? given.src : '', alt: typeof given?.alt === 'string' ? given.alt : '', point: hasPoint ? pointOf(given?.focalPoint) : null };
+    return { src: typeof given?.src === 'string' ? given.src : '', alt: typeof given?.alt === 'string' ? given.alt : '', point: hasPoint ? heldFocalPoint(given?.focalPoint) : null };
   };
 
   const root = made('div', crop ? 'konzilo-pick konzilo-pick-crop' : 'konzilo-pick', host);
@@ -175,8 +170,7 @@ export function mountImageField(host, { value, changed, addFile, library, exists
         empty.textContent = say('image.cannotShow');
       }
     };
-    if (showingSrc.startsWith('blob:')) showing(showingSrc);
-    else void (library?.picture(showingSrc) ?? Promise.resolve(null)).then(showing);
+    void pictureAddress(library, showingSrc).then(showing);
   };
 
   choose?.addEventListener('click', async () => {
@@ -185,7 +179,7 @@ export function mountImageField(host, { value, changed, addFile, library, exists
     if (!chosen) return;
     src = chosen.src;
     altText = hasAlt ? chosen.alt ?? '' : '';
-    point = hasPoint ? pointOf(chosen.focalPoint) : null;
+    point = hasPoint ? heldFocalPoint(chosen.focalPoint) : null;
     note.textContent = '';
     render();
     emit();
@@ -200,8 +194,8 @@ export function mountImageField(host, { value, changed, addFile, library, exists
   });
 
   move?.addEventListener('click', async () => {
-    const address = src.startsWith('blob:') ? src : await (library?.picture(src) ?? Promise.resolve(null));
-    const answer = await moveFocalPoint({ address, focus: point, frames });
+    const address = await pictureAddress(library, src);
+    const answer = await moveFocalPoint({ address, focalPoint: point, frames });
     move.focus();
     if (answer === null || samePoint(answer.focalPoint, point)) return;
     point = answer.focalPoint;
@@ -286,7 +280,7 @@ export function mountImageField(host, { value, changed, addFile, library, exists
     // The main image the field falls back to, its address, and its focal point.
     setStandIn(next, nextPoint = null) {
       const given = typeof next === 'string' ? next : '';
-      const givenPoint = pointOf(nextPoint);
+      const givenPoint = heldFocalPoint(nextPoint);
       if (given === standIn && samePoint(givenPoint, standInPoint)) return;
       standIn = given;
       standInPoint = givenPoint;

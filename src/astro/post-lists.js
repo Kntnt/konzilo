@@ -33,14 +33,14 @@ import { getCollection } from 'astro:content';
 import { presentations, site } from 'virtual:konzilo/post-lists';
 import { textsIn } from 'virtual:konzilo/texts';
 import { labelIn, textsOf } from '../catalogues.js';
-import { listPageAddress } from '../format/addresses.js';
+import { addressTemplate, listPageAddress, routeRest } from '../format/addresses.js';
 import { readPostList, SECOND_PAGED_LIST } from '../format/post-list.js';
 import { british } from '../refusals.js';
 import { relatedPoints } from '../format/built-in-types.js';
 import rules from '../format/rules.json' with { type: 'json' };
 import { evaluate, pageCount, wholeList } from '../post-lists.js';
 import { coreSettingsGroups } from '../settings-groups.js';
-import { describedSite, entryAddress, entryLanguage, entryName, siteLanguages } from './languages.js';
+import { describedSite, entryAddress, entryLanguage, entryName, isStartEntry, siteLanguages } from './languages.js';
 import { postListsIn } from './reader.js';
 import { siteSettings } from './site-settings.js';
 import { termRoute, termsBelow, termsWithPages } from './term-pages.js';
@@ -154,13 +154,16 @@ export async function relatedPosts(post, { number = RELATED_POSTS } = {}) {
 // whatever the type's address: each entry's own, and, for a post whose
 // list has pages of its own, one for each later page its list fills. Each
 // is { entry, page, param }: the page, from 1, which the route gives Body
-// and Head, and the route's rest parameter in place of the address's
-// `{slug}` or `{path}`, the entry's slug or path for page 1 and
-// `<slug or path>/page/<n>` for page `n`, so that the page is at
-// `<address>page/<n>/`; on a site in several languages, a route
-// by each post's whole address takes entryPages() of
+// and Head, and the route's rest parameter in place of the address's steps
+// from its first token on, the route standing at the steps before it: the
+// entry's slug or path, after its date's and its term's steps where its
+// type's address holds them before `{slug}`, as `2026/lanterns` for
+// `/news/{year}/{slug}/`, for page 1, and `<that>/page/<n>` for page `n`,
+// so that the page is at `<address>page/<n>/`; on a site in several
+// languages, a route by each post's whole address takes entryPages() of
 // `@kntnt/konzilo/astro/languages`, which builds on these:
 //
+//   // src/pages/news/[...slug].astro, for the address /news/{year}/{slug}/
 //   export async function getStaticPaths() {
 //     return (await postPages(await getCollection('articles')))
 //       .map(({ entry, page, param }) => ({ params: { slug: param }, props: { article: entry, page } }));
@@ -185,10 +188,21 @@ export async function postPages(entries) {
       count = null;
     }
     if (count !== null) withPages.push(`${entry.id}/page/`);
-    const name = entryName(entry.id, siteLanguages());
+    const name = routeName(entry);
     for (let page = 1; page <= (count ?? 1); page += 1) pages.push({ entry, page, param: page === 1 ? name : `${name}/page/${page}` });
   }
   return pages.filter(({ entry }) => !withPages.some((below) => entry.id.startsWith(below)));
+}
+
+// What a route's rest parameter stands for in an entry's address (routeRest()), or its slug or
+// path for an entry of a type without an address, or the start page an Admin chose, whose
+// address is the start page's.
+function routeName(entry) {
+  const languages = siteLanguages();
+  const [name] = typeOf(entry);
+  const type = name && !isStartEntry(entry.id) ? describedSite().types[name] : null;
+  const address = type ? entryAddress(type, entry, languages) : null;
+  return address === null ? entryName(entry.id, languages) : routeRest(address, addressTemplate(type, entryLanguage(entry.id, languages)));
 }
 
 // How many pages a post's list with pages of its own fills, its lists above

@@ -13,7 +13,8 @@ import { fileURLToPath } from 'node:url';
 import { astroConfig, astroEnvironment, nodeSync } from './lib/astro.js';
 import { postFile, settingsFile, writeFiles } from './lib/content.js';
 import { plainImage, sharp } from './lib/images.js';
-import { markdownAddress, markdownAlternate, pageOfMarkdown, prefersMarkdown } from '../src/astro/markdown-alternates.js';
+import { markdownAlternate, pageOfMarkdown, prefersMarkdown } from '../src/astro/markdown-alternates.js';
+import { markdownAddress } from '../src/markdown-negotiation.js';
 import { pageMarkdown } from '../src/astro/html-to-markdown.js';
 import { siteDescription } from '../src/site-description.js';
 
@@ -648,4 +649,11 @@ test('leaves out the right to object, wherever the page holds it', () => {
   ].join('');
   const html = `<main><p>We count the visits.</p>${objection}<p>Ask us anything.</p></main>`;
   assert.equal(pageMarkdown({ html, url: 'https://example.com/privacy/', title: 'Privacy' }).markdown, '\n# Privacy\n\nWe count the visits.\n\nAsk us anything.\n');
+});
+
+// A figure whose image is cropped to its context's ratio holds the whole image beside it, hidden,
+// for the lightbox, which a template that renders <Content /> without <Body> leaves in the page.
+test('leaves out the whole image a cropped figure holds for the lightbox', () => {
+  const html = '<main><figure><img src="/_astro/harbour-crop.webp" alt="The harbour at dusk"><img src="/_astro/harbour.webp" alt="The harbour at dusk" hidden data-konzilo-whole><figcaption>Dusk</figcaption></figure></main>';
+  assert.equal(pageMarkdown({ html, url: 'https://example.com/a/', title: 'Harbour' }).markdown, '\n# Harbour\n\n![The harbour at dusk](https://example.com/_astro/harbour-crop.webp)\n\nDusk\n');
 });

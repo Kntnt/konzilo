@@ -35,6 +35,7 @@ import { request } from 'node:http';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { excludedPaths } from '../ai-visibility.js';
+import { ACCEPT_LENGTH, ACCEPT_RANGES, markdownAddress } from '../markdown-negotiation.js';
 import { MAIN_MARK, pageMarkdown } from './html-to-markdown.js';
 import { chosenStartPage, entryAddress, isStartEntry, startAddress } from './languages.js';
 import { isPublicBuild } from './public-site.js';
@@ -48,17 +49,6 @@ export const MARKDOWN_TYPE = 'text/markdown';
 // the build has made its alternate: a comment, which a browser passes over,
 // holding what the alternate says of the page, as JSON in base64.
 const MARK = /<!--konzilo:markdown ([A-Za-z0-9+/=]*)-->/g;
-
-// The address of the Markdown alternate of the page at `path`, a path from
-// the site's root that ends in a slash: the path without its last slash,
-// then `.md`, and `/index.md` for the start page. A path whose last part is
-// `index` keeps its slash before `index.md`, so that no page takes the start
-// page's.
-export function markdownAddress(path) {
-  if (path === '/') return '/index.md';
-  const trimmed = path.replace(/\/$/, '');
-  return trimmed.endsWith('/index') ? `${trimmed}/index.md` : `${trimmed}.md`;
-}
 
 // The path of the page whose alternate is at `address`, or null for an
 // address that is no alternate's.
@@ -316,11 +306,6 @@ export function renderedPage(server, path, headers = {}) {
     asked.end();
   });
 }
-
-// The most ranges and characters of an Accept header the public host weighs,
-// each range against each other: a longer header gets HTML there, and so here.
-export const ACCEPT_RANGES = 32;
-export const ACCEPT_LENGTH = 1024;
 
 // What trimming takes off each end.
 const TRIMMED = /^[ \t\n\r\0\x0B]+|[ \t\n\r\0\x0B]+$/g;

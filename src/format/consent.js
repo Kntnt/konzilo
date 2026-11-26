@@ -9,7 +9,7 @@
 import { inCatalogue } from '../catalogues.js';
 import { CATEGORIES, CONSENT_STORAGE, HOST_KINDS, registryRevision } from '../consent/registry.js';
 
-import { tagManagerIds, tagManagerOf, tagManagerServices, trackerOf, WITHOUT_STORAGE } from './tag-manager.js';
+import { isWithoutStorage, tagManagerIds, tagManagerOf, tagManagerServices, trackerOf } from './tag-manager.js';
 import rules from './rules.json' with { type: 'json' };
 import coreFacts from './services.json' with { type: 'json' };
 
@@ -131,7 +131,7 @@ export function registryFile({ site, settings, embeds, facts = coreFacts, previo
     service.necessity = departure.reason;
   });
   // Counting without storage is a mode of Matomo's own tracker alone.
-  const withoutStorage = site.consent.departures.findIndex((departure) => departure.departure === WITHOUT_STORAGE);
+  const withoutStorage = site.consent.departures.findIndex(isWithoutStorage);
   if (withoutStorage !== -1 && (tagManagerOf(settings) !== null || trackerOf(settings) === null)) {
     warnings.push({ consent: `consent.departures.${withoutStorage + 1}`, reason: { name: 'warning.departure-tracker', values: {} } });
   }
@@ -172,7 +172,7 @@ function serviceOf(service, language) {
 // A category's description from the consent texts: statistics' own where
 // the site counts visits without storage before consent, which says so.
 export function categoryDescription(id, texts, departures) {
-  if (id === 'statistics' && departures.some((departure) => departure.departure === WITHOUT_STORAGE)) return texts.statisticsWithoutStorageDescription;
+  if (id === 'statistics' && departures.some(isWithoutStorage)) return texts.statisticsWithoutStorageDescription;
   return texts[`${id}Description`];
 }
 

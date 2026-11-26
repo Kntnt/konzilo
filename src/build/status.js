@@ -3,14 +3,17 @@
 // worked out each time it is asked for, so that a version no build has read needs no record:
 // that is what being published is.
 
-// `post`: what the last build read of this file. `held`: the version the current release holds,
-// or undefined. `reason`: why the last build made no release, or null.
-function statusOf({ post, held, reason }, version) {
+// `post`: what the last build's intake reported of this file. `held`: the version the current
+// release holds, or undefined. `reason`: why the last build made no release, or null. `read`: the
+// version of this file the last build read where its intake reported nothing, as one that was
+// stopped, or undefined.
+function statusOf({ post, held, reason, read }, version) {
   const about = post?.version === version ? post : null;
   if (about?.state === 'refused') return { status: 'failed', refusals: about.refusals, stillShown: about.shown };
   if (about?.state === 'live' && held === version) return { status: 'live', warnings: about.warnings };
   if (held === version && about === null) return { status: 'live', warnings: post?.warnings ?? [] };
   if (about && reason && (about.state === 'live' || held !== undefined)) return { status: 'failed', reason, stillShown: held !== undefined };
+  if (about === null && reason && read === version) return { status: 'failed', reason, stillShown: held !== undefined };
   if (about?.state === 'waiting') return { status: 'scheduled', at: about.at, stillShown: about.shown, ...(about.triggers ? { triggers: about.triggers, terms: about.terms ?? [] } : {}) };
   if (about?.state === 'off') return { status: 'draft', stillShown: about.shown };
   return { status: 'being-published', stillShown: held !== undefined };
@@ -23,6 +26,6 @@ export function publishStatus(record, file, version) {
   if (!record) return { file, version, status: 'being-published', stillShown: false };
   const post = record.posts?.[file] ?? null;
   const held = record.release?.held?.[file];
-  const { status, ...rest } = statusOf({ post, held, reason: record.reason ?? null }, version);
+  const { status, ...rest } = statusOf({ post, held, reason: record.reason ?? null, read: record.read?.[file] }, version);
   return { file, version, status, ...rest, ...(post ? { id: post.id, type: post.type, title: post.title, address: post.address } : {}) };
 }
