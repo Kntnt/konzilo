@@ -108,6 +108,14 @@ describe('the intake', () => {
     assert.ok(written(result)['topics/kameror.json']);
   });
 
+  test('writes the teaser\'s image with its focal point, and refuses one that is no point, naming the teaser\'s image', () => {
+    const held = article({ teaser: { image: { src: '/media/puff.png', alt: 'En puff', focalPoint: { x: 0.75, y: 0.5 } } } });
+    assert.deepEqual(reasons(held), []);
+    assert.match(fileOf(held), /\nteaser: \{"image":\{"src":"\.\.\/media\/en-artikel-[0-9a-f]{10}\.webp","alt":"En puff","focalPoint":\{"x":0\.75,"y":0\.5\}\}\}\n/);
+    const wrong = article({ teaser: { image: { src: '/media/puff.png', alt: 'En puff', focalPoint: { x: 0.75 } } } });
+    assert.deepEqual(wrong.refusals.map(({ name, field }) => [name, field?.name]), [['refusal.focal-point', 'teaser.image']]);
+  });
+
   test('refuses a main headline left empty, a part holding HTML and a teaser image without its alt text', () => {
     assert.ok(reasons(article({ headline: '' })).some((one) => /without the field Main headline/.test(one)));
     assert.ok(reasons(article({ eyebrow: 'An <em>eyebrow</em>' })).some((one) => /the field Eyebrow holding HTML/.test(one)));

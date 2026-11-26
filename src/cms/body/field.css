@@ -657,14 +657,6 @@ textarea.konzilo-formula-latex {
   display: none;
 }
 
-.konzilo-image-editing-picture {
-  display: block;
-  max-width: 100%;
-  max-height: 200px;
-  margin: 0 auto 12px;
-  border-radius: 4px;
-}
-
 .konzilo-dialog-form {
   display: flex;
   flex-direction: column;

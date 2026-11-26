@@ -7,3 +7,6 @@ export const LOSSLESS_WIDGET = 'konzilo-lossless';
 // The library entry's *Display width*, a field of its own, which the file field fills in for a
 // file named `@2x` or `@3x`.
 export const DISPLAY_WIDTH_WIDGET = 'konzilo-display-width';
+
+// The library entry's *Focal point*, a field of its own, which shows the entry's file.
+export const FOCAL_POINT_WIDGET = 'konzilo-focal-point';

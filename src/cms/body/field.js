@@ -66,7 +66,9 @@ const sameBytes = (one, other) => one.replace(/\r\n?/g, '\n').trimEnd() === othe
 
 // `withPreview: false` for a field within another, the structure field's, which answers the
 // preview's clicks and tells it of its own.
-export function mountBodyField(host, { value: given, changed, elements, forms, editable, adminHost, library = null, smallestWidth = null, withPreview = true }) {
+// `frames`: those an image's focal point is moved by in its dialog, the site's aspect ratios
+// (image/frames.js).
+export function mountBodyField(host, { value: given, changed, elements, forms, editable, adminHost, library = null, smallestWidth = null, frames = [], withPreview = true }) {
   const images = library && { choose: () => chooseImage({ library, smallestWidth }), chooseSeveral: () => chooseImage({ library, smallestWidth, several: true }), picture: library.picture };
   const frame = element('div', 'konzilo-body', host);
   const bar = element('div', 'konzilo-body-bar', frame);
@@ -189,7 +191,7 @@ export function mountBodyField(host, { value: given, changed, elements, forms, e
       const formula = takesFormulas(elements) ? await loadFormulas() : null;
       hands = reader ? handsFor(reader, { elements, forms, editable, adminHost, formula }) : null;
       showNote(offNote, reader ? null : say('body.checkOff'));
-      made = await makeEditor({ root: visual, value: opening, elements, changed: () => schedule(), images });
+      made = await makeEditor({ root: visual, value: opening, elements, changed: () => schedule(), images, frames });
     } catch (error) {
       console.warn(`The body field could not read a value: ${error.message}`);
       if (mine === generation && !gone) {

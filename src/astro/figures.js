@@ -13,11 +13,13 @@
 //
 // An image's title is its display width, `width=632`, the widest it is drawn where it
 // stands alone, which its <img> takes as its `width`; a gallery's image, which fills what
-// the design gives it, has none.
+// the design gives it, has none. Its focal point, `focus=0.25,0.4`, which a crop of it to the
+// aspect ratio of the context it is drawn in is centred on, goes with its <img> as the node's
+// data, `focus`, which no page shows (image-versions.js).
 //
 // A gallery carries Konzilo's own class, and nothing else here carries one.
 
-import { displayWidthIn } from '../format/body.js';
+import { imageTitleIn, isImageTitle } from '../format/body.js';
 
 const element = (tagName, children, properties = {}) => ({ type: 'element', tagName, properties, children });
 const isTag = (node, tagName) => node?.type === 'element' && node.tagName === tagName;
@@ -48,12 +50,16 @@ function linesOf(paragraph) {
 }
 
 // An image as its figure holds it: its display width, where it has one and stands `alone`,
-// as its `width`, and no title of the format's.
+// as its `width`, its focal point, where it has one, as its data, and no title of the format's.
 function sized(picture, alone) {
   const { title, ...properties } = picture.properties ?? {};
-  const given = displayWidthIn(title);
-  if (given === null || given.other) return picture;
-  return { ...picture, properties: alone && given.width !== undefined ? { ...properties, width: given.width } : properties };
+  const given = imageTitleIn(title);
+  if (given === null || !isImageTitle(title)) return picture;
+  return {
+    ...picture,
+    properties: alone && given.width !== undefined ? { ...properties, width: given.width } : properties,
+    ...(given.focus === undefined ? {} : { data: { ...picture.data, focus: given.focus } }),
+  };
 }
 
 // The figure a paragraph shows, as a hast element: an image's, a gallery's,

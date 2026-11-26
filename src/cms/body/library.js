@@ -8,6 +8,7 @@
 // original in Git LFS by the repository's `.gitattributes`, as it does for any save.
 
 import { isDisplayWidth } from '../../format/body.js';
+import { focalPointOf } from '../../format/focal-point.js';
 import { IMAGE_LIBRARY_FOLDER, MEDIA_FOLDER } from '../../format/masters.js';
 import { kindOf } from '../../format/originals.js';
 import { base64 } from '../base64.js';
@@ -40,13 +41,20 @@ export function mediaNameOf(address) {
 export const displayWidthOf = (given) => (isDisplayWidth(given) ? given : null);
 
 // What an entry's file says, or null for one that says nothing a post could use: its display width
-// only where it has one a post can hold.
+// and its focal point only where it has one a post can hold.
 function entryOf(text) {
   try {
-    const { src, alt, caption, displayWidth } = JSON.parse(text);
+    const { src, alt, caption, displayWidth, focalPoint } = JSON.parse(text);
     if (typeof src !== 'string' || src === '') return null;
     const width = displayWidthOf(displayWidth);
-    return { src, alt: typeof alt === 'string' ? alt : '', caption: typeof caption === 'string' ? caption : '', ...(width === null ? {} : { displayWidth: width }) };
+    const focus = focalPointOf(focalPoint);
+    return {
+      src,
+      alt: typeof alt === 'string' ? alt : '',
+      caption: typeof caption === 'string' ? caption : '',
+      ...(width === null ? {} : { displayWidth: width }),
+      ...(focus === null || focus.wrong ? {} : { focalPoint: focus }),
+    };
   } catch {
     return null;
   }
@@ -82,8 +90,8 @@ export function imageLibrary({ api, repository, branch, credential, get = (...ar
   });
 
   return {
-    // Each entry that can be used, as { src, alt, caption, displayWidth }, in the order of its alt
-    // text, its display width only where it has one.
+    // Each entry that can be used, as { src, alt, caption, displayWidth, focalPoint }, in the order
+    // of its alt text, its display width and its focal point only where it has them.
     async list() {
       const files = (await filesInRepository()).filter(({ path }) => path.startsWith(`${IMAGE_LIBRARY_FOLDER}/`) && path.endsWith('.json'));
       const unknown = files.map(({ sha }) => sha).filter((sha) => !known.has(sha));

@@ -2,18 +2,22 @@
 // its templates, reached as `@kntnt/konzilo/astro/images`: the site's design's, through
 // konzilo({ images }), or else the core's. Spread into Astro's <Image>, they make it serve the
 // image in those widths, by `srcset` and `sizes`, each version no wider than its master, and its
-// `src` the widest of them (image-service.js).
+// `src` the widest of them (image-service.js). In a context whose aspect ratio the design names,
+// each version is cropped to it around the focal point of the image given, its field's value as
+// the content file holds it, or around its middle where it has none.
 //
 //   import { imageVersions } from '@kntnt/konzilo/astro/images';
-//   <Image src={entry.data.image.src} alt={entry.data.image.alt} {...imageVersions('card')} />
+//   <Image src={entry.data.image.src} alt={entry.data.image.alt} {...imageVersions('card', entry.data.image)} />
 //
 // The contexts are `body`, `gallery`, `lightbox`, `hero` and `card`.
 
 import contexts from 'virtual:konzilo/images';
+import { cropOptions } from './image-versions.js';
 
-// The widths and sizes of a `context`, as { widths, sizes }.
-export function imageVersions(context) {
+// The widths and sizes of a `context`, as { widths, sizes }, and how to crop `image`, { focalPoint },
+// where the context has an aspect ratio of its own.
+export function imageVersions(context, image = null) {
   if (!Object.hasOwn(contexts, context)) throw new Error(`imageVersions() takes a context the core knows: ${Object.keys(contexts).join(', ')}, not ${context}`);
-  const { widths, sizes } = contexts[context];
-  return { widths: [...widths], sizes };
+  const { widths, sizes, ratio } = contexts[context];
+  return { widths: [...widths], sizes, ...cropOptions(ratio, image?.focalPoint ?? null) };
 }

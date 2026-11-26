@@ -20,6 +20,7 @@ import { htmlToHast } from 'satteri';
 import rules from '../format/rules.json' with { type: 'json' };
 import { british } from '../refusals.js';
 import { SITE_DESCRIPTION_FILE, siteRules } from '../site-description.js';
+import { WHOLE_ATTRIBUTE } from './image-versions.js';
 import { describedSite } from './languages.js';
 
 // The forms Konzilo writes, the bodies each form may have, and the types of
@@ -420,10 +421,20 @@ function topNodes(html) {
 // A component's body as a hast tree, a `root` of what its HTML holds, as Sätteri reads it:
 // a container's blocks, each a node, with the live preview's marks on them where the build
 // put them (block-marks.js), as `dataKonziloBlock`, and a component within as its plain
-// rendering, holding its own body; a leaf's label, as its inline nodes. A new tree each
-// time, which the component may change as it likes.
+// rendering, holding its own body; a leaf's label, as its inline nodes. An image is as the page
+// draws it, without the whole picture a figure holds beside an image cropped to its context,
+// which is the lightbox's (image-versions.js). A new tree each time, which the component may
+// change as it likes.
 export function bodyTree(html) {
-  return htmlToHast(html, { fragment: true });
+  const tree = htmlToHast(html, { fragment: true });
+  if (!html.includes(WHOLE_ATTRIBUTE)) return tree;
+  const leaveOut = (node) => {
+    if (!Array.isArray(node.children)) return;
+    node.children = node.children.filter((child) => !(child.type === 'element' && child.tagName === 'img' && child.properties?.dataKonziloWhole !== undefined));
+    node.children.forEach(leaveOut);
+  };
+  leaveOut(tree);
+  return tree;
 }
 
 const VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);

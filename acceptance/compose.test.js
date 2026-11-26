@@ -840,6 +840,14 @@ describe('a site in Compose', () => {
         assert.equal(await width.getByRole('alert').textContent(), 'Give a whole number of pixels from 1 to 16383.');
         assert.match(await page.evaluate(() => window.location.hash), /\/new$/, 'nothing is saved');
         await pixels.fill('650');
+        // The focal point, in a field of its own over the file chosen, with the frames of the site's
+        // aspect ratios, placed by the keyboard.
+        const focal = page.locator('.field[data-key-path="focalPoint"]');
+        await focal.locator('.konzilo-focal-frame:not([hidden])').first().waitFor({ timeout: 30_000 });
+        const point = focal.getByRole('slider', { name: 'Focal point' });
+        await point.focus();
+        await page.keyboard.press('Shift+ArrowLeft');
+        assert.equal(await point.getAttribute('aria-valuetext'), '40 % from the left, 50 % from the top');
         await page.getByRole('button', { name: 'Save', exact: true }).click();
         let entry;
         for (const deadline = Date.now() + 30_000; !entry && Date.now() < deadline; await page.waitForTimeout(500)) entry = (await libraryEntries()).find(({ alt }) => alt === 'Made in the form');
@@ -848,6 +856,7 @@ describe('a site in Compose', () => {
         assert.match(entry.src, /^\/media\/from-the-form-2x-[0-9a-f]{10}\.webp$/, 'named as the library names an upload');
         assert.equal(entry.lossless, true, 'and said to be lossless, as its file is');
         assert.equal(entry.displayWidth, 650, 'with its display width');
+        assert.deepEqual(entry.focalPoint, { x: 0.4, y: 0.5 }, 'and its focal point');
         const inLfs = await get(`${site.origin.git}/api/v1${repository()}/media${entry.src}`, { headers: { authorization: `token ${token}` } });
         assert.equal(Buffer.from(await inLfs.arrayBuffer()).subarray(12, 16).toString('latin1'), 'VP8L');
 

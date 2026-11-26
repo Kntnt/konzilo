@@ -31,6 +31,7 @@ export function registerStructureField(CMS, config) {
           elements: plain(field.get('elements')) ?? [],
           adminHost,
           library,
+          frames: plain(field.get('frames')) ?? [],
         });
       });
       return () => {

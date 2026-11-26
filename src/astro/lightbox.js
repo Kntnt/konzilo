@@ -5,11 +5,14 @@
 // page's script (lightboxClient) does what HTML cannot.
 //
 // It goes through a body's HTML as `Body.astro` renders it, so a page has it and the body's own
-// HTML does not. Only what it adds is new: every other byte stays as it was.
+// HTML does not. Only what it adds is new, and every other byte stays as it was, but for the
+// hidden image a figure holds beside an image cropped to its context's aspect ratio
+// (image-versions.js), the whole picture, which the lightbox shows in its place, and takes out
+// of the figure.
 
 import { textsOf } from '../catalogues.js';
 import { endOf, nextTag } from './directives.js';
-import { IMAGE_CONTEXTS } from './image-versions.js';
+import { IMAGE_CONTEXTS, WHOLE_ATTRIBUTE } from './image-versions.js';
 
 // What a visitor reads of the lightbox, in the catalogues (ADR 0066) under `site.lightbox.`.
 const TEXTS = 'site.lightbox.';
@@ -35,11 +38,14 @@ function childrenOf(html, { tag: open, close: end }) {
   }
 }
 
-// A figure's image and caption, or null where it holds no image of its own.
+// A figure's image and caption, and the whole picture where the image is cropped, as { tag,
+// close } where it stands, or null where it holds no image of its own.
 function pictureOf(html, figure) {
   const children = childrenOf(html, figure);
-  const image = children.find(({ tag }) => tag.name === 'img');
-  return image ? { image: image.tag, caption: children.find(({ tag }) => tag.name === 'figcaption') ?? null } : null;
+  const images = children.filter(({ tag }) => tag.name === 'img');
+  const image = images.find(({ tag }) => tag.attributes[WHOLE_ATTRIBUTE] === undefined);
+  if (!image) return null;
+  return { image: image.tag, whole: images.find(({ tag }) => tag.attributes[WHOLE_ATTRIBUTE] !== undefined) ?? null, caption: children.find(({ tag }) => tag.name === 'figcaption') ?? null };
 }
 
 // The figures in a part of a body that the lightbox takes, each with what it shows, a gallery as
@@ -63,8 +69,9 @@ function figuresIn(html) {
   }
 }
 
-function slide(html, { image, caption }, at, all, texts, sizes) {
-  const attributes = ['src', 'srcset', 'width', 'height', 'alt'].flatMap((name) => (image.attributes[name] === undefined ? [] : [`${name}="${quoted(image.attributes[name])}"`]));
+function slide(html, { image, whole, caption }, at, all, texts, sizes) {
+  const shown = { ...image.attributes, ...(whole ? Object.fromEntries(['src', 'srcset', 'width', 'height'].map((name) => [name, whole.tag.attributes[name]])) : {}) };
+  const attributes = ['src', 'srcset', 'width', 'height', 'alt'].flatMap((name) => (shown[name] === undefined ? [] : [`${name}="${quoted(shown[name])}"`]));
   const words = caption ? `<figcaption>${html.slice(caption.tag.end, caption.close.start)}</figcaption>` : '';
   const place = all > 1 ? `<p class="konzilo-lightbox-place">${word(texts.place, { at, all })}</p>` : '';
   return `<li><figure><img ${attributes.join(' ')} sizes="${quoted(sizes)}" loading="lazy" decoding="async">${words}${place}</figure></li>`;
@@ -98,19 +105,21 @@ export function withLightboxes(html, { next, locale, sizes = IMAGE_CONTEXTS.ligh
   const inserts = [];
   for (const figureFound of found) {
     const id = `konzilo-modal-${next()}`;
-    figureFound.pictures.forEach(({ image }, index) => {
+    figureFound.pictures.forEach(({ image, whole }, index) => {
       const name = quoted(word(texts.open, { alt: image.attributes.alt ?? '' }));
       inserts.push([image.start, `<button class="konzilo-lightbox-open" type="button" commandfor="${id}" command="show-modal" data-konzilo-at="${index}" aria-label="${name}">`]);
       inserts.push([image.end, '</button>']);
+      if (whole) inserts.push([whole.tag.start, '', whole.close.end]);
     });
     inserts.push([figureFound.end, dialogFor(html, figureFound, id, texts, sizes)]);
   }
   inserts.sort(([one], [other]) => one - other);
   let out = '';
   let from = 0;
-  for (const [at, text] of inserts) {
+  // Each insert puts its text at `at`, and one that takes something out goes on from `to`.
+  for (const [at, text, to = at] of inserts) {
     out += html.slice(from, at) + text;
-    from = at;
+    from = to;
   }
   return out + html.slice(from);
 }

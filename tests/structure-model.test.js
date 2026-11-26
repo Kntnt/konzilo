@@ -54,7 +54,18 @@ test('reads an image with a display width as an image, and writes it back with i
   assert.equal(writeBody(root), '![A flow](/media/flow.webp)\n\n![A photo](/media/photo.webp "width=300")');
 });
 
-// As the intake reads an image's title (displayWidthIn() of format/body.js): a width with a
+test('reads an image with a focal point as an image, keeps it as it was, and writes a moved one', () => {
+  const written = '![A flow](/media/flow.webp "width=632 focus=0.25,0.4")\n\n![A photo](/media/photo.webp "focus=0.9,0.1")';
+  const root = parseBody(written);
+  assert.deepEqual(root.children.map(({ kind, width, focus }) => [kind, width, focus]), [['image', 632, { x: 0.25, y: 0.4 }], ['image', null, { x: 0.9, y: 0.1 }]]);
+  assert.equal(writeBody(root), written);
+  root.children[0].focus = null;
+  root.children[1].focus = { x: 0.5, y: 0 };
+  assert.equal(writeBody(root), '![A flow](/media/flow.webp "width=632")\n\n![A photo](/media/photo.webp "focus=0.5,0")');
+  assert.equal(parseBody('![A flow](/media/flow.webp "focus=2,0")').children[0].kind, 'paragraph', 'and one the intake refuses as its text');
+});
+
+// As the intake reads an image's title (imageTitleIn() of format/body.js): a width with a
 // leading zero is its number, and one past the widest is none, which the intake refuses.
 test('reads a display width as the intake does: one with a leading zero as its number, one past the widest as no image', () => {
   const [zero] = parseBody('![A flow](/media/flow.webp "width=0632")').children;

@@ -578,22 +578,71 @@ export const DISPLAY_WIDTH_MOST = 16383;
 // to DISPLAY_WIDTH_MOST.
 export const isDisplayWidth = (width) => Number.isInteger(width) && width >= 1 && width <= DISPLAY_WIDTH_MOST;
 
-// An image's title that gives it a display width, `width=632`: the one writing of it, for
-// the intake, the body field and the structure field alike, which displayWidthIn() reads.
-export const displayWidthTitle = (width) => `width=${width}`;
+// A fraction of an image's side to the thousandth, as fine as a focal point is held: a pixel and a
+// half of the widest master, which no eye tells apart in a crop.
+export const toThousandth = (fraction) => Math.round(fraction * 1000) / 1000;
 
-// What an image's title says, as the format reads it: null where it has none; its
-// display width, { width }, where it is `width=` and a whole number of pixels from 1 to
-// DISPLAY_WIDTH_MOST, the widest an image standing alone in a body is drawn; { wrong },
-// what follows `width=` where that is not such a number; and { other } for any other
-// title, which the site cannot publish. The one reading of it.
-export function displayWidthIn(title) {
-  if (typeof title !== 'string' || title.trim() === '') return null;
-  const match = /^width=(.*)$/s.exec(title.trim());
-  if (match === null) return { other: true };
-  const width = /^\d+$/.test(match[1]) ? Number(match[1]) : NaN;
-  return isDisplayWidth(width) ? { width } : { wrong: match[1] };
+// A fraction as an image's title writes it: 0, 1, or 0 and a point and digits.
+const FRACTION = /^(?:0(?:\.\d+)?|1(?:\.0+)?)$/;
+
+// An image's focal point as its title writes it after `focus=`, its x and its y, fractions of its
+// width from the left and of its height from the top, with a comma between, `0.25,0.4`: the one
+// writing of it, which focusIn() reads.
+export const focusText = ({ x, y }) => `${toThousandth(x)},${toThousandth(y)}`;
+
+// A focal point, { x, y }, from what an image's title writes after `focus=`, to the thousandth, or
+// null where that is no such point.
+export function focusIn(text) {
+  const parts = typeof text === 'string' ? text.split(',') : [];
+  if (parts.length !== 2 || !parts.every((part) => FRACTION.test(part))) return null;
+  const [x, y] = parts.map(Number);
+  return { x: toThousandth(x), y: toThousandth(y) };
 }
+
+// An image's title, which gives it a display width, `width=632`, a focal point,
+// `focus=0.25,0.4`, or both, in that order with a space between, or '' where it has neither: the
+// one writing of it, for the intake, the body field and the structure field alike, which
+// imageTitleIn() reads.
+export function imageTitle({ width = null, focus = null } = {}) {
+  return [width === null ? null : `width=${width}`, focus === null ? null : `focus=${focusText(focus)}`].filter(Boolean).join(' ');
+}
+
+// What an image's title says, as the format reads it: null where it has none; else its parts,
+// each where it is given, in any order, with spaces between: its display width, { width },
+// where it is `width=` and a whole number of pixels from 1 to DISPLAY_WIDTH_MOST, the widest an
+// image standing alone in a body is drawn, or { wrongWidth }, what follows `width=` where that
+// is no such number; and its focal point, { focus }, `focus=` and two fractions from 0 to 1 by
+// focusIn(), or { wrongFocus }, what follows `focus=` where that is no such point. A title that
+// says anything else, or one thing twice, is { other }, which the site cannot publish. The one
+// reading of it.
+export function imageTitleIn(title) {
+  if (typeof title !== 'string' || title.trim() === '') return null;
+  const read = {};
+  for (const part of title.trim().split(/\s+/)) {
+    const match = /^(width|focus)=(.*)$/s.exec(part);
+    if (match === null || Object.hasOwn(read, match[1])) return { other: true };
+    read[match[1]] = match[2];
+  }
+  const said = {};
+  if (read.width !== undefined) {
+    const width = /^\d+$/.test(read.width) ? Number(read.width) : NaN;
+    if (isDisplayWidth(width)) said.width = width;
+    else said.wrongWidth = read.width;
+  }
+  if (read.focus !== undefined) {
+    const focus = focusIn(read.focus);
+    if (focus === null) said.wrongFocus = read.focus;
+    else said.focus = focus;
+  }
+  return said;
+}
+
+// Whether an image's title is one the site can publish: none, or a display width and a focal
+// point as imageTitleIn() reads them.
+export const isImageTitle = (title) => {
+  const said = imageTitleIn(title);
+  return said === null || (!said.other && said.wrongWidth === undefined && said.wrongFocus === undefined);
+};
 
 // An image alone in a paragraph with its caption, or a gallery of two or more with
 // their captions and its own. Anything else with an image in it is refused.
@@ -629,17 +678,20 @@ function figureOf(node, visible, scope) {
   };
   const images = items.map(({ image, captionNodes: own }) => {
     const alt = image.alt.trim();
-    const title = displayWidthIn(image.title);
+    const title = imageTitleIn(image.title);
     if (!scope.written) {
       if (title?.other) refuse(scope, image, element, 'image-title');
-      else if (title?.wrong !== undefined) refuse(scope, image, element, 'image-display-width', { given: title.wrong, most: DISPLAY_WIDTH_MOST });
+      if (title?.wrongWidth !== undefined) refuse(scope, image, element, 'image-display-width', { given: title.wrongWidth, most: DISPLAY_WIDTH_MOST });
+      if (title?.wrongFocus !== undefined) refuse(scope, image, element, 'image-focal-point', { given: title.wrongFocus });
       if (alt === '') refuse(scope, image, element, 'image-alt');
       else if (alt.includes('\n')) refuse(scope, image, element, 'image-alt-lines');
     }
     // A gallery's image keeps its display width, which the site does not draw it at, so that
-    // it has it again should it stand alone.
+    // it has it again should it stand alone; and its focal point, which a gallery crops around
+    // as any context does.
     const width = title?.width === undefined ? {} : { width: title.width };
-    return at({ type: 'image', alt, src: image.url, ...width, caption: captionOf(own) }, { path: scope.path, line: lineOf(image), element });
+    const focus = title?.focus === undefined ? {} : { focus: title.focus };
+    return at({ type: 'image', alt, src: image.url, ...width, ...focus, caption: captionOf(own) }, { path: scope.path, line: lineOf(image), element });
   });
   return [element === 'image' ? images[0] : { type: 'gallery', images, caption: captionOf(captionNodes) }];
 }
@@ -1633,9 +1685,10 @@ function altText(alt, level, scope) {
   return level >= 1 ? splitAutolinks(out) : out;
 }
 
-// A figure's image, its display width, where it has one, as its title.
+// A figure's image, its display width and its focal point, where it has them, as its title.
 function imageText(node, level, scope) {
-  const title = node.width === undefined ? '' : ` "${displayWidthTitle(node.width)}"`;
+  const said = imageTitle({ width: node.width ?? null, focus: node.focus ?? null });
+  const title = said === '' ? '' : ` "${said}"`;
   const image = `![${altText(node.alt, level, scope)}](${linkAddress(node.src, {})}${title})`;
   return node.caption ? `${image}\\\n${inlineText(node.caption, inlineContext(level, scope))}` : image;
 }

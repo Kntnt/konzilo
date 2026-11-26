@@ -119,6 +119,13 @@ test('keeps an image\'s display width, its title, alone and in a gallery, in the
   assert.equal(out(text.split('---\n\n')[1].trim()).text, text, 'and reads it back the same');
 });
 
+test('keeps an image\'s focal point, in its title after its display width, alone and in a gallery, in the exact form', () => {
+  const source = "![A flow](/media/flow-faf546aae9.png 'focus=0.250,0.4 width=632')\\\nThe flow\n\n![One](/media/one-500a71b248.png \"focus=0.1,1.0\")\n![Two](/media/two-3f9a1c2b7d.png \"width=300 focus=0.3333,0\")";
+  const { text } = out(source);
+  assert.equal(text, pageFile('![A flow](../media/hello-world-faf546aae9.webp "width=632 focus=0.25,0.4")\\\nThe flow\n\n![One](../media/hello-world-500a71b248.webp "focus=0.1,1")\n![Two](../media/hello-world-3f9a1c2b7d.webp "width=300 focus=0.333,0")'));
+  assert.equal(out(text.split('---\n\n')[1].trim()).text, text, 'and reads it back the same');
+});
+
 test('warns of no image with a display width of its own for being narrow, standing alone, and still refuses one narrower than the smallest', () => {
   const site = { ...everyElement, images: { smallestWidth: 400, displayWidth: 1280 } };
   const body = '![Sized](/media/sized.png "width=400")\n\n![Filling](/media/filling.png)\n\n![In a gallery](/media/one.png "width=400")\n![Beside it](/media/two.png)';
@@ -296,6 +303,14 @@ test('a formula in a text is written as a block formula\'s where its source open
 test('an image\'s display width with a leading zero is its number, and one past the widest is refused, as the structure field reads them', () => {
   assert.deepEqual(refusalsOf('![A flow](/media/flow.png "width=0632")'), []);
   assert.deepEqual(refusalsOf('![A flow](/media/flow.png "width=20000")').map(({ name }) => name), ['refusal.image-display-width']);
+});
+
+test('an image\'s focal point that is no two fractions from 0 to 1 is refused, saying what was given, and so is one given twice or a title that says more', () => {
+  assert.deepEqual(refusalsOf('![A flow](/media/flow.png "focus=1.5,0.5")'), [{ name: 'refusal.image-focal-point', block: 'image', values: { given: '1.5,0.5' } }]);
+  assert.deepEqual(refusalsOf('![A flow](/media/flow.png "focus=0.5")').map(({ name }) => name), ['refusal.image-focal-point']);
+  assert.deepEqual(refusalsOf('![A flow](/media/flow.png "focus=0.5,0.5 focus=0.1,0.1")').map(({ name }) => name), ['refusal.image-title']);
+  assert.deepEqual(refusalsOf('![A flow](/media/flow.png "width=600 hello")').map(({ name }) => name), ['refusal.image-title']);
+  assert.deepEqual(refusalsOf('![A flow](/media/flow.png "width=600  focus=0.5,0.5")'), [], 'spaces between are spaces');
 });
 
 test('a formula Temml cannot read is named with the LaTeX it could not read, and Temml\'s own words beside', () => {

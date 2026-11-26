@@ -7,7 +7,12 @@
 //
 // A field whose image falls back to the post's main image (`fallback`) shows that image, faded,
 // while none is chosen. A field whose image is cropped to a size (`crop`, { width, height })
-// shows it so, with the part every service shows (`safe`) marked in the middle.
+// shows it so, around its focal point, with the part every service shows (`safe`) marked in the
+// middle.
+//
+// A post's image (`frames`) holds its focal point too, `focalPoint`, which choosing an image copies
+// from the library with its alt text, and *Focal point…* moves in a dialog, by the frames of the
+// site's aspect ratios (focal-point.js), leaving the library as it is.
 //
 // The library's own entry converts the file chosen before it is added (ADR 0022), with
 // *Lossless compression*, ticked for a PNG, under the file: changing it converts the file again
@@ -26,6 +31,8 @@ import { MEDIA_FOLDER } from '../../format/masters.js';
 import { kindOf } from '../../format/originals.js';
 import { wordsShown } from '../refusals.js';
 import { displayWidthOfFile } from './display-width.js';
+import { moveFocalPoint } from './focal-point.js';
+import { cropOf, focalPointOf } from '../../format/focal-point.js';
 import { isConverted, kindOfFile, losslessBox, losslessByDefault, preparedUpload } from './upload.js';
 import './field.css';
 
@@ -42,15 +49,25 @@ const fileNameOf = (address) => {
   }
 };
 
-export function mountImageField(host, { value, changed, addFile, library, exists, alt: withAlt = true, text = false, upload = false, smallestWidth = null, fallback = false, crop = null, safe = null, lossless: savedLossless = false, chosenLossless = () => {}, chosenDisplayWidth = () => {} }) {
+// A focal point as a value holds it, or null.
+const pointOf = (given) => {
+  const read = focalPointOf(given);
+  return read === null || read.wrong ? null : read;
+};
+const samePoint = (one, other) => one?.x === other?.x && one?.y === other?.y;
+
+export function mountImageField(host, { value, changed, addFile, library, exists, alt: withAlt = true, text = false, upload = false, smallestWidth = null, fallback = false, crop = null, safe = null, frames = null, lossless: savedLossless = false, chosenLossless = () => {}, chosenDisplayWidth = () => {} }) {
   const hasAlt = withAlt && !text;
+  const hasPoint = frames !== null && !text;
   let src = '';
   let altText = '';
+  let point = null;
   let standIn = '';
+  let standInPoint = null;
 
   const read = (given) => {
-    if (text) return { src: typeof given === 'string' ? given : '', alt: '' };
-    return { src: typeof given?.src === 'string' ? given.src : '', alt: typeof given?.alt === 'string' ? given.alt : '' };
+    if (text) return { src: typeof given === 'string' ? given : '', alt: '', point: null };
+    return { src: typeof given?.src === 'string' ? given.src : '', alt: typeof given?.alt === 'string' ? given.alt : '', point: hasPoint ? pointOf(given?.focalPoint) : null };
   };
 
   const root = made('div', crop ? 'konzilo-pick konzilo-pick-crop' : 'konzilo-pick', host);
@@ -69,6 +86,7 @@ export function mountImageField(host, { value, changed, addFile, library, exists
   const name = made('p', 'konzilo-pick-name', side);
   const buttons = made('div', 'konzilo-pick-buttons', side);
   const choose = upload ? null : button('konzilo-pick-choose', '', buttons);
+  const move = hasPoint && !upload ? button('konzilo-pick-focal', say('image.focalPointMove'), buttons) : null;
   const remove = upload ? null : button('konzilo-pick-remove', say('image.remove'), buttons);
   const pick = upload ? button('konzilo-pick-choose', say('image.pickFile'), buttons) : null;
   const input = upload ? made('input', '', side) : null;
@@ -92,8 +110,20 @@ export function mountImageField(host, { value, changed, addFile, library, exists
   const emit = () => {
     if (text) changed(src);
     else if (src === '') changed(null);
-    else changed(hasAlt && altText !== '' ? { src, alt: altText } : { src });
+    else changed({ src, ...(hasAlt && altText !== '' ? { alt: altText } : {}), ...(point === null ? {} : { focalPoint: point }) });
   };
+
+  // A picture cropped to the field's size shows the crop the build makes, around the focal point
+  // of the image shown, as far as its edges allow.
+  const placeCrop = () => {
+    if (!crop || picture.naturalWidth === 0) return;
+    const shownPoint = src === '' ? standInPoint : point;
+    const natural = { width: picture.naturalWidth, height: picture.naturalHeight };
+    const cut = cropOf(natural, crop.width / crop.height, shownPoint ?? undefined);
+    const along = (start, size, whole) => (whole > size ? `${(start / (whole - size)) * 100}%` : '50%');
+    picture.style.objectPosition = cut === null ? '' : `${along(cut.left, cut.width, natural.width)} ${along(cut.top, cut.height, natural.height)}`;
+  };
+  picture.addEventListener('load', placeCrop);
 
   // An uploaded file has a blob: address until the entry is saved. The name it gets is kept
   // here, so that the field shows it and not the address.
@@ -113,6 +143,8 @@ export function mountImageField(host, { value, changed, addFile, library, exists
     frame.classList.toggle('konzilo-pick-standin', standing);
     if (choose) choose.textContent = say(shown ? 'image.change' : 'image.choose');
     if (remove) remove.hidden = !shown;
+    if (move) move.hidden = !shown;
+    placeCrop();
     // A saved entry's file is the entry. Before it is saved, another may be chosen.
     if (pick) {
       pick.hidden = shown && !unsaved;
@@ -153,6 +185,7 @@ export function mountImageField(host, { value, changed, addFile, library, exists
     if (!chosen) return;
     src = chosen.src;
     altText = hasAlt ? chosen.alt ?? '' : '';
+    point = hasPoint ? pointOf(chosen.focalPoint) : null;
     note.textContent = '';
     render();
     emit();
@@ -161,7 +194,18 @@ export function mountImageField(host, { value, changed, addFile, library, exists
   remove?.addEventListener('click', () => {
     src = '';
     altText = '';
+    point = null;
     render();
+    emit();
+  });
+
+  move?.addEventListener('click', async () => {
+    const address = src.startsWith('blob:') ? src : await (library?.picture(src) ?? Promise.resolve(null));
+    const answer = await moveFocalPoint({ address, focus: point, frames });
+    move.focus();
+    if (answer === null || samePoint(answer.focalPoint, point)) return;
+    point = answer.focalPoint;
+    placeCrop();
     emit();
   });
 
@@ -230,7 +274,7 @@ export function mountImageField(host, { value, changed, addFile, library, exists
     if (!(await added(original, wanted))) lossless.input.checked = !wanted;
   });
 
-  ({ src, alt: altText } = read(value));
+  ({ src, alt: altText, point } = read(value));
   render();
 
   return {
@@ -239,16 +283,19 @@ export function mountImageField(host, { value, changed, addFile, library, exists
       savedLossless = next === true;
       render();
     },
-    setStandIn(next) {
+    // The main image the field falls back to, its address, and its focal point.
+    setStandIn(next, nextPoint = null) {
       const given = typeof next === 'string' ? next : '';
-      if (given === standIn) return;
+      const givenPoint = pointOf(nextPoint);
+      if (given === standIn && samePoint(givenPoint, standInPoint)) return;
       standIn = given;
+      standInPoint = givenPoint;
       if (src === '') render();
     },
     setValue(next) {
       const given = read(next);
-      if (given.src === src && given.alt === altText) return;
-      ({ src, alt: altText } = given);
+      if (given.src === src && given.alt === altText && samePoint(given.point, point)) return;
+      ({ src, alt: altText, point } = given);
       render();
     },
     destroy() {

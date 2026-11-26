@@ -40,8 +40,9 @@ const summary = (node) => summaryOf(node, counted);
 const remembered = new Map();
 
 // `elements`: what the post's type takes. `forms`: the site's forms by name. `editable`: what an
-// editor may change of each where it is placed, `{ forms: { <form>: ['button'] } }`.
-export function mountStructureField(host, { value: given, changed, key, forms = [], editable = {}, elements = [], adminHost = null, library = null }) {
+// editor may change of each where it is placed, `{ forms: { <form>: ['button'] } }`. `frames`: those
+// an image's focal point is moved by (image/focal-point.js).
+export function mountStructureField(host, { value: given, changed, key, forms = [], editable = {}, elements = [], adminHost = null, library = null, frames = [] }) {
   const known = withComponents(rules, siteComponents());
   const directiveRule = (name) => Object.entries(known.elements).find(([, rule]) => rule.directive?.name === name) ?? null;
   const own = siteComponents();
@@ -187,11 +188,23 @@ export function mountStructureField(host, { value: given, changed, key, forms = 
 
   const imageFields = (node) => {
     const picture = el('img', { alt: '' });
-    if (library?.picture && /media\/.+$/.test(node.src)) {
-      Promise.resolve(library.picture(node.src)).then((address) => {
-        if (address) picture.src = address;
-      }, () => {});
-    }
+    const shown = library?.picture && /media\/.+$/.test(node.src) ? Promise.resolve(library.picture(node.src)).catch(() => null) : Promise.resolve(null);
+    void shown.then((address) => {
+      if (address) picture.src = address;
+    });
+    // Its focal point, moved over its picture in a dialog of its own, where there is one to show.
+    const focal = el('button', {
+      type: 'button',
+      onclick: async () => {
+        const address = await shown;
+        if (!address) return;
+        const { moveFocalPoint } = await import('../image/focal-point.js');
+        const answer = await moveFocalPoint({ address, focus: node.focus ?? null, frames });
+        if (answer === null) return;
+        node.focus = answer.focalPoint;
+        edited();
+      },
+    }, say('image.focalPointMove'));
     const choose = el('button', {
       type: 'button',
       onclick: async () => {
@@ -201,11 +214,12 @@ export function mountStructureField(host, { value: given, changed, key, forms = 
         node.src = chosen.src;
         if (chosen.alt) node.alt = chosen.alt;
         node.width = chosen.displayWidth ?? null;
+        node.focus = chosen.focalPoint ?? null;
         edited();
         render();
       },
     }, say('structure.otherImage'));
-    return [picture, library ? choose : null, textField(say('structure.alt'), () => node.alt, (next) => {
+    return [picture, library ? choose : null, library ? focal : null, textField(say('structure.alt'), () => node.alt, (next) => {
       node.alt = next;
     })];
   };
@@ -228,6 +242,7 @@ export function mountStructureField(host, { value: given, changed, key, forms = 
         editable,
         adminHost,
         library,
+        frames,
         withPreview: false,
       });
       cleanups.push(() => {

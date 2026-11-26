@@ -82,6 +82,21 @@ describe('the image library', () => {
     ]);
   });
 
+  test('gives an entry\'s focal point with it, to the thousandth, and none where it has none or says what no point is', async () => {
+    const stand = forgejo({
+      files: {
+        'image-library/a.json': { sha: 'a1', ...entry({ src: '/media/a.webp', alt: 'A harbour', focalPoint: { x: 0.25, y: 0.33333 } }) },
+        'image-library/b.json': { sha: 'b1', ...entry({ src: '/media/b.webp', alt: 'B photo' }) },
+        'image-library/c.json': { sha: 'c1', ...entry({ src: '/media/c.webp', alt: 'C wrong', focalPoint: { x: 2, y: 0 } }) },
+      },
+    });
+    assert.deepEqual(await libraryOf(stand).list(), [
+      { src: '/media/a.webp', alt: 'A harbour', caption: '', focalPoint: { x: 0.25, y: 0.333 } },
+      { src: '/media/b.webp', alt: 'B photo', caption: '' },
+      { src: '/media/c.webp', alt: 'C wrong', caption: '' },
+    ]);
+  });
+
   test('reads a long tree page by page, and asks for each file once while a page is open', async () => {
     const files = Object.fromEntries(Array.from({ length: 65 }, (_, at) => [`image-library/${at}.json`, { sha: `sha${at}`, ...entry({ src: `/media/${at}.webp`, alt: `Image ${at}` }) }]));
     const stand = forgejo({ files, truncatedAt: 40 });

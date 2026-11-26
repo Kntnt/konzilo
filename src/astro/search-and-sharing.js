@@ -36,7 +36,8 @@
 //   description, the site's title and its language;
 // - the sharing image, the post's own, else its featured image, else the
 //   default sharing image, else the site's logo, else none, made 1200 × 630,
-//   cropped to fill, as a JPEG, with its alt text, for Open Graph and X;
+//   cropped to fill around the image's focal point, or its middle, as a JPEG,
+//   with its alt text, for Open Graph and X;
 // - X's card, `summary_large_image` with an image and `summary` without;
 // - the alternates other parts of the core add (ALTERNATES);
 // - its structured data, one JSON-LD graph of the same values
@@ -66,6 +67,7 @@
 import { labelIn } from '../catalogues.js';
 import { listPageAddress, searchPages } from '../format/addresses.js';
 import { searchDescriptionOf, searchTitleOf, SHARING_SIZE, socialDescriptionOf, socialTitleOf } from '../format/article-parts.js';
+import { focusPosition } from './image-versions.js';
 import { followsParts, isKindOfArticle, structuredDataTypeOf } from '../format/built-in-types.js';
 import { renderTemplate } from '../metadata-templates.js';
 import { isSiteTitle } from '../settings-groups.js';
@@ -263,16 +265,18 @@ async function postPage({ entry, type, path, number, search, site }, known, getE
     headline: field('headline') || entry.data.title,
     published: field('date'),
     modified: field('modified'),
-    image: seo.socialImage ? { src: seo.socialImage, alt: seo.socialImageAlt } : field('image') ?? null,
+    image: seo.socialImage ? { src: seo.socialImage, alt: seo.socialImageAlt, focalPoint: seo.socialImageFocalPoint } : field('image') ?? null,
     authors: await articleAuthors(entry, type, site, getEntries),
   };
 }
 
-// The sharing image made of the image `chosen`, { src, alt }, `src` as Astro
-// reads an image: SHARING_IMAGE's size, cropped to fill, as a JPEG on white,
-// since a JPEG has no transparency, at its address on the public host.
-async function sharingImage({ src, alt }, origin, getImage) {
-  const made = await getImage({ src, ...SHARING_IMAGE, fit: 'cover', format: 'jpeg', background: '#ffffff' });
+// The sharing image made of the image `chosen`, { src, alt, focalPoint }, `src` as Astro
+// reads an image: SHARING_IMAGE's size, cropped to fill around its focal point, or its
+// middle where it has none (image-service.js), as a JPEG on white, since a JPEG has no
+// transparency, at its address on the public host.
+async function sharingImage({ src, alt, focalPoint }, origin, getImage) {
+  const around = focalPoint ? { position: focusPosition(focalPoint) } : {};
+  const made = await getImage({ src, ...SHARING_IMAGE, fit: 'cover', ...around, format: 'jpeg', background: '#ffffff' });
   return { src: new URL(made.src, origin).href, width: made.attributes.width, height: made.attributes.height, alt };
 }
 

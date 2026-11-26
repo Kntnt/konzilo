@@ -1,13 +1,16 @@
 // The dialog behind the pen on a gallery (ADR 0055): its images in their order, each with its alt
-// text, a way to move or remove each, to add more and to take the gallery out, which asks first.
-// Nothing changes until it is done, so an image goes from its row without asking. It gives
-// { images } in their new order, as they were handed in with the alt text as written, { remove: true },
-// or null when it was left. `choose` gives more images, or null where there is no library.
+// text, its focal point, which *Focal point…* moves in a dialog of its own by the `frames` of the
+// site's aspect ratios (image/focal-point.js), a way to move or remove each, to add more and to
+// take the gallery out, which asks first. Nothing changes until it is done, so an image goes from
+// its row without asking. It gives { images } in their new order, as they were handed in with the
+// alt text as written and the focal point, `focalPoint`, as moved, { remove: true }, or null when
+// it was left. `choose` gives more images, or null where there is no library.
 
 import { asking, button, dialogOf, made } from './dialog.js';
+import { moveFocalPoint } from '../image/focal-point.js';
 import { say } from '../interface-language.js';
 
-export function editGallery({ images, choose = null, picture = null, root = document.body }) {
+export function editGallery({ images, choose = null, picture = null, frames = [], root = document.body }) {
   return new Promise((resolve) => {
     const { dialog, body } = dialogOf(say('body.galleryEdit'));
     dialog.classList.add('konzilo-gallery-editing');
@@ -55,7 +58,8 @@ export function editGallery({ images, choose = null, picture = null, root = docu
 
       const thumbnail = made('img', 'konzilo-gallery-thumbnail', row);
       thumbnail.alt = '';
-      void Promise.resolve(picture?.(entry.src)).catch(() => null).then((address) => {
+      const shown = Promise.resolve(picture?.(entry.src)).catch(() => null);
+      void shown.then((address) => {
         if (address) thumbnail.src = address;
       });
 
@@ -80,6 +84,19 @@ export function editGallery({ images, choose = null, picture = null, root = docu
       move('konzilo-gallery-up', say('body.imageEarlier'), '↑', () => row.previousElementSibling?.before(row));
       move('konzilo-gallery-down', say('body.imageLater'), '↓', () => row.nextElementSibling?.after(row));
 
+      // Its focal point, moved over its picture, where there is one to show.
+      const held = { focalPoint: entry.focalPoint ?? null };
+      const focal = button('konzilo-gallery-focal', '⌖', row);
+      focal.title = say('image.focalPointEdit');
+      focal.setAttribute('aria-label', say('image.focalPointEdit'));
+      focal.addEventListener('click', async () => {
+        const address = await shown;
+        if (!address) return;
+        const answer = await moveFocalPoint({ address, focus: held.focalPoint, frames });
+        if (answer !== null) held.focalPoint = answer.focalPoint;
+        focal.focus();
+      });
+
       const remove = button('konzilo-gallery-row-remove', '✕', row);
       remove.title = say('body.imageRemove');
       remove.setAttribute('aria-label', say('body.imageRemove'));
@@ -87,7 +104,7 @@ export function editGallery({ images, choose = null, picture = null, root = docu
         rows.delete(row);
         row.remove();
       });
-      rows.set(row, { entry, input });
+      rows.set(row, { entry, input, held });
     };
     for (const entry of images) addRow(entry);
 
@@ -146,7 +163,7 @@ export function editGallery({ images, choose = null, picture = null, root = docu
         blank[0].input.focus();
         return;
       }
-      finish({ images: ordered.map(({ entry, input }) => ({ ...entry, alt: input.value.trim() })) });
+      finish({ images: ordered.map(({ entry, input, held }) => ({ ...entry, alt: input.value.trim(), focalPoint: held.focalPoint })) });
     });
 
     const backToForm = () => {
