@@ -166,20 +166,27 @@ export function nameIn(address, template, multiple = () => false) {
   return stepsGive(head, given.slice(0, given.length - taken), multiple) ? given.slice(given.length - taken).join('/') : null;
 }
 
-// Whether the steps of an address, as addressSteps() gives them, can give the steps `given`: a
-// text the same text, a token any one step, or one or more where `multiple(token)` says so.
-export function stepsGive(steps, given, multiple = () => false) {
-  const from = (i, j) => {
-    if (i === steps.length) return j === given.length;
-    if (j === given.length) return false;
+// What the steps `given` give the tokens of an address's steps, as addressSteps() gives them,
+// each by the token's name, or null where they cannot give that address: a text the same text,
+// a token any one step, or one or more, joined by `/`, where `multiple(token)` says so.
+export function stepValues(steps, given, multiple = () => false) {
+  const from = (i, j, values) => {
+    if (i === steps.length) return j === given.length ? values : null;
+    if (j === given.length) return null;
     const step = steps[i];
-    if (step.token === undefined) return step.text === given[j] && from(i + 1, j + 1);
-    if (!multiple(step.token)) return from(i + 1, j + 1);
-    for (let k = j + 1; k <= given.length; k += 1) if (from(i + 1, k)) return true;
-    return false;
+    if (step.token === undefined) return step.text === given[j] ? from(i + 1, j + 1, values) : null;
+    const last = multiple(step.token) ? given.length : j + 1;
+    for (let k = j + 1; k <= last; k += 1) {
+      const found = from(i + 1, k, { ...values, [step.token]: given.slice(j, k).join('/') });
+      if (found !== null) return found;
+    }
+    return null;
   };
-  return from(0, 0);
+  return from(0, 0, {});
 }
+
+// Whether the steps of an address can give the steps `given`, as stepValues() takes them.
+export const stepsGive = (steps, given, multiple = () => false) => stepValues(steps, given, multiple) !== null;
 
 // A type's address in a language, its tokens unfilled, after the language's prefix on a site in
 // several, or null for a type without one.

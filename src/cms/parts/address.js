@@ -7,7 +7,7 @@
 // collection's entries. The address itself is filled where every address is
 // (format/addresses.js).
 
-import { filledAddress, termChain, termPath, termSlug } from '../../format/addresses.js';
+import { addressSteps, DATE_TOKENS, filledAddress, stepValues, termChain, termPath, termSlug } from '../../format/addresses.js';
 import { momentOf } from '../../format/moment.js';
 import { sourceReader } from '../source.js';
 
@@ -41,13 +41,25 @@ export function termPathReader({ api, repository, branch, credential, get, now =
 
 // A post's page on the public site at `site`, from its type's address `template`, with any
 // language's prefix (addressTemplate()), and the form's values: `data`, flat, its slug, date
-// and parent among them; `terms`, the path of each term its address holds, by its field's name.
-// A post without a date of its own is where the intake puts it from now. Empty while the form
+// and parent among them; `terms`, the path of each term its address holds, by its field's name;
+// and `live`, the address the current release has for the post, the publish status's, or null.
+// A post without a date of its own is dated as the intake dates it: a live one by the moment it
+// was first taken, which its live address shows, and any other from `now`. Empty while the form
 // lacks a value the address holds, and for a post below another, whose parents' slugs the form
 // does not hold.
-export function formAddress(site, template, data, terms = {}, now = new Date()) {
+export function formAddress(site, template, data, { terms = {}, live = null, now = new Date() } = {}) {
   if (typeof template !== 'string' || !data?.slug || data.parent) return '';
-  const date = momentOf(data.date ?? '') ?? momentOf(now);
+  const date = momentOf(data.date ?? '') ?? liveDate(live, template) ?? momentOf(now);
   const address = filledAddress(template, { name: data.slug, date, terms });
   return address === null ? '' : new URL(address, site).href;
+}
+
+// The day the date's tokens of a live address give, by the type's address `template` the form
+// has, as a moment; null where the template holds no date, or cannot give the address, as after
+// the type's address changed. A term's path, and a post's, may fill several steps.
+function liveDate(live, template) {
+  if (typeof live !== 'string' || !/^\/.+\/$/.test(live)) return null;
+  const values = stepValues(addressSteps(template), live.slice(1, -1).split('/'), (token) => token !== 'slug' && !DATE_TOKENS.includes(token));
+  if (!/^\d{4}$/.test(values?.year ?? '')) return null;
+  return momentOf(`${values.year}-${values.month ?? '01'}-${values.day ?? '01'}`);
 }

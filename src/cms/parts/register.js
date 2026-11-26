@@ -35,6 +35,7 @@ import { computedDefault } from '../groups/menu.js';
 import { postValues } from '../groups/values.js';
 import { signedInCredential } from '../credential.js';
 import { sourceOf, sourceReader } from '../source.js';
+import { filesOf, languageOf, readStatus } from '../publishing/status.js';
 import { termIdOf } from '../../format/addresses.js';
 import { formAddress, termPathReader } from './address.js';
 import { menuLabelReader } from './menu-label.js';
@@ -89,6 +90,30 @@ export function registerParts(CMS, config) {
     return terms;
   };
 
+  // The address the current release has for the post a form shows, by the publish status (ADR
+  // 0031), in the language of the pane at `locale` on a site in several languages: read as the
+  // form opens a post whose values hold no date while its type's address `template` holds one,
+  // since only that address shows the moment the intake dated it by; null for a post the release
+  // does not show.
+  const useLiveAddress = (entry, template, locale = null) => {
+    const id = entry?.get?.('slug') ?? '';
+    const collection = entry?.get?.('collection') ?? '';
+    const wanted = Boolean(id) && typeof template === 'string' && template.includes('{year}') && !dataOf(entry).date;
+    const [posts, setPosts] = React.useState([]);
+    React.useEffect(() => {
+      if (!wanted) return undefined;
+      let gone = false;
+      void readStatus({ credential: signedInCredential }).then((status) => {
+        if (!gone && status) setPosts(filesOf(status.posts, collection, id));
+      });
+      return () => {
+        gone = true;
+      };
+    }, [wanted, collection, id]);
+    const post = posts.length === 1 ? posts[0] : posts.find((one) => languageOf(one) === locale);
+    return post && (post.status === 'live' || post.stillShown) ? post.address ?? null : null;
+  };
+
   // What each part left empty falls back to. A field's own value is left out, so that the
   // placeholder shows the part's default and not what is written.
   const RULES = {
@@ -100,7 +125,7 @@ export function registerParts(CMS, config) {
     socialTitle: (data) => socialTitleOf(data),
     socialDescription: (data) => socialDescriptionOf(data),
     // A post below another has its parents' slugs in its address, which the form does not hold.
-    ownAddress: (data, { address, locale, terms }) => formAddress(site, typeof address === 'string' ? address : address?.[locale], data, terms),
+    ownAddress: (data, { template, terms, live }) => formAddress(site, template, data, { terms, live }),
   };
 
   CMS.registerFieldType(TEXT_WIDGET, function KonziloText({ value, onChange, field, forID, entry }) {
@@ -115,6 +140,9 @@ export function registerParts(CMS, config) {
     const input = React.useRef(null);
     const composing = React.useRef(false);
     const terms = useAddressTerms(field, dataOf(entry));
+    const address = plain(field.get('address'));
+    const template = typeof address === 'string' ? address : address?.[locale];
+    const live = useLiveAddress(entry, template, locale);
     // The language of the pane the field is in, on a site in several languages.
     React.useEffect(() => {
       setLocale(input.current?.closest('[data-locale]')?.dataset.locale ?? null);
@@ -166,7 +194,7 @@ export function registerParts(CMS, config) {
     if (add && !value && !open) {
       return h('button', { type: 'button', id: forID, className: 'konzilo-part-add', onClick: () => setOpen(true) }, `+ ${add}`);
     }
-    const placeholder = (fallback && RULES[fallback] ? RULES[fallback](dataOf(entry), { name, separator, menuLabel, address: plain(field.get('address')), locale, terms }) : '') || (plain(field.get('placeholder')) ?? '');
+    const placeholder = (fallback && RULES[fallback] ? RULES[fallback](dataOf(entry), { name, separator, menuLabel, template, terms, live }) : '') || (plain(field.get('placeholder')) ?? '');
     return h(multiline ? 'textarea' : 'input', {
       ref: input,
       id: forID,
@@ -199,6 +227,7 @@ export function registerParts(CMS, config) {
     const address = plain(field.get('address'));
     const proposed = computedDefault('slug', dataOf(entry));
     const terms = useAddressTerms(field, dataOf(entry));
+    const live = useLiveAddress(entry, address);
     const following = React.useRef(!value);
     const [editing, setEditing] = React.useState(false);
     const [draft, setDraft] = React.useState(value ?? '');
@@ -211,7 +240,7 @@ export function registerParts(CMS, config) {
       following.current = true;
       if (proposed) onChange(proposed);
     }, [value]);
-    const page = formAddress(site, address, { ...dataOf(entry), slug: value }, terms);
+    const page = formAddress(site, address, { ...dataOf(entry), slug: value }, { terms, live });
     const press = () => {
       if (!editing) {
         setDraft(value ?? '');
