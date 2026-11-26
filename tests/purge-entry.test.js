@@ -257,7 +257,7 @@ describe('a purge of a deleted image library entry', () => {
     assert.ok(!paths.has('media/meadow.jpg'), 'its own original goes');
     assert.ok(paths.has('media/named.jpg'), 'a current file names it');
     assert.ok(paths.has('media/shared.jpg'), 'another entry names it, deleted or not');
-    assert.deepEqual(result.originals, [oidOf(own)]);
+    assert.deepEqual(result.originals, [{ oid: oidOf(own), size: own.length }]);
     const freshContent = cloned(content.bare);
     assert.ok(![...everyPath(freshContent)].some((path) => path.startsWith('media/meadow-')), 'the masters made of it go');
     assert.ok(everyPath(freshContent).has(`media/kept-${oidOf(kept).slice(0, 10)}.webp`));

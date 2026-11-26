@@ -42,16 +42,17 @@ export function forgejoPurge({ forgejo, repository, token, work, control = null,
     await answer.arrayBuffer();
     return answer.ok;
   };
-  // Whether Forgejo still holds an LFS object, as its batch API says to whoever may read it.
-  const holdsObject = async (oid) => {
+  // Whether Forgejo still holds an LFS object, { oid, size }, as its batch API says to whoever may
+  // read it: an object it does not hold is answered with an error of 404.
+  const holdsObject = async ({ oid, size }) => {
     const answer = await get(`${forgejo}/${repository}.git/info/lfs/objects/batch`, {
       method: 'POST',
       headers: { authorization: `Basic ${Buffer.from(`${user}:${token}`).toString('base64')}`, accept: 'application/vnd.git-lfs+json', 'content-type': 'application/vnd.git-lfs+json' },
-      body: JSON.stringify({ operation: 'download', transfers: ['basic'], objects: [{ oid, size: 1 }] }),
+      body: JSON.stringify({ operation: 'download', transfers: ['basic'], objects: [{ oid, size }] }),
     });
     if (!answer.ok) throw new Error(`Forgejo answered ${answer.status} about an LFS object`);
     const [object] = (await answer.json()).objects ?? [];
-    return !object?.error;
+    return object?.error?.code !== 404;
   };
   // Runs a task of Forgejo's own until `left()` gives nothing, asking it again now and then, as
   // it runs in the background and a call while it runs is let go.
