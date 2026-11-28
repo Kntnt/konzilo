@@ -101,8 +101,11 @@ export function sourceFrom(description, published, { now = new Date() } = {}) {
   const files = [];
   const several = description.languages.length > 1;
   const posts = postsOf(description, published, now);
+  // What a menu's entry or a body's link may lead to by its ID, by its address: each post's page,
+  // and below each term's, with the title an entry's label is told from.
   const ids = new Map(posts.filter((post) => post.address).map((post) => [post.address, post.id]));
   const titled = new Map(posts.filter((post) => post.address).map((post) => [post.address, post]));
+  const named = new Map(posts.filter((post) => post.address).map((post) => [post.address, post.fields.title]));
   const fieldsTaking = new Map();
   for (const type of Object.values(description.types)) {
     for (const field of type.fields) {
@@ -118,12 +121,20 @@ export function sourceFrom(description, published, { now = new Date() } = {}) {
       const slug = several ? within.slice(tag.length + 1) : within;
       const term = JSON.parse(content);
       const { parent, ...rest } = term;
+      const id = idOf(taxonomy.collection, slug);
       const written = {
         ...rest,
         slug,
         ...(parent ? { parent: idOf(taxonomy.collection, parent.split('/').at(-1)) } : {}),
       };
-      files.push({ path: `${taxonomy.collection}/${tag ? `${tag}/` : ''}${idOf(taxonomy.collection, slug)}.json`, content: `${JSON.stringify(written, null, 2)}\n` });
+      files.push({ path: `${taxonomy.collection}/${tag ? `${tag}/` : ''}${id}.json`, content: `${JSON.stringify(written, null, 2)}\n` });
+      // A term has a page only on a site in one language, at its taxonomy's address with its
+      // slug, or its path of slugs from the top, as the intake makes it (intake/terms.js).
+      if (several || !taxonomy.address) continue;
+      const address = taxonomy.address.replace('{slug}', slug).replace('{path}', parent ? `${parent}/${slug}` : slug);
+      if (ids.has(address)) continue;
+      ids.set(address, id);
+      named.set(address, term.name);
     }
   }
 
@@ -191,7 +202,7 @@ export function sourceFrom(description, published, { now = new Date() } = {}) {
   for (const { path, content } of published) {
     if (!path.startsWith('menus/') || !path.endsWith('.json')) continue;
     const menu = JSON.parse(content);
-    files.push({ path, content: `${JSON.stringify({ items: entriesAsSource(menu.items, ids, titled) }, null, 2)}\n` });
+    files.push({ path, content: `${JSON.stringify({ items: entriesAsSource(menu.items, ids, named) }, null, 2)}\n` });
   }
   files.sort((a, b) => (a.path < b.path ? -1 : 1));
   return files;
@@ -205,15 +216,15 @@ function notFoundPost(description, { content }, ids, files) {
   return id;
 }
 
-// A menu's entries by their posts' IDs, with a label only where it differs from the
-// post's title, and a description where the entry has one.
-function entriesAsSource(items, ids, titled) {
+// A menu's entries by the IDs of the posts and terms they lead to, with a label only where
+// it differs from the post's title or the term's name, and a description where the entry has one.
+function entriesAsSource(items, ids, named) {
   return items.map(({ title, url, description, items: under }) => {
     const id = ids.get(url);
     const lead = id
-      ? { ...(titled.get(url).fields.title === title ? {} : { title }), post: id }
+      ? { ...(named.get(url) === title ? {} : { title }), post: id }
       : { title, ...(url === undefined ? {} : { url }) };
-    return { ...lead, ...(description === undefined ? {} : { description }), ...(under ? { items: entriesAsSource(under, ids, titled) } : {}) };
+    return { ...lead, ...(description === undefined ? {} : { description }), ...(under ? { items: entriesAsSource(under, ids, named) } : {}) };
   });
 }
 

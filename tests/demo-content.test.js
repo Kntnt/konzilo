@@ -395,6 +395,42 @@ describe('konzilo-demo-content', () => {
 
 // The image library starts with what the posts show, each picture with what its first post holds
 // beside it, its alt text and its focal point, as an editor's choice of it would have copied them.
+// An editor's menu entry or link to a term's page is a reference by the term's ID, as one to a post's is, so the seed
+// gives back the ID that the published file keeps, and the site tells the entry from a link to the same address.
+test('takes a menu entry and a body\'s link to a term\'s page through the seed as references by the term\'s ID', () => {
+  const site = mkdtempSync(join(tmpdir(), 'konzilo-demo-terms-'));
+  const article = siteDescription({ language: 'en_GB', images: { smallestWidth: 400, displayWidth: 1280 }, menus: { main: { label: 'Main menu' } }, types: { article: { collection: 'articles', address: '/{slug}/', elements: ['paragraph'] } }, taxonomies: { category: { address: '/category/{path}/' } } });
+  try {
+    mkdirSync(join(site, 'demo-content/articles'), { recursive: true });
+    mkdirSync(join(site, 'demo-content/categories'), { recursive: true });
+    mkdirSync(join(site, 'demo-content/menus'), { recursive: true });
+    writeFileSync(join(site, 'demo-content/categories/lamps.json'), JSON.stringify({ name: 'Lamps' }));
+    writeFileSync(join(site, 'demo-content/categories/gas-lamps.json'), JSON.stringify({ name: 'Gas lamps', parent: 'lamps' }));
+    writeFileSync(join(site, 'demo-content/articles/quay.md'), '---\ntitle: "The quay"\ndate: 2026-10-20T08:00:00Z\nmodified: 2026-10-20T08:00:00Z\nheadline: "The quay"\ncategory: ["lamps/gas-lamps"]\n---\n\nMore in [the gas lamps](/category/lamps/gas-lamps/).\n');
+    writeFileSync(join(site, 'demo-content/menus/main.json'), JSON.stringify({ items: [
+      { title: 'Lamps', url: '/category/lamps/', items: [{ title: 'All the gas lamps', url: '/category/lamps/gas-lamps/' }] },
+      { title: 'The quay', url: '/quay/' },
+    ] }));
+    const source = demoSource(article, join(site, 'demo-content'), { now: BEFORE });
+    const lamps = idOf('categories', 'lamps');
+    const gas = idOf('categories', 'gas-lamps');
+    const menu = JSON.parse(source.find(({ path }) => path === 'menus/main.json').content);
+    assert.deepEqual(menu.items, [
+      { post: lamps, items: [{ title: 'All the gas lamps', post: gas }] },
+      { post: idOf('articles', 'quay') },
+    ]);
+    assert.match(source.find(({ path }) => path.startsWith('articles/')).content, new RegExp(`\\[the gas lamps\\]\\(konzilo:${gas}\\)`));
+    const taken = intake({ files: source.map(({ path, content }) => ({ path, contents: content })), site: article, now: BEFORE, images: namedImages() });
+    assert.deepEqual(taken.refusals, []);
+    assert.deepEqual(JSON.parse(taken.files.find(({ path }) => path === 'menus/main.json').contents).items, [
+      { title: 'Lamps', post: lamps, url: '/category/lamps/', items: [{ title: 'All the gas lamps', post: gas, url: '/category/lamps/gas-lamps/' }] },
+      { title: 'The quay', post: idOf('articles', 'quay'), url: '/quay/' },
+    ]);
+  } finally {
+    rmSync(site, { recursive: true, force: true });
+  }
+});
+
 test('starts the image library with each picture a post shows, its alt text and its focal point copied as the post holds them', () => {
   const site = mkdtempSync(join(tmpdir(), 'konzilo-demo-library-'));
   try {
