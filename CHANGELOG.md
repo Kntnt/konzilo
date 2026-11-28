@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.11.1] – 2026-11-28
+
 ### Fixed
 
 - A local copy's Forgejo starts with each menu entry and each link of a body that leads to a term's page as a reference by the term's ID, as an editor's save leaves it and as one to a post's page already was. They were seeded as links to the page's address, so the menu's published file lost the term's ID, the menu went on leading to the old address once the term's slug changed, and a demo whose menu leads to its categories came back from the seed otherwise than its demo content holds it.
